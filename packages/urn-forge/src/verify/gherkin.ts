@@ -1,5 +1,6 @@
 /**
- * Gate 3: Gherkin traceability, MVP checks (spec §8 checks 1–2; boundary coverage is cut).
+ * Gate 3: Gherkin traceability (spec §8 checks 1–2; boundary coverage is not built yet).
+ * Reads the feature index; it does not run the features.
  *
  * 1. Tags. Every `@urn:…` tag resolves to a URN in the IR, and every operation has at
  *    least one feature or scenario tagged with it.
@@ -7,161 +8,96 @@
  *    operation URN, every DataTable header and every `Examples` header must be a field key
  *    of the operation's input or output entity (the plan's "Spec gaps" #2 widens spec §8,
  *    which allowed input keys only). Under an entity tag, headers must be that entity's keys.
- *
- * Reads the feature files only; it does not run them.
+ * 3. Required headers. The table of `When I run the operation with:` must have a column for
+ *    every required field of the operation's input. To test a missing value, leave its
+ *    cell empty: the step then sends the payload without that key.
  */
-import { readdir, readFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
-import { AstBuilder, GherkinClassicTokenMatcher, Parser } from '@cucumber/gherkin';
-import { IdGenerator, type Feature, type Location, type Scenario, type Step, type TableRow, type Tag } from '@cucumber/messages';
+import { STEP_PHRASES } from '../gherkin/phrases.js';
+import type { Diagnostic, DiagnosticCode, SourceLocation } from '../diagnostics.js';
 import type { UniversalIR, Urn } from '../ir/types.js';
-import type { Diagnostic, DiagnosticCode } from '../diagnostics.js';
-import { displayPath, type GateResult } from './types.js';
+import type { IndexedCell, IndexedTag, IndexedTable } from './feature-index.js';
+import type { Gate, GateContext, GateOutcome } from './types.js';
 
-export interface GherkinGateOptions {
-  readonly cwd: string;
-  readonly featuresDir: string;
-  readonly ir: UniversalIR;
+/** What a scope's URN tags allow in its tables. */
+interface Owner {
+  readonly urn: string;
+  /** For messages: `the input or output of urn:…`. */
+  readonly description: string;
+  readonly keys: ReadonlySet<string>;
+  /** For an operation: its input's required property names. */
+  readonly requiredInput?: readonly string[];
 }
 
-interface Scope {
-  readonly tags: readonly Tag[];
-}
-
-async function featureFiles(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { recursive: true, withFileTypes: true });
-  return entries
-    .filter((e) => e.isFile() && e.name.endsWith('.feature'))
-    .map((e) => join(e.parentPath, e.name))
-    .sort();
-}
-
-export async function checkGherkin(options: GherkinGateOptions): Promise<GateResult> {
-  const { ir } = options;
-  const problems: Diagnostic[] = [];
+export function checkGherkin({ ir, features }: GateContext): GateOutcome {
+  const problems: Diagnostic[] = [...features.problems];
   const covered = new Set<string>();
-  const featuresLabel = displayPath(options.cwd, options.featuresDir, relative);
-  let featureCount = 0;
-  let scenarioCount = 0;
 
-  let files: string[];
-  try {
-    files = await featureFiles(options.featuresDir);
-  } catch (error) {
-    files = [];
-    problems.push({
-      code: 'features-unreadable',
-      severity: 'error',
-      file: featuresLabel,
-      message: `cannot read features: ${(error as Error).message}`,
-    });
-  }
+  for (const feature of features.features) {
+    const report = (code: DiagnosticCode, location: SourceLocation, message: string, urn?: string) =>
+      problems.push({ code, severity: 'error', file: feature.file, location, ...(urn === undefined ? {} : { urn }), message });
 
-  for (const file of files) {
-    const label = displayPath(options.cwd, file, relative);
-    const report = (code: DiagnosticCode, location: Location | undefined, message: string, urn?: string) =>
-      problems.push({
-        code,
-        severity: 'error',
-        file: label,
-        ...(location ? { location: { line: location.line, column: location.column ?? 1 } } : {}),
-        ...(urn === undefined ? {} : { urn }),
-        message,
-      });
-
-    let feature: Feature | undefined;
-    try {
-      const parser = new Parser(new AstBuilder(IdGenerator.incrementing()), new GherkinClassicTokenMatcher());
-      feature = parser.parse(await readFile(file, 'utf8')).feature;
-    } catch (error) {
-      report('feature-parse-error', undefined, `cannot parse: ${(error as Error).message.split('\n')[0]}`);
-      continue;
-    }
-    if (!feature) continue;
-    featureCount += 1;
-
-    /** Checks each tag resolves; returns the URNs that resolved. */
-    const resolveTags = (tags: readonly Tag[]) => {
-      for (const tag of tags) {
-        if (!tag.name.startsWith('@urn:')) continue;
-        const urn = tag.name.slice(1);
-        const known = urn in ir.fields || urn in ir.entities || urn in ir.operations;
-        if (!known) report('unresolved-tag', tag.location, `tag ${tag.name} does not resolve to a URN in the manifest`);
-        if (urn in ir.operations) covered.add(urn);
+    // 1. Tags, each checked once where it is written.
+    for (const tag of feature.declaredTags) {
+      if (!tag.name.startsWith('@urn:')) continue;
+      const urn = tag.name.slice(1);
+      if (!(urn in ir.fields || urn in ir.entities || urn in ir.operations)) {
+        report('unresolved-tag', tag.location, `tag ${tag.name} does not resolve to a URN in the manifest`);
       }
-    };
+      if (urn in ir.operations) covered.add(urn);
+    }
 
-    /** Allowed header names for a scope, or undefined when no URN tag constrains it. */
-    const allowedHeaders = (
-      scopes: readonly Scope[],
-      where: Location,
-    ): { keys: Set<string>; owner: string; urn: string } | undefined => {
-      const urns = [...new Set(scopes.flatMap((s) => s.tags.map((t) => t.name.slice(1))))];
+    /** The one operation or entity a set of tags names, if any. Reports more than one. */
+    const ownerOf = (tags: readonly IndexedTag[], where: SourceLocation): Owner | undefined => {
+      const urns = [...new Set(tags.map((t) => t.name.slice(1)))];
       const operations = urns.filter((u) => u in ir.operations) as Urn[];
       const entities = urns.filter((u) => u in ir.entities) as Urn[];
       if (operations.length + entities.length > 1) {
-        report(
-          'ambiguous-tag',
-          where,
-          `scenario is tagged with more than one operation or entity: ${[...operations, ...entities].join(', ')}`,
-        );
+        report('ambiguous-tag', where, `scenario is tagged with more than one operation or entity: ${[...operations, ...entities].join(', ')}`);
         return undefined;
       }
-      const keysOf = (entityUrn: Urn) => ir.entities[entityUrn]?.fields.map((f) => f.name) ?? [];
-      const [operation] = operations;
-      if (operation) {
-        const op = ir.operations[operation]!;
-        return {
-          keys: new Set([...keysOf(op.input), ...keysOf(op.output)]),
-          owner: `the input or output of ${operation}`,
-          urn: operation,
-        };
-      }
-      const [entity] = entities;
-      return entity ? { keys: new Set(keysOf(entity)), owner: entity, urn: entity } : undefined;
+      return operations[0] ? operationOwner(ir, operations[0]) : entities[0] ? entityOwner(ir, entities[0]) : undefined;
     };
 
-    const checkHeader = (row: TableRow | undefined, allowed: ReturnType<typeof allowedHeaders>) => {
-      if (!row || !allowed) return;
-      for (const cell of row.cells) {
-        if (!allowed.keys.has(cell.value)) {
+    // 2. Unknown headers.
+    const checkHeader = (header: readonly IndexedCell[], owner: Owner | undefined) => {
+      if (!owner) return;
+      for (const cell of header) {
+        if (!owner.keys.has(cell.value)) {
           report(
             'unknown-header',
             cell.location,
-            `table header "${cell.value}" is not a field key of ${allowed.owner} (allowed: ${[...allowed.keys].join(', ')})`,
-            allowed.urn,
+            `table header "${cell.value}" is not a field key of ${owner.description} (allowed: ${[...owner.keys].join(', ')})`,
+            owner.urn,
           );
         }
       }
     };
 
-    const checkSteps = (steps: readonly Step[], allowed: ReturnType<typeof allowedHeaders>) => {
-      for (const step of steps) checkHeader(step.dataTable?.rows[0], allowed);
-    };
-
-    const checkScenario = (scenario: Scenario, scopes: readonly Scope[], background: readonly Step[]) => {
-      scenarioCount += 1;
-      resolveTags(scenario.tags);
-      const own = [...scopes, scenario];
-      checkSteps([...background, ...scenario.steps], allowedHeaders(own, scenario.location));
-      for (const examples of scenario.examples) {
-        resolveTags(examples.tags);
-        checkHeader(examples.tableHeader, allowedHeaders([...own, examples], examples.location));
+    // 3. Required input headers on the step that runs the operation.
+    const checkRequired = (table: IndexedTable, owner: Owner | undefined) => {
+      if (!owner?.requiredInput) return;
+      const present = new Set(table.header.map((cell) => cell.value));
+      const missing = owner.requiredInput.filter((name) => !present.has(name));
+      if (missing.length > 0) {
+        report(
+          'missing-column',
+          table.location,
+          `the table of "${STEP_PHRASES.run}" has no column for required input field(s) ${missing.map((m) => `"${m}"`).join(', ')} ` +
+            `of ${owner.urn}; to test a missing value, keep the column and leave the cell empty`,
+          owner.urn,
+        );
       }
     };
 
-    resolveTags(feature.tags);
-    let featureBackground: readonly Step[] = [];
-    for (const child of feature.children) {
-      if (child.background) featureBackground = child.background.steps;
-      if (child.scenario) checkScenario(child.scenario, [feature], featureBackground);
-      if (child.rule) {
-        resolveTags(child.rule.tags);
-        let ruleBackground = featureBackground;
-        for (const ruleChild of child.rule.children) {
-          if (ruleChild.background) ruleBackground = [...featureBackground, ...ruleChild.background.steps];
-          if (ruleChild.scenario) checkScenario(ruleChild.scenario, [feature, child.rule], ruleBackground);
-        }
+    for (const scenario of feature.scenarios) {
+      const owner = ownerOf(scenario.tags, scenario.location);
+      for (const step of scenario.steps) {
+        if (!step.table) continue;
+        checkHeader(step.table.header, owner);
+        if (step.text === STEP_PHRASES.run) checkRequired(step.table, owner);
+      }
+      for (const examples of scenario.examples) {
+        if (examples.table) checkHeader(examples.table.header, ownerOf([...scenario.tags, ...examples.tags], examples.location));
       }
     }
   }
@@ -172,18 +108,36 @@ export async function checkGherkin(options: GherkinGateOptions): Promise<GateRes
       problems.push({
         code: 'untagged-operation',
         severity: 'error',
-        file: featuresLabel,
+        file: features.directory,
         urn,
         message: `operation ${urn} has no feature or scenario tagged @${urn}`,
       });
     }
   }
 
+  const scenarioCount = features.features.reduce((n, f) => n + f.scenarios.length, 0);
   return {
-    gate: 3,
-    name: 'gherkin',
-    ok: problems.length === 0,
-    summary: `${featureCount} feature(s), ${scenarioCount} scenario(s), ${operations.filter((u) => covered.has(u)).length}/${operations.length} operations tagged`,
+    summary: `${features.features.length} feature(s), ${scenarioCount} scenario(s), ${operations.filter((u) => covered.has(u)).length}/${operations.length} operations tagged`,
     problems,
   };
 }
+
+function propertyNames(ir: UniversalIR, entity: Urn): string[] {
+  return ir.entities[entity]?.fields.map((f) => f.name) ?? [];
+}
+
+function operationOwner(ir: UniversalIR, urn: Urn): Owner {
+  const op = ir.operations[urn]!;
+  return {
+    urn,
+    description: `the input or output of ${urn}`,
+    keys: new Set([...propertyNames(ir, op.input), ...propertyNames(ir, op.output)]),
+    requiredInput: ir.entities[op.input]?.fields.filter((f) => f.required).map((f) => f.name) ?? [],
+  };
+}
+
+function entityOwner(ir: UniversalIR, urn: Urn): Owner {
+  return { urn, description: urn, keys: new Set(propertyNames(ir, urn)) };
+}
+
+export const gherkinGate: Gate = { number: 3, name: 'gherkin', run: checkGherkin };

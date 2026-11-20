@@ -78,7 +78,7 @@ With `--format json`, urn-forge writes JSON lines to stdout. Each line is one JS
 | `diagnostic` | Both | `severity`, `code`, `file`, `line` and `column` (if the diagnostic has a position), `urn` (if the diagnostic has a URN), `message`. For a gate problem, also `gate` |
 | `file` | `compile` | `path`, and `changed` (`false` if the file had the same content) |
 | `gate` | `verify` | `gate`, `name`, `ok`, `summary` |
-| `result` | Both | `ok`. For `compile`, also `fingerprint` if the compile is correct. For `verify`, also `failedGates` |
+| `result` | Both | `ok`. For `compile`, also `fingerprint` if the compile is correct. For `verify`, also `failedGates` and `warnings`, the number of warnings |
 
 The lines come in this sequence: the diagnostics, then the files or the gates, then one `result` line.
 
@@ -87,7 +87,7 @@ The lines come in this sequence: the diagnostics, then the files or the gates, t
 {"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over example/core.ts; `core` satisfies DomainCoreImplementation"}
 {"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"2 feature(s), 4 scenario(s), 2/2 operations tagged"}
 {"type":"gate","gate":4,"name":"drift","ok":false,"summary":"2 generated file(s) compared byte for byte against example/generated"}
-{"type":"result","ok":false,"failedGates":[4]}
+{"type":"result","ok":false,"failedGates":[4],"warnings":0}
 ```
 
 ## Exit codes

@@ -58,6 +58,7 @@ export const DIAGNOSTIC_CODES = {
   'untagged-operation': 'An operation has no feature or scenario tagged with its URN',
   'ambiguous-tag': 'A scenario has more than one operation or entity tag',
   'unknown-header': 'A table header is not a field key of the tagged operation or entity',
+  'missing-column': 'The input table of an operation has no column for a required field',
   // Gate 4: drift
   'generated-missing': 'A generated file is not in the output directory',
   'generated-differs': 'A generated file differs from a fresh compile',

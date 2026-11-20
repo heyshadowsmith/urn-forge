@@ -6,6 +6,8 @@ The `urn-forge verify` command does a static check of each link in the chain. It
 2. The command runs three gates and shows the result of each gate.
 3. If one or more gates fail, the command stops with exit code `1`.
 
+A gate fails if it finds one or more errors. A warning does not make a gate fail. If there are warnings, the last line gives their number, for example `verify passed with 2 warning(s)`. The MVP gates do not make warnings at this time.
+
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over example/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       PASS  2 feature(s), 4 scenario(s), 2/2 operations tagged
@@ -36,12 +38,16 @@ gate 1  completeness  FAIL  tsc: 1 error(s) over example/core.ts; `core` satisfi
 
 1. **Tags.** Each `@urn:…` tag must agree with a URN in the manifest. Each operation must have a tag on one or more features or scenarios.
 2. **Headers.** These rules apply to a scenario with an operation tag. Each header in its tables must be a property of the input or output entity of the operation. This applies to step tables and to `Examples` blocks. If the tag is an entity tag, each header must be a property of that entity. A scenario receives the tags of its feature, of its `Rule` block and of its `Examples` blocks.
+3. **Required columns.** The table of the step `When I run the operation with:` must have a column for each mandatory field of the input of the operation. Fields with `required: false` are not mandatory. To make a test with a missing value, keep the column and leave the cell empty. Then the step sends the payload without that key.
 
 A scenario with two or more operation or entity tags fails, because the steps must have one tag only.
+
+The change of a column name from `divisor` to `denominator` causes two errors. The new name is not a field, and the table has no `divisor` column:
 
 ```
 gate 3  gherkin       FAIL  2 feature(s), 4 scenario(s), 2/2 operations tagged
     example/features/safe_divide.feature:6:22  error  unknown-header  table header "denominator" is not a field key of the input or output of urn:demo:math:arithmetic:operation:safe_divide (allowed: dividend, divisor, quotient)
+    example/features/safe_divide.feature:6:7  error  missing-column  the table of "I run the operation with:" has no column for required input field(s) "divisor" of urn:demo:math:arithmetic:operation:safe_divide; to test a missing value, keep the column and leave the cell empty
 ```
 
 Gate 3 counts the scenarios in the syntax tree. It counts each Scenario Outline one time. Cucumber counts each row of each `Examples` table. As a result, the scenario count of Cucumber is larger.

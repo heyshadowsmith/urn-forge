@@ -20,6 +20,7 @@
  */
 import { Before, Then, When, type DataTable } from '@cucumber/cucumber';
 import { parseCell, type Primitive } from '../primitives/index.js';
+import { STEP_PHRASES } from './phrases.js';
 
 // Structural views of the generated runtime, so this library does not depend on any one domain.
 
@@ -175,7 +176,7 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     this.urnForge = { tags: pickle.tags.map((tag) => tag.name) };
   });
 
-  When('I run the operation with:', function (this: StepsWorld, table: DataTable) {
+  When(STEP_PHRASES.run, function (this: StepsWorld, table: DataTable) {
     const s = state(this);
     const urn = operationUrnFromTags(s.tags);
     const payload = tableToObject(table.raw(), contract(urn).input.fields, 'input', urn);
@@ -183,12 +184,12 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     s.result = options.execute(urn, payload);
   });
 
-  Then('the output is:', function (this: StepsWorld, table: DataTable) {
+  Then(STEP_PHRASES.output, function (this: StepsWorld, table: DataTable) {
     const { urn, result } = lastRun(this);
     assertOutput(result, tableToObject(table.raw(), contract(urn).output.fields, 'output', urn), urn);
   });
 
-  Then('the input is rejected on {string}', function (this: StepsWorld, fieldName: string) {
+  Then(STEP_PHRASES.rejected, function (this: StepsWorld, fieldName: string) {
     const { urn, result } = lastRun(this);
     assertRejectedOn(result, fieldName, contract(urn).input.fields, urn);
   });

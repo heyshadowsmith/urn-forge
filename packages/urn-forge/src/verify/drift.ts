@@ -11,7 +11,7 @@ import { join, relative } from 'node:path';
 import type { GeneratedArtifact } from '../plugins/plugin.interface.js';
 import { generatedPath, writeGeneratedFiles } from '../write.js';
 import type { Diagnostic } from '../diagnostics.js';
-import { displayPath, type GateResult } from './types.js';
+import { displayPath, type Gate, type GateOutcome } from './types.js';
 
 export interface DriftOptions {
   readonly cwd: string;
@@ -35,7 +35,7 @@ async function committedGeneratedFiles(outDir: string): Promise<string[]> {
     .sort();
 }
 
-export async function checkDrift(options: DriftOptions): Promise<GateResult> {
+export async function checkDrift(options: DriftOptions): Promise<GateOutcome> {
   const show = (path: string) => displayPath(options.cwd, path, relative);
   const problems: Diagnostic[] = [];
   const temp = await mkdtemp(join(tmpdir(), 'urn-forge-drift-'));
@@ -78,10 +78,9 @@ export async function checkDrift(options: DriftOptions): Promise<GateResult> {
   }
 
   return {
-    gate: 4,
-    name: 'drift',
-    ok: problems.length === 0,
     summary: `${options.files.length} generated file(s) compared byte for byte against ${show(options.outDir)}`,
     problems,
   };
 }
+
+export const driftGate: Gate = { number: 4, name: 'drift', run: checkDrift };
