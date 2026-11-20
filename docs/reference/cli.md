@@ -11,16 +11,17 @@ urn-forge <command> [options]
 | `--help`, `-h`, `help` | Shows the usage text and stops with exit code `0` |
 | `--version` | Shows the urn-forge version and stops with exit code `0` |
 
-If you do not give a command, urn-forge shows the usage text. Then it stops with exit code `2`. urn-forge resolves relative paths in options from the current directory.
+If you do not give a command, urn-forge shows the usage text. Then it stops with exit code `2`. urn-forge resolves relative paths in options from the current directory. A [configuration file](./config) can give the settings instead of the options. An option overrides the configuration file.
 
 ## `compile`
 
 ```
-urn-forge compile [--manifest <file>] [--out <dir>] [--format text|json]
+urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
 ```
 
 | Option | Default | Description |
 | --- | --- | --- |
+| `--config <file>` | `urn-forge.config.ts`, if it exists | The [configuration file](./config) |
 | `--manifest <file>` | `domain.manifest.yaml` | The manifest to compile |
 | `--out <dir>` | `src/generated` | The directory for the generated files |
 | `--format <format>` | `text` | `text` or `json`. Refer to [Output formats](#output-formats) |
@@ -40,11 +41,12 @@ fingerprint sha256:<64 hex digits>
 ## `verify`
 
 ```
-urn-forge verify [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
+urn-forge verify [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
 ```
 
 | Option | Default | Description |
 | --- | --- | --- |
+| `--config <file>` | `urn-forge.config.ts`, if it exists | The [configuration file](./config) |
 | `--manifest <file>` | `domain.manifest.yaml` | The manifest to compile |
 | `--out <dir>` | `src/generated` | The directory of the generated files in the repository (gates 1 and 4) |
 | `--core <file>` | `src/core.ts` | The core entry. It must use `satisfies DomainCoreImplementation` (gate 1) |

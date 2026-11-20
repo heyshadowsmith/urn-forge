@@ -11,6 +11,7 @@
  */
 import * as v from 'valibot';
 import type { IREntity, IRField, UniversalIR, Urn } from '../ir/types.js';
+import { schemaNames } from '../naming.js';
 import {
   constraintKeys,
   type ConstraintKey,
@@ -27,14 +28,6 @@ import {
 
 export const VALIBOT_SCHEMAS_FILE = 'domain.schemas.generated.ts';
 
-/** Exported names for one atom. Other plugins import these, so they live here. */
-export function schemaNames(brandIdentifier: string) {
-  return {
-    schema: `${brandIdentifier}Schema`,
-    output: brandIdentifier,
-    input: `${brandIdentifier}Input`,
-  } as const;
-}
 
 /** How one primitive becomes a Valibot pipe: its base actions, then one action per constraint. */
 export interface ValibotTranslation<P extends Primitive> {
@@ -71,19 +64,15 @@ const TRANSLATIONS: ValibotTranslations = {
 const ConfigSchema = v.strictObject({});
 export type ValibotPluginConfig = v.InferOutput<typeof ConfigSchema>;
 
-function fieldDeclaration(field: IRField, diagnostics: PluginDiagnostic[]): string {
+/** Derived from `TRANSLATIONS`, so the engine's support check and the emitter cannot disagree. */
+const SUPPORTED_CONSTRAINTS = Object.fromEntries(
+  Object.entries(TRANSLATIONS).map(([primitive, translation]) => [primitive, Object.keys(translation.constraints)]),
+) as unknown as { readonly [P in Primitive]: readonly string[] };
+
+/** Field schemas only use constraints the engine has checked against `SUPPORTED_CONSTRAINTS`. */
+function fieldDeclaration(field: IRField): string {
   const translation = TRANSLATIONS[field.primitive];
   const actions = translation.constraints as Readonly<Record<string, (value: ConstraintValue) => string>>;
-  for (const key of Object.keys(field.constraints).sort()) {
-    if (!Object.hasOwn(actions, key)) {
-      diagnostics.push({
-        code: 'unsupported-construct',
-        severity: 'error',
-        urn: field.urn,
-        message: `${field.urn}: the valibot plugin cannot translate constraint "${key}"`,
-      });
-    }
-  }
 
   // Constraints follow the registry's order, so output does not depend on manifest key order.
   const steps = [...translation.base];
@@ -155,12 +144,14 @@ export const valibotPlugin: CodegenPlugin<ValibotPluginConfig> = {
   name: 'valibot',
   version: '0.1.0',
   configSchema: ConfigSchema,
+  // Operations need no schema of their own: their input and output are entities.
+  supports: { kinds: ['field', 'entity', 'operation'], constraints: SUPPORTED_CONSTRAINTS },
   emit(ir) {
     const diagnostics = exportCollisions(ir);
     const sections = [
       `import * as v from 'valibot';`,
       `// Fields`,
-      ...valuesInUrnOrder(ir.fields).map((field) => fieldDeclaration(field, diagnostics)),
+      ...valuesInUrnOrder(ir.fields).map(fieldDeclaration),
       `// Entities`,
       ...valuesInUrnOrder(ir.entities).map((entity) => entityDeclaration(entity, ir.fields)),
     ];

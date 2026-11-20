@@ -8,6 +8,8 @@
 import type * as v from 'valibot';
 import type { DiagnosticCode } from '../diagnostics.js';
 import type { UniversalIR, Urn } from '../ir/types.js';
+import type { KindName } from '../kinds/index.js';
+import type { Primitive } from '../primitives/index.js';
 
 export interface GeneratedArtifact {
   /** POSIX path, relative to `--out`. */
@@ -28,11 +30,30 @@ export interface PluginOutput {
   readonly diagnostics: readonly PluginDiagnostic[];
 }
 
+/**
+ * What a plugin can handle (spec §7: "each must handle every IR construct or fail
+ * compilation naming the construct it cannot handle"). The engine checks the IR against
+ * it before `emit`, and reports anything else as `unsupported-construct` with its URN.
+ */
+export interface PluginSupport {
+  /** Kinds whose atoms this plugin handles. Handling may mean emitting nothing, on purpose. */
+  readonly kinds: readonly KindName[];
+  /**
+   * Per primitive, the constraint keys this plugin translates. A field whose primitive is
+   * not a key, or that sets a constraint not listed, is unsupported. Omit it for a plugin
+   * that does not read primitives or constraints.
+   */
+  readonly constraints?: { readonly [P in Primitive]?: readonly string[] };
+}
+
 export interface CodegenPlugin<C = unknown> {
   readonly name: string;
   /** Feeds the fingerprint, so a generator change shows up as drift. */
   readonly version: string;
   readonly configSchema: v.GenericSchema<C>;
+  readonly supports: PluginSupport;
+  /** Plugins whose output this plugin's output imports. Compile fails if one is not enabled. */
+  readonly requires?: readonly string[];
   emit(ir: UniversalIR, config: C): PluginOutput;
 }
 
