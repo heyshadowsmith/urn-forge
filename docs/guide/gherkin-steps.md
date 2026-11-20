@@ -1,12 +1,14 @@
 # Gherkin steps
 
-urn-forge supplies three generic Cucumber steps. These steps operate for all domains. They read the necessary data from the tag of the feature and from the generated `DispatchMap`.
+urn-forge supplies five generic Cucumber steps. These steps operate for all domains. They read the necessary data from the tag of the feature and from the generated `DispatchMap`.
 
 | Step | Function |
 | --- | --- |
 | `When I run the operation with:` | Makes a payload from the table and calls `executeOperation` |
 | `Then the output is:` | Makes sure that the call is correct and that the output fields in the table agree |
 | `Then the input is rejected on "<field>"` | Makes sure that the call returns `InputRejected` with an issue on that field |
+| `Then the operation fails with "<error URN>"` | Makes sure that the call returns the declared error with this URN |
+| `Then the operation fails with "<error URN>":` | The same, and the error fields in the table agree |
 
 ## The tag of a feature
 
@@ -76,6 +78,30 @@ The step fails in these conditions:
 - The operation is correct.
 - The result is a `ContractViolation` or a `DomainError`.
 - The issue is about a different field.
+
+## Declared errors
+
+The step `Then the operation fails with "<error URN>"` passes only if the handler refused with `fail(…)`, and the error has this URN. Give the full URN of the error:
+
+```gherkin
+Scenario: A kind from the spec that is not supported yet is refused
+  When I run the operation with:
+    | short_key           |
+    | policy.event.placed |
+  Then the operation fails with "urn:urn_forge:toolchain:naming:error:unsupported_kind":
+    | short_key           | kind_segment |
+    | policy.event.placed | event        |
+```
+
+If you put a colon and a table after the URN, the step also compares the error fields. The headers must be field names of the error. The step compares only the columns in the table.
+
+The step fails in these conditions:
+
+- The operation is correct.
+- The result is `InputRejected` or a `ContractViolation`.
+- The handler refused with a different error.
+- A field in the table has a different value.
+- The operation does not declare the error.
 
 ## Connect the steps
 
