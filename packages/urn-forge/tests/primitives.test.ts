@@ -2,6 +2,7 @@
  * The primitive registry (foundations plan, phase 2): the meta-schema, the coherence pass,
  * the Valibot translations and the step library all read each primitive from one place.
  */
+import { readFileSync } from 'node:fs';
 import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';
 import * as shop from './fixtures/shop/expected/domain.schemas.generated.js';
@@ -21,12 +22,12 @@ describe('primitive registry', () => {
       boolean: ['mustBe'],
       float: ['min', 'max', 'notEqual'],
       integer: ['min', 'max', 'notEqual'],
-      string: ['minLength', 'maxLength'],
+      string: ['minLength', 'maxLength', 'oneOf'],
     });
   });
 
   it('drives the meta-schema: each primitive accepts its own constraints and no others', () => {
-    const sample: Record<string, unknown> = { mustBe: true, min: 1, max: 1, notEqual: 1, minLength: 1, maxLength: 1 };
+    const sample: Record<string, unknown> = { mustBe: true, min: 1, max: 1, notEqual: 1, minLength: 1, maxLength: 1, oneOf: ['a'] };
     for (const primitive of PRIMITIVE_NAMES) {
       for (const other of PRIMITIVE_NAMES) {
         for (const key of constraintKeys(other)) {
@@ -131,5 +132,29 @@ describe('boolean (the first primitive added through the registry)', () => {
   it('turns a non-boolean cell into a value the schema rejects', () => {
     const field = { urn: 'urn:demo:shop:order:field:gift_wrap', primitive: 'boolean' as const, required: false };
     expect(v.safeParse(shop.OrderGiftWrapSchema, coerceCell('yes', field)).success).toBe(false);
+  });
+});
+
+describe('oneOf (the first constraint that is not a number)', () => {
+  const line = { quantity: 2, unit_cost: 1.5, terms_accepted: true };
+
+  it('accepts only the listed values, reporting the field', () => {
+    expect(v.safeParse(shop.OrderLineSchema, { ...line, delivery: 'click & collect' }).success).toBe(true);
+    const result = v.safeParse(shop.OrderLineSchema, { ...line, delivery: 'drone' });
+    expect(result.issues?.map((i) => v.getDotPath(i))).toEqual(['delivery']);
+  });
+
+  it('narrows the parsed type to the listed values (checked by tsc)', () => {
+    const parsed = v.parse(shop.OrderDeliverySchema, 'express');
+    // Compiles only because the type is the union: a plain `string` is not assignable to it.
+    const narrowed: 'standard' | 'express' | 'click & collect' = parsed;
+    expect(narrowed).toBe('express');
+  });
+
+  it('keeps the list as a JSON value in the IR', () => {
+    const ir = compile(readFileSync(new URL('./fixtures/shop/domain.manifest.yaml', import.meta.url), 'utf8')).ir!;
+    expect(ir.fields['urn:demo:shop:order:field:delivery' as never]?.constraints).toEqual({
+      oneOf: ['standard', 'express', 'click & collect'],
+    });
   });
 });

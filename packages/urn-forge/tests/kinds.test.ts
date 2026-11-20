@@ -12,6 +12,9 @@ import {
   referenceLabel,
   referenceOccurrences,
 } from '../src/kinds/index.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { parse } from 'yaml';
 import { parseShortKey } from '../src/meta-schema.js';
 
 const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 0.1.0\n';
@@ -39,6 +42,11 @@ describe('kind registry', () => {
       expect(parseShortKey(`a.${kind}.b`)).toMatchObject({ ok: false, code: 'unsupported-kind' });
     }
     expect(parseShortKey('a.widget.b')).toMatchObject({ ok: false, code: 'unknown-kind' });
+  });
+
+  it('matches the kinds self/ declares for naming.field.kind, so the dogfood domain stays in step', () => {
+    const manifest = parse(readFileSync(fileURLToPath(new URL('../self/domain.manifest.yaml', import.meta.url)), 'utf8')) as Record<string, { oneOf?: string[] }>;
+    expect(manifest['naming.field.kind']?.oneOf).toEqual(KIND_NAMES);
   });
 
   it('names kinds with their article', () => {

@@ -44,6 +44,6 @@ export type {
 // Registries
 export { KIND_NAMES, type KindName } from './kinds/index.js';
 export { PRIMITIVE_NAMES, type ConstraintValue, type Primitive } from './primitives/index.js';
-export { handlerName, schemaNames, toBrandIdentifier } from './naming.js';
+export { handlerName, schemaNames, toBrandIdentifier, toUrn, type UrnParts } from './naming.js';
 
 export { GENERATOR_VERSION } from './version.js';

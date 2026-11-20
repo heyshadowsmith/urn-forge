@@ -58,6 +58,8 @@ const TRANSLATIONS: ValibotTranslations = {
     constraints: {
       minLength: (n) => `v.minLength(${numberLiteral(n)})`,
       maxLength: (n) => `v.maxLength(${numberLiteral(n)})`,
+      // A picklist schema in the pipe also narrows the type to the listed values.
+      oneOf: (values) => `v.picklist([${values.map((value) => JSON.stringify(value)).join(', ')}])`,
     },
   },
 };

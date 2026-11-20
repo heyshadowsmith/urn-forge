@@ -32,3 +32,39 @@ naming.operation.to_brand_identifier:
   description: Derive the PascalCase brand identifier of an atom from its context and identifier
   input: naming.entity.segment_pair
   output: naming.entity.brand
+
+naming.field.namespace:
+  primitive: string
+  minLength: 1
+  maxLength: 63
+  description: The namespace segment of a URN, such as acme
+naming.field.domain:
+  primitive: string
+  minLength: 1
+  maxLength: 63
+  description: The domain segment of a URN, such as insurance
+naming.field.kind:
+  primitive: string
+  oneOf: [field, entity, operation]
+  description: The kind segment of a URN; the kinds the compiler supports
+naming.field.urn:
+  primitive: string
+  minLength: 1
+  description: A full URN
+
+naming.entity.atom_address:
+  description: The five segments that address an atom
+  fields:
+    - ref: naming.field.namespace
+    - ref: naming.field.domain
+    - ref: naming.field.context
+    - ref: naming.field.kind
+    - ref: naming.field.identifier
+naming.entity.expanded:
+  description: The URN an atom address expands to
+  fields: [{ ref: naming.field.urn }]
+
+naming.operation.to_urn:
+  description: Expand an atom address to its URN, urn:<namespace>:<domain>:<context>:<kind>:<identifier>
+  input: naming.entity.atom_address
+  output: naming.entity.expanded

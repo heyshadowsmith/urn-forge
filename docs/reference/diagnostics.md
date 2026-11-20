@@ -74,7 +74,7 @@ With `--format json`, each diagnostic is one JSON object on one line. Refer to [
 
 | Code | Message | Cause | Correction |
 | --- | --- | --- | --- |
-| `incoherent-constraints` | `<urn>: min (<n>) is greater than max (<n>), so no value is valid` | The constraints of a field do not accept a value. Examples: `min` is larger than `max`, `minLength` is larger than `maxLength`, or `min` and `max` are equal and `notEqual` has the same value | Correct the constraints. The position gives the constraint to examine |
+| `incoherent-constraints` | `<urn>: min (<n>) is greater than max (<n>), so no value is valid` | The constraints of a field do not accept a value, or a value in its `oneOf` list can never be valid. Examples: `min` is larger than `max`, `minLength` is larger than `maxLength`, or `min` and `max` are equal and `notEqual` has the same value, or a `oneOf` value is shorter than `minLength` or longer than `maxLength` | Correct the constraints. The position gives the constraint to examine |
 
 ## Plugins
 
