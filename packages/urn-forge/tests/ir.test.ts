@@ -8,7 +8,7 @@ import type { IRBuildResult, UniversalIR } from '../src/ir/types.js';
 import { validateManifest } from '../src/meta-schema.js';
 
 const mathSource = readFileSync(
-  fileURLToPath(new URL('./fixtures/math.manifest.yaml', import.meta.url)),
+  fileURLToPath(new URL('./fixtures/math/domain.manifest.yaml', import.meta.url)),
   'utf8',
 );
 
@@ -32,11 +32,6 @@ function issuesFor(doc: Record<string, unknown>): string[] {
 const pretty = (value: unknown) => `${JSON.stringify(JSON.parse(canonicalJson(value)), null, 2)}\n`;
 
 describe('IR builder', () => {
-  it('matches the golden math IR', async () => {
-    const ir = expectIr(buildIrFromSource(mathSource));
-    await expect(pretty(ir)).toMatchFileSnapshot('./golden/math.ir.json');
-  });
-
   it('keys every record by URN in code-unit order and keeps entity field order', () => {
     const ir = expectIr(buildIrFromSource(mathSource));
     for (const record of [ir.fields, ir.entities, ir.operations]) {

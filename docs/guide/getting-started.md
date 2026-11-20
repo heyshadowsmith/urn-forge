@@ -20,11 +20,21 @@ npx urn-forge --version
 
 The `npm ci` command puts the `urn-forge` bin in `node_modules/.bin`. As a result, `npx urn-forge` operates in all directories of the repository. The bin uses `tsx` to run the TypeScript source files. You do not build the CLI before you use it.
 
+A package in the same workspace can import urn-forge with these names:
+
+| Import | Contents |
+| --- | --- |
+| `urn-forge` | `compile`, `verify`, `defineConfig`, the diagnostic and plugin types, and the registries |
+| `urn-forge/config` | `defineConfig`, for a [configuration file](../reference/config) |
+| `urn-forge/cucumber` | `registerOperationSteps`, for the [Gherkin steps](./gherkin-steps) |
+
+These names point to TypeScript source files. Thus, the code that imports them must run with `tsx`, as the CLI and the Cucumber configuration of the example do.
+
 ## 1. Declare the domain
 
 A manifest has a header and one entry for each atom. The key of each entry is a short key, in the format `<context>.<kind>.<identifier>`:
 
-<<< @/../packages/urn-forge/tests/fixtures/math.manifest.yaml
+<<< @/../packages/urn-forge/tests/fixtures/math/domain.manifest.yaml
 
 - A **field** has a primitive and constraints. The `notEqual: 0` constraint on the divisor prevents a division by zero in the core.
 - An **entity** has a list of field references. Each reference is mandatory. A reference with `required: false` is optional.
@@ -38,7 +48,7 @@ Run this command:
 
 ```bash
 cd packages/urn-forge
-npx urn-forge compile --manifest tests/fixtures/math.manifest.yaml --out example/generated
+npx urn-forge compile --manifest tests/fixtures/math/domain.manifest.yaml --out example/generated
 ```
 
 The command shows this output:
@@ -98,7 +108,7 @@ Run this command:
 
 ```bash
 npx urn-forge verify \
-  --manifest tests/fixtures/math.manifest.yaml \
+  --manifest tests/fixtures/math/domain.manifest.yaml \
   --out example/generated \
   --core example/core.ts \
   --features example/features

@@ -1,0 +1,74 @@
+[
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 12,
+      "line": 5
+    },
+    "message": "manifest.version: Invalid type: Expected string but received 1",
+    "severity": "error"
+  },
+  {
+    "code": "invalid-key",
+    "location": {
+      "column": 1,
+      "line": 7
+    },
+    "message": "invalid key \"Order.field.quantity\": expected <context>.<kind>.<identifier>, where context and identifier are lowercase snake_case starting with a letter (max 63 characters)",
+    "severity": "error"
+  },
+  {
+    "code": "unsupported-kind",
+    "location": {
+      "column": 1,
+      "line": 8
+    },
+    "message": "invalid key \"order.event.placed\": kind \"event\" is not supported yet (MVP kinds: field, entity, operation)",
+    "severity": "error"
+  },
+  {
+    "code": "unknown-primitive",
+    "location": {
+      "column": 37,
+      "line": 9
+    },
+    "message": "order.field.weight.primitive: unknown primitive \"decimal\" (MVP primitives: float, integer, string)",
+    "severity": "error"
+  },
+  {
+    "code": "constraint-not-allowed",
+    "location": {
+      "column": 45,
+      "line": 10
+    },
+    "message": "order.field.note.min: \"min\" is not a constraint of primitive \"string\" (allowed: minLength, maxLength)",
+    "severity": "error"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 51,
+      "line": 11
+    },
+    "message": "order.field.count.max: Invalid safe integer: Received 1.5",
+    "severity": "error"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 1,
+      "line": 12
+    },
+    "message": "order.entity.line.description: Invalid key: Expected \"description\" but received undefined",
+    "severity": "error"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 11,
+      "line": 13
+    },
+    "message": "order.entity.line.fields: must list at least one field",
+    "severity": "error"
+  }
+]

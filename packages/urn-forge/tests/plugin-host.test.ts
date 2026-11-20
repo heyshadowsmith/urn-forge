@@ -18,7 +18,7 @@ import type { CodegenPlugin } from '../src/plugins/plugin.interface.js';
 import { PRIMITIVE_NAMES, constraintKeys } from '../src/primitives/index.js';
 
 const repo = (path: string) => fileURLToPath(new URL(`../${path}`, import.meta.url));
-const mathSource = readFileSync(repo('tests/fixtures/math.manifest.yaml'), 'utf8');
+const mathSource = readFileSync(repo('tests/fixtures/math/domain.manifest.yaml'), 'utf8');
 
 function mathIr() {
   const built = buildIrFromSource(mathSource);

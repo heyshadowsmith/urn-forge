@@ -5,16 +5,16 @@ import { core } from '../example/core.js';
 import { buildIrFromSource } from '../src/ir/build.js';
 import type { UniversalIR } from '../src/ir/types.js';
 import { FCIS_RUNTIME_FILE, fcisPlugin } from '../src/plugins/fcis.plugin.js';
-// The golden file is the plugin's output for the math fixture (asserted below), so
+// The math fixture's expected output (checked byte for byte by tests/fixtures.test.ts), so
 // exercising it at runtime and in `tsc` exercises the generated code.
 import {
   DispatchMap,
   executeOperation,
   type DomainCoreImplementation,
-} from './golden/math/domain.runtime.generated.js';
+} from './fixtures/math/expected/domain.runtime.generated.js';
 
 const mathSource = readFileSync(
-  fileURLToPath(new URL('./fixtures/math.manifest.yaml', import.meta.url)),
+  fileURLToPath(new URL('./fixtures/math/domain.manifest.yaml', import.meta.url)),
   'utf8',
 );
 
@@ -28,11 +28,10 @@ const SAFE_DIVIDE = 'urn:demo:math:arithmetic:operation:safe_divide';
 const COMPUTE_AREA = 'urn:demo:math:geometry:operation:compute_area';
 
 describe('fcis plugin', () => {
-  it('matches the golden runtime file for the math fixture', async () => {
+  it('writes one runtime file (its exact content is checked by the fixture harness)', () => {
     const { artifacts, diagnostics } = fcisPlugin.emit(mathIr(), {});
     expect(diagnostics).toEqual([]);
     expect(artifacts.map((a) => a.relativePath)).toEqual([FCIS_RUNTIME_FILE]);
-    await expect(artifacts[0]!.content).toMatchFileSnapshot(`./golden/math/${FCIS_RUNTIME_FILE}`);
   });
 
   it('is deterministic', () => {

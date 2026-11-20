@@ -68,6 +68,41 @@ jobs:
         working-directory: packages/urn-forge
         run: npx cucumber-js --profile self
 
+  # Spec §6 and §9: the same inputs give the same bytes and the same verdict in any locale
+  # and time zone. Turkish changes case mapping and collation; Chatham is UTC+12:45.
+  determinism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TZ: Pacific/Chatham
+      LANG: tr_TR.UTF-8
+      LC_ALL: tr_TR.UTF-8
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: npm test
+        run: npm test
+
+      - name: Recompile both domains; the committed files must not change
+        working-directory: packages/urn-forge
+        run: |
+          npm run compile:example
+          npm run compile:self
+          git diff --exit-code
+
+      - name: urn-forge verify
+        working-directory: packages/urn-forge
+        run: |
+          npm run verify:example
+          npm run verify:self
+
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 10

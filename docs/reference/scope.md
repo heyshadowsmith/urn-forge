@@ -10,12 +10,12 @@ urn-forge is an MVP. It keeps the four links of the traceability chain: the mani
 | Optional fields | `required` on each field reference | `nullable` |
 | Operation input and output | Entities | Fields |
 | Compiler passes | Meta-schema, expansion, uniqueness, references, constraint coherence | Cycles, rule types, lifecycle |
-| Deterministic output | Sorted output, no clock, fingerprint header | A CI run in a different locale, `referenceDate` |
+| Deterministic output | Sorted output, no clock, fingerprint header, a CI run in a different locale and time zone | `referenceDate` |
 | Plugins | Valibot and FCIS. Handlers return the output directly | The `Result` type, Gherkin parameter types, Postgres |
 | Gates | 1 (completeness), 3 (tags and headers), 4 (drift) | 2 (lint profile), the boundary coverage part of 3, 5 (compatibility) |
 | CLI | `compile`, `verify`, a [configuration file](./config) | `init`, `diff`, `inspect`, `graph` |
 | Diagnostics | A stable code, `file:line:col`, the key or URN and a message. `--format json` | — |
-| Distribution | Run from a clone of the repository | An npm package |
+| Distribution | Run from a clone of the repository. Packages in the same workspace can import `urn-forge`, `urn-forge/config` and `urn-forge/cucumber` | An npm package with compiled JavaScript |
 
 ## Differences from specification v1.1
 

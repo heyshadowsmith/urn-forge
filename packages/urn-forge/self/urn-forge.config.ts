@@ -1,5 +1,5 @@
 // urn-forge's own domain. Paths are relative to this file.
-import { defineConfig } from '../src/config.js';
+import { defineConfig } from 'urn-forge/config';
 
 export default defineConfig({
   manifest: './domain.manifest.yaml',

@@ -13,7 +13,7 @@ import { DIAGNOSTIC_CODES, diagnosticJson, formatDiagnostic, type Diagnostic } f
 import { compile } from '../src/engine.js';
 
 const repo = (path: string) => fileURLToPath(new URL(`../${path}`, import.meta.url));
-const mathSource = readFileSync(repo('tests/fixtures/math.manifest.yaml'), 'utf8');
+const mathSource = readFileSync(repo('tests/fixtures/math/domain.manifest.yaml'), 'utf8');
 
 const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 0.1.0\n';
 

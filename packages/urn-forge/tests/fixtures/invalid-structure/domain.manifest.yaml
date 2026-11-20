@@ -1,0 +1,13 @@
+# Pass 1 (meta-schema) problems, each reported at its position.
+manifest:
+  namespace: demo
+  domain: broken
+  version: 1
+
+Order.field.quantity:  { primitive: integer }
+order.event.placed:    { description: An order was placed }
+order.field.weight:    { primitive: decimal }
+order.field.note:      { primitive: string, min: 1 }
+order.field.count:     { primitive: integer, max: 1.5 }
+order.entity.line:
+  fields: []

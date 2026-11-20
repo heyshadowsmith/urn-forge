@@ -16,7 +16,7 @@ import { GATES } from '../src/verify/index.js';
 import type { Gate, GateContext } from '../src/verify/types.js';
 
 const repo = (path: string) => fileURLToPath(new URL(`../${path}`, import.meta.url));
-const mathSource = readFileSync(repo('tests/fixtures/math.manifest.yaml'), 'utf8');
+const mathSource = readFileSync(repo('tests/fixtures/math/domain.manifest.yaml'), 'utf8');
 const SAFE_DIVIDE = '@urn:demo:math:arithmetic:operation:safe_divide';
 const COMPUTE_AREA = '@urn:demo:math:geometry:operation:compute_area';
 

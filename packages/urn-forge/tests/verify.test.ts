@@ -56,7 +56,7 @@ function failures(result: VerifyResult): Record<number, readonly string[]> {
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'urn-forge-verify-'));
   await cp(repo('example'), at('example'), { recursive: true });
-  await cp(repo('tests/fixtures/math.manifest.yaml'), at('domain.manifest.yaml'));
+  await cp(repo('tests/fixtures/math/domain.manifest.yaml'), at('domain.manifest.yaml'));
   await cp(repo('tsconfig.json'), at('tsconfig.json'));
   await symlink(nodeModules, at('node_modules'), 'dir');
 });
