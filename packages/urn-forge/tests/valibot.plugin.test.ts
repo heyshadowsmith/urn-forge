@@ -9,6 +9,7 @@ import { VALIBOT_SCHEMAS_FILE, valibotPlugin } from '../src/plugins/valibot.plug
 // The math fixture's expected output (checked byte for byte by tests/fixtures.test.ts), so
 // exercising it at runtime and in `tsc` exercises the generated code.
 import * as schemas from './fixtures/math/expected/domain.schemas.generated.js';
+import * as warehouse from './fixtures/errors-valibot/expected/domain.schemas.generated.js';
 
 const mathSource = readFileSync(
   fileURLToPath(new URL('./fixtures/math/domain.manifest.yaml', import.meta.url)),
@@ -111,5 +112,37 @@ describe('valibot plugin', () => {
           'with an export of urn:demo:math:geometry:field:radius; rename one of them',
       },
     ]);
+  });
+});
+
+describe('error schemas', () => {
+  const INSUFFICIENT = 'urn:demo:warehouse:stock:error:insufficient_stock';
+  const valid = { kind: INSUFFICIENT, sku: 'ABC-1234', requested: 5, available: 2 };
+
+  it('parse an error with its kind and fields, the optional field optional', () => {
+    expect(v.safeParse(warehouse.StockInsufficientStockSchema, valid).success).toBe(true);
+    expect(v.safeParse(warehouse.StockInsufficientStockSchema, { ...valid, warehouse: 'north' }).success).toBe(true);
+    expect(v.safeParse(warehouse.StockInventoryOfflineSchema, { kind: 'urn:demo:warehouse:stock:error:inventory_offline' }).success).toBe(true);
+  });
+
+  it('reject a wrong kind, a missing required field and a field that breaks its constraints', () => {
+    const issues = (input: unknown) =>
+      v.safeParse(warehouse.StockInsufficientStockSchema, input).issues?.map((i) => v.getDotPath(i)) ?? [];
+    expect(issues({ ...valid, kind: 'urn:demo:warehouse:stock:error:inventory_offline' })).toEqual(['kind']);
+    expect(issues({ kind: INSUFFICIENT, sku: 'ABC-1234', requested: 5 })).toEqual(['available']);
+    expect(issues({ ...valid, available: -1 })).toEqual(['available']);
+  });
+
+  it('type kind as the literal error URN, so errors can be told apart (checked by tsc)', () => {
+    const parsed = v.parse(warehouse.StockInsufficientStockSchema, valid);
+    const kind: typeof INSUFFICIENT = parsed.kind;
+    const input: warehouse.StockInsufficientStockInput = { kind: INSUFFICIENT, sku: 'ABC-1234', requested: 5, available: 2 };
+    // @ts-expect-error another error's URN is not this error's kind
+    const wrong: warehouse.StockInsufficientStockInput = { ...input, kind: 'urn:demo:warehouse:stock:error:inventory_offline' };
+    expect([kind, input, wrong]).toBeDefined();
+  });
+
+  it('are declared by the plugin, so the support check passes them', () => {
+    expect(valibotPlugin.supports.kinds).toContain('error');
   });
 });

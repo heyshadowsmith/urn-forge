@@ -35,6 +35,7 @@ export const DIAGNOSTIC_CODES = {
   'duplicate-brand': 'Two atoms derive the same brand identifier',
   'duplicate-property': 'Two fields of one entity become the same property',
   'duplicate-ref': 'An entity lists the same field more than once',
+  'reserved-property': 'An error field would become the property kind, which the error reserves for its URN',
   // Pass 4: references
   'unresolved-ref': 'A reference names no atom in the manifest',
   'wrong-ref-kind': 'A reference names an atom of the wrong kind',

@@ -20,6 +20,9 @@ export type ErrorDecl = v.InferOutput<typeof ErrorSchema>;
  * typo such as `{Quantity}` is still a placeholder, so pass 6 reports it instead of
  * rendering it literally.
  */
+/** The property an error payload uses for its URN, so no error field may have this name. */
+export const RESERVED_PROPERTY = 'kind';
+
 const PLACEHOLDER = /\{([^{}\s]+)\}/g;
 
 /** `Policy {policy_id} is cancelled` → text, placeholder `policy_id`, text. */
@@ -50,6 +53,18 @@ export const error = defineKind<ErrorDecl, IRError>()({
     const { atom, shortKey, decl, report } = context;
     const fields = buildFieldRefs(context as never, decl.fields);
     const message = parseMessage(decl.message);
+
+    // The payload carries `kind: '<error URN>'` (spec §7.1), so no field may become `kind`.
+    decl.fields.forEach((_, index) => {
+      const target = context.ref(['fields', index, 'ref']);
+      if (target?.identifier !== RESERVED_PROPERTY) return;
+      report({
+        code: 'reserved-property',
+        urn: atom.urn,
+        message: `${atom.urn}: fields[${index}].ref ${target.urn} becomes property "${RESERVED_PROPERTY}", which an error reserves for its URN; rename the field`,
+        path: [shortKey, 'fields', index, 'ref'],
+      });
+    });
 
     // Pass 6: every placeholder names a required field of this error.
     const required = fields.filter((f) => f.required).map((f) => f.name);
