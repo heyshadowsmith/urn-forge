@@ -52,7 +52,7 @@ With `--format json`, each diagnostic is one JSON object on one line. Refer to [
 | `unknown-primitive` | `<key>.primitive: unknown primitive "<name>" (MVP primitives: boolean, float, integer, string)` | The MVP does not accept this primitive | Use `boolean`, `float`, `integer` or `string` |
 | `constraint-not-allowed` | `<key>.<constraint>: "<constraint>" is not a constraint of primitive "<primitive>" (allowed: …)` | A field has a property that is not a constraint of its primitive, for example `minLength` on a `float` | Use a constraint from the list in the message |
 | `unknown-property` | `<key>.<property>: unknown property "<property>"` | An entity, an operation or the header has a key that it does not accept | Remove the key, or correct its name |
-| `invalid-value` | `<key>.<property>: <Valibot message>` | A value has the wrong type or form. Examples: `min: "abc"`, `max: 1.5` on an `integer`, an empty `fields` list, no `description`, or a `namespace` that is not snake_case | Correct the value. The message tells the necessary type or form |
+| `invalid-value` | `<key>.<property>: <Valibot message>` | A value has the wrong type or form. Examples: `min: "abc"`, `max: 1.5` on an `integer`, a `regex` that is not a valid regular expression, an empty `fields` list, no `description`, or a `namespace` that is not snake_case | Correct the value. The message tells the necessary type or form |
 
 ## Uniqueness (pass 3)
 
@@ -74,7 +74,7 @@ With `--format json`, each diagnostic is one JSON object on one line. Refer to [
 
 | Code | Message | Cause | Correction |
 | --- | --- | --- | --- |
-| `incoherent-constraints` | `<urn>: min (<n>) is greater than max (<n>), so no value is valid` | The constraints of a field do not accept a value, or a value in its `oneOf` list can never be valid. Examples: `min` is larger than `max`, `minLength` is larger than `maxLength`, or `min` and `max` are equal and `notEqual` has the same value, or a `oneOf` value is shorter than `minLength` or longer than `maxLength` | Correct the constraints. The position gives the constraint to examine |
+| `incoherent-constraints` | `<urn>: min (<n>) is greater than max (<n>), so no value is valid` | The constraints of a field do not accept a value, or a value in its `oneOf` list can never be valid. Examples: `min` is larger than `max`, `minLength` is larger than `maxLength`, or `min` and `max` are equal and `notEqual` has the same value, or a `oneOf` value is shorter than `minLength`, longer than `maxLength` or does not match `regex` | Correct the constraints. The position gives the constraint to examine |
 
 ## Plugins
 

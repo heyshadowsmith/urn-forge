@@ -13,7 +13,7 @@
     "code": "unresolved-ref",
     "location": {
       "column": 12,
-      "line": 16
+      "line": 17
     },
     "message": "urn:demo:broken:order:entity:line: fields[1].ref \"order.field.missing\" does not resolve (no atom urn:demo:broken:order:field:missing in this manifest)",
     "severity": "error",
@@ -23,7 +23,7 @@
     "code": "wrong-ref-kind",
     "location": {
       "column": 12,
-      "line": 17
+      "line": 18
     },
     "message": "urn:demo:broken:order:entity:line: fields[2].ref \"order.entity.line\" must name a field, but urn:demo:broken:order:entity:line is an entity",
     "severity": "error",
@@ -50,10 +50,20 @@
     "urn": "urn:demo:broken:order:field:quantity"
   },
   {
+    "code": "incoherent-constraints",
+    "location": {
+      "column": 69,
+      "line": 11
+    },
+    "message": "urn:demo:broken:order:field:size: oneOf value \"XL\" does not match regex [SML], so it is never valid",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:field:size"
+  },
+  {
     "code": "wrong-ref-kind",
     "location": {
       "column": 10,
-      "line": 20
+      "line": 21
     },
     "message": "urn:demo:broken:order:operation:place: input \"order.field.quantity\" must name an entity, but urn:demo:broken:order:field:quantity is a field",
     "severity": "error",

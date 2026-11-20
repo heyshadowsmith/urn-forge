@@ -5,6 +5,11 @@
       "description": "One line of an order",
       "fields": [
         {
+          "field": "urn:demo:shop:order:field:sku",
+          "name": "sku",
+          "required": true
+        },
+        {
           "field": "urn:demo:shop:order:field:quantity",
           "name": "quantity",
           "required": true
@@ -27,6 +32,11 @@
         {
           "field": "urn:demo:shop:order:field:delivery",
           "name": "delivery",
+          "required": false
+        },
+        {
+          "field": "urn:demo:shop:order:field:tracking_url",
+          "name": "tracking_url",
           "required": false
         },
         {
@@ -88,6 +98,14 @@
       "primitive": "integer",
       "urn": "urn:demo:shop:order:field:quantity"
     },
+    "urn:demo:shop:order:field:sku": {
+      "brandIdentifier": "OrderSku",
+      "constraints": {
+        "regex": "[A-Z]{3}-[0-9]{4}"
+      },
+      "primitive": "string",
+      "urn": "urn:demo:shop:order:field:sku"
+    },
     "urn:demo:shop:order:field:terms_accepted": {
       "brandIdentifier": "OrderTermsAccepted",
       "constraints": {
@@ -105,6 +123,14 @@
       "primitive": "float",
       "urn": "urn:demo:shop:order:field:total"
     },
+    "urn:demo:shop:order:field:tracking_url": {
+      "brandIdentifier": "OrderTrackingUrl",
+      "constraints": {
+        "regex": "https://track\\.example/[0-9]+"
+      },
+      "primitive": "string",
+      "urn": "urn:demo:shop:order:field:tracking_url"
+    },
     "urn:demo:shop:order:field:unit_cost": {
       "brandIdentifier": "OrderUnitCost",
       "constraints": {
@@ -118,7 +144,7 @@
   "meta": {
     "domain": "shop",
     "irSchemaVersion": 1,
-    "manifestHash": "25cdb247192c2ddf2f786acadad620a0b2f956acd6eb3eaeedcec5406fdcee57",
+    "manifestHash": "82863fa73d957e8adb18ede9a433d0279f7e1a7197d12d5d4651c6227b8677f6",
     "manifestVersion": "0.1.0",
     "namespace": "demo",
     "stability": "stable"

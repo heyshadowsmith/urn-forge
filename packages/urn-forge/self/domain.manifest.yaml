@@ -1,5 +1,5 @@
 # urn-forge's own domain: the pure functions of the toolchain, declared with urn-forge.
-# Only what the MVP can express lives here. See self/README.md for what is still blocked.
+# Only what urn-forge can express lives here. See self/README.md for what is still blocked.
 manifest:
   namespace: urn_forge
   domain: toolchain
@@ -8,17 +8,15 @@ manifest:
 
 naming.field.context:
   primitive: string
-  minLength: 1
-  maxLength: 63
+  regex: '[a-z][a-z0-9_]{0,62}'
   description: The context segment of a short key, such as policy
 naming.field.identifier:
   primitive: string
-  minLength: 1
-  maxLength: 63
+  regex: '[a-z][a-z0-9_]{0,62}'
   description: The identifier segment of a short key, such as deductible_amount
 naming.field.brand_identifier:
   primitive: string
-  minLength: 1
+  regex: '[A-Z][A-Za-z0-9]*'
   description: The PascalCase name that generated code uses for an atom
 
 naming.entity.segment_pair:
@@ -35,13 +33,11 @@ naming.operation.to_brand_identifier:
 
 naming.field.namespace:
   primitive: string
-  minLength: 1
-  maxLength: 63
+  regex: '[a-z][a-z0-9_]{0,62}'
   description: The namespace segment of a URN, such as acme
 naming.field.domain:
   primitive: string
-  minLength: 1
-  maxLength: 63
+  regex: '[a-z][a-z0-9_]{0,62}'
   description: The domain segment of a URN, such as insurance
 naming.field.kind:
   primitive: string
@@ -49,7 +45,7 @@ naming.field.kind:
   description: The kind segment of a URN; the kinds the compiler supports
 naming.field.urn:
   primitive: string
-  minLength: 1
+  regex: 'urn(:[a-z][a-z0-9_]{0,62}){5}'
   description: A full URN
 
 naming.entity.atom_address:

@@ -23,10 +23,10 @@ Each row is a declaration this domain needs and the MVP cannot express. Together
 
 | Declaration | Blocked on | Notes |
 | --- | --- | --- |
-| `naming.field.context` and `naming.field.identifier` must be lowercase snake_case | `regex` constraint | Today the manifest enforces only length 1–63, so `to_brand_identifier` accepts `Policy` |
+| ~~`naming.field.context` and `naming.field.identifier` must be lowercase snake_case~~ | ~~`regex` constraint~~ | Done: every segment field uses the grammar's pattern (a test keeps them equal), so `Policy` is rejected. `brand_identifier` and `urn` outputs are checked too |
 | ~~`naming.field.kind`~~ | ~~`oneOf` constraint~~ | Done: `naming.operation.to_urn` uses it. A test keeps its list equal to the kind registry. `parse_short_key` still needs the `error` kind |
 | `naming.operation.parse_short_key` refuses a malformed key | `error` kind and `Result` | Today a handler cannot return a declared rejection |
 | `naming.field.required`, `naming.field.nullable` | ~~`boolean` primitive~~ available; no operation needs them yet | Field references in the manifest |
-| `manifest.version` is semver | `regex` constraint | Also needed by a future version comparison |
+| `manifest.version` is semver | No operation needs it yet (`regex` is available) | Also needed by a future version comparison |
 | `gherkin.operation.coerce_cell` | A value of more than one type (`oneOf` is available for the primitive name) | `coerceCell` returns a number, a string, a boolean or nothing |
 | `compatibility.operation.classify_constraint_change` (gate 5) | `error` kind (`oneOf` is available for the output class) | The core of `urn-forge diff` |

@@ -19,6 +19,7 @@ import {
   type ConstraintValue,
   type Primitive,
 } from '../primitives/index.js';
+import { wholeValuePattern } from '../primitives/string.js';
 import {
   numberLiteral,
   valuesInUrnOrder,
@@ -58,6 +59,8 @@ const TRANSLATIONS: ValibotTranslations = {
     constraints: {
       minLength: (n) => `v.minLength(${numberLiteral(n)})`,
       maxLength: (n) => `v.maxLength(${numberLiteral(n)})`,
+      // The whole-value pattern as a regex literal; `.source` escapes any `/` in it.
+      regex: (pattern) => `v.regex(/${wholeValuePattern(pattern).source}/u)`,
       // A picklist schema in the pipe also narrows the type to the listed values.
       oneOf: (values) => `v.picklist([${values.map((value) => JSON.stringify(value)).join(', ')}])`,
     },

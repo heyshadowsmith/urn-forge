@@ -41,7 +41,7 @@
       "column": 45,
       "line": 10
     },
-    "message": "order.field.note.min: \"min\" is not a constraint of primitive \"string\" (allowed: minLength, maxLength, oneOf)",
+    "message": "order.field.note.min: \"min\" is not a constraint of primitive \"string\" (allowed: minLength, maxLength, regex, oneOf)",
     "severity": "error"
   },
   {
@@ -74,8 +74,17 @@
   {
     "code": "invalid-value",
     "location": {
-      "column": 1,
+      "column": 52,
       "line": 14
+    },
+    "message": "order.field.pattern.regex: must be a valid regular expression: Invalid regular expression: /[a-/u: Unterminated character class",
+    "severity": "error"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 1,
+      "line": 15
     },
     "message": "order.entity.line.description: Invalid key: Expected \"description\" but received undefined",
     "severity": "error"
@@ -84,7 +93,7 @@
     "code": "invalid-value",
     "location": {
       "column": 11,
-      "line": 15
+      "line": 16
     },
     "message": "order.entity.line.fields: must list at least one field",
     "severity": "error"
