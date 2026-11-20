@@ -1,0 +1,39 @@
+[
+  {
+    "code": "unsupported-kind",
+    "location": {
+      "column": 1,
+      "line": 45
+    },
+    "message": "invalid key \"naming.error.invalid_short_key\": kind \"error\" is not supported yet (MVP kinds: field, entity, operation)",
+    "severity": "error"
+  },
+  {
+    "code": "unsupported-kind",
+    "location": {
+      "column": 1,
+      "line": 51
+    },
+    "message": "invalid key \"naming.error.unsupported_kind\": kind \"error\" is not supported yet (MVP kinds: field, entity, operation)",
+    "severity": "error"
+  },
+  {
+    "code": "unsupported-kind",
+    "location": {
+      "column": 1,
+      "line": 57
+    },
+    "message": "invalid key \"naming.error.unknown_kind\": kind \"error\" is not supported yet (MVP kinds: field, entity, operation)",
+    "severity": "error"
+  },
+  {
+    "code": "unknown-property",
+    "location": {
+      "column": 3,
+      "line": 68
+    },
+    "message": "naming.operation.parse_short_key.errors: unknown property \"errors\"",
+    "severity": "error",
+    "urn": "urn:urn_forge:toolchain:naming:operation:parse_short_key"
+  }
+]
