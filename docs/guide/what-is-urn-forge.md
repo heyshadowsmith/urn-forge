@@ -1,27 +1,33 @@
 # What is urn-forge?
 
-urn-forge is a compiler and a CI gate for domain contracts. You declare the atoms of a domain (its fields, entities and operations) in a YAML manifest, and urn-forge gives each one a permanent URN:
+urn-forge is a compiler and a CI gate for domain contracts. You write the parts of a domain in a YAML manifest. These parts are fields, entities and operations. urn-forge gives each part a permanent URN:
 
 ```
 urn:<namespace>:<domain>:<context>:<kind>:<identifier>
 urn:demo:math:arithmetic:operation:safe_divide
 ```
 
-From that one declaration, urn-forge generates TypeScript contracts, checks that your hand-written code implements them, and checks that your Gherkin features exercise them. If any link breaks, `urn-forge verify` fails the build.
+urn-forge uses this one declaration to do three tasks:
+
+1. It generates TypeScript contracts.
+2. It makes sure that your code obeys the contracts.
+3. It makes sure that your Gherkin features test the contracts.
+
+If a link in this chain breaks, `urn-forge verify` makes the build fail.
 
 ## The traceability chain
 
-The MVP proves one claim: **a URN declared in YAML traces to a typed handler and a passing Gherkin scenario, and CI fails when any link in that chain breaks.**
+The MVP shows one claim: **a URN in a YAML file traces to a typed handler and to a Gherkin scenario that passes. CI fails if a link in that chain breaks.**
 
-| Link | What it is | Who writes it | What breaks it |
+| Link | Description | Author | Cause of a failure |
 | --- | --- | --- | --- |
-| Manifest | `domain.manifest.yaml` declares fields, entities and operations | You | Invalid structure, dangling references, name collisions |
-| IR | A sorted, fully resolved graph of URNs | `urn-forge compile` | Nothing: it is derived from the manifest |
-| Generated contracts | Valibot schemas, handler types, `executeOperation` | `urn-forge compile` | Hand edits, or not recompiling after a manifest change (gate 4) |
-| Core | `export const core = { … } satisfies DomainCoreImplementation` | You | A missing or mistyped handler (gate 1) |
-| Features | `.feature` files tagged `@urn:…:operation:…` | You | Unknown tags, untagged operations, wrong table headers (gate 3), failing scenarios (Cucumber) |
+| Manifest | `domain.manifest.yaml` declares fields, entities and operations | You | A structure that is not correct, a reference to an item that is not there, or two items with the same name |
+| IR | A sorted graph of URNs with all references resolved | `urn-forge compile` | None. urn-forge makes the IR from the manifest |
+| Generated contracts | Valibot schemas, handler types and `executeOperation` | `urn-forge compile` | A person edits a generated file, or does not compile again after a manifest change (gate 4) |
+| Core | `export const core = { … } satisfies DomainCoreImplementation` | You | A handler that is not there or that has the wrong type (gate 1) |
+| Features | `.feature` files with a `@urn:…:operation:…` tag | You | An unknown tag, an operation with no feature, or a wrong table header (gate 3). Also, a scenario that fails in Cucumber |
 
-## How the pieces fit
+## How the parts connect
 
 ```
 domain.manifest.yaml
@@ -37,18 +43,23 @@ domain.manifest.yaml
 urn-forge verify: gate 1 (tsc + satisfies) · gate 3 (tags + headers) · gate 4 (drift)
 ```
 
-1. **`compile`** validates the manifest, builds the IR and runs two plugins. Every generated file starts with an `@generated` header and a fingerprint, so the output for a given input is byte-for-byte reproducible.
-2. **Your core** is plain, synchronous functions keyed by operation URN. Each one receives *branded* input (already parsed and validated) and returns a plain output object.
-3. **`executeOperation`** is the shell's gatekeeper. It parses the raw payload, calls your handler, then parses (and so brands) the handler's output. Bad input never reaches the core, and output that breaks the contract is reported as a `ContractViolation`.
-4. **Features** describe behavior in terms of field names. Three generic steps, which ship with urn-forge, read the operation URN from the feature's tag and call `executeOperation`.
-5. **`verify`** checks the links statically, without running anything. Cucumber then checks that the scenarios pass.
+1. **`compile`** validates the manifest, builds the IR and runs two plugins. Each generated file starts with an `@generated` header and a fingerprint. The same input always gives the same bytes.
+2. **Your core** is a set of plain, synchronous functions. Each function has the URN of its operation as its key. Each function receives *branded* input, which the shell parsed and validated before. Each function returns a plain output object.
+3. **`executeOperation`** is the gatekeeper of the shell. It parses the raw payload and calls your handler. Then it parses the output of the handler, which brands the output. Input that is not correct does not go to the core. If the output breaks the contract, `executeOperation` gives a `ContractViolation`.
+4. **Features** tell the behavior with field names. urn-forge supplies three generic steps. These steps read the operation URN from the tag of the feature and call `executeOperation`.
+5. **`verify`** does a static check of the links. It does not run the code. Then Cucumber makes sure that the scenarios pass.
 
 ## Functional core, imperative shell
 
-The generated runtime follows the FCIS pattern. The **core** holds your business logic: pure, synchronous and free of I/O. The **shell** (the generated `executeOperation`, plus whatever calls it) handles parsing, validation and anything effectful. Branded types make the boundary visible in the type system: only a generated parser can produce an `ArithmeticDivisor`, so a handler that receives one knows its value has already passed `notEqual: 0`.
+The generated runtime uses the FCIS pattern:
 
-## Where to go next
+- The **core** contains your business logic. It is pure and synchronous, and it does no I/O.
+- The **shell** does the parse, the validation and the I/O. The generated `executeOperation` is part of the shell, and so is the code that calls it.
 
-- [Getting started](./getting-started) walks through the math example end to end.
-- [Writing a manifest](./manifest) covers every key the MVP accepts.
-- [MVP scope](../reference/scope) lists what the full spec has that the MVP doesn't yet.
+Branded types show this boundary in the type system. Only a generated parser can make an `ArithmeticDivisor`. As a result, a handler that receives an `ArithmeticDivisor` knows that the value is not zero.
+
+## Next steps
+
+- Read [First steps](./getting-started) to build the math example from start to end.
+- Read [The manifest](./manifest) for each key that the MVP accepts.
+- Read [MVP scope](../reference/scope) for the parts of the full specification that the MVP does not have.

@@ -4,14 +4,14 @@
 urn-forge <command> [options]
 ```
 
-| Command | Does |
+| Command | Function |
 | --- | --- |
 | [`compile`](#compile) | Validates the manifest and writes the generated files |
 | [`verify`](#verify) | Runs gates 1, 3 and 4 |
-| `--help`, `-h`, `help` | Prints usage and exits `0` |
-| `--version` | Prints the urn-forge version and exits `0` |
+| `--help`, `-h`, `help` | Shows the usage text and stops with exit code `0` |
+| `--version` | Shows the urn-forge version and stops with exit code `0` |
 
-With no command, urn-forge prints usage and exits `2`. Relative paths in options resolve against the current directory.
+If you do not give a command, urn-forge shows the usage text. Then it stops with exit code `2`. urn-forge resolves relative paths in options from the current directory.
 
 ## `compile`
 
@@ -19,16 +19,16 @@ With no command, urn-forge prints usage and exits `2`. Relative paths in options
 urn-forge compile [--manifest <file>] [--out <dir>]
 ```
 
-| Option | Default | Meaning |
+| Option | Default | Description |
 | --- | --- | --- |
 | `--manifest <file>` | `domain.manifest.yaml` | The manifest to compile |
-| `--out <dir>` | `src/generated` | Where the generated files are written |
+| `--out <dir>` | `src/generated` | The directory for the generated files |
 
-`compile` runs the manifest through the meta-schema, the IR builder and both plugins. It then writes `domain.schemas.generated.ts` and `domain.runtime.generated.ts` into `--out`, creating the directory if needed.
+The `compile` command sends the manifest through the meta-schema, the IR builder and the two plugins. Then it writes `domain.schemas.generated.ts` and `domain.runtime.generated.ts` in the `--out` directory. If this directory does not exist, the command makes it.
 
-- A file whose content is already identical isn't rewritten, so its modification time doesn't change.
-- If there is any error diagnostic, nothing is written.
-- `compile` doesn't delete files it no longer produces. Gate 4 reports those.
+- If a file has the same content as the new output, the command does not write it again. The modification time of the file does not change.
+- If there is an error diagnostic, the command writes no files.
+- The command does not delete old files that it does not make now. Gate 4 shows these files.
 
 ```
 wrote      src/generated/domain.runtime.generated.ts
@@ -42,44 +42,44 @@ fingerprint sha256:<64 hex digits>
 urn-forge verify [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
 ```
 
-| Option | Default | Meaning |
+| Option | Default | Description |
 | --- | --- | --- |
 | `--manifest <file>` | `domain.manifest.yaml` | The manifest to compile |
-| `--out <dir>` | `src/generated` | Where the committed generated files are (gates 1 and 4) |
-| `--core <file>` | `src/core.ts` | The core entry that must `satisfies DomainCoreImplementation` (gate 1) |
-| `--features <dir>` | `features` | Searched recursively for `.feature` files (gate 3) |
-| `--tsconfig <file>` | `tsconfig.json` | Compiler options gate 1 type-checks with |
+| `--out <dir>` | `src/generated` | The directory of the generated files in the repository (gates 1 and 4) |
+| `--core <file>` | `src/core.ts` | The core entry. It must use `satisfies DomainCoreImplementation` (gate 1) |
+| `--features <dir>` | `features` | The directory that contains the `.feature` files. The command also reads its subdirectories (gate 3) |
+| `--tsconfig <file>` | `tsconfig.json` | The compiler options for the type check of gate 1 |
 
-The output has one line per gate, with its problems indented beneath it, then a final verdict. See [Verification gates](../guide/verify).
+The output has one line for each gate. Below each line, the output shows the problems of that gate with an indent. The last line gives the result. For more data, refer to [Verification gates](../guide/verify).
 
 ## Output and exit codes
 
-Manifest diagnostics print to stderr, one per line:
+urn-forge writes the manifest diagnostics to stderr, one diagnostic on each line:
 
 ```
 <manifest>  <severity>  <message>
 tests/fixtures/math.manifest.yaml  error  geometry.field.radius.primitive: unknown primitive "decimal" (MVP primitives: float, integer, string)
 ```
 
-Messages start with the manifest key or URN they are about. Paths print relative to the current directory with forward slashes, so output is the same on every machine.
+Each message starts with its manifest key or its URN. urn-forge shows paths relative to the current directory, with forward slashes. As a result, the output is the same on all computers.
 
-| Exit code | Meaning |
+| Exit code | Description |
 | --- | --- |
-| `0` | Success |
-| `1` | An error diagnostic, an unreadable manifest, or a failed gate |
-| `2` | A usage error: unknown command or unknown option |
+| `0` | The command is correct |
+| `1` | An error diagnostic, a manifest that urn-forge cannot read, or a gate that fails |
+| `2` | A usage error: an unknown command or an unknown option |
 
 ## Scripts in this repository
 
-From the repository root:
+Run these scripts from the root of the repository:
 
-| Script | Runs |
+| Script | Function |
 | --- | --- |
-| `npm test` | The CLI's Vitest suite |
-| `npm run typecheck` | `tsc --noEmit` over the CLI package |
-| `npm run verify:example` | `urn-forge verify` on the math example |
-| `npm run test:features` | `cucumber-js` on the math example |
-| `npm run docs:dev` | This documentation site, with live reload |
-| `npm run docs:build` | A static build of this site |
+| `npm test` | Runs the Vitest tests of the CLI |
+| `npm run typecheck` | Runs `tsc --noEmit` on the CLI package |
+| `npm run verify:example` | Runs `urn-forge verify` on the math example |
+| `npm run test:features` | Runs `cucumber-js` on the math example |
+| `npm run docs:dev` | Starts this documentation site, with live reload |
+| `npm run docs:build` | Builds this site as static files |
 
-Inside `packages/urn-forge`, `npm run compile:example` regenerates `example/generated/`.
+In `packages/urn-forge`, `npm run compile:example` makes the files in `example/generated/` again.

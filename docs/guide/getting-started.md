@@ -1,13 +1,15 @@
-# Getting started
+# First steps
 
-This guide builds the math example that ships in the repository: two operations (`compute_area` and `safe_divide`) traced from a manifest to passing Cucumber scenarios. Every file shown here is the real file from `packages/urn-forge/`.
+This procedure builds the math example in the repository. The example has two operations, `compute_area` and `safe_divide`. Each operation traces from the manifest to Cucumber scenarios that pass. Each file on this page is the real file from `packages/urn-forge/`.
 
-## Prerequisites
+## Before you start
 
-- **Node.js 22** or newer. The repository's `.nvmrc` pins 22.
-- **npm**. The repository is an npm-workspaces monorepo.
+You must have:
 
-urn-forge isn't published to npm yet, so you run it from a clone:
+- **Node.js 22** or a later version. The `.nvmrc` file of the repository sets version 22.
+- **npm**. The repository is an npm workspaces monorepo.
+
+urn-forge is not on npm at this time. Run it from a clone of the repository:
 
 ```bash
 git clone https://github.com/heyshadowsmith/urn-forge.git
@@ -16,26 +18,30 @@ npm ci
 npx urn-forge --version
 ```
 
-`npm ci` links the `urn-forge` bin into `node_modules/.bin`, so `npx urn-forge` works anywhere in the repository. The bin runs the TypeScript sources through `tsx`, so there's no build step.
+The `npm ci` command puts the `urn-forge` bin in `node_modules/.bin`. As a result, `npx urn-forge` operates in all directories of the repository. The bin uses `tsx` to run the TypeScript source files. You do not build the CLI before you use it.
 
 ## 1. Declare the domain
 
-A manifest has a header, then one entry per atom, keyed by a short key of the form `<context>.<kind>.<identifier>`:
+A manifest has a header and one entry for each atom. The key of each entry is a short key, in the format `<context>.<kind>.<identifier>`:
 
 <<< @/../packages/urn-forge/tests/fixtures/math.manifest.yaml
 
-- **Fields** carry a primitive and constraints. `notEqual: 0` on the divisor is what keeps the core from ever dividing by zero.
-- **Entities** list field references. Every reference is required unless it says `required: false`.
-- **Operations** name an input entity and an output entity.
+- A **field** has a primitive and constraints. The `notEqual: 0` constraint on the divisor prevents a division by zero in the core.
+- An **entity** has a list of field references. Each reference is mandatory. A reference with `required: false` is optional.
+- An **operation** has an input entity and an output entity.
 
-See [Writing a manifest](./manifest) for every key.
+For each key, refer to [The manifest](./manifest).
 
-## 2. Compile it
+## 2. Compile the manifest
+
+Run this command:
 
 ```bash
 cd packages/urn-forge
 npx urn-forge compile --manifest tests/fixtures/math.manifest.yaml --out example/generated
 ```
+
+The command shows this output:
 
 ```
 wrote      example/generated/domain.runtime.generated.ts
@@ -43,42 +49,52 @@ wrote      example/generated/domain.schemas.generated.ts
 fingerprint sha256:<64 hex digits>
 ```
 
-Run it again and both lines say `unchanged`: the output is deterministic. Commit the generated files. Gate 4 checks that they stay equal to a fresh compile. [Generated code](./generated-code) explains what's inside them.
+Run the command again. Both lines then show `unchanged`, because the output is deterministic.
 
-## 3. Implement the core
+Commit the generated files to the repository. Gate 4 makes sure that these files are the same as a new compile. For the contents of the files, refer to [Generated code](./generated-code).
 
-The core is one object, keyed by operation URN, that `satisfies` the generated `DomainCoreImplementation`:
+## 3. Write the core
+
+The core is one object. Its keys are operation URNs, and it `satisfies` the generated `DomainCoreImplementation`:
 
 <<< @/../packages/urn-forge/example/core.ts
 
-Each handler receives branded input (`radius` is a `GeometryRadius`, not just a `number`) and returns a plain object. TypeScript infers the parameter types from `satisfies`, so there are no annotations to write. Delete a handler or return the wrong shape, and `tsc` fails.
+Each handler receives branded input. For example, `radius` is a `GeometryRadius`, not only a `number`. Each handler returns a plain object.
 
-## 4. Describe the behavior
+TypeScript finds the parameter types from the `satisfies` clause. As a result, you do not write type annotations. If you remove a handler or return the wrong shape, `tsc` fails.
 
-Tag each feature with the URN of the operation it exercises, and use field names as table headers:
+## 4. Write the behavior
+
+Put the URN of the operation in a tag on each feature. Use field names as table headers:
 
 <<< @/../packages/urn-forge/example/features/safe_divide.feature{gherkin}
 
-Wire the generic steps to your generated runtime and core in a support file:
+Connect the generic steps to your generated runtime and your core in a support file:
 
 <<< @/../packages/urn-forge/example/features/support/steps.ts
 
-Then point Cucumber at the features. The first `import` entry registers `tsx`, so Cucumber can load TypeScript support code:
+Then set the feature directory in the Cucumber configuration. The first `import` entry registers `tsx`. Then Cucumber can load support code in TypeScript.
 
 <<< @/../packages/urn-forge/cucumber.json
+
+Run Cucumber:
 
 ```bash
 npx cucumber-js
 ```
+
+The command shows this output:
 
 ```
 7 scenarios (7 passed)
 21 steps (21 passed)
 ```
 
-[Gherkin steps](./gherkin-steps) covers the step wording and how table cells are converted.
+For the words of the steps and the conversion of table cells, refer to [Gherkin steps](./gherkin-steps).
 
 ## 5. Verify the chain
+
+Run this command:
 
 ```bash
 npx urn-forge verify \
@@ -88,6 +104,8 @@ npx urn-forge verify \
   --features example/features
 ```
 
+The command shows this output:
+
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over example/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       PASS  2 feature(s), 4 scenario(s), 2/2 operations tagged
@@ -95,11 +113,11 @@ gate 4  drift         PASS  2 generated file(s) compared byte for byte against e
 verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
 ```
 
-Inside this repository, `npm run verify:example` runs the same command. [Verification gates](./verify) shows what each gate catches.
+In this repository, `npm run verify:example` runs the same command. For the errors that each gate finds, refer to [Verification gates](./verify).
 
-## 6. Run it in CI
+## 6. Run the chain in CI
 
-The repository's workflow runs the whole chain on every push to `main` and every pull request. The CLI job is:
+The workflow of the repository runs the full chain for each push to `main` and for each pull request. These are the steps of the CLI job:
 
 ```yaml
 - run: npm ci
@@ -108,4 +126,4 @@ The repository's workflow runs the whole chain on every push to `main` and every
 - run: npx cucumber-js
 ```
 
-The last three steps run even if an earlier one fails, so each broken link reports under its own step.
+The last three steps run also if a step before them fails. As a result, each broken link shows its error in a different step.

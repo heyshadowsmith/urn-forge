@@ -1,27 +1,27 @@
 # Gherkin steps
 
-urn-forge ships three generic Cucumber steps. They work for any domain, because they read everything they need from the feature's tag and the generated `DispatchMap`.
+urn-forge supplies three generic Cucumber steps. These steps operate for all domains. They read the necessary data from the tag of the feature and from the generated `DispatchMap`.
 
-| Step | Does |
+| Step | Function |
 | --- | --- |
-| `When I run the operation with:` | Builds a payload from the table and calls `executeOperation` |
-| `Then the output is:` | Checks the call succeeded and the listed output fields match |
-| `Then the input is rejected on "<field>"` | Checks the call returned `InputRejected` with an issue on that field |
+| `When I run the operation with:` | Makes a payload from the table and calls `executeOperation` |
+| `Then the output is:` | Makes sure that the call is correct and that the output fields in the table agree |
+| `Then the input is rejected on "<field>"` | Makes sure that the call returns `InputRejected` with an issue on that field |
 
-## Tagging a feature
+## The tag of a feature
 
-Tag the feature (or a single scenario, a `Rule` or an `Examples` block) with the operation's full URN:
+Put the full URN of the operation in a tag. You can put the tag on the feature, on one scenario, on a `Rule` block or on an `Examples` block:
 
 ```gherkin
 @urn:demo:math:arithmetic:operation:safe_divide
 Feature: Safe division
 ```
 
-A scenario must end up with exactly one operation tag, counting the tags it inherits. Other tags, such as `@wip`, are ignored.
+Each scenario must have one operation tag, and only one. This count contains the tags that the scenario receives from its feature and its blocks. The steps ignore other tags, for example `@wip`.
 
 ## Tables
 
-Both table steps take a header row of **field names** and exactly one data row:
+The two table steps use one header row of **field names** and one data row:
 
 ```gherkin
 When I run the operation with:
@@ -32,23 +32,25 @@ Then the output is:
   | 5        |
 ```
 
-- **Headers** must be property names of the operation's input entity (for `When`) or output entity (for `Then the output is`). Anything else fails the step, and gate 3 catches it without running anything.
-- **Cells** are converted by the field's primitive before parsing:
+The steps use these rules:
 
-| Primitive | Cell | Value sent |
-| --- | --- | --- |
-| `float`, `integer` | A number literal: `10`, `-9`, `0.5`, `1e3`, `Infinity`, `NaN` | The number |
-| `float`, `integer` | Anything else, such as `abc` or `1,000` | The string, for the schema to reject |
-| `string` | Anything | The text as written |
-| any | An empty cell | Nothing: the key is absent |
+- **Headers.** Each header must be a property name of the input entity (for `When`) or of the output entity (for `Then the output is`). An unknown header makes the step fail. Gate 3 also finds this error without a test run.
+- **Cells.** The steps convert each cell with the primitive of its field before the parse:
 
-- **Output checks** compare only the columns you list, so extra output fields don't fail the step. Values must match exactly; `NaN` matches `NaN`.
+  | Primitive | Cell | Value that the step sends |
+  | --- | --- | --- |
+  | `float`, `integer` | A number literal: `10`, `-9`, `0.5`, `1e3`, `Infinity`, `NaN` | The number |
+  | `float`, `integer` | A different text, for example `abc` or `1,000` | The text. The schema then refuses it |
+  | `string` | Any text | The same text |
+  | All | An empty cell | No value. The key is absent |
 
-Scenario Outlines work as usual, since Cucumber substitutes `<placeholders>` before the step runs.
+- **Output checks.** The step compares only the columns in the table. Other output fields do not make the step fail. The values must be equal. `NaN` is equal to `NaN`.
 
-## Boundary scenarios
+Scenario Outlines operate as usual. Cucumber puts the values in the `<placeholders>` before the step starts.
 
-`the input is rejected on "<field>"` passes only if the input was rejected *at the boundary*, by schema validation, and one of the issues names that field:
+## Scenarios at the boundary
+
+The step `the input is rejected on "<field>"` passes only if the schema refused the input at the boundary. Also, one of the issues must be about that field:
 
 ```gherkin
 Scenario: A zero divisor is rejected at the boundary
@@ -58,28 +60,32 @@ Scenario: A zero divisor is rejected at the boundary
   Then the input is rejected on "divisor"
 ```
 
-It fails if the operation succeeded, if the failure was a `ContractViolation`, or if the rejection was about a different field.
+The step fails in these conditions:
 
-## Wiring it up
+- The operation is correct.
+- The result is a `ContractViolation`.
+- The issue is about a different field.
 
-Register the steps once, in a support file, with your generated runtime and core:
+## Connect the steps
+
+Register the steps one time in a support file. Give them your generated runtime and your core:
 
 <<< @/../packages/urn-forge/example/features/support/steps.ts
 
-`registerOperationSteps` takes:
+`registerOperationSteps` takes these options:
 
-| Option | Type | Purpose |
+| Option | Type | Function |
 | --- | --- | --- |
-| `dispatch` | the generated `DispatchMap` | Field names and primitives per operation |
-| `execute` | `(urn, payload) => ExecuteResult` | Usually `executeOperation` bound to your core |
+| `dispatch` | The generated `DispatchMap` | The field names and primitives of each operation |
+| `execute` | `(urn, payload) => ExecuteResult` | Normally `executeOperation` with your core |
 
-Cucumber needs `tsx` registered before it loads TypeScript support code. List the register module first under `import`:
+Cucumber must register `tsx` before it loads support code in TypeScript. Put the register module first in the `import` list:
 
 <<< @/../packages/urn-forge/cucumber.json
 
 ## Failure messages
 
-Each failure names the operation and says what differed:
+Each failure message gives the operation and the difference:
 
 ```
 urn:demo:math:arithmetic:operation:safe_divide output differs: quotient: expected 6, got 5

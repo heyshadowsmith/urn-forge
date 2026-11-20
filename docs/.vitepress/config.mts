@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'urn-forge',
   description:
-    'Declare a domain in YAML, generate typed contracts and a runtime gatekeeper, and fail CI when the chain from URN to passing scenario breaks.',
+    'Write a domain in YAML. urn-forge generates typed contracts and a runtime gatekeeper. CI fails if the chain from a URN to a scenario breaks.',
   cleanUrls: true,
   appearance: 'dark',
   head: [
@@ -31,8 +31,8 @@ export default defineConfig({
         text: 'Guide',
         items: [
           { text: 'What is urn-forge?', link: '/guide/what-is-urn-forge' },
-          { text: 'Getting started', link: '/guide/getting-started' },
-          { text: 'Writing a manifest', link: '/guide/manifest' },
+          { text: 'First steps', link: '/guide/getting-started' },
+          { text: 'The manifest', link: '/guide/manifest' },
           { text: 'Generated code', link: '/guide/generated-code' },
           { text: 'Gherkin steps', link: '/guide/gherkin-steps' },
           { text: 'Verification gates', link: '/guide/verify' },

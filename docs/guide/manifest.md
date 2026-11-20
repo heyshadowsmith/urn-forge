@@ -1,41 +1,54 @@
-# Writing a manifest
+# The manifest
 
-A manifest is one YAML file that declares one domain. urn-forge validates it in four passes: a meta-schema check of the structure, then expansion to URNs, uniqueness checks and reference checks. Every problem is reported, not only the first.
+A manifest is one YAML file for one domain. urn-forge does four checks on it:
+
+1. A meta-schema check of the structure.
+2. The expansion of short keys to URNs.
+3. A check that names are unique.
+4. A check that each reference is correct.
+
+urn-forge shows all the problems that it finds, not only the first problem.
 
 ## Header
 
 ```yaml
 manifest:
-  namespace: demo        # organization or system root
-  domain: math           # bounded context or business vertical
-  version: 0.1.0         # semver, set by you
+  namespace: demo        # the root of the organization or system
+  domain: math           # the bounded context or business area
+  version: 0.1.0         # a semver version that you set
   stability: stable      # optional: stable (default) or experimental
 ```
 
-`namespace` and `domain` must be lowercase snake_case: they start with a letter, use only `a-z`, `0-9` and `_`, and are at most 63 characters. `version` must be a semver version.
+The `namespace` and `domain` values must be lowercase snake_case:
+
+- They start with a letter.
+- They contain only `a-z`, `0-9` and `_`.
+- They have a maximum of 63 characters.
+
+The `version` value must be a semver version.
 
 ## Short keys and URNs
 
-Every other top-level key declares one atom, written as a **short key**:
+Each other top-level key declares one atom. The key is a **short key**:
 
 ```
 <context>.<kind>.<identifier>
 arithmetic.field.divisor
 ```
 
-`context` and `identifier` follow the same snake_case rule as the header. `kind` is one of `field`, `entity` or `operation`. The spec's other kinds (`invariant`, `event`, `error`) are rejected with "not supported yet".
+The `context` and `identifier` segments obey the same snake_case rule as the header. The `kind` segment is `field`, `entity` or `operation`. The specification also has the kinds `invariant`, `event` and `error`. The MVP does not accept these kinds, and it shows a `not supported yet` message.
 
-`compile` expands each short key into a full URN using the header:
+The `compile` command uses the header to expand each short key to a full URN:
 
 ```
 arithmetic.field.divisor  →  urn:demo:math:arithmetic:field:divisor
 ```
 
-URNs are what features, generated code and diagnostics use. References inside the manifest (`ref`, `input`, `output`) use short keys and must point into the same manifest.
+Features, generated code and diagnostics use URNs. References in the manifest (`ref`, `input` and `output`) use short keys. Each reference must point to an atom in the same manifest.
 
 ### Brand identifiers
 
-Each atom also gets a **brand identifier**: the PascalCase of its context and identifier.
+Each atom also has a **brand identifier**. The brand identifier is the PascalCase form of its context and its identifier.
 
 | Short key | Brand identifier |
 | --- | --- |
@@ -43,26 +56,26 @@ Each atom also gets a **brand identifier**: the PascalCase of its context and id
 | `geometry.entity.circle_area` | `GeometryCircleArea` |
 | `arithmetic.operation.safe_divide` | `ArithmeticSafeDivide` |
 
-Generated code is named after brand identifiers, so two atoms with the same brand identifier are a compile error, even across kinds. For example, `geo_metry.field.radius` and `geo.field.metry_radius` both become `GeoMetryRadius`.
+The names in the generated code come from brand identifiers. As a result, two atoms with the same brand identifier cause a compile error, also if they are of different kinds. For example, `geo_metry.field.radius` and `geo.field.metry_radius` both become `GeoMetryRadius`.
 
 ## Fields
 
-A field declares one value: a primitive plus optional constraints and a description.
+A field declares one value. It has a primitive, and it can have constraints and a description.
 
 ```yaml
 arithmetic.field.divisor:
   primitive: float
   notEqual: 0
-  description: What to divide by
+  description: The number to divide by
 ```
 
 | Primitive | TypeScript type | Constraints |
 | --- | --- | --- |
-| `float` | finite `number` | `min`, `max`, `notEqual` (numbers) |
-| `integer` | safe-integer `number` | `min`, `max`, `notEqual` (integers) |
-| `string` | `string` | `minLength`, `maxLength` (non-negative integers) |
+| `float` | A finite `number` | `min`, `max` and `notEqual` (numbers) |
+| `integer` | A safe-integer `number` | `min`, `max` and `notEqual` (integers) |
+| `string` | `string` | `minLength` and `maxLength` (integers that are not negative) |
 
-A constraint that doesn't belong to the primitive is an error. So is a constraint value of the wrong type:
+A constraint that is not applicable to the primitive causes an error. A constraint value of the wrong type also causes an error:
 
 ```
 geometry.field.radius.minLength: "minLength" is not a constraint of primitive "float" (allowed: min, max, notEqual)
@@ -70,25 +83,25 @@ geometry.field.radius.minLength: "minLength" is not a constraint of primitive "f
 
 ## Entities
 
-An entity is a named group of fields. Each entry in `fields` references a field by short key:
+An entity is a group of fields with a name. Each item in `fields` refers to a field by its short key:
 
 ```yaml
 arithmetic.entity.division:
-  description: A division to perform
+  description: A division to do
   fields:
     - ref: arithmetic.field.dividend
     - ref: arithmetic.field.divisor
-      required: false     # the key may be absent; defaults to true
+      required: false     # the key can be absent; the default is true
 ```
 
-- `description` is required, and so is at least one field.
-- Optionality lives on the reference, not the field, so one field can be required in one entity and optional in another.
-- On the entity, each field appears under its **identifier**: `arithmetic.field.divisor` becomes the property `divisor`. Two fields with the same identifier (say `geometry.field.size` and `arithmetic.field.size`) can't both be in one entity.
-- Fields keep their declaration order in the generated code.
+- The `description` is mandatory. The entity must also have one or more fields.
+- The reference sets if a field is optional, not the field. As a result, one field can be mandatory in one entity and optional in a different entity.
+- In the entity, the name of each field is its **identifier**. For example, `arithmetic.field.divisor` becomes the property `divisor`. One entity cannot contain two fields with the same identifier, for example `geometry.field.size` and `arithmetic.field.size`.
+- The generated code keeps the fields in the sequence of the manifest.
 
 ## Operations
 
-An operation names its input and output entities:
+An operation has an input entity and an output entity:
 
 ```yaml
 arithmetic.operation.safe_divide:
@@ -97,15 +110,15 @@ arithmetic.operation.safe_divide:
   output: arithmetic.entity.division_result
 ```
 
-`input` and `output` must name entities. The spec also allows a field here; the MVP doesn't.
+The `input` and `output` values must be entities. The specification also accepts a field in these positions. The MVP does not accept a field.
 
-## Validation passes
+## The four passes
 
 | Pass | Checks | Example message |
 | --- | --- | --- |
-| 1. Meta-schema | Header, short keys, kinds, primitives, constraint keys and types, required properties, duplicate YAML keys | `invalid key "Geometry.field.radius": expected <context>.<kind>.<identifier>, …` |
-| 2. Expansion | Short keys become URNs, and brand identifiers are derived | none |
-| 3. Uniqueness | No two atoms share a URN or a brand identifier; no entity has two properties with one name | `… brandIdentifier "GeoMetryRadius" is already used by urn:demo:math:geo:field:metry_radius; rename one of them` |
-| 4. References | Each `ref` names a field; each `input`/`output` names an entity | `urn:demo:math:geometry:entity:circle: fields[0].ref "geometry.field.diameter" does not resolve (…)` |
+| 1. Meta-schema | The header, short keys, kinds, primitives, constraint keys and types, mandatory properties, and YAML keys that occur two times | `invalid key "Geometry.field.radius": expected <context>.<kind>.<identifier>, …` |
+| 2. Expansion | urn-forge changes short keys to URNs and makes the brand identifiers | No message |
+| 3. Uniqueness | Two atoms cannot have the same URN or brand identifier. One entity cannot have two properties with the same name | `… brandIdentifier "GeoMetryRadius" is already used by urn:demo:math:geo:field:metry_radius; rename one of them` |
+| 4. References | Each `ref` points to a field. Each `input` and `output` points to an entity | `urn:demo:math:geometry:entity:circle: fields[0].ref "geometry.field.diameter" does not resolve (…)` |
 
-[Diagnostics](../reference/diagnostics) lists every message with its cause and fix.
+For a list of all messages, with the cause and the correction for each, refer to [Diagnostics](../reference/diagnostics).
