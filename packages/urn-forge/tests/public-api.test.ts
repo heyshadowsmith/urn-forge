@@ -37,6 +37,7 @@ describe('public API', () => {
       'handlerName',
       'schemaNames',
       'toBrandIdentifier',
+      'toUrn',
       'unsupportedConstructs',
       'verify',
     ]);

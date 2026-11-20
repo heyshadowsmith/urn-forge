@@ -14,7 +14,7 @@
 import type { ManifestLocator, ManifestPath } from '../diagnostics.js';
 import { KINDS, KIND_NAMES, kind, namedKinds, referenceOccurrences, type Atom, type KindName } from '../kinds/index.js';
 import { parseManifest, parseShortKey, type ValidManifest } from '../meta-schema.js';
-import { toBrandIdentifier } from '../naming.js';
+import { toBrandIdentifier, toUrn } from '../naming.js';
 import { canonicalJson, compareCodeUnits, sha256Hex } from './canonical.js';
 import type { IRBuildResult, IRIssue, UniversalIR, Urn } from './types.js';
 
@@ -27,7 +27,6 @@ function sortedByUrn<T>(record: Map<Urn, T>): Record<Urn, T> {
 /** Runs passes 2–4 and 7 and returns the sorted IR, or every issue found. */
 export function buildIr(manifest: ValidManifest): IRBuildResult {
   const { header } = manifest;
-  const prefix = `urn:${header.namespace}:${header.domain}`;
   const groups = manifest as unknown as Readonly<Record<string, Readonly<Record<string, unknown>>>>;
   const issues: IRIssue[] = [];
 
@@ -37,7 +36,7 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
     if (!parsed.ok) return undefined;
     const { context, kind: kindName, identifier } = parsed.value;
     return {
-      urn: `${prefix}:${context}:${kindName}:${identifier}` as Urn,
+      urn: toUrn({ namespace: header.namespace, domain: header.domain, context, kind: kindName, identifier }) as Urn,
       kind: kindName,
       context,
       identifier,

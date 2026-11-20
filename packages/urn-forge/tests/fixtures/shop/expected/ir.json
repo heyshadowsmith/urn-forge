@@ -25,6 +25,11 @@
           "required": false
         },
         {
+          "field": "urn:demo:shop:order:field:delivery",
+          "name": "delivery",
+          "required": false
+        },
+        {
           "field": "urn:demo:shop:order:field:terms_accepted",
           "name": "terms_accepted",
           "required": true
@@ -46,6 +51,18 @@
     }
   },
   "fields": {
+    "urn:demo:shop:order:field:delivery": {
+      "brandIdentifier": "OrderDelivery",
+      "constraints": {
+        "oneOf": [
+          "standard",
+          "express",
+          "click & collect"
+        ]
+      },
+      "primitive": "string",
+      "urn": "urn:demo:shop:order:field:delivery"
+    },
     "urn:demo:shop:order:field:gift_wrap": {
       "brandIdentifier": "OrderGiftWrap",
       "constraints": {},
@@ -101,7 +118,7 @@
   "meta": {
     "domain": "shop",
     "irSchemaVersion": 1,
-    "manifestHash": "8034d64a51f9cb5b6b5dc9e93a5978cd3f895634db511998662df0868addc730",
+    "manifestHash": "25cdb247192c2ddf2f786acadad620a0b2f956acd6eb3eaeedcec5406fdcee57",
     "manifestVersion": "0.1.0",
     "namespace": "demo",
     "stability": "stable"

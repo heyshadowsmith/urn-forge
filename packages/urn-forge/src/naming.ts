@@ -4,6 +4,20 @@
  * output agree on type names without one plugin importing the other's internals.
  */
 
+/** The six segments of a URN (spec §3). */
+export interface UrnParts {
+  readonly namespace: string;
+  readonly domain: string;
+  readonly context: string;
+  readonly kind: string;
+  readonly identifier: string;
+}
+
+/** `urn:<namespace>:<domain>:<context>:<kind>:<identifier>`. */
+export function toUrn({ namespace, domain, context, kind, identifier }: UrnParts): string {
+  return `urn:${namespace}:${domain}:${context}:${kind}:${identifier}`;
+}
+
 /** PascalCase of `context` + `identifier`: (`policy`, `deductible_amount`) → `PolicyDeductibleAmount`. */
 export function toBrandIdentifier(context: string, identifier: string): string {
   return `${context}_${identifier}`

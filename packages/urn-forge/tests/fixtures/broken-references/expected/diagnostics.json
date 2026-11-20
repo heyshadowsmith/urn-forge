@@ -13,7 +13,7 @@
     "code": "unresolved-ref",
     "location": {
       "column": 12,
-      "line": 15
+      "line": 16
     },
     "message": "urn:demo:broken:order:entity:line: fields[1].ref \"order.field.missing\" does not resolve (no atom urn:demo:broken:order:field:missing in this manifest)",
     "severity": "error",
@@ -23,11 +23,21 @@
     "code": "wrong-ref-kind",
     "location": {
       "column": 12,
-      "line": 16
+      "line": 17
     },
     "message": "urn:demo:broken:order:entity:line: fields[2].ref \"order.entity.line\" must name a field, but urn:demo:broken:order:entity:line is an entity",
     "severity": "error",
     "urn": "urn:demo:broken:order:entity:line"
+  },
+  {
+    "code": "incoherent-constraints",
+    "location": {
+      "column": 67,
+      "line": 10
+    },
+    "message": "urn:demo:broken:order:field:code: oneOf value \"abc\" is longer than maxLength (2), so it is never valid",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:field:code"
   },
   {
     "code": "incoherent-constraints",
@@ -43,7 +53,7 @@
     "code": "wrong-ref-kind",
     "location": {
       "column": 10,
-      "line": 19
+      "line": 20
     },
     "message": "urn:demo:broken:order:operation:place: input \"order.field.quantity\" must name an entity, but urn:demo:broken:order:field:quantity is a field",
     "severity": "error",

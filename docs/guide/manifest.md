@@ -75,7 +75,7 @@ arithmetic.field.divisor:
 | `boolean` | `boolean` | `mustBe` (`true` or `false`). The field accepts only this value, for example a box that the user must tick |
 | `float` | A finite `number` | `min`, `max` and `notEqual` (numbers) |
 | `integer` | A safe-integer `number` | `min`, `max` and `notEqual` (integers) |
-| `string` | `string` | `minLength` and `maxLength` (integers that are not negative) |
+| `string` | `string` | `minLength` and `maxLength` (integers that are not negative). `oneOf`: a list of the values that the field accepts, for example `oneOf: [standard, express]`. The list must have one or more values, and no value two times |
 
 A constraint that is not applicable to the primitive causes an error. A constraint value of the wrong type also causes an error. Constraints that do not accept a value cause an error too, for example `min: 5` with `max: 1`:
 

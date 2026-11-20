@@ -21,6 +21,7 @@ import { KINDS, KIND_NAMES, NOT_YET_SUPPORTED_KINDS, isKindName, type DeclOf, ty
 import type { EntityDecl } from './kinds/entity.js';
 import type { FieldDecl } from './kinds/field.js';
 import type { OperationDecl } from './kinds/operation.js';
+import { toUrn } from './naming.js';
 import { PRIMITIVE_NAMES, constraintKeys, isPrimitive } from './primitives/index.js';
 
 export { SEGMENT_PATTERN };
@@ -201,7 +202,7 @@ export function validateManifest(doc: unknown): MetaSchemaResult {
       continue;
     }
     const { context, kind, identifier } = parsed.value;
-    const urn = header && `urn:${header.namespace}:${header.domain}:${context}:${kind}:${identifier}`;
+    const urn = header && toUrn({ namespace: header.namespace, domain: header.domain, context, kind, identifier });
     const output = collect(key, KINDS[kind].schema, entry, issues, urn);
     if (output !== undefined) groups[KINDS[kind].group]![key] = output;
   }

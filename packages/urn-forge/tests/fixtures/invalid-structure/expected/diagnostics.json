@@ -41,7 +41,7 @@
       "column": 45,
       "line": 10
     },
-    "message": "order.field.note.min: \"min\" is not a constraint of primitive \"string\" (allowed: minLength, maxLength)",
+    "message": "order.field.note.min: \"min\" is not a constraint of primitive \"string\" (allowed: minLength, maxLength, oneOf)",
     "severity": "error"
   },
   {
@@ -56,8 +56,26 @@
   {
     "code": "invalid-value",
     "location": {
-      "column": 1,
+      "column": 52,
       "line": 12
+    },
+    "message": "order.field.speed.oneOf: must list at least one value",
+    "severity": "error"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 52,
+      "line": 13
+    },
+    "message": "order.field.size.oneOf: must not list a value more than once",
+    "severity": "error"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 1,
+      "line": 14
     },
     "message": "order.entity.line.description: Invalid key: Expected \"description\" but received undefined",
     "severity": "error"
@@ -66,7 +84,7 @@
     "code": "invalid-value",
     "location": {
       "column": 11,
-      "line": 13
+      "line": 15
     },
     "message": "order.entity.line.fields: must list at least one field",
     "severity": "error"
