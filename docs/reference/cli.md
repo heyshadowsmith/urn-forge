@@ -79,7 +79,9 @@ Run these scripts from the root of the repository:
 | `npm run typecheck` | Runs `tsc --noEmit` on the CLI package |
 | `npm run verify:example` | Runs `urn-forge verify` on the math example |
 | `npm run test:features` | Runs `cucumber-js` on the math example |
+| `npm run verify:self` | Runs `urn-forge verify` on the domain of urn-forge (`packages/urn-forge/self`) |
+| `npm run test:features:self` | Runs `cucumber-js` on the domain of urn-forge |
 | `npm run docs:dev` | Starts this documentation site, with live reload |
 | `npm run docs:build` | Builds this site as static files |
 
-In `packages/urn-forge`, `npm run compile:example` makes the files in `example/generated/` again.
+In `packages/urn-forge`, `npm run compile:example` makes the files in `example/generated/` again. `npm run compile:self` makes the files in `self/generated/` again.

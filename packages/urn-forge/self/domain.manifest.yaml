@@ -1,0 +1,34 @@
+# urn-forge's own domain: the pure functions of the toolchain, declared with urn-forge.
+# Only what the MVP can express lives here. See self/README.md for what is still blocked.
+manifest:
+  namespace: urn_forge
+  domain: toolchain
+  version: 0.1.0
+  stability: experimental
+
+naming.field.context:
+  primitive: string
+  minLength: 1
+  maxLength: 63
+  description: The context segment of a short key, such as policy
+naming.field.identifier:
+  primitive: string
+  minLength: 1
+  maxLength: 63
+  description: The identifier segment of a short key, such as deductible_amount
+naming.field.brand_identifier:
+  primitive: string
+  minLength: 1
+  description: The PascalCase name that generated code uses for an atom
+
+naming.entity.segment_pair:
+  description: The context and identifier segments of a short key
+  fields: [{ ref: naming.field.context }, { ref: naming.field.identifier }]
+naming.entity.brand:
+  description: The brand identifier derived from a segment pair
+  fields: [{ ref: naming.field.brand_identifier }]
+
+naming.operation.to_brand_identifier:
+  description: Derive the PascalCase brand identifier of an atom from its context and identifier
+  input: naming.entity.segment_pair
+  output: naming.entity.brand

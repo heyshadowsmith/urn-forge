@@ -1,7 +1,8 @@
 # The traceability chain, end to end (mvp-plan.md, build step 10). Any broken link turns
 # the build red: a missing handler (gate 1), a feature table header that is not a field
 # (gate 3), a hand-edited generated file (gate 4), or a failing scenario. A second job
-# builds the docs site, so a broken page or dead link fails too.
+# builds the docs site, so a broken page or dead link fails too. The same checks also run
+# on self/, urn-forge's own domain.
 name: CI
 
 on:
@@ -52,6 +53,23 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         working-directory: packages/urn-forge
         run: npx cucumber-js
+
+      # urn-forge's own domain (self/): the toolchain's pure functions, declared and
+      # traced with urn-forge, so the chain is checked on a second domain.
+      - name: urn-forge verify (self)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: packages/urn-forge
+        run: >-
+          npx urn-forge verify
+          --manifest self/domain.manifest.yaml
+          --out self/generated
+          --core self/core.ts
+          --features self/features
+
+      - name: cucumber-js (self)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: packages/urn-forge
+        run: npx cucumber-js --profile self
 
   docs:
     runs-on: ubuntu-latest
