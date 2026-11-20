@@ -47,6 +47,12 @@ export interface FingerprintInputs {
   readonly config: unknown;
   readonly generatorVersion: string;
   readonly plugins: readonly { readonly name: string; readonly version: string }[];
+  /**
+   * The registries the generator was built with: each primitive's constraint keys, and the
+   * kind names. Generated code depends on them (FieldInfo lists every primitive), so a new
+   * primitive or constraint changes the fingerprint without anyone bumping a version.
+   */
+  readonly registries: unknown;
 }
 
 /**

@@ -41,6 +41,7 @@ All six phases are done. Next come the two acceptance tests below, then the dogf
 After phase 4, two small additions test whether the registries work, the way the math fixture tested the MVP:
 
 1. **`boolean` with `mustBe`.** It should take one new primitive module plus one translator entry per plugin, with `tsc` listing each of those.
+   *Result: passed.* The code took `src/primitives/boolean.ts`, one line in the registry and one entry in the Valibot translations; `tsc` named exactly that table and nothing else. The meta-schema, `FieldInfo`, cell parsing and the support check picked it up with no change. It also found a gap: the generated runtime lists every primitive, so its bytes changed, but the fingerprint did not, because it covered the IR and plugin versions but not the registries. The registries (each primitive's constraint keys, and the kind names) are now a fingerprint input, so a registry change shows in every header without a version bump.
 2. **`oneOf` on `string`.** The first non-numeric constraint. It exercises the new constraint value type, rendering, boundaries ("every value plus one outside") and a `string[]` value end to end.
 
 If either sprawls beyond that, fix the registry before adding `decimal`, `list` or `ref`. The `error` kind is then the real test of phase 3.

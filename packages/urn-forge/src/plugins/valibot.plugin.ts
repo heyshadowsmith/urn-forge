@@ -50,6 +50,7 @@ const NUMERIC_ACTIONS: ValibotTranslation<'float' | 'integer'>['constraints'] = 
 };
 
 const TRANSLATIONS: ValibotTranslations = {
+  boolean: { base: ['v.boolean()'], constraints: { mustBe: (b) => `v.value(${b})` } },
   float: { base: ['v.number()', 'v.finite()'], constraints: NUMERIC_ACTIONS },
   integer: { base: ['v.number()', 'v.safeInteger()'], constraints: NUMERIC_ACTIONS },
   string: {

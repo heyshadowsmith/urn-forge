@@ -13,6 +13,7 @@ import { compareCodeUnits, fingerprint } from './ir/canonical.js';
 import type { IRField, UniversalIR } from './ir/types.js';
 import { KINDS, KIND_NAMES } from './kinds/index.js';
 import { DEFAULT_PLUGINS } from './plugins/index.js';
+import { PRIMITIVE_NAMES, constraintKeys } from './primitives/index.js';
 import type { CodegenPlugin, GeneratedArtifact, PluginDiagnostic } from './plugins/plugin.interface.js';
 import { GENERATOR_VERSION } from './version.js';
 
@@ -136,6 +137,10 @@ export function compile(manifestSource: string, plugins: readonly PluginEntry[] 
     config: plugins.map(({ plugin }, i) => [plugin.name, configs[i]]),
     generatorVersion: GENERATOR_VERSION,
     plugins: plugins.map(({ plugin }) => ({ name: plugin.name, version: plugin.version })),
+    registries: {
+      primitives: Object.fromEntries(PRIMITIVE_NAMES.map((p) => [p, constraintKeys(p)])),
+      kinds: KIND_NAMES,
+    },
   });
   const header = generatedHeader(print);
 
