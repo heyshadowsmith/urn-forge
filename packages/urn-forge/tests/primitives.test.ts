@@ -22,12 +22,12 @@ describe('primitive registry', () => {
       boolean: ['mustBe'],
       float: ['min', 'max', 'notEqual'],
       integer: ['min', 'max', 'notEqual'],
-      string: ['minLength', 'maxLength', 'oneOf'],
+      string: ['minLength', 'maxLength', 'regex', 'oneOf'],
     });
   });
 
   it('drives the meta-schema: each primitive accepts its own constraints and no others', () => {
-    const sample: Record<string, unknown> = { mustBe: true, min: 1, max: 1, notEqual: 1, minLength: 1, maxLength: 1, oneOf: ['a'] };
+    const sample: Record<string, unknown> = { mustBe: true, min: 1, max: 1, notEqual: 1, minLength: 1, maxLength: 1, regex: 'a', oneOf: ['a'] };
     for (const primitive of PRIMITIVE_NAMES) {
       for (const other of PRIMITIVE_NAMES) {
         for (const key of constraintKeys(other)) {
@@ -113,7 +113,7 @@ describe('ValibotTranslations (type level, checked by tsc)', () => {
 });
 
 describe('boolean (the first primitive added through the registry)', () => {
-  const line = { quantity: 2, unit_cost: 1.5, terms_accepted: true };
+  const line = { sku: 'ABC-1234', quantity: 2, unit_cost: 1.5, terms_accepted: true };
 
   it('parses true and false, and keeps an optional flag optional', () => {
     expect(v.safeParse(shop.OrderLineSchema, line).success).toBe(true);
@@ -136,7 +136,7 @@ describe('boolean (the first primitive added through the registry)', () => {
 });
 
 describe('oneOf (the first constraint that is not a number)', () => {
-  const line = { quantity: 2, unit_cost: 1.5, terms_accepted: true };
+  const line = { sku: 'ABC-1234', quantity: 2, unit_cost: 1.5, terms_accepted: true };
 
   it('accepts only the listed values, reporting the field', () => {
     expect(v.safeParse(shop.OrderLineSchema, { ...line, delivery: 'click & collect' }).success).toBe(true);
@@ -156,5 +156,20 @@ describe('oneOf (the first constraint that is not a number)', () => {
     expect(ir.fields['urn:demo:shop:order:field:delivery' as never]?.constraints).toEqual({
       oneOf: ['standard', 'express', 'click & collect'],
     });
+  });
+});
+
+describe('regex', () => {
+  const line = { sku: 'ABC-1234', quantity: 2, unit_cost: 1.5, terms_accepted: true };
+
+  it('matches the whole value, reporting the field', () => {
+    expect(v.safeParse(shop.OrderSkuSchema, 'ABC-1234').success).toBe(true);
+    for (const partial of ['abc-1234', 'xABC-1234', 'ABC-12345']) expect(v.safeParse(shop.OrderSkuSchema, partial).success, partial).toBe(false);
+    expect(v.safeParse(shop.OrderLineSchema, { ...line, sku: 'nope' }).issues?.map((i) => v.getDotPath(i))).toEqual(['sku']);
+  });
+
+  it('keeps a slash, a dot and a backslash in the pattern', () => {
+    expect(v.safeParse(shop.OrderTrackingUrlSchema, 'https://track.example/42').success).toBe(true);
+    expect(v.safeParse(shop.OrderTrackingUrlSchema, 'https://trackXexample/42').success).toBe(false);
   });
 });

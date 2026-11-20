@@ -15,6 +15,7 @@ import {
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
+import { SEGMENT_PATTERN } from '../src/grammar.js';
 import { parseShortKey } from '../src/meta-schema.js';
 
 const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 0.1.0\n';
@@ -47,6 +48,13 @@ describe('kind registry', () => {
   it('matches the kinds self/ declares for naming.field.kind, so the dogfood domain stays in step', () => {
     const manifest = parse(readFileSync(fileURLToPath(new URL('../self/domain.manifest.yaml', import.meta.url)), 'utf8')) as Record<string, { oneOf?: string[] }>;
     expect(manifest['naming.field.kind']?.oneOf).toEqual(KIND_NAMES);
+  });
+
+  it('matches the segment grammar self/ declares for its segment fields', () => {
+    const manifest = parse(readFileSync(fileURLToPath(new URL('../self/domain.manifest.yaml', import.meta.url)), 'utf8')) as Record<string, { regex?: string }>;
+    for (const field of ['context', 'identifier', 'namespace', 'domain']) {
+      expect(`^${manifest[`naming.field.${field}`]?.regex}$`, field).toBe(SEGMENT_PATTERN.source);
+    }
   });
 
   it('names kinds with their article', () => {

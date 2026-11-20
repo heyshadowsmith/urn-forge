@@ -40,6 +40,18 @@ Feature: Brand identifiers
       | aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | radius     |
     Then the input is rejected on "context"
 
+  Scenario Outline: A context that is not lowercase snake_case is rejected at the boundary
+    When I run the operation with:
+      | context   | identifier |
+      | <context> | radius     |
+    Then the input is rejected on "context"
+
+    Examples:
+      | context  |
+      | Policy   |
+      | 2fa      |
+      | has-dash |
+
   Scenario: A missing identifier is rejected at the boundary
     When I run the operation with:
       | context  | identifier |
