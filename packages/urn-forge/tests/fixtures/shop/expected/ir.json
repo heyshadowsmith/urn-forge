@@ -60,7 +60,43 @@
       "urn": "urn:demo:shop:order:entity:line_total"
     }
   },
-  "errors": {},
+  "errors": {
+    "urn:demo:shop:order:error:price_unavailable": {
+      "brandIdentifier": "OrderPriceUnavailable",
+      "category": "not_found",
+      "description": "No price is known for the item",
+      "fields": [
+        {
+          "field": "urn:demo:shop:order:field:sku",
+          "name": "sku",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "No price for "
+        },
+        {
+          "field": "sku"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:shop:order:error:price_unavailable"
+    },
+    "urn:demo:shop:order:error:pricing_offline": {
+      "brandIdentifier": "OrderPricingOffline",
+      "category": "precondition",
+      "description": "Prices cannot be read now",
+      "fields": [],
+      "message": [
+        {
+          "text": "Pricing is offline; try again later"
+        }
+      ],
+      "retryable": true,
+      "urn": "urn:demo:shop:order:error:pricing_offline"
+    }
+  },
   "fields": {
     "urn:demo:shop:order:field:delivery": {
       "brandIdentifier": "OrderDelivery",
@@ -145,7 +181,7 @@
   "meta": {
     "domain": "shop",
     "irSchemaVersion": 1,
-    "manifestHash": "82863fa73d957e8adb18ede9a433d0279f7e1a7197d12d5d4651c6227b8677f6",
+    "manifestHash": "1412763b1f191e88925951e162498fdae51af327cd2f2e65aa8d7ad07ba8aa49",
     "manifestVersion": "0.1.0",
     "namespace": "demo",
     "stability": "stable"
@@ -154,7 +190,10 @@
     "urn:demo:shop:order:operation:price_line": {
       "brandIdentifier": "OrderPriceLine",
       "description": "Price one order line",
-      "errors": [],
+      "errors": [
+        "urn:demo:shop:order:error:price_unavailable",
+        "urn:demo:shop:order:error:pricing_offline"
+      ],
       "input": "urn:demo:shop:order:entity:line",
       "output": "urn:demo:shop:order:entity:line_total",
       "urn": "urn:demo:shop:order:operation:price_line"

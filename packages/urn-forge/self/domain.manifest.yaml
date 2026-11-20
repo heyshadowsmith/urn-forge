@@ -64,3 +64,51 @@ naming.operation.to_urn:
   description: Expand an atom address to its URN, urn:<namespace>:<domain>:<context>:<kind>:<identifier>
   input: naming.entity.atom_address
   output: naming.entity.expanded
+
+# Short keys and their errors (the error kind plan's target, written first as tests/fixtures/self-errors).
+naming.field.short_key:
+  primitive: string
+  minLength: 1
+  description: A manifest key as written, such as policy.field.deductible_amount
+naming.field.kind_segment:
+  primitive: string
+  regex: '[a-z]+'
+  description: The middle segment of a short key, whether or not it is a kind
+
+naming.entity.short_key_request:
+  description: A short key to parse
+  fields: [{ ref: naming.field.short_key }]
+naming.entity.short_key_parts:
+  description: The three segments of a valid short key
+  fields:
+    - ref: naming.field.context
+    - ref: naming.field.kind
+    - ref: naming.field.identifier
+
+naming.error.invalid_short_key:
+  description: The key does not have the form <context>.<kind>.<identifier> in lowercase snake_case
+  category: validation
+  retryable: false
+  message: Short key {short_key} is not <context>.<kind>.<identifier> in lowercase snake_case
+  fields: [{ ref: naming.field.short_key }]
+naming.error.unsupported_kind:
+  description: The kind is in the spec but the compiler does not support it yet
+  category: validation
+  retryable: false
+  message: Kind {kind_segment} in {short_key} is not supported yet
+  fields: [{ ref: naming.field.short_key }, { ref: naming.field.kind_segment }]
+naming.error.unknown_kind:
+  description: The kind is not a kind of the spec
+  category: validation
+  retryable: false
+  message: Kind {kind_segment} in {short_key} is not a kind
+  fields: [{ ref: naming.field.short_key }, { ref: naming.field.kind_segment }]
+
+naming.operation.parse_short_key:
+  description: Split a short key into its context, kind and identifier
+  input: naming.entity.short_key_request
+  output: naming.entity.short_key_parts
+  errors:
+    - naming.error.invalid_short_key
+    - naming.error.unsupported_kind
+    - naming.error.unknown_kind

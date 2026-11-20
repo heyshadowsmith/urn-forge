@@ -108,13 +108,19 @@ The work is driven by urn-forge's own domain, the way the math fixture drove the
   - Because the payload's `kind` holds the URN, an error field whose identifier is `kind` is now a compile error, `reserved-property`.
   - *Changed from the plan:* the `shop` fixture cannot gain an error yet, because FCIS would refuse it and the fixture's generated code (which tests import) would disappear. Instead, a fixture may now hold an `urn-forge.config.ts` choosing its plugins (the harness and the determinism test load it), and a new `errors-valibot` fixture runs the Valibot plugin alone. `shop` gains its error in step 3.
   - *Check:* the `self-errors` fixture's diagnostics narrow to the FCIS plugin only. The `errors-valibot` fixture's error schemas parse a valid error (with and without its optional field, and an error with no fields) and reject a wrong `kind`, a missing field and a field that breaks its constraint; `tsc` types `kind` as the literal URN.
-- [ ] **3. FCIS.**
+- [x] **3. FCIS.**
   - Generate `Result`, `ok`, `fail`, the handler types (`Result<OutputInput, ErrorInput | …>`) and `DispatchMap.errors` (schema, `category`, `retryable` and the message template for each error).
   - `executeOperation` adds `DomainError` and the two new `ContractViolation` causes.
   - Migrate `example/core.ts` and `self/core.ts` to `ok(…)`, and declare `error` support.
   - The `shop` fixture gains an error with fields (moved here from step 2).
   - The `self-errors` fixture now compiles. Its manifest slice moves into `self/domain.manifest.yaml`, and its handler moves from `self/pending/core.ts` into `self/core.ts`, so gate 1 checks it. The fixture directory is removed.
   - *Check:* `tsc` names every handler before the migration and none after; all existing scenarios still pass; the successful `parse_short_key` scenario passes; runtime tests for each outcome.
+  - *Done, with these findings:*
+    - `tsc` named all four handlers before the migration (`Type '{ area: number; }' is not assignable to type 'Result<{ area: number; }, never>'`) and none after.
+    - The target had a naming bug that step 0 could not show, because plugins refused errors until now: the entity `short_key_input` and the field `short_key` both export `NamingShortKeyInput`. `export-collision` reported it; the entity is now `short_key_request`.
+    - Only the successful scenarios moved into `self/features/` here, so gate 3 sees the operation tagged; the error scenarios wait in `self/pending/` for step 4's step.
+    - `fail`'s mapped types give readable messages (`… is not assignable to parameter of type 'ErrorFields<"urn:…:unsupported_kind">'`), so the one-helper-per-error fallback in *Risks* was not needed.
+    - The FCIS plugin's version is now 0.2.0, since its output changed; its string literals now escape newlines, which an error message may contain.
 - [ ] **4. Steps.**
   - `Then the operation fails with {string}`, plus the table form `Then the operation fails with {string}:` that checks error fields.
   - `the output is:` now reads `value` from the `Result`.

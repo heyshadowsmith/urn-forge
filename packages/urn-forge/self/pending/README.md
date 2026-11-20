@@ -7,7 +7,7 @@ Code for `self/` that the compiler cannot check yet. It is the target of
 | --- | --- | --- |
 | `../../tests/fixtures/self-errors/domain.manifest.yaml` | `self/domain.manifest.yaml` | Step 3, when the manifest compiles |
 | `core.ts` | `self/core.ts` | Step 3, when `ok` and `fail` exist |
-| `features/parse_short_key.feature` | `self/features/` | Step 4, when the step `the operation fails with` exists |
+| `features/parse_short_key.feature` (the error scenarios) | `self/features/parse_short_key.feature` | Step 4, when the step `the operation fails with` exists |
 
 This directory is excluded from `tsc` (tsconfig.json), and neither `verify:self` nor the `self`
 Cucumber profile reads it. When it is empty, remove it.

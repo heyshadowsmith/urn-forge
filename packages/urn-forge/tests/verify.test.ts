@@ -131,10 +131,10 @@ describe('urn-forge verify', () => {
       await writeFile(
         at('example/core.ts'),
         [
-          "import type * as rt from './generated/domain.runtime.generated';",
+          "import * as rt from './generated/domain.runtime.generated';",
           'export default {',
-          "  'urn:demo:math:geometry:operation:compute_area': ({ radius }) => ({ area: Math.PI * radius ** 2 }),",
-          "  'urn:demo:math:arithmetic:operation:safe_divide': ({ dividend, divisor }) => ({ quotient: dividend / divisor }),",
+          "  'urn:demo:math:geometry:operation:compute_area': ({ radius }) => rt.ok({ area: Math.PI * radius ** 2 }),",
+          "  'urn:demo:math:arithmetic:operation:safe_divide': ({ dividend, divisor }) => rt.ok({ quotient: dividend / divisor }),",
           '} satisfies rt.DomainCoreImplementation;',
           '',
         ].join('\n'),

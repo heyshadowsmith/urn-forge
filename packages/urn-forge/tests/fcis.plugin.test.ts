@@ -10,6 +10,7 @@ import { FCIS_RUNTIME_FILE, fcisPlugin } from '../src/plugins/fcis.plugin.js';
 import {
   DispatchMap,
   executeOperation,
+  ok,
   type DomainCoreImplementation,
 } from './fixtures/math/expected/domain.runtime.generated.js';
 
@@ -74,25 +75,34 @@ describe('executeOperation (generated) with example/core.ts', () => {
   it('rejects a zero divisor at the boundary, tagged with the field URN', () => {
     const result = executeOperation(SAFE_DIVIDE, { dividend: 1, divisor: 0 }, core);
     expect(result).toMatchObject({ ok: false, kind: 'InputRejected', urn: SAFE_DIVIDE });
-    expect(!result.ok && result.issues.map(({ path, fieldUrn }) => ({ path, fieldUrn }))).toEqual([
+    expect(!result.ok && 'issues' in result && result.issues.map(({ path, fieldUrn }) => ({ path, fieldUrn }))).toEqual([
       { path: 'divisor', fieldUrn: 'urn:demo:math:arithmetic:field:divisor' },
     ]);
   });
 
   it('never calls the handler on rejected input', () => {
     let calls = 0;
-    const spy = { ...core, [SAFE_DIVIDE]: () => (calls++, { quotient: 0 }) } satisfies DomainCoreImplementation;
+    const spy = { ...core, [SAFE_DIVIDE]: () => (calls++, ok({ quotient: 0 })) } satisfies DomainCoreImplementation;
     executeOperation(SAFE_DIVIDE, { dividend: 1, divisor: 0 }, spy);
     expect(calls).toBe(0);
   });
 
   it('reports output that breaks the contract as a ContractViolation', () => {
-    const broken = { ...core, [COMPUTE_AREA]: () => ({ area: -1 }) } satisfies DomainCoreImplementation;
+    const broken = { ...core, [COMPUTE_AREA]: () => ok({ area: -1 }) } satisfies DomainCoreImplementation;
     const result = executeOperation(COMPUTE_AREA, { radius: 1 }, broken);
     expect(result).toMatchObject({
       ok: false,
       kind: 'ContractViolation',
       issues: [{ path: 'area', fieldUrn: 'urn:demo:math:geometry:field:area' }],
+    });
+  });
+
+  it('reports a handler that does not return a Result as a ContractViolation', () => {
+    const plain = { ...core, [COMPUTE_AREA]: () => ({ area: 1 }) } as unknown as DomainCoreImplementation;
+    expect(executeOperation(COMPUTE_AREA, { radius: 1 }, plain)).toMatchObject({
+      ok: false,
+      kind: 'ContractViolation',
+      issues: [{ path: '', message: expect.stringContaining('did not return a Result') }],
     });
   });
 
@@ -104,20 +114,25 @@ describe('executeOperation (generated) with example/core.ts', () => {
 });
 
 describe('DomainCoreImplementation (type level, checked by tsc)', () => {
-  it('rejects a missing handler, a mistyped output and an extra handler', () => {
+  it('rejects a missing handler, a mistyped output, a plain return and an extra handler', () => {
     const area = core[COMPUTE_AREA];
     // @ts-expect-error the safe_divide handler is missing
     const missing = { [COMPUTE_AREA]: area } satisfies DomainCoreImplementation;
     const mistyped = {
       [COMPUTE_AREA]: area,
       // @ts-expect-error quotient must be a number
-      [SAFE_DIVIDE]: () => ({ quotient: 'five' }),
+      [SAFE_DIVIDE]: () => ok({ quotient: 'five' }),
+    } satisfies DomainCoreImplementation;
+    const plain = {
+      [COMPUTE_AREA]: area,
+      // @ts-expect-error a handler returns a Result: ok(…) or fail(…), not its output
+      [SAFE_DIVIDE]: () => ({ quotient: 1 }),
     } satisfies DomainCoreImplementation;
     const extra = {
       ...core,
       // @ts-expect-error multiply is not an operation of this domain
       'urn:demo:math:arithmetic:operation:multiply': area,
     } satisfies DomainCoreImplementation;
-    expect([missing, mistyped, extra]).toBeDefined();
+    expect([missing, mistyped, plain, extra]).toBeDefined();
   });
 });
