@@ -118,6 +118,32 @@ describe('gate 3: required input columns', () => {
   });
 });
 
+describe('gate 3: tables of the fails-with step', () => {
+  const ir = compile(readFileSync(repo('tests/fixtures/shop/domain.manifest.yaml'), 'utf8')).ir!;
+  const PRICE = '@urn:demo:shop:order:operation:price_line';
+  const problems = (then: string) =>
+    checkGherkin({
+      ir,
+      features: {
+        directory: 'features',
+        features: [
+          indexFeatureSource(
+            `${PRICE}\nFeature: x\n  Scenario: y\n    When I run the operation with:\n      | sku | quantity | unit_cost | terms_accepted |\n      | ABC-1234 | 1 | 1 | true |\n${then}`,
+            'f.feature',
+          )!,
+        ],
+        problems: [],
+      },
+    } as unknown as GateContext).problems;
+
+  it('checks the headers against the fields of the named error, not the operation', () => {
+    expect(problems('    Then the operation fails with "urn:demo:shop:order:error:price_unavailable":\n      | sku |\n      | ABC-1234 |\n')).toEqual([]);
+    expect(problems('    Then the operation fails with "urn:demo:shop:order:error:price_unavailable":\n      | total |\n      | 1 |\n')).toEqual([
+      expect.objectContaining({ code: 'unknown-header', message: expect.stringContaining('is not a field key of the error urn:demo:shop:order:error:price_unavailable (allowed: sku)') }),
+    ]);
+  });
+});
+
 describe('gate framework', () => {
   let dir: string;
   beforeEach(async () => {

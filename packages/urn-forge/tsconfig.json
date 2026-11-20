@@ -20,7 +20,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src", "tests", "example", "self", "vitest.config.ts"],
-  // The error kind plan's target, written before the compiler can check it (self/pending/README.md).
-  "exclude": ["self/pending"]
+  "include": ["src", "tests", "example", "self", "vitest.config.ts"]
 }

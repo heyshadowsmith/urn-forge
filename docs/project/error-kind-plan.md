@@ -121,9 +121,11 @@ The work is driven by urn-forge's own domain, the way the math fixture drove the
     - Only the successful scenarios moved into `self/features/` here, so gate 3 sees the operation tagged; the error scenarios wait in `self/pending/` for step 4's step.
     - `fail`'s mapped types give readable messages (`… is not assignable to parameter of type 'ErrorFields<"urn:…:unsupported_kind">'`), so the one-helper-per-error fallback in *Risks* was not needed.
     - The FCIS plugin's version is now 0.2.0, since its output changed; its string literals now escape newlines, which an error message may contain.
-- [ ] **4. Steps.**
-  - `Then the operation fails with {string}`, plus the table form `Then the operation fails with {string}:` that checks error fields.
-  - `the output is:` now reads `value` from the `Result`.
+- [x] **4. Steps.**
+  - `Then the operation fails with {string}`, plus the table form `Then the operation fails with {string}:` that checks error fields. Cells are converted by each error field's primitive, from `DispatchMap.errors`.
+  - `the output is:` needed no change: `executeOperation` unwraps `ok(…)`, so the output step still reads `output`.
+  - *Added:* gate 3 checks the headers of a `fails with` table against the fields of the error it names, not the operation's input and output. Without this, `verify:self` would have failed on `kind_segment`.
+  - *Sabotage check:* mapping `widget` to `invalid_short_key` in `self/core.ts` fails its scenario with `… failed with …:invalid_short_key (Short key policy.widget.x is not …); expected …:unknown_kind`.
   - The error scenarios move from `self/pending/` into `self/features/`, and `self/pending/` is removed.
   - *Check:* step-library unit tests for each failure message; every `parse_short_key` scenario passes.
 - [ ] **5. Gate 3.**

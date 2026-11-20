@@ -12,7 +12,7 @@
  *    every required field of the operation's input. To test a missing value, leave its
  *    cell empty: the step then sends the payload without that key.
  */
-import { STEP_PHRASES } from '../gherkin/phrases.js';
+import { FAILS_WITH_TEXT, STEP_PHRASES } from '../gherkin/phrases.js';
 import type { Diagnostic, DiagnosticCode, SourceLocation } from '../diagnostics.js';
 import type { UniversalIR, Urn } from '../ir/types.js';
 import type { IndexedCell, IndexedTag, IndexedTable } from './feature-index.js';
@@ -26,6 +26,8 @@ interface Owner {
   readonly keys: ReadonlySet<string>;
   /** For an operation: its input's required property names. */
   readonly requiredInput?: readonly string[];
+  /** For an operation: its declared errors. */
+  readonly errors?: readonly Urn[];
 }
 
 export function checkGherkin({ ir, features }: GateContext): GateOutcome {
@@ -93,6 +95,12 @@ export function checkGherkin({ ir, features }: GateContext): GateOutcome {
       const owner = ownerOf(scenario.tags, scenario.location);
       for (const step of scenario.steps) {
         if (!step.table) continue;
+        // The table of `the operation fails with "<urn>":` holds the fields of that error.
+        const failsWith = FAILS_WITH_TEXT.exec(step.text);
+        if (failsWith) {
+          checkHeader(step.table.header, errorOwner(ir, owner, failsWith[1]!));
+          continue;
+        }
         checkHeader(step.table.header, owner);
         if (step.text === STEP_PHRASES.run) checkRequired(step.table, owner);
       }
@@ -133,7 +141,16 @@ function operationOwner(ir: UniversalIR, urn: Urn): Owner {
     description: `the input or output of ${urn}`,
     keys: new Set([...propertyNames(ir, op.input), ...propertyNames(ir, op.output)]),
     requiredInput: ir.entities[op.input]?.fields.filter((f) => f.required).map((f) => f.name) ?? [],
+    errors: op.errors,
   };
+}
+
+/** The fields an error table may name: those of `errorUrn`, when the scenario's operation declares it. */
+function errorOwner(ir: UniversalIR, owner: Owner | undefined, errorUrn: string): Owner | undefined {
+  // An error the operation does not declare is reported on its own (gate 3, undeclared-error).
+  if (!owner?.errors?.includes(errorUrn as Urn)) return undefined;
+  const error = ir.errors[errorUrn as Urn]!;
+  return { urn: errorUrn, description: `the error ${errorUrn}`, keys: new Set(error.fields.map((f) => f.name)) };
 }
 
 function entityOwner(ir: UniversalIR, urn: Urn): Owner {

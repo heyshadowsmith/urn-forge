@@ -4,6 +4,8 @@
  *   When I run the operation with:          one header row of input field names + one data row
  *   Then the output is:                     one header row of output field names + one data row
  *   Then the input is rejected on "<field>"
+ *   Then the operation fails with "<error URN>"
+ *   Then the operation fails with "<error URN>":   one header row of error field names + one data row
  *
  * The operation is the feature's (or scenario's) `@urn:…:operation:…` tag. Table cells are
  * coerced by the field's primitive (from the generated `DispatchMap`, read through the
@@ -37,6 +39,8 @@ export type FieldsLike = Readonly<Record<string, FieldInfoLike>>;
 export interface OperationContractLike {
   readonly input: { readonly fields: FieldsLike };
   readonly output: { readonly fields: FieldsLike };
+  /** The operation's declared errors, keyed by error URN. */
+  readonly errors: Readonly<Record<string, { readonly fields: FieldsLike }>>;
 }
 
 export interface BoundaryIssueLike {
@@ -91,7 +95,7 @@ export function coerceCell(cell: string, field: FieldInfoLike): unknown {
 export function tableToObject(
   rows: readonly (readonly string[])[],
   fields: FieldsLike,
-  side: 'input' | 'output',
+  side: 'input' | 'output' | 'error',
   urn: string,
 ): Record<string, unknown> {
   if (rows.length !== 2) {
@@ -147,6 +151,31 @@ export function assertRejectedOn(result: ExecuteResultLike, fieldName: string, f
   }
 }
 
+/**
+ * Checks the operation refused with the declared error `errorUrn`, and, when `expected` is
+ * given, that the error's fields equal it. Columns not in the table are not checked.
+ */
+export function assertFailsWith(
+  result: ExecuteResultLike,
+  errorUrn: string,
+  urn: string,
+  expected?: Record<string, unknown>,
+): void {
+  if (result.ok) throw new Error(`${urn} succeeded; expected it to fail with ${errorUrn}`);
+  if (!('error' in result)) {
+    throw new Error(`${urn} failed with ${describeFailure(result)}; expected the declared error ${errorUrn}`);
+  }
+  if (result.error.urn !== errorUrn) {
+    throw new Error(`${urn} failed with ${result.error.urn} (${result.error.message}); expected ${errorUrn}`);
+  }
+  if (!expected) return;
+  const fields = (result.error.fields ?? {}) as Record<string, unknown>;
+  const mismatches = Object.entries(expected)
+    .filter(([key, value]) => !sameValue(fields[key], value))
+    .map(([key, value]) => `${key}: expected ${String(value)}, got ${String(fields[key])}`);
+  if (mismatches.length > 0) throw new Error(`${errorUrn} fields differ: ${mismatches.join('; ')}`);
+}
+
 // ---------------------------------------------------------------------------
 // Cucumber registration
 // ---------------------------------------------------------------------------
@@ -170,6 +199,15 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
   const contract = (urn: string): OperationContractLike => {
     const found = Object.hasOwn(options.dispatch, urn) ? options.dispatch[urn] : undefined;
     if (!found) throw new Error(`${urn} is not an operation of this domain`);
+    return found;
+  };
+  const declaredError = (urn: string, errorUrn: string): { readonly fields: FieldsLike } => {
+    const { errors } = contract(urn);
+    const found = Object.hasOwn(errors, errorUrn) ? errors[errorUrn] : undefined;
+    if (!found) {
+      const declared = Object.keys(errors);
+      throw new Error(`${errorUrn} is not a declared error of ${urn} (errors: ${declared.length > 0 ? declared.join(', ') : 'none'})`);
+    }
     return found;
   };
   const lastRun = (world: StepsWorld): { urn: string; result: ExecuteResultLike } => {
@@ -200,5 +238,17 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
   Then(STEP_PHRASES.rejected, function (this: StepsWorld, fieldName: string) {
     const { urn, result } = lastRun(this);
     assertRejectedOn(result, fieldName, contract(urn).input.fields, urn);
+  });
+
+  Then(STEP_PHRASES.failsWith, function (this: StepsWorld, errorUrn: string) {
+    const { urn, result } = lastRun(this);
+    declaredError(urn, errorUrn);
+    assertFailsWith(result, errorUrn, urn);
+  });
+
+  Then(STEP_PHRASES.failsWithFields, function (this: StepsWorld, errorUrn: string, table: DataTable) {
+    const { urn, result } = lastRun(this);
+    const expected = tableToObject(table.raw(), declaredError(urn, errorUrn).fields, 'error', urn);
+    assertFailsWith(result, errorUrn, urn, expected);
   });
 }

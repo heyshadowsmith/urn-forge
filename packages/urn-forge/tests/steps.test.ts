@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertFailsWith,
   assertOutput,
   assertRejectedOn,
   coerceCell,
@@ -109,5 +110,30 @@ describe('assertRejectedOn', () => {
       assertRejectedOn({ ok: false, kind: 'ContractViolation', issues: [] }, 'divisor', input, URN),
     ).toThrow('failed with ContractViolation');
     expect(() => assertRejectedOn(rejected, 'denominator', input, URN)).toThrow('"denominator" is not a field');
+  });
+});
+
+describe('assertFailsWith', () => {
+  const ERR = 'urn:demo:shop:order:error:price_unavailable';
+  const refused: ExecuteResultLike = {
+    ok: false,
+    kind: 'DomainError',
+    error: { urn: ERR, message: 'No price for ABC-1234', fields: { kind: ERR, sku: 'ABC-1234' } },
+  };
+
+  it('passes on the named error, and on matching fields', () => {
+    expect(() => assertFailsWith(refused, ERR, URN)).not.toThrow();
+    expect(() => assertFailsWith(refused, ERR, URN, { sku: 'ABC-1234' })).not.toThrow();
+  });
+
+  it('fails on success, on another kind of failure, on another error and on different fields', () => {
+    expect(() => assertFailsWith({ ok: true, output: {} }, ERR, URN)).toThrow(`${URN} succeeded; expected it to fail with ${ERR}`);
+    expect(() => assertFailsWith({ ok: false, kind: 'InputRejected', issues: [{ path: 'sku', message: 'bad' }] }, ERR, URN)).toThrow(
+      `${URN} failed with InputRejected (sku: bad); expected the declared error ${ERR}`,
+    );
+    expect(() => assertFailsWith(refused, 'urn:demo:shop:order:error:pricing_offline', URN)).toThrow(
+      `${URN} failed with ${ERR} (No price for ABC-1234); expected urn:demo:shop:order:error:pricing_offline`,
+    );
+    expect(() => assertFailsWith(refused, ERR, URN, { sku: 'XYZ-0000' })).toThrow(`${ERR} fields differ: sku: expected XYZ-0000, got ABC-1234`);
   });
 });

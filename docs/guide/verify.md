@@ -37,7 +37,7 @@ gate 1  completeness  FAIL  tsc: 1 error(s) over example/core.ts; `core` satisfi
 **Features trace to real URNs, and their tables use real field names.** The gate reads each `.feature` file in the `--features` directory.
 
 1. **Tags.** Each `@urn:…` tag must agree with a URN in the manifest. Each operation must have a tag on one or more features or scenarios.
-2. **Headers.** These rules apply to a scenario with an operation tag. Each header in its tables must be a property of the input or output entity of the operation. This applies to step tables and to `Examples` blocks. If the tag is an entity tag, each header must be a property of that entity. A scenario receives the tags of its feature, of its `Rule` block and of its `Examples` blocks.
+2. **Headers.** These rules apply to a scenario with an operation tag. Each header in its tables must be a property of the input or output entity of the operation. The table of `Then the operation fails with "<error URN>":` is different: each header must be a field of that error. This applies to step tables and to `Examples` blocks. If the tag is an entity tag, each header must be a property of that entity. A scenario receives the tags of its feature, of its `Rule` block and of its `Examples` blocks.
 3. **Required columns.** The table of the step `When I run the operation with:` must have a column for each mandatory field of the input of the operation. Fields with `required: false` are not mandatory. To make a test with a missing value, keep the column and leave the cell empty. Then the step sends the payload without that key.
 
 A scenario with two or more operation or entity tags fails, because the steps must have one tag only.
