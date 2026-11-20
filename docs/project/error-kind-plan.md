@@ -94,12 +94,13 @@ The work is driven by urn-forge's own domain, the way the math fixture drove the
   - Three errors, not two, because `parseShortKey` has three failure outcomes: `invalid_short_key` (the grammar), `unsupported_kind` (a spec kind such as `event`) and `unknown_kind` (such as `widget`). The last two carry the kind as written in `kind_segment`.
   - `self/pending/core.ts` and `self/pending/features/parse_short_key.feature`: the handler (`ok(parsed.value)`, or `fail(…)` by the code `parseShortKey` returns) and nine scenarios: three valid keys, four invalid ones, and one for each kind error with its fields. They use the step `Then the operation fails with "<urn>"` and its table form, `Then the operation fails with "<urn>":` followed by a table of error fields. `self/pending/` is excluded from `tsc` and not read by `verify` or Cucumber until the steps that make it run (`self/pending/README.md`).
   - *Check:* the fixture fails with `unsupported-kind` for each of the three errors and `unknown-property` for `errors`, each at its line. That is today's compiler describing the gap.
-- [ ] **1. The kind.**
+- [x] **1. The kind.**
   - A descriptor in `src/kinds/error.ts`: its schema, and `fields` reference slots like an entity's.
   - `IRError` in the IR, and `errors` on `IROperation`, with an `errors.*` reference slot that may name only errors.
   - Pass 6: parse `message` into text and placeholders, and report `unknown-placeholder` for a name that is not a required field.
   - An entity's duplicate-property check is shared with errors.
   - No plugin declares `error` support yet, so a manifest that uses errors fails with `unsupported-construct`. That is the support check doing its job.
+  - Also done here: the shared field-reference code (`src/kinds/field-refs.ts`); `errors` on an operation reports a repeated error as `duplicate-ref`; a placeholder is `{…}` with no whitespace inside, so prose braces stay text but `{Quantity}` is still checked; `manifestHash` leaves out empty kind groups, so adding a kind to urn-forge does not change the hash of a manifest that does not use it. `self/`'s `naming.field.kind` gained `error`, as its registry test required.
   - *Check:* the `self-errors` fixture's expected diagnostics change to `unsupported-construct`, from both plugins, for each of its three errors; `invalid-structure` and `broken-references` gain the new problems (`recordAs`, a bad category, a placeholder typo, an `errors` entry that names an entity).
 - [ ] **2. Valibot.**
   - One `v.object` per error, with `kind: v.literal('<error URN>')` and the error's fields, exporting `<Brand>Schema`, `<Brand>` and `<Brand>Input`.

@@ -47,12 +47,12 @@ With `--format json`, each diagnostic is one JSON object on one line. Refer to [
 | `not-a-mapping` | `manifest must be a YAML mapping` | The top level is not a set of keys | Start the file with `manifest:` and the atom keys |
 | `missing-header` | `manifest: missing header (namespace, domain, version)` | The file has no `manifest:` key | Add the [header](../guide/manifest#header) |
 | `invalid-key` | `invalid key "<key>": expected <context>.<kind>.<identifier>, …` | A top-level key is not a valid short key | Change the name of the key, for example to `geometry.field.radius` |
-| `unsupported-kind` | `invalid key "<key>": kind "<kind>" is not supported yet (MVP kinds: field, entity, operation)` | The kind is `invariant`, `event` or `error`. The specification has these kinds, but the MVP does not | Remove the entry. Refer to [MVP scope](./scope) |
-| `unknown-kind` | `invalid key "<key>": unknown kind "<kind>" …` | The middle segment is not a known kind | Use `field`, `entity` or `operation` |
+| `unsupported-kind` | `invalid key "<key>": kind "<kind>" is not supported yet (MVP kinds: field, entity, operation, error)` | The kind is `invariant` or `event`. The specification has these kinds, but urn-forge does not at this time | Remove the entry. Refer to [MVP scope](./scope) |
+| `unknown-kind` | `invalid key "<key>": unknown kind "<kind>" …` | The middle segment is not a known kind | Use `field`, `entity`, `operation` or `error` |
 | `unknown-primitive` | `<key>.primitive: unknown primitive "<name>" (MVP primitives: boolean, float, integer, string)` | The MVP does not accept this primitive | Use `boolean`, `float`, `integer` or `string` |
 | `constraint-not-allowed` | `<key>.<constraint>: "<constraint>" is not a constraint of primitive "<primitive>" (allowed: …)` | A field has a property that is not a constraint of its primitive, for example `minLength` on a `float` | Use a constraint from the list in the message |
 | `unknown-property` | `<key>.<property>: unknown property "<property>"` | An entity, an operation or the header has a key that it does not accept | Remove the key, or correct its name |
-| `invalid-value` | `<key>.<property>: <Valibot message>` | A value has the wrong type or form. Examples: `min: "abc"`, `max: 1.5` on an `integer`, a `regex` that is not a valid regular expression, an empty `fields` list, no `description`, or a `namespace` that is not snake_case | Correct the value. The message tells the necessary type or form |
+| `invalid-value` | `<key>.<property>: <Valibot message>` | A value has the wrong type or form. Examples: `min: "abc"`, `max: 1.5` on an `integer`, a `regex` that is not a valid regular expression, an error `category` that is not one of the five categories, `recordAs` on an error (this needs the `event` kind), an empty `fields` list, no `description`, or a `namespace` that is not snake_case | Correct the value. The message tells the necessary type or form |
 
 ## Uniqueness (pass 3)
 
@@ -69,6 +69,12 @@ With `--format json`, each diagnostic is one JSON object on one line. Refer to [
 | --- | --- | --- | --- |
 | `unresolved-ref` | `<urn>: <where> "<short key>" does not resolve (no atom <urn> in this manifest)` | A `ref`, `input` or `output` refers to an atom that the manifest does not declare | Declare the atom, or correct the short key |
 | `wrong-ref-kind` | `<urn>: <where> "<short key>" must name a field, but <urn> is an entity` | A `ref` refers to an atom that is not a field, or an `input` or `output` refers to an atom that is not an entity | Refer to an atom of the correct kind. To use a field as an input or output, put it in an entity |
+
+## Message templates (pass 6)
+
+| Code | Message | Cause | Correction |
+| --- | --- | --- | --- |
+| `unknown-placeholder` | `<urn>: message placeholder {<name>} names no field of the error (required fields: …)` | A `{placeholder}` in the `message` of an error is not a field of the error, or it is an optional field. A placeholder must name a mandatory field. Then each message is complete | Correct the name, or make the field mandatory |
 
 ## Constraint coherence (pass 7)
 

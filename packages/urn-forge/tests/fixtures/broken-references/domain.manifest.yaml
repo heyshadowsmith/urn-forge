@@ -16,7 +16,30 @@ order.entity.line:
     - ref: order.field.quantity
     - ref: order.field.missing
     - ref: order.entity.line
+order.error.limit_exceeded:
+  description: The order is over the limit
+  category: precondition
+  retryable: false
+  message: Quantity {quantiy} is over the limit {limit}
+  fields:
+    - ref: order.field.quantity
+    - ref: order.field.code
+      required: false
+order.error.limit:
+  description: A note about {code}
+  category: validation
+  retryable: false
+  message: Code {code} is optional here
+  fields:
+    - ref: order.field.code
+      required: false
+
 order.operation.place:
   description: Place an order
   input: order.field.quantity
   output: order.entity.line
+order.operation.reprice:
+  description: Reprice an order
+  input: order.entity.line
+  output: order.entity.line
+  errors: [order.error.limit_exceeded, order.entity.line, order.error.limit_exceeded]

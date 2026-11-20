@@ -4,7 +4,7 @@ urn-forge is an MVP. It keeps the four links of the traceability chain: the mani
 
 | Area | Parts in the MVP | Parts not in the MVP at this time |
 | --- | --- | --- |
-| Atom kinds | `field`, `entity`, `operation` | `invariant`, `event`, `error`, lifecycle data |
+| Atom kinds | `field`, `entity`, `operation`. `error` is in progress: urn-forge examines error entries, but the plugins do not make code for them at this time. Refer to the [error kind plan](../project/error-kind-plan) | `invariant`, `event`, lifecycle data |
 | Primitives | `boolean`, `integer`, `float`, `string` | `decimal`, `timestamp`, `list`, `record`, `ref` |
 | Constraints | `mustBe`, `min`, `max`, `notEqual`, `minLength`, `maxLength`, `regex`, `oneOf` | `format`, `precision` |
 | Optional fields | `required` on each field reference | `nullable` |

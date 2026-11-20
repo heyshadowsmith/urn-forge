@@ -30,6 +30,36 @@
     "urn": "urn:demo:broken:order:entity:line"
   },
   {
+    "code": "unknown-placeholder",
+    "location": {
+      "column": 12,
+      "line": 32
+    },
+    "message": "urn:demo:broken:order:error:limit: message placeholder {code} names an optional field; placeholders must name required fields (required fields: none)",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:error:limit"
+  },
+  {
+    "code": "unknown-placeholder",
+    "location": {
+      "column": 12,
+      "line": 23
+    },
+    "message": "urn:demo:broken:order:error:limit_exceeded: message placeholder {quantiy} names no field of the error (required fields: quantity)",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:error:limit_exceeded"
+  },
+  {
+    "code": "unknown-placeholder",
+    "location": {
+      "column": 12,
+      "line": 23
+    },
+    "message": "urn:demo:broken:order:error:limit_exceeded: message placeholder {limit} names no field of the error (required fields: quantity)",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:error:limit_exceeded"
+  },
+  {
     "code": "incoherent-constraints",
     "location": {
       "column": 67,
@@ -63,10 +93,30 @@
     "code": "wrong-ref-kind",
     "location": {
       "column": 10,
-      "line": 21
+      "line": 39
     },
     "message": "urn:demo:broken:order:operation:place: input \"order.field.quantity\" must name an entity, but urn:demo:broken:order:field:quantity is a field",
     "severity": "error",
     "urn": "urn:demo:broken:order:operation:place"
+  },
+  {
+    "code": "wrong-ref-kind",
+    "location": {
+      "column": 40,
+      "line": 45
+    },
+    "message": "urn:demo:broken:order:operation:reprice: errors[1] \"order.entity.line\" must name an error, but urn:demo:broken:order:entity:line is an entity",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:operation:reprice"
+  },
+  {
+    "code": "duplicate-ref",
+    "location": {
+      "column": 59,
+      "line": 45
+    },
+    "message": "urn:demo:broken:order:operation:reprice: errors[2] lists urn:demo:broken:order:error:limit_exceeded more than once",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:operation:reprice"
   }
 ]

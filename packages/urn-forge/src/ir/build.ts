@@ -126,7 +126,9 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
       domain: header.domain,
       manifestVersion: header.version,
       stability: header.stability ?? 'stable',
-      manifestHash: sha256Hex(canonicalJson(manifest)),
+      // Empty kind groups are left out, so the hash depends only on what the manifest says:
+      // a kind added to urn-forge does not change the hash of a manifest that does not use it.
+      manifestHash: sha256Hex(canonicalJson(Object.fromEntries(Object.entries(manifest).filter(([, group]) => Object.keys(group).length > 0)))),
       irSchemaVersion: 1,
     },
     ...Object.fromEntries(KIND_NAMES.map((name) => [KINDS[name].group, sortedByUrn(nodes.get(name)!)])),

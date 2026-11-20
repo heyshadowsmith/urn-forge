@@ -22,8 +22,8 @@ const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 0.1.0\n
 
 describe('kind registry', () => {
   it('lists each kind with the group it fills in the manifest and the IR', () => {
-    expect(KIND_NAMES).toEqual(['field', 'entity', 'operation']);
-    expect(KIND_NAMES.map((k) => KINDS[k].group)).toEqual(['fields', 'entities', 'operations']);
+    expect(KIND_NAMES).toEqual(['field', 'entity', 'operation', 'error']);
+    expect(KIND_NAMES.map((k) => KINDS[k].group)).toEqual(['fields', 'entities', 'operations', 'errors']);
   });
 
   it('declares where each kind makes references, and what they may name', () => {
@@ -33,7 +33,9 @@ describe('kind registry', () => {
       operation: [
         { path: ['input'], targets: ['entity'] },
         { path: ['output'], targets: ['entity'] },
+        { path: ['errors', '*'], targets: ['error'] },
       ],
+      error: [{ path: ['fields', '*', 'ref'], targets: ['field'] }],
     });
   });
 
@@ -106,5 +108,20 @@ describe('generic passes', () => {
       ['wrong-ref-kind', 'urn:demo:math:a:operation:d', 11],
       ['wrong-ref-kind', 'urn:demo:math:a:operation:d', 12],
     ]);
+  });
+});
+
+describe('error messages', () => {
+  it('parse into text and placeholders, keeping other braces as text', async () => {
+    const { parseMessage } = await import('../src/kinds/error.js');
+    expect(parseMessage('Policy {policy_id} is already {state}')).toEqual([
+      { text: 'Policy ' },
+      { field: 'policy_id' },
+      { text: ' is already ' },
+      { field: 'state' },
+    ]);
+    expect(parseMessage('{a}{b}')).toEqual([{ field: 'a' }, { field: 'b' }]);
+    expect(parseMessage('No placeholders, a lone { and }')).toEqual([{ text: 'No placeholders, a lone { and }' }]);
+    expect(parseMessage('Typo {Quantity}')).toEqual([{ text: 'Typo ' }, { field: 'Quantity' }]);
   });
 });

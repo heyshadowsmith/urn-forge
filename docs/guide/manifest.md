@@ -37,7 +37,7 @@ Each other top-level key declares one atom. The key is a **short key**:
 arithmetic.field.divisor
 ```
 
-The `context` and `identifier` segments obey the same snake_case rule as the header. The `kind` segment is `field`, `entity` or `operation`. The specification also has the kinds `invariant`, `event` and `error`. The MVP does not accept these kinds, and it shows a `not supported yet` message.
+The `context` and `identifier` segments obey the same snake_case rule as the header. The `kind` segment is `field`, `entity`, `operation` or `error`. The `error` kind is in progress. urn-forge examines error entries, but the plugins do not make code for them at this time. As a result, a manifest with errors does not compile (`unsupported-construct`). The specification also has the kinds `invariant` and `event`. urn-forge does not accept these kinds at this time, and it shows a `not supported yet` message.
 
 The `compile` command uses the header to expand each short key to a full URN:
 

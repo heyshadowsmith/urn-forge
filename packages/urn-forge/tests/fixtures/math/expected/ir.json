@@ -54,6 +54,7 @@
       "urn": "urn:demo:math:geometry:entity:circle_area"
     }
   },
+  "errors": {},
   "fields": {
     "urn:demo:math:arithmetic:field:dividend": {
       "brandIdentifier": "ArithmeticDividend",
@@ -104,6 +105,7 @@
     "urn:demo:math:arithmetic:operation:safe_divide": {
       "brandIdentifier": "ArithmeticSafeDivide",
       "description": "Divide; the divisor is never zero",
+      "errors": [],
       "input": "urn:demo:math:arithmetic:entity:division",
       "output": "urn:demo:math:arithmetic:entity:division_result",
       "urn": "urn:demo:math:arithmetic:operation:safe_divide"
@@ -111,6 +113,7 @@
     "urn:demo:math:geometry:operation:compute_area": {
       "brandIdentifier": "GeometryComputeArea",
       "description": "Area from radius",
+      "errors": [],
       "input": "urn:demo:math:geometry:entity:circle",
       "output": "urn:demo:math:geometry:entity:circle_area",
       "urn": "urn:demo:math:geometry:operation:compute_area"

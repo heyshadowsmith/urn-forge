@@ -41,7 +41,7 @@ naming.field.domain:
   description: The domain segment of a URN, such as insurance
 naming.field.kind:
   primitive: string
-  oneOf: [field, entity, operation]
+  oneOf: [field, entity, operation, error]
   description: The kind segment of a URN; the kinds the compiler supports
 naming.field.urn:
   primitive: string
