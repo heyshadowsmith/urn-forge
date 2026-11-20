@@ -1,0 +1,52 @@
+[
+  {
+    "code": "duplicate-brand",
+    "location": {
+      "column": 1,
+      "line": 7
+    },
+    "message": "urn:demo:broken:geo_metry:field:radius: brandIdentifier \"GeoMetryRadius\" is already used by urn:demo:broken:geo:field:metry_radius; rename one of them",
+    "severity": "error",
+    "urn": "urn:demo:broken:geo_metry:field:radius"
+  },
+  {
+    "code": "unresolved-ref",
+    "location": {
+      "column": 12,
+      "line": 15
+    },
+    "message": "urn:demo:broken:order:entity:line: fields[1].ref \"order.field.missing\" does not resolve (no atom urn:demo:broken:order:field:missing in this manifest)",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:entity:line"
+  },
+  {
+    "code": "wrong-ref-kind",
+    "location": {
+      "column": 12,
+      "line": 16
+    },
+    "message": "urn:demo:broken:order:entity:line: fields[2].ref \"order.entity.line\" must name a field, but urn:demo:broken:order:entity:line is an entity",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:entity:line"
+  },
+  {
+    "code": "incoherent-constraints",
+    "location": {
+      "column": 61,
+      "line": 9
+    },
+    "message": "urn:demo:broken:order:field:quantity: min (10) is greater than max (1), so no value is valid",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:field:quantity"
+  },
+  {
+    "code": "wrong-ref-kind",
+    "location": {
+      "column": 10,
+      "line": 19
+    },
+    "message": "urn:demo:broken:order:operation:place: input \"order.field.quantity\" must name an entity, but urn:demo:broken:order:field:quantity is a field",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:operation:place"
+  }
+]

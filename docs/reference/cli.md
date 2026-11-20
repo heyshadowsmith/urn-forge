@@ -64,7 +64,7 @@ The default format is `text`. urn-forge writes the manifest diagnostics to stder
 
 ```
 <file>:<line>:<column>  <severity>  <code>  <message>
-tests/fixtures/math.manifest.yaml:6:42  error  unknown-primitive  geometry.field.radius.primitive: unknown primitive "decimal" (MVP primitives: float, integer, string)
+tests/fixtures/math/domain.manifest.yaml:6:42  error  unknown-primitive  geometry.field.radius.primitive: unknown primitive "decimal" (MVP primitives: float, integer, string)
 ```
 
 The `verify` command writes the problems of each gate to stdout, below the line of the gate, in the same format. Each message starts with its manifest key or its URN. urn-forge shows paths relative to the current directory, with forward slashes. As a result, the output is the same on all computers. For each code, refer to [Diagnostics](./diagnostics).

@@ -7,6 +7,11 @@
   "engines": {
     "node": ">=22"
   },
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./cucumber": "./src/gherkin/steps.ts"
+  },
   "bin": {
     "urn-forge": "./bin/urn-forge.js"
   },

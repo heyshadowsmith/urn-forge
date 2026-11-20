@@ -6,12 +6,12 @@ import { buildIr, buildIrFromSource } from '../src/ir/build.js';
 import type { UniversalIR } from '../src/ir/types.js';
 import { validateManifest } from '../src/meta-schema.js';
 import { VALIBOT_SCHEMAS_FILE, valibotPlugin } from '../src/plugins/valibot.plugin.js';
-// The golden file is the plugin's output for the math fixture (asserted below), so
+// The math fixture's expected output (checked byte for byte by tests/fixtures.test.ts), so
 // exercising it at runtime and in `tsc` exercises the generated code.
-import * as schemas from './golden/math/domain.schemas.generated.js';
+import * as schemas from './fixtures/math/expected/domain.schemas.generated.js';
 
 const mathSource = readFileSync(
-  fileURLToPath(new URL('./fixtures/math.manifest.yaml', import.meta.url)),
+  fileURLToPath(new URL('./fixtures/math/domain.manifest.yaml', import.meta.url)),
   'utf8',
 );
 
@@ -30,11 +30,10 @@ function mathIr(): UniversalIR {
 }
 
 describe('valibot plugin', () => {
-  it('matches the golden schemas file for the math fixture', async () => {
+  it('writes one schemas file (its exact content is checked by the fixture harness)', () => {
     const { artifacts, diagnostics } = valibotPlugin.emit(mathIr(), {});
     expect(diagnostics).toEqual([]);
     expect(artifacts.map((a) => a.relativePath)).toEqual([VALIBOT_SCHEMAS_FILE]);
-    await expect(artifacts[0]!.content).toMatchFileSnapshot(`./golden/math/${VALIBOT_SCHEMAS_FILE}`);
   });
 
   it('is deterministic', () => {

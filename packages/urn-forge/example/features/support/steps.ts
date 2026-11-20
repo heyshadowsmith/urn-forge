@@ -1,5 +1,5 @@
 // Wires urn-forge's generic operation steps to this domain's generated runtime and core.
-import { registerOperationSteps } from '../../../src/gherkin/steps.js';
+import { registerOperationSteps } from 'urn-forge/cucumber';
 import { core } from '../../core';
 import { DispatchMap, executeOperation } from '../../generated/domain.runtime.generated';
 

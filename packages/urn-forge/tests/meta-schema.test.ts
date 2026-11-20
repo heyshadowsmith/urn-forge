@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { parseManifest, validateManifest, type MetaSchemaResult } from '../src/meta-schema.js';
 
 const mathSource = readFileSync(
-  fileURLToPath(new URL('./fixtures/math.manifest.yaml', import.meta.url)),
+  fileURLToPath(new URL('./fixtures/math/domain.manifest.yaml', import.meta.url)),
   'utf8',
 );
 

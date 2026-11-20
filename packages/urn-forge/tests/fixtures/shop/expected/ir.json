@@ -1,0 +1,93 @@
+{
+  "entities": {
+    "urn:demo:shop:order:entity:line": {
+      "brandIdentifier": "OrderLine",
+      "description": "One line of an order",
+      "fields": [
+        {
+          "field": "urn:demo:shop:order:field:quantity",
+          "name": "quantity",
+          "required": true
+        },
+        {
+          "field": "urn:demo:shop:order:field:unit_cost",
+          "name": "unit_cost",
+          "required": true
+        },
+        {
+          "field": "urn:demo:shop:order:field:note",
+          "name": "note",
+          "required": false
+        }
+      ],
+      "urn": "urn:demo:shop:order:entity:line"
+    },
+    "urn:demo:shop:order:entity:line_total": {
+      "brandIdentifier": "OrderLineTotal",
+      "description": "The cost of one line",
+      "fields": [
+        {
+          "field": "urn:demo:shop:order:field:total",
+          "name": "total",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:shop:order:entity:line_total"
+    }
+  },
+  "fields": {
+    "urn:demo:shop:order:field:note": {
+      "brandIdentifier": "OrderNote",
+      "constraints": {
+        "maxLength": 140,
+        "minLength": 1
+      },
+      "primitive": "string",
+      "urn": "urn:demo:shop:order:field:note"
+    },
+    "urn:demo:shop:order:field:quantity": {
+      "brandIdentifier": "OrderQuantity",
+      "constraints": {
+        "max": 99,
+        "min": 1,
+        "notEqual": 13
+      },
+      "primitive": "integer",
+      "urn": "urn:demo:shop:order:field:quantity"
+    },
+    "urn:demo:shop:order:field:total": {
+      "brandIdentifier": "OrderTotal",
+      "constraints": {
+        "min": 0
+      },
+      "primitive": "float",
+      "urn": "urn:demo:shop:order:field:total"
+    },
+    "urn:demo:shop:order:field:unit_cost": {
+      "brandIdentifier": "OrderUnitCost",
+      "constraints": {
+        "min": 0
+      },
+      "description": "Price of one unit",
+      "primitive": "float",
+      "urn": "urn:demo:shop:order:field:unit_cost"
+    }
+  },
+  "meta": {
+    "domain": "shop",
+    "irSchemaVersion": 1,
+    "manifestHash": "32c9d02fb99a016a317bad2a4e907fb72105fed50b3818cf046c16a96fe30d0a",
+    "manifestVersion": "0.1.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {
+    "urn:demo:shop:order:operation:price_line": {
+      "brandIdentifier": "OrderPriceLine",
+      "description": "Price one order line",
+      "input": "urn:demo:shop:order:entity:line",
+      "output": "urn:demo:shop:order:entity:line_total",
+      "urn": "urn:demo:shop:order:operation:price_line"
+    }
+  }
+}

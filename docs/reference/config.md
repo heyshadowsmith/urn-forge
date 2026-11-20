@@ -4,10 +4,10 @@ A configuration file keeps the paths and the plugins of a project in one locatio
 
 ```ts
 // urn-forge.config.ts
-import { defineConfig } from '../src/config.js';
+import { defineConfig } from 'urn-forge/config';
 
 export default defineConfig({
-  manifest: '../tests/fixtures/math.manifest.yaml',
+  manifest: '../tests/fixtures/math/domain.manifest.yaml',
   out: './generated',
   core: './core.ts',
   features: './features',
@@ -19,7 +19,7 @@ export default defineConfig({
 });
 ```
 
-This is the configuration file of the math example. urn-forge is not on npm at this time. As a result, the file imports `defineConfig` from the source of urn-forge with a relative path. `defineConfig` only gives types to the object. You can also export a plain object.
+This is the configuration file of the math example. It imports `defineConfig` from `urn-forge/config`. `defineConfig` only gives types to the object. You can also export a plain object.
 
 ## Find the file
 

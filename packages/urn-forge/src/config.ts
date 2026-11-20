@@ -1,7 +1,7 @@
 /**
  * `urn-forge.config.ts` (spec §7.5): project defaults for the CLI, and which plugins run.
  *
- *   import { defineConfig } from '<path to urn-forge>/src/config.js'; // a package import comes with phase 6
+ *   import { defineConfig } from 'urn-forge/config';
  *   export default defineConfig({
  *     manifest: './domain.manifest.yaml',
  *     out: './src/generated',
