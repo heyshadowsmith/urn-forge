@@ -1,0 +1,8 @@
+{
+  "default": {
+    "paths": ["example/features/**/*.feature"],
+    "import": ["src/gherkin/register-tsx.mjs", "example/features/support/**/*.ts"],
+    "format": ["progress"],
+    "strict": true
+  }
+}

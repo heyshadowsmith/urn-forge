@@ -1,0 +1,51 @@
+# The traceability chain, end to end (mvp-plan.md, build step 10). Any broken link turns
+# the build red: a missing handler (gate 1), a feature table header that is not a field
+# (gate 3), a hand-edited generated file (gate 4), or a failing scenario.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  traceability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: npm ci
+        id: install
+        run: npm ci
+
+      # The three checks below always run once dependencies are installed, so one failure
+      # does not hide another: each broken link reports under its own step.
+      - name: npm test
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm test
+
+      - name: urn-forge verify
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: >-
+          npx urn-forge verify
+          --manifest tests/fixtures/math.manifest.yaml
+          --out example/generated
+          --core example/core.ts
+          --features example/features
+
+      - name: cucumber-js
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npx cucumber-js
