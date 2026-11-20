@@ -104,6 +104,7 @@ describe('valibot plugin', () => {
     expect(artifacts).toEqual([]);
     expect(diagnostics).toEqual([
       {
+        code: 'export-collision',
         severity: 'error',
         urn: 'urn:demo:math:geometry:field:radius_input',
         message:

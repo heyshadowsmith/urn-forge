@@ -120,7 +120,7 @@ The plan has ten steps, each ending in a check you can run. Every step leaves th
 - [x] **7. `urn-forge compile`.** CLI reads the manifest, runs both plugins, writes files with the `@generated` + fingerprint header, LF, sorted. Check: running it twice produces no git diff.
 - [x] **8. Step library + Cucumber run.** Three generic steps that read the operation URN from the feature tag and call `executeOperation`. Table cells are coerced by the field's primitive before parsing. Check: `cucumber-js` passes both features.
 - [x] **9. `urn-forge verify`.** Gate 1: `tsc --noEmit` plus a check that the core export uses `satisfies DomainCoreImplementation`. Gate 3: every `@urn:` tag resolves, every operation has a feature, and every table header is a field key of the operation's input or output entity. Gate 4: compile to a temp dir and byte-compare. Check: passes on the clean repo.
-- [ ] **10. CI.** One GitHub Actions workflow: `npm ci` → `npm test` → `urn-forge verify` → `cucumber-js`. Check: green on `main`; the three seeded failures under *Done* each turn it red.
+- [x] **10. CI.** One GitHub Actions workflow: `npm ci` → `npm test` → `urn-forge verify` → `cucumber-js`. Check: green on `main`; the three seeded failures under *Done* each turn it red.
 
 ## Done
 

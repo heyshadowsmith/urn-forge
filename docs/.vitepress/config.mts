@@ -50,6 +50,7 @@ export default defineConfig({
         text: 'Project',
         items: [
           { text: 'MVP plan', link: '/project/mvp-plan' },
+          { text: 'Foundations plan', link: '/project/foundations-plan' },
           { text: 'Spec v1.1', link: '/project/spec-v1-1' },
         ],
       },

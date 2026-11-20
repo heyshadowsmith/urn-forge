@@ -10,6 +10,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
+import { formatDiagnostic } from '../src/diagnostics.js';
 import { verify, type VerifyResult } from '../src/verify/index.js';
 
 const repo = (path: string) => fileURLToPath(new URL(`../${path}`, import.meta.url));
@@ -45,9 +46,11 @@ function run(): Promise<VerifyResult> {
   });
 }
 
-/** Gate number → its problems, for the gates that failed. */
+/** Gate number → its problems rendered as text, for the gates that failed. */
 function failures(result: VerifyResult): Record<number, readonly string[]> {
-  return Object.fromEntries(result.gates.filter((g) => !g.ok).map((g) => [g.gate, g.problems]));
+  return Object.fromEntries(
+    result.gates.filter((g) => !g.ok).map((g) => [g.gate, g.problems.map((p) => formatDiagnostic(p))]),
+  );
 }
 
 beforeEach(async () => {
@@ -75,7 +78,7 @@ describe('urn-forge verify', () => {
     const result = await run();
     expect(Object.keys(failures(result))).toEqual(['1']);
     expect(failures(result)[1]!.join('\n')).toMatch(
-      /example\/core\.ts\(\d+,\d+\): error TS1360[\s\S]*'urn:demo:math:arithmetic:operation:safe_divide'' is missing/,
+      /^example\/core\.ts:\d+:\d+ {2}error {2}type-error {2}TS1360: [\s\S]*'urn:demo:math:arithmetic:operation:safe_divide'' is missing/,
     );
   });
 
@@ -84,7 +87,7 @@ describe('urn-forge verify', () => {
     const result = await run();
     expect(failures(result)).toEqual({
       3: [
-        'example/features/safe_divide.feature:6:22  table header "denominator" is not a field key of the input or ' +
+        'example/features/safe_divide.feature:6:22  error  unknown-header  table header "denominator" is not a field key of the input or ' +
           'output of urn:demo:math:arithmetic:operation:safe_divide (allowed: dividend, divisor, quotient)',
       ],
     });
@@ -95,7 +98,7 @@ describe('urn-forge verify', () => {
     const result = await run();
     expect(failures(result)).toEqual({
       4: [
-        'example/generated/domain.schemas.generated.ts:21  differs from a fresh compile (hand-edited or stale); ' +
+        'example/generated/domain.schemas.generated.ts:21:1  error  generated-differs  differs from a fresh compile (hand-edited or stale); ' +
           'run `urn-forge compile`',
       ],
     });
@@ -105,7 +108,7 @@ describe('urn-forge verify', () => {
     it('fails when the satisfies clause is removed', async () => {
       await edit('example/core.ts', '} satisfies DomainCoreImplementation;', '};');
       const problems = failures(await run())[1]!;
-      expect(problems.at(-1)).toContain('example/core.ts  no export uses `satisfies DomainCoreImplementation`');
+      expect(problems.at(-1)).toContain('example/core.ts  error  missing-satisfies  no export uses `satisfies DomainCoreImplementation`');
     });
 
     it('fails when the core satisfies a look-alike interface instead of the generated one', async () => {
@@ -142,22 +145,22 @@ describe('urn-forge verify', () => {
     it('fails on a tag that does not resolve', async () => {
       await edit('example/features/safe_divide.feature', '@urn:demo:math:arithmetic:operation:safe_divide', '@urn:demo:math:arithmetic:operation:safe_divid');
       expect(failures(await run())[3]).toEqual([
-        'example/features/safe_divide.feature:1:1  tag @urn:demo:math:arithmetic:operation:safe_divid does not resolve to a URN in the manifest',
-        'example/features  operation urn:demo:math:arithmetic:operation:safe_divide has no feature or scenario tagged @urn:demo:math:arithmetic:operation:safe_divide',
+        'example/features/safe_divide.feature:1:1  error  unresolved-tag  tag @urn:demo:math:arithmetic:operation:safe_divid does not resolve to a URN in the manifest',
+        'example/features  error  untagged-operation  operation urn:demo:math:arithmetic:operation:safe_divide has no feature or scenario tagged @urn:demo:math:arithmetic:operation:safe_divide',
       ]);
     });
 
     it('fails when an operation has no feature', async () => {
       await rm(at('example/features/compute_area.feature'));
       expect(failures(await run())[3]).toEqual([
-        'example/features  operation urn:demo:math:geometry:operation:compute_area has no feature or scenario tagged @urn:demo:math:geometry:operation:compute_area',
+        'example/features  error  untagged-operation  operation urn:demo:math:geometry:operation:compute_area has no feature or scenario tagged @urn:demo:math:geometry:operation:compute_area',
       ]);
     });
 
     it('checks Examples headers and allows output fields', async () => {
       await edit('example/features/safe_divide.feature', '| dividend | divisor | quotient |', '| dividend | divisor | ratio    |');
       expect(failures(await run())[3]).toEqual([
-        expect.stringMatching(/^example\/features\/safe_divide\.feature:13:\d+ {2}table header "ratio" is not a field key/),
+        expect.stringMatching(/^example\/features\/safe_divide\.feature:13:\d+ {2}error {2}unknown-header {2}table header "ratio" is not a field key/),
       ]);
     });
 
@@ -176,7 +179,7 @@ describe('urn-forge verify', () => {
         ].join('\n'),
       );
       expect(failures(await run())[3]).toEqual([
-        expect.stringMatching(/^example\/features\/extra\.feature:6:11 {2}table header "diameter"/),
+        expect.stringMatching(/^example\/features\/extra\.feature:6:11 {2}error {2}unknown-header {2}table header "diameter"/),
       ]);
     });
   });
@@ -186,8 +189,8 @@ describe('urn-forge verify', () => {
       await rm(at('example/generated/domain.runtime.generated.ts'));
       await writeFile(at('example/generated/old.generated.ts'), 'export {};\n');
       expect(failures(await run())[4]).toEqual([
-        'example/generated/domain.runtime.generated.ts  missing; run `urn-forge compile`',
-        'example/generated/old.generated.ts  generated file has no source in the current compile; delete it',
+        'example/generated/domain.runtime.generated.ts  error  generated-missing  missing; run `urn-forge compile`',
+        'example/generated/old.generated.ts  error  generated-orphan  generated file has no source in the current compile; delete it',
       ]);
     });
   });

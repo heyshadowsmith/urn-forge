@@ -53,6 +53,7 @@ function fieldDeclaration(field: IRField, diagnostics: PluginDiagnostic[]): stri
   for (const key of Object.keys(field.constraints).sort()) {
     if (!known.has(key)) {
       diagnostics.push({
+        code: 'unsupported-construct',
         severity: 'error',
         urn: field.urn,
         message: `${field.urn}: the valibot plugin cannot translate constraint "${key}"`,
@@ -111,6 +112,7 @@ function exportCollisions(ir: UniversalIR): PluginDiagnostic[] {
       const owner = owners.get(name);
       if (owner) {
         diagnostics.push({
+          code: 'export-collision',
           severity: 'error',
           urn: atom.urn,
           message: `${atom.urn}: generated export "${name}" collides with an export of ${owner}; rename one of them`,

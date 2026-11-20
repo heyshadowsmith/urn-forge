@@ -5,6 +5,7 @@
  * metadata and `nullable`. Plain objects keyed by full URN, keys sorted, so the
  * canonical JSON and the fingerprint see one form.
  */
+import type { DiagnosticCode, ManifestPath, SourceLocation } from '../diagnostics.js';
 import type { MvpPrimitive } from '../meta-schema.js';
 
 export type Urn = string & { readonly __urn: unique symbol };
@@ -63,10 +64,17 @@ export interface IROperation {
   readonly output: Urn;
 }
 
-/** A diagnostic from passes 2–4. `urn` is set whenever the problem belongs to an atom. */
+/** A diagnostic from passes 1–4. `urn` is set whenever the problem belongs to an atom. */
 export interface IRIssue {
+  readonly code: DiagnosticCode;
   readonly urn?: string;
   readonly message: string;
+  /** Where in the manifest the problem is (top-level short key first). */
+  readonly path?: ManifestPath;
+  /** Whether the problem is the key at `path` or its value. */
+  readonly target?: 'key' | 'value';
+  /** Set when the issue was built from source text (`buildIrFromSource`). */
+  readonly location?: SourceLocation;
 }
 
 export type IRBuildResult =

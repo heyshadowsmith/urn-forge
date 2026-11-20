@@ -3,7 +3,8 @@
  * Gates 2 (lint profile) and 5 (compatibility) are cut from the MVP.
  */
 import { readFile } from 'node:fs/promises';
-import { compile, type Diagnostic } from '../engine.js';
+import { hasErrors, type Diagnostic } from '../diagnostics.js';
+import { compile } from '../engine.js';
 import { checkCompleteness } from './completeness.js';
 import { checkDrift } from './drift.js';
 import { checkGherkin } from './gherkin.js';
@@ -32,13 +33,15 @@ export async function verify(options: VerifyOptions): Promise<VerifyResult> {
   } catch (error) {
     return {
       ok: false,
-      diagnostics: [{ severity: 'error', message: `cannot read manifest: ${(error as Error).message}` }],
+      diagnostics: [
+        { code: 'manifest-unreadable', severity: 'error', message: `cannot read manifest: ${(error as Error).message}` },
+      ],
       gates: [],
     };
   }
 
   const compiled = compile(source);
-  if (!compiled.ir || compiled.diagnostics.some((d) => d.severity === 'error')) {
+  if (!compiled.ir || hasErrors(compiled.diagnostics)) {
     return { ok: false, diagnostics: compiled.diagnostics, gates: [] };
   }
 

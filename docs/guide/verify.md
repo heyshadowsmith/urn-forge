@@ -26,7 +26,7 @@ The gate accepts `export const core = …` and `export default …`. It also acc
 
 ```
 gate 1  completeness  FAIL  tsc: 1 error(s) over example/core.ts; `core` satisfies DomainCoreImplementation
-    example/core.ts(6,3): error TS1360: Type '{ … }' does not satisfy the expected type 'DomainCoreImplementation'.
+    example/core.ts:6:3  error  type-error  TS1360: Type '{ … }' does not satisfy the expected type 'DomainCoreImplementation'.
       Property ''urn:demo:math:arithmetic:operation:safe_divide'' is missing in type '{ … }' but required in type 'DomainCoreImplementation'.
 ```
 
@@ -41,7 +41,7 @@ A scenario with two or more operation or entity tags fails, because the steps mu
 
 ```
 gate 3  gherkin       FAIL  2 feature(s), 4 scenario(s), 2/2 operations tagged
-    example/features/safe_divide.feature:6:22  table header "denominator" is not a field key of the input or output of urn:demo:math:arithmetic:operation:safe_divide (allowed: dividend, divisor, quotient)
+    example/features/safe_divide.feature:6:22  error  unknown-header  table header "denominator" is not a field key of the input or output of urn:demo:math:arithmetic:operation:safe_divide (allowed: dividend, divisor, quotient)
 ```
 
 Gate 3 counts the scenarios in the syntax tree. It counts each Scenario Outline one time. Cucumber counts each row of each `Examples` table. As a result, the scenario count of Cucumber is larger.
@@ -58,7 +58,7 @@ The gate shows these problems:
 
 ```
 gate 4  drift         FAIL  2 generated file(s) compared byte for byte against example/generated
-    example/generated/domain.schemas.generated.ts:21  differs from a fresh compile (hand-edited or stale); run `urn-forge compile`
+    example/generated/domain.schemas.generated.ts:21:1  error  generated-differs  differs from a fresh compile (hand-edited or stale); run `urn-forge compile`
 ```
 
 To correct a gate 4 failure, run `urn-forge compile` and commit the result.
