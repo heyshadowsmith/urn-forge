@@ -19,7 +19,7 @@ import { diagnosticJson, formatDiagnostic, hasErrors, type Diagnostic } from './
 import { CONFIG_FILE, loadConfig, pluginEntries, type UrnForgeConfig } from './config.js';
 import { compile, type PluginEntry } from './engine.js';
 import { DEFAULT_PLUGINS } from './plugins/index.js';
-import { verify } from './verify/index.js';
+import { GATES, verify } from './verify/index.js';
 import { GENERATOR_VERSION } from './version.js';
 import { writeGeneratedFiles } from './write.js';
 
@@ -209,7 +209,7 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
   if (!resolved.ok) {
     if (format === 'json') {
       for (const d of resolved.diagnostics) io.stdout(diagnosticJson(d));
-      io.stdout(JSON.stringify({ type: 'result', ok: false, failedGates: [] }));
+      io.stdout(JSON.stringify({ type: 'result', ok: false, failedGates: [], warnings: 0 }));
     } else {
       printDiagnostics(io, '', resolved.diagnostics);
       io.stderr('verify failed: the config is not valid');
@@ -231,6 +231,8 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
   const diagnostics = attributePluginProblems(result.diagnostics, resolved.settings.configLabel);
   const failed = result.gates.filter((g) => !g.ok).map((g) => g.gate);
 
+  const warnings = [...diagnostics, ...result.gates.flatMap((g) => g.problems)].filter((d) => d.severity === 'warning').length;
+
   if (format === 'json') {
     for (const d of diagnostics) io.stdout(diagnosticJson(d, manifestLabel));
     for (const gate of result.gates) {
@@ -239,7 +241,7 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
     for (const { gate, name, ok, summary } of result.gates) {
       io.stdout(JSON.stringify({ type: 'gate', gate, name, ok, summary }));
     }
-    io.stdout(JSON.stringify({ type: 'result', ok: result.ok, failedGates: failed }));
+    io.stdout(JSON.stringify({ type: 'result', ok: result.ok, failedGates: failed, warnings }));
     return result.ok ? 0 : 1;
   }
 
@@ -251,11 +253,18 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
     }
   }
   if (result.ok) {
-    io.stdout('verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)');
+    io.stdout(verifyPassedLine(result.gates.map((g) => g.gate), warnings));
     return 0;
   }
   io.stderr(failed.length > 0 ? `verify failed: gate ${failed.join(', ')}` : 'verify failed: the manifest does not compile');
   return 1;
+}
+
+/** `verify passed [with N warning(s)] (gates …; gates … are not in the MVP)`. */
+export function verifyPassedLine(ran: readonly number[], warnings: number): string {
+  const notBuilt = ([1, 2, 3, 4, 5] as const).filter((n) => !GATES.some((g) => g.number === n));
+  const scope = `gates ${ran.join(', ')}${notBuilt.length > 0 ? `; gates ${notBuilt.join(' and ')} are not in the MVP` : ''}`;
+  return `verify passed${warnings > 0 ? ` with ${warnings} warning(s)` : ''} (${scope})`;
 }
 
 export async function main(argv: readonly string[], io: CliIo = defaultIo): Promise<number> {

@@ -48,6 +48,15 @@ The steps use these rules:
 
 Scenario Outlines operate as usual. Cucumber puts the values in the `<placeholders>` before the step starts.
 
+The table of `When I run the operation with:` must have a column for each mandatory input field. [Gate 3](./verify#gate-3-gherkin-traceability) makes sure of this. To make a test with a missing value, keep the column and leave the cell empty:
+
+```gherkin
+When I run the operation with:
+  | context  | identifier |
+  | geometry |            |
+Then the input is rejected on "identifier"
+```
+
 ## Scenarios at the boundary
 
 The step `the input is rejected on "<field>"` passes only if the schema refused the input at the boundary. Also, one of the issues must be about that field:

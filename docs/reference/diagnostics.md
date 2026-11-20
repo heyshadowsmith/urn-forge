@@ -105,6 +105,7 @@ For the procedure of each gate, refer to [Verification gates](../guide/verify).
 | `feature-parse-error` | `cannot parse: <parser message>` | A `.feature` file is not valid Gherkin | Correct the Gherkin |
 | `unresolved-tag` | `tag @<urn> does not resolve to a URN in the manifest` | A `@urn:` tag does not agree with a URN in the manifest | Correct the tag |
 | `untagged-operation` | `operation <urn> has no feature or scenario tagged @<urn>` | No feature or scenario has the tag of the operation | Add a feature for the operation |
+| `missing-column` | `the table of "I run the operation with:" has no column for required input field(s) "<name>" of <urn>; …` | The input table of the operation does not have a column for a mandatory input field | Add the column. To make a test with a missing value, keep the column and leave the cell empty |
 | `ambiguous-tag` | `scenario is tagged with more than one operation or entity: <urns>` | A scenario receives two or more operation or entity tags | Keep one operation or entity tag for each scenario |
 | `unknown-header` | `table header "<name>" is not a field key of <owner> (allowed: …)` | A table header is not a property of the input or output of the operation, or of the entity | Use a name from the list in the message |
 

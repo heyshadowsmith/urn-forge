@@ -14,7 +14,7 @@ import ts from 'typescript';
 import { FCIS_RUNTIME_FILE } from '../plugins/fcis.plugin.js';
 import { generatedPath } from '../write.js';
 import type { Diagnostic } from '../diagnostics.js';
-import { displayPath, type GateResult } from './types.js';
+import { displayPath, type Gate, type GateOutcome } from './types.js';
 
 export interface CompletenessOptions {
   readonly cwd: string;
@@ -67,15 +67,9 @@ function satisfyingExports(source: ts.SourceFile, checker: ts.TypeChecker, runti
   return found;
 }
 
-export function checkCompleteness(options: CompletenessOptions): GateResult {
+export function checkCompleteness(options: CompletenessOptions): GateOutcome {
   const show = (path: string) => displayPath(options.cwd, path, relative);
-  const fail = (problem: Diagnostic, summary: string): GateResult => ({
-    gate: 1,
-    name: 'completeness',
-    ok: false,
-    summary,
-    problems: [problem],
-  });
+  const fail = (problem: Diagnostic, summary: string): GateOutcome => ({ summary, problems: [problem] });
 
   const config = ts.readConfigFile(options.tsconfigPath, ts.sys.readFile);
   if (config.error) {
@@ -133,5 +127,7 @@ export function checkCompleteness(options: CompletenessOptions): GateResult {
   const summary =
     `tsc: ${typeErrors} error(s) over ${show(options.corePath)}; ` +
     (exportsFound.length > 0 ? `\`${exportsFound.join(', ')}\` satisfies ${REGISTRY}` : `no \`satisfies ${REGISTRY}\``);
-  return { gate: 1, name: 'completeness', ok: problems.length === 0, summary, problems };
+  return { summary, problems };
 }
+
+export const completenessGate: Gate = { number: 1, name: 'completeness', run: checkCompleteness };

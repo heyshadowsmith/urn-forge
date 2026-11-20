@@ -89,6 +89,9 @@ describe('urn-forge verify', () => {
       3: [
         'example/features/safe_divide.feature:6:22  error  unknown-header  table header "denominator" is not a field key of the input or ' +
           'output of urn:demo:math:arithmetic:operation:safe_divide (allowed: dividend, divisor, quotient)',
+        'example/features/safe_divide.feature:6:7  error  missing-column  the table of "I run the operation with:" has no column for ' +
+          'required input field(s) "divisor" of urn:demo:math:arithmetic:operation:safe_divide; to test a missing value, keep the ' +
+          'column and leave the cell empty',
       ],
     });
   });
@@ -180,6 +183,7 @@ describe('urn-forge verify', () => {
       );
       expect(failures(await run())[3]).toEqual([
         expect.stringMatching(/^example\/features\/extra\.feature:6:11 {2}error {2}unknown-header {2}table header "diameter"/),
+        expect.stringMatching(/^example\/features\/extra\.feature:6:9 {2}error {2}missing-column {2}.*"radius"/),
       ]);
     });
   });
