@@ -6,7 +6,8 @@
  *   Then the input is rejected on "<field>"
  *
  * The operation is the feature's (or scenario's) `@urn:…:operation:…` tag. Table cells are
- * coerced by the field's primitive (from the generated `DispatchMap`) before the generated
+ * coerced by the field's primitive (from the generated `DispatchMap`, read through the
+ * primitive registry in src/primitives/) before the generated
  * `executeOperation` parses them, so `10` reaches a `float` field as a number and `abc`
  * stays a string for the schema to reject. An empty cell means the key is absent.
  *
@@ -18,10 +19,11 @@
  *   });
  */
 import { Before, Then, When, type DataTable } from '@cucumber/cucumber';
+import { parseCell, type Primitive } from '../primitives/index.js';
 
 // Structural views of the generated runtime, so this library does not depend on any one domain.
 
-export type Primitive = 'float' | 'integer' | 'string';
+export type { Primitive };
 
 export interface FieldInfoLike {
   readonly urn: string;
@@ -56,7 +58,6 @@ export interface OperationStepsOptions {
 // ---------------------------------------------------------------------------
 
 const OPERATION_TAG = /^@(urn:[a-z][a-z0-9_]*:[a-z][a-z0-9_]*:[a-z][a-z0-9_]*:operation:[a-z][a-z0-9_]*)$/;
-const NUMBER_LITERAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$|^[+-]?Infinity$|^NaN$/;
 
 /** The one operation URN among a scenario's tags (feature tags included). */
 export function operationUrnFromTags(tags: readonly string[]): string {
@@ -69,11 +70,13 @@ export function operationUrnFromTags(tags: readonly string[]): string {
   );
 }
 
-/** Converts a table cell to the JS value the field's schema expects; `undefined` means absent. */
+/**
+ * Converts a table cell to the JS value the field's schema expects, using the field's
+ * primitive descriptor; `undefined` means absent.
+ */
 export function coerceCell(cell: string, field: FieldInfoLike): unknown {
   if (cell === '') return undefined;
-  if (field.primitive === 'string') return cell;
-  return NUMBER_LITERAL.test(cell) ? Number(cell) : cell;
+  return parseCell(field.primitive, cell);
 }
 
 /** Reads a two-row table (headers + one data row) into an object, coercing each cell by its field. */

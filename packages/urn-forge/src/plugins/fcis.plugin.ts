@@ -14,7 +14,7 @@
  */
 import * as v from 'valibot';
 import type { IREntity, UniversalIR } from '../ir/types.js';
-import { MVP_PRIMITIVES } from '../meta-schema.js';
+import { PRIMITIVE_NAMES } from '../primitives/index.js';
 import { valuesInUrnOrder, type CodegenPlugin } from './plugin.interface.js';
 import { VALIBOT_SCHEMAS_FILE, schemaNames } from './valibot.plugin.js';
 
@@ -152,7 +152,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
     const dispatch = [
       `export interface FieldInfo {`,
       `  readonly urn: string;`,
-      `  readonly primitive: ${MVP_PRIMITIVES.map(q).join(' | ')};`,
+      `  readonly primitive: ${PRIMITIVE_NAMES.map(q).join(' | ')};`,
       `  readonly required: boolean;`,
       `}`,
       ``,

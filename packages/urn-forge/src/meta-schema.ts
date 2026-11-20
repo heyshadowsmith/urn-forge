@@ -2,14 +2,24 @@
  * Compilation pass 1: the manifest meta-schema (spec §4, §7 pass 1; MVP scope per mvp-plan.md).
  *
  * Validates the manifest header, the short-key grammar (`<context>.<kind>.<identifier>`),
- * the three MVP kinds (`field`, `entity`, `operation`), the three MVP primitives
- * (`integer`, `float`, `string`) and which constraint keys each primitive accepts.
+ * the three MVP kinds (`field`, `entity`, `operation`), and each field against its
+ * primitive's descriptor in the registry (src/primitives/): which constraint keys it
+ * accepts and the type of each value.
  *
  * It checks structure only. Expanding short keys to URNs, uniqueness and reference
  * resolution are later passes (src/ir/).
  */
 import * as v from 'valibot';
 import { LineCounter, parseDocument } from 'yaml';
+import {
+  PRIMITIVES,
+  PRIMITIVE_NAMES,
+  constraintKeys,
+  isPrimitive,
+  type ConstraintValue,
+  type Primitive,
+  type PrimitiveDescriptor,
+} from './primitives/index.js';
 import {
   ManifestLocator,
   type DiagnosticCode,
@@ -30,16 +40,6 @@ export type MvpKind = (typeof MVP_KINDS)[number];
 
 /** Kinds that exist in spec v1.1 but are cut from the MVP. */
 const DEFERRED_KINDS = ['invariant', 'event', 'error'] as const;
-
-export const MVP_PRIMITIVES = ['float', 'integer', 'string'] as const;
-export type MvpPrimitive = (typeof MVP_PRIMITIVES)[number];
-
-/** Constraint keys accepted by each primitive. */
-export const CONSTRAINTS_BY_PRIMITIVE = {
-  float: ['min', 'max', 'notEqual'],
-  integer: ['min', 'max', 'notEqual'],
-  string: ['minLength', 'maxLength'],
-} as const satisfies Record<MvpPrimitive, readonly string[]>;
 
 const SHORT_KEY_PATTERN = /^([a-z][a-z0-9_]{0,62})\.([a-z]+)\.([a-z][a-z0-9_]{0,62})$/;
 
@@ -79,35 +79,27 @@ export type ManifestHeader = v.InferOutput<typeof HeaderSchema>;
 // ---------------------------------------------------------------------------
 
 const Description = v.pipe(v.string(), v.minLength(1, 'must not be empty'));
-const FiniteNumber = v.pipe(v.number(), v.finite());
-const SafeInteger = v.pipe(v.number(), v.safeInteger());
-const Length = v.pipe(v.number(), v.safeInteger(), v.minValue(0));
 
-const FloatField = v.strictObject({
-  primitive: v.literal('float'),
-  description: v.optional(Description),
-  min: v.optional(FiniteNumber),
-  max: v.optional(FiniteNumber),
-  notEqual: v.optional(FiniteNumber),
-});
+/** `{ primitive, description?, <each constraint>? }` for one primitive, built from its descriptor. */
+function fieldSchemaFor(descriptor: PrimitiveDescriptor) {
+  return v.strictObject({
+    primitive: v.literal(descriptor.name),
+    description: v.optional(Description),
+    ...Object.fromEntries(Object.entries(descriptor.constraints).map(([key, spec]) => [key, v.optional(spec.schema)])),
+  });
+}
 
-const IntegerField = v.strictObject({
-  primitive: v.literal('integer'),
-  description: v.optional(Description),
-  min: v.optional(SafeInteger),
-  max: v.optional(SafeInteger),
-  notEqual: v.optional(SafeInteger),
-});
+export const FieldSchema = v.variant(
+  'primitive',
+  Object.values(PRIMITIVES).map(fieldSchemaFor) as [ReturnType<typeof fieldSchemaFor>],
+);
 
-const StringField = v.strictObject({
-  primitive: v.literal('string'),
-  description: v.optional(Description),
-  minLength: v.optional(Length),
-  maxLength: v.optional(Length),
-});
-
-export const FieldSchema = v.variant('primitive', [FloatField, IntegerField, StringField]);
-export type FieldDecl = v.InferOutput<typeof FieldSchema>;
+/** A field entry: its primitive, an optional description, and the constraints it sets. */
+export interface FieldDecl {
+  readonly primitive: Primitive;
+  readonly description?: string;
+  readonly [constraint: string]: ConstraintValue | undefined;
+}
 
 const FieldRef = v.strictObject({
   ref: ShortKeyRef,
@@ -225,11 +217,11 @@ function describeIssue(key: string, entry: unknown, issue: v.BaseIssue<unknown>,
   if (issue.type === 'variant' && dotPath === 'primitive') {
     return at(
       'unknown-primitive',
-      `${prefix}: unknown primitive ${issue.received} (MVP primitives: ${MVP_PRIMITIVES.join(', ')})`,
+      `${prefix}: unknown primitive ${issue.received} (MVP primitives: ${PRIMITIVE_NAMES.join(', ')})`,
     );
   }
-  if (unknownKey && typeof primitive === 'string' && primitive in CONSTRAINTS_BY_PRIMITIVE) {
-    const allowed = CONSTRAINTS_BY_PRIMITIVE[primitive as MvpPrimitive];
+  if (unknownKey && typeof primitive === 'string' && isPrimitive(primitive)) {
+    const allowed = constraintKeys(primitive);
     return at(
       'constraint-not-allowed',
       `${prefix}: "${dotPath}" is not a constraint of primitive "${primitive}" (allowed: ${allowed.join(', ')})`,

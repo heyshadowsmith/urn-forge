@@ -9,7 +9,7 @@ urn-forge is an MVP. It keeps the four links of the traceability chain: the mani
 | Constraints | `min`, `max`, `notEqual`, `minLength`, `maxLength` | `regex`, `format`, `oneOf`, `precision` |
 | Optional fields | `required` on each field reference | `nullable` |
 | Operation input and output | Entities | Fields |
-| Compiler passes | Meta-schema, expansion, uniqueness, references | Cycles, rule types, constraint coherence, lifecycle |
+| Compiler passes | Meta-schema, expansion, uniqueness, references, constraint coherence | Cycles, rule types, lifecycle |
 | Deterministic output | Sorted output, no clock, fingerprint header | A CI run in a different locale, `referenceDate` |
 | Plugins | Valibot and FCIS. Handlers return the output directly | The `Result` type, Gherkin parameter types, Postgres |
 | Gates | 1 (completeness), 3 (tags and headers), 4 (drift) | 2 (lint profile), the boundary coverage part of 3, 5 (compatibility) |

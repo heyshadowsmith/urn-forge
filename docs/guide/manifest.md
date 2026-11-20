@@ -1,11 +1,12 @@
 # The manifest
 
-A manifest is one YAML file for one domain. urn-forge does four checks on it:
+A manifest is one YAML file for one domain. urn-forge does five checks on it:
 
 1. A meta-schema check of the structure.
 2. The expansion of short keys to URNs.
 3. A check that names are unique.
 4. A check that each reference is correct.
+5. A check that the constraints of each field accept one or more values.
 
 urn-forge shows all the problems that it finds, not only the first problem.
 
@@ -75,7 +76,7 @@ arithmetic.field.divisor:
 | `integer` | A safe-integer `number` | `min`, `max` and `notEqual` (integers) |
 | `string` | `string` | `minLength` and `maxLength` (integers that are not negative) |
 
-A constraint that is not applicable to the primitive causes an error. A constraint value of the wrong type also causes an error:
+A constraint that is not applicable to the primitive causes an error. A constraint value of the wrong type also causes an error. Constraints that do not accept a value cause an error too, for example `min: 5` with `max: 1`:
 
 ```
 geometry.field.radius.minLength: "minLength" is not a constraint of primitive "float" (allowed: min, max, notEqual)
@@ -112,7 +113,9 @@ arithmetic.operation.safe_divide:
 
 The `input` and `output` values must be entities. The specification also accepts a field in these positions. The MVP does not accept a field.
 
-## The four passes
+## The passes
+
+The pass numbers come from the specification. The MVP does not have passes 5, 6 and 8.
 
 | Pass | Checks | Example message |
 | --- | --- | --- |
@@ -120,5 +123,6 @@ The `input` and `output` values must be entities. The specification also accepts
 | 2. Expansion | urn-forge changes short keys to URNs and makes the brand identifiers | No message |
 | 3. Uniqueness | Two atoms cannot have the same URN or brand identifier. One entity cannot have two properties with the same name | `… brandIdentifier "GeoMetryRadius" is already used by urn:demo:math:geo:field:metry_radius; rename one of them` |
 | 4. References | Each `ref` points to a field. Each `input` and `output` points to an entity | `urn:demo:math:geometry:entity:circle: fields[0].ref "geometry.field.diameter" does not resolve (…)` |
+| 7. Constraint coherence | The constraints of each field accept one or more values: `min` is not larger than `max`, and `minLength` is not larger than `maxLength` | `urn:demo:math:geometry:field:radius: min (5) is greater than max (1), so no value is valid` |
 
 For a list of all messages, with the cause and the correction for each, refer to [Diagnostics](../reference/diagnostics).

@@ -39,6 +39,13 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm test
 
+      # Vitest does not type-check. This runs tsc over src/, tests/, example/ and self/, so
+      # the type-level tests (`@ts-expect-error`) are enforced too: a missing handler, a
+      # plain value where a branded one belongs, or a primitive a plugin does not handle.
+      - name: typecheck
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run typecheck
+
       - name: urn-forge verify
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         working-directory: packages/urn-forge
