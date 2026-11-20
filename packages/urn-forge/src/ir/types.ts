@@ -24,6 +24,7 @@ export interface UniversalIR {
   readonly fields: Readonly<Record<Urn, IRField>>;
   readonly entities: Readonly<Record<Urn, IREntity>>;
   readonly operations: Readonly<Record<Urn, IROperation>>;
+  readonly errors: Readonly<Record<Urn, IRError>>;
 }
 
 export interface IRField {
@@ -54,6 +55,26 @@ export interface IREntity {
   readonly fields: readonly IRFieldRef[];
 }
 
+/** The five error categories of spec §4.6. Metadata for the shell; the core never reads them. */
+export const ERROR_CATEGORIES = ['validation', 'conflict', 'not_found', 'forbidden', 'precondition'] as const;
+export type ErrorCategory = (typeof ERROR_CATEGORIES)[number];
+
+/** One part of a parsed message template: literal text, or a placeholder naming a property of the error. */
+export type MessagePart = { readonly text: string } | { readonly field: string };
+
+/** A named, URN-addressed rejection (spec §4.6): the operation was refused and nothing changed. */
+export interface IRError {
+  readonly urn: Urn;
+  readonly brandIdentifier: string;
+  readonly description: string;
+  readonly category: ErrorCategory;
+  readonly retryable: boolean;
+  /** Parsed; every placeholder names a required field of this error (pass 6). */
+  readonly message: readonly MessagePart[];
+  /** Declaration order preserved; may be empty. */
+  readonly fields: readonly IRFieldRef[];
+}
+
 export interface IROperation {
   readonly urn: Urn;
   readonly brandIdentifier: string;
@@ -62,6 +83,8 @@ export interface IROperation {
   readonly input: Urn;
   /** An entity URN. Spec §5 also allows a field; the MVP accepts entities only. */
   readonly output: Urn;
+  /** The declared errors (error URNs), in declaration order. */
+  readonly errors: readonly Urn[];
 }
 
 /** A diagnostic from passes 1–4. `urn` is set whenever the problem belongs to an atom. */

@@ -1,12 +1,8 @@
 import * as v from 'valibot';
-import { Description, ShortKeyRef } from '../grammar.js';
-import type { IREntity, IRFieldRef, Urn } from '../ir/types.js';
+import { Description } from '../grammar.js';
+import type { IREntity } from '../ir/types.js';
+import { FIELDS_SLOT, FieldRef, buildFieldRefs } from './field-refs.js';
 import { defineKind } from './types.js';
-
-const FieldRef = v.strictObject({
-  ref: ShortKeyRef,
-  required: v.optional(v.boolean(), true),
-});
 
 const EntitySchema = v.strictObject({
   description: Description,
@@ -20,34 +16,10 @@ export const entity = defineKind<EntityDecl, IREntity>()({
   group: 'entities',
   article: 'an',
   schema: EntitySchema,
-  references: [{ path: ['fields', '*', 'ref'], targets: ['field'] }],
-  build({ atom, shortKey, decl, ref, report }) {
-    const fields: IRFieldRef[] = [];
-    const seenNames = new Map<string, Urn>();
-    decl.fields.forEach((fieldRef, index) => {
-      const target = ref(['fields', index, 'ref']);
-      if (!target) return;
-      const path = [shortKey, 'fields', index, 'ref'];
-      const clash = seenNames.get(target.identifier);
-      if (clash === target.urn) {
-        report({
-          code: 'duplicate-ref',
-          urn: atom.urn,
-          message: `${atom.urn}: fields[${index}].ref lists ${target.urn} more than once`,
-          path,
-        });
-      } else if (clash) {
-        report({
-          code: 'duplicate-property',
-          urn: atom.urn,
-          message: `${atom.urn}: fields[${index}].ref ${target.urn} and ${clash} both become property "${target.identifier}"`,
-          path,
-        });
-      } else {
-        seenNames.set(target.identifier, target.urn);
-        fields.push({ field: target.urn, name: target.identifier, required: fieldRef.required });
-      }
-    });
+  references: [FIELDS_SLOT],
+  build(context) {
+    const { atom, decl } = context;
+    const fields = buildFieldRefs(context as never, decl.fields);
     return { urn: atom.urn, brandIdentifier: atom.brandIdentifier, description: decl.description, fields };
   },
 });

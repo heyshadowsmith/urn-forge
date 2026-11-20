@@ -17,6 +17,7 @@ Feature: URNs
       | demo      | math      | arithmetic | operation | safe_divide       | urn:demo:math:arithmetic:operation:safe_divide        |
       | acme      | insurance | policy     | field     | deductible_amount | urn:acme:insurance:policy:field:deductible_amount     |
       | urn_forge | toolchain | naming     | entity    | atom_address      | urn:urn_forge:toolchain:naming:entity:atom_address    |
+      | urn_forge | toolchain | naming     | error     | invalid_short_key | urn:urn_forge:toolchain:naming:error:invalid_short_key |
 
   Scenario Outline: A kind the compiler does not support is rejected at the boundary
     When I run the operation with:

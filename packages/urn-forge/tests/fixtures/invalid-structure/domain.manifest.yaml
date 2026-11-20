@@ -14,3 +14,13 @@ order.field.size:      { primitive: string, oneOf: [s, m, s] }
 order.field.pattern:   { primitive: string, regex: '[a-' }
 order.entity.line:
   fields: []
+order.error.sold_out:
+  description: The item is sold out
+  category: gone
+  retryable: false
+  message: Sold out
+  recordAs: order.event.sale_refused
+order.error.no_message:
+  description: An error without a message
+  category: conflict
+  retryable: true

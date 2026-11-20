@@ -23,7 +23,7 @@
       "column": 1,
       "line": 8
     },
-    "message": "invalid key \"order.event.placed\": kind \"event\" is not supported yet (MVP kinds: field, entity, operation)",
+    "message": "invalid key \"order.event.placed\": kind \"event\" is not supported yet (MVP kinds: field, entity, operation, error)",
     "severity": "error"
   },
   {
@@ -96,6 +96,33 @@
       "line": 16
     },
     "message": "order.entity.line.fields: must list at least one field",
+    "severity": "error"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 13,
+      "line": 19
+    },
+    "message": "order.error.sold_out.category: Invalid type: Expected (\"validation\" | \"conflict\" | \"not_found\" | \"forbidden\" | \"precondition\") but received \"gone\"",
+    "severity": "error"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 13,
+      "line": 22
+    },
+    "message": "order.error.sold_out.recordAs: needs the event kind, which urn-forge does not support yet",
+    "severity": "error"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 1,
+      "line": 23
+    },
+    "message": "order.error.no_message.message: Invalid key: Expected \"message\" but received undefined",
     "severity": "error"
   }
 ]
