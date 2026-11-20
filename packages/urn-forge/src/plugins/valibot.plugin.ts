@@ -11,7 +11,13 @@
  */
 import * as v from 'valibot';
 import type { IREntity, IRField, UniversalIR, Urn } from '../ir/types.js';
-import type { MvpPrimitive } from '../meta-schema.js';
+import {
+  constraintKeys,
+  type ConstraintKey,
+  type ConstraintsOf,
+  type ConstraintValue,
+  type Primitive,
+} from '../primitives/index.js';
 import {
   numberLiteral,
   valuesInUrnOrder,
@@ -30,28 +36,46 @@ export function schemaNames(brandIdentifier: string) {
   } as const;
 }
 
-const BASE_BY_PRIMITIVE: Record<MvpPrimitive, readonly string[]> = {
-  float: ['v.number()', 'v.finite()'],
-  integer: ['v.number()', 'v.safeInteger()'],
-  string: ['v.string()'],
+/** How one primitive becomes a Valibot pipe: its base actions, then one action per constraint. */
+export interface ValibotTranslation<P extends Primitive> {
+  readonly base: readonly string[];
+  readonly constraints: {
+    readonly [K in ConstraintKey<P>]: (value: NonNullable<ConstraintsOf<P>[K]>) => string;
+  };
+}
+
+/**
+ * Every primitive and every constraint it accepts. A primitive or constraint added to the
+ * registry without an entry here fails `tsc`.
+ */
+export type ValibotTranslations = { readonly [P in Primitive]: ValibotTranslation<P> };
+
+const NUMERIC_ACTIONS: ValibotTranslation<'float' | 'integer'>['constraints'] = {
+  min: (n) => `v.minValue(${numberLiteral(n)})`,
+  max: (n) => `v.maxValue(${numberLiteral(n)})`,
+  notEqual: (n) => `v.notValue(${numberLiteral(n)})`,
 };
 
-/** Constraint key → Valibot action, in the fixed order they are emitted. */
-const ACTION_BY_CONSTRAINT: readonly (readonly [string, string])[] = [
-  ['min', 'v.minValue'],
-  ['max', 'v.maxValue'],
-  ['notEqual', 'v.notValue'],
-  ['minLength', 'v.minLength'],
-  ['maxLength', 'v.maxLength'],
-];
+const TRANSLATIONS: ValibotTranslations = {
+  float: { base: ['v.number()', 'v.finite()'], constraints: NUMERIC_ACTIONS },
+  integer: { base: ['v.number()', 'v.safeInteger()'], constraints: NUMERIC_ACTIONS },
+  string: {
+    base: ['v.string()'],
+    constraints: {
+      minLength: (n) => `v.minLength(${numberLiteral(n)})`,
+      maxLength: (n) => `v.maxLength(${numberLiteral(n)})`,
+    },
+  },
+};
 
 const ConfigSchema = v.strictObject({});
 export type ValibotPluginConfig = v.InferOutput<typeof ConfigSchema>;
 
 function fieldDeclaration(field: IRField, diagnostics: PluginDiagnostic[]): string {
-  const known = new Set(ACTION_BY_CONSTRAINT.map(([key]) => key));
+  const translation = TRANSLATIONS[field.primitive];
+  const actions = translation.constraints as Readonly<Record<string, (value: ConstraintValue) => string>>;
   for (const key of Object.keys(field.constraints).sort()) {
-    if (!known.has(key)) {
+    if (!Object.hasOwn(actions, key)) {
       diagnostics.push({
         code: 'unsupported-construct',
         severity: 'error',
@@ -61,10 +85,12 @@ function fieldDeclaration(field: IRField, diagnostics: PluginDiagnostic[]): stri
     }
   }
 
-  const steps = [...BASE_BY_PRIMITIVE[field.primitive]];
-  for (const [key, action] of ACTION_BY_CONSTRAINT) {
+  // Constraints follow the registry's order, so output does not depend on manifest key order.
+  const steps = [...translation.base];
+  for (const key of constraintKeys(field.primitive)) {
     const value = field.constraints[key];
-    if (value !== undefined) steps.push(`${action}(${numberLiteral(value)})`);
+    const action = actions[key];
+    if (value !== undefined && action) steps.push(action(value));
   }
   steps.push(`v.brand(${JSON.stringify(field.urn)})`);
 

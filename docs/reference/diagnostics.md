@@ -63,6 +63,12 @@ With `--format json`, each diagnostic is one JSON object on one line. Refer to [
 | `unresolved-ref` | `<urn>: <where> "<short key>" does not resolve (no atom <urn> in this manifest)` | A `ref`, `input` or `output` refers to an atom that the manifest does not declare | Declare the atom, or correct the short key |
 | `wrong-ref-kind` | `<urn>: <where> "<short key>" must name a field, but <urn> is an entity` | A `ref` refers to an atom that is not a field, or an `input` or `output` refers to an atom that is not an entity | Refer to an atom of the correct kind. To use a field as an input or output, put it in an entity |
 
+## Constraint coherence (pass 7)
+
+| Code | Message | Cause | Correction |
+| --- | --- | --- | --- |
+| `incoherent-constraints` | `<urn>: min (<n>) is greater than max (<n>), so no value is valid` | The constraints of a field do not accept a value. Examples: `min` is larger than `max`, `minLength` is larger than `maxLength`, or `min` and `max` are equal and `notEqual` has the same value | Correct the constraints. The position gives the constraint to examine |
+
 ## Plugins
 
 | Code | Message | Cause | Correction |

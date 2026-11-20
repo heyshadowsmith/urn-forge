@@ -35,6 +35,8 @@ export const DIAGNOSTIC_CODES = {
   // Pass 4: references
   'unresolved-ref': 'A reference names no atom in the manifest',
   'wrong-ref-kind': 'A reference names an atom of the wrong kind',
+  // Pass 7: constraint coherence
+  'incoherent-constraints': 'The constraints of a field admit no value',
   // Plugins
   'plugin-config': 'A plugin configuration is not valid',
   'unsupported-construct': 'A plugin cannot translate a construct in the IR',

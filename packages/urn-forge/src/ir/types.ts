@@ -6,7 +6,7 @@
  * canonical JSON and the fingerprint see one form.
  */
 import type { DiagnosticCode, ManifestPath, SourceLocation } from '../diagnostics.js';
-import type { MvpPrimitive } from '../meta-schema.js';
+import type { ConstraintValue, Primitive } from '../primitives/index.js';
 
 export type Urn = string & { readonly __urn: unique symbol };
 
@@ -29,9 +29,9 @@ export interface UniversalIR {
 export interface IRField {
   readonly urn: Urn;
   readonly brandIdentifier: string;
-  readonly primitive: MvpPrimitive;
+  readonly primitive: Primitive;
   /** Only the constraint keys the manifest set, validated per primitive by the meta-schema. */
-  readonly constraints: Readonly<Record<string, number>>;
+  readonly constraints: Readonly<Record<string, ConstraintValue>>;
   readonly description?: string;
 }
 

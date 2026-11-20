@@ -1,12 +1,14 @@
 /**
- * IR builder: compilation passes 2–4 over a manifest that passed the meta-schema (spec §5).
+ * IR builder: compilation passes 2–4 and 7 over a manifest that passed the meta-schema (spec §5).
  *
  *   2. Expansion: short keys become full URNs; brandIdentifier is derived.
  *   3. Uniqueness: no two atoms share a URN or a brandIdentifier; no entity has two
  *      properties with the same name.
  *   4. Referential integrity: every `ref` names a field, every `input`/`output` an entity.
+ *   7. Constraint coherence: a field's constraints admit at least one value (`min <= max`, …),
+ *      checked by its primitive's descriptor.
  *
- * Passes 5–8 (cycles, rule typing, constraint coherence, lifecycle) are cut from the MVP.
+ * Passes 5, 6 and 8 (cycles, rule typing, lifecycle) are not built yet.
  */
 import type { ManifestLocator, ManifestPath } from '../diagnostics.js';
 import {
@@ -18,6 +20,7 @@ import {
   type OperationDecl,
   type ValidManifest,
 } from '../meta-schema.js';
+import { checkCoherence, type ConstraintValue } from '../primitives/index.js';
 import { canonicalJson, compareCodeUnits, sha256Hex } from './canonical.js';
 import type {
   IRBuildResult,
@@ -154,11 +157,19 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
 
     if (atom.kind === 'field') {
       const { primitive, description, ...constraints } = manifest.fields[shortKey] as FieldDecl;
+      for (const problem of checkCoherence(primitive, constraints as Record<string, ConstraintValue>)) {
+        issues.push({
+          code: 'incoherent-constraints',
+          urn: atom.urn,
+          message: `${atom.urn}: ${problem.message}`,
+          path: [shortKey, problem.constraint],
+        });
+      }
       fields.set(atom.urn, {
         urn: atom.urn,
         brandIdentifier: atom.brandIdentifier,
         primitive,
-        constraints: constraints as Record<string, number>,
+        constraints: constraints as Record<string, ConstraintValue>,
         ...(description === undefined ? {} : { description }),
       });
     } else if (atom.kind === 'entity') {
