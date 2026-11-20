@@ -29,4 +29,5 @@ Each row is a declaration this domain needs and the MVP cannot express. Together
 | `naming.field.required`, `naming.field.nullable` | ~~`boolean` primitive~~ available; no operation needs them yet | Field references in the manifest |
 | `manifest.version` is semver | No operation needs it yet (`regex` is available) | Also needed by a future version comparison |
 | `gherkin.operation.coerce_cell` | A value of more than one type (`oneOf` is available for the primitive name) | `coerceCell` returns a number, a string, a boolean or nothing |
+| `errors.operation.render_message` (fills an error's `{placeholders}`) | `record` primitive (its input is a map of field values) | Part of the error kind work; see `docs/project/error-kind-plan.md` |
 | `compatibility.operation.classify_constraint_change` (gate 5) | `error` kind (`oneOf` is available for the output class) | The core of `urn-forge diff` |
