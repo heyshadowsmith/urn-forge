@@ -128,10 +128,11 @@ The work is driven by urn-forge's own domain, the way the math fixture drove the
   - *Sabotage check:* mapping `widget` to `invalid_short_key` in `self/core.ts` fails its scenario with `… failed with …:invalid_short_key (Short key policy.widget.x is not …); expected …:unknown_kind`.
   - The error scenarios move from `self/pending/` into `self/features/`, and `self/pending/` is removed.
   - *Check:* step-library unit tests for each failure message; every `parse_short_key` scenario passes.
-- [ ] **5. Gate 3.**
+- [x] **5. Gate 3.**
   - `undeclared-error`: the URN in the step is not an error of the scenario's operation.
   - `uncovered-error` (a warning): a declared error that no scenario expects. It is counted in the warnings line.
   - *Check:* `verify` passes with a warning for an uncovered error, and fails for an undeclared one. `verify:self` passes with no warnings, because all three of `parse_short_key`'s errors have scenarios.
+  - *Done.* Both checks also count the plain form of the step (without a table), which the old step loop skipped. Gate 3's summary gains `N/M errors expected` when the domain declares errors (`verify:self`: `3/3 errors expected`). Both sabotages, run through the CLI on `self/`: removing the `unknown_kind` scenario gives `verify passed with 1 warning(s)` and exit 0, the first warning any gate has made; naming an undeclared error fails gate 3 at the step, listing the operation's errors.
 - [ ] **6. Docs.**
   - The error kind in the manifest guide, `Result` in generated code, the new step, the new codes, and the scope table.
   - The `self/` backlog: `parse_short_key` is done. The message renderer stays blocked: its input is a template and a map of values, which needs the `record` primitive.

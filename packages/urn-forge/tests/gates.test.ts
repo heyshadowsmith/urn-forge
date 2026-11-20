@@ -134,12 +134,62 @@ describe('gate 3: tables of the fails-with step', () => {
         ],
         problems: [],
       },
-    } as unknown as GateContext).problems;
+    } as unknown as GateContext).problems.filter((p) => p.code !== 'uncovered-error');
 
   it('checks the headers against the fields of the named error, not the operation', () => {
     expect(problems('    Then the operation fails with "urn:demo:shop:order:error:price_unavailable":\n      | sku |\n      | ABC-1234 |\n')).toEqual([]);
     expect(problems('    Then the operation fails with "urn:demo:shop:order:error:price_unavailable":\n      | total |\n      | 1 |\n')).toEqual([
       expect.objectContaining({ code: 'unknown-header', message: expect.stringContaining('is not a field key of the error urn:demo:shop:order:error:price_unavailable (allowed: sku)') }),
+    ]);
+  });
+});
+
+describe('gate 3: declared errors', () => {
+  const ir = compile(readFileSync(repo('tests/fixtures/shop/domain.manifest.yaml'), 'utf8')).ir!;
+  const PRICE = '@urn:demo:shop:order:operation:price_line';
+  const UNAVAILABLE = 'urn:demo:shop:order:error:price_unavailable';
+  const OFFLINE = 'urn:demo:shop:order:error:pricing_offline';
+  const outcome = (...thens: string[]) =>
+    checkGherkin({
+      ir,
+      features: {
+        directory: 'features',
+        features: [
+          indexFeatureSource(
+            `${PRICE}\nFeature: x\n` +
+              thens
+                .map((then, i) => `  Scenario: s${i}\n    When I run the operation with:\n      | sku | quantity | unit_cost | terms_accepted |\n      | ABC-1234 | 1 | 1 | true |\n    ${then}\n`)
+                .join(''),
+            'f.feature',
+          )!,
+        ],
+        problems: [],
+      },
+    } as unknown as GateContext);
+
+  it('counts both forms of the step, and passes with no warning when every error is expected', () => {
+    const { problems, summary } = outcome(`Then the operation fails with "${UNAVAILABLE}"`, `Then the operation fails with "${OFFLINE}":\n      | kind |\n      | ${OFFLINE} |`);
+    expect(problems.filter((p) => p.code !== 'unknown-header')).toEqual([]);
+    expect(summary).toBe('1 feature(s), 2 scenario(s), 1/1 operations tagged, 2/2 errors expected');
+  });
+
+  it('warns for each declared error that no scenario expects', () => {
+    const { problems, summary } = outcome(`Then the operation fails with "${UNAVAILABLE}"`);
+    expect(problems).toEqual([
+      expect.objectContaining({ code: 'uncovered-error', severity: 'warning', urn: OFFLINE, file: 'features' }),
+    ]);
+    expect(summary).toContain('1/2 errors expected');
+  });
+
+  it('fails a scenario that expects an error its operation does not declare, at the step', () => {
+    const { problems } = outcome(`Then the operation fails with "urn:demo:shop:order:error:sold_out"`, `Then the operation fails with "${UNAVAILABLE}"`, `Then the operation fails with "${OFFLINE}"`);
+    expect(problems).toEqual([
+      expect.objectContaining({
+        code: 'undeclared-error',
+        severity: 'error',
+        location: { line: 7, column: 5 },
+        message: `"urn:demo:shop:order:error:sold_out" is not a declared error of urn:demo:shop:order:operation:price_line (errors: ${UNAVAILABLE}, ${OFFLINE})`,
+      }),
     ]);
   });
 });

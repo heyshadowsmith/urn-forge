@@ -11,9 +11,13 @@
  * 3. Required headers. The table of `When I run the operation with:` must have a column for
  *    every required field of the operation's input. To test a missing value, leave its
  *    cell empty: the step then sends the payload without that key.
+ * 4. Declared errors. `Then the operation fails with "<urn>"` must name an error the
+ *    scenario's operation declares (`undeclared-error`), and the table of its `:` form must
+ *    name fields of that error. Every declared error should have a scenario that expects it
+ *    (spec §8 error coverage): `uncovered-error` is a warning until coverage is ratcheted.
  */
 import { FAILS_WITH_TEXT, STEP_PHRASES } from '../gherkin/phrases.js';
-import type { Diagnostic, DiagnosticCode, SourceLocation } from '../diagnostics.js';
+import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
 import type { UniversalIR, Urn } from '../ir/types.js';
 import type { IndexedCell, IndexedTag, IndexedTable } from './feature-index.js';
 import type { Gate, GateContext, GateOutcome } from './types.js';
@@ -33,10 +37,12 @@ interface Owner {
 export function checkGherkin({ ir, features }: GateContext): GateOutcome {
   const problems: Diagnostic[] = [...features.problems];
   const covered = new Set<string>();
+  /** `<operation URN> <error URN>` for each declared error some scenario expects. */
+  const expectedErrors = new Set<string>();
 
   for (const feature of features.features) {
-    const report = (code: DiagnosticCode, location: SourceLocation, message: string, urn?: string) =>
-      problems.push({ code, severity: 'error', file: feature.file, location, ...(urn === undefined ? {} : { urn }), message });
+    const report = (code: DiagnosticCode, location: SourceLocation, message: string, urn?: string, severity: Severity = 'error') =>
+      problems.push({ code, severity, file: feature.file, location, ...(urn === undefined ? {} : { urn }), message });
 
     // 1. Tags, each checked once where it is written.
     for (const tag of feature.declaredTags) {
@@ -94,13 +100,27 @@ export function checkGherkin({ ir, features }: GateContext): GateOutcome {
     for (const scenario of feature.scenarios) {
       const owner = ownerOf(scenario.tags, scenario.location);
       for (const step of scenario.steps) {
-        if (!step.table) continue;
-        // The table of `the operation fails with "<urn>":` holds the fields of that error.
+        // 4. `the operation fails with "<urn>"`, with or without a table of that error's fields.
         const failsWith = FAILS_WITH_TEXT.exec(step.text);
         if (failsWith) {
-          checkHeader(step.table.header, errorOwner(ir, owner, failsWith[1]!));
+          const errorUrn = failsWith[1]!;
+          if (owner?.errors) {
+            if (owner.errors.includes(errorUrn as Urn)) {
+              expectedErrors.add(`${owner.urn} ${errorUrn}`);
+            } else {
+              report(
+                'undeclared-error',
+                step.location,
+                `"${errorUrn}" is not a declared error of ${owner.urn} ` +
+                  `(errors: ${owner.errors.length > 0 ? owner.errors.join(', ') : 'none'})`,
+                owner.urn,
+              );
+            }
+          }
+          if (step.table) checkHeader(step.table.header, errorOwner(ir, owner, errorUrn));
           continue;
         }
+        if (!step.table) continue;
         checkHeader(step.table.header, owner);
         if (step.text === STEP_PHRASES.run) checkRequired(step.table, owner);
       }
@@ -123,9 +143,26 @@ export function checkGherkin({ ir, features }: GateContext): GateOutcome {
     }
   }
 
+  // Error coverage: a warning for each declared error that no scenario of its operation expects.
+  let declaredErrors = 0;
+  for (const operation of Object.values(ir.operations)) {
+    for (const errorUrn of operation.errors) {
+      declaredErrors += 1;
+      if (expectedErrors.has(`${operation.urn} ${errorUrn}`)) continue;
+      problems.push({
+        code: 'uncovered-error',
+        severity: 'warning',
+        file: features.directory,
+        urn: errorUrn,
+        message: `error ${errorUrn} of ${operation.urn} has no scenario that expects it; add one with Then the operation fails with "${errorUrn}"`,
+      });
+    }
+  }
+
   const scenarioCount = features.features.reduce((n, f) => n + f.scenarios.length, 0);
+  const errorSummary = declaredErrors > 0 ? `, ${expectedErrors.size}/${declaredErrors} errors expected` : '';
   return {
-    summary: `${features.features.length} feature(s), ${scenarioCount} scenario(s), ${operations.filter((u) => covered.has(u)).length}/${operations.length} operations tagged`,
+    summary: `${features.features.length} feature(s), ${scenarioCount} scenario(s), ${operations.filter((u) => covered.has(u)).length}/${operations.length} operations tagged${errorSummary}`,
     problems,
   };
 }

@@ -113,6 +113,8 @@ For the procedure of each gate, refer to [Verification gates](../guide/verify).
 | `unresolved-tag` | `tag @<urn> does not resolve to a URN in the manifest` | A `@urn:` tag does not agree with a URN in the manifest | Correct the tag |
 | `untagged-operation` | `operation <urn> has no feature or scenario tagged @<urn>` | No feature or scenario has the tag of the operation | Add a feature for the operation |
 | `missing-column` | `the table of "I run the operation with:" has no column for required input field(s) "<name>" of <urn>; …` | The input table of the operation does not have a column for a mandatory input field | Add the column. To make a test with a missing value, keep the column and leave the cell empty |
+| `undeclared-error` | `"<error URN>" is not a declared error of <operation URN> (errors: …)` | A step `Then the operation fails with "<error URN>"` gives an error that the operation of the scenario does not declare | Give an error from the list, or add the error to `errors` of the operation |
+| `uncovered-error` | `error <error URN> of <operation URN> has no scenario that expects it; …` | This is a warning. No scenario of the operation expects the error | Add a scenario with `Then the operation fails with "<error URN>"` |
 | `ambiguous-tag` | `scenario is tagged with more than one operation or entity: <urns>` | A scenario receives two or more operation or entity tags | Keep one operation or entity tag for each scenario |
 | `unknown-header` | `table header "<name>" is not a field key of <owner> (allowed: …)` | A table header is not a property of the input or output of the operation, or of the entity | Use a name from the list in the message |
 
