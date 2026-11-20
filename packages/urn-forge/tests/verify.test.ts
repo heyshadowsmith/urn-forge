@@ -1,17 +1,28 @@
 /**
  * `urn-forge verify` against a throwaway copy of the example, including the three seeded
- * failures from mvp-plan.md's "Done" table. The copy symlinks this repo's node_modules so
+ * failures from mvp-plan.md's "Done" table. The copy symlinks the installed node_modules so
  * gate 1 can resolve valibot and @types/node.
  */
 import { cp, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
 import { verify, type VerifyResult } from '../src/verify/index.js';
 
 const repo = (path: string) => fileURLToPath(new URL(`../${path}`, import.meta.url));
+
+/** The node_modules that holds this package's dependencies (hoisted to the monorepo root by npm workspaces). */
+const nodeModules = (() => {
+  let dir = createRequire(import.meta.url).resolve('valibot');
+  while (basename(dir) !== 'node_modules') {
+    if (dirname(dir) === dir) throw new Error('could not locate node_modules from valibot');
+    dir = dirname(dir);
+  }
+  return dir;
+})();
 
 let dir: string;
 const at = (path: string) => join(dir, path);
@@ -44,7 +55,7 @@ beforeEach(async () => {
   await cp(repo('example'), at('example'), { recursive: true });
   await cp(repo('tests/fixtures/math.manifest.yaml'), at('domain.manifest.yaml'));
   await cp(repo('tsconfig.json'), at('tsconfig.json'));
-  await symlink(repo('node_modules'), at('node_modules'), 'dir');
+  await symlink(nodeModules, at('node_modules'), 'dir');
 });
 
 afterEach(async () => {

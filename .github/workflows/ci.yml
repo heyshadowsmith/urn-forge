@@ -1,6 +1,7 @@
 # The traceability chain, end to end (mvp-plan.md, build step 10). Any broken link turns
 # the build red: a missing handler (gate 1), a feature table header that is not a field
-# (gate 3), a hand-edited generated file (gate 4), or a failing scenario.
+# (gate 3), a hand-edited generated file (gate 4), or a failing scenario. A second job
+# builds the docs site, so a broken page or dead link fails too.
 name: CI
 
 on:
@@ -39,6 +40,7 @@ jobs:
 
       - name: urn-forge verify
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: packages/urn-forge
         run: >-
           npx urn-forge verify
           --manifest tests/fixtures/math.manifest.yaml
@@ -48,4 +50,22 @@ jobs:
 
       - name: cucumber-js
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: packages/urn-forge
         run: npx cucumber-js
+
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Build the docs site
+        run: npm run docs:build
