@@ -1,0 +1,412 @@
+/* ==========================================================================
+   urn-forge · phosphor trace theme
+   Neon green on near-black, like a terminal or an oscilloscope tracing a signal.
+   Dark is the default; light mode swaps neon for a deep green with readable contrast.
+   ========================================================================== */
+
+:root {
+  --uf-neon: #39ff14;
+  --uf-neon-rgb: 57, 255, 20;
+  --uf-display: 'Chakra Petch', 'IBM Plex Sans', ui-sans-serif, sans-serif;
+
+  --vp-font-family-base: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --vp-font-family-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  /* Light: deep greens that keep AA contrast on white. */
+  --vp-c-brand-1: #0b7d32;
+  --vp-c-brand-2: #0a6b2b;
+  --vp-c-brand-3: #0b7d32;
+  --vp-c-brand-soft: rgba(15, 154, 62, 0.12);
+
+  --vp-c-bg: #fbfdf9;
+  --vp-c-bg-alt: #f2f7ef;
+  --vp-c-bg-soft: #eaf2e6;
+  --vp-c-divider: #dbe7d6;
+
+  --vp-code-color: #0a6b2b;
+  --vp-code-bg: rgba(15, 154, 62, 0.09);
+
+  --vp-button-brand-bg: var(--vp-c-brand-1);
+  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
+  --vp-button-brand-active-bg: var(--vp-c-brand-2);
+  --vp-button-brand-text: #ffffff;
+  --vp-button-brand-hover-text: #ffffff;
+  --vp-button-brand-active-text: #ffffff;
+
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(105deg, #0b7d32 10%, #3a9a12 55%, #087a6a 95%);
+  --vp-home-hero-image-background-image: radial-gradient(circle, rgba(15, 154, 62, 0.28) 0%, transparent 65%);
+  --vp-home-hero-image-filter: blur(56px);
+
+  --uf-grid-line: rgba(11, 125, 50, 0.07);
+  --uf-card-glow: rgba(11, 125, 50, 0.22);
+  --uf-corner: rgba(11, 125, 50, 0.55);
+}
+
+.dark {
+  --vp-c-bg: #070a08;
+  --vp-c-bg-alt: #040604;
+  --vp-c-bg-elv: #0b110c;
+  --vp-c-bg-soft: #0c130e;
+  --vp-c-border: #1f3324;
+  --vp-c-divider: #152419;
+  --vp-c-gutter: #030503;
+
+  --vp-c-text-1: #e3f3e5;
+  --vp-c-text-2: rgba(205, 230, 209, 0.72);
+  --vp-c-text-3: rgba(180, 210, 186, 0.48);
+
+  --vp-c-brand-1: #39ff14;
+  --vp-c-brand-2: #6bff4f;
+  --vp-c-brand-3: #2bd60c;
+  --vp-c-brand-soft: rgba(57, 255, 20, 0.14);
+
+  --vp-code-color: #8dff74;
+  --vp-code-bg: rgba(57, 255, 20, 0.08);
+  --vp-code-block-bg: #040704;
+  --vp-code-copy-code-bg: #0b110c;
+
+  --vp-button-brand-bg: #39ff14;
+  --vp-button-brand-hover-bg: #6bff4f;
+  --vp-button-brand-active-bg: #2bd60c;
+  --vp-button-brand-text: #031005;
+  --vp-button-brand-hover-text: #031005;
+  --vp-button-brand-active-text: #031005;
+
+  --vp-home-hero-name-background: linear-gradient(105deg, #39ff14 5%, #b8ff2e 50%, #2bffb4 95%);
+  --vp-home-hero-image-background-image: radial-gradient(circle, rgba(57, 255, 20, 0.32) 0%, rgba(43, 255, 180, 0.1) 45%, transparent 70%);
+  --vp-home-hero-image-filter: blur(64px);
+
+  --vp-custom-block-tip-bg: rgba(57, 255, 20, 0.07);
+  --vp-custom-block-tip-border: rgba(57, 255, 20, 0.35);
+
+  --uf-grid-line: rgba(57, 255, 20, 0.055);
+  --uf-card-glow: rgba(57, 255, 20, 0.28);
+  --uf-corner: rgba(57, 255, 20, 0.7);
+}
+
+::selection {
+  background: rgba(var(--uf-neon-rgb), 0.32);
+}
+
+/* --------------------------------------------------------------------------
+   Typography
+   -------------------------------------------------------------------------- */
+
+.VPNavBarTitle .title,
+.VPHero .name,
+.VPHero .text,
+.VPFeature .title,
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3 {
+  font-family: var(--uf-display);
+  letter-spacing: -0.01em;
+}
+
+.VPNavBarTitle .title {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.dark .VPNavBarTitle .title {
+  text-shadow: 0 0 14px rgba(var(--uf-neon-rgb), 0.45);
+}
+
+.vp-doc h1 {
+  font-weight: 700;
+}
+
+/* A terminal comment marker before every section heading. */
+.vp-doc h2 {
+  font-weight: 600;
+}
+
+.vp-doc h2::before {
+  content: '//';
+  margin-right: 0.45em;
+  font-family: var(--vp-font-family-mono);
+  font-weight: 500;
+  color: var(--vp-c-brand-1);
+  opacity: 0.85;
+}
+
+.dark .vp-doc h2::before {
+  text-shadow: 0 0 10px rgba(var(--uf-neon-rgb), 0.6);
+}
+
+/* --------------------------------------------------------------------------
+   Nav, sidebar, code and tables
+   -------------------------------------------------------------------------- */
+
+.dark .VPNavBar:not(.home) .divider-line,
+.dark .VPNavBar.home.top .divider-line {
+  background: linear-gradient(90deg, transparent, rgba(var(--uf-neon-rgb), 0.35), transparent);
+}
+
+.dark .VPSidebarItem.is-active > .item .link > .text {
+  text-shadow: 0 0 12px rgba(var(--uf-neon-rgb), 0.45);
+}
+
+.vp-doc div[class*='language-'] {
+  border: 1px solid var(--vp-c-divider);
+}
+
+.dark .vp-doc div[class*='language-'] {
+  border-color: #16301b;
+  box-shadow: inset 2px 0 0 rgba(var(--uf-neon-rgb), 0.55);
+}
+
+.vp-doc table th {
+  background: var(--vp-c-brand-soft);
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.dark .vp-doc a:hover {
+  text-shadow: 0 0 10px rgba(var(--uf-neon-rgb), 0.5);
+}
+
+/* --------------------------------------------------------------------------
+   Home: grid, scanlines and glow behind the hero
+   -------------------------------------------------------------------------- */
+
+.VPHome {
+  position: relative;
+  isolation: isolate;
+}
+
+.VPHome::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--vp-nav-height) * -1) 0 auto;
+  height: 980px;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--uf-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--uf-grid-line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  background-position: center top;
+  mask-image: radial-gradient(ellipse 75% 70% at 50% 25%, #000 30%, transparent 75%);
+}
+
+.dark .VPHome::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--vp-nav-height) * -1) 0 auto;
+  height: 980px;
+  z-index: -1;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px);
+  mask-image: linear-gradient(to bottom, #000 40%, transparent);
+}
+
+.dark .VPHero .name {
+  filter: drop-shadow(0 0 22px rgba(var(--uf-neon-rgb), 0.35));
+}
+
+.VPHero .name {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.VPHero .text {
+  font-weight: 600;
+}
+
+/* A blinking block cursor at the end of the tagline. */
+.VPHero .tagline::after {
+  content: '';
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 0.3em;
+  vertical-align: -0.15em;
+  background: var(--vp-c-brand-1);
+  animation: uf-blink 1.1s steps(1) infinite;
+}
+
+.dark .VPHero .tagline::after {
+  box-shadow: 0 0 12px rgba(var(--uf-neon-rgb), 0.8);
+}
+
+.VPHero .image-src {
+  border-radius: 20px;
+}
+
+/* The trace panel carries labels, so give it more room than VitePress's default hero image. */
+.VPHero.has-image .image-container {
+  width: 300px;
+  height: 300px;
+}
+
+.VPHero.has-image .image-src {
+  max-width: 280px;
+  max-height: 280px;
+}
+
+/* VitePress pulls the hero image up with negative margins sized for a small image; undo
+   that below the two-column breakpoint so the larger panel sits clear of the nav and the heading below it. */
+@media (max-width: 959px) {
+  .VPHero.has-image .image {
+    margin: -32px -24px 16px;
+  }
+}
+
+@media (min-width: 640px) {
+  .VPHero.has-image .image-container {
+    width: 360px;
+    height: 360px;
+  }
+
+  .VPHero.has-image .image-src {
+    max-width: 360px;
+    max-height: 360px;
+  }
+}
+
+@media (min-width: 960px) {
+  .VPHero.has-image .image-container {
+    width: 440px;
+    height: 440px;
+  }
+
+  .VPHero.has-image .image-src {
+    max-width: 440px;
+    max-height: 440px;
+  }
+}
+
+.dark .VPHero .image-src {
+  box-shadow: 0 0 0 1px rgba(var(--uf-neon-rgb), 0.15), 0 30px 80px -20px rgba(var(--uf-neon-rgb), 0.35);
+}
+
+:root:not(.dark) .VPHero .image-src {
+  box-shadow: 0 24px 60px -24px rgba(4, 40, 14, 0.45);
+}
+
+.dark .VPButton.brand {
+  box-shadow: 0 0 0 1px rgba(var(--uf-neon-rgb), 0.4), 0 0 24px -4px rgba(var(--uf-neon-rgb), 0.55);
+  font-weight: 700;
+}
+
+.dark .VPButton.alt {
+  border-color: rgba(var(--uf-neon-rgb), 0.25);
+}
+
+.dark .VPButton.alt:hover {
+  border-color: rgba(var(--uf-neon-rgb), 0.6);
+  color: var(--vp-c-brand-1);
+}
+
+/* --------------------------------------------------------------------------
+   Feature cards: HUD corner brackets that light up on hover
+   -------------------------------------------------------------------------- */
+
+.VPFeature {
+  position: relative;
+  border: 1px solid var(--vp-c-divider);
+  background: linear-gradient(160deg, var(--vp-c-bg-soft), var(--vp-c-bg-alt));
+  transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s;
+}
+
+.VPFeature::before,
+.VPFeature::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--uf-corner);
+  opacity: 0.55;
+  transition: opacity 0.25s, width 0.25s, height 0.25s;
+  pointer-events: none;
+}
+
+.VPFeature::before {
+  top: -1px;
+  left: -1px;
+  border-right: 0;
+  border-bottom: 0;
+  border-top-left-radius: 12px;
+}
+
+.VPFeature::after {
+  right: -1px;
+  bottom: -1px;
+  border-left: 0;
+  border-top: 0;
+  border-bottom-right-radius: 12px;
+}
+
+.VPFeature:hover {
+  border-color: var(--vp-c-brand-soft);
+  box-shadow: 0 0 0 1px var(--vp-c-brand-soft), 0 18px 40px -18px var(--uf-card-glow);
+  transform: translateY(-2px);
+}
+
+.VPFeature:hover::before,
+.VPFeature:hover::after {
+  opacity: 1;
+  width: 28px;
+  height: 28px;
+}
+
+.VPFeature .icon {
+  background: var(--vp-c-brand-soft);
+  border: 1px solid var(--vp-c-brand-soft);
+}
+
+.dark .VPFeature .icon {
+  box-shadow: 0 0 18px -4px rgba(var(--uf-neon-rgb), 0.45);
+}
+
+/* --------------------------------------------------------------------------
+   Page-load reveal on the home page
+   -------------------------------------------------------------------------- */
+
+.VPHero .name,
+.VPHero .text,
+.VPHero .tagline,
+.VPHero .actions,
+.VPHero .image,
+.VPFeatures .item {
+  animation: uf-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.VPHero .text { animation-delay: 0.08s; }
+.VPHero .tagline { animation-delay: 0.16s; }
+.VPHero .actions { animation-delay: 0.24s; }
+.VPHero .image { animation-delay: 0.12s; animation-duration: 1s; }
+.VPFeatures .item:nth-child(1) { animation-delay: 0.34s; }
+.VPFeatures .item:nth-child(2) { animation-delay: 0.42s; }
+.VPFeatures .item:nth-child(3) { animation-delay: 0.5s; }
+.VPFeatures .item:nth-child(4) { animation-delay: 0.58s; }
+
+@keyframes uf-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes uf-blink {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .VPHero .name,
+  .VPHero .text,
+  .VPHero .tagline,
+  .VPHero .actions,
+  .VPHero .image,
+  .VPFeatures .item,
+  .VPHero .tagline::after {
+    animation: none;
+  }
+
+  .VPFeature,
+  .VPFeature::before,
+  .VPFeature::after {
+    transition: none;
+  }
+}
