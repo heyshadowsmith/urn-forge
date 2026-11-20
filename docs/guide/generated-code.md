@@ -50,15 +50,33 @@ You cannot assign a plain `2` to an `ArithmeticDivisor`. Only `v.parse(Arithmeti
 
 ### Handler contracts
 
-Each operation has a handler type. **The input has a brand. The output does not have a brand.**
+Each operation has a handler type. **The input has a brand. The handler returns a `Result`.**
 
 ```ts
 export type ArithmeticSafeDivideHandler = (
   input: s.ArithmeticDivision,
-) => s.ArithmeticDivisionResultInput;
+) => Result<s.ArithmeticDivisionResultInput, never>;
 ```
 
-A handler returns the output shape without the brand, because the core must not make brands. The shell parses the output, and this parse adds the brand. Handlers are synchronous. The MVP has no declared errors. As a result, a handler returns the output directly, without a `Result` wrapper.
+A handler returns one of these results. It makes them with two functions from the generated runtime:
+
+- `ok(output)`: the operation is correct.
+- `fail(errorUrn, fields)`: the operation refuses, with an error that the operation declares. `tsc` makes sure that the fields agree with the error. If the error has no fields, you do not give them.
+
+The output and the error fields do not have a brand, because the core must not make brands. The shell parses them, and this parse adds the brand. If an operation declares no errors, the error type is `never`, and the handler can only return `ok(…)`. Handlers are synchronous.
+
+```ts
+import { fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
+
+export const core = {
+  'urn:demo:math:arithmetic:operation:safe_divide':
+    ({ dividend, divisor }) => ok({ quotient: dividend / divisor }),
+  'urn:urn_forge:toolchain:naming:operation:parse_short_key': ({ short_key }) => {
+    const parsed = parseShortKey(short_key);
+    return parsed.ok ? ok(parsed.value) : fail('urn:urn_forge:toolchain:naming:error:invalid_short_key', { short_key });
+  },
+} satisfies DomainCoreImplementation;
+```
 
 ### The registry
 
@@ -68,7 +86,7 @@ A handler returns the output shape without the brand, because the core must not 
 export const core = { … } satisfies DomainCoreImplementation;
 ```
 
-Then `tsc` refuses a handler that is not there, a handler that is not in the contract, and an output of the wrong type. `tsc` also finds the parameter types of each handler from the clause. Gate 1 makes sure that the `satisfies` clause is in the file.
+Then `tsc` refuses a handler that is not there, a handler that is not in the contract, an output of the wrong type, a value that is not a `Result`, and an error that the operation does not declare. `tsc` also finds the parameter types of each handler from the clause. Gate 1 makes sure that the `satisfies` clause is in the file.
 
 ### `executeOperation`
 
@@ -78,9 +96,12 @@ executeOperation(urn, rawPayload, core): ExecuteResult
 
 1. **It finds the operation.** If the URN is unknown, it returns `{ ok: false, kind: 'UnknownOperation' }`.
 2. **It parses the input** with the input schema of the operation. If the parse fails, it returns `{ ok: false, kind: 'InputRejected', issues }`. It does not call the handler.
-3. **It calls the handler** with the branded input.
-4. **It parses the output** with the output schema, which adds the brand. If the parse fails, it returns `{ ok: false, kind: 'ContractViolation', issues }`. This result shows a bug in the core, not an error of the user.
-5. **If all steps are correct,** it returns `{ ok: true, urn, output }`. The type of `output` is specific to the operation.
+3. **It calls the handler** with the branded input. If the handler does not return a `Result`, it returns `{ ok: false, kind: 'ContractViolation', issues }`.
+4. **If the handler returns `fail(…)`,** it parses the error with the schema of the error, which adds the brand. If the operation does not declare the error, or if the parse fails, it returns a `ContractViolation`. If not, it returns `{ ok: false, kind: 'DomainError', urn, error }`. `error` contains the `urn`, `category` and `retryable` of the error, the parsed `fields`, and the `message`. The `message` is the template of the error, with the value of the field in each `{placeholder}`.
+5. **If the handler returns `ok(…)`,** it parses the output with the output schema, which adds the brand. If the parse fails, it returns `{ ok: false, kind: 'ContractViolation', issues }`.
+6. **If all steps are correct,** it returns `{ ok: true, urn, output }`. The type of `output` is specific to the operation.
+
+A `ContractViolation` shows a bug in the core, not an error of the user. A `DomainError` is a correct refusal that the manifest declares.
 
 Each issue has three properties: the payload `path` (for example `divisor`), the `fieldUrn` of the field, and a message:
 

@@ -74,7 +74,7 @@ Scenario: A zero divisor is rejected at the boundary
 The step fails in these conditions:
 
 - The operation is correct.
-- The result is a `ContractViolation`.
+- The result is a `ContractViolation` or a `DomainError`.
 - The issue is about a different field.
 
 ## Connect the steps

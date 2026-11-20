@@ -45,8 +45,15 @@ export interface BoundaryIssueLike {
   readonly message: string;
 }
 
+export interface DomainErrorLike {
+  readonly urn: string;
+  readonly message: string;
+  readonly fields: unknown;
+}
+
 export type ExecuteResultLike =
   | { readonly ok: true; readonly output: unknown }
+  | { readonly ok: false; readonly kind: 'DomainError'; readonly error: DomainErrorLike }
   | { readonly ok: false; readonly kind: string; readonly issues: readonly BoundaryIssueLike[] };
 
 export interface OperationStepsOptions {
@@ -110,6 +117,7 @@ function sameValue(actual: unknown, expected: unknown): boolean {
 }
 
 function describeFailure(result: Extract<ExecuteResultLike, { ok: false }>): string {
+  if ('error' in result) return `DomainError ${result.error.urn} (${result.error.message})`;
   const issues = result.issues.map((i) => `${i.path || '(payload)'}: ${i.message}`).join('; ');
   return `${result.kind}${issues ? ` (${issues})` : ''}`;
 }

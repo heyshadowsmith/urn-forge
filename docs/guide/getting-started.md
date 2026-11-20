@@ -69,7 +69,7 @@ The core is one object. Its keys are operation URNs, and it `satisfies` the gene
 
 <<< @/../packages/urn-forge/example/core.ts
 
-Each handler receives branded input. For example, `radius` is a `GeometryRadius`, not only a `number`. Each handler returns a plain object.
+Each handler receives branded input. For example, `radius` is a `GeometryRadius`, not only a `number`. Each handler returns its output in `ok(…)`.
 
 TypeScript finds the parameter types from the `satisfies` clause. As a result, you do not write type annotations. If you remove a handler or return the wrong shape, `tsc` fails.
 

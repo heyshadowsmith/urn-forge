@@ -44,8 +44,8 @@ urn-forge verify: gate 1 (tsc + satisfies) · gate 3 (tags + headers) · gate 4 
 ```
 
 1. **`compile`** validates the manifest, builds the IR and runs two plugins. Each generated file starts with an `@generated` header and a fingerprint. The same input always gives the same bytes.
-2. **Your core** is a set of plain, synchronous functions. Each function has the URN of its operation as its key. Each function receives *branded* input, which the shell parsed and validated before. Each function returns a plain output object.
-3. **`executeOperation`** is the gatekeeper of the shell. It parses the raw payload and calls your handler. Then it parses the output of the handler, which brands the output. Input that is not correct does not go to the core. If the output breaks the contract, `executeOperation` gives a `ContractViolation`.
+2. **Your core** is a set of plain, synchronous functions. Each function has the URN of its operation as its key. Each function receives *branded* input, which the shell parsed and validated before. Each function returns `ok(output)`, or `fail(…)` with an error that its operation declares.
+3. **`executeOperation`** is the gatekeeper of the shell. It parses the raw payload and calls your handler. Then it parses the output or the declared error of the handler, which brands it. Input that is not correct does not go to the core. If the result breaks the contract, `executeOperation` gives a `ContractViolation`.
 4. **Features** tell the behavior with field names. urn-forge supplies three generic steps. These steps read the operation URN from the tag of the feature and call `executeOperation`.
 5. **`verify`** does a static check of the links. It does not run the code. Then Cucumber makes sure that the scenarios pass.
 

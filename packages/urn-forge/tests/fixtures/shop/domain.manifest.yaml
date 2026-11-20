@@ -33,7 +33,20 @@ order.entity.line_total:
   description: The cost of one line
   fields: [{ ref: order.field.total }]
 
+order.error.price_unavailable:
+  description: No price is known for the item
+  category: not_found
+  retryable: false
+  message: No price for {sku}
+  fields: [{ ref: order.field.sku }]
+order.error.pricing_offline:
+  description: Prices cannot be read now
+  category: precondition
+  retryable: true
+  message: Pricing is offline; try again later
+
 order.operation.price_line:
   description: Price one order line
   input: order.entity.line
   output: order.entity.line_total
+  errors: [order.error.price_unavailable, order.error.pricing_offline]
