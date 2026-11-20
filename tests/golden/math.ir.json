@@ -1,0 +1,119 @@
+{
+  "entities": {
+    "urn:demo:math:arithmetic:entity:division": {
+      "brandIdentifier": "ArithmeticDivision",
+      "description": "A division to perform",
+      "fields": [
+        {
+          "field": "urn:demo:math:arithmetic:field:dividend",
+          "name": "dividend",
+          "required": true
+        },
+        {
+          "field": "urn:demo:math:arithmetic:field:divisor",
+          "name": "divisor",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:math:arithmetic:entity:division"
+    },
+    "urn:demo:math:arithmetic:entity:division_result": {
+      "brandIdentifier": "ArithmeticDivisionResult",
+      "description": "The quotient",
+      "fields": [
+        {
+          "field": "urn:demo:math:arithmetic:field:quotient",
+          "name": "quotient",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:math:arithmetic:entity:division_result"
+    },
+    "urn:demo:math:geometry:entity:circle": {
+      "brandIdentifier": "GeometryCircle",
+      "description": "A circle by radius",
+      "fields": [
+        {
+          "field": "urn:demo:math:geometry:field:radius",
+          "name": "radius",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:math:geometry:entity:circle"
+    },
+    "urn:demo:math:geometry:entity:circle_area": {
+      "brandIdentifier": "GeometryCircleArea",
+      "description": "Area of a circle",
+      "fields": [
+        {
+          "field": "urn:demo:math:geometry:field:area",
+          "name": "area",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:math:geometry:entity:circle_area"
+    }
+  },
+  "fields": {
+    "urn:demo:math:arithmetic:field:dividend": {
+      "brandIdentifier": "ArithmeticDividend",
+      "constraints": {},
+      "primitive": "float",
+      "urn": "urn:demo:math:arithmetic:field:dividend"
+    },
+    "urn:demo:math:arithmetic:field:divisor": {
+      "brandIdentifier": "ArithmeticDivisor",
+      "constraints": {
+        "notEqual": 0
+      },
+      "primitive": "float",
+      "urn": "urn:demo:math:arithmetic:field:divisor"
+    },
+    "urn:demo:math:arithmetic:field:quotient": {
+      "brandIdentifier": "ArithmeticQuotient",
+      "constraints": {},
+      "primitive": "float",
+      "urn": "urn:demo:math:arithmetic:field:quotient"
+    },
+    "urn:demo:math:geometry:field:area": {
+      "brandIdentifier": "GeometryArea",
+      "constraints": {
+        "min": 0
+      },
+      "primitive": "float",
+      "urn": "urn:demo:math:geometry:field:area"
+    },
+    "urn:demo:math:geometry:field:radius": {
+      "brandIdentifier": "GeometryRadius",
+      "constraints": {
+        "min": 0
+      },
+      "primitive": "float",
+      "urn": "urn:demo:math:geometry:field:radius"
+    }
+  },
+  "meta": {
+    "domain": "math",
+    "irSchemaVersion": 1,
+    "manifestHash": "e7596627f2dbbe2e3180b0b9a3a1947d1016ebc1dacaa5d22c9f68616841af7a",
+    "manifestVersion": "0.1.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {
+    "urn:demo:math:arithmetic:operation:safe_divide": {
+      "brandIdentifier": "ArithmeticSafeDivide",
+      "description": "Divide; the divisor is never zero",
+      "input": "urn:demo:math:arithmetic:entity:division",
+      "output": "urn:demo:math:arithmetic:entity:division_result",
+      "urn": "urn:demo:math:arithmetic:operation:safe_divide"
+    },
+    "urn:demo:math:geometry:operation:compute_area": {
+      "brandIdentifier": "GeometryComputeArea",
+      "description": "Area from radius",
+      "input": "urn:demo:math:geometry:entity:circle",
+      "output": "urn:demo:math:geometry:entity:circle_area",
+      "urn": "urn:demo:math:geometry:operation:compute_area"
+    }
+  }
+}

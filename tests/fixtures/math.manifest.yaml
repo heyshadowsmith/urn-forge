@@ -1,0 +1,32 @@
+manifest:
+  namespace: demo
+  domain: math
+  version: 0.1.0
+
+geometry.field.radius:      { primitive: float, min: 0 }
+geometry.field.area:        { primitive: float, min: 0 }
+arithmetic.field.dividend:  { primitive: float }
+arithmetic.field.divisor:   { primitive: float, notEqual: 0 }
+arithmetic.field.quotient:  { primitive: float }
+
+geometry.entity.circle:
+  description: A circle by radius
+  fields: [{ ref: geometry.field.radius }]
+geometry.entity.circle_area:
+  description: Area of a circle
+  fields: [{ ref: geometry.field.area }]
+arithmetic.entity.division:
+  description: A division to perform
+  fields: [{ ref: arithmetic.field.dividend }, { ref: arithmetic.field.divisor }]
+arithmetic.entity.division_result:
+  description: The quotient
+  fields: [{ ref: arithmetic.field.quotient }]
+
+geometry.operation.compute_area:
+  description: Area from radius
+  input: geometry.entity.circle
+  output: geometry.entity.circle_area
+arithmetic.operation.safe_divide:
+  description: Divide; the divisor is never zero
+  input: arithmetic.entity.division
+  output: arithmetic.entity.division_result
