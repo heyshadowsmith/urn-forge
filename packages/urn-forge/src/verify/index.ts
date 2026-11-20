@@ -4,7 +4,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import { hasErrors, type Diagnostic } from '../diagnostics.js';
-import { compile } from '../engine.js';
+import { compile, type PluginEntry } from '../engine.js';
 import { checkCompleteness } from './completeness.js';
 import { checkDrift } from './drift.js';
 import { checkGherkin } from './gherkin.js';
@@ -17,6 +17,8 @@ export interface VerifyOptions {
   readonly corePath: string;
   readonly featuresDir: string;
   readonly tsconfigPath: string;
+  /** The plugins `compile` runs (gate 4 compares against their output). Default: every plugin. */
+  readonly plugins?: readonly PluginEntry[];
 }
 
 export interface VerifyResult {
@@ -40,7 +42,7 @@ export async function verify(options: VerifyOptions): Promise<VerifyResult> {
     };
   }
 
-  const compiled = compile(source);
+  const compiled = compile(source, options.plugins);
   if (!compiled.ir || hasErrors(compiled.diagnostics)) {
     return { ok: false, diagnostics: compiled.diagnostics, gates: [] };
   }

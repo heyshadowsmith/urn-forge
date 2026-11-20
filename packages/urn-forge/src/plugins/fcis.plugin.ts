@@ -16,7 +16,8 @@ import * as v from 'valibot';
 import type { IREntity, UniversalIR } from '../ir/types.js';
 import { PRIMITIVE_NAMES } from '../primitives/index.js';
 import { valuesInUrnOrder, type CodegenPlugin } from './plugin.interface.js';
-import { VALIBOT_SCHEMAS_FILE, schemaNames } from './valibot.plugin.js';
+import { handlerName, schemaNames } from '../naming.js';
+import { VALIBOT_SCHEMAS_FILE } from './valibot.plugin.js';
 
 export const FCIS_RUNTIME_FILE = 'domain.runtime.generated.ts';
 
@@ -124,6 +125,10 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
   name: 'fcis',
   version: '0.1.0',
   configSchema: ConfigSchema,
+  // Reads primitives only as names for FieldInfo, and no constraints.
+  supports: { kinds: ['field', 'entity', 'operation'] },
+  // The runtime imports the schema module.
+  requires: ['valibot'],
   emit(ir) {
     const operations = valuesInUrnOrder(ir.operations);
     const entity = (urn: IREntity['urn']): IREntity => {
@@ -131,7 +136,6 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       if (!found) throw new Error(`IR is not resolved: missing entity ${urn}`);
       return found;
     };
-    const handlerName = (brand: string) => `${brand}Handler`;
     const schemasModule = `./${VALIBOT_SCHEMAS_FILE.replace(/\.ts$/, '.js')}`;
 
     const handlers = operations.map((op) =>

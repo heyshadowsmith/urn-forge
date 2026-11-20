@@ -25,6 +25,13 @@ The position points to the part of the manifest that has the problem:
 
 With `--format json`, each diagnostic is one JSON object on one line. Refer to [CLI](./cli#output-formats).
 
+## Read the configuration
+
+| Code | Message | Cause | Correction |
+| --- | --- | --- | --- |
+| `config-unreadable` | `cannot load config: <reason>` | urn-forge cannot load the configuration file. The file is not there, or it has a TypeScript or JavaScript error | Make sure that `--config` gives the correct file, and correct the error in the file |
+| `config-invalid` | `config.<setting>: <message>` | The file has no default export, an unknown setting, a value of the wrong type, an unknown plugin, or a plugin two times | Correct the setting. Refer to [Configuration file](./config) |
+
 ## Read the manifest
 
 | Code | Message | Cause | Correction |
@@ -74,8 +81,9 @@ With `--format json`, each diagnostic is one JSON object on one line. Refer to [
 | Code | Message | Cause | Correction |
 | --- | --- | --- | --- |
 | `export-collision` | `<urn>: generated export "<Name>" collides with an export of <urn>; rename one of them` | Two atoms make the same export name. For example, `geometry.field.radius_input` exports `GeometryRadiusInput`. This is also the input type of `geometry.field.radius` | Change the name of one atom |
-| `unsupported-construct` | `<urn>: the valibot plugin cannot translate constraint "<constraint>"` | A plugin cannot make code for a construct in the IR | The meta-schema stops this error in the MVP. If you see it, it is a defect in urn-forge |
-| `plugin-config` | `plugin <name> config: <message>` | A plugin configuration is not valid | The CLI cannot cause this error in the MVP, because the MVP has no configuration file |
+| `unsupported-construct` | `<urn>: the <plugin> plugin does not handle kind "<kind>"`, `… does not handle primitive "<primitive>"` or `… cannot translate constraint "<constraint>"` | A plugin cannot make code for an atom, a primitive or a constraint in the manifest. Each plugin declares the parts that it can use, and urn-forge examines the manifest before the plugins start | Remove the plugin from the configuration, or do not use the part. The shipped plugins can use all the parts of the MVP |
+| `plugin-config` | `plugin <name> config: <message>` | The configuration of a plugin in the `plugins` list is not valid | Correct the configuration. The shipped plugins accept only `{}` |
+| `missing-plugin` | `plugin <name> requires plugin <name>, which is not enabled` | A plugin uses the output of a plugin that is not in the `plugins` list | Add the necessary plugin to the list |
 | `output-conflict` | `plugin <name> writes <file>, which another plugin already wrote` | Two plugins make a file with the same name | The CLI cannot cause this error in the MVP, because its two plugins make different files |
 
 ## Gate 1: completeness

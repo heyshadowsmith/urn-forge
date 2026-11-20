@@ -13,6 +13,9 @@ import { isMap, isScalar, isSeq, type Document, type LineCounter, type Node } fr
  * each one, and a test keeps the two in step.
  */
 export const DIAGNOSTIC_CODES = {
+  // Reading the config
+  'config-unreadable': 'The config file cannot be loaded',
+  'config-invalid': 'The config file has an option or a value that is not valid',
   // Reading the manifest
   'manifest-unreadable': 'The manifest file cannot be read',
   'yaml-syntax': 'The manifest is not valid YAML',
@@ -42,6 +45,7 @@ export const DIAGNOSTIC_CODES = {
   'unsupported-construct': 'A plugin cannot translate a construct in the IR',
   'export-collision': 'Two atoms generate the same export name',
   'output-conflict': 'Two plugins write the same file',
+  'missing-plugin': 'A plugin requires another plugin that is not enabled',
   // Gate 1: completeness
   'tsconfig-unreadable': 'The tsconfig for gate 1 cannot be read',
   'core-not-found': 'The core entry file does not exist',

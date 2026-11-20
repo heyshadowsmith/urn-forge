@@ -49,12 +49,7 @@ jobs:
       - name: urn-forge verify
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         working-directory: packages/urn-forge
-        run: >-
-          npx urn-forge verify
-          --manifest tests/fixtures/math.manifest.yaml
-          --out example/generated
-          --core example/core.ts
-          --features example/features
+        run: npx urn-forge verify --config example/urn-forge.config.ts
 
       - name: cucumber-js
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -66,12 +61,7 @@ jobs:
       - name: urn-forge verify (self)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         working-directory: packages/urn-forge
-        run: >-
-          npx urn-forge verify
-          --manifest self/domain.manifest.yaml
-          --out self/generated
-          --core self/core.ts
-          --features self/features
+        run: npx urn-forge verify --config self/urn-forge.config.ts
 
       - name: cucumber-js (self)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}

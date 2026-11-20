@@ -13,7 +13,7 @@ urn-forge is an MVP. It keeps the four links of the traceability chain: the mani
 | Deterministic output | Sorted output, no clock, fingerprint header | A CI run in a different locale, `referenceDate` |
 | Plugins | Valibot and FCIS. Handlers return the output directly | The `Result` type, Gherkin parameter types, Postgres |
 | Gates | 1 (completeness), 3 (tags and headers), 4 (drift) | 2 (lint profile), the boundary coverage part of 3, 5 (compatibility) |
-| CLI | `compile`, `verify` | `init`, `diff`, `inspect`, `graph`, a configuration file |
+| CLI | `compile`, `verify`, a [configuration file](./config) | `init`, `diff`, `inspect`, `graph` |
 | Diagnostics | A stable code, `file:line:col`, the key or URN and a message. `--format json` | — |
 | Distribution | Run from a clone of the repository | An npm package |
 

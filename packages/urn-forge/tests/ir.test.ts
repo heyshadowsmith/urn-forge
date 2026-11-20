@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { buildIr, buildIrFromSource, toBrandIdentifier } from '../src/ir/build.js';
+import { buildIr, buildIrFromSource } from '../src/ir/build.js';
+import { toBrandIdentifier } from '../src/naming.js';
 import { canonicalJson, fingerprint } from '../src/ir/canonical.js';
 import type { IRBuildResult, UniversalIR } from '../src/ir/types.js';
 import { validateManifest } from '../src/meta-schema.js';

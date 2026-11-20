@@ -1,19 +1,24 @@
 /**
  * urn-forge CLI (spec §9; the MVP ships `compile` and `verify`).
  *
- *   urn-forge compile [--manifest <file>] [--out <dir>] [--format text|json]
- *   urn-forge verify  [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
+ *   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
+ *   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
+ *
+ * Each setting comes from its flag, else from the config file (`--config`, or
+ * `urn-forge.config.ts` in the current directory when it exists), else its default.
  *
  * Text diagnostics print to stderr as `<file>:<line>:<col>  <severity>  <code>  <message>`;
  * messages lead with the manifest key or URN. `--format json` prints JSON lines to stdout
  * instead (diagnostics, then files or gates, then one result line), for CI annotations.
  * Exit codes: 0 success, 1 error diagnostics or a failed gate, 2 usage error.
  */
-import { readFile } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
+import { access, readFile } from 'node:fs/promises';
+import { dirname, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { diagnosticJson, formatDiagnostic, hasErrors, type Diagnostic } from './diagnostics.js';
-import { compile } from './engine.js';
+import { CONFIG_FILE, loadConfig, pluginEntries, type UrnForgeConfig } from './config.js';
+import { compile, type PluginEntry } from './engine.js';
+import { DEFAULT_PLUGINS } from './plugins/index.js';
 import { verify } from './verify/index.js';
 import { GENERATOR_VERSION } from './version.js';
 import { writeGeneratedFiles } from './write.js';
@@ -33,10 +38,11 @@ const defaultIo: CliIo = {
 const USAGE = `urn-forge ${GENERATOR_VERSION}
 
 Usage:
-  urn-forge compile [--manifest <file>] [--out <dir>] [--format text|json]
-  urn-forge verify  [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
+  urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
+  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
 
 Options:
+  --config <file>    Config file (default: ${CONFIG_FILE}, when it exists). Flags override it
   --manifest <file>  Manifest YAML (default: domain.manifest.yaml)
   --out <dir>        Directory for generated files (default: src/generated)
   --format <format>  text (default) or json: JSON lines on stdout, for CI annotations
@@ -57,6 +63,80 @@ class UsageError extends Error {}
 
 const FORMAT_OPTION = { format: { type: 'string', default: 'text' } } as const;
 
+/** Options shared by both commands. No defaults here: an absent flag falls back to the config. */
+const PATH_OPTIONS = {
+  config: { type: 'string' },
+  manifest: { type: 'string' },
+  out: { type: 'string' },
+} as const;
+
+const DEFAULTS = {
+  manifest: 'domain.manifest.yaml',
+  out: 'src/generated',
+  core: 'src/core.ts',
+  features: 'features',
+  tsconfig: 'tsconfig.json',
+} as const;
+
+type PathSetting = keyof typeof DEFAULTS;
+
+interface Settings {
+  /** Absolute path of each setting. */
+  readonly paths: Readonly<Record<PathSetting, string>>;
+  readonly plugins: readonly PluginEntry[];
+  /** Display path of the config file, when one was loaded. */
+  readonly configLabel?: string;
+}
+
+/** Problems with the plugin list belong to the config that set it, when there is one. */
+function attributePluginProblems(diagnostics: readonly Diagnostic[], configLabel: string | undefined): readonly Diagnostic[] {
+  if (configLabel === undefined) return diagnostics;
+  return diagnostics.map((d) =>
+    d.file === undefined && (d.code === 'missing-plugin' || d.code === 'plugin-config') ? { ...d, file: configLabel } : d,
+  );
+}
+
+/** Flag, else config (relative to the config file), else default (relative to cwd). */
+async function resolveSettings(
+  io: CliIo,
+  flags: Partial<Record<PathSetting | 'config', string>>,
+): Promise<{ ok: true; settings: Settings } | { ok: false; diagnostics: readonly Diagnostic[] }> {
+  let config: UrnForgeConfig = {};
+  let configDir = io.cwd;
+  let configLabel: string | undefined;
+  const configPath = resolve(io.cwd, flags.config ?? CONFIG_FILE);
+  const configExists = await access(configPath).then(
+    () => true,
+    () => false,
+  );
+  if (flags.config !== undefined || configExists) {
+    const loaded = await loadConfig(configPath, display(io, configPath));
+    if (!loaded.ok) return loaded;
+    config = loaded.config;
+    configDir = dirname(configPath);
+    configLabel = display(io, configPath);
+  }
+
+  let plugins = DEFAULT_PLUGINS;
+  if (config.plugins !== undefined) {
+    const entries = pluginEntries(config.plugins, display(io, configPath));
+    if (!entries.ok) return entries;
+    plugins = entries.entries;
+  }
+
+  const path = (key: PathSetting): string => {
+    const flag = flags[key];
+    if (flag !== undefined) return resolve(io.cwd, flag);
+    const fromConfig = config[key];
+    return fromConfig !== undefined ? resolve(configDir, fromConfig) : resolve(io.cwd, DEFAULTS[key]);
+  };
+  const paths = Object.fromEntries((Object.keys(DEFAULTS) as PathSetting[]).map((key) => [key, path(key)]));
+  return {
+    ok: true,
+    settings: { paths: paths as Settings['paths'], plugins, ...(configLabel === undefined ? {} : { configLabel }) },
+  };
+}
+
 function outputFormat(value: string): 'text' | 'json' {
   if (value === 'text' || value === 'json') return value;
   throw new UsageError(`--format must be text or json, not "${value}"`);
@@ -65,18 +145,13 @@ function outputFormat(value: string): 'text' | 'json' {
 async function runCompile(args: string[], io: CliIo): Promise<number> {
   const { values } = parseArgs({
     args,
-    options: {
-      manifest: { type: 'string', default: 'domain.manifest.yaml' },
-      out: { type: 'string', default: 'src/generated' },
-      ...FORMAT_OPTION,
-    },
+    options: { ...PATH_OPTIONS, ...FORMAT_OPTION },
     strict: true,
     allowPositionals: false,
   });
   const format = outputFormat(values.format);
-  const manifestPath = resolve(io.cwd, values.manifest);
-  const outDir = resolve(io.cwd, values.out);
-  const manifestLabel = display(io, manifestPath);
+  const resolved = await resolveSettings(io, values);
+  const manifestLabel = resolved.ok ? display(io, resolved.settings.paths.manifest) : '';
 
   const report = (diagnostics: readonly Diagnostic[]) => {
     if (format === 'json') for (const d of diagnostics) io.stdout(diagnosticJson(d, manifestLabel));
@@ -91,19 +166,25 @@ async function runCompile(args: string[], io: CliIo): Promise<number> {
     return ok ? 0 : 1;
   };
 
+  if (!resolved.ok) {
+    report(resolved.diagnostics);
+    return finish(false);
+  }
+  const { paths, plugins, configLabel } = resolved.settings;
+
   let source: string;
   try {
-    source = await readFile(manifestPath, 'utf8');
+    source = await readFile(paths.manifest, 'utf8');
   } catch (error) {
     report([{ code: 'manifest-unreadable', severity: 'error', message: `cannot read manifest: ${(error as Error).message}` }]);
     return finish(false);
   }
 
-  const result = compile(source);
-  report(result.diagnostics);
+  const result = compile(source, plugins);
+  report(attributePluginProblems(result.diagnostics, configLabel));
   if (hasErrors(result.diagnostics)) return finish(false);
 
-  for (const { path, changed } of await writeGeneratedFiles(outDir, result.files)) {
+  for (const { path, changed } of await writeGeneratedFiles(paths.out, result.files)) {
     if (format === 'json') io.stdout(JSON.stringify({ type: 'file', path: display(io, path), changed }));
     else io.stdout(`${changed ? 'wrote     ' : 'unchanged '} ${display(io, path)}`);
   }
@@ -114,32 +195,44 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
   const { values } = parseArgs({
     args,
     options: {
-      manifest: { type: 'string', default: 'domain.manifest.yaml' },
-      out: { type: 'string', default: 'src/generated' },
-      core: { type: 'string', default: 'src/core.ts' },
-      features: { type: 'string', default: 'features' },
-      tsconfig: { type: 'string', default: 'tsconfig.json' },
+      ...PATH_OPTIONS,
+      core: { type: 'string' },
+      features: { type: 'string' },
+      tsconfig: { type: 'string' },
       ...FORMAT_OPTION,
     },
     strict: true,
     allowPositionals: false,
   });
   const format = outputFormat(values.format);
-  const manifestPath = resolve(io.cwd, values.manifest);
+  const resolved = await resolveSettings(io, values);
+  if (!resolved.ok) {
+    if (format === 'json') {
+      for (const d of resolved.diagnostics) io.stdout(diagnosticJson(d));
+      io.stdout(JSON.stringify({ type: 'result', ok: false, failedGates: [] }));
+    } else {
+      printDiagnostics(io, '', resolved.diagnostics);
+      io.stderr('verify failed: the config is not valid');
+    }
+    return 1;
+  }
+  const { paths, plugins } = resolved.settings;
   const result = await verify({
     cwd: io.cwd,
-    manifestPath,
-    outDir: resolve(io.cwd, values.out),
-    corePath: resolve(io.cwd, values.core),
-    featuresDir: resolve(io.cwd, values.features),
-    tsconfigPath: resolve(io.cwd, values.tsconfig),
+    manifestPath: paths.manifest,
+    outDir: paths.out,
+    corePath: paths.core,
+    featuresDir: paths.features,
+    tsconfigPath: paths.tsconfig,
+    plugins,
   });
 
-  const manifestLabel = display(io, manifestPath);
+  const manifestLabel = display(io, paths.manifest);
+  const diagnostics = attributePluginProblems(result.diagnostics, resolved.settings.configLabel);
   const failed = result.gates.filter((g) => !g.ok).map((g) => g.gate);
 
   if (format === 'json') {
-    for (const d of result.diagnostics) io.stdout(diagnosticJson(d, manifestLabel));
+    for (const d of diagnostics) io.stdout(diagnosticJson(d, manifestLabel));
     for (const gate of result.gates) {
       for (const problem of gate.problems) io.stdout(diagnosticJson(problem, manifestLabel, { gate: gate.gate }));
     }
@@ -150,7 +243,7 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
     return result.ok ? 0 : 1;
   }
 
-  printDiagnostics(io, manifestLabel, result.diagnostics);
+  printDiagnostics(io, manifestLabel, diagnostics);
   for (const gate of result.gates) {
     io.stdout(`gate ${gate.gate}  ${gate.name.padEnd(12)}  ${gate.ok ? 'PASS' : 'FAIL'}  ${gate.summary}`);
     for (const problem of gate.problems) {

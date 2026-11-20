@@ -42,6 +42,7 @@ export default defineConfig({
         text: 'Reference',
         items: [
           { text: 'CLI', link: '/reference/cli' },
+          { text: 'Configuration file', link: '/reference/config' },
           { text: 'Diagnostics', link: '/reference/diagnostics' },
           { text: 'MVP scope', link: '/reference/scope' },
         ],

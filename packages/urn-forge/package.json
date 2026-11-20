@@ -13,12 +13,12 @@
   "scripts": {
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
-    "compile:example": "node bin/urn-forge.js compile --manifest tests/fixtures/math.manifest.yaml --out example/generated",
-    "compile:self": "node bin/urn-forge.js compile --manifest self/domain.manifest.yaml --out self/generated",
+    "compile:example": "node bin/urn-forge.js compile --config example/urn-forge.config.ts",
+    "compile:self": "node bin/urn-forge.js compile --config self/urn-forge.config.ts",
     "test:features": "cucumber-js",
     "test:features:self": "cucumber-js --profile self",
-    "verify:example": "node bin/urn-forge.js verify --manifest tests/fixtures/math.manifest.yaml --out example/generated --core example/core.ts --features example/features",
-    "verify:self": "node bin/urn-forge.js verify --manifest self/domain.manifest.yaml --out self/generated --core self/core.ts --features self/features"
+    "verify:example": "node bin/urn-forge.js verify --config example/urn-forge.config.ts",
+    "verify:self": "node bin/urn-forge.js verify --config self/urn-forge.config.ts"
   },
   "dependencies": {
     "@cucumber/cucumber": "^13.3.0",

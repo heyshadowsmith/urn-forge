@@ -1,6 +1,6 @@
 // urn-forge's own functional core. Each handler delegates to the function the compiler
 // really uses, so the scenarios in self/features test the toolchain, not a copy of it.
-import { toBrandIdentifier } from '../src/ir/build.js';
+import { toBrandIdentifier } from '../src/naming.js';
 import type { DomainCoreImplementation } from './generated/domain.runtime.generated';
 
 export const core = {

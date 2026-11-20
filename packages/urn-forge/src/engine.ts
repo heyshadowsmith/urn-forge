@@ -10,10 +10,10 @@ import * as v from 'valibot';
 import { hasErrors, type Diagnostic } from './diagnostics.js';
 import { buildIrFromSource } from './ir/build.js';
 import { compareCodeUnits, fingerprint } from './ir/canonical.js';
-import type { UniversalIR } from './ir/types.js';
-import { fcisPlugin } from './plugins/fcis.plugin.js';
-import type { CodegenPlugin, GeneratedArtifact } from './plugins/plugin.interface.js';
-import { valibotPlugin } from './plugins/valibot.plugin.js';
+import type { IRField, UniversalIR } from './ir/types.js';
+import { KINDS, KIND_NAMES } from './kinds/index.js';
+import { DEFAULT_PLUGINS } from './plugins/index.js';
+import type { CodegenPlugin, GeneratedArtifact, PluginDiagnostic } from './plugins/plugin.interface.js';
 import { GENERATOR_VERSION } from './version.js';
 
 export type { Diagnostic } from './diagnostics.js';
@@ -24,11 +24,44 @@ export interface PluginEntry {
   readonly config: unknown;
 }
 
-/** The MVP's fixed plugin list. A config file (spec §7.5) replaces this later. */
-export const DEFAULT_PLUGINS: readonly PluginEntry[] = [
-  { plugin: valibotPlugin, config: {} },
-  { plugin: fcisPlugin, config: {} },
-];
+export { DEFAULT_PLUGINS };
+
+/**
+ * Every IR construct `plugin` does not declare in `supports`: atoms of a kind it does not
+ * handle, fields of a primitive it does not handle, and constraints it cannot translate.
+ * One diagnostic per construct, each naming its URN.
+ */
+export function unsupportedConstructs(ir: UniversalIR, plugin: CodegenPlugin<unknown>): PluginDiagnostic[] {
+  const diagnostics: PluginDiagnostic[] = [];
+  const report = (urn: IRField['urn'], what: string) =>
+    diagnostics.push({
+      code: 'unsupported-construct',
+      severity: 'error',
+      urn,
+      message: `${urn}: the ${plugin.name} plugin ${what}`,
+    });
+  const groups = ir as unknown as Readonly<Record<string, Readonly<Record<string, { readonly urn: IRField['urn'] }>>>>;
+
+  for (const kind of KIND_NAMES) {
+    if (plugin.supports.kinds.includes(kind)) continue;
+    for (const node of Object.values(groups[KINDS[kind].group] ?? {})) report(node.urn, `does not handle kind "${kind}"`);
+  }
+
+  const constraints = plugin.supports.constraints;
+  if (constraints && plugin.supports.kinds.includes('field')) {
+    for (const field of Object.values(ir.fields)) {
+      const handled = constraints[field.primitive];
+      if (!handled) {
+        report(field.urn, `does not handle primitive "${field.primitive}"`);
+        continue;
+      }
+      for (const key of Object.keys(field.constraints).sort()) {
+        if (!handled.includes(key)) report(field.urn, `cannot translate constraint "${key}"`);
+      }
+    }
+  }
+  return diagnostics;
+}
 
 export interface CompileResult {
   /** Empty whenever `diagnostics` holds an error. Sorted by path. */
@@ -74,7 +107,29 @@ export function compile(manifestSource: string, plugins: readonly PluginEntry[] 
     }
     configs.push(parsed.success ? parsed.output : config);
   }
+  // Every plugin a plugin requires must be enabled too.
+  const enabled = new Set(plugins.map(({ plugin }) => plugin.name));
+  for (const { plugin } of plugins) {
+    for (const required of plugin.requires ?? []) {
+      if (!enabled.has(required)) {
+        diagnostics.push({
+          code: 'missing-plugin',
+          severity: 'error',
+          message: `plugin ${plugin.name} requires plugin ${required}, which is not enabled`,
+        });
+      }
+    }
+  }
   if (diagnostics.length > 0) return { files: [], diagnostics, ir };
+
+  // Spec §7: a plugin must handle every construct in the IR, or compilation fails naming it.
+  for (const { plugin } of plugins) {
+    for (const diagnostic of unsupportedConstructs(ir, plugin)) {
+      const location = diagnostic.urn === undefined ? undefined : locator?.locateUrn(diagnostic.urn);
+      diagnostics.push(location ? { ...diagnostic, location } : diagnostic);
+    }
+  }
+  if (hasErrors(diagnostics)) return { files: [], diagnostics, ir };
 
   const print = fingerprint({
     ir,

@@ -113,7 +113,13 @@ gate 4  drift         PASS  2 generated file(s) compared byte for byte against e
 verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
 ```
 
-In this repository, `npm run verify:example` runs the same command. For the errors that each gate finds, refer to [Verification gates](./verify).
+The example also has a [configuration file](../reference/config), `example/urn-forge.config.ts`, that contains these paths. Thus this command does the same check:
+
+```bash
+npx urn-forge verify --config example/urn-forge.config.ts
+```
+
+In this repository, `npm run verify:example` runs this command. For the errors that each gate finds, refer to [Verification gates](./verify).
 
 ## 6. Run the chain in CI
 
@@ -122,7 +128,7 @@ The workflow of the repository runs the full chain for each push to `main` and f
 ```yaml
 - run: npm ci
 - run: npm test
-- run: npx urn-forge verify --manifest … --out … --core … --features …
+- run: npx urn-forge verify --config example/urn-forge.config.ts
 - run: npx cucumber-js
 ```
 

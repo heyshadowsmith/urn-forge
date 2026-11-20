@@ -14,17 +14,9 @@
 import type { ManifestLocator, ManifestPath } from '../diagnostics.js';
 import { KINDS, KIND_NAMES, kind, namedKinds, referenceOccurrences, type Atom, type KindName } from '../kinds/index.js';
 import { parseManifest, parseShortKey, type ValidManifest } from '../meta-schema.js';
+import { toBrandIdentifier } from '../naming.js';
 import { canonicalJson, compareCodeUnits, sha256Hex } from './canonical.js';
 import type { IRBuildResult, IRIssue, UniversalIR, Urn } from './types.js';
-
-/** PascalCase of `context` + `identifier`: (`policy`, `deductible_amount`) → `PolicyDeductibleAmount`. */
-export function toBrandIdentifier(context: string, identifier: string): string {
-  return `${context}_${identifier}`
-    .split('_')
-    .filter((part) => part.length > 0)
-    .map((part) => part[0]!.toUpperCase() + part.slice(1))
-    .join('');
-}
 
 function sortedByUrn<T>(record: Map<Urn, T>): Record<Urn, T> {
   const out = {} as Record<Urn, T>;
