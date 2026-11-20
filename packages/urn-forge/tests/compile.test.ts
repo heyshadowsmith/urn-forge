@@ -106,14 +106,14 @@ describe('urn-forge compile (CLI)', () => {
     await writeFile(join(dir, 'bad.yaml'), 'manifest: { namespace: demo, domain: math, version: 0.1.0 }\ngeometry.field.radius: { primitive: decimal }\n');
     expect(await main(['compile', '--manifest', 'bad.yaml'], io)).toBe(1);
     expect(err).toEqual([
-      'bad.yaml  error  geometry.field.radius.primitive: unknown primitive "decimal" (MVP primitives: float, integer, string)',
+      'bad.yaml:2:37  error  unknown-primitive  geometry.field.radius.primitive: unknown primitive "decimal" (MVP primitives: float, integer, string)',
     ]);
     expect(out).toEqual([]);
   });
 
   it('exits 1 when the manifest is missing, and 2 on usage errors', async () => {
     expect(await main(['compile', '--manifest', 'nope.yaml'], io)).toBe(1);
-    expect(err[0]).toMatch(/^nope\.yaml {2}error {2}cannot read manifest/);
+    expect(err[0]).toMatch(/^nope\.yaml {2}error {2}manifest-unreadable {2}cannot read manifest/);
     expect(await main(['frobnicate'], io)).toBe(2);
     expect(await main(['compile', '--bogus'], io)).toBe(2);
   });

@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import type { GeneratedArtifact } from '../plugins/plugin.interface.js';
 import { generatedPath, writeGeneratedFiles } from '../write.js';
+import type { Diagnostic } from '../diagnostics.js';
 import { displayPath, type GateResult } from './types.js';
 
 export interface DriftOptions {
@@ -36,7 +37,7 @@ async function committedGeneratedFiles(outDir: string): Promise<string[]> {
 
 export async function checkDrift(options: DriftOptions): Promise<GateResult> {
   const show = (path: string) => displayPath(options.cwd, path, relative);
-  const problems: string[] = [];
+  const problems: Diagnostic[] = [];
   const temp = await mkdtemp(join(tmpdir(), 'urn-forge-drift-'));
   try {
     await writeGeneratedFiles(temp, options.files);
@@ -45,10 +46,21 @@ export async function checkDrift(options: DriftOptions): Promise<GateResult> {
       const committedPath = generatedPath(options.outDir, file.relativePath);
       const committed = await readFile(committedPath).catch(() => undefined);
       if (!committed) {
-        problems.push(`${show(committedPath)}  missing; run \`urn-forge compile\``);
+        problems.push({
+          code: 'generated-missing',
+          severity: 'error',
+          file: show(committedPath),
+          message: 'missing; run `urn-forge compile`',
+        });
       } else if (!fresh.equals(committed)) {
         const line = firstDifferentLine(fresh.toString('utf8'), committed.toString('utf8'));
-        problems.push(`${show(committedPath)}:${line}  differs from a fresh compile (hand-edited or stale); run \`urn-forge compile\``);
+        problems.push({
+          code: 'generated-differs',
+          severity: 'error',
+          file: show(committedPath),
+          location: { line, column: 1 },
+          message: 'differs from a fresh compile (hand-edited or stale); run `urn-forge compile`',
+        });
       }
     }
   } finally {
@@ -57,7 +69,12 @@ export async function checkDrift(options: DriftOptions): Promise<GateResult> {
 
   const produced = new Set(options.files.map((f) => f.relativePath));
   for (const orphan of (await committedGeneratedFiles(options.outDir)).filter((p) => !produced.has(p))) {
-    problems.push(`${show(generatedPath(options.outDir, orphan))}  generated file has no source in the current compile; delete it`);
+    problems.push({
+      code: 'generated-orphan',
+      severity: 'error',
+      file: show(generatedPath(options.outDir, orphan)),
+      message: 'generated file has no source in the current compile; delete it',
+    });
   }
 
   return {

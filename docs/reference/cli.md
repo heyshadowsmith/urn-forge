@@ -16,13 +16,14 @@ If you do not give a command, urn-forge shows the usage text. Then it stops with
 ## `compile`
 
 ```
-urn-forge compile [--manifest <file>] [--out <dir>]
+urn-forge compile [--manifest <file>] [--out <dir>] [--format text|json]
 ```
 
 | Option | Default | Description |
 | --- | --- | --- |
 | `--manifest <file>` | `domain.manifest.yaml` | The manifest to compile |
 | `--out <dir>` | `src/generated` | The directory for the generated files |
+| `--format <format>` | `text` | `text` or `json`. Refer to [Output formats](#output-formats) |
 
 The `compile` command sends the manifest through the meta-schema, the IR builder and the two plugins. Then it writes `domain.schemas.generated.ts` and `domain.runtime.generated.ts` in the `--out` directory. If this directory does not exist, the command makes it.
 
@@ -39,7 +40,7 @@ fingerprint sha256:<64 hex digits>
 ## `verify`
 
 ```
-urn-forge verify [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
+urn-forge verify [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
 ```
 
 | Option | Default | Description |
@@ -49,19 +50,45 @@ urn-forge verify [--manifest <file>] [--out <dir>] [--core <file>] [--features <
 | `--core <file>` | `src/core.ts` | The core entry. It must use `satisfies DomainCoreImplementation` (gate 1) |
 | `--features <dir>` | `features` | The directory that contains the `.feature` files. The command also reads its subdirectories (gate 3) |
 | `--tsconfig <file>` | `tsconfig.json` | The compiler options for the type check of gate 1 |
+| `--format <format>` | `text` | `text` or `json`. Refer to [Output formats](#output-formats) |
 
 The output has one line for each gate. Below each line, the output shows the problems of that gate with an indent. The last line gives the result. For more data, refer to [Verification gates](../guide/verify).
 
-## Output and exit codes
+## Output formats
 
-urn-forge writes the manifest diagnostics to stderr, one diagnostic on each line:
+### Text
+
+The default format is `text`. urn-forge writes the manifest diagnostics to stderr, one diagnostic on each line:
 
 ```
-<manifest>  <severity>  <message>
-tests/fixtures/math.manifest.yaml  error  geometry.field.radius.primitive: unknown primitive "decimal" (MVP primitives: float, integer, string)
+<file>:<line>:<column>  <severity>  <code>  <message>
+tests/fixtures/math.manifest.yaml:6:42  error  unknown-primitive  geometry.field.radius.primitive: unknown primitive "decimal" (MVP primitives: float, integer, string)
 ```
 
-Each message starts with its manifest key or its URN. urn-forge shows paths relative to the current directory, with forward slashes. As a result, the output is the same on all computers.
+The `verify` command writes the problems of each gate to stdout, below the line of the gate, in the same format. Each message starts with its manifest key or its URN. urn-forge shows paths relative to the current directory, with forward slashes. As a result, the output is the same on all computers. For each code, refer to [Diagnostics](./diagnostics).
+
+### JSON
+
+With `--format json`, urn-forge writes JSON lines to stdout. Each line is one JSON object, and its `type` property tells the kind of line. urn-forge writes nothing to stderr, but a usage error still writes text to stderr. The exit codes do not change.
+
+| `type` | Command | Properties |
+| --- | --- | --- |
+| `diagnostic` | Both | `severity`, `code`, `file`, `line` and `column` (if the diagnostic has a position), `urn` (if the diagnostic has a URN), `message`. For a gate problem, also `gate` |
+| `file` | `compile` | `path`, and `changed` (`false` if the file had the same content) |
+| `gate` | `verify` | `gate`, `name`, `ok`, `summary` |
+| `result` | Both | `ok`. For `compile`, also `fingerprint` if the compile is correct. For `verify`, also `failedGates` |
+
+The lines come in this sequence: the diagnostics, then the files or the gates, then one `result` line.
+
+```json
+{"type":"diagnostic","gate":4,"severity":"error","code":"generated-differs","file":"example/generated/domain.schemas.generated.ts","line":21,"column":1,"message":"differs from a fresh compile (hand-edited or stale); run `urn-forge compile`"}
+{"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over example/core.ts; `core` satisfies DomainCoreImplementation"}
+{"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"2 feature(s), 4 scenario(s), 2/2 operations tagged"}
+{"type":"gate","gate":4,"name":"drift","ok":false,"summary":"2 generated file(s) compared byte for byte against example/generated"}
+{"type":"result","ok":false,"failedGates":[4]}
+```
+
+## Exit codes
 
 | Exit code | Description |
 | --- | --- |

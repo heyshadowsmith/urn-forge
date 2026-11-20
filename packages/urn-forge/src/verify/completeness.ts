@@ -13,6 +13,7 @@ import { dirname, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import { FCIS_RUNTIME_FILE } from '../plugins/fcis.plugin.js';
 import { generatedPath } from '../write.js';
+import type { Diagnostic } from '../diagnostics.js';
 import { displayPath, type GateResult } from './types.js';
 
 export interface CompletenessOptions {
@@ -68,42 +69,65 @@ function satisfyingExports(source: ts.SourceFile, checker: ts.TypeChecker, runti
 
 export function checkCompleteness(options: CompletenessOptions): GateResult {
   const show = (path: string) => displayPath(options.cwd, path, relative);
-  const fail = (problems: string[], summary: string): GateResult => ({
+  const fail = (problem: Diagnostic, summary: string): GateResult => ({
     gate: 1,
     name: 'completeness',
     ok: false,
     summary,
-    problems,
+    problems: [problem],
   });
 
   const config = ts.readConfigFile(options.tsconfigPath, ts.sys.readFile);
   if (config.error) {
-    return fail([`${show(options.tsconfigPath)}  ${ts.flattenDiagnosticMessageText(config.error.messageText, '\n')}`], 'tsconfig unreadable');
+    return fail(
+      {
+        code: 'tsconfig-unreadable',
+        severity: 'error',
+        file: show(options.tsconfigPath),
+        message: ts.flattenDiagnosticMessageText(config.error.messageText, '\n'),
+      },
+      'tsconfig unreadable',
+    );
   }
   const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, dirname(options.tsconfigPath));
   const program = ts.createProgram({ rootNames: [options.corePath], options: { ...parsed.options, noEmit: true } });
 
   const source = program.getSourceFile(options.corePath);
-  if (!source) return fail([`${show(options.corePath)}  core entry not found`], 'core entry missing');
+  if (!source) {
+    return fail(
+      { code: 'core-not-found', severity: 'error', file: show(options.corePath), message: 'core entry not found' },
+      'core entry missing',
+    );
+  }
 
-  const host: ts.FormatDiagnosticsHost = {
-    getCanonicalFileName: (f) => f,
-    getCurrentDirectory: () => options.cwd,
-    getNewLine: () => '\n',
-  };
-  const problems = ts
+  const problems: Diagnostic[] = ts
     .getPreEmitDiagnostics(program)
     .filter((d) => d.category === ts.DiagnosticCategory.Error)
-    .map((d) => ts.formatDiagnostic(d, host).trimEnd().split('\\').join('/'));
+    .map((d) => {
+      const message = `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, '\n')}`;
+      if (!d.file) return { code: 'type-error', severity: 'error', file: show(options.tsconfigPath), message };
+      const { line, character } = d.file.getLineAndCharacterOfPosition(d.start ?? 0);
+      return {
+        code: 'type-error',
+        severity: 'error',
+        file: show(d.file.fileName),
+        location: { line: line + 1, column: character + 1 },
+        message,
+      };
+    });
   const typeErrors = problems.length;
 
   const runtimeFile = generatedPath(options.outDir, FCIS_RUNTIME_FILE);
   const exportsFound = satisfyingExports(source, program.getTypeChecker(), runtimeFile);
   if (exportsFound.length === 0) {
-    problems.push(
-      `${show(options.corePath)}  no export uses \`satisfies ${REGISTRY}\` from ${show(runtimeFile)}; ` +
+    problems.push({
+      code: 'missing-satisfies',
+      severity: 'error',
+      file: show(options.corePath),
+      message:
+        `no export uses \`satisfies ${REGISTRY}\` from ${show(runtimeFile)}; ` +
         `declare the core as \`export const core = { … } satisfies ${REGISTRY};\``,
-    );
+    });
   }
 
   const summary =

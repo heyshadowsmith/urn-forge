@@ -7,6 +7,7 @@
  * to any of them shows up as drift.
  */
 import * as v from 'valibot';
+import { hasErrors, type Diagnostic } from './diagnostics.js';
 import { buildIrFromSource } from './ir/build.js';
 import { compareCodeUnits, fingerprint } from './ir/canonical.js';
 import type { UniversalIR } from './ir/types.js';
@@ -15,11 +16,7 @@ import type { CodegenPlugin, GeneratedArtifact } from './plugins/plugin.interfac
 import { valibotPlugin } from './plugins/valibot.plugin.js';
 import { GENERATOR_VERSION } from './version.js';
 
-export interface Diagnostic {
-  readonly severity: 'error' | 'warning';
-  readonly urn?: string;
-  readonly message: string;
-}
+export type { Diagnostic } from './diagnostics.js';
 
 /** A plugin together with its config, in run order. */
 export interface PluginEntry {
@@ -55,14 +52,16 @@ export function compile(manifestSource: string, plugins: readonly PluginEntry[] 
   if (!built.success) {
     return {
       files: [],
-      diagnostics: built.issues.map((issue) => ({
+      diagnostics: built.issues.map(({ code, urn, message, location }) => ({
+        code,
         severity: 'error' as const,
-        ...(issue.urn === undefined ? {} : { urn: issue.urn }),
-        message: issue.message,
+        message,
+        ...(urn === undefined ? {} : { urn }),
+        ...(location === undefined ? {} : { location }),
       })),
     };
   }
-  const { ir } = built;
+  const { ir, locator } = built;
 
   const diagnostics: Diagnostic[] = [];
   const configs: unknown[] = [];
@@ -70,7 +69,7 @@ export function compile(manifestSource: string, plugins: readonly PluginEntry[] 
     const parsed = v.safeParse(plugin.configSchema, config);
     if (!parsed.success) {
       for (const issue of parsed.issues) {
-        diagnostics.push({ severity: 'error', message: `plugin ${plugin.name} config: ${issue.message}` });
+        diagnostics.push({ code: 'plugin-config', severity: 'error', message: `plugin ${plugin.name} config: ${issue.message}` });
       }
     }
     configs.push(parsed.success ? parsed.output : config);
@@ -88,10 +87,14 @@ export function compile(manifestSource: string, plugins: readonly PluginEntry[] 
   const files = new Map<string, GeneratedArtifact>();
   plugins.forEach(({ plugin }, i) => {
     const output = plugin.emit(ir, configs[i]);
-    diagnostics.push(...output.diagnostics);
+    for (const diagnostic of output.diagnostics) {
+      const location = diagnostic.urn === undefined ? undefined : locator?.locateUrn(diagnostic.urn);
+      diagnostics.push(location ? { ...diagnostic, location } : diagnostic);
+    }
     for (const artifact of output.artifacts) {
       if (files.has(artifact.relativePath)) {
         diagnostics.push({
+          code: 'output-conflict',
           severity: 'error',
           message: `plugin ${plugin.name} writes ${artifact.relativePath}, which another plugin already wrote`,
         });
@@ -104,7 +107,7 @@ export function compile(manifestSource: string, plugins: readonly PluginEntry[] 
     }
   });
 
-  if (diagnostics.some((d) => d.severity === 'error')) return { files: [], diagnostics, ir, fingerprint: print };
+  if (hasErrors(diagnostics)) return { files: [], diagnostics, ir, fingerprint: print };
   const sorted = [...files.values()].sort((a, b) => compareCodeUnits(a.relativePath, b.relativePath));
   return { files: sorted, diagnostics, ir, fingerprint: print };
 }

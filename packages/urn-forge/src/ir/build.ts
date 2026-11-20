@@ -8,6 +8,7 @@
  *
  * Passes 5–8 (cycles, rule typing, constraint coherence, lifecycle) are cut from the MVP.
  */
+import type { ManifestLocator, ManifestPath } from '../diagnostics.js';
 import {
   parseManifest,
   parseShortKey,
@@ -90,18 +91,21 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
   const byUrn = new Map<Urn, Atom>();
   const byBrand = new Map<string, Atom>();
   for (const atom of atoms) {
+    const at = { path: [`${atom.context}.${atom.kind}.${atom.identifier}`], target: 'key' } as const;
     if (byUrn.has(atom.urn)) {
-      issues.push({ urn: atom.urn, message: `${atom.urn}: declared more than once` });
+      issues.push({ code: 'duplicate-urn', urn: atom.urn, message: `${atom.urn}: declared more than once`, ...at });
       continue;
     }
     byUrn.set(atom.urn, atom);
     const first = byBrand.get(atom.brandIdentifier);
     if (first) {
       issues.push({
+        code: 'duplicate-brand',
         urn: atom.urn,
         message:
           `${atom.urn}: brandIdentifier "${atom.brandIdentifier}" is already used by ${first.urn}; ` +
           'rename one of them',
+        ...at,
       });
     } else {
       byBrand.set(atom.brandIdentifier, atom);
@@ -109,20 +113,31 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
   }
 
   // Pass 4: referential integrity, resolving a short-key reference to an atom of `expected` kind.
-  const resolve = (from: Urn, where: string, shortKey: string, expected: MvpKind): Atom | undefined => {
+  // `path` locates the reference in the manifest, e.g. [`geometry.entity.circle`, 'fields', 0, 'ref'].
+  const resolve = (
+    from: Urn,
+    where: string,
+    path: ManifestPath,
+    shortKey: string,
+    expected: MvpKind,
+  ): Atom | undefined => {
     const target = expand(shortKey);
     const atom = target && byUrn.get(target.urn);
     if (!target || !atom) {
       issues.push({
+        code: 'unresolved-ref',
         urn: from,
         message: `${from}: ${where} "${shortKey}" does not resolve (no atom ${target?.urn ?? shortKey} in this manifest)`,
+        path,
       });
       return undefined;
     }
     if (atom.kind !== expected) {
       issues.push({
+        code: 'wrong-ref-kind',
         urn: from,
         message: `${from}: ${where} "${shortKey}" must name ${article(expected)} ${expected}, but ${atom.urn} is ${article(atom.kind)} ${atom.kind}`,
+        path,
       });
       return undefined;
     }
@@ -151,17 +166,26 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
       const refs: IRFieldRef[] = [];
       const seenNames = new Map<string, Urn>();
       decl.fields.forEach((ref, index) => {
-        const target = resolve(atom.urn, `fields[${index}].ref`, ref.ref, 'field');
+        const path = [shortKey, 'fields', index, 'ref'];
+        const target = resolve(atom.urn, `fields[${index}].ref`, path, ref.ref, 'field');
         if (!target) return;
         const clash = seenNames.get(target.identifier);
         if (clash) {
-          issues.push({
-            urn: atom.urn,
-            message:
-              clash === target.urn
-                ? `${atom.urn}: fields[${index}].ref lists ${target.urn} more than once`
-                : `${atom.urn}: fields[${index}].ref ${target.urn} and ${clash} both become property "${target.identifier}"`,
-          });
+          issues.push(
+            clash === target.urn
+              ? {
+                  code: 'duplicate-ref',
+                  urn: atom.urn,
+                  message: `${atom.urn}: fields[${index}].ref lists ${target.urn} more than once`,
+                  path,
+                }
+              : {
+                  code: 'duplicate-property',
+                  urn: atom.urn,
+                  message: `${atom.urn}: fields[${index}].ref ${target.urn} and ${clash} both become property "${target.identifier}"`,
+                  path,
+                },
+          );
           return;
         }
         seenNames.set(target.identifier, target.urn);
@@ -175,8 +199,8 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
       });
     } else {
       const decl = manifest.operations[shortKey] as OperationDecl;
-      const input = resolve(atom.urn, 'input', decl.input, 'entity');
-      const output = resolve(atom.urn, 'output', decl.output, 'entity');
+      const input = resolve(atom.urn, 'input', [shortKey, 'input'], decl.input, 'entity');
+      const output = resolve(atom.urn, 'output', [shortKey, 'output'], decl.output, 'entity');
       if (input && output) {
         operations.set(atom.urn, {
           urn: atom.urn,
@@ -207,11 +231,23 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
   return { success: true, ir };
 }
 
-/** Pass 1 (meta-schema) then passes 2–4, from manifest YAML source. */
-export function buildIrFromSource(source: string): IRBuildResult {
+/** Places each issue that has a manifest path at its line and column. */
+export function locateIssues(issues: readonly IRIssue[], locator: ManifestLocator): IRIssue[] {
+  return issues.map((issue) => {
+    const location = issue.path && locator.locate(issue.path, issue.target);
+    return location ? { ...issue, location } : issue;
+  });
+}
+
+/**
+ * Pass 1 (meta-schema) then passes 2–4, from manifest YAML source. Every issue carries its
+ * line and column. On success the locator is returned too, so later stages (plugins) can
+ * place their diagnostics.
+ */
+export function buildIrFromSource(source: string): IRBuildResult & { readonly locator?: ManifestLocator } {
   const validated = parseManifest(source);
-  if (!validated.success) {
-    return { success: false, issues: validated.issues.map((issue) => ({ message: issue.message })) };
-  }
-  return buildIr(validated.manifest);
+  if (!validated.success) return { success: false, issues: validated.issues };
+  const result = buildIr(validated.manifest);
+  if (result.success) return { ...result, locator: validated.locator };
+  return { success: false, issues: locateIssues(result.issues, validated.locator), locator: validated.locator };
 }

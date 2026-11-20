@@ -6,6 +6,7 @@
  * `@generated` + fingerprint header and writes the files.
  */
 import type * as v from 'valibot';
+import type { DiagnosticCode } from '../diagnostics.js';
 import type { UniversalIR, Urn } from '../ir/types.js';
 
 export interface GeneratedArtifact {
@@ -16,6 +17,7 @@ export interface GeneratedArtifact {
 }
 
 export interface PluginDiagnostic {
+  readonly code: DiagnosticCode;
   readonly severity: 'error' | 'warning';
   readonly urn?: Urn;
   readonly message: string;

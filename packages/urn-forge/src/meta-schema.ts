@@ -9,7 +9,13 @@
  * resolution are later passes (src/ir/).
  */
 import * as v from 'valibot';
-import { parseDocument } from 'yaml';
+import { LineCounter, parseDocument } from 'yaml';
+import {
+  ManifestLocator,
+  type DiagnosticCode,
+  type ManifestPath,
+  type SourceLocation,
+} from './diagnostics.js';
 
 // ---------------------------------------------------------------------------
 // Grammar
@@ -131,12 +137,18 @@ const SCHEMA_BY_KIND = {
 // Result types
 // ---------------------------------------------------------------------------
 
-/** One meta-schema problem. `key` is the top-level manifest key (`manifest` for the header). */
+/** One meta-schema problem. */
 export interface ManifestIssue {
-  readonly key: string;
-  /** Dot path inside the entry, e.g. `fields.0.ref`; empty when the problem is the entry itself. */
-  readonly path: string;
+  readonly code: DiagnosticCode;
   readonly message: string;
+  /** Where the problem is: the top-level key (`manifest` for the header), then the path inside the entry. */
+  readonly path: ManifestPath;
+  /** Whether the problem is the key at `path` (an unknown property, a bad short key) or its value. */
+  readonly target: 'key' | 'value';
+  /** The atom's URN, when the header and the short key are both valid. */
+  readonly urn?: string;
+  /** Set by `parseManifest`, which has the source text. */
+  readonly location?: SourceLocation;
 }
 
 /** A structurally valid manifest, grouped by kind. Keys are still short keys, in declaration order. */
@@ -151,16 +163,24 @@ export type MetaSchemaResult =
   | { readonly success: true; readonly manifest: ValidManifest }
   | { readonly success: false; readonly issues: readonly ManifestIssue[] };
 
+/** `parseManifest` also returns a locator, which later passes use to place their diagnostics. */
+export type ParsedManifest =
+  | { readonly success: true; readonly manifest: ValidManifest; readonly locator: ManifestLocator }
+  | { readonly success: false; readonly issues: readonly ManifestIssue[] };
+
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
 
 /** Splits a top-level key into its segments, or explains why it is not a valid MVP short key. */
-export function parseShortKey(key: string): { ok: true; value: ShortKey } | { ok: false; message: string } {
+export function parseShortKey(
+  key: string,
+): { ok: true; value: ShortKey } | { ok: false; code: DiagnosticCode; message: string } {
   const match = SHORT_KEY_PATTERN.exec(key);
   if (!match) {
     return {
       ok: false,
+      code: 'invalid-key',
       message:
         `invalid key "${key}": expected <context>.<kind>.<identifier>, ` +
         'where context and identifier are lowercase snake_case starting with a letter (max 63 characters)',
@@ -170,12 +190,14 @@ export function parseShortKey(key: string): { ok: true; value: ShortKey } | { ok
   if ((DEFERRED_KINDS as readonly string[]).includes(kind)) {
     return {
       ok: false,
+      code: 'unsupported-kind',
       message: `invalid key "${key}": kind "${kind}" is not supported yet (MVP kinds: ${MVP_KINDS.join(', ')})`,
     };
   }
   if (!(MVP_KINDS as readonly string[]).includes(kind)) {
     return {
       ok: false,
+      code: 'unknown-kind',
       message: `invalid key "${key}": unknown kind "${kind}" (MVP kinds: ${MVP_KINDS.join(', ')})`,
     };
   }
@@ -186,41 +208,60 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function describeIssue(key: string, entry: unknown, issue: v.BaseIssue<unknown>): ManifestIssue {
-  const path = v.getDotPath(issue) ?? '';
-  const prefix = path ? `${key}.${path}` : key;
+function describeIssue(key: string, entry: unknown, issue: v.BaseIssue<unknown>, urn: string | undefined): ManifestIssue {
+  const dotPath = v.getDotPath(issue) ?? '';
+  const prefix = dotPath ? `${key}.${dotPath}` : key;
+  const path: ManifestPath = [key, ...(issue.path ?? []).map((item) => item.key as string | number)];
   const primitive = isPlainObject(entry) ? entry['primitive'] : undefined;
   const unknownKey = issue.type === 'strict_object' && issue.expected === 'never';
+  const at = (code: DiagnosticCode, message: string, target: 'key' | 'value' = 'value'): ManifestIssue => ({
+    code,
+    message,
+    path,
+    target,
+    ...(urn === undefined ? {} : { urn }),
+  });
 
-  let message: string;
-  if (issue.type === 'variant' && path === 'primitive') {
-    message =
-      `${prefix}: unknown primitive ${issue.received} ` +
-      `(MVP primitives: ${MVP_PRIMITIVES.join(', ')})`;
-  } else if (unknownKey && typeof primitive === 'string' && primitive in CONSTRAINTS_BY_PRIMITIVE) {
-    const allowed = CONSTRAINTS_BY_PRIMITIVE[primitive as MvpPrimitive];
-    message =
-      `${prefix}: "${path}" is not a constraint of primitive "${primitive}" ` +
-      `(allowed: ${allowed.join(', ')})`;
-  } else if (unknownKey) {
-    message = `${prefix}: unknown property "${path.split('.').at(-1) ?? path}"`;
-  } else {
-    message = `${prefix}: ${issue.message}`;
+  if (issue.type === 'variant' && dotPath === 'primitive') {
+    return at(
+      'unknown-primitive',
+      `${prefix}: unknown primitive ${issue.received} (MVP primitives: ${MVP_PRIMITIVES.join(', ')})`,
+    );
   }
-  return { key, path, message };
+  if (unknownKey && typeof primitive === 'string' && primitive in CONSTRAINTS_BY_PRIMITIVE) {
+    const allowed = CONSTRAINTS_BY_PRIMITIVE[primitive as MvpPrimitive];
+    return at(
+      'constraint-not-allowed',
+      `${prefix}: "${dotPath}" is not a constraint of primitive "${primitive}" (allowed: ${allowed.join(', ')})`,
+      'key',
+    );
+  }
+  if (unknownKey) {
+    return at('unknown-property', `${prefix}: unknown property "${dotPath.split('.').at(-1) ?? dotPath}"`, 'key');
+  }
+  return at('invalid-value', `${prefix}: ${issue.message}`);
 }
 
-function collect(key: string, schema: v.GenericSchema, entry: unknown, issues: ManifestIssue[]): unknown {
+function collect(
+  key: string,
+  schema: v.GenericSchema,
+  entry: unknown,
+  issues: ManifestIssue[],
+  urn?: string,
+): unknown {
   const result = v.safeParse(schema, entry);
   if (result.success) return result.output;
-  for (const issue of result.issues) issues.push(describeIssue(key, entry, issue));
+  for (const issue of result.issues) issues.push(describeIssue(key, entry, issue, urn));
   return undefined;
 }
 
 /** Runs the meta-schema over an already-parsed YAML document. */
 export function validateManifest(doc: unknown): MetaSchemaResult {
   if (!isPlainObject(doc)) {
-    return { success: false, issues: [{ key: '', path: '', message: 'manifest must be a YAML mapping' }] };
+    return {
+      success: false,
+      issues: [{ code: 'not-a-mapping', message: 'manifest must be a YAML mapping', path: [], target: 'value' }],
+    };
   }
 
   const issues: ManifestIssue[] = [];
@@ -230,7 +271,12 @@ export function validateManifest(doc: unknown): MetaSchemaResult {
 
   let header: ManifestHeader | undefined;
   if (!('manifest' in doc)) {
-    issues.push({ key: 'manifest', path: '', message: 'manifest: missing header (namespace, domain, version)' });
+    issues.push({
+      code: 'missing-header',
+      message: 'manifest: missing header (namespace, domain, version)',
+      path: [],
+      target: 'value',
+    });
   } else {
     header = collect('manifest', HeaderSchema, doc['manifest'], issues) as ManifestHeader | undefined;
   }
@@ -239,11 +285,12 @@ export function validateManifest(doc: unknown): MetaSchemaResult {
     if (key === 'manifest') continue;
     const parsed = parseShortKey(key);
     if (!parsed.ok) {
-      issues.push({ key, path: '', message: parsed.message });
+      issues.push({ code: parsed.code, message: parsed.message, path: [key], target: 'key' });
       continue;
     }
-    const kind = parsed.value.kind;
-    const output = collect(key, SCHEMA_BY_KIND[kind], entry, issues);
+    const { context, kind, identifier } = parsed.value;
+    const urn = header && `urn:${header.namespace}:${header.domain}:${context}:${kind}:${identifier}`;
+    const output = collect(key, SCHEMA_BY_KIND[kind], entry, issues, urn);
     if (output === undefined) continue;
     if (kind === 'field') fields[key] = output as FieldDecl;
     else if (kind === 'entity') entities[key] = output as EntityDecl;
@@ -254,14 +301,37 @@ export function validateManifest(doc: unknown): MetaSchemaResult {
   return { success: true, manifest: { header, fields, entities, operations } };
 }
 
-/** Parses manifest YAML source and runs the meta-schema. YAML syntax errors (including duplicate keys) are issues too. */
-export function parseManifest(source: string): MetaSchemaResult {
-  const document = parseDocument(source, { uniqueKeys: true });
+/**
+ * Parses manifest YAML source and runs the meta-schema, placing every issue at a line and
+ * column. YAML syntax errors (including duplicate keys) are issues too.
+ */
+export function parseManifest(source: string): ParsedManifest {
+  const lines = new LineCounter();
+  const document = parseDocument(source, { uniqueKeys: true, lineCounter: lines });
   if (document.errors.length > 0) {
     return {
       success: false,
-      issues: document.errors.map((error) => ({ key: '', path: '', message: `YAML: ${error.message}` })),
+      issues: document.errors.map((error) => {
+        const [start] = error.linePos ?? [];
+        return {
+          code: error.code === 'DUPLICATE_KEY' ? 'duplicate-key' : 'yaml-syntax',
+          // The position is in `location`, so drop the parser's own `at line N, column M:` suffix.
+          message: `YAML: ${(error.message.split('\n')[0] ?? '').replace(/ at line \d+, column \d+:?$/, '')}`,
+          path: [],
+          target: 'value',
+          ...(start ? { location: { line: start.line, column: start.col } } : {}),
+        } satisfies ManifestIssue;
+      }),
     };
   }
-  return validateManifest(document.toJS());
+  const locator = new ManifestLocator(document, lines);
+  const result = validateManifest(document.toJS());
+  if (result.success) return { ...result, locator };
+  return {
+    success: false,
+    issues: result.issues.map((issue) => {
+      const location = issue.path.length > 0 ? locator.locate(issue.path, issue.target) : undefined;
+      return location ? { ...issue, location } : issue;
+    }),
+  };
 }

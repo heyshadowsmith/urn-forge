@@ -1,16 +1,19 @@
 /**
  * urn-forge CLI (spec §9; the MVP ships `compile` and `verify`).
  *
- *   urn-forge compile [--manifest <file>] [--out <dir>]
- *   urn-forge verify  [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
+ *   urn-forge compile [--manifest <file>] [--out <dir>] [--format text|json]
+ *   urn-forge verify  [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
  *
- * Diagnostics print as `<manifest>  <severity>  <message>`; messages lead with the URN.
+ * Text diagnostics print to stderr as `<file>:<line>:<col>  <severity>  <code>  <message>`;
+ * messages lead with the manifest key or URN. `--format json` prints JSON lines to stdout
+ * instead (diagnostics, then files or gates, then one result line), for CI annotations.
  * Exit codes: 0 success, 1 error diagnostics or a failed gate, 2 usage error.
  */
 import { readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { compile, type Diagnostic } from './engine.js';
+import { diagnosticJson, formatDiagnostic, hasErrors, type Diagnostic } from './diagnostics.js';
+import { compile } from './engine.js';
 import { verify } from './verify/index.js';
 import { GENERATOR_VERSION } from './version.js';
 import { writeGeneratedFiles } from './write.js';
@@ -30,12 +33,13 @@ const defaultIo: CliIo = {
 const USAGE = `urn-forge ${GENERATOR_VERSION}
 
 Usage:
-  urn-forge compile [--manifest <file>] [--out <dir>]
-  urn-forge verify  [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
+  urn-forge compile [--manifest <file>] [--out <dir>] [--format text|json]
+  urn-forge verify  [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
 
 Options:
   --manifest <file>  Manifest YAML (default: domain.manifest.yaml)
   --out <dir>        Directory for generated files (default: src/generated)
+  --format <format>  text (default) or json: JSON lines on stdout, for CI annotations
   --core <file>      verify: core entry exporting \`satisfies DomainCoreImplementation\` (default: src/core.ts)
   --features <dir>   verify: directory searched for .feature files (default: features)
   --tsconfig <file>  verify: tsconfig whose options gate 1 type-checks with (default: tsconfig.json)`;
@@ -46,7 +50,16 @@ function display(io: CliIo, path: string): string {
 }
 
 function printDiagnostics(io: CliIo, file: string, diagnostics: readonly Diagnostic[]): void {
-  for (const d of diagnostics) io.stderr(`${file}  ${d.severity}  ${d.message}`);
+  for (const d of diagnostics) io.stderr(formatDiagnostic(d, file));
+}
+
+class UsageError extends Error {}
+
+const FORMAT_OPTION = { format: { type: 'string', default: 'text' } } as const;
+
+function outputFormat(value: string): 'text' | 'json' {
+  if (value === 'text' || value === 'json') return value;
+  throw new UsageError(`--format must be text or json, not "${value}"`);
 }
 
 async function runCompile(args: string[], io: CliIo): Promise<number> {
@@ -55,31 +68,46 @@ async function runCompile(args: string[], io: CliIo): Promise<number> {
     options: {
       manifest: { type: 'string', default: 'domain.manifest.yaml' },
       out: { type: 'string', default: 'src/generated' },
+      ...FORMAT_OPTION,
     },
     strict: true,
     allowPositionals: false,
   });
+  const format = outputFormat(values.format);
   const manifestPath = resolve(io.cwd, values.manifest);
   const outDir = resolve(io.cwd, values.out);
   const manifestLabel = display(io, manifestPath);
+
+  const report = (diagnostics: readonly Diagnostic[]) => {
+    if (format === 'json') for (const d of diagnostics) io.stdout(diagnosticJson(d, manifestLabel));
+    else printDiagnostics(io, manifestLabel, diagnostics);
+  };
+  const finish = (ok: boolean, fingerprint?: string): number => {
+    if (format === 'json') {
+      io.stdout(JSON.stringify({ type: 'result', ok, ...(fingerprint === undefined ? {} : { fingerprint }) }));
+    } else if (fingerprint !== undefined) {
+      io.stdout(`fingerprint ${fingerprint}`);
+    }
+    return ok ? 0 : 1;
+  };
 
   let source: string;
   try {
     source = await readFile(manifestPath, 'utf8');
   } catch (error) {
-    io.stderr(`${manifestLabel}  error  cannot read manifest: ${(error as Error).message}`);
-    return 1;
+    report([{ code: 'manifest-unreadable', severity: 'error', message: `cannot read manifest: ${(error as Error).message}` }]);
+    return finish(false);
   }
 
   const result = compile(source);
-  printDiagnostics(io, manifestLabel, result.diagnostics);
-  if (result.diagnostics.some((d) => d.severity === 'error')) return 1;
+  report(result.diagnostics);
+  if (hasErrors(result.diagnostics)) return finish(false);
 
   for (const { path, changed } of await writeGeneratedFiles(outDir, result.files)) {
-    io.stdout(`${changed ? 'wrote     ' : 'unchanged '} ${display(io, path)}`);
+    if (format === 'json') io.stdout(JSON.stringify({ type: 'file', path: display(io, path), changed }));
+    else io.stdout(`${changed ? 'wrote     ' : 'unchanged '} ${display(io, path)}`);
   }
-  io.stdout(`fingerprint ${result.fingerprint}`);
-  return 0;
+  return finish(true, result.fingerprint);
 }
 
 async function runVerify(args: string[], io: CliIo): Promise<number> {
@@ -91,10 +119,12 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
       core: { type: 'string', default: 'src/core.ts' },
       features: { type: 'string', default: 'features' },
       tsconfig: { type: 'string', default: 'tsconfig.json' },
+      ...FORMAT_OPTION,
     },
     strict: true,
     allowPositionals: false,
   });
+  const format = outputFormat(values.format);
   const manifestPath = resolve(io.cwd, values.manifest);
   const result = await verify({
     cwd: io.cwd,
@@ -105,18 +135,32 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
     tsconfigPath: resolve(io.cwd, values.tsconfig),
   });
 
-  printDiagnostics(io, display(io, manifestPath), result.diagnostics);
+  const manifestLabel = display(io, manifestPath);
+  const failed = result.gates.filter((g) => !g.ok).map((g) => g.gate);
+
+  if (format === 'json') {
+    for (const d of result.diagnostics) io.stdout(diagnosticJson(d, manifestLabel));
+    for (const gate of result.gates) {
+      for (const problem of gate.problems) io.stdout(diagnosticJson(problem, manifestLabel, { gate: gate.gate }));
+    }
+    for (const { gate, name, ok, summary } of result.gates) {
+      io.stdout(JSON.stringify({ type: 'gate', gate, name, ok, summary }));
+    }
+    io.stdout(JSON.stringify({ type: 'result', ok: result.ok, failedGates: failed }));
+    return result.ok ? 0 : 1;
+  }
+
+  printDiagnostics(io, manifestLabel, result.diagnostics);
   for (const gate of result.gates) {
     io.stdout(`gate ${gate.gate}  ${gate.name.padEnd(12)}  ${gate.ok ? 'PASS' : 'FAIL'}  ${gate.summary}`);
     for (const problem of gate.problems) {
-      for (const line of problem.split('\n')) io.stdout(`    ${line}`);
+      for (const line of formatDiagnostic(problem, manifestLabel).split('\n')) io.stdout(`    ${line}`);
     }
   }
   if (result.ok) {
     io.stdout('verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)');
     return 0;
   }
-  const failed = result.gates.filter((g) => !g.ok).map((g) => g.gate);
   io.stderr(failed.length > 0 ? `verify failed: gate ${failed.join(', ')}` : 'verify failed: the manifest does not compile');
   return 1;
 }
@@ -143,7 +187,7 @@ export async function main(argv: readonly string[], io: CliIo = defaultIo): Prom
         return 2;
     }
   } catch (error) {
-    if ((error as { code?: string }).code?.startsWith('ERR_PARSE_ARGS')) {
+    if (error instanceof UsageError || (error as { code?: string }).code?.startsWith('ERR_PARSE_ARGS')) {
       io.stderr(`${(error as Error).message}\n\n${USAGE}`);
       return 2;
     }

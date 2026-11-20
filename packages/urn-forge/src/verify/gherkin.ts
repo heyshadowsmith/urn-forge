@@ -15,6 +15,7 @@ import { join, relative } from 'node:path';
 import { AstBuilder, GherkinClassicTokenMatcher, Parser } from '@cucumber/gherkin';
 import { IdGenerator, type Feature, type Location, type Scenario, type Step, type TableRow, type Tag } from '@cucumber/messages';
 import type { UniversalIR, Urn } from '../ir/types.js';
+import type { Diagnostic, DiagnosticCode } from '../diagnostics.js';
 import { displayPath, type GateResult } from './types.js';
 
 export interface GherkinGateOptions {
@@ -37,8 +38,9 @@ async function featureFiles(dir: string): Promise<string[]> {
 
 export async function checkGherkin(options: GherkinGateOptions): Promise<GateResult> {
   const { ir } = options;
-  const problems: string[] = [];
+  const problems: Diagnostic[] = [];
   const covered = new Set<string>();
+  const featuresLabel = displayPath(options.cwd, options.featuresDir, relative);
   let featureCount = 0;
   let scenarioCount = 0;
 
@@ -47,20 +49,32 @@ export async function checkGherkin(options: GherkinGateOptions): Promise<GateRes
     files = await featureFiles(options.featuresDir);
   } catch (error) {
     files = [];
-    problems.push(`${displayPath(options.cwd, options.featuresDir, relative)}  cannot read features: ${(error as Error).message}`);
+    problems.push({
+      code: 'features-unreadable',
+      severity: 'error',
+      file: featuresLabel,
+      message: `cannot read features: ${(error as Error).message}`,
+    });
   }
 
   for (const file of files) {
     const label = displayPath(options.cwd, file, relative);
-    const at = (location: Location | undefined) =>
-      location ? `${label}:${location.line}:${location.column ?? 1}` : label;
+    const report = (code: DiagnosticCode, location: Location | undefined, message: string, urn?: string) =>
+      problems.push({
+        code,
+        severity: 'error',
+        file: label,
+        ...(location ? { location: { line: location.line, column: location.column ?? 1 } } : {}),
+        ...(urn === undefined ? {} : { urn }),
+        message,
+      });
 
     let feature: Feature | undefined;
     try {
       const parser = new Parser(new AstBuilder(IdGenerator.incrementing()), new GherkinClassicTokenMatcher());
       feature = parser.parse(await readFile(file, 'utf8')).feature;
     } catch (error) {
-      problems.push(`${label}  cannot parse: ${(error as Error).message.split('\n')[0]}`);
+      report('feature-parse-error', undefined, `cannot parse: ${(error as Error).message.split('\n')[0]}`);
       continue;
     }
     if (!feature) continue;
@@ -72,37 +86,50 @@ export async function checkGherkin(options: GherkinGateOptions): Promise<GateRes
         if (!tag.name.startsWith('@urn:')) continue;
         const urn = tag.name.slice(1);
         const known = urn in ir.fields || urn in ir.entities || urn in ir.operations;
-        if (!known) problems.push(`${at(tag.location)}  tag ${tag.name} does not resolve to a URN in the manifest`);
+        if (!known) report('unresolved-tag', tag.location, `tag ${tag.name} does not resolve to a URN in the manifest`);
         if (urn in ir.operations) covered.add(urn);
       }
     };
 
     /** Allowed header names for a scope, or undefined when no URN tag constrains it. */
-    const allowedHeaders = (scopes: readonly Scope[], where: Location): { keys: Set<string>; owner: string } | undefined => {
+    const allowedHeaders = (
+      scopes: readonly Scope[],
+      where: Location,
+    ): { keys: Set<string>; owner: string; urn: string } | undefined => {
       const urns = [...new Set(scopes.flatMap((s) => s.tags.map((t) => t.name.slice(1))))];
       const operations = urns.filter((u) => u in ir.operations) as Urn[];
       const entities = urns.filter((u) => u in ir.entities) as Urn[];
       if (operations.length + entities.length > 1) {
-        problems.push(`${at(where)}  scenario is tagged with more than one operation or entity: ${[...operations, ...entities].join(', ')}`);
+        report(
+          'ambiguous-tag',
+          where,
+          `scenario is tagged with more than one operation or entity: ${[...operations, ...entities].join(', ')}`,
+        );
         return undefined;
       }
       const keysOf = (entityUrn: Urn) => ir.entities[entityUrn]?.fields.map((f) => f.name) ?? [];
       const [operation] = operations;
       if (operation) {
         const op = ir.operations[operation]!;
-        return { keys: new Set([...keysOf(op.input), ...keysOf(op.output)]), owner: `the input or output of ${operation}` };
+        return {
+          keys: new Set([...keysOf(op.input), ...keysOf(op.output)]),
+          owner: `the input or output of ${operation}`,
+          urn: operation,
+        };
       }
       const [entity] = entities;
-      return entity ? { keys: new Set(keysOf(entity)), owner: entity } : undefined;
+      return entity ? { keys: new Set(keysOf(entity)), owner: entity, urn: entity } : undefined;
     };
 
     const checkHeader = (row: TableRow | undefined, allowed: ReturnType<typeof allowedHeaders>) => {
       if (!row || !allowed) return;
       for (const cell of row.cells) {
         if (!allowed.keys.has(cell.value)) {
-          problems.push(
-            `${at(cell.location)}  table header "${cell.value}" is not a field key of ${allowed.owner} ` +
-              `(allowed: ${[...allowed.keys].join(', ')})`,
+          report(
+            'unknown-header',
+            cell.location,
+            `table header "${cell.value}" is not a field key of ${allowed.owner} (allowed: ${[...allowed.keys].join(', ')})`,
+            allowed.urn,
           );
         }
       }
@@ -142,7 +169,13 @@ export async function checkGherkin(options: GherkinGateOptions): Promise<GateRes
   const operations = Object.keys(ir.operations);
   for (const urn of operations) {
     if (!covered.has(urn)) {
-      problems.push(`${displayPath(options.cwd, options.featuresDir, relative)}  operation ${urn} has no feature or scenario tagged @${urn}`);
+      problems.push({
+        code: 'untagged-operation',
+        severity: 'error',
+        file: featuresLabel,
+        urn,
+        message: `operation ${urn} has no feature or scenario tagged @${urn}`,
+      });
     }
   }
 
