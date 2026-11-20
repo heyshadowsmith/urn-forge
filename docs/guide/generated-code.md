@@ -16,12 +16,13 @@ Each generated file starts with these two lines:
 // fingerprint: sha256:<64 hex digits>
 ```
 
-The fingerprint is a SHA-256 hash of four inputs:
+The fingerprint is a SHA-256 hash of five inputs:
 
 - The canonical IR.
 - The plugin configurations.
 - The urn-forge version.
 - The name and version of each plugin.
+- The primitives and their constraints, and the kinds, that urn-forge knows. The generated code lists the primitives. Thus a new primitive changes the generated code, and the fingerprint must change too.
 
 As a result, a change to the manifest, to the generator or to a plugin changes the header of each file. This occurs also if the other lines of the file do not change.
 

@@ -72,6 +72,7 @@ arithmetic.field.divisor:
 
 | Primitive | TypeScript type | Constraints |
 | --- | --- | --- |
+| `boolean` | `boolean` | `mustBe` (`true` or `false`). The field accepts only this value, for example a box that the user must tick |
 | `float` | A finite `number` | `min`, `max` and `notEqual` (numbers) |
 | `integer` | A safe-integer `number` | `min`, `max` and `notEqual` (integers) |
 | `string` | `string` | `minLength` and `maxLength` (integers that are not negative) |

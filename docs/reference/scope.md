@@ -5,8 +5,8 @@ urn-forge is an MVP. It keeps the four links of the traceability chain: the mani
 | Area | Parts in the MVP | Parts not in the MVP at this time |
 | --- | --- | --- |
 | Atom kinds | `field`, `entity`, `operation` | `invariant`, `event`, `error`, lifecycle data |
-| Primitives | `integer`, `float`, `string` | `decimal`, `boolean`, `timestamp`, `list`, `record`, `ref` |
-| Constraints | `min`, `max`, `notEqual`, `minLength`, `maxLength` | `regex`, `format`, `oneOf`, `precision` |
+| Primitives | `boolean`, `integer`, `float`, `string` | `decimal`, `timestamp`, `list`, `record`, `ref` |
+| Constraints | `mustBe`, `min`, `max`, `notEqual`, `minLength`, `maxLength` | `regex`, `format`, `oneOf`, `precision` |
 | Optional fields | `required` on each field reference | `nullable` |
 | Operation input and output | Entities | Fields |
 | Compiler passes | Meta-schema, expansion, uniqueness, references, constraint coherence | Cycles, rule types, lifecycle |

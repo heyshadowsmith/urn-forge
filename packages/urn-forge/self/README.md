@@ -26,7 +26,7 @@ Each row is a declaration this domain needs and the MVP cannot express. Together
 | `naming.field.context` and `naming.field.identifier` must be lowercase snake_case | `regex` constraint | Today the manifest enforces only length 1–63, so `to_brand_identifier` accepts `Policy` |
 | `naming.field.kind` (`field`, `entity`, `operation`, …) | `oneOf` constraint | Needed for `parse_short_key` and `expand_urn` |
 | `naming.operation.parse_short_key` refuses a malformed key | `error` kind and `Result` | Today a handler cannot return a declared rejection |
-| `naming.field.required`, `naming.field.nullable` | `boolean` primitive | Field references in the manifest |
+| `naming.field.required`, `naming.field.nullable` | ~~`boolean` primitive~~ available; no operation needs them yet | Field references in the manifest |
 | `manifest.version` is semver | `regex` constraint | Also needed by a future version comparison |
 | `gherkin.operation.coerce_cell` | `oneOf` (primitive name) and a value of more than one type | `coerceCell` returns a number, a string or nothing |
 | `compatibility.operation.classify_constraint_change` (gate 5) | `oneOf` output, `error` kind | The core of `urn-forge diff` |

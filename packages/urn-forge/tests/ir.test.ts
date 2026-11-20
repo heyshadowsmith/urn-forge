@@ -137,15 +137,17 @@ describe('canonical JSON and fingerprint', () => {
     expect(() => canonicalJson({ x: new Map() })).toThrow('$.x');
   });
 
-  it('changes when the IR, config, generator version or plugins change', () => {
+  it('changes when the IR, config, generator version, plugins or registries change', () => {
     const ir = expectIr(buildIrFromSource(mathSource));
-    const base = { ir, config: {}, generatorVersion: '0.1.0', plugins: [{ name: 'valibot', version: '0.1.0' }] };
+    const registries = { primitives: { float: ['min'] }, kinds: ['field'] };
+    const base = { ir, config: {}, generatorVersion: '0.1.0', plugins: [{ name: 'valibot', version: '0.1.0' }], registries };
     const print = fingerprint(base);
     expect(print).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(fingerprint({ ...base })).toBe(print);
     expect(fingerprint({ ...base, generatorVersion: '0.1.1' })).not.toBe(print);
     expect(fingerprint({ ...base, config: { out: 'x' } })).not.toBe(print);
     expect(fingerprint({ ...base, plugins: [] })).not.toBe(print);
+    expect(fingerprint({ ...base, registries: { ...registries, primitives: { float: ['min'], boolean: ['mustBe'] } } })).not.toBe(print);
     expect(fingerprint({ ...base, ir: { ...ir, meta: { ...ir.meta, manifestVersion: '0.2.0' } } })).not.toBe(print);
   });
 });

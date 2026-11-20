@@ -2,7 +2,9 @@
  * The primitive registry (foundations plan, phase 2): the meta-schema, the coherence pass,
  * the Valibot translations and the step library all read each primitive from one place.
  */
+import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';
+import * as shop from './fixtures/shop/expected/domain.schemas.generated.js';
 import { compile } from '../src/engine.js';
 import { coerceCell } from '../src/gherkin/steps.js';
 import { validateManifest } from '../src/meta-schema.js';
@@ -14,8 +16,9 @@ const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 0.1.0\n
 
 describe('primitive registry', () => {
   it('lists the primitives and their constraints in a fixed order', () => {
-    expect(PRIMITIVE_NAMES).toEqual(['float', 'integer', 'string']);
+    expect(PRIMITIVE_NAMES).toEqual(['boolean', 'float', 'integer', 'string']);
     expect(Object.fromEntries(PRIMITIVE_NAMES.map((p) => [p, constraintKeys(p)]))).toEqual({
+      boolean: ['mustBe'],
       float: ['min', 'max', 'notEqual'],
       integer: ['min', 'max', 'notEqual'],
       string: ['minLength', 'maxLength'],
@@ -23,10 +26,11 @@ describe('primitive registry', () => {
   });
 
   it('drives the meta-schema: each primitive accepts its own constraints and no others', () => {
+    const sample: Record<string, unknown> = { mustBe: true, min: 1, max: 1, notEqual: 1, minLength: 1, maxLength: 1 };
     for (const primitive of PRIMITIVE_NAMES) {
       for (const other of PRIMITIVE_NAMES) {
         for (const key of constraintKeys(other)) {
-          const result = validateManifest({ manifest: header, 'a.field.b': { primitive, [key]: 1 } });
+          const result = validateManifest({ manifest: header, 'a.field.b': { primitive, [key]: sample[key] } });
           expect(result.success, `${key} on ${primitive}`).toBe(constraintKeys(primitive).includes(key));
         }
       }
@@ -38,6 +42,11 @@ describe('primitive registry', () => {
     expect(coerceCell('10', field('float'))).toBe(10);
     expect(coerceCell('10', field('integer'))).toBe(10);
     expect(coerceCell('10', field('string'))).toBe('10');
+    expect([coerceCell('true', field('boolean')), coerceCell('false', field('boolean')), coerceCell('yes', field('boolean'))]).toEqual([
+      true,
+      false,
+      'yes',
+    ]);
     expect(PRIMITIVES.float.parseCell('abc')).toBe('abc');
   });
 });
@@ -99,5 +108,28 @@ describe('ValibotTranslations (type level, checked by tsc)', () => {
       integer: { base: [], constraints: { min: String, max: String, notEqual: String } },
     };
     expect([numeric, wrongValue, partial]).toBeDefined();
+  });
+});
+
+describe('boolean (the first primitive added through the registry)', () => {
+  const line = { quantity: 2, unit_cost: 1.5, terms_accepted: true };
+
+  it('parses true and false, and keeps an optional flag optional', () => {
+    expect(v.safeParse(shop.OrderLineSchema, line).success).toBe(true);
+    expect(v.safeParse(shop.OrderLineSchema, { ...line, gift_wrap: false }).success).toBe(true);
+    expect(v.safeParse(shop.OrderGiftWrapSchema, 'true').success).toBe(false);
+  });
+
+  it('enforces mustBe, reporting the field', () => {
+    const result = v.safeParse(shop.OrderLineSchema, { ...line, terms_accepted: false });
+    expect(result.success).toBe(false);
+    expect(result.issues?.map((i) => [v.getDotPath(i), i.message])).toEqual([
+      ['terms_accepted', 'Invalid value: Expected true but received false'],
+    ]);
+  });
+
+  it('turns a non-boolean cell into a value the schema rejects', () => {
+    const field = { urn: 'urn:demo:shop:order:field:gift_wrap', primitive: 'boolean' as const, required: false };
+    expect(v.safeParse(shop.OrderGiftWrapSchema, coerceCell('yes', field)).success).toBe(false);
   });
 });

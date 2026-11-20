@@ -42,6 +42,8 @@ The steps use these rules:
   | `float`, `integer` | A number literal: `10`, `-9`, `0.5`, `1e3`, `Infinity`, `NaN` | The number |
   | `float`, `integer` | A different text, for example `abc` or `1,000` | The text. The schema then refuses it |
   | `string` | Any text | The same text |
+  | `boolean` | `true` or `false` | The boolean |
+  | `boolean` | A different text, for example `yes` | The text. The schema then refuses it |
   | All | An empty cell | No value. The key is absent |
 
 - **Output checks.** The step compares only the columns in the table. Other output fields do not make the step fail. The values must be equal. `NaN` is equal to `NaN`.

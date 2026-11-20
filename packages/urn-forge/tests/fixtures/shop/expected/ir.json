@@ -18,6 +18,16 @@
           "field": "urn:demo:shop:order:field:note",
           "name": "note",
           "required": false
+        },
+        {
+          "field": "urn:demo:shop:order:field:gift_wrap",
+          "name": "gift_wrap",
+          "required": false
+        },
+        {
+          "field": "urn:demo:shop:order:field:terms_accepted",
+          "name": "terms_accepted",
+          "required": true
         }
       ],
       "urn": "urn:demo:shop:order:entity:line"
@@ -36,6 +46,12 @@
     }
   },
   "fields": {
+    "urn:demo:shop:order:field:gift_wrap": {
+      "brandIdentifier": "OrderGiftWrap",
+      "constraints": {},
+      "primitive": "boolean",
+      "urn": "urn:demo:shop:order:field:gift_wrap"
+    },
     "urn:demo:shop:order:field:note": {
       "brandIdentifier": "OrderNote",
       "constraints": {
@@ -54,6 +70,15 @@
       },
       "primitive": "integer",
       "urn": "urn:demo:shop:order:field:quantity"
+    },
+    "urn:demo:shop:order:field:terms_accepted": {
+      "brandIdentifier": "OrderTermsAccepted",
+      "constraints": {
+        "mustBe": true
+      },
+      "description": "The buyer accepted the terms",
+      "primitive": "boolean",
+      "urn": "urn:demo:shop:order:field:terms_accepted"
     },
     "urn:demo:shop:order:field:total": {
       "brandIdentifier": "OrderTotal",
@@ -76,7 +101,7 @@
   "meta": {
     "domain": "shop",
     "irSchemaVersion": 1,
-    "manifestHash": "32c9d02fb99a016a317bad2a4e907fb72105fed50b3818cf046c16a96fe30d0a",
+    "manifestHash": "8034d64a51f9cb5b6b5dc9e93a5978cd3f895634db511998662df0868addc730",
     "manifestVersion": "0.1.0",
     "namespace": "demo",
     "stability": "stable"
