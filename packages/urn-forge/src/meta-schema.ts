@@ -1,10 +1,9 @@
 /**
  * Compilation pass 1: the manifest meta-schema (spec §4, §7 pass 1; MVP scope per mvp-plan.md).
  *
- * Validates the manifest header, the short-key grammar (`<context>.<kind>.<identifier>`),
- * the three MVP kinds (`field`, `entity`, `operation`), and each field against its
- * primitive's descriptor in the registry (src/primitives/): which constraint keys it
- * accepts and the type of each value.
+ * Validates the manifest header and the short-key grammar (`<context>.<kind>.<identifier>`),
+ * then each entry against its kind's schema from the kind registry (src/kinds/). A field's
+ * schema in turn comes from its primitive's descriptor (src/primitives/).
  *
  * It checks structure only. Expanding short keys to URNs, uniqueness and reference
  * resolution are later passes (src/ir/).
@@ -12,53 +11,26 @@
 import * as v from 'valibot';
 import { LineCounter, parseDocument } from 'yaml';
 import {
-  PRIMITIVES,
-  PRIMITIVE_NAMES,
-  constraintKeys,
-  isPrimitive,
-  type ConstraintValue,
-  type Primitive,
-  type PrimitiveDescriptor,
-} from './primitives/index.js';
-import {
   ManifestLocator,
   type DiagnosticCode,
   type ManifestPath,
   type SourceLocation,
 } from './diagnostics.js';
+import { SEGMENT_PATTERN, SHORT_KEY_PATTERN, Segment } from './grammar.js';
+import { KINDS, KIND_NAMES, NOT_YET_SUPPORTED_KINDS, isKindName, type DeclOf, type KindName } from './kinds/index.js';
+import type { EntityDecl } from './kinds/entity.js';
+import type { FieldDecl } from './kinds/field.js';
+import type { OperationDecl } from './kinds/operation.js';
+import { PRIMITIVE_NAMES, constraintKeys, isPrimitive } from './primitives/index.js';
 
-// ---------------------------------------------------------------------------
-// Grammar
-// ---------------------------------------------------------------------------
-
-/** Every non-kind URN segment: lowercase snake_case, starts with a letter, at most 63 chars (spec §3). */
-export const SEGMENT_PATTERN = /^[a-z][a-z0-9_]{0,62}$/;
-
-/** Kinds the MVP supports. The spec's other kinds are rejected with a "not supported yet" message. */
-export const MVP_KINDS = ['field', 'entity', 'operation'] as const;
-export type MvpKind = (typeof MVP_KINDS)[number];
-
-/** Kinds that exist in spec v1.1 but are cut from the MVP. */
-const DEFERRED_KINDS = ['invariant', 'event', 'error'] as const;
-
-const SHORT_KEY_PATTERN = /^([a-z][a-z0-9_]{0,62})\.([a-z]+)\.([a-z][a-z0-9_]{0,62})$/;
+export { SEGMENT_PATTERN };
+export type { EntityDecl, FieldDecl, OperationDecl };
 
 export interface ShortKey {
   readonly context: string;
-  readonly kind: MvpKind;
+  readonly kind: KindName;
   readonly identifier: string;
 }
-
-const Segment = v.pipe(
-  v.string(),
-  v.regex(SEGMENT_PATTERN, 'must be lowercase snake_case, start with a letter and be at most 63 characters'),
-);
-
-/** A short key naming any MVP atom, used for references (`ref`, `input`, `output`). */
-const ShortKeyRef = v.pipe(
-  v.string(),
-  v.regex(SHORT_KEY_PATTERN, 'must be a short key of the form <context>.<kind>.<identifier> in snake_case'),
-);
 
 // ---------------------------------------------------------------------------
 // Header
@@ -73,57 +45,6 @@ export const HeaderSchema = v.strictObject({
   stability: v.optional(v.picklist(['experimental', 'stable'])),
 });
 export type ManifestHeader = v.InferOutput<typeof HeaderSchema>;
-
-// ---------------------------------------------------------------------------
-// Atoms
-// ---------------------------------------------------------------------------
-
-const Description = v.pipe(v.string(), v.minLength(1, 'must not be empty'));
-
-/** `{ primitive, description?, <each constraint>? }` for one primitive, built from its descriptor. */
-function fieldSchemaFor(descriptor: PrimitiveDescriptor) {
-  return v.strictObject({
-    primitive: v.literal(descriptor.name),
-    description: v.optional(Description),
-    ...Object.fromEntries(Object.entries(descriptor.constraints).map(([key, spec]) => [key, v.optional(spec.schema)])),
-  });
-}
-
-export const FieldSchema = v.variant(
-  'primitive',
-  Object.values(PRIMITIVES).map(fieldSchemaFor) as [ReturnType<typeof fieldSchemaFor>],
-);
-
-/** A field entry: its primitive, an optional description, and the constraints it sets. */
-export interface FieldDecl {
-  readonly primitive: Primitive;
-  readonly description?: string;
-  readonly [constraint: string]: ConstraintValue | undefined;
-}
-
-const FieldRef = v.strictObject({
-  ref: ShortKeyRef,
-  required: v.optional(v.boolean(), true),
-});
-
-export const EntitySchema = v.strictObject({
-  description: Description,
-  fields: v.pipe(v.array(FieldRef), v.minLength(1, 'must list at least one field')),
-});
-export type EntityDecl = v.InferOutput<typeof EntitySchema>;
-
-export const OperationSchema = v.strictObject({
-  description: Description,
-  input: ShortKeyRef,
-  output: ShortKeyRef,
-});
-export type OperationDecl = v.InferOutput<typeof OperationSchema>;
-
-const SCHEMA_BY_KIND = {
-  field: FieldSchema,
-  entity: EntitySchema,
-  operation: OperationSchema,
-} as const;
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -143,13 +64,14 @@ export interface ManifestIssue {
   readonly location?: SourceLocation;
 }
 
-/** A structurally valid manifest, grouped by kind. Keys are still short keys, in declaration order. */
-export interface ValidManifest {
-  readonly header: ManifestHeader;
-  readonly fields: Readonly<Record<string, FieldDecl>>;
-  readonly entities: Readonly<Record<string, EntityDecl>>;
-  readonly operations: Readonly<Record<string, OperationDecl>>;
-}
+/**
+ * A structurally valid manifest, grouped by kind (each group is a kind's `group`). Keys are
+ * still short keys, in declaration order. Its canonical JSON is hashed into the IR, so this
+ * shape is part of every fingerprint.
+ */
+export type ValidManifest = { readonly header: ManifestHeader } & {
+  readonly [K in KindName as (typeof KINDS)[K]['group']]: Readonly<Record<string, DeclOf<K>>>;
+};
 
 export type MetaSchemaResult =
   | { readonly success: true; readonly manifest: ValidManifest }
@@ -179,21 +101,19 @@ export function parseShortKey(
     };
   }
   const [, context, kind, identifier] = match as unknown as [string, string, string, string];
-  if ((DEFERRED_KINDS as readonly string[]).includes(kind)) {
+  if (isKindName(kind)) return { ok: true, value: { context, kind, identifier } };
+  if ((NOT_YET_SUPPORTED_KINDS as readonly string[]).includes(kind)) {
     return {
       ok: false,
       code: 'unsupported-kind',
-      message: `invalid key "${key}": kind "${kind}" is not supported yet (MVP kinds: ${MVP_KINDS.join(', ')})`,
+      message: `invalid key "${key}": kind "${kind}" is not supported yet (MVP kinds: ${KIND_NAMES.join(', ')})`,
     };
   }
-  if (!(MVP_KINDS as readonly string[]).includes(kind)) {
-    return {
-      ok: false,
-      code: 'unknown-kind',
-      message: `invalid key "${key}": unknown kind "${kind}" (MVP kinds: ${MVP_KINDS.join(', ')})`,
-    };
-  }
-  return { ok: true, value: { context, kind: kind as MvpKind, identifier } };
+  return {
+    ok: false,
+    code: 'unknown-kind',
+    message: `invalid key "${key}": unknown kind "${kind}" (MVP kinds: ${KIND_NAMES.join(', ')})`,
+  };
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -257,9 +177,9 @@ export function validateManifest(doc: unknown): MetaSchemaResult {
   }
 
   const issues: ManifestIssue[] = [];
-  const fields: Record<string, FieldDecl> = {};
-  const entities: Record<string, EntityDecl> = {};
-  const operations: Record<string, OperationDecl> = {};
+  const groups: Record<string, Record<string, unknown>> = Object.fromEntries(
+    KIND_NAMES.map((name) => [KINDS[name].group, {}]),
+  );
 
   let header: ManifestHeader | undefined;
   if (!('manifest' in doc)) {
@@ -282,15 +202,12 @@ export function validateManifest(doc: unknown): MetaSchemaResult {
     }
     const { context, kind, identifier } = parsed.value;
     const urn = header && `urn:${header.namespace}:${header.domain}:${context}:${kind}:${identifier}`;
-    const output = collect(key, SCHEMA_BY_KIND[kind], entry, issues, urn);
-    if (output === undefined) continue;
-    if (kind === 'field') fields[key] = output as FieldDecl;
-    else if (kind === 'entity') entities[key] = output as EntityDecl;
-    else operations[key] = output as OperationDecl;
+    const output = collect(key, KINDS[kind].schema, entry, issues, urn);
+    if (output !== undefined) groups[KINDS[kind].group]![key] = output;
   }
 
   if (issues.length > 0 || header === undefined) return { success: false, issues };
-  return { success: true, manifest: { header, fields, entities, operations } };
+  return { success: true, manifest: { header, ...groups } as unknown as ValidManifest };
 }
 
 /**
