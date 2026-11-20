@@ -1,0 +1,41 @@
+# Error schemas from the Valibot plugin on its own: an error with required and optional
+# fields, and one with no fields.
+manifest:
+  namespace: demo
+  domain: warehouse
+  version: 0.1.0
+
+stock.field.sku:       { primitive: string, regex: '[A-Z]{3}-[0-9]{4}' }
+stock.field.requested: { primitive: integer, min: 1 }
+stock.field.available: { primitive: integer, min: 0 }
+stock.field.warehouse: { primitive: string, minLength: 1 }
+
+stock.entity.reservation:
+  description: A request to hold stock
+  fields: [{ ref: stock.field.sku }, { ref: stock.field.requested }]
+stock.entity.reserved:
+  description: The stock that was held
+  fields: [{ ref: stock.field.sku }, { ref: stock.field.requested }]
+
+stock.error.insufficient_stock:
+  description: Fewer units are available than requested
+  category: conflict
+  retryable: true
+  message: Only {available} of {sku} available, {requested} requested
+  fields:
+    - ref: stock.field.sku
+    - ref: stock.field.requested
+    - ref: stock.field.available
+    - ref: stock.field.warehouse
+      required: false
+stock.error.inventory_offline:
+  description: The inventory cannot be read now
+  category: precondition
+  retryable: true
+  message: The inventory is offline; try again later
+
+stock.operation.reserve:
+  description: Hold stock for an order
+  input: stock.entity.reservation
+  output: stock.entity.reserved
+  errors: [stock.error.insufficient_stock, stock.error.inventory_offline]

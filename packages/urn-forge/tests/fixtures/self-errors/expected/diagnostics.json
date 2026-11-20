@@ -5,36 +5,6 @@
       "column": 1,
       "line": 45
     },
-    "message": "urn:urn_forge:toolchain:naming:error:invalid_short_key: the valibot plugin does not handle kind \"error\"",
-    "severity": "error",
-    "urn": "urn:urn_forge:toolchain:naming:error:invalid_short_key"
-  },
-  {
-    "code": "unsupported-construct",
-    "location": {
-      "column": 1,
-      "line": 57
-    },
-    "message": "urn:urn_forge:toolchain:naming:error:unknown_kind: the valibot plugin does not handle kind \"error\"",
-    "severity": "error",
-    "urn": "urn:urn_forge:toolchain:naming:error:unknown_kind"
-  },
-  {
-    "code": "unsupported-construct",
-    "location": {
-      "column": 1,
-      "line": 51
-    },
-    "message": "urn:urn_forge:toolchain:naming:error:unsupported_kind: the valibot plugin does not handle kind \"error\"",
-    "severity": "error",
-    "urn": "urn:urn_forge:toolchain:naming:error:unsupported_kind"
-  },
-  {
-    "code": "unsupported-construct",
-    "location": {
-      "column": 1,
-      "line": 45
-    },
     "message": "urn:urn_forge:toolchain:naming:error:invalid_short_key: the fcis plugin does not handle kind \"error\"",
     "severity": "error",
     "urn": "urn:urn_forge:toolchain:naming:error:invalid_short_key"

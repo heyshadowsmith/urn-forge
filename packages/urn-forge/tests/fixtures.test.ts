@@ -7,15 +7,20 @@
  *     every generated file, byte for byte, header and fingerprint included.
  *   - A manifest that does not: `expected/diagnostics.json`, and nothing else.
  *
+ * A fixture may also hold an `urn-forge.config.ts`; its `plugins` list (loaded with the real
+ * config loader) then replaces the default plugins, e.g. to test one plugin on its own.
+ *
  * To add a fixture, add its manifest and run `npx vitest run tests/fixtures.test.ts -u` to
  * write `expected/`, then run it again without `-u` (the first run cannot yet see the files
  * it writes). Review the files: any later change to them is a change to urn-forge's output.
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { compile } from '../src/engine.js';
+import { loadConfig, pluginEntries } from '../src/config.js';
+import { compile, type PluginEntry } from '../src/engine.js';
+import { DEFAULT_PLUGINS } from '../src/plugins/index.js';
 import { canonicalJson } from '../src/ir/canonical.js';
 
 const FIXTURES = fileURLToPath(new URL('./fixtures', import.meta.url));
@@ -23,6 +28,19 @@ const fixtures = readdirSync(FIXTURES, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort();
+
+/** The plugins a fixture compiles with: its config's `plugins`, else the defaults. */
+async function fixturePlugins(name: string): Promise<readonly PluginEntry[]> {
+  const path = join(FIXTURES, name, 'urn-forge.config.ts');
+  if (!existsSync(path)) return DEFAULT_PLUGINS;
+  const loaded = await loadConfig(path, path);
+  if (!loaded.ok) throw new Error(loaded.diagnostics.map((d) => d.message).join('\n'));
+  if (!loaded.config.plugins) return DEFAULT_PLUGINS;
+  const entries = pluginEntries(loaded.config.plugins, path);
+  if (!entries.ok) throw new Error(entries.diagnostics.map((d) => d.message).join('\n'));
+  return entries.entries;
+}
+const plugins = Object.fromEntries(await Promise.all(fixtures.map(async (name) => [name, await fixturePlugins(name)] as const)));
 
 /** Pretty-printed canonical JSON: sorted keys, readable diffs. */
 const pretty = (value: unknown) => `${JSON.stringify(JSON.parse(canonicalJson(value)), null, 2)}\n`;
@@ -37,7 +55,7 @@ const expectedFiles = (name: string): string[] => {
 
 describe.each(fixtures)('fixture %s', (name) => {
   const expected = (file: string) => join(FIXTURES, name, 'expected', file);
-  const result = compile(readFileSync(join(FIXTURES, name, 'domain.manifest.yaml'), 'utf8'));
+  const result = compile(readFileSync(join(FIXTURES, name, 'domain.manifest.yaml'), 'utf8'), plugins[name]);
   const errors = result.diagnostics.some((d) => d.severity === 'error');
 
   if (errors) {

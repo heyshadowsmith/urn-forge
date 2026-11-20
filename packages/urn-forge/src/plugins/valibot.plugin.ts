@@ -10,7 +10,7 @@
  * group declarations follow URN order.
  */
 import * as v from 'valibot';
-import type { IREntity, IRField, UniversalIR, Urn } from '../ir/types.js';
+import type { IREntity, IRError, IRField, IRFieldRef, UniversalIR, Urn } from '../ir/types.js';
 import { schemaNames } from '../naming.js';
 import {
   constraintKeys,
@@ -99,20 +99,40 @@ function fieldDeclaration(field: IRField): string {
   ].join('\n');
 }
 
-function entityDeclaration(entity: IREntity, fields: Readonly<Record<Urn, IRField>>): string {
-  const names = schemaNames(entity.brandIdentifier);
-  const properties = entity.fields.map((ref) => {
+/** One `  name: <FieldSchema>,` line per field reference; `required: false` wraps it in `v.optional`. */
+function propertyLines(owner: Urn, refs: readonly IRFieldRef[], fields: Readonly<Record<Urn, IRField>>): string[] {
+  return refs.map((ref) => {
     const field = fields[ref.field];
-    if (!field) throw new Error(`IR is not resolved: ${entity.urn} references missing ${ref.field}`);
+    if (!field) throw new Error(`IR is not resolved: ${owner} references missing ${ref.field}`);
     const schema = schemaNames(field.brandIdentifier).schema;
     return `  ${ref.name}: ${ref.required ? schema : `v.optional(${schema})`},`;
   });
+}
+
+function entityDeclaration(entity: IREntity, fields: Readonly<Record<Urn, IRField>>): string {
+  const names = schemaNames(entity.brandIdentifier);
   return [
     `/** ${entity.urn} — ${entity.description} */`,
     `export const ${names.schema} = v.object({`,
-    ...properties,
+    ...propertyLines(entity.urn, entity.fields, fields),
     `});`,
     ...typeExports(entity.brandIdentifier),
+  ].join('\n');
+}
+
+/**
+ * An error payload (spec §7.1): its fields, plus `kind`, a literal of the error URN, so
+ * callers can switch on it exhaustively. The error kind reserves `kind` as a property name.
+ */
+function errorDeclaration(error: IRError, fields: Readonly<Record<Urn, IRField>>): string {
+  const names = schemaNames(error.brandIdentifier);
+  return [
+    `/** ${error.urn} — ${error.description} */`,
+    `export const ${names.schema} = v.object({`,
+    `  kind: v.literal(${JSON.stringify(error.urn)}),`,
+    ...propertyLines(error.urn, error.fields, fields),
+    `});`,
+    ...typeExports(error.brandIdentifier),
   ].join('\n');
 }
 
@@ -128,7 +148,7 @@ function typeExports(brandIdentifier: string): string[] {
 function exportCollisions(ir: UniversalIR): PluginDiagnostic[] {
   const owners = new Map<string, Urn>();
   const diagnostics: PluginDiagnostic[] = [];
-  for (const atom of [...valuesInUrnOrder(ir.fields), ...valuesInUrnOrder(ir.entities)]) {
+  for (const atom of [...valuesInUrnOrder(ir.fields), ...valuesInUrnOrder(ir.entities), ...valuesInUrnOrder(ir.errors)]) {
     for (const name of Object.values(schemaNames(atom.brandIdentifier))) {
       const owner = owners.get(name);
       if (owner) {
@@ -151,7 +171,7 @@ export const valibotPlugin: CodegenPlugin<ValibotPluginConfig> = {
   version: '0.1.0',
   configSchema: ConfigSchema,
   // Operations need no schema of their own: their input and output are entities.
-  supports: { kinds: ['field', 'entity', 'operation'], constraints: SUPPORTED_CONSTRAINTS },
+  supports: { kinds: ['field', 'entity', 'operation', 'error'], constraints: SUPPORTED_CONSTRAINTS },
   emit(ir) {
     const diagnostics = exportCollisions(ir);
     const sections = [
@@ -160,6 +180,9 @@ export const valibotPlugin: CodegenPlugin<ValibotPluginConfig> = {
       ...valuesInUrnOrder(ir.fields).map(fieldDeclaration),
       `// Entities`,
       ...valuesInUrnOrder(ir.entities).map((entity) => entityDeclaration(entity, ir.fields)),
+      ...(Object.keys(ir.errors).length > 0
+        ? [`// Errors`, ...valuesInUrnOrder(ir.errors).map((error) => errorDeclaration(error, ir.fields))]
+        : []),
     ];
     if (diagnostics.length > 0) return { artifacts: [], diagnostics };
     return {

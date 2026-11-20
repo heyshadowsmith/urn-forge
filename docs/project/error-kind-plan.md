@@ -102,14 +102,17 @@ The work is driven by urn-forge's own domain, the way the math fixture drove the
   - No plugin declares `error` support yet, so a manifest that uses errors fails with `unsupported-construct`. That is the support check doing its job.
   - Also done here: the shared field-reference code (`src/kinds/field-refs.ts`); `errors` on an operation reports a repeated error as `duplicate-ref`; a placeholder is `{…}` with no whitespace inside, so prose braces stay text but `{Quantity}` is still checked; `manifestHash` leaves out empty kind groups, so adding a kind to urn-forge does not change the hash of a manifest that does not use it. `self/`'s `naming.field.kind` gained `error`, as its registry test required.
   - *Check:* the `self-errors` fixture's expected diagnostics change to `unsupported-construct`, from both plugins, for each of its three errors; `invalid-structure` and `broken-references` gain the new problems (`recordAs`, a bad category, a placeholder typo, an `errors` entry that names an entity).
-- [ ] **2. Valibot.**
-  - One `v.object` per error, with `kind: v.literal('<error URN>')` and the error's fields, exporting `<Brand>Schema`, `<Brand>` and `<Brand>Input`.
+- [x] **2. Valibot.**
+  - One `v.object` per error, with `kind: v.literal('<error URN>')` and the error's fields, exporting `<Brand>Schema`, `<Brand>` and `<Brand>Input`. A manifest without errors gets no `// Errors` section, so existing generated files are byte-identical.
   - The plugin declares `error` support.
-  - *Check:* the `self-errors` fixture's diagnostics narrow to the FCIS plugin only. The `shop` fixture gains an error with fields, and its generated error schema parses a valid error and rejects a wrong `kind`.
+  - Because the payload's `kind` holds the URN, an error field whose identifier is `kind` is now a compile error, `reserved-property`.
+  - *Changed from the plan:* the `shop` fixture cannot gain an error yet, because FCIS would refuse it and the fixture's generated code (which tests import) would disappear. Instead, a fixture may now hold an `urn-forge.config.ts` choosing its plugins (the harness and the determinism test load it), and a new `errors-valibot` fixture runs the Valibot plugin alone. `shop` gains its error in step 3.
+  - *Check:* the `self-errors` fixture's diagnostics narrow to the FCIS plugin only. The `errors-valibot` fixture's error schemas parse a valid error (with and without its optional field, and an error with no fields) and reject a wrong `kind`, a missing field and a field that breaks its constraint; `tsc` types `kind` as the literal URN.
 - [ ] **3. FCIS.**
   - Generate `Result`, `ok`, `fail`, the handler types (`Result<OutputInput, ErrorInput | …>`) and `DispatchMap.errors` (schema, `category`, `retryable` and the message template for each error).
   - `executeOperation` adds `DomainError` and the two new `ContractViolation` causes.
   - Migrate `example/core.ts` and `self/core.ts` to `ok(…)`, and declare `error` support.
+  - The `shop` fixture gains an error with fields (moved here from step 2).
   - The `self-errors` fixture now compiles. Its manifest slice moves into `self/domain.manifest.yaml`, and its handler moves from `self/pending/core.ts` into `self/core.ts`, so gate 1 checks it. The fixture directory is removed.
   - *Check:* `tsc` names every handler before the migration and none after; all existing scenarios still pass; the successful `parse_short_key` scenario passes; runtime tests for each outcome.
 - [ ] **4. Steps.**

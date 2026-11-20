@@ -43,3 +43,10 @@ order.operation.reprice:
   input: order.entity.line
   output: order.entity.line
   errors: [order.error.limit_exceeded, order.entity.line, order.error.limit_exceeded]
+order.field.kind:       { primitive: string }
+order.error.wrong_kind:
+  description: An error with a field named kind
+  category: validation
+  retryable: false
+  message: Wrong
+  fields: [{ ref: order.field.kind }]

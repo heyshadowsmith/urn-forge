@@ -62,6 +62,7 @@ With `--format json`, each diagnostic is one JSON object on one line. Refer to [
 | `duplicate-brand` | `<urn>: brandIdentifier "<Brand>" is already used by <urn>; rename one of them` | Two atoms make the same PascalCase name. This is an error also if the atoms are of different kinds | Change one context or one identifier |
 | `duplicate-property` | `<urn>: fields[<i>].ref <urn> and <urn> both become property "<name>"` | One entity contains two fields with the same identifier | Change the identifier of one field |
 | `duplicate-ref` | `<urn>: fields[<i>].ref lists <urn> more than once` | One entity refers to the same field two times | Remove the second reference |
+| `reserved-property` | `<urn>: fields[<i>].ref <urn> becomes property "kind", which an error reserves for its URN; rename the field` | An error has a field with the identifier `kind`. Each error payload has a `kind` property that contains the URN of the error | Change the identifier of the field, for example to `item_kind` |
 
 ## References (pass 4)
 

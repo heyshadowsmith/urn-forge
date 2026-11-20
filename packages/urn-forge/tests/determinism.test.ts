@@ -32,7 +32,16 @@ describe('determinism under another locale and time zone', () => {
   it.each(passing)('compiles fixture %s to its expected bytes', (name) => {
     const run = spawnSync(
       process.execPath,
-      [root('bin/urn-forge.js'), 'compile', '--manifest', join(FIXTURES, name, 'domain.manifest.yaml'), '--out', join(out, name)],
+      [
+        root('bin/urn-forge.js'),
+        'compile',
+        // A fixture's own config chooses its plugins; the flags below override its paths.
+        ...(existsSync(join(FIXTURES, name, 'urn-forge.config.ts')) ? ['--config', join(FIXTURES, name, 'urn-forge.config.ts')] : []),
+        '--manifest',
+        join(FIXTURES, name, 'domain.manifest.yaml'),
+        '--out',
+        join(out, name),
+      ],
       { env: ENV, encoding: 'utf8' },
     );
     expect(run.stderr).toBe('');
