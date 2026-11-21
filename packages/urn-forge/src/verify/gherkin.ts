@@ -36,7 +36,7 @@
  * operation carries `@urn-forge:strict`; then they are errors.
  */
 
-import { emitsUrn, failsWithUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
+import { emitsUrn, failsWithUrn, recordedAsUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
 import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
 import { valueField, type UniversalIR, type Urn } from '../ir/types.js';
 import { invariantsWithin, keyName } from './shapes.js';
@@ -75,6 +75,8 @@ interface Owner {
   readonly errors?: readonly Urn[];
   /** For an operation: its events. */
   readonly emits?: readonly Urn[];
+  /** For an operation: the events that its declared errors record as (recordAs). */
+  readonly records?: readonly Urn[];
   /** For an operation: the invariants of its input entity. */
   readonly invariants?: readonly Urn[];
 }
@@ -94,6 +96,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const expectedErrors = new Set<string>();
   /** `<operation URN> <event URN>` for each event some scenario expects. */
   const expectedEvents = new Set<string>();
+  /** `<operation URN> <event URN>` for each record of a refusal some scenario expects. */
+  const expectedRecords = new Set<string>();
   /** `<operation URN> <invariant URN>` for each input invariant some scenario breaks. */
   const brokenInvariants = new Set<string>();
 
@@ -167,7 +171,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
           report(code, step.location, message, urn);
         };
         const headerOwners = new Map<string, Owner | undefined>();
-        let kind: 'invariant' | 'error' | 'event' | undefined;
+        let kind: 'invariant' | 'error' | 'event' | 'record' | undefined;
         for (const text of texts) {
           // `the input is rejected by "<invariant URN>"`: an invariant of the operation's input.
           const invariantUrn = rejectedByUrn(text);
@@ -197,6 +201,22 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
                 );
             }
             headerOwners.set(errorUrn, errorOwner(ir, owner, errorUrn));
+            continue;
+          }
+          // `the refusal is recorded as "<urn>"`: the recordAs event of a declared error of the operation.
+          const recordUrn = recordedAsUrn(text);
+          if (recordUrn !== undefined) {
+            kind = 'record';
+            if (owner?.records) {
+              if (owner.records.includes(recordUrn as Urn)) expectedRecords.add(`${owner.urn} ${recordUrn}`);
+              else
+                reportOnce(
+                  'undeclared-record',
+                  `"${recordUrn}" records no declared error of ${owner.urn} (records: ${owner.records.length > 0 ? owner.records.join(', ') : 'none'})`,
+                  owner.urn,
+                );
+            }
+            headerOwners.set(recordUrn, owner?.records?.includes(recordUrn as Urn) ? eventFields(ir, recordUrn) : undefined);
             continue;
           }
           // `the operation emits "<urn>"`, with or without a table of that event's fields.
@@ -273,6 +293,22 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         file: features.directory,
         urn: eventUrn,
         message: `event ${eventUrn} of ${operation.urn} has no scenario that expects it; add one with Then the operation emits "${eventUrn}"`,
+      });
+    }
+  }
+
+  // Record coverage: each event that a declared error of a tagged operation records as needs a scenario that expects it.
+  let declaredRecords = 0;
+  for (const operation of Object.values(ir.operations)) {
+    for (const recordUrn of operationOwner(ir, operation.urn).records ?? []) {
+      declaredRecords += 1;
+      if (!covered.has(operation.urn) || expectedRecords.has(`${operation.urn} ${recordUrn}`)) continue;
+      problems.push({
+        code: 'uncovered-record',
+        severity: coverageSeverity(operation.urn),
+        file: features.directory,
+        urn: recordUrn,
+        message: `the record ${recordUrn} of a refusal of ${operation.urn} has no scenario that expects it; add one with Then the refusal is recorded as "${recordUrn}"`,
       });
     }
   }
@@ -396,6 +432,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const errorSummary =
     (declaredErrors > 0 ? `, ${expectedErrors.size}/${declaredErrors} errors expected` : '') +
     (declaredEvents > 0 ? `, ${expectedEvents.size}/${declaredEvents} events expected` : '') +
+    (declaredRecords > 0 ? `, ${expectedRecords.size}/${declaredRecords} records expected` : '') +
     (inputInvariants > 0 ? `, ${brokenInvariants.size}/${inputInvariants} invariants broken` : '');
   const featureCount = features.features.length;
 
@@ -434,6 +471,7 @@ function operationOwner(ir: UniversalIR, urn: Urn): Owner {
     requiredInput: ir.entities[op.input]?.fields.filter((f) => f.required).map((f) => f.name) ?? [],
     errors: op.errors,
     emits: op.emits,
+    records: [...new Set(op.errors.flatMap((e) => (ir.errors[e]?.recordAs ? [ir.errors[e]!.recordAs!] : [])))],
     invariants: invariantsWithin(ir, op.input).map((i) => i.urn),
   };
 }
@@ -504,6 +542,11 @@ function withStepTables(ir: UniversalIR, owner: Owner | undefined, steps: readon
     description: `${owner.description}, or of ${extra.map((e) => `the ${e.kind} ${e.urn}`).join(', ')}`,
     keys: new Set([...owner.keys, ...extra.flatMap((e) => (e.kind === 'error' ? ir.errors[e.urn as Urn]! : ir.events[e.urn as Urn]!).fields.map((f) => f.name))]),
   };
+}
+
+/** The fields of an event, for the table of a step that names it. */
+function eventFields(ir: UniversalIR, eventUrn: string): Owner {
+  return { urn: eventUrn, description: `the event ${eventUrn}`, keys: new Set(ir.events[eventUrn as Urn]!.fields.map((f) => f.name)) };
 }
 
 function entityOwner(ir: UniversalIR, urn: Urn): Owner {

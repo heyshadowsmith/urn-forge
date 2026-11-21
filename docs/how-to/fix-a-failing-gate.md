@@ -403,7 +403,7 @@ Do one of these:
 A scenario expects an event that its operation does not list under `emits`:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features/cancel_policy.feature:12:5  error  undeclared-event  "urn:acme:insurance:policy:event:policy_issued" is not an event of urn:acme:insurance:policy:operation:cancel_policy (emits: urn:acme:insurance:policy:event:policy_cancelled)
     insurance/features  error  uncovered-event  event urn:acme:insurance:policy:event:policy_cancelled of urn:acme:insurance:policy:operation:cancel_policy has no scenario that expects it; add one with Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"
 ```
@@ -418,7 +418,7 @@ Do one of these:
 A scenario expects an invariant that is not on the input entity of its operation:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 4/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features/issue_policy.feature:82:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_at_most_a_year, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
 ```
@@ -433,7 +433,7 @@ Do one of these:
 Gate 3 reads each list cell and each object cell of the input tables. If a cell is malformed, or it names a property that its entity does not have, gate 3 reports `invalid-cell`. Here a note holds a comma without quotes:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features/issue_policy.feature:7:145  error  invalid-cell  coverages: expected ":" after "see" (at column 91 of the cell): [{ peril: flood, limit: 500 }, { peril: theft, limit: 250.5, note: Basement excluded, see {clause 4} }]
 ```
 
@@ -492,7 +492,7 @@ gate 3  gherkin       FAIL  1 feature(s), 5 scenario(s), 1/1 operations tagged, 
 A value inside an embedded entity has no example at a boundary. The message gives the path of the value after `at`. A list of entities also needs its item counts and a list with a repeated key:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-boundary  urn:acme:insurance:policy:field:peril at coverages.peril in the input of urn:acme:insurance:policy:operation:issue_policy has no value outside values
     insurance/features  error  uncovered-boundary  urn:acme:insurance:policy:field:limit at coverages.limit in the input of urn:acme:insurance:policy:operation:issue_policy has no value with 3 digits after the point (above scale)
 ```
@@ -511,14 +511,14 @@ gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, 
 An event of an operation has no scenario that expects it. The insurance features are strict, so it is an error:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-event  event urn:acme:insurance:policy:event:policy_cancelled of urn:acme:insurance:policy:operation:cancel_policy has no scenario that expects it; add one with Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"
 ```
 
 An invariant of the input entity has no scenario that breaks it. The insurance features are strict, so it is an error:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 14 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 14 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 4/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
 ```
 

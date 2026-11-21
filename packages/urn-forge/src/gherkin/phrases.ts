@@ -16,6 +16,10 @@ export const STEP_PHRASES = {
   /** The same, followed by a table of the event's fields. */
   emitsWithFields: 'the operation emits {string}:',
   emitsNone: 'the operation emits no event',
+  /** The operation refused, and the error records this event for an audit trail (recordAs; blind trial 2). */
+  recordedAs: 'the refusal is recorded as {string}',
+  /** The same, followed by a table of the event's fields. */
+  recordedAsWithFields: 'the refusal is recorded as {string}:',
 } as const;
 
 /**
@@ -39,6 +43,15 @@ export const EMITS_TEXT = /^the operation emits (?:"([^"]*)"|'([^']*)')(:?)$/;
 /** The event URN of an `emits` step text, or `undefined` for any other step. */
 export function emitsUrn(text: string): string | undefined {
   const match = EMITS_TEXT.exec(text);
+  return match ? (match[1] ?? match[2]) : undefined;
+}
+
+/** Matches the text of either `recorded as` step, in double or single quotes: group 1 or group 2 is the event URN. */
+export const RECORDED_AS_TEXT = /^the refusal is recorded as (?:"([^"]*)"|'([^']*)')(:?)$/;
+
+/** The event URN of a `recorded as` step text, or `undefined` for any other step. */
+export function recordedAsUrn(text: string): string | undefined {
+  const match = RECORDED_AS_TEXT.exec(text);
   return match ? (match[1] ?? match[2]) : undefined;
 }
 

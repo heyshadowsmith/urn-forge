@@ -85,7 +85,7 @@ The core is a function of its input. It cannot read a database, a clock or the s
 2. Put the fields in the input entity, or embed an entity that holds them.
 3. In the shell, read the values, add them to the payload, and call `executeOperation`.
 
-The values then pass their schemas, as the other input does, and a scenario can send them in a column. The same is true for the date of today: the shell sends it as a `date` field, and the core never reads the clock. Thus each scenario gives the same result on each day.
+The values then pass their schemas, as the other input does, and a scenario can send them in a column. Their boundaries also need scenarios, so give each such field the limits that the shell can really send, for example `min: 0` for a number of seats that are left. The same is true for the date of today: the shell sends it as a `date` field, and the core never reads the clock. Thus each scenario gives the same result on each day.
 
 ## Categories and `retryable` belong to the shell
 

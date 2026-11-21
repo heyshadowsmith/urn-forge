@@ -87,7 +87,7 @@ fingerprint sha256:04b8be134285c63b71d20830b972a6ce13674939834448d2ee98a85c4d3f6
 
 The `deprecated-ref` warning is about the field `note`, which the insurance domain retires. It does not stop `compile`. Refer to [Retire a URN](retire-a-urn).
 
-The schema of the entity now checks each of its invariants. If a rule does not hold, the issue points at the first field that the rule names. For `term_is_positive`, that field is `expiry_date`. The issue also carries the URN of the invariant in `invariantUrn`. For an invariant of an embedded entity, the path of the issue goes into the object, for example `coverages.0.limit`. Refer to [The generated schemas](../reference/generated-schemas).
+The schema of the entity now checks each of its invariants. If a rule does not hold, the issue points at the first field that the rule names. For `term_is_positive`, that field is `expiry_date`. Thus write first the field that the caller must correct. For example, `deposit is present or party <= 6` puts the issue on `deposit`, and `party <= 6 or deposit is present` puts it on `party`. Both rules hold for the same values. The issue also carries the URN of the invariant in `invariantUrn`. For an invariant of an embedded entity, the path of the issue goes into the object, for example `coverages.0.limit`. Refer to [The generated schemas](../reference/generated-schemas).
 
 The insurance domain also enables the `postgres` plugin. It writes each invariant as a `CHECK` constraint with the identifier of the invariant as its name, for example `term_is_positive`. Refer to [Store entities in Postgres](store-in-postgres).
 
@@ -194,13 +194,13 @@ npx urn-forge verify --config insurance/urn-forge.config.ts
 The gate 3 summary counts the invariants that a scenario breaks:
 
 ```
-gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 ```
 
 Each invariant on the input entity of a tagged operation needs a scenario that breaks it. An invariant of an entity that the input embeds counts as an invariant of the input. If no scenario breaks one, gate 3 reports `uncovered-invariant`. The insurance features are strict, so it is an error. Here the scenario of lines 72 to 76 is not there:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 14 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 14 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 4/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:limit_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:limit_is_positive"
 ```
 
@@ -246,7 +246,7 @@ To fix it, correct the handler. Do not remove the invariant to make the scenario
 insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
 gate 1  completeness  PASS  tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
-gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 gate 4  drift         PASS  3 generated file(s) compared byte for byte against insurance/generated
 verify passed with 1 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```

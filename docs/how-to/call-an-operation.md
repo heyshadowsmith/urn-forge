@@ -200,6 +200,8 @@ gate 2  boundary      FAIL  1 core file(s), 2 shell file(s): 1 problem(s)
 
 In the shell, gate 2 refuses a type assertion to a branded type, an `any` where a branded type belongs, and a comment that turns off a type check. For each code, refer to [Fix a gate that fails](fix-a-failing-gate).
 
+Gate 2 examines the brands in the shell, but gate 1 type-checks only the core and the files that it imports. A type error in the shell does not make `verify` fail. Run `tsc` over the whole project too, for example `npx tsc --noEmit -p .` in CI.
+
 ## Result
 
 Send a request for each case. The commands run from a second terminal.

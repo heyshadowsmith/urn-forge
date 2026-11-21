@@ -148,7 +148,7 @@ Error: urn:acme:insurance:policy:event:policy_cancelled fields differ: cancellat
 Gate 3 counts the events that a scenario expects. Each event of a tagged operation needs a scenario that expects it. If no scenario expects one, gate 3 reports `uncovered-event`. The insurance features are strict, so it is an error. Here lines 12 to 14 of `cancel_policy.feature` are not there:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-event  event urn:acme:insurance:policy:event:policy_cancelled of urn:acme:insurance:policy:operation:cancel_policy has no scenario that expects it; add one with Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"
 ```
 
@@ -157,7 +157,7 @@ In a feature that is not strict, it is a warning. Refer to [Adopt strict coverag
 If a step names an event that the operation does not list, gate 3 reports `undeclared-event`. Here line 12 names `policy_issued`:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features/cancel_policy.feature:12:5  error  undeclared-event  "urn:acme:insurance:policy:event:policy_issued" is not an event of urn:acme:insurance:policy:operation:cancel_policy (emits: urn:acme:insurance:policy:event:policy_cancelled)
     insurance/features  error  uncovered-event  event urn:acme:insurance:policy:event:policy_cancelled of urn:acme:insurance:policy:operation:cancel_policy has no scenario that expects it; add one with Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"
 ```
@@ -218,6 +218,20 @@ When the handler returns the error, the `DomainError` result has `record`. A can
 
 The `record` is not in `events`. The scenario of line 51 expects no event after the error, and it passes.
 
+To test the record, add `the refusal is recorded as "<event URN>"` after the step that expects the error. With a colon and a table, the step also compares the fields of the record:
+
+```gherkin
+    Then the operation fails with "urn:acme:insurance:policy:error:refund_below_minimum":
+      | refund |
+      | 0.00   |
+    And the operation emits no event
+    And the refusal is recorded as "urn:acme:insurance:policy:event:refund_refused":
+      | refund |
+      | 0.00   |
+```
+
+Gate 3 counts the records that a scenario expects, as `1/1 records expected` in its summary. A record that no scenario expects is `uncovered-record`: a warning, or an error in strict coverage. A step that names an event that no declared error of the operation records as is `undeclared-record`.
+
 ## 10. Check compatibility
 
 A consumer of the events handles each event that it knows. Thus `urn-forge diff` treats a new event in `emits` as a breaking change. Here the old manifest has no `emits` on `cancel_policy`:
@@ -247,7 +261,7 @@ The fields of an event have the Out use, as the fields of an output do. Refer to
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
-gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 gate 4  drift         PASS  3 generated file(s) compared byte for byte against insurance/generated
 ```
 

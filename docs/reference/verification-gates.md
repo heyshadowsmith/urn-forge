@@ -253,9 +253,11 @@ The gate does these checks. The table gives them in the sequence of the output.
 | Input invariants | The invariant URN in `the input is rejected by "<invariant URN>"` is an invariant of the input entity of the operation of the scenario, or of an entity that the input embeds, at any depth. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-invariant` | `error` |
 | Declared errors | The error URN in `the operation fails with "<error URN>"` is a declared error of the operation of the scenario. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-error` | `error` |
 | Events | The event URN in `the operation emits "<event URN>"` is in the `emits` of the operation of the scenario. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-event` | `error` |
+| Records | The event URN in `the refusal is recorded as "<event URN>"` is the `recordAs` of a declared error of the operation of the scenario. Each header of its table is a field of that event | `undeclared-record`, `unknown-header` | `error` |
 | Tagged operations | Each operation of the manifest has its URN in one or more tags, in any feature file | `untagged-operation` | `error` |
 | Error coverage | Each declared error of each tagged operation has one or more scenarios of that operation with `the operation fails with "<error URN>"`. An untagged operation already has `untagged-operation`, so the gate does not examine its errors | `uncovered-error` | Coverage mode |
 | Event coverage | Each event in the `emits` of each tagged operation has one or more scenarios of that operation with `the operation emits "<event URN>"`, with or without a table. `the operation emits no event` does not count | `uncovered-event` | Coverage mode |
+| Record coverage | Each event that a declared error of each tagged operation has as `recordAs` has one or more scenarios of that operation with `the refusal is recorded as "<event URN>"`, with or without a table | `uncovered-record` | Coverage mode |
 | Invariant coverage | Each invariant of the input entity of each tagged operation has one or more scenarios of that operation with `the input is rejected by "<invariant URN>"`. The invariants of the entities that the input embeds, at any depth, are input invariants too. An invariant of an output entity only needs no scenario | `uncovered-invariant` | Coverage mode |
 | Waiver form | Each comment that starts with `# urn-forge:waive` has a field URN and a reason | `invalid-waiver` | `error` |
 | Cells | Each list or object cell in the table of `I run the operation with:` has the correct syntax. Each name in an object cell is a property of its entity | `invalid-cell` | `error` |
@@ -276,13 +278,13 @@ The gate finds the step texts as written in the feature file, without the keywor
 | `unknown-header` | The feature file | The header cell |
 | `invalid-cell` | The feature file | The header cell of the column in the table of `I run the operation with:` |
 | `missing-column` | The feature file | The table |
-| `undeclared-error`, `undeclared-event`, `undeclared-invariant` | The feature file | The step |
-| `untagged-operation`, `uncovered-error`, `uncovered-event`, `uncovered-invariant`, `uncovered-boundary`, `ratchet-ready` | The `--features` directory | None |
+| `undeclared-error`, `undeclared-event`, `undeclared-record`, `undeclared-invariant` | The feature file | The step |
+| `untagged-operation`, `uncovered-error`, `uncovered-event`, `uncovered-record`, `uncovered-invariant`, `uncovered-boundary`, `ratchet-ready` | The `--features` directory | None |
 | `invalid-waiver`, `unknown-waiver`, `waived-boundary`, `unused-waiver` | The feature file | The comment |
 
 ### The coverage mode
 
-The severity of `uncovered-error`, `uncovered-event`, `uncovered-invariant` and `uncovered-boundary` depends on the coverage mode of the operation:
+The severity of `uncovered-error`, `uncovered-event`, `uncovered-record`, `uncovered-invariant` and `uncovered-boundary` depends on the coverage mode of the operation:
 
 | Condition | Severity |
 | --- | --- |
@@ -297,6 +299,7 @@ A feature is strict only if `@urn-forge:strict` is a tag of the `Feature` line. 
 Boundary coverage reads the values of each input field from these places:
 
 - The tables of the step `I run the operation with:`, in scenarios with exactly one operation tag. A scenario with two or more operation tags sends no values.
+- In a Scenario Outline, each `<placeholder>` in a step text also gets the value of its column in each row, before the gate reads the URN of the step. Thus `the input is rejected by "<invariant>"` counts the invariant of each row, and the gate reports a URN that is not correct one time for the step. An `Examples` column that fills a placeholder in a step text is not a field, and the `Headers` check accepts it.
 - In a Scenario Outline, each `<placeholder>` in a cell gets the value of its column in each row of each `Examples` block. This is the same as the substitution of Cucumber. The tags of the `Examples` block are added to find the operation.
 
 The gate converts each cell with the primitive of the field, in the same way as the steps. An empty cell is not a value. The text `""` is the empty string for a `string` or an `enum` field. For a field reference with `many`, the cell is a list, for example `[1, 2, 3]`. For an embedded entity, the cell is an object, for example `{ peril: fire, limit: 1000.00 }`. A link is a plain cell with the value of the key. A column that is not an input property is not read. Refer to [Gherkin steps](./gherkin-steps).
@@ -450,7 +453,7 @@ A comment that starts with `# urn-forge:waive` but does not have this form gets 
 The summary of gate 3 has this form. The parts in brackets occur only in some conditions:
 
 ```
-<F> feature(s), <S> scenario(s), <T>/<O> operations tagged[, <E>/<D> errors expected][, <V>/<M> events expected][, <B>/<N> invariants broken], strict: <K>/<F> features[ (boundaryCoverage: error)][, <W> waiver(s)]
+<F> feature(s), <S> scenario(s), <T>/<O> operations tagged[, <E>/<D> errors expected][, <V>/<M> events expected][, <R>/<Q> records expected][, <B>/<N> invariants broken], strict: <K>/<F> features[ (boundaryCoverage: error)][, <W> waiver(s)]
 ```
 
 | Field | Description | Condition |
@@ -460,6 +463,7 @@ The summary of gate 3 has this form. The parts in brackets occur only in some co
 | `<T>/<O>` | The operations with a tag, and all the operations of the manifest | Always |
 | `<E>/<D>` | The pairs of operation and declared error that a scenario expects, and all such pairs | Only if one or more operations declare errors |
 | `<V>/<M>` | The pairs of operation and event that a scenario expects, and all such pairs | Only if one or more operations emit events |
+| `<R>/<Q>` | The pairs of operation and record (the `recordAs` of one of its declared errors) that a scenario expects, and all such pairs | Only if one or more declared errors of an operation have `recordAs` |
 | `<B>/<N>` | The pairs of operation and input invariant that a scenario breaks, and all such pairs | Only if the input entity of one or more operations has invariants |
 | `<K>/<F>` | The strict features, and all the features | Always |
 | `(boundaryCoverage: error)` | The coverage mode of the configuration | Only if `boundaryCoverage` is `error` |
@@ -471,13 +475,13 @@ Examples from real runs:
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
 gate 3  gherkin       PASS  3 feature(s), 17 scenario(s), 3/3 operations tagged, 2/2 errors expected, strict: 3/3 features (boundaryCoverage: error)
 gate 3  gherkin       FAIL  2 feature(s), 4 scenario(s), 1/1 operations tagged, 0/1 errors expected, strict: 1/2 features, 1 waiver(s)
-gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 ```
 
 The last example is the insurance domain (`npm run verify:insurance`). Its 5 input invariants include `limit_is_positive`, the invariant of the embedded entity `coverage`. For the next run, the step that breaks `term_is_positive` named an invariant of a different entity:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 4/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features/issue_policy.feature:82:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_at_most_a_year, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
 ```
@@ -485,14 +489,14 @@ gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged,
 For the next run, the scenario of `cancel_policy` that expects `policy_cancelled` lost its `emits` step:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-event  event urn:acme:insurance:policy:event:policy_cancelled of urn:acme:insurance:policy:operation:cancel_policy has no scenario that expects it; add one with Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"
 ```
 
 For the next run, the first scenario of `issue_policy` got two more steps. One expects an event of a different operation. The other has a table header that is not a field of the event:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features/issue_policy.feature:15:5  error  undeclared-event  "urn:acme:insurance:policy:event:policy_cancelled" is not an event of urn:acme:insurance:policy:operation:issue_policy (emits: urn:acme:insurance:policy:event:policy_issued)
     insurance/features/issue_policy.feature:17:9  error  unknown-header  table header "premum" is not a field key of the event urn:acme:insurance:policy:event:policy_issued (allowed: policy_id, holder, premium)
 ```
@@ -591,10 +595,11 @@ A change of `primitive` is "neither". For the same primitive, `diff` compares ea
 | Change | Relation | Message |
 | --- | --- | --- |
 | A new required property | Narrower | `the new required property "<name>"` |
+| A new required list with no `minItems`, or with `minItems: 0`, on an atom that is only stored | Compatible: a row that is already stored has no items, which is the empty list | `adds the required list "<name>", which rows already stored hold as an empty list` |
 | A new optional property | Compatible for each use | `adds the optional property "<name>"` |
 | A property that is not there any more | Wider | `removing the <required \| optional> property "<name>"` |
 | A property that is not there any more, whose target was deprecated in the old manifest | `lifecycle` | `removes the property "<name>", whose target <urn> was deprecated` |
-| `required: false` becomes `required: true` | Narrower | `the property "<name>" (optional → required)` |
+| `required: false` becomes `required: true` | Narrower. For a list that can be empty, not for the Stored use | `the property "<name>" (optional → required)` |
 | `required: true` becomes `required: false` | Wider | `the property "<name>" (required → optional)` |
 | A change to the `many` rule of a list | `minItems` and `maxItems` as bounds. `unique: true` added is narrower, removed is wider | `the list "<name>" (<changes>)` |
 | A different target, or a change between one value and a list | Neither | `the property "<name>" (<old target> → <new target>)` |

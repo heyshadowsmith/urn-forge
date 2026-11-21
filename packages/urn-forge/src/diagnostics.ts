@@ -90,6 +90,8 @@ export const DIAGNOSTIC_CODES = {
   'uncovered-error': 'A declared error has no scenario that expects it (a warning)',
   'undeclared-event': 'A scenario expects an event that its operation does not emit',
   'uncovered-event': 'An event of an operation has no scenario that expects it (a warning)',
+  'undeclared-record': 'A scenario expects a record that no declared error of its operation records as',
+  'uncovered-record': 'The record of a refusal (recordAs) has no scenario that expects it (a warning)',
   'undeclared-invariant': 'A scenario expects an invariant that is not on the input entity of its operation',
   'uncovered-invariant': 'An invariant of an operation\'s input has no scenario that breaks it (a warning)',
   'uncovered-boundary': 'The examples of an input field do not include every boundary case of its constraints (a warning)',

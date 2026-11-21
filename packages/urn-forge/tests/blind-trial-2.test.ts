@@ -1,6 +1,7 @@
 /** Findings of the second blind trial (restaurant reservations). */
 import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';
+import { assertRecordedAs } from '../src/gherkin/steps.js';
 import { indexFeatureSource } from '../src/verify/feature-index.js';
 import { checkGherkin } from '../src/verify/gherkin.js';
 import type { GateContext } from '../src/verify/types.js';
@@ -60,5 +61,22 @@ describe('diff: a new required list on a stored entity', () => {
     const sentResult = diffManifests(`${HEADER}${base}${sent}`, `${HEADER}${added}${sent}`, plugins as never);
     expect(JSON.stringify(sentResult)).toContain('breaks callers that send it');
     expect(JSON.stringify(sentResult)).not.toContain('rows already stored');
+  });
+});
+
+describe('the record of a refusal (recordAs)', () => {
+  const RECORD = 'urn:demo:resto:r:event:refused';
+  const refused = { ok: false as const, kind: 'DomainError' as const, error: { urn: 'urn:demo:resto:r:error:full', message: 'm', fields: {}, record: { urn: RECORD, fields: { kind: RECORD, seats: 4 } } } };
+
+  it('passes when the refusal is recorded as the event, with its fields', () => {
+    expect(() => assertRecordedAs(refused, RECORD, 'op', { seats: 4 })).not.toThrow();
+  });
+
+  it('fails on a success, on another record, on no record, and on other fields', () => {
+    expect(() => assertRecordedAs({ ok: true, output: {} }, RECORD, 'op')).toThrow('op succeeded; expected a refusal recorded as urn:demo:resto:r:event:refused');
+    expect(() => assertRecordedAs(refused, 'urn:demo:resto:r:event:other', 'op')).toThrow('which is recorded as urn:demo:resto:r:event:refused; expected it to be recorded as urn:demo:resto:r:event:other');
+    const { record: _, ...bare } = refused.error;
+    expect(() => assertRecordedAs({ ...refused, error: bare }, RECORD, 'op')).toThrow('which has no record');
+    expect(() => assertRecordedAs(refused, RECORD, 'op', { seats: 5 })).toThrow('urn:demo:resto:r:event:refused fields differ: seats: expected 5, got 4');
   });
 });
