@@ -35,9 +35,9 @@ export default defineConfig({
         text: 'Tutorials',
         link: '/tutorials/',
         items: [
-          { text: "build the shipping domain", link: '/tutorials/first-domain' },
-          { text: "add a declared error", link: '/tutorials/declared-errors' },
-          { text: "make the domain strict", link: '/tutorials/strict-coverage' },
+          { text: 'Build the shipping domain', link: '/tutorials/first-domain' },
+          { text: 'Add a declared error', link: '/tutorials/declared-errors' },
+          { text: 'Make the domain strict', link: '/tutorials/strict-coverage' },
         ],
       },
       {
@@ -64,11 +64,11 @@ export default defineConfig({
         text: 'How-to guides for contributors',
         collapsed: true,
         items: [
-          { text: "add a primitive", link: '/how-to/add-a-primitive' },
-          { text: "add a constraint", link: '/how-to/add-a-constraint' },
-          { text: "add a kind", link: '/how-to/add-a-kind' },
-          { text: "add a plugin", link: '/how-to/add-a-plugin' },
-          { text: "add a test fixture", link: '/how-to/add-a-fixture' },
+          { text: 'Add a primitive', link: '/how-to/add-a-primitive' },
+          { text: 'Add a constraint', link: '/how-to/add-a-constraint' },
+          { text: 'Add a kind', link: '/how-to/add-a-kind' },
+          { text: 'Add a plugin', link: '/how-to/add-a-plugin' },
+          { text: 'Add a test fixture', link: '/how-to/add-a-fixture' },
         ],
       },
       {

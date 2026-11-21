@@ -1,6 +1,6 @@
 # Run verify in CI
 
-This guide makes `urn-forge verify` a step of a GitHub Actions job, next to the tests and the scenarios. It also turns the problems into annotations on the pull request, and adds a job that makes sure that the output does not depend on the time zone or the locale.
+This guide makes `urn-forge verify` a step of a GitHub Actions job, next to the tests and the scenarios. It also turns the problems into annotations on the pull request. A second job makes sure that the output does not depend on the time zone or the locale.
 
 The example is the workflow of the urn-forge repository, `.github/workflows/ci.yml`.
 
@@ -88,7 +88,7 @@ To make annotations:
    - `|| status=$?` keeps the exit code of `verify`. Without it, the shell stops the step before `jq` runs.
    - The first `jq` line writes the gate summaries to the log.
    - The second `jq` line writes one workflow command for each problem: `error`, `warning`, or `notice` for a note.
-   - `--arg dir` gives the path from the root of the repository to the working directory. `verify` writes paths relative to the folder where it runs, and an annotation needs a path from the root.
+   - `--arg dir` gives the path from the root of the repository to the folder where `verify` runs. `verify` writes paths relative to the folder where it runs, and an annotation needs a path from the root.
    - `gsub` changes `%`, carriage returns and line feeds into the form that a workflow command accepts. A `type-error` message can have more than one line.
    - `exit "$status"` fails the step when `verify` failed.
 
