@@ -27,6 +27,7 @@ describe('public API', () => {
       '.': './src/index.ts',
       './config': './src/config.ts',
       './cucumber': './src/gherkin/steps.ts',
+      './exact': './src/exact.ts',
       './register-tsx': './src/gherkin/register-tsx.mjs',
     });
   });
@@ -78,6 +79,22 @@ describe('public API', () => {
       'operationUrnFromTags',
       'registerOperationSteps',
       'tableToObject',
+    ]);
+  });
+
+  it('exports exactly these functions from urn-forge/exact', async () => {
+    const exact = await import('urn-forge/exact');
+    expect(Object.keys(exact).sort()).toEqual([
+      'addDays',
+      'addDecimal',
+      'compareDecimal',
+      'daysBetween',
+      'divideDecimal',
+      'epochDay',
+      'multiplyDecimal',
+      'roundDecimal',
+      'subtractDecimal',
+      'sumDecimal',
     ]);
   });
 });

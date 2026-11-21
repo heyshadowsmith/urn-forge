@@ -73,6 +73,7 @@ const EXAMPLES: Record<string, { old: (m: string) => string; now: (m: string) =>
       ),
     pages: ['retire-a-urn'],
   },
+  'a new enum value': { old: (m) => m, now: (m) => edit(m, ['  values: [fire, flood, theft]\n', '  values: [fire, flood, theft, hail]\n']), pages: ['check-compatibility'] },
   'a new event in emits': { old: (m) => edit(m, [CANCEL_ERRORS, '    - policy.error.refund_below_minimum\n']), now: (m) => m, pages: ['emit-an-event'] },
   'an event removed from emits': { old: (m) => m, now: (m) => edit(m, [CANCEL_ERRORS, '    - policy.error.refund_below_minimum\n']), pages: ['emit-an-event'] },
 };

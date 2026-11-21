@@ -1,12 +1,13 @@
 # The package API
 
-The package `urn-forge` has three entry points. [`packages/urn-forge/package.json`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/package.json) declares them in `exports`:
+The package `urn-forge` has four entry points. [`packages/urn-forge/package.json`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/package.json) declares them in `exports`:
 
 | Entry point | Module | Contents |
 | --- | --- | --- |
 | `urn-forge` | `src/index.ts` | Compile, verify, diagnostics, the IR types, the plugins, the registries and the name functions |
 | `urn-forge/config` | `src/config.ts` | `defineConfig` and the loader of the configuration file |
 | `urn-forge/cucumber` | `src/gherkin/steps.ts` | The generic Cucumber steps and their helper functions |
+| `urn-forge/exact` | `src/exact.ts` | Exact arithmetic on decimals and calendar days, for a core |
 | `urn-forge/register-tsx` | `src/gherkin/register-tsx.mjs` | No exports. When Node.js loads it, it registers `tsx`, for example with `NODE_OPTIONS="--import urn-forge/register-tsx"` |
 
 ## Runtime
@@ -14,7 +15,7 @@ The package `urn-forge` has three entry points. [`packages/urn-forge/package.jso
 - The entry points are TypeScript source files. urn-forge 0.1.0 has no build step and no compiled JavaScript.
 - Code that imports an entry point must run through a TypeScript loader, for example tsx or Vitest. The CLI and the Cucumber profiles of the repository use tsx.
 - The package is private. You install it from a tarball. urn-forge 0.1.0 is not on the npm registry at this time. Refer to [Install urn-forge](../how-to/install) and [Scope](./scope).
-- `tests/public-api.test.ts` lists the value exports of `urn-forge` and `urn-forge/cucumber`. If an export changes, this test fails.
+- `tests/public-api.test.ts` lists the value exports of `urn-forge`, `urn-forge/cucumber` and `urn-forge/exact`. If an export changes, this test fails.
 
 ## `urn-forge`
 
@@ -138,6 +139,34 @@ For the steps to write a plugin, refer to [Contributor: add a plugin](../how-to/
 | `ConfigResult` | Type | `{ ok: true; config: UrnForgeConfig } \| { ok: false; diagnostics: readonly Diagnostic[] }` | The result of `loadConfig` |
 | `pluginEntries` | Function | `pluginEntries(specs: readonly PluginSpec[], file: string): PluginEntriesResult` | Changes a `plugins` setting to `PluginEntry` items. It reports an unknown name and a name two times as `config-invalid` |
 | `PluginEntriesResult` | Type | `{ ok: true; entries: readonly PluginEntry[] } \| { ok: false; diagnostics: readonly Diagnostic[] }` | The result of `pluginEntries` |
+
+## `urn-forge/exact`
+
+Exact arithmetic for a core. A `decimal` value is a string, and a `date` is a `YYYY-MM-DD` string, so the operators of JavaScript do not calculate with them exactly. These functions do, with the rules of the generated schemas and of the rule language. Each function takes plain values, also branded ones, and returns a plain value. Gate 2 allows a core to import this module, because it makes no branded value.
+
+| Function | Result |
+| --- | --- |
+| `compareDecimal(a, b)` | `-1`, `0` or `1`. `"1.10"` equals `"1.1"` |
+| `addDecimal(a, b)`, `subtractDecimal(a, b)` | The exact sum or difference, with the digits after the point of the longer value |
+| `sumDecimal(values)` | The exact sum of a list. `"0"` for an empty list |
+| `multiplyDecimal(a, b)` | The exact product. Its digits after the point are those of `a` and `b` together |
+| `divideDecimal(a, b, scale, rounding)` | `a ÷ b` with `scale` digits after the point. Throws a `RangeError` if `b` is 0 |
+| `roundDecimal(value, scale, rounding)` | The value with `scale` digits after the point |
+| `epochDay(date)` | The days from `1970-01-01`, with no time zone |
+| `addDays(date, days)` | The day `days` after the date, or before it if `days` is negative |
+| `daysBetween(from, to)` | The days from `from` to `to`, the same as `to - from` in a rule |
+
+`rounding` is one of `'half-up'` (half away from zero), `'half-even'`, `'floor'` and `'ceil'`. The type is `Rounding`.
+
+```ts
+import { addDays, compareDecimal, daysBetween, multiplyDecimal, roundDecimal, sumDecimal } from 'urn-forge/exact';
+
+const total = sumDecimal(['19.99', '45.00', '120.50']); // '185.49'
+const overLimit = compareDecimal(total, '150.00') > 0; // true
+const fee = roundDecimal(multiplyDecimal('25.05', '0.5'), 2, 'half-up'); // '12.53'
+const age = daysBetween('2026-08-01', '2026-11-21'); // 112
+const due = addDays('2026-11-21', 28); // '2026-12-19'
+```
 
 ## `urn-forge/cucumber`
 
