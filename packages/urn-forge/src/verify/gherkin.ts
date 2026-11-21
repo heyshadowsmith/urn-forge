@@ -20,7 +20,12 @@
  *    field's primitive (`boundaries` in src/primitives/). One `uncovered-boundary` warning per
  *    field and operation lists the missing cases. It shows the cases are present; the test
  *    run shows whether they pass.
+ *
+ * Checks 4's coverage half and 5 follow the coverage mode (spec §8, warn then ratchet): their
+ * gaps are warnings, unless `boundaryCoverage` is `error` or a feature tagged with the
+ * operation carries `@urn-forge:strict`; then they are errors.
  */
+
 import { FAILS_WITH_TEXT, STEP_PHRASES } from '../gherkin/phrases.js';
 import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
 import type { UniversalIR, Urn } from '../ir/types.js';
@@ -28,6 +33,9 @@ import { boundaryCases } from '../primitives/index.js';
 import { inputValues } from './input-values.js';
 import type { IndexedCell, IndexedTag, IndexedTable } from './feature-index.js';
 import type { Gate, GateContext, GateOutcome } from './types.js';
+
+/** The feature tag that makes the coverage gaps of a feature's operations errors. */
+export const STRICT_TAG = '@urn-forge:strict';
 
 /** What a scope's URN tags allow in its tables. */
 interface Owner {
@@ -41,8 +49,16 @@ interface Owner {
   readonly errors?: readonly Urn[];
 }
 
-export function checkGherkin({ ir, features }: GateContext): GateOutcome {
+export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): GateOutcome {
   const problems: Diagnostic[] = [...features.problems];
+
+  // An operation is strict when any feature tagged with it is strict.
+  const strictFeatures = features.features.filter((f) => f.tags.some((t) => t.name === STRICT_TAG));
+  const strictOperations = new Set(
+    strictFeatures.flatMap((f) => f.declaredTags.map((t) => t.name.slice(1)).filter((urn) => urn in ir.operations)),
+  );
+  const coverageSeverity = (operation: string): Severity =>
+    boundaryCoverage === 'error' || strictOperations.has(operation) ? 'error' : 'warning';
   const covered = new Set<string>();
   /** `<operation URN> <error URN>` for each declared error some scenario expects. */
   const expectedErrors = new Set<string>();
@@ -158,7 +174,7 @@ export function checkGherkin({ ir, features }: GateContext): GateOutcome {
       if (expectedErrors.has(`${operation.urn} ${errorUrn}`)) continue;
       problems.push({
         code: 'uncovered-error',
-        severity: 'warning',
+        severity: coverageSeverity(operation.urn),
         file: features.directory,
         urn: errorUrn,
         message: `error ${errorUrn} of ${operation.urn} has no scenario that expects it; add one with Then the operation fails with "${errorUrn}"`,
@@ -178,7 +194,7 @@ export function checkGherkin({ ir, features }: GateContext): GateOutcome {
       if (missing.length === 0) continue;
       problems.push({
         code: 'uncovered-boundary',
-        severity: 'warning',
+        severity: coverageSeverity(operation.urn),
         file: features.directory,
         urn: field.urn,
         message: `${field.urn} in the input of ${operation.urn} has no ${missing.map((c) => c.label).join(', no ')}`,
@@ -188,8 +204,23 @@ export function checkGherkin({ ir, features }: GateContext): GateOutcome {
 
   const scenarioCount = features.features.reduce((n, f) => n + f.scenarios.length, 0);
   const errorSummary = declaredErrors > 0 ? `, ${expectedErrors.size}/${declaredErrors} errors expected` : '';
+  const featureCount = features.features.length;
+
+  // The ratchet trigger (spec §8): once every feature is strict, the config can say so.
+  if (boundaryCoverage === 'warn' && featureCount > 0 && strictFeatures.length === featureCount) {
+    problems.push({
+      code: 'ratchet-ready',
+      severity: 'note',
+      file: features.directory,
+      message: `every feature is ${STRICT_TAG}; set boundaryCoverage: 'error' in the config so new features are strict too`,
+    });
+  }
+
   return {
-    summary: `${features.features.length} feature(s), ${scenarioCount} scenario(s), ${operations.filter((u) => covered.has(u)).length}/${operations.length} operations tagged${errorSummary}`,
+    summary:
+      `${featureCount} feature(s), ${scenarioCount} scenario(s), ` +
+      `${operations.filter((u) => covered.has(u)).length}/${operations.length} operations tagged${errorSummary}, ` +
+      `strict: ${strictFeatures.length}/${featureCount} features${boundaryCoverage === 'error' ? ' (boundaryCoverage: error)' : ''}`,
     problems,
   };
 }

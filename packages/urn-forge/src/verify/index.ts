@@ -23,6 +23,8 @@ export interface VerifyOptions {
   readonly tsconfigPath: string;
   /** The plugins `compile` runs (gate 4 compares against their output). Default: every plugin. */
   readonly plugins?: readonly PluginEntry[];
+  /** Gate 3's coverage mode. Default: `warn`. */
+  readonly boundaryCoverage?: 'warn' | 'error';
   /** The gates to run. Default: `GATES`. */
   readonly gates?: readonly Gate[];
 }
@@ -63,6 +65,7 @@ export async function verify(options: VerifyOptions): Promise<VerifyResult> {
     tsconfigPath: options.tsconfigPath,
     featuresDir: options.featuresDir,
     features: await indexFeatures(options.featuresDir, options.cwd),
+    boundaryCoverage: options.boundaryCoverage ?? 'warn',
   };
   const gates: GateResult[] = [];
   for (const gate of options.gates ?? GATES) {

@@ -12,7 +12,7 @@ domain.manifest.yaml:10:12  error  unresolved-ref  urn:demo:math:geometry:entity
 | --- | --- | --- |
 | File | `domain.manifest.yaml` | The file that has the problem, relative to the current directory |
 | Line and column | `10:12` | The position of the problem in the file. Both start at 1. Some diagnostics do not have a position, for example a file that is not there |
-| Severity | `error` | `error` makes the command fail. `warning` does not |
+| Severity | `error` | `error` makes the command fail. `warning` does not, and the last line gives the number of warnings. `note` gives information only, for example that it is time to change a setting |
 | Code | `unresolved-ref` | A stable name for the problem. Use it to find the problem on this page |
 | Message | `urn:demo:…: fields[1].ref …` | The problem. It starts with the manifest key or the URN |
 
@@ -116,6 +116,7 @@ For the procedure of each gate, refer to [Verification gates](../guide/verify).
 | `undeclared-error` | `"<error URN>" is not a declared error of <operation URN> (errors: …)` | A step `Then the operation fails with "<error URN>"` gives an error that the operation of the scenario does not declare | Give an error from the list, or add the error to `errors` of the operation |
 | `uncovered-error` | `error <error URN> of <operation URN> has no scenario that expects it; …` | This is a warning. No scenario of the operation expects the error | Add a scenario with `Then the operation fails with "<error URN>"` |
 | `uncovered-boundary` | `<field URN> in the input of <operation URN> has no <case>, no <case>` | This is a warning. The values that the scenarios of the operation send for this field do not include each boundary case of its constraints, for example the value at `min` and a value below it | Add a scenario or an `Examples` row with each missing value. Refer to [Verification gates](../guide/verify#gate-3-gherkin-traceability) |
+| `ratchet-ready` | `every feature is @urn-forge:strict; set boundaryCoverage: 'error' in the config …` | This is a note. Each feature has the tag `@urn-forge:strict`, but `boundaryCoverage` is still `warn` | Set `boundaryCoverage: 'error'` in the [configuration file](./config). Then a new feature is strict too |
 | `ambiguous-tag` | `scenario is tagged with more than one operation or entity: <urns>` | A scenario receives two or more operation or entity tags | Keep one operation or entity tag for each scenario |
 | `unknown-header` | `table header "<name>" is not a field key of <owner> (allowed: …)` | A table header is not a property of the input or output of the operation, or of the entity | Use a name from the list in the message |
 

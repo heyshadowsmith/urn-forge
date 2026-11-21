@@ -86,10 +86,11 @@ Each step leaves the repository green and ends with a check you can run.
   - Gate 3 reports `uncovered-boundary` as a warning, one per field and operation.
   - *Check:* exactly the six gaps of the target table, and none for the math example; `verify:self` passes with 6 warnings.
   - *Done*, met on the first run: `verify:self` prints the six gaps and `verify passed with 6 warning(s)`; `verify:example` prints none. `tests/gates.test.ts` pins both lists. An operation without scenarios is skipped, because `untagged-operation` already fails it.
-- [ ] **4. Strictness.**
+- [x] **4. Strictness.**
   - `boundaryCoverage` in the config; `@urn-forge:strict`; `uncovered-error` follows the same mode.
   - The summary shows `strict: N/M features`, and a note appears when it is time to ratchet.
   - *Check:* a strict feature turns its operations' gaps into errors; `boundaryCoverage: 'error'` turns all of them.
+  - *Done.* The `note` severity arrived here rather than in step 5, because the ratchet note needs it: notes never fail a gate and are not counted as warnings. `@urn-forge:strict` counts on the feature itself (its own tags), and makes strict every operation the feature tags anywhere in it. On `self/`, tagging `to_urn.feature` strict turned exactly `to_urn`'s four gaps into errors and failed gate 3, while the other two stayed warnings.
 - [ ] **5. Waivers.**
   - `# urn-forge:waive <field URN> <reason…>`, and the `note` severity in text and JSON output.
   - A waiver that names no constrained input field of the feature's operations is an error, so a stale waiver cannot linger.

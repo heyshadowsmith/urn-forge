@@ -46,6 +46,7 @@ Each setting comes from the first applicable source:
 | `core` | `--core` | `src/core.ts` | `verify` |
 | `features` | `--features` | `features` | `verify` |
 | `tsconfig` | `--tsconfig` | `tsconfig.json` | `verify` |
+| `boundaryCoverage` | None | `warn` | `verify`. `warn` or `error`. Refer to [Strict coverage](../guide/verify#strict-coverage) |
 | `plugins` | None | All plugins, each with an empty configuration | Both |
 
 ## Plugins

@@ -10,7 +10,7 @@ A gate fails if it finds one or more errors. A warning does not make a gate fail
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over example/core.ts; `core` satisfies DomainCoreImplementation
-gate 3  gherkin       PASS  2 feature(s), 4 scenario(s), 2/2 operations tagged
+gate 3  gherkin       PASS  2 feature(s), 4 scenario(s), 2/2 operations tagged, strict: 0/2 features
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against example/generated
 verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
 ```
@@ -47,12 +47,21 @@ A scenario with two or more operation or entity tags fails, because the steps mu
 The change of a column name from `divisor` to `denominator` causes two errors. The new name is not a field, and the table has no `divisor` column:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 4 scenario(s), 2/2 operations tagged
+gate 3  gherkin       FAIL  2 feature(s), 4 scenario(s), 2/2 operations tagged, strict: 0/2 features
     example/features/safe_divide.feature:6:22  error  unknown-header  table header "denominator" is not a field key of the input or output of urn:demo:math:arithmetic:operation:safe_divide (allowed: dividend, divisor, quotient)
     example/features/safe_divide.feature:6:7  error  missing-column  the table of "I run the operation with:" has no column for required input field(s) "divisor" of urn:demo:math:arithmetic:operation:safe_divide; to test a missing value, keep the column and leave the cell empty
 ```
 
 Gate 3 counts the scenarios in the syntax tree. It counts each Scenario Outline one time. Cucumber counts each row of each `Examples` table. As a result, the scenario count of Cucumber is larger.
+
+### Strict coverage
+
+The coverage checks (`uncovered-error` and `uncovered-boundary`) give warnings at first. Then a team can add the missing scenarios step by step. Two settings make the gaps errors:
+
+- **The tag `@urn-forge:strict` on a feature.** The gaps of each operation that the feature tags become errors. If one feature that tags an operation is strict, the operation is strict.
+- **`boundaryCoverage: 'error'` in the [configuration file](../reference/config).** All gaps become errors.
+
+The summary of gate 3 gives the number of strict features, for example `strict: 1/3 features`. When all the features are strict and `boundaryCoverage` is still `warn`, the gate gives the note `ratchet-ready`. Then set `boundaryCoverage: 'error'`, so that each new feature is strict too.
 
 ## Gate 4: drift
 

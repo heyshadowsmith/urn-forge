@@ -64,6 +64,8 @@ export interface IndexedFeature {
   /** Display path, relative to the current directory. */
   readonly file: string;
   readonly name: string;
+  /** The feature's own tags, such as `@urn-forge:strict`. */
+  readonly tags: readonly IndexedTag[];
   /** Every tag written in the file (feature, rules, scenarios, examples), each once. */
   readonly declaredTags: readonly IndexedTag[];
   readonly scenarios: readonly IndexedScenario[];
@@ -141,7 +143,7 @@ export function indexFeatureSource(source: string, file: string): IndexedFeature
       }
     }
   }
-  return { file, name: feature.name, declaredTags: declared.map(tag), scenarios };
+  return { file, name: feature.name, tags: feature.tags.map(tag), declaredTags: declared.map(tag), scenarios };
 }
 
 /** Every `.feature` file under `dir` (recursively), in path order. */
