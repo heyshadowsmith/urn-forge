@@ -8,7 +8,7 @@ The `compile` and `verify` commands send the manifest through a sequence of pass
 | --- | --- | --- | --- | --- |
 | Read | Read the file | The manifest file can be read | `manifest-unreadable` | Stop |
 | YAML | Parse the YAML | The file is valid YAML with no key two times in one mapping | `yaml-syntax`, `duplicate-key` | Stop after this step |
-| 1 | [Meta-schema](#pass-1-meta-schema) | The structure of the header and of each entry | `not-a-mapping`, `missing-header`, `invalid-key`, `unsupported-kind`, `unknown-kind`, `unknown-primitive`, `constraint-not-allowed`, `unknown-property`, `invalid-value` | Stop after this step |
+| 1 | [Meta-schema](#pass-1-meta-schema) | The structure of the header and of each entry | `not-a-mapping`, `missing-header`, `invalid-key`, `unsupported-kind`, `unknown-kind`, `unknown-primitive`, `constraint-not-allowed`, `unknown-property`, `missing-property`, `invalid-value` | Stop after this step |
 | 2 | [Expansion](#pass-2-expansion) | None. It makes the URNs and the brand identifiers | None | — |
 | 3 | [Uniqueness](#pass-3-uniqueness) | Brand identifiers and property names are unique | `duplicate-brand`, `duplicate-property`, `duplicate-ref`, `reserved-property` | Stop after pass 7 |
 | 4 | [References](#pass-4-references) | Each reference names an atom of the correct kind | `unresolved-ref`, `wrong-ref-kind` | Stop after pass 7 |
@@ -38,7 +38,8 @@ Pass 1 examines the parsed YAML with Valibot schemas. It examines these items, i
 | A `primitive` that is not `boolean`, `float`, `integer` or `string`, or no `primitive` | `unknown-primitive` | The value, or the entry key if there is no `primitive` |
 | A key on a field that is a constraint of a different primitive | `constraint-not-allowed` | The key |
 | A key on the header, an atom or a field reference that it does not accept, and on a field a key that is a constraint of no primitive | `unknown-property` | The key |
-| A value of the wrong type or form, or a necessary property that is not there | `invalid-value` | The value, or the entry key for a property that is not there |
+| A value of the wrong type or form | `invalid-value` | The value |
+| A necessary property that is not there | `missing-property` | The entry key |
 
 The schema of each kind is on [The manifest](./manifest). The rules for constraint values are on [Primitives and constraints](./primitives).
 

@@ -119,6 +119,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'unknown-primitive': () => manifest('a.field.b: { primitive: decimal }\n'),
   'constraint-not-allowed': () => manifest('a.field.b: { primitive: boolean, min: 1 }\n'),
   'unknown-property': () => manifest('a.field.b: { primitive: float, colour: red }\n'),
+  'missing-property': () => manifest('a.entity.e: { fields: [] }\n'),
   'invalid-value': () => manifest('a.field.b: { primitive: integer, min: many }\n'),
   // Pass 3
   'duplicate-brand': () => manifest('a.field.b_c: { primitive: float }\na_b.field.c: { primitive: float }\n'),

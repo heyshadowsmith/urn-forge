@@ -81,12 +81,12 @@
     "severity": "error"
   },
   {
-    "code": "invalid-value",
+    "code": "missing-property",
     "location": {
       "column": 1,
       "line": 15
     },
-    "message": "order.entity.line.description: Invalid key: Expected \"description\" but received undefined",
+    "message": "order.entity.line.description: missing property \"description\"",
     "severity": "error"
   },
   {
@@ -117,12 +117,12 @@
     "severity": "error"
   },
   {
-    "code": "invalid-value",
+    "code": "missing-property",
     "location": {
       "column": 1,
       "line": 23
     },
-    "message": "order.error.no_message.message: Invalid key: Expected \"message\" but received undefined",
+    "message": "order.error.no_message.message: missing property \"message\"",
     "severity": "error"
   }
 ]

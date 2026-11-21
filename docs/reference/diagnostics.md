@@ -64,6 +64,7 @@ These diagnostics have the configuration file as their file, and no position.
 | `unknown-primitive` | `error` | `<key>.primitive: unknown primitive "<name>" (MVP primitives: boolean, float, integer, string)`<br>`<key>.primitive: a field must have a primitive (MVP primitives: boolean, float, integer, string)` | The `primitive` of a field is not a known primitive, or the field has no `primitive` | Use `boolean`, `float`, `integer` or `string` |
 | `constraint-not-allowed` | `error` | `<key>.<property>: "<property>" is not a constraint of primitive "<primitive>" (allowed: <constraints>)` | A field has a constraint of a different primitive, for example `minLength` on a `float`. A key that is a constraint of no primitive gets `unknown-property` | Use a constraint from the list in the message |
 | `unknown-property` | `error` | `<key>.<property>: unknown property "<property>"` | An atom or the header has a key that it does not accept. On a field, this is a key that is a constraint of no primitive, for example `colour` | Remove the key, or correct its name |
+| `missing-property` | `error` | `<key>.<property>: missing property "<property>"` | An entry does not have a property that it must have, for example the `description` of an entity | Add the property |
 | `invalid-value` | `error` | `<key>.<property>: <message>` | A value has the wrong type or form, or a necessary property is not there. Refer to the examples after this table | Correct the value. The message gives the necessary type or form |
 
 Examples of `invalid-value` messages:
@@ -72,7 +73,6 @@ Examples of `invalid-value` messages:
 geometry.field.t.min: Invalid type: Expected number but received "abc"
 geometry.field.u.regex: must be a valid regular expression: Invalid regular expression: /[a-/u: Unterminated character class
 geometry.entity.c.fields: must list at least one field
-geometry.entity.d.description: Invalid key: Expected "description" but received undefined
 geometry.error.e.recordAs: needs the event kind, which urn-forge does not support yet
 manifest.namespace: must be lowercase snake_case, start with a letter and be at most 63 characters
 ```

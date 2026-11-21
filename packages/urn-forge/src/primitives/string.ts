@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { definePrimitive, type BoundaryCase, type CoherenceProblem, type ConstraintSpec } from './types.js';
 
-const length: ConstraintSpec<number> = { schema: v.pipe(v.number(), v.safeInteger(), v.minValue(0)) };
+const length: ConstraintSpec<number> = { schema: v.pipe(v.number(), v.safeInteger(), v.minValue(0)), aspect: 'size' };
 
 /**
  * A `regex` pattern matches the whole value: `[a-z]+` means `^(?:[a-z]+)$`. It is a
@@ -30,6 +30,7 @@ const regex: ConstraintSpec<string> = {
     v.minLength(1, 'must not be empty'),
     v.check((pattern) => patternError(pattern) === undefined, (issue) => `must be a valid regular expression: ${patternError(issue.input as string)}`),
   ),
+  aspect: 'shape',
 };
 
 const oneOf: ConstraintSpec<string[]> = {
@@ -38,6 +39,7 @@ const oneOf: ConstraintSpec<string[]> = {
     v.minLength(1, 'must list at least one value'),
     v.check((values) => new Set(values).size === values.length, 'must not list a value more than once'),
   ),
+  aspect: 'membership',
 };
 
 /** A JavaScript string. `regex` limits its form, and `oneOf` limits it to a fixed set of values. */

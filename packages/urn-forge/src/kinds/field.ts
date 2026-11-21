@@ -22,7 +22,9 @@ function fieldSchemaFor(descriptor: PrimitiveDescriptor) {
   return v.strictObject({
     primitive: v.literal(descriptor.name),
     description: v.optional(Description),
-    ...Object.fromEntries(Object.entries(descriptor.constraints).map(([key, spec]) => [key, v.optional(spec.schema)])),
+    ...Object.fromEntries(
+      Object.entries(descriptor.constraints).map(([key, spec]) => [key, spec.required ? spec.schema : v.optional(spec.schema)]),
+    ),
   });
 }
 

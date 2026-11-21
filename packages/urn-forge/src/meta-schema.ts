@@ -150,6 +150,12 @@ function describeIssue(key: string, entry: unknown, issue: v.BaseIssue<unknown>,
       'key',
     );
   }
+  // A strict object reports a property it must have as an issue at that key, with no input.
+  const missingKey = (issue.type === 'strict_object' || issue.type === 'object') && issue.input === undefined && issue.expected?.startsWith('"');
+  if (missingKey) {
+    const name = dotPath.split('.').at(-1) ?? dotPath;
+    return at('missing-property', `${prefix}: missing property "${name}"`, 'key');
+  }
   if (unknownKey) {
     return at('unknown-property', `${prefix}: unknown property "${dotPath.split('.').at(-1) ?? dotPath}"`, 'key');
   }

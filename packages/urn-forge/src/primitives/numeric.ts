@@ -6,8 +6,8 @@ const NUMBER_LITERAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$|^[+-]?In
 
 /** `min`, `max` and `notEqual`, each a value of `schema`. */
 export function numericConstraints(schema: v.GenericSchema<unknown, number>) {
-  const spec: ConstraintSpec<number> = { schema };
-  return { min: spec, max: spec, notEqual: spec } as const;
+  const range: ConstraintSpec<number> = { schema, aspect: 'range' };
+  return { min: range, max: range, notEqual: { schema, aspect: 'exclusion' } } as const;
 }
 
 export function numericCoherence(c: { readonly min?: number; readonly max?: number; readonly notEqual?: number }): CoherenceProblem[] {

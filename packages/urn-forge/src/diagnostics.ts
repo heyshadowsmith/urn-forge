@@ -30,6 +30,7 @@ export const DIAGNOSTIC_CODES = {
   'unknown-primitive': 'A field uses a primitive that this version does not support',
   'constraint-not-allowed': 'A constraint does not apply to the field primitive',
   'unknown-property': 'An entry has a property it does not accept',
+  'missing-property': 'An entry does not have a property that it must have',
   'invalid-value': 'A property has a value of the wrong type or form',
   // Pass 3: uniqueness
   'duplicate-brand': 'Two atoms derive the same brand identifier',

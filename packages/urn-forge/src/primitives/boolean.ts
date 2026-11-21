@@ -7,7 +7,7 @@ import { definePrimitive } from './types.js';
  */
 export const boolean = definePrimitive({
   name: 'boolean',
-  constraints: { mustBe: { schema: v.boolean() } },
+  constraints: { mustBe: { schema: v.boolean(), aspect: 'membership' } },
   // One constraint with one value always admits that value.
   coherence: () => [],
   // `true` and `false` become booleans; any other text stays a string, for the schema to reject.

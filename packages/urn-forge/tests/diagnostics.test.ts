@@ -58,7 +58,7 @@ describe('manifest diagnostics', () => {
 
   it('place a missing property at its entry', () => {
     expect(diagnose('geometry.field.radius: { primitive: float }\ngeometry.entity.circle:\n  fields: [{ ref: geometry.field.radius }]\n')).toEqual([
-      expect.objectContaining({ code: 'invalid-value', location: { line: 6, column: 1 } }),
+      expect.objectContaining({ code: 'missing-property', location: { line: 6, column: 1 } }),
     ]);
   });
 

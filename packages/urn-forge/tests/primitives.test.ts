@@ -233,3 +233,27 @@ describe('boundary cases (boundary coverage plan, step 1)', () => {
     expect(v.safeParse(shop.OrderSkuSchema, coerceCell('""', field('string'))).issues?.[0]?.message).toContain('received ""');
   });
 });
+
+describe('the MECE model (primitives plan)', () => {
+  const specs = PRIMITIVE_NAMES.flatMap((p) =>
+    Object.entries(PRIMITIVES[p].constraints as Record<string, { aspect: string }>).map(([key, spec]) => ({ primitive: p, key, aspect: spec.aspect })),
+  );
+
+  it('gives one constraint name one aspect on every primitive', () => {
+    const aspects = new Map<string, Set<string>>();
+    for (const { key, aspect } of specs) aspects.set(key, (aspects.get(key) ?? new Set()).add(aspect));
+    expect([...aspects].filter(([, set]) => set.size > 1)).toEqual([]);
+  });
+
+  it('groups as exclusive only constraints of the primitive that share one aspect', () => {
+    for (const p of PRIMITIVE_NAMES) {
+      const descriptor = PRIMITIVES[p] as { constraints: Record<string, { aspect: string }>; exclusive?: readonly { keys: readonly string[] }[] };
+      for (const group of descriptor.exclusive ?? []) {
+        expect(group.keys.length, `${p}: ${group.keys.join(', ')}`).toBeGreaterThan(1);
+        const groupAspects = new Set(group.keys.map((key) => descriptor.constraints[key]?.aspect));
+        expect(groupAspects.has(undefined), `${p}: ${group.keys.join(', ')}`).toBe(false);
+        expect(groupAspects.size, `${p}: ${group.keys.join(', ')}`).toBe(1);
+      }
+    }
+  });
+});
