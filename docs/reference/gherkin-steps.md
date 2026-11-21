@@ -264,7 +264,7 @@ urn:demo:shipping:quote:operation:other is not an operation of this domain
 These messages come from a real Cucumber run on the insurance domain:
 
 ```
-urn:acme:insurance:policy:invariant:cancellation_within_term is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
+urn:acme:insurance:policy:invariant:cancellation_within_term is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_at_most_a_year, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
 urn:acme:insurance:policy:operation:issue_policy accepted the input; expected it to be rejected by urn:acme:insurance:policy:invariant:term_is_positive
 urn:acme:insurance:policy:operation:issue_policy rejected the input, but not by urn:acme:insurance:policy:invariant:term_is_positive: InputRejected (deductible: The deductible must be less than the premium)
 urn:acme:insurance:policy:operation:issue_policy rejected the input, but not by urn:acme:insurance:policy:invariant:term_is_positive: InputRejected (policy_id: Invalid UUID: Received "policy-1")

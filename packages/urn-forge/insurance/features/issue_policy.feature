@@ -86,6 +86,17 @@ Feature: Issue a policy
       | 2026-06-01  |
       | 2026-05-31  |
 
+  Scenario Outline: A deductible that is not less than the premium is rejected
+    When I run the operation with:
+      | policy_id                            | holder                               | effective_date | expiry_date | premium | deductible   | coverages                         |
+      | 123e4567-e89b-12d3-a456-426614174000 | 9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d | 2026-01-01     | 2026-12-31  | 120.00  | <deductible> | [{ peril: fire, limit: 1000.00 }] |
+    Then the input is rejected by "urn:acme:insurance:policy:invariant:deductible_below_premium"
+
+    Examples:
+      | deductible |
+      | 120.00     |
+      | 120.01     |
+
   Scenario: A policy of 366 days, across 29 February, is issued
     When I run the operation with:
       | policy_id                            | holder                               | effective_date | expiry_date | premium | coverages                         |
@@ -99,14 +110,3 @@ Feature: Issue a policy
       | policy_id                            | holder                               | effective_date | expiry_date | premium | coverages                         |
       | 123e4567-e89b-12d3-a456-426614174000 | 9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d | 2027-03-01     | 2028-03-02  | 120.00  | [{ peril: fire, limit: 1000.00 }] |
     Then the input is rejected by "urn:acme:insurance:policy:invariant:term_at_most_a_year"
-
-  Scenario Outline: A deductible that is not less than the premium is rejected
-    When I run the operation with:
-      | policy_id                            | holder                               | effective_date | expiry_date | premium | deductible   | coverages                         |
-      | 123e4567-e89b-12d3-a456-426614174000 | 9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d | 2026-01-01     | 2026-12-31  | 120.00  | <deductible> | [{ peril: fire, limit: 1000.00 }] |
-    Then the input is rejected by "urn:acme:insurance:policy:invariant:deductible_below_premium"
-
-    Examples:
-      | deductible |
-      | 120.00     |
-      | 120.01     |

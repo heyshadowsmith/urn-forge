@@ -58,7 +58,7 @@ insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insuranc
 wrote      insurance/generated/domain.runtime.generated.ts
 wrote      insurance/generated/domain.schemas.generated.ts
 wrote      insurance/generated/schema.generated.sql
-fingerprint sha256:f72f538c562a7bf23f518078548823cbd2d25d9125377d8c83bf9a42eebe1128
+fingerprint sha256:04b8be134285c63b71d20830b972a6ce13674939834448d2ee98a85c4d3f6764
 ```
 
 The `deprecated-ref` warning is about the retired field `note`. Refer to [Retire a URN](retire-a-urn).
@@ -297,6 +297,7 @@ PGlite gives these rows:
 deductible_below_premium  urn:acme:insurance:policy:invariant:deductible_below_premium — The deductible must be less than the premium
 limit_is_positive  urn:acme:insurance:policy:invariant:limit_is_positive — The limit of a coverage must be more than 0
 policy__coverages_position_check  null
+term_at_most_a_year  urn:acme:insurance:policy:invariant:term_at_most_a_year — A policy can last 366 days at most
 term_is_positive  urn:acme:insurance:policy:invariant:term_is_positive — The expiry date must be after the effective date
 ```
 

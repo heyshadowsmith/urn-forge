@@ -135,7 +135,7 @@ Error: expected ":" after "see" (at column 91 of the cell)
 Gate 3 reports the same problem as `invalid-cell`, at the header of the column. The message also shows the cell:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features/issue_policy.feature:7:145  error  invalid-cell  coverages: expected ":" after "see" (at column 91 of the cell): [{ peril: flood, limit: 500 }, { peril: theft, limit: 250.5, note: Basement excluded, see {clause 4} }]
 ```
 

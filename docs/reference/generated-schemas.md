@@ -247,6 +247,9 @@ const PolicyPolicyFields = v.object({
 /** urn:acme:insurance:policy:invariant:deductible_below_premium — A deductible, when there is one, is less than the premium: deductible is absent or deductible < premium */
 export const PolicyDeductibleBelowPremiumRule = (p: v.InferOutput<typeof PolicyPolicyFields>): boolean =>
   (p.deductible === undefined || compareDecimal((p.deductible as string), (p.premium as string)) < 0);
+/** urn:acme:insurance:policy:invariant:term_at_most_a_year — A policy lasts one year at most, also in a leap year: expiry_date - effective_date <= 366 */
+export const PolicyTermAtMostAYearRule = (p: v.InferOutput<typeof PolicyPolicyFields>): boolean =>
+  (epochDay((p.expiry_date as string)) - epochDay((p.effective_date as string))) <= 366;
 /** urn:acme:insurance:policy:invariant:term_is_positive — A policy ends after it starts: expiry_date > effective_date */
 export const PolicyTermIsPositiveRule = (p: v.InferOutput<typeof PolicyPolicyFields>): boolean =>
   (p.expiry_date as string) > (p.effective_date as string);
@@ -254,6 +257,7 @@ export const PolicyTermIsPositiveRule = (p: v.InferOutput<typeof PolicyPolicyFie
 export const PolicyPolicySchema = v.pipe(
   PolicyPolicyFields,
   v.forward(v.check(PolicyDeductibleBelowPremiumRule, "The deductible must be less than the premium"), ["deductible"]),
+  v.forward(v.check(PolicyTermAtMostAYearRule, "A policy can last 366 days at most"), ["expiry_date"]),
   v.forward(v.check(PolicyTermIsPositiveRule, "The expiry date must be after the effective date"), ["expiry_date"]),
 );
 ```

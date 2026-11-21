@@ -112,7 +112,7 @@ insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insuranc
 unchanged  insurance/generated/domain.runtime.generated.ts
 unchanged  insurance/generated/domain.schemas.generated.ts
 unchanged  insurance/generated/schema.generated.sql
-fingerprint sha256:f72f538c562a7bf23f518078548823cbd2d25d9125377d8c83bf9a42eebe1128
+fingerprint sha256:04b8be134285c63b71d20830b972a6ce13674939834448d2ee98a85c4d3f6764
 ```
 
 - The location is the reference, not the deprecated atom. Here it is the `ref` of `note` in the coverage.

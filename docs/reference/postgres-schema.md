@@ -304,6 +304,8 @@ Each invariant becomes a named `CHECK` on each table that stores its entity: the
 | A text literal of a different primitive | `'<text>'` |
 | `true`, `false` | `TRUE`, `FALSE` |
 | `a + b`, `a - b` | `(a + b)`. On `integer`, `(a::BIGINT + b)`, so that the sum cannot overflow |
+| `d + n`, `d - n`, with `d` a `date` | `(d + n)`, `(d - n)`. A number stays a number. A field or a sum of days is `n::INTEGER`, because Postgres has `date + integer` but not `date + bigint` |
+| `d1 - d2`, with two dates | `(d1 - d2)`, an integer of days |
 | `=`, `!=`, `<`, `<=`, `>`, `>=` | `=`, `<>`, `<`, `<=`, `>`, `>=` |
 | `a and b`, `a or b` | `(a AND b)`, `(a OR b)` |
 | `not a` | `NOT (a)` |
@@ -315,6 +317,7 @@ A `CHECK` fails only if its condition is false. A condition with `NULL` is not t
 
 ```sql
   CONSTRAINT "deductible_below_premium" CHECK (("deductible" IS NULL OR "deductible" < "premium")),
+  CONSTRAINT "term_at_most_a_year" CHECK (("expiry_date" - "effective_date") <= 366),
   CONSTRAINT "term_is_positive" CHECK ("expiry_date" > "effective_date")
 ```
 

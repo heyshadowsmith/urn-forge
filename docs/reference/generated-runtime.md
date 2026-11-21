@@ -419,6 +419,7 @@ The input of `issue_policy` in the insurance domain has a link, `holder`, and a 
       },
       invariants: [
         { urn: 'urn:acme:insurance:policy:invariant:deductible_below_premium', rule: s.PolicyDeductibleBelowPremiumRule },
+        { urn: 'urn:acme:insurance:policy:invariant:term_at_most_a_year', rule: s.PolicyTermAtMostAYearRule },
         { urn: 'urn:acme:insurance:policy:invariant:term_is_positive', rule: s.PolicyTermIsPositiveRule },
         { urn: 'urn:acme:insurance:policy:invariant:limit_is_positive', rule: s.PolicyLimitIsPositiveRule },
       ],

@@ -471,28 +471,28 @@ Examples from real runs:
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
 gate 3  gherkin       PASS  3 feature(s), 17 scenario(s), 3/3 operations tagged, 2/2 errors expected, strict: 3/3 features (boundaryCoverage: error)
 gate 3  gherkin       FAIL  2 feature(s), 4 scenario(s), 1/1 operations tagged, 0/1 errors expected, strict: 1/2 features, 1 waiver(s)
-gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 ```
 
-The last example is the insurance domain (`npm run verify:insurance`). Its 4 input invariants include `limit_is_positive`, the invariant of the embedded entity `coverage`. For the next run, the step that breaks `term_is_positive` named an invariant of a different entity:
+The last example is the insurance domain (`npm run verify:insurance`). Its 5 input invariants include `limit_is_positive`, the invariant of the embedded entity `coverage`. For the next run, the step that breaks `term_is_positive` named an invariant of a different entity:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
-    insurance/features/issue_policy.feature:82:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features/issue_policy.feature:82:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_at_most_a_year, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
 ```
 
 For the next run, the scenario of `cancel_policy` that expects `policy_cancelled` lost its `emits` step:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-event  event urn:acme:insurance:policy:event:policy_cancelled of urn:acme:insurance:policy:operation:cancel_policy has no scenario that expects it; add one with Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"
 ```
 
 For the next run, the first scenario of `issue_policy` got two more steps. One expects an event of a different operation. The other has a table header that is not a field of the event:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features/issue_policy.feature:15:5  error  undeclared-event  "urn:acme:insurance:policy:event:policy_cancelled" is not an event of urn:acme:insurance:policy:operation:issue_policy (emits: urn:acme:insurance:policy:event:policy_issued)
     insurance/features/issue_policy.feature:17:9  error  unknown-header  table header "premum" is not a field key of the event urn:acme:insurance:policy:event:policy_issued (allowed: policy_id, holder, premium)
 ```
