@@ -68,6 +68,18 @@ jobs:
         working-directory: packages/urn-forge
         run: npx cucumber-js --profile self
 
+      # The tutorial's three snapshots (docs/tutorials), so the code the tutorials show is
+      # code that compiles, verifies and passes.
+      - name: urn-forge verify (tutorial)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: packages/urn-forge
+        run: npm run verify:tutorial
+
+      - name: cucumber-js (tutorial)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: packages/urn-forge
+        run: npm run test:features:tutorial
+
   # Spec §6 and §9: the same inputs give the same bytes and the same verdict in any locale
   # and time zone. Turkish changes case mapping and collation; Chatham is UTC+12:45.
   determinism:

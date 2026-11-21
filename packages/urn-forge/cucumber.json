@@ -1,14 +1,67 @@
 {
   "default": {
-    "paths": ["example/features/**/*.feature"],
-    "import": ["src/gherkin/register-tsx.mjs", "example/features/support/**/*.ts"],
-    "format": ["progress"],
+    "paths": [
+      "example/features/**/*.feature"
+    ],
+    "import": [
+      "src/gherkin/register-tsx.mjs",
+      "example/features/support/**/*.ts"
+    ],
+    "format": [
+      "progress"
+    ],
     "strict": true
   },
   "self": {
-    "paths": ["self/features/**/*.feature"],
-    "import": ["src/gherkin/register-tsx.mjs", "self/features/support/**/*.ts"],
-    "format": ["progress"],
+    "paths": [
+      "self/features/**/*.feature"
+    ],
+    "import": [
+      "src/gherkin/register-tsx.mjs",
+      "self/features/support/**/*.ts"
+    ],
+    "format": [
+      "progress"
+    ],
+    "strict": true
+  },
+  "tutorial-1": {
+    "paths": [
+      "tutorial/1-first-domain/features/**/*.feature"
+    ],
+    "import": [
+      "src/gherkin/register-tsx.mjs",
+      "tutorial/1-first-domain/features/support/**/*.ts"
+    ],
+    "format": [
+      "progress"
+    ],
+    "strict": true
+  },
+  "tutorial-2": {
+    "paths": [
+      "tutorial/2-declared-errors/features/**/*.feature"
+    ],
+    "import": [
+      "src/gherkin/register-tsx.mjs",
+      "tutorial/2-declared-errors/features/support/**/*.ts"
+    ],
+    "format": [
+      "progress"
+    ],
+    "strict": true
+  },
+  "tutorial-3": {
+    "paths": [
+      "tutorial/3-strict-coverage/features/**/*.feature"
+    ],
+    "import": [
+      "src/gherkin/register-tsx.mjs",
+      "tutorial/3-strict-coverage/features/support/**/*.ts"
+    ],
+    "format": [
+      "progress"
+    ],
     "strict": true
   }
 }
