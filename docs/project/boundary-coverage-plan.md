@@ -96,21 +96,27 @@ Each step leaves the repository green and ends with a check you can run.
   - A waiver that names no constrained input field of the feature's operations is an error, so a stale waiver cannot linger.
   - *Check:* a waiver removes its field's gaps and appears as a note with its reason.
   - *Done.* The feature index keeps comments with their lines. Four outcomes, all tried on `self/` through the CLI: an applied waiver is a `waived-boundary` note with its reason; a waiver without a reason is `invalid-waiver`; one for a field the feature's operations do not constrain is `unknown-waiver` (errors); and one whose field has no gap is `unused-waiver`, a warning, so it is removed rather than left to hide a future gap. The summary counts waivers. A waiver waives the whole field, not single cases.
-- [ ] **6. Close the gaps, then ratchet.**
+- [x] **6. Close the gaps, then ratchet.**
   - `self/` gains scenarios for the six gaps. They should all pass already, since the handlers and schemas exist; a failure is a real bug.
   - Every feature in both domains gets `@urn-forge:strict`, then both configs set `boundaryCoverage: 'error'`.
   - The docs gain the rules, the `""` cell, strictness and waivers.
+  - *Done.* Nine scenarios closed the six gaps, and all passed at once: the handlers and schemas were already right at every boundary. A one-character key passes the boundary and is refused with `invalid_short_key`; `""` is rejected on `short_key`. With every feature strict, both domains showed `ratchet-ready`; both configs then set `boundaryCoverage: 'error'`. Tests of the gaps, strictness and waivers now run against `self/` as it was before this step (`selfBeforeStep6` in `tests/gates.test.ts`), so the original six-gap target stays pinned, and a new test pins zero gaps for the real `self/`.
+  - *Finding:* the natural way to write `to_urn`'s four rejections was one Scenario Outline with a `field` column naming the field to reject. Gate 3 refuses it, because every `Examples` header must be a field of the operation, even a column used only in the step text (`rejected on "<field>"`). So they are four scenarios. A later change could allow an `Examples` column that no table uses.
 
 ## Done
 
 Boundary coverage is done when CI is green, both domains run with `boundaryCoverage: 'error'`, and CI turns red on each of these sabotages:
 
-| Sabotage | What catches it |
-| --- | --- |
-| Remove the `-1` example from `compute_area` | Gate 3, `uncovered-boundary` on `radius` (`below min 0`) |
-| Remove the `event`, `widget` and `Field` examples from `to_urn` | Gate 3, `uncovered-boundary` on `kind` (`a value outside oneOf`) |
-| Remove an error scenario of `parse_short_key` | Gate 3, `uncovered-error`, now an error |
-| A waiver for a field the feature does not use | Gate 3, an unknown waiver |
+| Sabotage | What catches it | Result |
+| --- | --- | --- |
+| Remove the `-1` example from `compute_area` | Gate 3, `uncovered-boundary` on `radius` (`below min 0`) | Caught: `…:radius in the input of …:compute_area has no value below min 0` |
+| Remove the `event`, `widget` and `Field` examples from `to_urn` | Gate 3, `uncovered-boundary` on `kind` (`a value outside oneOf`) | Caught: `…:kind in the input of …:to_urn has no value outside oneOf` |
+| Remove an error scenario of `parse_short_key` | Gate 3, `uncovered-error`, now an error | Caught: `…:unknown_kind of …:parse_short_key has no scenario that expects it` |
+| A waiver for a field the feature does not use | Gate 3, an unknown waiver | Caught: `unknown-waiver` at the comment's line |
+
+**Met:** both domains pass with `strict: N/N features (boundaryCoverage: error)` and no warnings, and each sabotage fails `verify` (run through the CLI, then restored).
+
+**Status:** boundary coverage is done, which is the main part of Milestone 3. The rest of Milestone 3 is the lint profile (gate 2) and the insurance fixture; then Milestone 4: the Postgres plugin and the real-project dogfooding track. `decimal` and `format` will bring their own boundary cases when they arrive.
 
 ## Risks
 

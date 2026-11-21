@@ -1,3 +1,4 @@
+@urn-forge:strict
 @urn:urn_forge:toolchain:naming:operation:to_urn
 Feature: URNs
 
@@ -30,3 +31,27 @@ Feature: URNs
       | event  |
       | widget |
       | Field  |
+
+  Scenario: A namespace that is not lowercase snake_case is rejected at the boundary
+    When I run the operation with:
+      | namespace | domain | context  | kind  | identifier |
+      | Demo      | math   | geometry | field | radius     |
+    Then the input is rejected on "namespace"
+
+  Scenario: A domain that is not lowercase snake_case is rejected at the boundary
+    When I run the operation with:
+      | namespace | domain | context  | kind  | identifier |
+      | demo      | Math   | geometry | field | radius     |
+    Then the input is rejected on "domain"
+
+  Scenario: A context that is not lowercase snake_case is rejected at the boundary
+    When I run the operation with:
+      | namespace | domain | context   | kind  | identifier |
+      | demo      | math   | geo-metry | field | radius     |
+    Then the input is rejected on "context"
+
+  Scenario: An identifier that is not lowercase snake_case is rejected at the boundary
+    When I run the operation with:
+      | namespace | domain | context  | kind  | identifier |
+      | demo      | math   | geometry | field | 2radius    |
+    Then the input is rejected on "identifier"

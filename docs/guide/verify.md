@@ -54,6 +54,25 @@ gate 3  gherkin       FAIL  2 feature(s), 4 scenario(s), 2/2 operations tagged, 
 
 Gate 3 counts the scenarios in the syntax tree. It counts each Scenario Outline one time. Cucumber counts each row of each `Examples` table. As a result, the scenario count of Cucumber is larger.
 
+### Boundary cases
+
+Gate 3 reads the values in the tables of `When I run the operation with:`, also the values of the `Examples` of a Scenario Outline. An empty cell is not a value. Each constraint needs these values:
+
+| Constraint | Necessary values |
+| --- | --- |
+| `min` on `integer` | `min` and `min − 1` |
+| `max` on `integer` | `max` and `max + 1` |
+| `min` on `float` | `min`, and a value that is smaller |
+| `max` on `float` | `max`, and a value that is larger |
+| `notEqual` | The value that the constraint does not accept |
+| `minLength` | A text with the length `minLength`, and a text with the length `minLength − 1` (if `minLength` is more than 0) |
+| `maxLength` | A text with the length `maxLength`, and a text with the length `maxLength + 1` |
+| `regex` | A text that agrees with the pattern, and a text that does not agree |
+| `oneOf` | Each value of the list, and a text that is not in the list |
+| `mustBe` on `boolean` | The value of `mustBe`, and the other value |
+
+Each operation needs its values. If two operations have the same field, each operation needs scenarios with the values. To send the empty text, for example for `minLength: 1`, write `""` in the cell. Refer to [Gherkin steps](./gherkin-steps#tables).
+
 ### Strict coverage
 
 The coverage checks (`uncovered-error` and `uncovered-boundary`) give warnings at first. Then a team can add the missing scenarios step by step. Two settings make the gaps errors:

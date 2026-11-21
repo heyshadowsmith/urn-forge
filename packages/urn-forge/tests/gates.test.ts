@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main, verifyPassedLine } from '../src/cli.js';
 import { compile } from '../src/engine.js';
-import { indexFeatureSource, indexFeatures } from '../src/verify/feature-index.js';
+import { indexFeatureSource, indexFeatures, type IndexedFeature } from '../src/verify/feature-index.js';
 import { checkGherkin } from '../src/verify/gherkin.js';
 import { GATES } from '../src/verify/index.js';
 import type { Gate, GateContext } from '../src/verify/types.js';
@@ -18,6 +18,34 @@ import type { Gate, GateContext } from '../src/verify/types.js';
 const repo = (path: string) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const mathSource = readFileSync(repo('tests/fixtures/math/domain.manifest.yaml'), 'utf8');
 const SAFE_DIVIDE = '@urn:demo:math:arithmetic:operation:safe_divide';
+
+/**
+ * self/'s features as they were before boundary coverage step 6 closed their gaps: without the
+ * scenarios that step added (matched by file and name, since one name is shared across files)
+ * and without `@urn-forge:strict`. Tests of the gaps, strictness and waivers run against this.
+ */
+const ADDED_IN_STEP_6: Readonly<Record<string, readonly string[]>> = {
+  'parse_short_key.feature': ['A one-character key passes the boundary but is refused', 'An empty key is rejected at the boundary'],
+  'to_brand_identifier.feature': ['An identifier that is not lowercase snake_case is rejected at the boundary'],
+  'to_urn.feature': [
+    'A namespace that is not lowercase snake_case is rejected at the boundary',
+    'A domain that is not lowercase snake_case is rejected at the boundary',
+    'A context that is not lowercase snake_case is rejected at the boundary',
+    'An identifier that is not lowercase snake_case is rejected at the boundary',
+  ],
+};
+function beforeStep6(feature: IndexedFeature): IndexedFeature {
+  const added = ADDED_IN_STEP_6[feature.file.split('/').at(-1)!] ?? [];
+  return {
+    ...feature,
+    tags: feature.tags.filter((t) => t.name !== '@urn-forge:strict'),
+    scenarios: feature.scenarios.filter((sc) => !added.includes(sc.name)),
+  };
+}
+async function selfBeforeStep6() {
+  const real = await indexFeatures(repo('self/features'), repo(''));
+  return { ...real, features: real.features.map(beforeStep6) };
+}
 const COMPUTE_AREA = '@urn:demo:math:geometry:operation:compute_area';
 
 const FEATURE = `@${'wip'}
@@ -200,9 +228,9 @@ describe('gate 3: declared errors', () => {
 });
 
 describe('gate 3: boundary coverage', () => {
-  const coverage = async (manifest: string, featuresDir: string) => {
+  const coverage = async (manifest: string, featuresDir: string, view: 'real' | 'before step 6' = 'real') => {
     const ir = compile(readFileSync(repo(manifest), 'utf8')).ir!;
-    const features = await indexFeatures(repo(featuresDir), repo(''));
+    const features = view === 'real' ? await indexFeatures(repo(featuresDir), repo('')) : await selfBeforeStep6();
     return checkGherkin({ ir, features } as unknown as GateContext)
       .problems.filter((p) => p.code === 'uncovered-boundary')
       .map((p) => [p.severity, p.urn!.split(':').at(-1), p.message.replace(/^\S+ in the input of \S+:operation:/, '')]);
@@ -212,9 +240,13 @@ describe('gate 3: boundary coverage', () => {
     expect(await coverage('tests/fixtures/math/domain.manifest.yaml', 'example/features')).toEqual([]);
   });
 
-  it('reports exactly the target: six gaps in self/', async () => {
+  it('reports nothing for self/ now that step 6 closed its gaps', async () => {
+    expect(await coverage('self/domain.manifest.yaml', 'self/features')).toEqual([]);
+  });
+
+  it('reported exactly the target: six gaps in self/ before step 6', async () => {
     const regex = 'has no invalid value for regex [a-z][a-z0-9_]{0,62}';
-    expect(await coverage('self/domain.manifest.yaml', 'self/features')).toEqual([
+    expect(await coverage('self/domain.manifest.yaml', 'self/features', 'before step 6')).toEqual([
       ['warning', 'short_key', 'parse_short_key has no value of length 1 (minLength), no value of length 0 (below minLength)'],
       ['warning', 'identifier', `to_brand_identifier ${regex}`],
       ['warning', 'namespace', `to_urn ${regex}`],
@@ -246,7 +278,7 @@ describe('gate 3: strictness (warn, then ratchet)', () => {
   const ir = compile(readFileSync(repo('self/domain.manifest.yaml'), 'utf8')).ir!;
   /** self/'s features, with `@urn-forge:strict` added to those whose file name starts with one of `strict`. */
   const run = async (strict: readonly string[], boundaryCoverage: 'warn' | 'error' = 'warn') => {
-    const real = await indexFeatures(repo('self/features'), repo(''));
+    const real = await selfBeforeStep6();
     const features = real.features.map((f) =>
       strict.some((name) => f.file.includes(`/${name}`)) ? { ...f, tags: [...f.tags, { name: '@urn-forge:strict', location: { line: 1, column: 1 } }] } : f,
     );
@@ -285,7 +317,7 @@ describe('gate 3: strictness (warn, then ratchet)', () => {
   });
 
   it('applies the same mode to uncovered errors', async () => {
-    const real = await indexFeatures(repo('self/features'), repo(''));
+    const real = await selfBeforeStep6();
     const withoutUnknownKind = real.features.map((f) => ({
       ...f,
       tags: f.file.includes('/parse_short_key') ? [...f.tags, { name: '@urn-forge:strict', location: { line: 1, column: 1 } }] : f.tags,
@@ -309,10 +341,10 @@ describe('gate 3: waivers', () => {
   const FIELD = 'urn:urn_forge:toolchain:naming:field';
   /** self/'s features, with comment lines added at the top of parse_short_key.feature. */
   const run = async (...comments: string[]) => {
-    const real = await indexFeatures(repo('self/features'), repo(''));
+    const real = await selfBeforeStep6();
     const features = real.features.map((f) =>
       f.file.endsWith('parse_short_key.feature')
-        ? indexFeatureSource(`${comments.join('\n')}\n${readFileSync(repo('self/features/parse_short_key.feature'), 'utf8')}`, f.file)!
+        ? beforeStep6(indexFeatureSource(`${comments.join('\n')}\n${readFileSync(repo('self/features/parse_short_key.feature'), 'utf8')}`, f.file)!)
         : f,
     );
     const result = checkGherkin({ ir, features: { ...real, features }, boundaryCoverage: 'warn' } as unknown as GateContext);
@@ -347,7 +379,7 @@ describe('gate 3: waivers', () => {
   it('warns about a waiver that waives nothing, and ignores other comments', async () => {
     const other = await run('# a plain comment', `#   urn-forge:waive ${FIELD}:short_key covered elsewhere`);
     expect(other.waivers).toEqual([['waived-boundary', 'note', 2]]);
-    const real = await indexFeatures(repo('self/features'), repo(''));
+    const real = await selfBeforeStep6();
     const covered = real.features.map((f) =>
       f.file.endsWith('to_urn.feature') ? { ...f, comments: [{ text: `# urn-forge:waive ${FIELD}:kind already complete`, location: { line: 1, column: 1 } }] } : f,
     );

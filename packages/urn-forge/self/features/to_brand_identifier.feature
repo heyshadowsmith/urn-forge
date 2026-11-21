@@ -1,3 +1,4 @@
+@urn-forge:strict
 @urn:urn_forge:toolchain:naming:operation:to_brand_identifier
 Feature: Brand identifiers
 
@@ -51,6 +52,18 @@ Feature: Brand identifiers
       | Policy   |
       | 2fa      |
       | has-dash |
+
+  Scenario Outline: An identifier that is not lowercase snake_case is rejected at the boundary
+    When I run the operation with:
+      | context  | identifier   |
+      | geometry | <identifier> |
+    Then the input is rejected on "identifier"
+
+    Examples:
+      | identifier |
+      | Radius     |
+      | 2d         |
+      | has-dash   |
 
   Scenario: A missing identifier is rejected at the boundary
     When I run the operation with:

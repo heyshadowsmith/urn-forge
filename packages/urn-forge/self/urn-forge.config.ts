@@ -7,5 +7,7 @@ export default defineConfig({
   core: './core.ts',
   features: './features',
   tsconfig: '../tsconfig.json',
+  // Every feature is @urn-forge:strict; this keeps new features strict too (spec §8 ratchet).
+  boundaryCoverage: 'error',
   plugins: ['valibot', 'fcis'],
 });

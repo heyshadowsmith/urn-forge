@@ -1,3 +1,4 @@
+@urn-forge:strict
 @urn:demo:math:arithmetic:operation:safe_divide
 Feature: Safe division
 
