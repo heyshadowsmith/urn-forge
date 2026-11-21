@@ -1,12 +1,13 @@
 # The manifest
 
-A manifest is one YAML file for one domain. urn-forge does five checks on it:
+A manifest is one YAML file for one domain. urn-forge does six checks on it:
 
 1. A meta-schema check of the structure.
 2. The expansion of short keys to URNs.
 3. A check that names are unique.
 4. A check that each reference is correct.
-5. A check that the constraints of each field accept one or more values.
+5. A check that each `{placeholder}` in an error message names a mandatory field of the error.
+6. A check that the constraints of each field accept one or more values.
 
 urn-forge shows all the problems that it finds, not only the first problem.
 
@@ -37,7 +38,7 @@ Each other top-level key declares one atom. The key is a **short key**:
 arithmetic.field.divisor
 ```
 
-The `context` and `identifier` segments obey the same snake_case rule as the header. The `kind` segment is `field`, `entity`, `operation` or `error`. The `error` kind is in progress. urn-forge examines error entries, but the plugins do not make code for them at this time. As a result, a manifest with errors does not compile (`unsupported-construct`). The specification also has the kinds `invariant` and `event`. urn-forge does not accept these kinds at this time, and it shows a `not supported yet` message.
+The `context` and `identifier` segments obey the same snake_case rule as the header. The `kind` segment is `field`, `entity`, `operation` or `error`. The specification also has the kinds `invariant` and `event`. urn-forge does not accept these kinds at this time, and it shows a `not supported yet` message.
 
 The `compile` command uses the header to expand each short key to a full URN:
 
@@ -120,16 +121,63 @@ arithmetic.operation.safe_divide:
 
 The `input` and `output` values must be entities. The specification also accepts a field in these positions. The MVP does not accept a field.
 
+An operation can also have a list of `errors`. These are the refusals that its handler can return:
+
+```yaml
+naming.operation.parse_short_key:
+  description: Split a short key into its context, kind and identifier
+  input: naming.entity.short_key_request
+  output: naming.entity.short_key_parts
+  errors:
+    - naming.error.invalid_short_key
+    - naming.error.unsupported_kind
+    - naming.error.unknown_kind
+```
+
+Each item must be an error of the manifest, and only one time. If an operation has no `errors`, its handler can only succeed.
+
+## Errors
+
+An error is a refusal with a name. The operation refused, and nothing changed.
+
+```yaml
+naming.error.unsupported_kind:
+  description: The kind is in the spec but the compiler does not support it yet
+  category: validation
+  retryable: false
+  message: Kind {kind_segment} in {short_key} is not supported yet
+  fields:
+    - ref: naming.field.short_key
+    - ref: naming.field.kind_segment
+```
+
+| Property | Mandatory | Description |
+| --- | --- | --- |
+| `description` | Yes | What the error means |
+| `category` | Yes | One of `validation`, `conflict`, `not_found`, `forbidden` and `precondition`. The shell can use it, for example to select an HTTP status. The core does not read it |
+| `retryable` | Yes | `true` if the same request can be correct at a later time |
+| `message` | Yes | A text for people. Each `{placeholder}` must be the name of a mandatory field of the error. urn-forge puts the value of the field in its place |
+| `fields` | No | Field references, the same as in an entity. An error can have no fields |
+
+Rules:
+
+- An error cannot have a field with the identifier `kind`. Each error payload uses `kind` for the URN of the error (`reserved-property`).
+- A placeholder is text in braces without spaces. `{short_key}` is a placeholder. The text `a { and }` is not.
+- The specification also has `recordAs`, which names an event. urn-forge does not accept `recordAs` at this time, because it does not have the `event` kind.
+
+The handler returns an error with `fail(…)`. Refer to [Generated code](./generated-code#handler-contracts). A scenario expects it with `Then the operation fails with "<error URN>"`. Refer to [Gherkin steps](./gherkin-steps#declared-errors).
+
 ## The passes
 
-The pass numbers come from the specification. The MVP does not have passes 5, 6 and 8.
+The pass numbers come from the specification. The MVP does not have passes 5 and 8.
 
 | Pass | Checks | Example message |
 | --- | --- | --- |
 | 1. Meta-schema | The header, short keys, kinds, primitives, constraint keys and types, mandatory properties, and YAML keys that occur two times | `invalid key "Geometry.field.radius": expected <context>.<kind>.<identifier>, …` |
 | 2. Expansion | urn-forge changes short keys to URNs and makes the brand identifiers | No message |
 | 3. Uniqueness | Two atoms cannot have the same URN or brand identifier. One entity cannot have two properties with the same name | `… brandIdentifier "GeoMetryRadius" is already used by urn:demo:math:geo:field:metry_radius; rename one of them` |
-| 4. References | Each `ref` points to a field. Each `input` and `output` points to an entity | `urn:demo:math:geometry:entity:circle: fields[0].ref "geometry.field.diameter" does not resolve (…)` |
+| 4. References | Each `ref` points to a field. Each `input` and `output` points to an entity. Each item of `errors` points to an error | `urn:demo:math:geometry:entity:circle: fields[0].ref "geometry.field.diameter" does not resolve (…)` |
+| 6. Message templates | Each `{placeholder}` in the message of an error names a mandatory field of that error | `urn:…:error:limit_exceeded: message placeholder {quantiy} names no field of the error (required fields: quantity)` |
 | 7. Constraint coherence | The constraints of each field accept one or more values: `min` is not larger than `max`, and `minLength` is not larger than `maxLength` | `urn:demo:math:geometry:field:radius: min (5) is greater than max (1), so no value is valid` |
 
 For a list of all messages, with the cause and the correction for each, refer to [Diagnostics](../reference/diagnostics).

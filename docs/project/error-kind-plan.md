@@ -133,7 +133,7 @@ The work is driven by urn-forge's own domain, the way the math fixture drove the
   - `uncovered-error` (a warning): a declared error that no scenario expects. It is counted in the warnings line.
   - *Check:* `verify` passes with a warning for an uncovered error, and fails for an undeclared one. `verify:self` passes with no warnings, because all three of `parse_short_key`'s errors have scenarios.
   - *Done.* Both checks also count the plain form of the step (without a table), which the old step loop skipped. Gate 3's summary gains `N/M errors expected` when the domain declares errors (`verify:self`: `3/3 errors expected`). Both sabotages, run through the CLI on `self/`: removing the `unknown_kind` scenario gives `verify passed with 1 warning(s)` and exit 0, the first warning any gate has made; naming an undeclared error fails gate 3 at the step, listing the operation's errors.
-- [ ] **6. Docs.**
+- [x] **6. Docs.**
   - The error kind in the manifest guide, `Result` in generated code, the new step, the new codes, and the scope table.
   - The `self/` backlog: `parse_short_key` is done. The message renderer stays blocked: its input is a template and a map of values, which needs the `record` primitive.
 
@@ -141,15 +141,18 @@ The work is driven by urn-forge's own domain, the way the math fixture drove the
 
 Error handling is done when CI is green and turns red on each of these sabotages:
 
-| Sabotage | What catches it |
-| --- | --- |
-| A handler still returns a plain object | Gate 1 (`tsc`) |
-| A handler fails with an error its operation does not declare | The scenario, as a `ContractViolation` |
-| A message says `{keyy}` | `compile` (`unknown-placeholder`) |
-| A scenario expects an error the operation does not declare | Gate 3 (`undeclared-error`) |
-| A declared error has no scenario | Gate 3 warning (`uncovered-error`) |
+| Sabotage | What catches it | Result |
+| --- | --- | --- |
+| A handler still returns a plain object | Gate 1 (`tsc`) | Caught (step 3): `Type '{ area: number; }' is not assignable to type 'Result<{ area: number; }, never>'` |
+| A handler fails with an error its operation does not declare | The scenario, as a `ContractViolation` | Caught earlier than planned, by gate 1: `Type 'Failure<{ kind: "…:invalid_short_key"; … }>' is not assignable to type 'Result<{ urn: string; }, never>'`. A handler that bypasses the types gets the `ContractViolation` at runtime (`tests/results.test.ts`) |
+| A message says `{keyy}` | `compile` (`unknown-placeholder`) | Caught: `self/domain.manifest.yaml:98:12  error  unknown-placeholder  … {kind_segmnt} names no field of the error (required fields: short_key, kind_segment)` |
+| A scenario expects an error the operation does not declare | Gate 3 (`undeclared-error`) | Caught (step 5), at the step, listing the declared errors |
+| A declared error has no scenario | Gate 3 warning (`uncovered-error`) | Caught (step 5): `verify passed with 1 warning(s)`, exit 0 |
 
-And urn-forge's own `parse_short_key` passes every scenario, including all three errors, with `verify:self` reporting no warnings.
+And urn-forge's own `parse_short_key` passes every scenario, including all three errors, with `verify:self` reporting no warnings. **Met:** 27 `self/` scenarios pass and gate 3 reports `3/3 errors expected`.
+
+**Status:** the error kind is done, and with it Milestone 2 apart from events (`emits`, `recordAs`, and `events` in `Result`), which wait for the `event` kind. Next, in the MVP plan's order: boundary coverage and the lint profile (Milestone 3), then the insurance fixture, the Postgres plugin and the real-project dogfooding track (Milestones 3–4).
+
 ## Risks
 
 - **What `self/` cannot test.** urn-forge's own errors are all `validation` errors. The other categories (`conflict`, `not_found`, `forbidden`, `precondition`) and `retryable: true` only meet real use in a business domain. That is the second dogfooding track (spec §10: one real project before M4 exits), and errors are where it pays off most.

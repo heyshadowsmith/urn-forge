@@ -32,7 +32,19 @@ The output is deterministic. The compiler does not read the clock, the environme
 
 Each field becomes a `v.pipe`. The pipe validates the primitive and applies the constraints in a fixed sequence. Then it ends with `v.brand('<field URN>')`. Each entity becomes a `v.object` of its field schemas. The plugin puts each field with `required: false` in `v.optional`.
 
-Each field and each entity has three exports. The name of each export comes from the brand identifier:
+Each error becomes a `v.object` too. Its first property is `kind`, with the URN of the error as its only value. Then its field schemas follow:
+
+```ts
+export const NamingUnsupportedKindSchema = v.object({
+  kind: v.literal("urn:urn_forge:toolchain:naming:error:unsupported_kind"),
+  short_key: NamingShortKeySchema,
+  kind_segment: NamingKindSegmentSchema,
+});
+```
+
+The type of `kind` is the URN, not only `string`. As a result, code that receives an error can use `switch` on `kind`, and TypeScript knows the fields of each error.
+
+Each field, each entity and each error has three exports. The name of each export comes from the brand identifier:
 
 | Export | Example | Description |
 | --- | --- | --- |
@@ -115,9 +127,29 @@ executeOperation('urn:demo:math:arithmetic:operation:safe_divide', { dividend: 1
 // }
 ```
 
+This is a declared error of urn-forge's own domain:
+
+```ts
+executeOperation('urn:urn_forge:toolchain:naming:operation:parse_short_key', { short_key: 'policy.event.placed' }, core);
+// {
+//   ok: false,
+//   kind: 'DomainError',
+//   urn: 'urn:urn_forge:toolchain:naming:operation:parse_short_key',
+//   error: {
+//     urn: 'urn:urn_forge:toolchain:naming:error:unsupported_kind',
+//     category: 'validation',
+//     retryable: false,
+//     message: 'Kind event in policy.event.placed is not supported yet',
+//     fields: { kind: 'urn:…:unsupported_kind', short_key: 'policy.event.placed', kind_segment: 'event' },
+//   },
+// }
+```
+
+The type of `error` is `DomainError<U>`. Its `fields` agree with its `urn`, so a `switch` on `error.urn` gives the correct fields for each error.
+
 ### `DispatchMap`
 
-`DispatchMap` contains the input schema and the output schema of each operation. It also contains data for each property: the field URN, the primitive, and if the property is mandatory.
+`DispatchMap` contains the input schema and the output schema of each operation. It also contains data for each property: the field URN, the primitive, and if the property is mandatory. For each declared error of an operation, it contains the schema, the `category`, the `retryable` value, the message template and the data for each field.
 
 - `executeOperation` uses this data to put the field URN on each issue.
 - The [Gherkin steps](./gherkin-steps) use this data to convert table cells.

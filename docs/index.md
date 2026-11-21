@@ -24,7 +24,7 @@ features:
       light: /icons/manifest-light.svg
       dark: /icons/manifest-dark.svg
     title: A manifest of URNs
-    details: You write fields, entities and operations in one YAML file. Each item has a permanent URN, for example urn:demo:math:arithmetic:operation:safe_divide.
+    details: You write fields, entities, operations and errors in one YAML file. Each item has a permanent URN, for example urn:demo:math:arithmetic:operation:safe_divide.
   - icon:
       light: /icons/contracts-light.svg
       dark: /icons/contracts-dark.svg
