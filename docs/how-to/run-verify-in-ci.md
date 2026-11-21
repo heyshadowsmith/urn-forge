@@ -130,7 +130,7 @@ A problem without a line, such as `uncovered-error`, has the features folder as 
 
 urn-forge must give the same bytes and the same result in each time zone and locale. The `determinism` job of urn-forge runs the checks again with a Turkish locale and the time zone of the Chatham Islands (UTC+12:45):
 
-<<< @/../.github/workflows/ci.yml{97-130}
+<<< @/../.github/workflows/ci.yml{98-131}
 
 1. Add a job that sets `TZ`, `LANG` and `LC_ALL` in `env`.
 2. Run `compile` for each domain, then `git diff --exit-code`. If `compile` writes a different byte, `git diff` fails the step.

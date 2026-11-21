@@ -2,7 +2,10 @@
 // Gate 5 for this repository (lifecycle plan, step 5): `urn-forge diff` for each domain, from
 // its manifest at a git ref (the base of a pull request) to the manifest in the working tree.
 //
-//   node scripts/diff-base.mjs <git ref>      for example HEAD^1 in CI, origin/main locally
+//   node scripts/diff-base.mjs <git ref> [--report]      for example HEAD^1 in CI, origin/main locally
+//
+// With --report, a breaking change is printed but does not fail the script: this repository's
+// domains are test domains, which change on purpose to exercise new features.
 //
 // A domain whose manifest does not exist at the ref is new, so it has nothing to compare.
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -12,8 +15,9 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ref = process.argv[2];
-if (!ref) {
-  console.error('usage: node scripts/diff-base.mjs <git ref>');
+const report = process.argv.includes('--report');
+if (!ref || ref.startsWith('--')) {
+  console.error('usage: node scripts/diff-base.mjs <git ref> [--report]');
   process.exit(2);
 }
 const pkg = fileURLToPath(new URL('..', import.meta.url));
@@ -49,5 +53,6 @@ try {
 }
 if (failed > 0) {
   console.error(`\n${failed} domain(s) have a breaking change: declare a new URN and deprecate the old one`);
-  process.exit(1);
+  if (report) console.error('(--report: printed, not a failure)');
+  else process.exit(1);
 }

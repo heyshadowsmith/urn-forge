@@ -1,4 +1,5 @@
 /** The lifecycle of an atom (lifecycle plan): the keys, the IR, and pass 8. */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { compile, type CompileOptions } from '../src/engine.js';
 import { PLUGINS } from '../src/plugins/index.js';
@@ -109,5 +110,17 @@ describe('the generated code (decisions 6 and 7)', () => {
       expect(f.content, f.relativePath).not.toMatch(/AGone|AWas|gone_value|"was"/u);
     }
     expect(Object.keys(result.ir!.fields)).toContain('urn:demo:math:a:field:gone');
+  });
+});
+
+describe('the insurance domain (a test domain with a fixed reference date)', () => {
+  const insurance = readFileSync(new URL('../insurance/domain.manifest.yaml', import.meta.url), 'utf8');
+
+  it('warns about the deprecated note before its sunset date', () => {
+    expect(compile(insurance, undefined, { referenceDate: '2026-11-21' }).diagnostics.map((d) => `${d.severity} ${d.code}`)).toEqual(['warning deprecated-ref']);
+  });
+
+  it('fails on the sunset date, with no dependence on the day the test runs', () => {
+    expect(compile(insurance, undefined, { referenceDate: '2027-06-30' }).diagnostics.map((d) => `${d.severity} ${d.code}`)).toEqual(['error sunset-ref']);
   });
 });

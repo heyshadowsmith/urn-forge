@@ -198,7 +198,7 @@ A configuration file with an unknown option. No gate runs, and the `result` line
 {"type":"result","ok":false,"failedGates":[],"warnings":0}
 ```
 
-The insurance domain has a `sunsetDate`, and its configuration has no `referenceDate`. The exit code is `0`:
+The insurance domain has a `sunsetDate`, and its configuration sets `referenceDate`, so `sunsetDatesChecked` is `true`. Without a reference date it is `false`. The exit code is `0`:
 
 ```bash
 npx urn-forge verify --config insurance/urn-forge.config.ts --format json
@@ -209,7 +209,7 @@ npx urn-forge verify --config insurance/urn-forge.config.ts --format json
 {"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation"}
 {"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)"}
 {"type":"gate","gate":4,"name":"drift","ok":true,"summary":"3 generated file(s) compared byte for byte against insurance/generated"}
-{"type":"result","ok":true,"failedGates":[],"warnings":1,"sunsetDatesChecked":false}
+{"type":"result","ok":true,"failedGates":[],"warnings":1,"sunsetDatesChecked":true}
 ```
 
 ### `diff`

@@ -237,11 +237,10 @@ To fix it, correct the handler. Do not remove the invariant to make the scenario
 
 ## Result
 
-`npx urn-forge verify` passes, and the summary shows that a scenario breaks each invariant. The warning and the note come from the retired field `note`:
+`npx urn-forge verify` passes, and the summary shows that a scenario breaks each invariant. The warning comes from the retired field `note`:
 
 ```
 insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
-note: sunset dates are not checked: set --reference-date or referenceDate in the config
 gate 1  completeness  PASS  tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 gate 4  drift         PASS  3 generated file(s) compared byte for byte against insurance/generated

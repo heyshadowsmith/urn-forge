@@ -146,7 +146,7 @@ For the steps after the deprecation, refer to [Retire a URN](retire-a-urn).
 
 The `compatibility` job of urn-forge runs `diff` for each domain of the repository on each pull request (highlighted):
 
-<<< @/../.github/workflows/ci.yml{135-154}
+<<< @/../.github/workflows/ci.yml{133-157}
 
 - `if` runs the job on pull requests only.
 - GitHub checks out a pull request as a merge commit. `HEAD^1` is the tip of the base branch, so the diff shows only the changes of the pull request.
@@ -167,6 +167,15 @@ diff failed: 1 breaking, 0 compatible, 0 lifecycle change(s)
 
 1 domain(s) have a breaking change: declare a new URN and deprecate the old one
 ```
+
+The CI of urn-forge adds `--report`. The domains of the urn-forge repository are test domains, which change to test new features. With `--report`, the script prints each breaking change, adds one line, and stops with exit code 0:
+
+```
+1 domain(s) have a breaking change: declare a new URN and deprecate the old one
+(--report: printed, not a failure)
+```
+
+Do not use `--report` for a domain that other people use. The tests of urn-forge make sure that `diff` fails on each breaking change.
 
 For a project with one manifest, a script is not necessary. Add this job to your workflow:
 

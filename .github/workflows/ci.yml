@@ -73,9 +73,8 @@ jobs:
       - name: urn-forge verify (insurance)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         working-directory: packages/urn-forge
-        # Pass 8 compares sunset dates with the commit's date, never the clock, so a rerun of
-        # this commit later gives the same verdict (lifecycle plan, decision 5).
-        run: npm run verify:insurance -- --reference-date "$(git log -1 --format=%cs)"
+        # insurance/urn-forge.config.ts fixes its reference date: a test domain must not depend on the day.
+        run: npm run verify:insurance
 
       - name: cucumber-js (insurance)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -131,9 +130,11 @@ jobs:
           npm run verify:self
           npm run verify:insurance
 
-  # Gate 5 (lifecycle plan): no breaking change to a live URN. A pull request is checked out
-  # as its merge commit, so HEAD^1 is the tip of the base branch, and the diff shows exactly
-  # what the pull request changes in each domain's manifest.
+  # Gate 5 (lifecycle plan), as a report. A pull request is checked out as its merge commit, so
+  # HEAD^1 is the tip of the base branch, and the diff shows what the pull request changes in
+  # each domain. The domains here are test domains, which change on purpose to exercise new
+  # features, so a breaking change is reported, not a failure (--report). tests/diff.test.ts
+  # proves that diff fails on a breaking change.
   compatibility:
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
@@ -153,7 +154,7 @@ jobs:
 
       - name: urn-forge diff of each domain against the base branch
         working-directory: packages/urn-forge
-        run: npm run diff:base -- HEAD^1
+        run: npm run diff:base -- HEAD^1 --report
 
   # The path a person takes outside this repository: pack urn-forge, install the tarball in a
   # new project, run urn-forge init, then verify and the scenarios (scripts/test-tarball.mjs).
