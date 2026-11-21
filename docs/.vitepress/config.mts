@@ -129,6 +129,7 @@ export default defineConfig({
           { text: 'Structure plan', link: '/project/structure-plan' },
           { text: 'Postgres plan', link: '/project/postgres-plan' },
           { text: 'Lifecycle plan', link: '/project/lifecycle-plan' },
+          { text: 'Events plan', link: '/project/events-plan' },
           { text: 'Spec v1.1', link: '/project/spec-v1-1' },
         ],
       },
