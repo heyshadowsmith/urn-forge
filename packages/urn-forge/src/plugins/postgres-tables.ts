@@ -29,6 +29,8 @@ interface Table {
   readonly key: readonly Column[];
   /** The property of the parent that this table holds; undefined for a root table. */
   readonly property?: string;
+  /** The entity whose property this table holds; undefined for a root table. */
+  readonly owner?: Urn;
 }
 
 export interface TableHooks {
@@ -129,6 +131,12 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
   /** A table for an entity: a root table, or a child table that holds one embedded entity per row. */
   const entityTable = (table: Table, entity: Urn, before: readonly string[], keyLines: readonly string[], comment: string) => {
     const columns: string[] = [...before];
+    // A property cannot have the name of a column that the plugin adds: a parent key column or position.
+    for (const ref of ir.entities[entity]!.fields) {
+      if (table.owner !== undefined && !('entity' in ref) && ref.many === undefined && table.key.some((c) => c.name === ref.name)) {
+        hooks.nameTaken(`${table.name}.${ref.name}`, entity, 'column', table.owner);
+      }
+    }
     const comments: string[] = [`COMMENT ON TABLE ${qualified(table)} IS ${literal(comment)};`];
     const children: (() => void)[] = [];
     for (const ref of ir.entities[entity]!.fields) {
@@ -148,7 +156,7 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
     const parentColumns = parent.key.map((c) => (c.name === 'position' ? { ...c, name: `${parent.property}_position` } : c));
     const many = ref.many;
     const key: Column[] = [...parentColumns, ...(many ? [{ name: 'position', type: 'INTEGER' }] : [])];
-    const table: Table = { schema: parent.schema, name, key, property: ref.name };
+    const table: Table = { schema: parent.schema, name, key, property: ref.name, owner };
     for (const c of key) hooks.checkName(c.name, owner, 'column');
 
     const before = key.map((c) => `${ident(c.name)} ${c.type} NOT NULL${c.name === 'position' && many ? ' CHECK ("position" >= 0)' : ''}`);
@@ -176,6 +184,7 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
         claim(parent.schema, `${name}_${ref.name}_key`, owner, 'unique constraint');
         keyLines.push(`CONSTRAINT ${ident(`${name}_${ref.name}_key`)} UNIQUE (${columnList([...parentColumns, { name: ref.name, type: '' }])})`);
       }
+      if (key.some((c) => c.name === ref.name)) hooks.nameTaken(`${name}.${ref.name}`, owner, 'column', owner);
       const columns = [...before, `${ident(ref.name)} ${domainType(field)} NOT NULL`];
       tables.push('', `CREATE TABLE ${qualified(table)} (`, [...columns, ...keyLines].map((l) => `  ${l}`).join(',\n'), ');', `COMMENT ON TABLE ${qualified(table)} IS ${literal(comment)};`);
       if ('link' in ref) link(table, ref.name, ref.link, owner);
@@ -187,18 +196,22 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
     }
     const min = many ? (many.minItems ?? 0) : ref.required ? 1 : 0;
     const max = many ? many.maxItems : ref.required ? 1 : undefined;
-    if (min > 0 || max !== undefined) count(parent, table, parentColumns, ref.name, owner, min, max);
+    // An optional list may be absent, which is no rows: only a list with rows must have its count.
+    const absentAllowed = many !== undefined && !ref.required;
+    if (min > 0 || max !== undefined) count(parent, table, parentColumns, ref.name, owner, min, max, absentAllowed);
   };
 
   /** A deferred constraint trigger on the parent and on the child, which counts the child's rows. */
-  const count = (parent: Table, table: Table, parentColumns: readonly Column[], propertyName: string, owner: Urn, min: number, max: number | undefined) => {
+  const count = (parent: Table, table: Table, parentColumns: readonly Column[], propertyName: string, owner: Urn, min: number, max: number | undefined, absentAllowed: boolean) => {
     const check = `${table.name}_count`;
     for (const name of [check, `${check}_parent`, `${check}_item`]) hooks.checkName(name, owner, 'count function');
+    hooks.checkName(`${propertyName}_count`, owner, 'count trigger');
     const params = parentColumns.map((c, i) => `p${i + 1} ${c.type}`).join(', ');
     const match = (columns: readonly Column[]) => columns.map((c, i) => `${ident(c.name)} = p${i + 1}`).join(' AND ');
     const args = (record: string, columns: readonly Column[]) => columns.map((c) => `${record}.${ident(c.name)}`).join(', ');
     const fn = (name: string) => `${ident(table.schema)}.${ident(name)}`;
-    const outside = [min > 0 ? `n < ${min}` : undefined, max === undefined ? undefined : `n > ${max}`].filter(Boolean).join(' OR ');
+    const bounds = [min > 0 ? `n < ${min}` : undefined, max === undefined ? undefined : `n > ${max}`].filter(Boolean).join(' OR ');
+    const outside = absentAllowed ? `n > 0 AND (${bounds})` : bounds;
     counts.push(
       '',
       `CREATE FUNCTION ${fn(check)}(${params}) RETURNS void LANGUAGE plpgsql AS $$`,

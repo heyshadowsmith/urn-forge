@@ -322,3 +322,26 @@ describe('invariants (decision 10)', () => {
     expect(result.files[0]!.content).toContain('-- Not enforced here: urn:demo:shop:a:invariant:tagged (tags is present).');
   });
 });
+
+describe('fixes found while writing the docs', () => {
+  const HEADER = 'manifest:\n  namespace: demo\n  domain: shop\n  version: 1.0.0\n';
+  const BASE =
+    'a.field.id: { primitive: integer }\na.field.tag: { primitive: string }\na.field.note: { primitive: string }\n' +
+    'a.entity.item:\n  description: d\n  fields:\n    - ref: a.field.tag\n';
+
+  it('lets an optional list with minItems be absent: no rows pass, and a list with rows must have its count', async () => {
+    const manifest = `${HEADER}${BASE}a.entity.e:\n  description: d\n  key: a.field.id\n  fields:\n    - ref: a.field.id\n    - { ref: a.field.tag, as: tags, required: false, many: { minItems: 2 } }\n`;
+    const result = compile(manifest, [{ plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } }]);
+    const db = new PGlite();
+    await db.exec(result.files[0]!.content);
+    await db.exec('INSERT INTO "a"."e" ("id") VALUES (1);');
+    await expect(db.exec(`BEGIN; INSERT INTO "a"."e" ("id") VALUES (2); INSERT INTO "a"."e__tags" ("id", "position", "tags") VALUES (2, 0, 'x'); COMMIT;`)).rejects.toMatchObject({ constraint: 'tags_count' });
+    await db.close();
+  });
+
+  it('refuses a property with the name of a column that the plugin adds', () => {
+    const manifest = `${HEADER}${BASE.replace('    - ref: a.field.tag\n', '    - ref: a.field.tag\n    - { ref: a.field.note, as: position }\n')}a.entity.e:\n  description: d\n  key: a.field.id\n  fields:\n    - ref: a.field.id\n    - { ref: a.entity.item, as: items, many: true }\n`;
+    const diagnostics = compile(manifest, [{ plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } }]).diagnostics;
+    expect(diagnostics.map((d) => d.message)).toEqual(['urn:demo:shop:a:entity:item: the column name "e__items.position" is also a name that urn:demo:shop:a:entity:e uses']);
+  });
+});

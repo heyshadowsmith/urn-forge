@@ -21,7 +21,7 @@ export interface VerifyOptions {
   readonly corePath: string;
   readonly featuresDir: string;
   readonly tsconfigPath: string;
-  /** The plugins `compile` runs (gate 4 compares against their output). Default: every plugin. */
+  /** The plugins `compile` runs (gate 4 compares against their output). Default: `DEFAULT_PLUGINS` (Valibot and FCIS). */
   readonly plugins?: readonly PluginEntry[];
   /** Gate 3's coverage mode. Default: `warn`. */
   readonly boundaryCoverage?: 'warn' | 'error';
