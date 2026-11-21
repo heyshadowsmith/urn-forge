@@ -5,13 +5,17 @@
  * `tsc` then names each place that does not handle the new primitive yet.
  */
 import { boolean } from './boolean.js';
+import { date } from './date.js';
+import { decimal } from './decimal.js';
+import { enumPrimitive } from './enum.js';
 import { float } from './float.js';
 import { integer } from './integer.js';
 import { string } from './string.js';
+import { timestamp } from './timestamp.js';
 import type { BoundaryCase, CoherenceProblem, ConstraintValue, ConstraintValues, PrimitiveDescriptor } from './types.js';
 
 /** In the order diagnostics list them. */
-export const PRIMITIVES = { boolean, float, integer, string } as const;
+export const PRIMITIVES = { boolean, date, decimal, enum: enumPrimitive, float, integer, string, timestamp } as const;
 
 export type Primitive = keyof typeof PRIMITIVES;
 export const PRIMITIVE_NAMES = Object.keys(PRIMITIVES) as Primitive[];
@@ -47,6 +51,19 @@ export function boundaryCases(
 ): readonly BoundaryCase[] {
   const descriptor: PrimitiveDescriptor = PRIMITIVES[primitive] as PrimitiveDescriptor;
   return descriptor.boundaries(constraints);
+}
+
+/**
+ * A Gherkin table cell for a list: `[a, b, c]`, each item parsed as a cell of the field's
+ * primitive, and `[]` for the empty list. A cell without the brackets stays text, so the
+ * schema refuses it. An item cannot hold a comma.
+ */
+export function parseListCell(primitive: Primitive, cell: string): unknown {
+  const match = /^\[(.*)\]$/su.exec(cell.trim());
+  if (!match) return cell;
+  const inner = (match[1] ?? '').trim();
+  if (inner === '') return [];
+  return inner.split(',').map((item) => parseCell(primitive, item.trim()));
 }
 
 /** A non-empty Gherkin table cell as the value a field of `primitive` parses. */

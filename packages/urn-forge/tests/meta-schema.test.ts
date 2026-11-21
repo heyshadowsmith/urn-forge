@@ -44,12 +44,12 @@ describe('meta-schema', () => {
   it('rejects an unknown primitive, naming the key', () => {
     const result = validateManifest({
       manifest: header,
-      'geometry.field.radius': { primitive: 'decimal' },
+      'geometry.field.radius': { primitive: 'money' },
     });
     const [message, ...rest] = messages(result);
     expect(rest).toEqual([]);
     expect(message).toContain('geometry.field.radius');
-    expect(message).toContain('unknown primitive "decimal"');
+    expect(message).toContain('unknown primitive "money"');
   });
 
   it('rejects minLength on a float, naming the key', () => {

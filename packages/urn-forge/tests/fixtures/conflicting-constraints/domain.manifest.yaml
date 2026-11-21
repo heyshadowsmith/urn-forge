@@ -1,0 +1,18 @@
+# Each field sets constraints that conflict or admit no value (primitives plan, "The target,
+# written first"). These are pass 7 problems, so the manifest is otherwise valid.
+manifest:
+  namespace: demo
+  domain: conflicts
+  version: 0.1.0
+
+value.field.both_lower:   { primitive: float, min: 0, exclusiveMin: 0 }
+value.field.both_upper:   { primitive: float, max: 1, exclusiveMax: 1 }
+value.field.both_shapes:  { primitive: string, regex: '[a-z]+', format: email }
+value.field.all_excluded: { primitive: integer, min: 1, max: 3, notIn: [1, 2, 3] }
+value.field.no_multiple:  { primitive: integer, min: 1, max: 4, multipleOf: 5 }
+value.field.empty_open:   { primitive: float, exclusiveMin: 1, max: 1 }
+value.field.short_uuid:   { primitive: string, format: uuid, maxLength: 10 }
+value.field.price_both:   { primitive: decimal, min: "0", exclusiveMin: "0" }
+value.field.price_scale:  { primitive: decimal, min: "0.001", max: "0.009", scale: 2 }
+value.field.day_order:    { primitive: date, min: 2026-02-01, max: 2026-01-31 }
+value.field.at_order:     { primitive: timestamp, min: "2026-01-02T00:00:00Z", max: "2026-01-01T00:00:00Z" }

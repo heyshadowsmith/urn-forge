@@ -58,8 +58,8 @@ parcel.field.weight_grams:
   max: 30000
   description: The weight of the parcel in grams
 parcel.field.zone:
-  primitive: string
-  oneOf: [domestic, international]
+  primitive: enum
+  values: [domestic, international]
   description: Where the parcel goes
 parcel.field.express:
   primitive: boolean
@@ -70,7 +70,7 @@ quote.field.price_cents:
   description: The price of the delivery in cents
 ```
 
-Each key has the format `<context>.<kind>.<identifier>`. A field has a primitive and constraints. For example, `weight_grams` must be an integer from 1 to 30000.
+Each key has the format `<context>.<kind>.<identifier>`. A field has a primitive and constraints. For example, `weight_grams` must be an integer from 1 to 30000. `zone` is an `enum`: its value must be one of the names in `values`.
 
 ## 5. Add the entities
 
@@ -122,7 +122,7 @@ The command shows this output:
 ```
 wrote      my-shipping/generated/domain.runtime.generated.ts
 wrote      my-shipping/generated/domain.schemas.generated.ts
-fingerprint sha256:a3739aea471d31a8fab52b04915f4671b16f25a66596cab64fe3ad79713986e0
+fingerprint sha256:aded2f13d2ed2e8accfdf2cd9f56fc86cf8b0742bb5522ea91c99da97a64edd6
 ```
 
 Your fingerprint is the same, because the compile is deterministic. The same manifest always gives the same files.
@@ -241,7 +241,7 @@ The command shows this output:
 gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, strict: 0/1 features
     my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-    my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf
+    my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
 verify passed with 2 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
 ```

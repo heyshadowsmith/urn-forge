@@ -8,12 +8,16 @@ Many bugs are at an edge. A handler uses `>` where it must use `>=`, or a constr
 
 Specification v1.0 asked for one value at or past a bound. [Specification v1.1](../project/spec-v1-1) asks for both sides: for an `integer` with `min: 1`, the values `0` and `1`. One side shows that the schema refuses a bad value. The other side shows that it accepts the first good value.
 
-Each constraint has its own cases. A `regex` needs one value that matches and one that does not. A `oneOf` needs each listed value and one value outside the list. [Verification gates](../reference/verification-gates) gives the full rules. Each primitive holds its own rules, in its descriptor, so a new primitive brings its rules with it.
+Each constraint has its own cases. A `regex` needs one value that matches and one that does not. An `enum` needs each of its `values` and one value outside the list. [Verification gates](../reference/verification-gates) gives the full rules. Each primitive holds its own rules, in its descriptor, so a new primitive brings its rules with it.
 
-Two rules are not in specification v1.1:
+These rules are not in specification v1.1:
 
-- **`notEqual` and `mustBe`.** The specification says nothing about them. urn-forge asks for the excluded value of `notEqual`, and for both values of a `boolean` with `mustBe`. The excluded value is the one case that the constraint exists for, such as the divisor `0` of the math example.
-- **`float` bounds.** The specification gives the rule for `integer` (one step past the bound) and for `decimal` (one step at the declared scale). A `float` has no step. Thus urn-forge asks for the value at the bound and any value past it.
+- **`notIn` and `mustBe`.** The specification says nothing about them. urn-forge asks for each excluded value of `notIn`, and for both values of a `boolean` with `mustBe`. An excluded value is the case that the constraint exists for, such as the divisor `0` of the math example.
+- **`float` bounds.** The specification gives the rule for `integer` (one step past the bound) and for `decimal` (one step at the declared scale). A `float` has no step. Thus urn-forge asks for the value at the bound and any value past it. A `decimal` with no `scale` has no step either, so it gets the same rule.
+- **Exclusive bounds.** The specification has no `exclusiveMin` or `exclusiveMax`. urn-forge asks for the bound itself, which the schema refuses, and for one value inside it.
+- **`multipleOf` and `scale`.** urn-forge asks for one value that obeys the step and one that does not.
+- **Dates and instants.** A `date` needs the day at each bound and the day past it. A `timestamp` needs the instant at each bound and any instant past it, compared as instants and not as text.
+- **Lists.** Each item of a list counts as a value of the field, so the rules of the field apply to each item. The list itself needs the item counts at and past `minItems` and `maxItems`, and a repeated value for `unique`. The field and the list are two layers, so each layer has its own cases. Refer to [The MECE model of primitives](./primitives-model).
 
 ## Presence, not success
 
@@ -34,7 +38,7 @@ Gate 3 gives one `uncovered-boundary` diagnostic for each field and operation, w
 ```
 gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, strict: 0/1 features
     tutorial/1-first-domain/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-    tutorial/1-first-domain/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf
+    tutorial/1-first-domain/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 ```
 
 One diagnostic for each case would bury the output. A field is the unit that a person fixes.
@@ -79,13 +83,14 @@ A waiver covers the whole field, not one case.
 
 An empty cell in a table means "absent": the step sends the payload without that key. This is how a scenario tests a field that is not there. But it also meant that no table could send the empty string. Then a `string` field with `minLength: 1` could never be covered, because its case below the bound is the empty string.
 
-urn-forge thus reads a cell of `""` as the empty string for a `string` field. The `string` primitive parses the cell, so the steps and gate 3 always agree on its value. The cost is small: a table cannot send the two-character text `""` to a `string` field.
+urn-forge thus reads a cell of `""` as the empty string for a `string` field. The `string` primitive parses the cell, so the steps and gate 3 always agree on its value. The cost is small: a table cannot send the two-character text `""` to a `string` field. An `enum` reads `""` in the same way, so a scenario can send the empty string as a value outside the list.
 
 ## The limits
 
 - Gate 3 shows that the cases are present. It does not show that they expect the correct result.
 - Every `Examples` header must be a field of the operation, also a column that only the step text uses. Thus a Scenario Outline cannot have a column that names the field to reject. `self/` uses four scenarios for this reason.
-- The `decimal` primitive and the `format` constraint are not in urn-forge at this time, so their rules are not there. Refer to [Scope](../reference/scope).
+- A `format` case accepts any valid value and any value that is not valid. One invalid `email` does not show all the ways that an `email` can be invalid.
+- A list cell cannot hold an item with a comma. Refer to [Gherkin steps](../reference/gherkin-steps).
 
 ## Related pages
 

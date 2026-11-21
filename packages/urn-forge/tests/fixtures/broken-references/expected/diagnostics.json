@@ -72,10 +72,10 @@
   {
     "code": "incoherent-constraints",
     "location": {
-      "column": 67,
+      "column": 71,
       "line": 10
     },
-    "message": "urn:demo:broken:order:field:code: oneOf value \"abc\" is longer than maxLength (2), so it is never valid",
+    "message": "urn:demo:broken:order:field:code: minLength (3) is greater than maxLength (2), so no value is valid",
     "severity": "error",
     "urn": "urn:demo:broken:order:field:code"
   },
@@ -92,10 +92,10 @@
   {
     "code": "incoherent-constraints",
     "location": {
-      "column": 69,
+      "column": 70,
       "line": 11
     },
-    "message": "urn:demo:broken:order:field:size: oneOf value \"XL\" does not match regex [SML], so it is never valid",
+    "message": "urn:demo:broken:order:field:size: notIn lists every value that min, max allow, so no value is valid",
     "severity": "error",
     "urn": "urn:demo:broken:order:field:size"
   },

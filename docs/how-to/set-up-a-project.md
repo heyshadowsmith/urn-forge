@@ -29,7 +29,7 @@ This guide makes a project in which `urn-forge compile`, `urn-forge verify` and 
    updated    package.json
    wrote      src/generated/domain.runtime.generated.ts
    wrote      src/generated/domain.schemas.generated.ts
-   fingerprint sha256:19af085cd79db24def3af18fdd002bb602423ba5e1fae859638d0bd3bd26e95f
+   fingerprint sha256:7e99af3b34de3a7fe30c17fe40ea2eebd4c85a999ded0d08fae9aaa9bf517845
    next: npm run verify, then npm run test:features
    ```
 
@@ -45,16 +45,16 @@ This guide makes a project in which `urn-forge compile`, `urn-forge verify` and 
 3. Run `npm run test:features`. All scenarios pass:
 
    ```
-   .....................
+   ...........................
 
-   7 scenarios (7 passed)
-   21 steps (21 passed)
-   0m 0.014s (0m 0.003s executing your code)
+   9 scenarios (9 passed)
+   27 steps (27 passed)
+   0m 0.015s (0m 0.004s executing your code)
    ```
 
 4. Change the starter domain to your domain. Edit `domain.manifest.yaml`, run `npm run compile`, then do what `verify` tells you.
 
-The starter splits a bill into equal shares. It has three fields, two entities, one operation and one declared error. Its scenarios test each boundary, and `boundaryCoverage` is `'error'`. Thus each new gap makes `verify` fail.
+The starter splits a bill into equal shares between a list of people. It has three fields, two entities, one operation and one declared error. The field `people` is a list of 1 to 10 names, with no name two times. Its scenarios test each boundary, and `boundaryCoverage` is `'error'`. Thus each new gap makes `verify` fail. To declare a list, refer to [Add an entity](add-an-entity).
 
 - `--namespace` and `--domain` set the header of the manifest and the URNs. The defaults are `app` and `starter`. Example: `npx urn-forge init --namespace acme --domain billing`.
 - If one of the starter files is in the folder, `init` writes no file and stops with exit code 1.
@@ -153,7 +153,7 @@ npx urn-forge compile
 ```
 wrote      generated/domain.runtime.generated.ts
 wrote      generated/domain.schemas.generated.ts
-fingerprint sha256:a3739aea471d31a8fab52b04915f4671b16f25a66596cab64fe3ad79713986e0
+fingerprint sha256:aded2f13d2ed2e8accfdf2cd9f56fc86cf8b0742bb5522ea91c99da97a64edd6
 ```
 
 Commit the files in `generated/`. Gate 4 compares them with a fresh compile. Refer to [Regenerate the code after a manifest change](regenerate-code).
@@ -245,7 +245,7 @@ For the steps, refer to [Write scenarios](write-scenarios).
    gate 1  completeness  PASS  tsc: 0 error(s) over core.ts; `core` satisfies DomainCoreImplementation
    gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, strict: 0/1 features
        features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-       features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf
+       features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
    gate 4  drift         PASS  2 generated file(s) compared byte for byte against generated
    verify passed with 2 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
    ```

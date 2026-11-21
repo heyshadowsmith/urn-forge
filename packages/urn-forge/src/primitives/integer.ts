@@ -1,12 +1,11 @@
-import * as v from 'valibot';
-import { numericBoundaries, numericCoherence, numericConstraints, parseNumberCell } from './numeric.js';
+import { integerConstraints, numberBoundaries, numberCoherence, parseNumberCell } from './numeric.js';
 import { definePrimitive } from './types.js';
 
-/** A safe-integer JavaScript number. */
+/** An exact whole number: a safe-integer JavaScript number. Its bounds are inclusive. */
 export const integer = definePrimitive({
   name: 'integer',
-  constraints: numericConstraints(v.pipe(v.number(), v.safeInteger())),
-  coherence: numericCoherence,
+  constraints: integerConstraints,
+  coherence: numberCoherence('integer'),
   parseCell: parseNumberCell,
-  boundaries: numericBoundaries('integer'),
+  boundaries: numberBoundaries('integer'),
 });

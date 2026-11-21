@@ -116,9 +116,10 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'invalid-key': () => manifest('Bad Key: { primitive: float }\n'),
   'unsupported-kind': () => manifest('a.invariant.b: {}\n'),
   'unknown-kind': () => manifest('a.widget.b: {}\n'),
-  'unknown-primitive': () => manifest('a.field.b: { primitive: decimal }\n'),
+  'unknown-primitive': () => manifest('a.field.b: { primitive: money }\n'),
   'constraint-not-allowed': () => manifest('a.field.b: { primitive: boolean, min: 1 }\n'),
   'unknown-property': () => manifest('a.field.b: { primitive: float, colour: red }\n'),
+  'missing-property': () => manifest('a.entity.e: { fields: [] }\n'),
   'invalid-value': () => manifest('a.field.b: { primitive: integer, min: many }\n'),
   // Pass 3
   'duplicate-brand': () => manifest('a.field.b_c: { primitive: float }\na_b.field.c: { primitive: float }\n'),
@@ -132,6 +133,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   // Pass 6
   'unknown-placeholder': () => manifest('a.error.e:\n  description: d\n  category: precondition\n  retryable: false\n  message: no {thing}\n'),
   // Pass 7
+  'conflicting-constraints': () => manifest('a.field.b: { primitive: float, min: 0, exclusiveMin: 0 }\n'),
   'incoherent-constraints': () => manifest('a.field.b: { primitive: integer, min: 5, max: 1 }\n'),
   // Plugins
   'plugin-config': () => compile(math, [{ ...DEFAULT_PLUGINS[0]!, config: { bogus: 1 } }, DEFAULT_PLUGINS[1]!]).diagnostics,

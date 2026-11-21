@@ -22,10 +22,10 @@ urn-forge 0.1.0 has the full traceability chain for four kinds of atom: the mani
 | Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
 | --- | --- | --- |
 | Kinds | `field`, `entity`, `operation`, `error` | `invariant` (§4.3), `event` (§4.5) |
-| Primitives (§4.1) | `boolean`, `float`, `integer`, `string` | `decimal`, `timestamp`, `list`, `record`, `ref` |
-| Constraints (§4.1) | `mustBe`; `min`, `max`, `notEqual`; `minLength`, `maxLength`, `regex`, `oneOf` | `format`, `precision`, `after`, `before`, `of`, `minItems`, `maxItems`, `unique`, `keyType`, `valueType`, `to` |
+| Primitives (§4.1) | `boolean`, `date`, `decimal`, `enum`, `float`, `integer`, `string`, `timestamp`. The specification does not have `date` and `enum` | `list`, `record`, `ref`. A list is `many` on a field reference |
+| Constraints (§4.1) | `mustBe`; `values`; `minLength`, `maxLength`, `regex`, `format` (`uuid`, `email`, `uri`); `min`, `max`, `exclusiveMin`, `exclusiveMax`; `multipleOf`; `scale`; `notIn`. `minItems`, `maxItems` and `unique` are in `many` on a field reference | `format: iso-date`, `precision`, `after`, `before`, `of`, `keyType`, `valueType`, `to`. `oneOf` and `notEqual` have replacements: `enum` with `values`, and `notIn` |
 | Constraint values | Pass 1 examines the type of each constraint value against its primitive | — |
-| Entities (§4.2) | `description`, `fields`, and `required` on each field reference | `nullable`, `key`, `invariants` |
+| Entities (§4.2) | `description`, `fields`, and `required` and `many` on each field reference | `nullable`, `key`, `invariants`. A list of entities |
 | Operations (§4.4) | `description`, `input` and `output` (entities), `errors`. Synchronous handlers | A field as `input` or `output`. `emits` |
 | Errors (§4.6) | `description`, the five categories, `retryable`, `message` with placeholders, `fields`. The reserved property `kind` | `recordAs` |
 
@@ -37,7 +37,7 @@ For the full schema, refer to [The manifest](./manifest).
 | --- | --- | --- |
 | Form | Plain objects with URN keys in URN order, `meta` with `manifestHash` and `irSchemaVersion: 1` | — |
 | Nodes | `IRField`, `IREntity`, `IROperation`, `IRError` | `IRInvariant`, events, `Lifecycle` on each node |
-| Field references | `field`, `required`, and `name` (the property name). The specification does not have `name` | `nullable` |
+| Field references | `field`, `required`, `many`, and `name` (the property name). The specification does not have `name` and `many` | `nullable` |
 | Errors | The parsed message template | `recordAs` |
 
 ## Compiler passes (§5)
@@ -50,7 +50,7 @@ For the full schema, refer to [The manifest](./manifest).
 | 4. Referential integrity | Built for `ref`, `input`, `output` and `errors`. urn-forge does not have `of`, `to`, `key`, `emits`, `recordAs`, `on` and `supersededBy` at this time |
 | 5. Cycle check | Not built |
 | 6. Rule and template typing | Built for error message templates. urn-forge does not have invariant rules and `recordAs` at this time |
-| 7. Constraint coherence | Built for `min` and `max`, `minLength` and `maxLength`, `notEqual`, and `oneOf` values against the length and `regex` constraints. Pass 1 examines that `oneOf` is not empty. urn-forge does not have `precision` at this time |
+| 7. Constraint coherence | Built for the range of each ordered primitive, `minLength` and `maxLength`, `multipleOf`, `scale` and `notIn` against the range, `format: uuid` against the length constraints, and `minItems` and `maxItems` of a list. Two constraints for one side of one aspect cause `conflicting-constraints`. Pass 1 examines that `values` is not empty. urn-forge does not have `precision` at this time |
 | 8. Lifecycle | Not built |
 
 Refer to [Compiler passes](./compiler-passes).
@@ -70,7 +70,7 @@ Refer to [Compiler passes](./compiler-passes).
 | Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
 | --- | --- | --- |
 | Plugin contract | `name`, `version`, `configSchema`, `emit`. Also `supports` and `requires`, which the specification does not have | — |
-| Valibot plugin (§7.1) | A `v.pipe(…)` with `v.brand` for each field, a `v.object` for each entity and error, `v.optional` for `required: false`, a `kind` literal on each error, input and output types | `v.uuid`, `v.email`, `v.isoDate` (`format`), `decimal`, `v.nullable`, invariants |
+| Valibot plugin (§7.1) | A `v.pipe(…)` with `v.brand` for each field, a `v.object` for each entity and error, `v.optional` for `required: false`, `v.array` for `many`, a `kind` literal on each error, input and output types. `v.uuid`, `v.email` and `v.url` for `format`. Exact `decimal` comparison without a library | `v.isoDate` (`format: iso-date`), `v.nullable`, invariants |
 | FCIS plugin (§7.2) | `Result`, `ok` and `fail`, a handler type for each operation, `DomainCoreImplementation`, `DispatchMap`, `executeOperation` with `UnknownOperation`, `InputRejected`, `DomainError` and `ContractViolation` | Events in `Result`, `EmittedEvent`, the `recordAs` event of an error |
 | Gherkin plugin (§7.3) | A generic step library in `urn-forge/cucumber`, in place of generated code | `domain.cucumber.generated.ts`, `defineParameterType` for each field, `urn-forge.lint.json` |
 | Postgres plugin (§7.4) | — | `schema.generated.sql` |
@@ -84,7 +84,7 @@ For the generated code, refer to [The generated schemas](./generated-schemas) an
 | --- | --- | --- |
 | 1. Implementation completeness | `tsc` over the core entry, and a check for `satisfies DomainCoreImplementation` | — |
 | 2. Boundary discipline | — | The ESLint profile `urn-forge/eslint-config` and the rule `no-brand-construction` |
-| 3. Gherkin traceability | Tags, table headers, a column for each mandatory input field, declared errors in steps, error coverage, boundary coverage, `@urn-forge:strict`, `boundaryCoverage`, the `ratchet-ready` note, waivers, strict and non-strict counts | Coverage for `format` and `decimal`. A waiver as the tag `@urn-forge:waive(<field URN>, <reason>)`: urn-forge uses the comment `# urn-forge:waive <field URN> <reason>` |
+| 3. Gherkin traceability | Tags, table headers, a column for each mandatory input field, declared errors in steps, error coverage, boundary coverage of each constraint and of the item count of a list, `@urn-forge:strict`, `boundaryCoverage`, the `ratchet-ready` note, waivers, strict and non-strict counts | A waiver as the tag `@urn-forge:waive(<field URN>, <reason>)`: urn-forge uses the comment `# urn-forge:waive <field URN> <reason>` |
 | 4. Drift | A byte comparison with a new compile, and generated files with no source (`generated-orphan`) | — |
 | 5. Compatibility | — | `urn-forge diff` against the manifest at the merge base |
 
@@ -110,7 +110,13 @@ urn-forge 0.1.0 changes these parts of the specification:
 | --- | --- | --- |
 | Handler output | A handler returns its output with a brand | A handler returns the output without a brand. `executeOperation` adds the brand when it parses the output. The same applies to declared errors |
 | Feature table headers | Only fields of the input entity | Fields of the input or of the output of the operation |
-| `IRFieldRef` | `field`, `required`, `nullable` | `field`, `name`, `required` |
+| `IRFieldRef` | `field`, `required`, `nullable` | `field`, `name`, `required`, `many` |
+| A fixed set of values | `oneOf` on a `string` | The `enum` primitive with `values` |
+| An excluded value | `notEqual`, with one value | `notIn`, with a list of values |
+| Bounds | `min` and `max` (inclusive). `after` and `before` on a `timestamp` | `min` and `max` on each ordered primitive. Also `exclusiveMin` and `exclusiveMax` on `float`, `decimal` and `timestamp` |
+| Decimal size | `precision: [p, s]` | `scale` only. The range limits the size |
+| A calendar day | `format: iso-date` on a `string` | The `date` primitive |
+| A list | The `list` primitive | `many` on a field reference |
 | Waivers | The tag `@urn-forge:waive(<field URN>, <reason>)` | The comment `# urn-forge:waive <field URN> <reason>` |
 | `boundaryCoverage` | An option of the `gherkin` plugin | A top-level setting of the configuration file |
 | Text diagnostics | `file:line:col  severity  <URN>  message` | `file:line:col  severity  code  message`. The message starts with the URN or the key |

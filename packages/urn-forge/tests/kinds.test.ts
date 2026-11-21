@@ -48,8 +48,8 @@ describe('kind registry', () => {
   });
 
   it('matches the kinds self/ declares for naming.field.kind, so the dogfood domain stays in step', () => {
-    const manifest = parse(readFileSync(fileURLToPath(new URL('../self/domain.manifest.yaml', import.meta.url)), 'utf8')) as Record<string, { oneOf?: string[] }>;
-    expect(manifest['naming.field.kind']?.oneOf).toEqual(KIND_NAMES);
+    const manifest = parse(readFileSync(fileURLToPath(new URL('../self/domain.manifest.yaml', import.meta.url)), 'utf8')) as Record<string, { values?: string[] }>;
+    expect(manifest['naming.field.kind']?.values).toEqual(KIND_NAMES);
   });
 
   it('matches the segment grammar self/ declares for its segment fields', () => {

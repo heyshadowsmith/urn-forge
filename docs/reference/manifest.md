@@ -2,9 +2,11 @@
 
 The manifest is one YAML file that declares one domain. The default name is `domain.manifest.yaml`. Pass 1 of the compiler examines the structure that this page gives. For the passes, refer to [Compiler passes](./compiler-passes).
 
-This manifest uses each kind, each primitive and each constraint:
+This manifest uses each kind, an optional field reference and a declared error:
 
 <<< @/../packages/urn-forge/tests/fixtures/shop/domain.manifest.yaml
+
+The primitives test fixture, `tests/fixtures/primitives/domain.manifest.yaml`, uses each primitive, each constraint and each form of `many`.
 
 ## The file
 
@@ -54,17 +56,22 @@ Each atom has a short key of the form `<context>.<kind>.<identifier>`, for examp
 ## Field
 
 ```yaml
-order.field.quantity: { primitive: integer, min: 1, max: 99, notEqual: 13 }
+order.field.quantity: { primitive: integer, min: 1, max: 99, notIn: [13] }
+order.field.delivery: { primitive: enum, values: [standard, express, "click & collect"] }
 ```
 
 | Property | Type | Necessary | Default | Rule |
 | --- | --- | --- | --- | --- |
-| `primitive` | `boolean`, `float`, `integer` or `string` | Yes | — | Other values cause `unknown-primitive` |
+| `primitive` | `boolean`, `date`, `decimal`, `enum`, `float`, `integer`, `string` or `timestamp` | Yes | — | Other values cause `unknown-primitive` |
 | `description` | string | No | None | Not empty. The generated schema has it in its comment |
-| A constraint | Refer to [Primitives and constraints](./primitives) | No | None | A constraint of the primitive of the field |
+| A constraint | Refer to [Primitives and constraints](./primitives) | No, except `values` of an `enum` | None | A constraint of the primitive of the field |
 
 - A field accepts only the constraints of its primitive. A constraint of a different primitive causes `constraint-not-allowed`, and the message gives the constraints of the primitive. A key that is a constraint of no primitive causes `unknown-property`.
+- An `enum` field must have `values`. If it does not, the result is `missing-property`.
+- A field can have only one constraint for each side of an aspect: `min` or `exclusiveMin`, `max` or `exclusiveMax`, and `regex` or `format`. Two cause `conflicting-constraints`.
 - The constraints of a field must accept one or more values (pass 7, `incoherent-constraints`).
+- Write each bound of a `decimal` in quotes, for example `min: "0.01"`. A YAML number causes `invalid-value`, because YAML reads it as a binary float.
+- Write a bound of a `timestamp` in quotes, for example `min: "2026-01-01T00:00:00Z"`. A bound of a `date` can have quotes or not, for example `min: 2026-01-01`.
 - A field does not set if it is optional. The field reference in an entity or an error sets it.
 
 ## Field reference
@@ -75,12 +82,26 @@ A field reference is an item of the `fields` list of an entity or an error.
 fields:
   - ref: order.field.note
     required: false
+  - ref: order.field.sku
+    many: { minItems: 1, maxItems: 50, unique: true }
 ```
 
 | Property | Type | Necessary | Default | Rule |
 | --- | --- | --- | --- | --- |
 | `ref` | string | Yes | — | A short key of a field in this manifest. The pattern is `^[a-z][a-z0-9_]{0,62}\.[a-z]+\.[a-z][a-z0-9_]{0,62}$` |
 | `required` | boolean | No | `true` | `false` lets the key be absent from the payload |
+| `many` | `true`, or a mapping with `minItems`, `maxItems` and `unique` | No | None | The property holds a list of values of the field. Other values cause `invalid-value`: `must be true or { minItems, maxItems, unique }` |
+
+The mapping of `many` has these properties. Each one is optional:
+
+| Property | Type | Rule |
+| --- | --- | --- |
+| `minItems` | integer, 0 or more | The list has this number of items or more. `minItems: 0` lets the list be empty, as does no `minItems` |
+| `maxItems` | integer, 0 or more | The list has this number of items or fewer. If `minItems` is greater than `maxItems`, the result is `incoherent-constraints` |
+| `unique` | boolean | `true`: no value occurs two times in the list |
+
+- `many: true` is a list of any length.
+- `required: false` lets the list be absent. An empty list is a different value: it is present, with no items.
 
 - The property name of the field in the payload is its identifier. `order.field.unit_cost` becomes the property `unit_cost`.
 - One list cannot refer to the same field two times (`duplicate-ref`).
@@ -153,7 +174,7 @@ The `message` of an error is a template. A placeholder is `{` and `}` around one
 | `{ sku }` | No. The text stays as it is |
 | `{}` | No. The text stays as it is |
 
-Each placeholder must name a field of the error with `required: true` (pass 6, `unknown-placeholder`). The generated runtime puts the value of the field in place of the placeholder.
+Each placeholder must name a field of the error with `required: true` and no `many` (pass 6, `unknown-placeholder`). The generated runtime puts the value of the field in place of the placeholder.
 
 ## Properties and kinds that urn-forge does not accept
 
@@ -162,8 +183,12 @@ Specification v1.1 has these properties and kinds. urn-forge 0.1.0 does not acce
 | Item | Where in the specification | Diagnostic in urn-forge 0.1.0 |
 | --- | --- | --- |
 | The kinds `invariant` and `event` | A short key | `unsupported-kind` |
-| The primitives `decimal`, `timestamp`, `list`, `record` and `ref` | `primitive` of a field | `unknown-primitive` |
-| The constraints `format` and `precision` | A field | `constraint-not-allowed` |
+| The primitives `list`, `record` and `ref` | `primitive` of a field | `unknown-primitive`. For a list, use `many` on the field reference |
+| The constraint `oneOf` | A `string` field | `unknown-property`, with the hint `for a fixed set of values, use primitive: enum with values: [ … ]` |
+| The constraint `notEqual` | A number field | `unknown-property`, with the hint `to exclude values, use notIn: [ … ]` |
+| The format `iso-date` | `format` of a `string` field | `invalid-value`: `must be one of uuid, email, uri`. Use the `date` primitive |
+| The constraint `precision` | A field | `unknown-property`. For a `decimal`, use `scale` and the range |
+| The constraints `after` and `before` | A field | `unknown-property`. For a `date` or a `timestamp`, use `min` and `max` |
 | `nullable` | A field reference | `unknown-property` |
 | `key` and `invariants` | An entity | `unknown-property` |
 | `emits` | An operation | `unknown-property` |

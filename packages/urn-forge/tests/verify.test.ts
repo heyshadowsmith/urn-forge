@@ -99,7 +99,7 @@ describe('urn-forge verify', () => {
   });
 
   it('Done #3: hand-editing domain.schemas.generated.ts fails gate 4 only', async () => {
-    await edit('example/generated/domain.schemas.generated.ts', 'v.notValue(0)', 'v.notValue(1)');
+    await edit('example/generated/domain.schemas.generated.ts', 'v.notValues([0])', 'v.notValues([1])');
     const result = await run();
     expect(failures(result)).toEqual({
       4: [
@@ -239,11 +239,11 @@ describe('urn-forge verify', () => {
   });
 
   it('runs no gate when the manifest does not compile', async () => {
-    await edit('domain.manifest.yaml', 'notEqual: 0', 'notEqual: zero');
+    await edit('domain.manifest.yaml', 'notIn: [0]', 'notIn: [zero]');
     const result = await run();
     expect(result.ok).toBe(false);
     expect(result.gates).toEqual([]);
-    expect(result.diagnostics).toEqual([expect.objectContaining({ message: expect.stringContaining('arithmetic.field.divisor.notEqual') })]);
+    expect(result.diagnostics).toEqual([expect.objectContaining({ message: expect.stringContaining('arithmetic.field.divisor.notIn') })]);
   });
 
   it('CLI: prints one line per gate and exits 0, or 1 on failure', async () => {
@@ -260,7 +260,7 @@ describe('urn-forge verify', () => {
     ]);
 
     out.length = 0;
-    await edit('example/generated/domain.schemas.generated.ts', 'v.notValue(0)', 'v.notValue(1)');
+    await edit('example/generated/domain.schemas.generated.ts', 'v.notValues([0])', 'v.notValues([1])');
     expect(await main(args, io)).toBe(1);
     expect(err).toEqual(['verify failed: gate 4']);
   });

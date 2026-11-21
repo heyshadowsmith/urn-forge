@@ -71,13 +71,17 @@ export const error = defineKind<ErrorDecl, IRError>()({
     for (const part of message) {
       if (!('field' in part)) continue;
       const field = fields.find((f) => f.name === part.field);
-      if (!field || !field.required) {
+      if (!field || !field.required || field.many) {
         report({
           code: 'unknown-placeholder',
           urn: atom.urn,
           message:
             `${atom.urn}: message placeholder {${part.field}} ` +
-            (field ? 'names an optional field; placeholders must name required fields' : 'names no field of the error') +
+            (!field
+              ? 'names no field of the error'
+              : field.many
+                ? 'names a list; placeholders must name single values'
+                : 'names an optional field; placeholders must name required fields') +
             ` (required fields: ${required.length > 0 ? required.join(', ') : 'none'})`,
           path: [shortKey, 'message'],
         });

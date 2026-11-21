@@ -8,13 +8,13 @@ The `compile` and `verify` commands send the manifest through a sequence of pass
 | --- | --- | --- | --- | --- |
 | Read | Read the file | The manifest file can be read | `manifest-unreadable` | Stop |
 | YAML | Parse the YAML | The file is valid YAML with no key two times in one mapping | `yaml-syntax`, `duplicate-key` | Stop after this step |
-| 1 | [Meta-schema](#pass-1-meta-schema) | The structure of the header and of each entry | `not-a-mapping`, `missing-header`, `invalid-key`, `unsupported-kind`, `unknown-kind`, `unknown-primitive`, `constraint-not-allowed`, `unknown-property`, `invalid-value` | Stop after this step |
+| 1 | [Meta-schema](#pass-1-meta-schema) | The structure of the header and of each entry | `not-a-mapping`, `missing-header`, `invalid-key`, `unsupported-kind`, `unknown-kind`, `unknown-primitive`, `constraint-not-allowed`, `unknown-property`, `missing-property`, `invalid-value` | Stop after this step |
 | 2 | [Expansion](#pass-2-expansion) | None. It makes the URNs and the brand identifiers | None | — |
 | 3 | [Uniqueness](#pass-3-uniqueness) | Brand identifiers and property names are unique | `duplicate-brand`, `duplicate-property`, `duplicate-ref`, `reserved-property` | Stop after pass 7 |
 | 4 | [References](#pass-4-references) | Each reference names an atom of the correct kind | `unresolved-ref`, `wrong-ref-kind` | Stop after pass 7 |
 | 5 | Cycle check | Not built | — | — |
 | 6 | [Message templates](#pass-6-message-templates) | Each placeholder in an error message names a mandatory field of the error | `unknown-placeholder` | Stop after pass 7 |
-| 7 | [Constraint coherence](#pass-7-constraint-coherence) | The constraints of each field accept one or more values | `incoherent-constraints` | Stop after pass 7 |
+| 7 | [Constraint coherence](#pass-7-constraint-coherence) | A field has one constraint for each side of each aspect. The constraints of each field accept one or more values. The `many` of each field reference accepts one or more lists | `conflicting-constraints`, `incoherent-constraints` | Stop after pass 7 |
 | 8 | Lifecycle | Not built | — | — |
 | Plugins | [Plugin checks](#plugin-checks) | The plugins and their configurations agree with the IR | `plugin-config`, `missing-plugin`, `unsupported-construct`, `export-collision`, `output-conflict` | No files |
 
@@ -35,10 +35,11 @@ Pass 1 examines the parsed YAML with Valibot schemas. It examines these items, i
 
 | Problem in an entry | Code | Position |
 | --- | --- | --- |
-| A `primitive` that is not `boolean`, `float`, `integer` or `string`, or no `primitive` | `unknown-primitive` | The value, or the entry key if there is no `primitive` |
+| A `primitive` that is not `boolean`, `date`, `decimal`, `enum`, `float`, `integer`, `string` or `timestamp`, or no `primitive` | `unknown-primitive` | The value, or the entry key if there is no `primitive` |
 | A key on a field that is a constraint of a different primitive | `constraint-not-allowed` | The key |
-| A key on the header, an atom or a field reference that it does not accept, and on a field a key that is a constraint of no primitive | `unknown-property` | The key |
-| A value of the wrong type or form, or a necessary property that is not there | `invalid-value` | The value, or the entry key for a property that is not there |
+| A key on the header, an atom or a field reference that it does not accept, and on a field a key that is a constraint of no primitive. On a field, `oneOf` and `notEqual` get a hint in the message | `unknown-property` | The key |
+| A value of the wrong type or form. Examples: an empty `values` list, a `decimal` bound that is a YAML number, a `timestamp` bound with an offset, or a `many` that is not `true` or a mapping | `invalid-value` | The value |
+| A necessary property that is not there, for example the `values` of an `enum` | `missing-property` | The entry key |
 
 The schema of each kind is on [The manifest](./manifest). The rules for constraint values are on [Primitives and constraints](./primitives).
 
@@ -85,9 +86,34 @@ The specification also puts invariant rules and `recordAs` events in pass 6. urn
 
 ## Pass 7: constraint coherence
 
-Pass 7 examines the constraints of each field together. It reports `incoherent-constraints` at the constraint to correct. For the rules, refer to [Primitives and constraints](./primitives).
+Pass 7 examines the constraints of each field together, in two steps:
 
-Pass 1, not pass 7, examines that a `oneOf` list is not empty and has no value two times.
+1. Each constraint restricts one aspect of a value, for example the range or the shape. A field can set only one constraint for each side of an aspect. If a field sets `min` and `exclusiveMin`, `max` and `exclusiveMax`, or `regex` and `format`, pass 7 reports `conflicting-constraints` at the second key. Then it does not do step 2 for the field.
+2. The constraints together must accept one or more values. If they do not, pass 7 reports `incoherent-constraints` at the constraint to correct.
+
+Pass 7 also examines the `many` of each field reference in an entity or an error. If `minItems` is greater than `maxItems`, pass 7 reports `incoherent-constraints` at `many`, with the URN of the entity or the error.
+
+Pass 1, not pass 7, examines that a `values` list is not empty and has no value two times. For the rules of each primitive, refer to [Primitives and constraints](./primitives). For the aspects, refer to [The MECE model of primitives](../explanation/primitives-model).
+
+This fixture has problems from pass 7 only:
+
+<<< @/../packages/urn-forge/tests/fixtures/conflicting-constraints/domain.manifest.yaml
+
+`urn-forge compile --manifest tests/fixtures/conflicting-constraints/domain.manifest.yaml` writes these diagnostics:
+
+```
+tests/fixtures/conflicting-constraints/domain.manifest.yaml:11:72  error  incoherent-constraints  urn:demo:conflicts:value:field:all_excluded: notIn lists every value that min, max allow, so no value is valid
+tests/fixtures/conflicting-constraints/domain.manifest.yaml:18:85  error  incoherent-constraints  urn:demo:conflicts:value:field:at_order: min (2026-01-02T00:00:00Z) is after max (2026-01-01T00:00:00Z), so no value is valid
+tests/fixtures/conflicting-constraints/domain.manifest.yaml:8:69  error  conflicting-constraints  urn:demo:conflicts:value:field:both_lower: min and exclusiveMin both set a lower bound; keep one
+tests/fixtures/conflicting-constraints/domain.manifest.yaml:10:73  error  conflicting-constraints  urn:demo:conflicts:value:field:both_shapes: regex and format both set the shape; keep one
+tests/fixtures/conflicting-constraints/domain.manifest.yaml:9:69  error  conflicting-constraints  urn:demo:conflicts:value:field:both_upper: max and exclusiveMax both set an upper bound; keep one
+tests/fixtures/conflicting-constraints/domain.manifest.yaml:17:68  error  incoherent-constraints  urn:demo:conflicts:value:field:day_order: min (2026-02-01) is after max (2026-01-31), so no value is valid
+tests/fixtures/conflicting-constraints/domain.manifest.yaml:13:69  error  incoherent-constraints  urn:demo:conflicts:value:field:empty_open: exclusiveMin and max are both 1, and one of them excludes it, so no value is valid
+tests/fixtures/conflicting-constraints/domain.manifest.yaml:12:77  error  incoherent-constraints  urn:demo:conflicts:value:field:no_multiple: no multiple of 5 is between min (1) and max (4), so no value is valid
+tests/fixtures/conflicting-constraints/domain.manifest.yaml:15:73  error  conflicting-constraints  urn:demo:conflicts:value:field:price_both: min and exclusiveMin both set a lower bound; keep one
+tests/fixtures/conflicting-constraints/domain.manifest.yaml:16:84  error  incoherent-constraints  urn:demo:conflicts:value:field:price_scale: no value with at most 2 digit(s) after the point is between min (0.001) and max (0.009), so no value is valid
+tests/fixtures/conflicting-constraints/domain.manifest.yaml:14:56  error  incoherent-constraints  urn:demo:conflicts:value:field:short_uuid: a uuid has 36 characters, which the length constraints exclude, so no value is valid
+```
 
 ## Sequence of the diagnostics
 
@@ -100,10 +126,10 @@ urn-forge reports the diagnostics of passes 3 to 7 in this sequence:
 
 | Kind | Checks, in sequence |
 | --- | --- |
-| `field` | Pass 7 |
-| `entity` | `duplicate-property` and `duplicate-ref`, for each item of `fields` |
+| `field` | Pass 7: `conflicting-constraints`, then `incoherent-constraints` |
+| `entity` | `duplicate-property` and `duplicate-ref`, then the `many` check of pass 7, for each item of `fields` |
 | `operation` | `duplicate-ref`, for each item of `errors` |
-| `error` | `duplicate-property` and `duplicate-ref`, then `reserved-property`, then pass 6 |
+| `error` | `duplicate-property` and `duplicate-ref`, then the `many` check of pass 7, for each item of `fields`. Then `reserved-property`, then pass 6 |
 
 URN order compares the UTF-16 code units. It does not use the locale.
 
@@ -121,9 +147,9 @@ tests/fixtures/broken-references/domain.manifest.yaml:32:12  error  unknown-plac
 tests/fixtures/broken-references/domain.manifest.yaml:23:12  error  unknown-placeholder  urn:demo:broken:order:error:limit_exceeded: message placeholder {quantiy} names no field of the error (required fields: quantity)
 tests/fixtures/broken-references/domain.manifest.yaml:23:12  error  unknown-placeholder  urn:demo:broken:order:error:limit_exceeded: message placeholder {limit} names no field of the error (required fields: quantity)
 tests/fixtures/broken-references/domain.manifest.yaml:52:19  error  reserved-property  urn:demo:broken:order:error:wrong_kind: fields[0].ref urn:demo:broken:order:field:kind becomes property "kind", which an error reserves for its URN; rename the field
-tests/fixtures/broken-references/domain.manifest.yaml:10:67  error  incoherent-constraints  urn:demo:broken:order:field:code: oneOf value "abc" is longer than maxLength (2), so it is never valid
+tests/fixtures/broken-references/domain.manifest.yaml:10:71  error  incoherent-constraints  urn:demo:broken:order:field:code: minLength (3) is greater than maxLength (2), so no value is valid
 tests/fixtures/broken-references/domain.manifest.yaml:9:61  error  incoherent-constraints  urn:demo:broken:order:field:quantity: min (10) is greater than max (1), so no value is valid
-tests/fixtures/broken-references/domain.manifest.yaml:11:69  error  incoherent-constraints  urn:demo:broken:order:field:size: oneOf value "XL" does not match regex [SML], so it is never valid
+tests/fixtures/broken-references/domain.manifest.yaml:11:70  error  incoherent-constraints  urn:demo:broken:order:field:size: notIn lists every value that min, max allow, so no value is valid
 tests/fixtures/broken-references/domain.manifest.yaml:39:10  error  wrong-ref-kind  urn:demo:broken:order:operation:place: input "order.field.quantity" must name an entity, but urn:demo:broken:order:field:quantity is a field
 tests/fixtures/broken-references/domain.manifest.yaml:45:40  error  wrong-ref-kind  urn:demo:broken:order:operation:reprice: errors[1] "order.entity.line" must name an error, but urn:demo:broken:order:entity:line is an entity
 tests/fixtures/broken-references/domain.manifest.yaml:45:59  error  duplicate-ref  urn:demo:broken:order:operation:reprice: errors[2] lists urn:demo:broken:order:error:limit_exceeded more than once

@@ -93,6 +93,7 @@ All four types use STE. These are the rules that this site applies.
 | `explanation/determinism.md` | Determinism and the fingerprint |
 | `explanation/what-the-gates-show.md` | What the gates show |
 | `explanation/boundary-coverage.md` | Boundary coverage and the ratchet |
+| `explanation/primitives-model.md` | The MECE model of primitives |
 | `explanation/architecture.md` | How urn-forge is built |
 | `explanation/dogfooding.md` | Dogfooding |
 | `explanation/departures-from-the-spec.md` | Departures from the specification |

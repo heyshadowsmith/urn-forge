@@ -103,6 +103,7 @@ export default defineConfig({
           { text: "Determinism and the fingerprint", link: '/explanation/determinism' },
           { text: "What the gates show", link: '/explanation/what-the-gates-show' },
           { text: "Boundary coverage and the ratchet", link: '/explanation/boundary-coverage' },
+          { text: "The MECE model of primitives", link: '/explanation/primitives-model' },
           { text: "How urn-forge is built", link: '/explanation/architecture' },
           { text: "Dogfooding", link: '/explanation/dogfooding' },
           { text: "Departures from the specification", link: '/explanation/departures-from-the-spec' },

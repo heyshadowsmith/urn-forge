@@ -121,6 +121,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Constraints that the MECE model replaced (primitives plan), with what to write now. */
+const REPLACED_CONSTRAINTS: Readonly<Record<string, string>> = {
+  oneOf: 'for a fixed set of values, use primitive: enum with values: [ … ]',
+  notEqual: 'to exclude values, use notIn: [ … ]',
+};
+
 function describeIssue(key: string, entry: unknown, issue: v.BaseIssue<unknown>, urn: string | undefined): ManifestIssue {
   const dotPath = v.getDotPath(issue) ?? '';
   const prefix = dotPath ? `${key}.${dotPath}` : key;
@@ -150,8 +156,16 @@ function describeIssue(key: string, entry: unknown, issue: v.BaseIssue<unknown>,
       'key',
     );
   }
+  // A strict object reports a property it must have as an issue at that key, with no input.
+  const missingKey = (issue.type === 'strict_object' || issue.type === 'object') && issue.input === undefined && issue.expected?.startsWith('"');
+  if (missingKey) {
+    const name = dotPath.split('.').at(-1) ?? dotPath;
+    return at('missing-property', `${prefix}: missing property "${name}"`, 'key');
+  }
   if (unknownKey) {
-    return at('unknown-property', `${prefix}: unknown property "${dotPath.split('.').at(-1) ?? dotPath}"`, 'key');
+    const name = dotPath.split('.').at(-1) ?? dotPath;
+    const hint = REPLACED_CONSTRAINTS[name] && primitive !== undefined ? `; ${REPLACED_CONSTRAINTS[name]}` : '';
+    return at('unknown-property', `${prefix}: unknown property "${name}"${hint}`, 'key');
   }
   return at('invalid-value', `${prefix}: ${issue.message}`);
 }

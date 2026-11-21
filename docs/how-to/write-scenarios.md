@@ -46,11 +46,42 @@ The step converts each cell with the primitive of its field:
 | --- | --- | --- |
 | `integer`, `float` | `2500` | The number `2500` |
 | `boolean` | `true`, `false` | The boolean |
-| `string` | `domestic` | The string `domestic` |
-| `string` | `""` | The empty string |
+| `string`, `enum` | `domestic` | The string `domestic` |
+| `string`, `enum` | `""` | The empty string |
+| `decimal` | `12.50` | The string `12.50`, unchanged, so that the digits stay exact |
+| `date` | `2026-03-01` | The string `2026-03-01` |
+| `timestamp` | `2026-03-01T09:30:00Z` | The string `2026-03-01T09:30:00Z` |
 | Any | Empty cell | No value. In the input table, the step does not send the property. In the output and error tables, the property must be absent |
 
 A cell that the primitive cannot read stays a string. Then the schema rejects it.
+
+### Write a list in a cell
+
+If the field reference has `many`, the cell is a list. Write the items in square brackets, with a comma between them:
+
+| Cell | Value |
+| --- | --- |
+| `[Ada, Grace, Alan]` | A list of three items |
+| `[]` | The empty list |
+| `[Ada, ""]` | A list of two items. The second item is the empty string |
+
+- The step reads each item as a cell of the primitive of the field. For example, `[1, 2]` is a list of two numbers for an `integer` field.
+- An item cannot contain a comma.
+- A cell without the brackets is not a list, so the schema rejects it.
+- In the output table and the error table, the step compares the two lists item by item.
+
+The starter project of `urn-forge init` sends lists of names:
+
+```gherkin
+    Examples:
+      | people                            |
+      | []                                |
+      | [A, B, C, D, E, F, G, H, I, J, K] |
+      | [Ada, Ada]                        |
+      | [Ada, ""]                         |
+```
+
+Gate 3 counts each item as a value of the field. It also asks for the item counts of `minItems` and `maxItems`, and a repeated value for `unique`. Refer to [Add an entity](add-an-entity).
 
 ## 4. Use a Scenario Outline for many inputs
 
@@ -87,7 +118,14 @@ Use `Then the output is:` with the output values. A number must be equal. For ex
 
 ## 7. Check a rejection
 
-Use `Then the input is rejected on "<field>"` for a value that the schema refuses: a value out of range, a value outside `oneOf`, or an absent required field. The step passes only if the result is `InputRejected` with an issue on that field.
+Use `Then the input is rejected on "<field>"` for a value that the schema refuses. For example:
+
+- A value out of range.
+- A value that is not in the `values` of an `enum`.
+- A list with too many items.
+- An absent required field.
+
+The step passes only if the result is `InputRejected` with an issue on that field.
 
 For a field with constraints, test each boundary value. Gate 3 shows the values that no scenario sends. Refer to [Adopt strict coverage](adopt-strict-coverage).
 

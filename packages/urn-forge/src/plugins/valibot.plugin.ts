@@ -10,7 +10,7 @@
  * group declarations follow URN order.
  */
 import * as v from 'valibot';
-import type { IREntity, IRError, IRField, IRFieldRef, UniversalIR, Urn } from '../ir/types.js';
+import type { IREntity, IRError, IRField, IRFieldRef, ListRule, UniversalIR, Urn } from '../ir/types.js';
 import { schemaNames } from '../naming.js';
 import {
   constraintKeys,
@@ -19,7 +19,8 @@ import {
   type ConstraintValue,
   type Primitive,
 } from '../primitives/index.js';
-import { wholeValuePattern } from '../primitives/string.js';
+import { wholeValuePattern, type Format } from '../primitives/string.js';
+import { HELPER_NEEDS, VALIBOT_HELPERS, type ValibotHelper } from './valibot-helpers.js';
 import {
   numberLiteral,
   valuesInUrnOrder,
@@ -33,6 +34,8 @@ export const VALIBOT_SCHEMAS_FILE = 'domain.schemas.generated.ts';
 /** How one primitive becomes a Valibot pipe: its base actions, then one action per constraint. */
 export interface ValibotTranslation<P extends Primitive> {
   readonly base: readonly string[];
+  /** Helper functions the actions call, emitted once at the top of the file. */
+  readonly helpers?: readonly ValibotHelper[];
   readonly constraints: {
     readonly [K in ConstraintKey<P>]: (value: NonNullable<ConstraintsOf<P>[K]>) => string;
   };
@@ -44,16 +47,64 @@ export interface ValibotTranslation<P extends Primitive> {
  */
 export type ValibotTranslations = { readonly [P in Primitive]: ValibotTranslation<P> };
 
-const NUMERIC_ACTIONS: ValibotTranslation<'float' | 'integer'>['constraints'] = {
-  min: (n) => `v.minValue(${numberLiteral(n)})`,
-  max: (n) => `v.maxValue(${numberLiteral(n)})`,
-  notEqual: (n) => `v.notValue(${numberLiteral(n)})`,
-};
+/** The Valibot action of each named format; `matchesFormat` in src/primitives/string.ts uses the same ones. */
+const FORMAT_ACTIONS: { readonly [F in Format]: string } = { uuid: 'v.uuid()', email: 'v.email()', uri: 'v.url()' };
+
+const numbers = (values: readonly number[]) => `[${values.map(numberLiteral).join(', ')}]`;
+const text = (value: string) => JSON.stringify(value);
+
+/** A check that runs only on a value of the right form, so a malformed value gets one issue, not two. */
+const decimalCheck = (test: string, message: string) => `v.check((value) => !DECIMAL.test(value) || ${test}, ${text(message)})`;
+const instantCheck = (test: string, message: string) => `v.check((value) => !isUtcTimestamp(value) || ${test}, ${text(message)})`;
 
 const TRANSLATIONS: ValibotTranslations = {
   boolean: { base: ['v.boolean()'], constraints: { mustBe: (b) => `v.value(${b})` } },
-  float: { base: ['v.number()', 'v.finite()'], constraints: NUMERIC_ACTIONS },
-  integer: { base: ['v.number()', 'v.safeInteger()'], constraints: NUMERIC_ACTIONS },
+  // `values` is required, so the picklist is always the base, and the type is the union of the names.
+  enum: { base: [], constraints: { values: (values) => `v.picklist([${values.map((value) => JSON.stringify(value)).join(', ')}])` } },
+  date: {
+    base: ['v.string()', "v.check(isCalendarDate, 'Invalid date: Expected a calendar day YYYY-MM-DD')"],
+    helpers: ['date'],
+    constraints: {
+      // A date in this form sorts as text, so Valibot's own comparisons apply.
+      min: (day) => `v.minValue(${text(day)})`,
+      max: (day) => `v.maxValue(${text(day)})`,
+    },
+  },
+  decimal: {
+    base: ['v.string()', "v.regex(DECIMAL, 'Invalid decimal: Expected digits with an optional fraction, such as 12.50')"],
+    helpers: ['decimal'],
+    constraints: {
+      min: (n) => decimalCheck(`compareDecimal(value, ${text(n)}) >= 0`, `Invalid value: Expected >=${n}`),
+      max: (n) => decimalCheck(`compareDecimal(value, ${text(n)}) <= 0`, `Invalid value: Expected <=${n}`),
+      exclusiveMin: (n) => decimalCheck(`compareDecimal(value, ${text(n)}) > 0`, `Invalid value: Expected >${n}`),
+      exclusiveMax: (n) => decimalCheck(`compareDecimal(value, ${text(n)}) < 0`, `Invalid value: Expected <${n}`),
+      scale: (n) => decimalCheck(`decimalFraction(value) <= ${n}`, `Invalid decimal: Expected at most ${n} digit(s) after the point`),
+      notIn: (values) =>
+        decimalCheck(
+          `![${values.map(text).join(', ')}].some((excluded) => compareDecimal(value, excluded) === 0)`,
+          `Invalid value: Expected none of ${values.join(', ')}`,
+        ),
+    },
+  },
+  float: {
+    base: ['v.number()', 'v.finite()'],
+    constraints: {
+      min: (n) => `v.minValue(${numberLiteral(n)})`,
+      max: (n) => `v.maxValue(${numberLiteral(n)})`,
+      exclusiveMin: (n) => `v.gtValue(${numberLiteral(n)})`,
+      exclusiveMax: (n) => `v.ltValue(${numberLiteral(n)})`,
+      notIn: (values) => `v.notValues(${numbers(values)})`,
+    },
+  },
+  integer: {
+    base: ['v.number()', 'v.safeInteger()'],
+    constraints: {
+      min: (n) => `v.minValue(${numberLiteral(n)})`,
+      max: (n) => `v.maxValue(${numberLiteral(n)})`,
+      multipleOf: (n) => `v.multipleOf(${numberLiteral(n)})`,
+      notIn: (values) => `v.notValues(${numbers(values)})`,
+    },
+  },
   string: {
     base: ['v.string()'],
     constraints: {
@@ -61,8 +112,18 @@ const TRANSLATIONS: ValibotTranslations = {
       maxLength: (n) => `v.maxLength(${numberLiteral(n)})`,
       // The whole-value pattern as a regex literal; `.source` escapes any `/` in it.
       regex: (pattern) => `v.regex(/${wholeValuePattern(pattern).source}/u)`,
-      // A picklist schema in the pipe also narrows the type to the listed values.
-      oneOf: (values) => `v.picklist([${values.map((value) => JSON.stringify(value)).join(', ')}])`,
+      format: (name) => FORMAT_ACTIONS[name],
+    },
+  },
+  timestamp: {
+    base: ['v.string()', "v.check(isUtcTimestamp, 'Invalid timestamp: Expected YYYY-MM-DDTHH:MM:SSZ in UTC, with up to 3 fraction digits')"],
+    helpers: ['timestamp'],
+    constraints: {
+      // Compared as instants, so 09:00:00Z and 09:00:00.000Z are the same value.
+      min: (t) => instantCheck(`Date.parse(value) >= Date.parse(${text(t)})`, `Invalid value: Expected >=${t}`),
+      max: (t) => instantCheck(`Date.parse(value) <= Date.parse(${text(t)})`, `Invalid value: Expected <=${t}`),
+      exclusiveMin: (t) => instantCheck(`Date.parse(value) > Date.parse(${text(t)})`, `Invalid value: Expected >${t}`),
+      exclusiveMax: (t) => instantCheck(`Date.parse(value) < Date.parse(${text(t)})`, `Invalid value: Expected <${t}`),
     },
   },
 };
@@ -104,9 +165,21 @@ function propertyLines(owner: Urn, refs: readonly IRFieldRef[], fields: Readonly
   return refs.map((ref) => {
     const field = fields[ref.field];
     if (!field) throw new Error(`IR is not resolved: ${owner} references missing ${ref.field}`);
-    const schema = schemaNames(field.brandIdentifier).schema;
+    const item = schemaNames(field.brandIdentifier).schema;
+    const schema = ref.many ? listSchema(item, ref.many) : item;
     return `  ${ref.name}: ${ref.required ? schema : `v.optional(${schema})`},`;
   });
+}
+
+/** A list of a field's values: `v.array`, with its item count and uniqueness. */
+function listSchema(item: string, rule: ListRule): string {
+  const actions = [
+    ...(rule.minItems === undefined ? [] : [`v.minLength(${numberLiteral(rule.minItems)})`]),
+    ...(rule.maxItems === undefined ? [] : [`v.maxLength(${numberLiteral(rule.maxItems)})`]),
+    // Values are compared as they cross the boundary (===), so "1.10" and "1.1" are two values.
+    ...(rule.unique ? ["v.check((list) => new Set(list).size === list.length, 'Invalid items: Expected no value more than once')"] : []),
+  ];
+  return actions.length === 0 ? `v.array(${item})` : `v.pipe(v.array(${item}), ${actions.join(', ')})`;
 }
 
 function entityDeclaration(entity: IREntity, fields: Readonly<Record<Urn, IRField>>): string {
@@ -134,6 +207,15 @@ function errorDeclaration(error: IRError, fields: Readonly<Record<Urn, IRField>>
     `});`,
     ...typeExports(error.brandIdentifier),
   ].join('\n');
+}
+
+/** The helpers the fields need, each once, in the order of VALIBOT_HELPERS. */
+function helpersFor(ir: UniversalIR): ValibotHelper[] {
+  const needed = new Set<ValibotHelper>();
+  for (const field of Object.values(ir.fields)) {
+    for (const helper of TRANSLATIONS[field.primitive].helpers ?? []) for (const need of HELPER_NEEDS[helper]) needed.add(need);
+  }
+  return (Object.keys(VALIBOT_HELPERS) as ValibotHelper[]).filter((name) => needed.has(name));
 }
 
 function typeExports(brandIdentifier: string): string[] {
@@ -174,8 +256,10 @@ export const valibotPlugin: CodegenPlugin<ValibotPluginConfig> = {
   supports: { kinds: ['field', 'entity', 'operation', 'error'], constraints: SUPPORTED_CONSTRAINTS },
   emit(ir) {
     const diagnostics = exportCollisions(ir);
+    const helpers = helpersFor(ir);
     const sections = [
       `import * as v from 'valibot';`,
+      ...(helpers.length > 0 ? [`// Helpers`, ...helpers.map((name) => VALIBOT_HELPERS[name])] : []),
       `// Fields`,
       ...valuesInUrnOrder(ir.fields).map(fieldDeclaration),
       `// Entities`,

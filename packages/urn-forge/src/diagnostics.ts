@@ -30,6 +30,7 @@ export const DIAGNOSTIC_CODES = {
   'unknown-primitive': 'A field uses a primitive that this version does not support',
   'constraint-not-allowed': 'A constraint does not apply to the field primitive',
   'unknown-property': 'An entry has a property it does not accept',
+  'missing-property': 'An entry does not have a property that it must have',
   'invalid-value': 'A property has a value of the wrong type or form',
   // Pass 3: uniqueness
   'duplicate-brand': 'Two atoms derive the same brand identifier',
@@ -42,6 +43,7 @@ export const DIAGNOSTIC_CODES = {
   // Pass 6: rule and template typing
   'unknown-placeholder': 'An error message placeholder does not name a required field of the error',
   // Pass 7: constraint coherence
+  'conflicting-constraints': 'A field sets two constraints for one side of one aspect, such as min and exclusiveMin',
   'incoherent-constraints': 'The constraints of a field admit no value',
   // Plugins
   'plugin-config': 'A plugin configuration is not valid',

@@ -1,47 +1,63 @@
 # Add a constraint
 
-This guide is for contributors who change urn-forge itself. A constraint limits the values of a field, such as `min` on `integer` or `oneOf` on `string`. A constraint belongs to the descriptor of one primitive. When you add it, `tsc` names each plugin table that cannot translate it yet.
+This guide is for contributors who change urn-forge itself. A constraint limits the values of a field, such as `min` on `integer` or `format` on `string`. A constraint belongs to the descriptor of one primitive, and it restricts one aspect of the value. When you add it, `tsc` names each plugin table that cannot translate it yet.
 
-There are two real examples in the history of `src/primitives/string.ts`:
-
-- `oneOf` (commit `94ae08b`): the first constraint whose value is a list.
-- `regex` (commit `0598819`): a constraint whose value must compile as a regular expression.
-
-Each took the constraint in the `string` descriptor and one entry in the Valibot plugin.
+The example is the real addition of `format` to `string` (commit `087c5da`, "Primitives steps 2 to 5: notIn, exclusive bounds, multipleOf, format"). `format` restricts the shape of a value, as `regex` does. Thus a field can set only one of the two. It took the constraint in the `string` descriptor and one entry in the Valibot plugin.
 
 ## Before you start
 
 - You have a clone of urn-forge, and `npm ci` ran in the root folder.
 - `npm test` and `npm run typecheck` pass.
 - You know the primitive that gets the constraint. To add a primitive, refer to [Add a primitive](add-a-primitive).
+- You know the aspect that the constraint restricts: `range`, `step`, `size`, `shape`, `membership` or `exclusion`. [The MECE model of primitives](../explanation/primitives-model) gives the rules.
 - You know the boundary cases of the constraint. [Boundary coverage and the ratchet](../explanation/boundary-coverage) gives the rules.
 
 Commands run from `packages/urn-forge`, except where a step says the root folder.
 
+## Choose the name
+
+1. Look for the aspect on the other primitives. If a primitive already has a constraint for the same aspect and the same side, use its name. For example, an inclusive lower bound is `min` on each primitive.
+2. If the aspect is new to all primitives, choose a new name. Make sure that no primitive uses the name for a different aspect.
+3. Do not add a second constraint for an aspect that one constraint already covers. For example, `notIn: [0]` excludes one value, so urn-forge has no `notEqual`.
+
 ## Add the constraint to the descriptor
 
-The highlighted lines of the `string` descriptor are the parts of `oneOf` and `regex`. The steps refer to them:
+The highlighted lines of the `string` descriptor are the parts of `format`. The steps refer to them:
 
-<<< @/../packages/urn-forge/src/primitives/string.ts{27-41,46,51-62,78-86}
+<<< @/../packages/urn-forge/src/primitives/string.ts{41-61,66-67,72-74,96-99}
 
-1. Write a `ConstraintSpec` for the value (lines 27 to 41). Its Valibot schema refuses an incorrect value in pass 1, with the message that you give. An empty `oneOf` list gives this problem:
-
-   ```
-   tutorial/3-strict-coverage/domain.manifest.yaml:13:10  error  invalid-value  parcel.field.zone.oneOf: must list at least one value
-   ```
-
-2. Add the key to `constraints` of the descriptor (line 46). The key order is the order in which plugins write the constraints. `regex` comes before `oneOf`, so the generated pipe examines the form before the list.
-3. Add the rules of the new constraint to `coherence` (lines 51 to 62). For each combination of constraints that admits no value, return a problem that names the constraint to point at. `oneOf` added a check against `minLength` and `maxLength`, and `regex` added a check against `oneOf`:
+1. Write a `ConstraintSpec` for the value (lines 58 to 61). Its `schema` refuses an incorrect value in pass 1, with the message that you give. Its `aspect` puts it in the MECE model. A format that is not in the list gives this problem:
 
    ```
-   tutorial/3-strict-coverage/domain.manifest.yaml:13:10  error  incoherent-constraints  urn:demo:shipping:parcel:field:zone: oneOf value "international" is longer than maxLength (8), so it is never valid
+   bad-format.yaml:8:11  error  invalid-value  order.field.email.format: must be one of uuid, email, uri
    ```
 
-4. Add the boundary cases of the new constraint to `boundaries` (lines 78 to 86). Give each case a label that completes the sentence "has no …", and a `covers` function.
+   If each field of the primitive must set the constraint, add `required: true`. A field without it then gets `missing-property`. `values` of `enum` is the only one at this time.
+
+2. Add the key to `constraints` of the descriptor (line 66). The key order is the order in which plugins write the constraints.
+3. If the primitive has a constraint for the same side of the same aspect, add an `exclusive` group (line 67). `format` and `regex` both set the shape:
+
+   ```
+   bad-format.yaml:9:11  error  conflicting-constraints  urn:demo:shop:order:field:email: regex and format both set the shape; keep one
+   ```
+
+4. Add the rules of the new constraint to `coherence` (lines 72 to 74). For each combination of constraints that admits no value, return a problem that names the constraint to point at. A UUID always has 36 characters, so `format: uuid` with `maxLength: 10` admits no value:
+
+   ```
+   bad-format.yaml:8:11  error  incoherent-constraints  urn:demo:shop:order:field:id: a uuid has 36 characters, which the length constraints exclude, so no value is valid
+   ```
+
+5. Add the boundary cases of the new constraint to `boundaries` (lines 96 to 99). Give each case a label that completes the sentence "has no …", and a `covers` function.
 
 ::: warning
 `tsc` does not make sure that `coherence` and `boundaries` read the new constraint. If you forget them, an incoherent field compiles, and gate 3 does not ask for its boundary values.
 :::
+
+If the descriptor has no `aspect` for the constraint, `tsc` fails:
+
+```
+src/primitives/string.ts(58,7): error TS2741: Property 'aspect' is missing in type '{ schema: v.PicklistSchema<readonly ["uuid", "email", "uri"], `must be one of ${string}`>; }' but required in type 'ConstraintSpec<"uuid" | "email" | "uri">'.
+```
 
 ## Follow tsc to each plugin
 
@@ -51,40 +67,66 @@ The highlighted lines of the `string` descriptor are the parts of `oneOf` and `r
    npm run typecheck
    ```
 
-2. Read each error. Before the `oneOf` entry was in the Valibot table, `tsc` showed:
+2. Read each error. If the Valibot table has no `format` entry, `tsc` shows:
 
    ```
-   src/plugins/valibot.plugin.ts(59,5): error TS2741: Property 'oneOf' is missing in type '{ minLength: (n: number) => string; maxLength: (n: number) => string; regex: (pattern: string) => string; }' but required in type '{ readonly minLength: (value: number) => string; readonly maxLength: (value: number) => string; readonly regex: (value: string) => string; readonly oneOf: (value: string[]) => string; }'.
+   src/plugins/valibot.plugin.ts(110,5): error TS2741: Property 'format' is missing in type '{ minLength: (n: number) => string; maxLength: (n: number) => string; regex: (pattern: string) => string; }' but required in type '{ readonly regex: (value: string) => string; readonly minLength: (value: number) => string; readonly maxLength: (value: number) => string; readonly format: (value: NonNullable<"uuid" | "email" | "uri" | undefined>) => string; }'.
    ```
 
-   `tsc` also gives the value type of the function: `string[]` for `oneOf`.
+   `tsc` also gives the value type of the function: `"uuid" | "email" | "uri"` for `format`.
 
-3. Add the entry. It returns the Valibot action as TypeScript text. These are the two real entries:
+3. Add the entry. It returns the Valibot action as TypeScript text. This is the real entry, with the table of actions that it reads:
+
+   ```ts
+   /** The Valibot action of each named format; `matchesFormat` in src/primitives/string.ts uses the same ones. */
+   const FORMAT_ACTIONS: { readonly [F in Format]: string } = { uuid: 'v.uuid()', email: 'v.email()', uri: 'v.url()' };
+   ```
 
    ```diff
         constraints: {
           minLength: (n) => `v.minLength(${numberLiteral(n)})`,
           maxLength: (n) => `v.maxLength(${numberLiteral(n)})`,
-   +      // The whole-value pattern as a regex literal; `.source` escapes any `/` in it.
-   +      regex: (pattern) => `v.regex(/${wholeValuePattern(pattern).source}/u)`,
-   +      // A picklist schema in the pipe also narrows the type to the listed values.
-   +      oneOf: (values) => `v.picklist([${values.map((value) => JSON.stringify(value)).join(', ')}])`,
+          // The whole-value pattern as a regex literal; `.source` escapes any `/` in it.
+          regex: (pattern) => `v.regex(/${wholeValuePattern(pattern).source}/u)`,
+   +      format: (name) => FORMAT_ACTIONS[name],
         },
    ```
 
 4. Make sure that the text is a correct literal for each possible value. `JSON.stringify` escapes quotes in a string. `numberLiteral` keeps `-0`. `.source` escapes a `/` in a pattern.
-5. Run `npm run typecheck` again until it passes.
+5. If the action calls a function that Valibot does not have, name it in `helpers` of the primitive. Refer to [Add a primitive](add-a-primitive).
+6. Run `npm run typecheck` again until it passes.
 
 The Valibot plugin makes its `supports` declaration from its table, so it now accepts the constraint. A plugin that lists constraints in `supports.constraints` by hand needs the key there too. Otherwise a field with the constraint fails with `unsupported-construct`.
 
+## Check the MECE model
+
+Run the test of the MECE model in `tests/primitives.test.ts`:
+
+```bash
+npx vitest run tests/primitives.test.ts -t "MECE"
+```
+
+The test fails in these conditions:
+
+- A constraint name has two aspects.
+- An `exclusive` group has constraints of different aspects.
+- The constraint table in [Primitives and constraints](../reference/primitives) does not list each constraint of the registry, with its aspect.
+
+For example, a `min` on `string` with the aspect `size` gives this failure:
+
+```
+AssertionError: expected [ [ 'min', Set{ 'range', 'size' } ] ] to deeply equal []
+```
+
 ## Test the constraint
 
-1. Add unit tests to `tests/primitives.test.ts`: the value schema, `coherence` and `boundaries`.
-2. Add tests that parse the generated schema at run time, for a value that passes and a value that the schema refuses.
-3. Change the fixtures:
-   - `shop`: a field that uses the constraint. `oneOf` added a value with a space and an ampersand.
+1. Add unit tests to `tests/primitives.test.ts`: the value schema, `coherence` and `boundaries`. Add the key to the test `lists the primitives and their constraints in a fixed order`.
+2. Change the fixtures:
+   - `primitives`: a field that uses the constraint. `tests/primitives.test.ts` parses values through its generated schema, for a value that passes and a value that the schema refuses. `format` added one field for each format.
+   - `conflicting-constraints`: a field with two constraints of one `exclusive` group, and an incoherent combination. `format` added `regex` with `format`, and `format: uuid` with `maxLength: 10`.
+   - `replaced-constraints`: the constraint on a primitive that must not accept it, if the MECE model refuses it there.
    - `invalid-structure`: an incorrect value, such as an empty list.
-   - `broken-references`: an incoherent combination.
+3. If you added a diagnostic code, add a case to `tests/every-code.test.ts`. `format` added `conflicting-constraints`.
 4. Write the expected files again, then run the harness a second time:
 
    ```bash
@@ -112,9 +154,10 @@ The fingerprint includes the constraint keys of each primitive. Thus a new const
 
 ## Document the constraint
 
-1. Add the constraint, its value, its coherence rules and its boundary cases to [Primitives and constraints](../reference/primitives).
-2. Update [Scope](../reference/scope).
-3. If you added a diagnostic code, add it to [Diagnostics](../reference/diagnostics).
+1. Add the constraint, its value, its aspect, its coherence rules and its boundary cases to [Primitives and constraints](../reference/primitives). Add a row to the constraint table. The test of the MECE model compares the table with the registry.
+2. Add the constraint to the primitive in [Add a field](add-a-field).
+3. Update [Scope](../reference/scope).
+4. If you added a diagnostic code, add it to [Diagnostics](../reference/diagnostics).
 
 ## Result
 
@@ -125,4 +168,5 @@ The fingerprint includes the constraint keys of each primitive. Thus a new const
 - [Add a primitive](add-a-primitive)
 - [Add a test fixture](add-a-fixture)
 - [Primitives and constraints](../reference/primitives)
+- [The MECE model of primitives](../explanation/primitives-model)
 - [How urn-forge is built](../explanation/architecture)

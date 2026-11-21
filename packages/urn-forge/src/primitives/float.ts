@@ -1,12 +1,12 @@
-import * as v from 'valibot';
-import { numericBoundaries, numericCoherence, numericConstraints, parseNumberCell } from './numeric.js';
+import { BOUND_GROUPS, floatConstraints, numberBoundaries, numberCoherence, parseNumberCell } from './numeric.js';
 import { definePrimitive } from './types.js';
 
-/** A finite JavaScript number. */
+/** An approximate measurement: a finite JavaScript number. Its bounds can be inclusive or exclusive. */
 export const float = definePrimitive({
   name: 'float',
-  constraints: numericConstraints(v.pipe(v.number(), v.finite())),
-  coherence: numericCoherence,
+  constraints: floatConstraints,
+  exclusive: BOUND_GROUPS,
+  coherence: numberCoherence('float'),
   parseCell: parseNumberCell,
-  boundaries: numericBoundaries('float'),
+  boundaries: numberBoundaries('float'),
 });

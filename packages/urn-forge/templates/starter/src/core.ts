@@ -4,9 +4,10 @@ import { fail, ok, type DomainCoreImplementation } from './generated/domain.runt
 
 export const core = {
   'urn:{{namespace}}:{{domain}}:bill:operation:split': ({ total_cents, people }) => {
-    if (total_cents % people !== 0) {
-      return fail('urn:{{namespace}}:{{domain}}:bill:error:uneven_split', { total_cents, people });
+    const count = people.length;
+    if (total_cents % count !== 0) {
+      return fail('urn:{{namespace}}:{{domain}}:bill:error:uneven_split', { total_cents });
     }
-    return ok({ share_cents: total_cents / people });
+    return ok({ share_cents: total_cents / count });
   },
 } satisfies DomainCoreImplementation;

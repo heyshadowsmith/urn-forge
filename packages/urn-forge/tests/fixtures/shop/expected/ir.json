@@ -101,13 +101,13 @@
     "urn:demo:shop:order:field:delivery": {
       "brandIdentifier": "OrderDelivery",
       "constraints": {
-        "oneOf": [
+        "values": [
           "standard",
           "express",
           "click & collect"
         ]
       },
-      "primitive": "string",
+      "primitive": "enum",
       "urn": "urn:demo:shop:order:field:delivery"
     },
     "urn:demo:shop:order:field:gift_wrap": {
@@ -130,7 +130,9 @@
       "constraints": {
         "max": 99,
         "min": 1,
-        "notEqual": 13
+        "notIn": [
+          13
+        ]
       },
       "primitive": "integer",
       "urn": "urn:demo:shop:order:field:quantity"
@@ -181,7 +183,7 @@
   "meta": {
     "domain": "shop",
     "irSchemaVersion": 1,
-    "manifestHash": "1412763b1f191e88925951e162498fdae51af327cd2f2e65aa8d7ad07ba8aa49",
+    "manifestHash": "d4c169dd42a434843570fb0ffea7ddc6e99909b5f8af60941bc73c8091b8730e",
     "manifestVersion": "0.1.0",
     "namespace": "demo",
     "stability": "stable"

@@ -34,12 +34,12 @@ export function examples({ weight_grams, zone, express }: ParcelParcel) {
 
 In a handler, you do not write the input type. `satisfies DomainCoreImplementation` gives it.
 
-## 2. Use a `oneOf` value as an object key
+## 2. Use an `enum` value as an object key
 
-A `string` field with `oneOf` has a union type with a brand, for example `("domestic" | "international") & Brand<…>`. TypeScript does not let this type index an object. If you write `BASE_CENTS[zone]`, gate 1 fails:
+An `enum` field has a union type of its `values`, with a brand, for example `("domestic" | "international") & Brand<…>`. TypeScript does not let this type index an object. If you write `BASE_CENTS[zone]`, gate 1 fails:
 
 ```
-core.ts:13:19  error  type-error  TS7053: Element implicitly has an 'any' type because expression of type '("domestic" | "international") & Brand<"urn:demo:shipping:parcel:field:zone">' can't be used to index type '{ readonly domestic: 500; readonly international: 1500; }'.
+core.ts:9:19  error  type-error  TS7053: Element implicitly has an 'any' type because expression of type '("domestic" | "international") & Brand<"urn:demo:shipping:parcel:field:zone">' can't be used to index type '{ readonly domestic: 500; readonly international: 1500; }'.
 ```
 
 To correct it, do these steps:

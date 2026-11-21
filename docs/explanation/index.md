@@ -13,6 +13,7 @@ These pages tell why urn-forge works as it does. They give the context of each d
 | [Determinism and the fingerprint](./determinism) | Why the same input always gives the same bytes, and why drift is a byte comparison |
 | [What the gates show](./what-the-gates-show) | Conformance, not correctness: what each gate shows and what it cannot show |
 | [Boundary coverage and the ratchet](./boundary-coverage) | Why gate 3 looks for boundary values, and how a project makes the check strict |
+| [The MECE model of primitives](./primitives-model) | Why each kind of value has one primitive, and each constraint one aspect |
 | [How urn-forge is built](./architecture) | The pipeline, the registries, and how `tsc` keeps them complete |
 | [Dogfooding](./dogfooding) | How urn-forge tests itself, and what that found |
 | [Departures from the specification](./departures-from-the-spec) | Each place where urn-forge differs from specification v1.1, and why |
@@ -27,10 +28,11 @@ Each page stands alone. If you want to read all of them, use this order:
 4. [Results and declared errors](./results-and-errors).
 5. [What the gates show](./what-the-gates-show).
 6. [Boundary coverage and the ratchet](./boundary-coverage).
-7. [Determinism and the fingerprint](./determinism).
-8. [How urn-forge is built](./architecture). Read this page first if you want to change urn-forge.
-9. [Dogfooding](./dogfooding).
-10. [Departures from the specification](./departures-from-the-spec). Read this page first if you know [specification v1.1](../project/spec-v1-1).
+7. [The MECE model of primitives](./primitives-model).
+8. [Determinism and the fingerprint](./determinism).
+9. [How urn-forge is built](./architecture). Read this page first if you want to change urn-forge.
+10. [Dogfooding](./dogfooding).
+11. [Departures from the specification](./departures-from-the-spec). Read this page first if you know [specification v1.1](../project/spec-v1-1).
 
 ## Related pages
 

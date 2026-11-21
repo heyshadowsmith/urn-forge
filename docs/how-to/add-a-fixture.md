@@ -22,7 +22,12 @@ Each folder below `tests/fixtures/` is one fixture:
 | `expected/<file>.generated.ts` | Each generated file, with its header and fingerprint, if the manifest compiles |
 | `expected/diagnostics.json` | The diagnostics, if the manifest does not compile. Then `expected/` has no other file |
 
-The folders at this time are `math`, `shop`, `errors-valibot`, `invalid-structure` and `broken-references`. Add to a fixture that has the same purpose before you make a new one. For example, `shop` has every primitive and constraint, and `invalid-structure` has structure problems that pass 1 finds.
+The folders at this time are `math`, `shop`, `primitives`, `errors-valibot`, `invalid-structure`, `broken-references`, `conflicting-constraints` and `replaced-constraints`. Add to a fixture that has the same purpose before you make a new one. For example:
+
+- `primitives` has one field for each primitive and each constraint, and an entity with lists. Tests parse values through its generated schemas.
+- `invalid-structure` has structure problems that pass 1 finds.
+- `conflicting-constraints` has fields that pass 7 refuses.
+- `replaced-constraints` has constraints that pass 1 refuses, such as `oneOf` and `notEqual`.
 
 ## Add a fixture that compiles
 

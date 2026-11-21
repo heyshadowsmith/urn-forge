@@ -22,7 +22,9 @@ function fieldSchemaFor(descriptor: PrimitiveDescriptor) {
   return v.strictObject({
     primitive: v.literal(descriptor.name),
     description: v.optional(Description),
-    ...Object.fromEntries(Object.entries(descriptor.constraints).map(([key, spec]) => [key, v.optional(spec.schema)])),
+    ...Object.fromEntries(
+      Object.entries(descriptor.constraints).map(([key, spec]) => [key, spec.required ? spec.schema : v.optional(spec.schema)]),
+    ),
   });
 }
 
@@ -41,8 +43,21 @@ export const field = defineKind<FieldDecl, IRField>()({
   build({ atom, shortKey, decl, report }) {
     const { primitive, description, ...rest } = decl;
     const constraints = rest as Record<string, ConstraintValue>;
+    // Two constraints for one side of one aspect (`min` and `exclusiveMin`): one must go.
+    let conflicting = false;
+    for (const group of (PRIMITIVES[primitive] as PrimitiveDescriptor).exclusive ?? []) {
+      const set = group.keys.filter((key) => constraints[key] !== undefined);
+      if (set.length < 2) continue;
+      conflicting = true;
+      report({
+        code: 'conflicting-constraints',
+        urn: atom.urn,
+        message: `${atom.urn}: ${set.join(' and ')} both set ${group.what}; keep one`,
+        path: [shortKey, set[1]!],
+      });
+    }
     // Pass 7: constraint coherence, checked by the primitive's descriptor.
-    for (const problem of checkCoherence(primitive, constraints)) {
+    for (const problem of conflicting ? [] : checkCoherence(primitive, constraints)) {
       report({
         code: 'incoherent-constraints',
         urn: atom.urn,

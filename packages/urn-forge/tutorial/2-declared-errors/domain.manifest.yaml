@@ -9,8 +9,8 @@ parcel.field.weight_grams:
   max: 30000
   description: The weight of the parcel in grams
 parcel.field.zone:
-  primitive: string
-  oneOf: [domestic, international]
+  primitive: enum
+  values: [domestic, international]
   description: Where the parcel goes
 parcel.field.express:
   primitive: boolean
