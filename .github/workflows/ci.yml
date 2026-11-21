@@ -115,6 +115,25 @@ jobs:
           npm run verify:example
           npm run verify:self
 
+  # The path a person takes outside this repository: pack urn-forge, install the tarball in a
+  # new project, run urn-forge init, then verify and the scenarios (scripts/test-tarball.mjs).
+  tarball:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Install the tarball in a new project and run init, verify and the scenarios
+        run: npm run test:tarball
+
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -20,6 +20,8 @@
     "test:features:tutorial": "npm run test:features:tutorial --workspace urn-forge",
     "docs:dev": "npm run dev --workspace urn-forge-docs",
     "docs:build": "npm run build --workspace urn-forge-docs",
-    "docs:preview": "npm run preview --workspace urn-forge-docs"
+    "docs:preview": "npm run preview --workspace urn-forge-docs",
+    "pack:tarball": "npm pack --workspace urn-forge",
+    "test:tarball": "npm run test:tarball --workspace urn-forge"
   }
 }

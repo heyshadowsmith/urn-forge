@@ -13,7 +13,7 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 
 - The entry points are TypeScript source files. urn-forge 0.1.0 has no build step and no compiled JavaScript.
 - Code that imports an entry point must run through a TypeScript loader, for example tsx or Vitest. The CLI and the Cucumber profiles of the repository use tsx.
-- The package is private. Packages in the same npm workspace can import it by name. urn-forge 0.1.0 is not on the npm registry at this time. Refer to [Scope](./scope).
+- The package is private. You install it from a tarball. urn-forge 0.1.0 is not on the npm registry at this time. Refer to [Install urn-forge](../how-to/install) and [Scope](./scope).
 - `tests/public-api.test.ts` lists the value exports of `urn-forge` and `urn-forge/cucumber`. If an export changes, this test fails.
 
 ## `urn-forge`

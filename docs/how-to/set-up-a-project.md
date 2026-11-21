@@ -1,17 +1,75 @@
 # Set up a project
 
-This guide gives the files that a project needs, so that `urn-forge compile`, `urn-forge verify` and Cucumber run in it. The examples come from `packages/urn-forge/tutorial/1-first-domain/`, which CI tests.
+This guide makes a project in which `urn-forge compile`, `urn-forge verify` and Cucumber run. The fast way is `urn-forge init`. To add urn-forge to a project that you have, or to learn what each file does, set up the files by hand.
 
 ## Before you start
 
-- [Install urn-forge](install).
+- [Install urn-forge](install) in the project folder.
 - Know the domain that you want to declare: at least one operation, with its input and its output.
+
+## Start a project with init
+
+1. Go to the project folder, and run this command:
+
+   ```bash
+   npx urn-forge init
+   ```
+
+   `init` writes a starter project, then compiles it:
+
+   ```
+   wrote      cucumber.json
+   wrote      domain.manifest.yaml
+   wrote      features/split.feature
+   wrote      features/support/steps.ts
+   wrote      register-tsx.mjs
+   wrote      src/core.ts
+   wrote      tsconfig.json
+   wrote      urn-forge.config.ts
+   updated    package.json
+   wrote      src/generated/domain.runtime.generated.ts
+   wrote      src/generated/domain.schemas.generated.ts
+   fingerprint sha256:19af085cd79db24def3af18fdd002bb602423ba5e1fae859638d0bd3bd26e95f
+   next: npm run verify, then npm run test:features
+   ```
+
+2. Run `npm run verify`. All gates pass, with no warning:
+
+   ```
+   gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
+   gate 3  gherkin       PASS  1 feature(s), 5 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features (boundaryCoverage: error)
+   gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
+   verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+   ```
+
+3. Run `npm run test:features`. All scenarios pass:
+
+   ```
+   .....................
+
+   7 scenarios (7 passed)
+   21 steps (21 passed)
+   0m 0.014s (0m 0.003s executing your code)
+   ```
+
+4. Change the starter domain to your domain. Edit `domain.manifest.yaml`, run `npm run compile`, then do what `verify` tells you.
+
+The starter splits a bill into equal shares. It has three fields, two entities, one operation and one declared error. Its scenarios test each boundary, and `boundaryCoverage` is `'error'`. Thus each new gap makes `verify` fail.
+
+- `--namespace` and `--domain` set the header of the manifest and the URNs. The defaults are `app` and `starter`. Example: `npx urn-forge init --namespace acme --domain billing`.
+- If one of the starter files is in the folder, `init` writes no file and stops with exit code 1.
+- `init` sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. It keeps the other values. It does not replace a script that you have with the same name.
+- If `package.json` has `"type": "commonjs"`, `init` writes no file and stops with exit code 1.
+
+## Set up the files by hand
+
+Do these steps to add urn-forge to a project that you have. The examples come from `packages/urn-forge/tutorial/1-first-domain/`, which CI tests.
 
 A project has these files:
 
 | File | Contents |
 | --- | --- |
-| `package.json` | The npm scripts |
+| `package.json` | `"type": "module"` and the npm scripts |
 | `domain.manifest.yaml` | The manifest: the fields, entities, errors and operations |
 | `urn-forge.config.ts` | Where the manifest, the generated files, the core and the features are |
 | `tsconfig.json` | The compiler options that gate 1 uses |
@@ -22,10 +80,11 @@ A project has these files:
 | `register-tsx.mjs` | Registers `tsx` for Cucumber |
 | `cucumber.json` | The Cucumber configuration |
 
-## 1. Make the project folder
+### 1. Make the project folder
 
 1. Make a folder for the project.
 2. Make a `package.json` in it.
+3. Add `"type": "module"` to `package.json`. The generated files and the support file use `import`. Without it, Cucumber stops with `ERR_VM_MODULE_LINK_FAILURE`.
 
 ::: warning
 Do not leave out `package.json`. Without it, `npx` runs `urn-forge` in the nearest parent folder that has a `package.json`. Then the CLI reads the wrong configuration file.
@@ -33,7 +92,7 @@ Do not leave out `package.json`. Without it, `npx` runs `urn-forge` in the neare
 
 You add the scripts in step 9.
 
-## 2. Write the manifest
+### 2. Write the manifest
 
 Make `domain.manifest.yaml`. Start with the header, then add the atoms:
 
@@ -41,7 +100,7 @@ Make `domain.manifest.yaml`. Start with the header, then add the atoms:
 
 For each key, refer to [The manifest](../reference/manifest). To add atoms later, refer to [Add a field](add-a-field), [Add an entity](add-an-entity) and [Add an operation](add-an-operation).
 
-## 3. Write the configuration file
+### 3. Write the configuration file
 
 Make `urn-forge.config.ts`:
 
@@ -54,7 +113,7 @@ Make `urn-forge.config.ts`:
 
 For each key and its default, refer to [The configuration file](../reference/configuration).
 
-## 4. Write the tsconfig
+### 4. Write the tsconfig
 
 Gate 1 of `verify` type-checks the core with the `compilerOptions` of this file. It starts from the core file and follows its imports. It does not use `include`.
 
@@ -81,7 +140,7 @@ Two options are important for gate 1:
 
 The generated files use `.js` in their own imports, so they work with both settings.
 
-## 5. Compile the manifest
+### 5. Compile the manifest
 
 Run this command from the project folder:
 
@@ -99,7 +158,7 @@ fingerprint sha256:a3739aea471d31a8fab52b04915f4671b16f25a66596cab64fe3ad7971398
 
 Commit the files in `generated/`. Gate 4 compares them with a fresh compile. Refer to [Regenerate the code after a manifest change](regenerate-code).
 
-## 6. Write the core
+### 6. Write the core
 
 Make `core.ts`. Export one object that has a handler for each operation, and end it with `satisfies DomainCoreImplementation`:
 
@@ -117,7 +176,7 @@ core.ts  error  missing-satisfies  no export uses `satisfies DomainCoreImplement
 
 The core does not import urn-forge. For the rules of the core, refer to [Use branded values in the core](use-branded-values).
 
-## 7. Write the Cucumber support file
+### 7. Write the Cucumber support file
 
 Make `features/support/steps.ts`. It connects the generic steps of urn-forge to your generated runtime and your core:
 
@@ -125,7 +184,7 @@ Make `features/support/steps.ts`. It connects the generic steps of urn-forge to 
 
 Write the same file in each project. Only the import paths change.
 
-## 8. Configure Cucumber
+### 8. Configure Cucumber
 
 1. Make `register-tsx.mjs` with this content:
 
@@ -156,7 +215,7 @@ The urn-forge package uses the same pattern, with one profile for each domain:
 
 <<< @/../packages/urn-forge/cucumber.json
 
-## 9. Add the npm scripts
+### 9. Add the npm scripts
 
 Add these scripts to `package.json`:
 
@@ -170,7 +229,7 @@ Add these scripts to `package.json`:
 }
 ```
 
-## 10. Write a feature
+### 10. Write a feature
 
 Make a `.feature` file in `features/`. Tag it with the URN of the operation:
 
@@ -178,7 +237,7 @@ Make a `.feature` file in `features/`. Tag it with the URN of the operation:
 
 For the steps, refer to [Write scenarios](write-scenarios).
 
-## Result
+### Result
 
 1. Run `npm run verify`. The command shows each gate:
 

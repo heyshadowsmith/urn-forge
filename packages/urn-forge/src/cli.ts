@@ -1,6 +1,7 @@
 /**
- * urn-forge CLI (spec §9; the MVP ships `compile` and `verify`).
+ * urn-forge CLI (spec §9; the MVP ships `compile` and `verify`, plus `init` for a new project).
  *
+ *   urn-forge init    [--namespace <name>] [--domain <name>]
  *   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
  *   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
  *
@@ -19,6 +20,7 @@ import { diagnosticJson, formatDiagnostic, hasErrors, relativePaths, type Diagno
 import { CONFIG_FILE, loadConfig, pluginEntries, type UrnForgeConfig } from './config.js';
 import { compile, type PluginEntry } from './engine.js';
 import { DEFAULT_PLUGINS } from './plugins/index.js';
+import { initProject, segmentProblem } from './init.js';
 import { GATES, verify } from './verify/index.js';
 import { GENERATOR_VERSION } from './version.js';
 import { removeOrphanFiles, writeGeneratedFiles } from './write.js';
@@ -38,10 +40,13 @@ const defaultIo: CliIo = {
 const USAGE = `urn-forge ${GENERATOR_VERSION}
 
 Usage:
+  urn-forge init    [--namespace <name>] [--domain <name>]
   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
 
 Options:
+  --namespace <name> init: the namespace of the starter manifest (default: app)
+  --domain <name>    init: the domain of the starter manifest (default: starter)
   --config <file>    Config file (default: ${CONFIG_FILE}, when it exists). Flags override it
   --manifest <file>  Manifest YAML (default: domain.manifest.yaml)
   --out <dir>        Directory for generated files (default: src/generated)
@@ -147,6 +152,30 @@ async function resolveSettings(
 function outputFormat(value: string): 'text' | 'json' {
   if (value === 'text' || value === 'json') return value;
   throw new UsageError(`--format must be text or json, not "${value}"`);
+}
+
+async function runInit(args: string[], io: CliIo): Promise<number> {
+  const { values } = parseArgs({
+    args,
+    options: { namespace: { type: 'string', default: 'app' }, domain: { type: 'string', default: 'starter' } },
+    strict: true,
+    allowPositionals: false,
+  });
+  const problem = segmentProblem('--namespace', values.namespace) ?? segmentProblem('--domain', values.domain);
+  if (problem) {
+    io.stderr(`urn-forge: ${problem}`);
+    return 2;
+  }
+  const result = await initProject({ cwd: io.cwd, namespace: values.namespace, domain: values.domain });
+  if (!result.ok) {
+    io.stderr(`urn-forge: ${result.message}`);
+    return 1;
+  }
+  for (const line of result.lines) io.stdout(line);
+  // The starter's generated files, so verify and the scenarios run at once.
+  const compiled = await runCompile([], io);
+  if (compiled === 0) io.stdout('next: npm run verify, then npm run test:features');
+  return compiled;
 }
 
 async function runCompile(args: string[], io: CliIo): Promise<number> {
@@ -289,6 +318,8 @@ export async function main(argv: readonly string[], io: CliIo = defaultIo): Prom
   const [command, ...rest] = argv;
   try {
     switch (command) {
+      case 'init':
+        return await runInit(rest, io);
       case 'compile':
         return await runCompile(rest, io);
       case 'verify':

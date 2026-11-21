@@ -27,4 +27,18 @@ npm run docs:dev              # the docs site with live reload, on http://localh
 npm run docs:build            # a static build of the docs site
 ```
 
+## Try it in your own project
+
+```bash
+npm run pack:tarball                      # in this repository: makes urn-forge-0.1.0.tgz
+# then, in a new folder:
+npm init -y
+npm install /path/to/urn-forge-0.1.0.tgz
+npx urn-forge init                        # a starter domain that passes at once
+npm run verify
+npm run test:features
+```
+
+Refer to [Install urn-forge](docs/how-to/install.md) and [Set up a project](docs/how-to/set-up-a-project.md).
+
 Start with the docs' [first tutorial](docs/tutorials/first-domain.md). The docs follow [Diátaxis](https://diataxis.fr/): tutorials, how-to guides, reference and explanation.

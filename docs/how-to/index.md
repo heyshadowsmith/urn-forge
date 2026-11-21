@@ -4,7 +4,7 @@ A how-to guide helps you do one task. Each guide starts from a project that alre
 
 ## Setup
 
-- [Install urn-forge](install): run urn-forge from a clone, and use it from another package in the same workspace.
+- [Install urn-forge](install): make a tarball from a clone, and install it in your project.
 - [Set up a project](set-up-a-project): make the files that a project needs.
 
 ## The manifest
