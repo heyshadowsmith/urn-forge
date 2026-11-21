@@ -118,8 +118,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'unknown-kind': () => manifest('a.widget.b: {}\n'),
   'unknown-primitive': () => manifest('a.field.b: { primitive: decimal }\n'),
   'constraint-not-allowed': () => manifest('a.field.b: { primitive: boolean, min: 1 }\n'),
-  // An unknown key on a field reads as a constraint (constraint-not-allowed); on other kinds it is a property.
-  'unknown-property': () => manifest('a.entity.e: { description: d, fields: [], colour: red }\n'),
+  'unknown-property': () => manifest('a.field.b: { primitive: float, colour: red }\n'),
   'invalid-value': () => manifest('a.field.b: { primitive: integer, min: many }\n'),
   // Pass 3
   'duplicate-brand': () => manifest('a.field.b_c: { primitive: float }\na_b.field.c: { primitive: float }\n'),
