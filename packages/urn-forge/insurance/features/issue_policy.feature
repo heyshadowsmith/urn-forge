@@ -38,16 +38,17 @@ Feature: Issue a policy
       | -0.01      |
       | 1.005      |
 
-  Scenario Outline: An identifier that is not a UUID is rejected
+  Scenario: A policy identifier that is not a UUID is rejected
     When I run the operation with:
-      | policy_id   | holder   | effective_date | expiry_date | premium | coverages                         |
-      | <policy_id> | <holder> | 2026-01-01     | 2026-12-31  | 120.00  | [{ peril: fire, limit: 1000.00 }] |
-    Then the input is rejected on "<field>"
+      | policy_id | holder                               | effective_date | expiry_date | premium | coverages                         |
+      | policy-1  | 9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d | 2026-01-01     | 2026-12-31  | 120.00  | [{ peril: fire, limit: 1000.00 }] |
+    Then the input is rejected on "policy_id"
 
-    Examples:
-      | policy_id                            | holder                               | field     |
-      | policy-1                             | 9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d | policy_id |
-      | 123e4567-e89b-12d3-a456-426614174000 | customer-1                           | holder    |
+  Scenario: A holder that is not a customer identifier is rejected
+    When I run the operation with:
+      | policy_id                            | holder     | effective_date | expiry_date | premium | coverages                         |
+      | 123e4567-e89b-12d3-a456-426614174000 | customer-1 | 2026-01-01     | 2026-12-31  | 120.00  | [{ peril: fire, limit: 1000.00 }] |
+    Then the input is rejected on "holder"
 
   Scenario Outline: A list of coverages that breaks its rules is rejected
     When I run the operation with:
