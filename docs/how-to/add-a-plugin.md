@@ -1,6 +1,6 @@
 # Add a plugin
 
-This guide is for contributors who change urn-forge itself. A codegen plugin turns the IR into generated files. urn-forge has two plugins at this time: `valibot` writes the schemas, and `fcis` writes the runtime. A project enables plugins by name in its config.
+This guide is for contributors who change urn-forge itself. A codegen plugin turns the IR into generated files. urn-forge has three plugins at this time: `valibot` writes the schemas, `fcis` writes the runtime, and `postgres` writes the SQL. A project enables plugins by name in its config.
 
 The example plugin on this page is `urn-list`. It writes one file with every URN of the manifest. urn-forge does not have this plugin. It is a small example that compiles and runs.
 
@@ -16,13 +16,14 @@ Commands run from `packages/urn-forge`, except where a step says the root folder
 
 A plugin is a value of type `CodegenPlugin`, from `src/plugins/plugin.interface.ts`:
 
-<<< @/../packages/urn-forge/src/plugins/plugin.interface.ts{48-58}
+<<< @/../packages/urn-forge/src/plugins/plugin.interface.ts{49-59}
 
 | Member | What it gives |
 | --- | --- |
 | `name` | The name that a config uses to enable the plugin |
 | `version` | Part of the fingerprint. Increase it when the output changes, so the change shows as drift |
 | `configSchema` | A Valibot schema. The engine parses the config of the plugin with it before any plugin runs |
+| `C` and `I` | The two type parameters. `C` is the config that `emit` gets, after defaults. `I` is the config that a user writes, before defaults. By default, `I` is the same as `C` |
 | `supports` | The kinds that the plugin handles, and for each primitive the constraints that it translates |
 | `requires` | The plugins whose output this plugin imports |
 | `emit` | A function from the IR and the parsed config to files and diagnostics |
@@ -64,7 +65,11 @@ A plugin is a value of type `CodegenPlugin`, from `src/plugins/plugin.interface.
    ```
 
 3. Use a `v.strictObject` for the config, so that an unknown option is an error. Use `v.strictObject({})` if the plugin has no options.
-4. Do not give a default in the schema, for example with the second argument of `v.optional`. The input type and the output type of `configSchema` must be the same, so `tsc` refuses a default there. Give the default in `emit`.
+4. Give each default in one place. Select one of these two methods:
+   - Give the default in `emit`, as `urn-list` does with `?? 'URNS'`. Then `CodegenPlugin<C>` is correct.
+   - Give the default in the schema, with the second argument of `v.optional`. Then declare the input type too, as the `postgres` plugin does: `CodegenPlugin<v.InferOutput<typeof ConfigSchema>, v.InferInput<typeof ConfigSchema>>`.
+
+   With one type parameter, the input type and the output type of `configSchema` must be the same, so `tsc` refuses a default in the schema. `defineConfig` types the config of a plugin with `I`, so a user can leave out each option that has a default.
 5. Declare `supports` correctly:
    - List each kind whose atoms the plugin handles. The engine reports each atom of a kind that is not in the list as `unsupported-construct`.
    - If the plugin translates constraints, give `constraints`: for each primitive, the constraint keys that it translates. Make it from the translation table, as the Valibot plugin does, so that the two cannot disagree.
@@ -82,12 +87,12 @@ A plugin is a value of type `CodegenPlugin`, from `src/plugins/plugin.interface.
 2. Add it to `PLUGINS` under its name:
 
    ```ts
-   export const PLUGINS = { valibot: valibotPlugin, fcis: fcisPlugin, 'urn-list': urnListPlugin } as const;
+   export const PLUGINS = { valibot: valibotPlugin, fcis: fcisPlugin, postgres: postgresPlugin, 'urn-list': urnListPlugin } as const;
    ```
 
    Use the `name` of the plugin as the key. A config enables the plugin by the key, and `requires` names the plugin by its `name`. `PluginName` and the config type come from this object, so `defineConfig` accepts the new name and types its config.
 
-3. Decide whether to add the plugin to `DEFAULT_PLUGINS`. A project without a `plugins` list runs the default plugins. If you add a plugin there, the output of each such project changes.
+3. Decide whether to add the plugin to `DEFAULT_PLUGINS`. A project without a `plugins` list runs the default plugins: `valibot` and `fcis`. If you add a plugin there, the output of each such project changes. `postgres` is not a default plugin.
 4. Run `npm run typecheck` from the root folder.
 
 ## Enable it in a config
@@ -104,14 +109,14 @@ A plugin is a value of type `CodegenPlugin`, from `src/plugins/plugin.interface.
    wrote      generated/domain.runtime.generated.ts
    wrote      generated/domain.schemas.generated.ts
    wrote      generated/domain.urns.generated.ts
-   fingerprint sha256:6d77b3a3db0e3b2c495bc5cf26304a0e2e2c3bb82863985fd2b649797288a15e
+   fingerprint sha256:007f71497a68f53ea60b8037d336aa0da714172943a26cb29264557ea9c8a9f1
    ```
 
    The new file is:
 
    ```ts
    // @generated by urn-forge 0.1.0 — do not edit
-   // fingerprint: sha256:6d77b3a3db0e3b2c495bc5cf26304a0e2e2c3bb82863985fd2b649797288a15e
+   // fingerprint: sha256:007f71497a68f53ea60b8037d336aa0da714172943a26cb29264557ea9c8a9f1
 
    export const SHIPPING_URNS = [
      "urn:demo:shipping:parcel:entity:parcel",
@@ -130,7 +135,7 @@ If the config is not correct, `compile` stops before any plugin runs:
 - A value that `configSchema` refuses:
 
   ```
-  urn-forge.config.ts  error  plugin-config  plugin urn-list config: exportName must be a JavaScript identifier
+  urn-forge.config.ts  error  plugin-config  plugin urn-list config: exportName: exportName must be a JavaScript identifier
   ```
 
 - A plugin that a different plugin requires is not enabled:
@@ -142,7 +147,7 @@ If the config is not correct, `compile` stops before any plugin runs:
 - A name that is not in `PLUGINS`:
 
   ```
-  urn-forge.config.ts  error  config-invalid  config.plugins[2]: unknown plugin "urn-lists" (plugins: valibot, fcis, urn-list)
+  urn-forge.config.ts  error  config-invalid  config.plugins[2]: unknown plugin "urn-lists" (plugins: valibot, fcis, postgres, urn-list)
   ```
 
 ## Test the plugin

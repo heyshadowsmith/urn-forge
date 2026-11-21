@@ -12,6 +12,7 @@ This page gives each term that this site uses, in alphabetical sequence. The pag
 | **brand identifier** | The PascalCase form of the context and the identifier of an atom, for example `OrderUnitCost`. The generated export names start with it. Refer to [URNs and names](./naming). |
 | **canonical text** | The text of an invariant rule with one space around each operator and only the necessary parentheses. The IR keeps it as `ruleText`. Refer to [The rule language](./rule-language). |
 | **category** | A property of an error: `validation`, `conflict`, `not_found`, `forbidden` or `precondition`. The shell can use it. The core does not read it. |
+| **child table** | A table of the Postgres schema for a list or an embedded entity of a stored entity. Its key is the key of its parent table and, for a list, `position`. Refer to [The Postgres schema](./postgres-schema). |
 | **coherence** | The agreement of the constraints of one field: they accept one or more values. Pass 7 examines it. |
 | **compile** | The command that examines the manifest and writes the generated files. Refer to [The CLI](./cli). |
 | **configuration file** | The file `urn-forge.config.ts`, which gives the paths, `boundaryCoverage` and the plugins of a project. |
@@ -21,10 +22,12 @@ This page gives each term that this site uses, in alphabetical sequence. The pag
 | **ContractViolation** | A result of `executeOperation` when the core breaks its contract. Examples: the handler returns an undeclared error, an output that its schema rejects or that breaks an invariant, or a value that is not a `Result`. It shows a defect in the core. |
 | **core** | The handlers of a project, in the core entry file. The core receives only values with a brand and does no I/O. |
 | **core entry** | The file that exports the core with `satisfies DomainCoreImplementation`. The default is `src/core.ts`. Gate 1 type-checks it. |
+| **count trigger** | A deferred constraint trigger of the Postgres schema that counts the rows of a child table when the transaction commits. It enforces `minItems`, `maxItems` and a required embedded entity. |
 | **declared error** | An error that an operation lists in its `errors`. Its handler can return it with `fail(…)`. |
 | **diagnostic** | One problem that urn-forge reports, with a file, a position, a severity, a code and a message. Refer to [Diagnostics](./diagnostics). |
 | **diagnostic code** | The stable name of a kind of problem, for example `unresolved-ref`. |
 | **DispatchMap** | The generated constant that gives, for each operation URN, the schemas and field data of its input, its output and its declared errors. |
+| **domain** | In the Postgres schema, the SQL type of one field, `"<context>"."<identifier>_value"`, with one `CHECK` for all the constraints of the field. |
 | **DomainCoreImplementation** | The generated interface that maps each operation URN to its handler type. The core must use `satisfies DomainCoreImplementation`. |
 | **DomainError** | A result of `executeOperation` when the handler returns a declared error. It has the URN, the category, the `retryable` value, the message and the fields of the error. |
 | **drift** | A difference between a generated file in the repository and the output of a new compile. Gate 4 finds it. |
@@ -37,7 +40,7 @@ This page gives each term that this site uses, in alphabetical sequence. The pag
 | **field reference** | An item of the `fields` list of an entity or an error. It has `ref` to a field or an entity, or `link` to an entity, and optional `as`, `required` and `many`. Each field reference makes one property. |
 | **fingerprint** | A SHA-256 hash of the IR, the plugin names, versions and configurations, and the urn-forge version. Each generated file has it in its header. |
 | **gate** | One check of the `verify` command: 1 (completeness), 3 (Gherkin traceability) or 4 (drift). A gate fails if it finds an error. Refer to [Verification gates](./verification-gates). |
-| **generated file** | A file that `compile` writes: `domain.schemas.generated.ts` or `domain.runtime.generated.ts`. If a person edits it, gate 4 fails. |
+| **generated file** | A file that `compile` writes: `domain.schemas.generated.ts`, `domain.runtime.generated.ts` or `schema.generated.sql`. If a person edits it, gate 4 fails. |
 | **Gherkin** | The language of the feature files: `Feature`, `Scenario`, `Given`, `When`, `Then` and tables. Cucumber runs it. |
 | **guard** | `x is present and …` or `x is absent or …` on the left side of a rule. An invariant rule can use the value of an optional field only after a guard. |
 | **handler** | The function in the core for one operation. It receives the input with a brand and returns a `Result`. |
@@ -47,7 +50,7 @@ This page gives each term that this site uses, in alphabetical sequence. The pag
 | **InputRejected** | A result of `executeOperation` when the input schema rejects the payload, also when the payload breaks an invariant. It shows an incorrect request, not a defect in the core. |
 | **invariant** | A kind of atom: a named rule over the fields of one entity, for example `expiry_date > effective_date`. The entity is in its `on`. Refer to [The rule language](./rule-language). |
 | **IR** | The intermediate representation: the result of the compiler passes, with URNs and sorted keys. The plugins and the gates read only the IR. |
-| **key** | The field of an entity that a link holds, and that `unique` compares in a list of the entity. It is one of the required, single fields of the entity. The entity sets it with `key`. |
+| **key** | The field of an entity that a link holds, and that `unique` compares in a list of the entity. It is also the primary key of the root table of the entity in the Postgres schema. It is one of the required, single fields of the entity. The entity sets it with `key`. |
 | **kind** | The second segment of a short key: `field`, `entity`, `invariant`, `operation` or `error`. |
 | **`kind` property** | The property of each error payload that contains the URN of the error. No field of an error can use this name. |
 | **link** | A field reference with `link: <entity>`. The property holds the value of the `key` of that entity, with the brand of the key field. urn-forge does not make sure that the linked object exists. |
@@ -58,13 +61,14 @@ This page gives each term that this site uses, in alphabetical sequence. The pag
 | **output** | The entity that an operation returns when it succeeds. |
 | **pass** | One step of the compiler, from 1 to 8 in the specification. urn-forge 0.1.0 has passes 1 to 7. Refer to [Compiler passes](./compiler-passes). |
 | **placeholder** | A name in braces in the message of an error, for example `{sku}`. The runtime puts the value of the field in its place. |
-| **plugin** | A part of urn-forge that makes generated files from the IR: `valibot` or `fcis`. |
+| **plugin** | A part of urn-forge that makes generated files from the IR: `valibot`, `fcis` or `postgres`. |
 | **primitive** | The base type of a field: `boolean`, `date`, `decimal`, `enum`, `float`, `integer`, `string` or `timestamp`. Refer to [Primitives and constraints](./primitives). |
 | **property** | One key of an entity or an error payload, from one field reference. It holds a value of a field, an embedded object, or the key value of a link, or a list of one of them. |
 | **property name** | The name of a property in an entity or an error payload. It is the `as` of the field reference, or the identifier of the target if there is no `as`. |
 | **ratchet** | The change of `boundaryCoverage` from `warn` to `error` when each feature is strict. After the change, a new feature is strict too. |
 | **Result** | The return type of each handler: `ok(value)` or `fail(errorUrn, fields)`. |
 | **retryable** | A property of an error. `true` means that the same request can be correct at a later time. |
+| **root table** | A table of the Postgres schema for an entity in the `tables` option of the `postgres` plugin. Its primary key is the `key` of the entity. |
 | **rule** | The condition of an invariant, in the rule language. Pass 6 examines it, and the generated schema of the entity runs it. |
 | **rule language** | The small language of invariant rules: fields, literals, comparisons, `+` and `-`, `and`, `or`, `not`, `is present` and `is absent`. Refer to [The rule language](./rule-language). |
 | **scenario** | One example in a feature. It runs the operation with a table of input values and examines the result. |

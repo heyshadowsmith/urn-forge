@@ -115,7 +115,7 @@ One PR (decision 15), one commit per step. Each step leaves the repository green
 - [x] **4. Invariants.** Each rule as a named `CHECK`, on a table or a child table; the cases of decision 8 as warnings. *Check:* the `rules` fixture's edge tests give the same answer in Postgres and in Valibot; the whole target test passes.
   - *Done.* The edge values moved to `tests/rule-cases.ts`, so both evaluators answer for one list. All 24 rules agree. The whole target test passes.
 - [x] **5. Ship.** Insurance's SQL tested in CI; reference pages for the plugin and the SQL names; a how-to for the shell; the model in the explanation pages. *Check:* CI green; every sabotage below fails.
-  - *Done.* CI's `npm test` runs the PGlite tests, and `verify:insurance` checks the SQL file for drift. New pages: "The Postgres schema" (reference) and "Store entities in Postgres" (how-to).
+  - *Done.* CI's `npm test` runs the PGlite tests, and `verify:insurance` checks the SQL file for drift. New pages: [The Postgres schema](../reference/postgres-schema) and [Store entities in Postgres](../how-to/store-in-postgres). The writers of those pages found two bugs, both fixed with a test: an optional list with `minItems` refused a parent with no rows, which Valibot accepts as an absent list; and a property named `position`, or named as a parent key column, in a child table compiled to SQL that Postgres refuses (now `invalid-sql-name`).
 
 ## Done
 

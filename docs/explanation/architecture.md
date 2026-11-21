@@ -20,7 +20,8 @@ UniversalIR (canonical, sorted by URN)
    │
    ▼  support check                src/engine.ts, the `supports` of each plugin
    │
-   ▼  plugins: valibot, fcis       src/plugins/
+   ▼  plugins: valibot, fcis,      src/plugins/
+   │           postgres
    │
    ▼  header, line endings, sort   src/engine.ts
    │
@@ -36,9 +37,9 @@ The stages have these jobs:
 3. **The structure check** (pass 5) runs after each node is built, because each of its checks reads a different entity. A link and a unique list of an embedded entity need a target with a `key` (`missing-key`). No entity can embed itself (`embedding-cycle`). The pass runs only if the builder found no error.
 4. **The support check** compares the IR with what each plugin says that it supports. It runs before any plugin writes output.
 5. **The plugins** each turn the IR into file contents. They do not read the YAML, and they do not read the output of a different plugin.
-6. **The engine** adds the `@generated` header with the fingerprint, sets the line endings and sorts the files by path.
+6. **The engine** adds the `@generated` header with the fingerprint, sets the line endings and sorts the files by path. The header uses the line comment of the file: `--` for a `.sql` file, and `//` for each other file. `commentMarker` in `src/engine.ts` picks it from the file extension.
 
-The engine has no access to the file system, the clock or the environment. The CLI writes what the engine returns. This keeps the engine deterministic. Refer to [Determinism and the fingerprint](./determinism).
+The engine has no access to the file system, the clock or the environment. The CLI writes what the engine returns. `src/write.ts` knows the two forms of the header, so `compile` and gate 4 find an orphan SQL file as well as an orphan TypeScript file. This keeps the engine deterministic. Refer to [Determinism and the fingerprint](./determinism).
 
 `verify` compiles in memory, then builds one context for all gates: the IR, the fresh files, the paths and the feature index. Each gate is an entry in the `GATES` registry, with a number, a name and a `run` function. A gate passes when none of its problems is an error. Thus a gate can give warnings and notes and still pass. Boundary coverage needs this for its warn-then-ratchet mode.
 
@@ -74,6 +75,7 @@ Gate 3 does not run the rules. Only the generated code runs them. If the type ch
 The foundations plan used the idea of urn-forge on urn-forge itself. Gate 1 uses `tsc` to find a handler that is not there. In the same way, each consumer that must handle every primitive or every kind declares a table that `tsc` checks:
 
 - The Valibot plugin declares its translations as `{ readonly [P in Primitive]: ValibotTranslation<P> }`. Each translation has one entry for each constraint of its primitive. A new primitive or constraint makes `tsc` fail at this table until it has an entry.
+- The Postgres plugin declares its domains in the same way, as `{ readonly [P in Primitive]: DomainTranslation<P> }`. A new primitive makes `tsc` fail until it has an SQL type and its conditions.
 - The kind registry uses `satisfies { readonly [K in KindName]: KindDescriptor<K, any, unknown> }`. A new name in `KindName` makes `tsc` fail until the registry has a descriptor.
 - A type-level check compares the groups of the kind registry with the records of `UniversalIR`. If the two disagree, `tsc` fails.
 - The list of kinds in the specification that urn-forge does not support has a type that excludes the supported kinds. A kind cannot be on the list and in the registry at the same time.
@@ -89,7 +91,11 @@ Specification v1.1 says that each plugin "must handle every IR construct or fail
 
 Each plugin thus declares `supports`: the kinds that it handles and, for each primitive, the constraints that it translates. Before any plugin writes output, the engine compares the IR with these declarations. Each construct that a plugin does not support becomes an `unsupported-construct` diagnostic, with its URN and its position in the manifest.
 
-The Valibot plugin derives its `supports` from its translation table. Thus the declaration and the code that writes the output cannot disagree.
+The Valibot plugin derives its `supports` from its translation table. Thus the declaration and the code that writes the output cannot disagree. The Postgres plugin declares the five kinds and no constraint list, because its domain table has an entry for each primitive. Operations and errors are not stored, so it handles them by writing nothing.
+
+A plugin can also report its own diagnostics from `emit`. The Postgres plugin examines its `tables` option there, because only the IR can tell if a short key names an entity with a `key`. It also reports `unenforced-in-sql` for each rule that has no exact SQL form. A plugin that cannot write a rule says so. It does not write an approximate rule.
+
+The configuration type of a plugin is the input type of its `configSchema`. `CodegenPlugin<C, I>` has `C`, the configuration that `emit` gets. It also has `I`, the configuration that a person writes. For `postgres`, `I` has the optional `tables` and `unenforced`, and `C` has both with their defaults. `defineConfig` uses `I`, so a configuration can leave out an option that has a default.
 
 A plugin also declares `requires`: the plugins whose output its own output imports. The FCIS runtime imports the Valibot schemas. If a configuration enables `fcis` without `valibot`, the compile stops with `missing-plugin`.
 

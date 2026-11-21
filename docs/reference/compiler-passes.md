@@ -16,11 +16,11 @@ The `compile` and `verify` commands send the manifest through a sequence of pass
 | 6 | [Rule and template typing](#pass-6-rule-and-template-typing) | Each invariant rule is valid and agrees with the types of its entity. Each placeholder in an error message names a mandatory field of the error | `rule-syntax`, `unknown-rule-field`, `rule-type`, `unguarded-field`, `unknown-placeholder` | Stop after pass 7 |
 | 7 | [Constraint coherence](#pass-7-constraint-coherence) | A field has one constraint for each side of each aspect. The constraints of each field accept one or more values. The `many` of each field reference accepts one or more lists | `conflicting-constraints`, `incoherent-constraints` | Stop after pass 7 |
 | 8 | Lifecycle | Not built | — | — |
-| Plugins | [Plugin checks](#plugin-checks) | The plugins and their configurations agree with the IR | `plugin-config`, `missing-plugin`, `unsupported-construct`, `export-collision`, `output-conflict` | No files |
+| Plugins | [Plugin checks](#plugin-checks) | The plugins and their configurations agree with the IR | `plugin-config`, `missing-plugin`, `unsupported-construct`, `export-collision`, `output-conflict`. From `postgres`: `wrong-ref-kind`, `unresolved-ref`, `missing-key`, `plugin-config`, `invalid-sql-name`, `unenforced-in-sql` | No files |
 
 - Each step reports all the problems that it finds, not only the first problem.
 - Passes 2, 3, 4, 6 and 7 run together, and urn-forge reports their diagnostics together. Pass 5 runs after them, only if they find no error.
-- Each diagnostic has a position in the manifest, except `manifest-unreadable`, `not-a-mapping`, `missing-header`, `plugin-config`, `missing-plugin` and `output-conflict`.
+- Each diagnostic has a position in the manifest, except `manifest-unreadable`, `not-a-mapping`, `missing-header`, `plugin-config`, `missing-plugin` and `output-conflict`. A diagnostic of the `postgres` configuration that names no URN also has no position.
 - For the message, the cause and the correction of each code, refer to [Diagnostics](./diagnostics).
 
 ## Pass 1: meta-schema
@@ -241,9 +241,22 @@ After the passes, the engine examines the plugins in this sequence:
 1. The configuration of each plugin agrees with its schema (`plugin-config`).
 2. Each plugin in the `requires` list of a plugin is also in the plugin list (`missing-plugin`).
 3. Each plugin can use each kind, primitive and constraint in the IR (`unsupported-construct`). A plugin declares these in its `supports` property.
-4. Each plugin makes its files. The Valibot plugin reports `export-collision`. Two plugins that make a file with the same path cause `output-conflict`.
+4. Each plugin makes its files. The Valibot plugin reports `export-collision`. The Postgres plugin reports the problems of its configuration and of its SQL. Two plugins that make a file with the same path cause `output-conflict`.
 
-If step 1 or step 2 finds an error, steps 3 and 4 do not run. If step 3 finds an error, step 4 does not run. The `valibot` and `fcis` plugins can use all the kinds, primitives and constraints of urn-forge 0.1.0. Thus the CLI cannot cause `unsupported-construct` and `output-conflict` at this time.
+If step 1 or step 2 finds an error, steps 3 and 4 do not run. If step 3 finds an error, step 4 does not run. The `valibot`, `fcis` and `postgres` plugins can use all the kinds, primitives and constraints of urn-forge 0.1.0. Thus the CLI cannot cause `unsupported-construct` and `output-conflict` at this time.
+
+The Postgres plugin examines its configuration in step 4. Only the IR can tell if a short key in `tables` names an entity with a `key`. If it finds an error there, it writes no SQL. These checks are in sequence:
+
+| Check | Code | Position |
+| --- | --- | --- |
+| An item of `tables` names a different kind | `wrong-ref-kind` | The manifest, with no position |
+| An item of `tables` names no atom | `unresolved-ref` | The manifest, with no position |
+| An entity in `tables` has no `key` | `missing-key` | The entity |
+| An item occurs two times in `tables` | `plugin-config` | The configuration file |
+| A name is longer than 63 bytes, or two parts have one name | `invalid-sql-name` | The atom |
+| A rule has no exact SQL form | `unenforced-in-sql`, a warning or an error | The field, the entity or the invariant |
+
+For each check, refer to [The Postgres schema](./postgres-schema).
 
 | `unsupported-construct` message after `<URN>: the <plugin> plugin ` | Cause |
 | --- | --- |
@@ -255,6 +268,6 @@ If step 1 or step 2 finds an error, steps 3 and 4 do not run. If step 3 finds an
 
 - [Diagnostics](./diagnostics)
 - [The manifest](./manifest)
-- [The configuration file](./configuration)
+- [The Postgres schema](./postgres-schema)
 - [How urn-forge is built](../explanation/architecture)
 - [Departures from the specification](../explanation/departures-from-the-spec)

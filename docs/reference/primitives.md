@@ -2,7 +2,7 @@
 
 Each field has one primitive. A primitive sets the kind of value and the constraints that the field can have. urn-forge 0.1.0 has eight primitives: `boolean`, `date`, `decimal`, `enum`, `float`, `integer`, `string` and `timestamp`.
 
-The set is MECE: each kind of value has one primitive, and each constraint restricts one aspect of a value. For the reasons, refer to [The MECE model of primitives](../explanation/primitives-model).
+The set is MECE: each kind of value has one primitive, and each constraint restricts one aspect of a value. For the reasons, refer to [The MECE model of primitives](../explanation/primitives-model). For the SQL type of each primitive and the SQL check of each constraint, refer to [The Postgres schema](./postgres-schema).
 
 ## Primitives
 

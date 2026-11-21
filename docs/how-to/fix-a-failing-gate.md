@@ -44,7 +44,7 @@ Correct the manifest at the line and column that the problem gives. [Diagnostics
 Pass 6 examines the `rule` of each invariant. A problem in a rule also stops `verify` before the gates:
 
 ```
-insurance/domain.manifest.yaml:115:9  error  unguarded-field  urn:acme:insurance:policy:invariant:deductible_below_premium: rule: "deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …" (at column 1 of the rule)
+insurance/domain.manifest.yaml:117:9  error  unguarded-field  urn:acme:insurance:policy:invariant:deductible_below_premium: rule: "deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …" (at column 1 of the rule)
 verify failed: the manifest does not compile
 ```
 
@@ -75,7 +75,7 @@ Each code has one fix:
 | --- | --- | --- |
 | `invalid-value` with `must have either ref or link` | A field reference has both `ref` and `link`, or neither | Keep one of the two |
 | `invalid-entity-key` | The `key` is not a field of the entity, or the field is optional or a list | Set `key` to a required, single-valued field of the entity |
-| `missing-key` | A `link` names an entity without a `key`, or a `unique` list embeds one | Add `key` to the target entity |
+| `missing-key` | A `link` names an entity without a `key`, a `unique` list embeds one, or the `tables` of the `postgres` plugin list one | Add `key` to the target entity |
 | `embedding-cycle` | Entities embed each other in a cycle | Change one `ref` in the cycle to `link` |
 | `duplicate-ref` | The `fields` list has one target two times with one name | Give one of them a different name with `as` |
 | `duplicate-property` | Two different targets become one property name | Give one of them a different name with `as` |
@@ -83,13 +83,14 @@ Each code has one fix:
 These are the real messages of the other codes:
 
 ```
-insurance/domain.manifest.yaml:79:7  error  invalid-value  policy.entity.policy.fields.1: must have either ref or link
+insurance/domain.manifest.yaml:81:7  error  invalid-value  policy.entity.policy.fields.1: must have either ref or link
 insurance/domain.manifest.yaml:67:8  error  invalid-entity-key  urn:acme:insurance:policy:entity:coverage: key urn:acme:insurance:policy:field:note is optional; a key must be required
-insurance/domain.manifest.yaml:78:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[1].link urn:acme:insurance:customer:entity:customer has no key, so a link to it holds nothing; set key on it
-insurance/domain.manifest.yaml:80:13  error  duplicate-ref  urn:acme:insurance:policy:entity:policy: fields[2].link lists urn:acme:insurance:customer:entity:customer more than once; give one of them another name with as
+insurance/domain.manifest.yaml:80:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[1].link urn:acme:insurance:customer:entity:customer has no key, so a link to it holds nothing; set key on it
+insurance/domain.manifest.yaml:82:13  error  duplicate-ref  urn:acme:insurance:policy:entity:policy: fields[2].link lists urn:acme:insurance:customer:entity:customer more than once; give one of them another name with as
+insurance/domain.manifest.yaml:74:1  error  missing-key  urn:acme:insurance:policy:entity:policy: is a table in the postgres config, so it needs a key: one of its own required, single-valued fields
 ```
 
-Each line comes from a different change to the manifest. [Add an entity](add-an-entity) shows each change and its fix.
+Each line comes from a different change to the manifest. [Add an entity](add-an-entity) shows each change and its fix. For the last line, refer to [Store entities in Postgres](store-in-postgres).
 
 If urn-forge cannot read the manifest, the last line is `verify failed: the manifest cannot be read`. Make sure that `--manifest`, or `manifest` in the configuration, gives the correct file.
 

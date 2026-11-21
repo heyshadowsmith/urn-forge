@@ -32,7 +32,7 @@ parcel.entity.parcel:
 If a reference has both `ref` and `link`, or neither, `compile` stops at pass 1:
 
 ```
-insurance/domain.manifest.yaml:79:7  error  invalid-value  policy.entity.policy.fields.1: must have either ref or link
+insurance/domain.manifest.yaml:81:7  error  invalid-value  policy.entity.policy.fields.1: must have either ref or link
 ```
 
 For the full rules, refer to [The manifest](../reference/manifest).
@@ -150,7 +150,7 @@ Objects have no equality of their own. Thus, `unique` on a list of entities comp
 If the entity has no `key`, `compile` stops:
 
 ```
-insurance/domain.manifest.yaml:83:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[2] is a unique list of urn:acme:insurance:policy:entity:coverage, which has no key to compare; set key on it
+insurance/domain.manifest.yaml:85:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[2] is a unique list of urn:acme:insurance:policy:entity:coverage, which has no key to compare; set key on it
 ```
 
 To fix it, add `key` to the embedded entity. Step 5 gives the rules of a key.
@@ -201,7 +201,7 @@ The `key` must name one of the fields of the entity itself. The field reference 
 If the target of a link has no `key`, `compile` stops:
 
 ```
-insurance/domain.manifest.yaml:78:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[1].link urn:acme:insurance:customer:entity:customer has no key, so a link to it holds nothing; set key on it
+insurance/domain.manifest.yaml:80:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[1].link urn:acme:insurance:customer:entity:customer has no key, so a link to it holds nothing; set key on it
 ```
 
 If the `key` names an optional field, `compile` stops with `invalid-entity-key`. Here the key of the coverage is `policy.field.note`:
@@ -218,7 +218,7 @@ insurance/domain.manifest.yaml:67:8  error  invalid-entity-key  urn:acme:insuran
 
 To fix it, set `key` to a field that the `fields` list has, without `required: false` and without `many`.
 
-An entity needs a `key` only if an entity links to it, or if a `unique` list embeds it.
+An entity needs a `key` only if an entity links to it, if a `unique` list embeds it, or if it is a table of the `postgres` plugin. Refer to [Store entities in Postgres](store-in-postgres).
 
 ## 6. Make sure that the property names are different
 
@@ -244,7 +244,7 @@ To correct it, give one of the references a different name with `as`, for exampl
 If you list one target two times, the error is `duplicate-ref`. For example, a policy with two links to a customer, a holder and a payer, needs `as` on each link. Without it, both links become the property `customer`:
 
 ```
-insurance/domain.manifest.yaml:80:13  error  duplicate-ref  urn:acme:insurance:policy:entity:policy: fields[2].link lists urn:acme:insurance:customer:entity:customer more than once; give one of them another name with as
+insurance/domain.manifest.yaml:82:13  error  duplicate-ref  urn:acme:insurance:policy:entity:policy: fields[2].link lists urn:acme:insurance:customer:entity:customer more than once; give one of them another name with as
 ```
 
 To correct it, add `as: holder` to one link and `as: payer` to the other.

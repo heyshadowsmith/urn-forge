@@ -162,7 +162,7 @@ customer.entity.customer:
 | `key` | string | No | None | A short key of a field. The entity must refer to this field with `ref`, with `required: true` and no `many` (pass 3, `invalid-entity-key`). A different kind causes `wrong-ref-kind` |
 | `fields` | A list of [field references](#field-reference) | Yes | — | One or more items |
 
-An entity needs a `key` only if a `link` names it, or if a list with `unique: true` embeds it. The key is the value that a link holds, and the value that `unique` compares.
+An entity needs a `key` in three cases: a `link` names it, a list with `unique: true` embeds it, or it is in `tables` of the `postgres` plugin. The key is the value that a link holds, and the value that `unique` compares. It is also the primary key of the table of the entity. Refer to [The Postgres schema](./postgres-schema).
 
 An entity does not list its invariants. Each invariant names its entity with `on`. An `invariants` key on an entity causes `unknown-property`.
 

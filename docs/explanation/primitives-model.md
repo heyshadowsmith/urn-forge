@@ -50,6 +50,22 @@ The [rule language](../reference/rule-language) is small on purpose. It has comp
 
 The rule language uses the same comparisons as the constraints. `min: "0.01"` on a `decimal` and `premium > 0` in a rule compare in the same way. A value means the same thing in both layers.
 
+## The three layers in SQL
+
+The Postgres plugin puts each layer in its own place in the database:
+
+| Layer | In SQL |
+| --- | --- |
+| The field: a primitive and its constraints | A domain, with one `CHECK` for all the constraints. Each column and each list of the field uses it |
+| The field reference: presence, count, structure | The column: `NOT NULL`, the foreign key of a link, the child table of a list or an embedded entity, its `UNIQUE`, and the count trigger |
+| The invariant | A named `CHECK` on each table of its entity |
+
+The specification put the constraints of a field on each table, as checks with the name `ck_<brand>`. Then one field in three entities would have its rules three times. A domain gives the rules of a field one place, as the manifest does. It also covers the items of a list, which are rows of a child table, not columns of the entity.
+
+The layers also show where SQL stops. A `CHECK` sees one row. A count of items is about many rows, so it is a trigger on the field reference layer, not a check. A rule over a list or an embedded entity is an invariant over rows of a different table. The plugin reports it as `unenforced-in-sql` and does not write an approximate check. The Valibot schema at the boundary still enforces it.
+
+One value must mean the same thing in both checks. Thus the length of a `string` counts Unicode code points, as Postgres `char_length` does. A `regex` goes into SQL only in a subset that the two dialects read in the same way. For the details, refer to [The Postgres schema](../reference/postgres-schema).
+
 ## Six aspects
 
 A single value can be restricted in these ways only:
@@ -77,7 +93,7 @@ A duration is not a primitive. Its values and its comparison are those of an `in
 
 - **At most one constraint for one side.** `min` and `exclusiveMin` together, or `regex` and `format` together, cause `conflicting-constraints`. Each pair restricts the same side of the same aspect.
 - **Exclusive bounds only on continuous kinds.** On an `integer` or a `date`, `exclusiveMin: 0` is the same rule as `min: 1`. A second spelling would break the model, so these kinds have no exclusive bounds.
-- **One step for each kind.** An `integer` has `multipleOf`. A `decimal` has `scale`, the number of digits after the point. A `float` has no step. The specification had `precision: [p, s]` for decimals. That constraint mixes size with step, so the model keeps only `scale`. A SQL plugin can get the precision from the range and the scale.
+- **One step for each kind.** An `integer` has `multipleOf`. A `decimal` has `scale`, the number of digits after the point. A `float` has no step. The specification had `precision: [p, s]` for decimals. That constraint mixes size with step, so the model keeps only `scale`. The Postgres plugin needs no precision: a `NUMERIC` with no precision keeps the digits that it gets, and a check holds the scale.
 - **A closed list of named formats.** `format` has `uuid`, `email` and `uri`. A name joins the list only if a `regex` cannot express it clearly. Otherwise `format` would become a second `regex`.
 
 ## How urn-forge enforces the model
