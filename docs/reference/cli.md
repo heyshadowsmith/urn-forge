@@ -10,6 +10,7 @@ The `urn-forge` command is `bin/urn-forge.js` in `packages/urn-forge`. It runs t
 
 | Command | Function | Exit code |
 | --- | --- | --- |
+| [`init`](#init) | Writes a starter project in the current directory, then compiles it | `0`, `1` or `2` |
 | [`compile`](#compile) | Examines the manifest and writes the generated files | `0`, `1` or `2` |
 | [`verify`](#verify) | Compiles the manifest in memory and runs gates 1, 3 and 4 | `0`, `1` or `2` |
 | `--help`, `-h`, `help` | Writes the usage text to stdout | `0` |
@@ -19,7 +20,40 @@ The `urn-forge` command is `bin/urn-forge.js` in `packages/urn-forge`. It runs t
 
 `--help` and `--version` are commands. They are correct only as the first argument. After `compile` or `verify`, they are unknown options.
 
-urn-forge 0.1.0 does not have the `init`, `diff`, `inspect` and `graph` commands at this time. Refer to [Scope](./scope).
+urn-forge 0.1.0 does not have the `diff`, `inspect` and `graph` commands at this time. Refer to [Scope](./scope).
+
+## `init`
+
+```
+urn-forge init [--namespace <name>] [--domain <name>]
+```
+
+| Option | Value | Default |
+| --- | --- | --- |
+| `--namespace` | A URN segment: lowercase snake_case that starts with a letter, 63 characters at most | `app` |
+| `--domain` | A URN segment | `starter` |
+
+The `init` command does these steps:
+
+1. It makes sure that no starter file is in the current directory. If one is there, it writes no file.
+2. It writes the starter files: `domain.manifest.yaml`, `src/core.ts`, `features/split.feature`, `features/support/steps.ts`, `urn-forge.config.ts`, `tsconfig.json`, `cucumber.json` and `register-tsx.mjs`. It puts `--namespace` and `--domain` in the manifest header and in each URN.
+3. It writes `package.json`, or updates the file that is there. It sets `"type": "module"`. It adds the scripts `compile`, `verify` and `test:features` if they are not there. It keeps all other values.
+4. It runs `compile`, which writes `src/generated/`.
+
+| Output line | Meaning |
+| --- | --- |
+| `wrote      <path>` | `init` wrote a starter file, or the `compile` step wrote a generated file |
+| `updated    package.json` | `package.json` was there, and `init` added values to it |
+| `next: npm run verify, then npm run test:features` | The last line, if all steps succeed |
+
+| Problem | Message on stderr | Exit code |
+| --- | --- | --- |
+| A value that is not a URN segment | `urn-forge: --namespace "<value>" must be lowercase snake_case that starts with a letter (max 63 characters)` | `2` |
+| A starter file is there | `urn-forge: init writes no file, because these files exist: <paths>` | `1` |
+| `package.json` has a `type` other than `module` | `urn-forge: init needs an ES module package, but package.json has "type": "commonjs"; the generated code and the steps use import` | `1` |
+| `package.json` is not valid JSON | `urn-forge: init cannot read package.json: <reason>` | `1` |
+
+For the steps after `init`, refer to [Set up a project](../how-to/set-up-a-project).
 
 ## `compile`
 
@@ -199,8 +233,10 @@ With `--format json`, urn-forge writes JSON lines to stdout and nothing to stder
 | `npm run docs:dev` | Starts this documentation site, with live reload |
 | `npm run docs:build` | Builds this site as static files |
 | `npm run docs:preview` | Shows the static site that `docs:build` made |
+| `npm run pack:tarball` | Makes `urn-forge-0.1.0.tgz` in the root folder. Refer to [Install urn-forge](../how-to/install) |
+| `npm run test:tarball` | Packs urn-forge, installs the tarball in a new project, and runs `init`, `verify` and Cucumber there. It needs the npm registry |
 
-The root scripts other than the `docs:` scripts run the script with the same name in `packages/urn-forge`.
+The root scripts other than the `docs:` scripts and `pack:tarball` run the script with the same name in `packages/urn-forge`.
 
 ### From `packages/urn-forge`
 

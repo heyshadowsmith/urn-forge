@@ -94,10 +94,10 @@ Refer to [Verification gates](./verification-gates).
 
 | Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
 | --- | --- | --- |
-| Commands | `compile`, `verify` | `init`, `diff`, `inspect`, `graph` |
+| Commands | `init`, `compile`, `verify` | `diff`, `inspect`, `graph` |
 | Options | `--config`, `--manifest`, `--out`, `--core`, `--features`, `--tsconfig`, `--format` | `--reference-date`, `--src`, `--base`, `--force` |
 | Diagnostics | `<file>:<line>:<column>  <severity>  <code>  <message>`, with the URN or the key at the start of the message. `--format json` | — |
-| Distribution | A clone of the repository. Packages in the same npm workspace can import `urn-forge`, `urn-forge/config` and `urn-forge/cucumber` as TypeScript source | An npm package with compiled JavaScript |
+| Distribution | A tarball that `npm run pack:tarball` makes from a clone, with `bin`, `src` and the starter template. A project installs it with `npm install <file>`. The entry points are TypeScript source | An npm package with compiled JavaScript |
 | Repository layout | An npm-workspaces monorepo: `packages/urn-forge` and `docs` | `packages/eslint-config`, `src/rules/`, `src/diff/` |
 
 Refer to [The CLI](./cli) and [The package API](./public-api).

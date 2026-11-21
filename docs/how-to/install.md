@@ -1,13 +1,13 @@
 # Install urn-forge
 
-urn-forge is not on npm at this time. You run it from a clone of its repository. A package in the same npm workspace can use it as a dependency. Refer to [Scope](../reference/scope).
+urn-forge is not on npm at this time. You make a tarball from a clone of its repository, and install the tarball in your project. Refer to [Scope](../reference/scope).
 
 ## Before you start
 
 - Install Node.js 22 or later.
 - Get a clone of the urn-forge repository.
 
-## Run urn-forge from a clone
+## Make the tarball
 
 1. Go to the root folder of the clone.
 2. Install the dependencies:
@@ -16,13 +16,33 @@ urn-forge is not on npm at this time. You run it from a clone of its repository.
    npm ci
    ```
 
-3. Go to the package folder:
+3. Make the tarball:
 
    ```bash
-   cd packages/urn-forge
+   npm run pack:tarball
    ```
 
-4. Make sure that the CLI starts:
+   The command writes `urn-forge-0.1.0.tgz` in the root folder of the clone.
+
+The tarball has the CLI, the source and the starter template. It does not have the tests and the examples.
+
+## Install the tarball in your project
+
+1. Go to your project folder. If the folder has no `package.json`, make one:
+
+   ```bash
+   npm init -y
+   ```
+
+2. Install the tarball. Give the path of the file:
+
+   ```bash
+   npm install /path/to/urn-forge-0.1.0.tgz
+   ```
+
+   npm also installs the packages that urn-forge uses: Valibot, Cucumber, TypeScript and `tsx`.
+
+3. Make sure that the CLI starts:
 
    ```bash
    npx urn-forge --version
@@ -34,47 +54,27 @@ urn-forge is not on npm at this time. You run it from a clone of its repository.
    0.1.0
    ```
 
+When you make a new tarball, install it again with the same command.
+
+## Run urn-forge from the clone
+
+To change urn-forge, or to do the tutorials, run it from the clone:
+
+1. Go to the root folder of the clone, and run `npm ci`.
+2. Go to `packages/urn-forge`.
+3. Run `npx urn-forge --version`.
+
 urn-forge has no build step. The CLI runs the TypeScript source through `tsx`.
-
-## Use urn-forge from another package in the workspace
-
-The root `package.json` of the clone lists `packages/*` as workspaces. Put your package in a folder below `packages/`.
-
-1. Add urn-forge and the packages that your project uses to the `package.json` of your package:
-
-   ```json
-   {
-     "devDependencies": {
-       "urn-forge": "0.1.0",
-       "@cucumber/cucumber": "^13.3.0",
-       "tsx": "^4.23.15",
-       "typescript": "~5.9"
-     },
-     "dependencies": {
-       "valibot": "^1.5.0"
-     }
-   }
-   ```
-
-   - `urn-forge` has the version of the workspace package, so npm links it from `packages/urn-forge`.
-   - `valibot` is a runtime dependency, because the generated files import it.
-   - `tsx` is necessary, because urn-forge gives TypeScript source, not JavaScript.
-
-2. Run `npm install` from the root folder of the clone.
-3. Make sure that the CLI starts from your package folder:
-
-   ```bash
-   npx urn-forge --version
-   ```
 
 ## Import urn-forge in TypeScript
 
-The package has three entry points:
+The package has four entry points:
 
 | Import | Use |
 | --- | --- |
 | `urn-forge/config` | `defineConfig`, for `urn-forge.config.ts` |
 | `urn-forge/cucumber` | `registerOperationSteps`, for the Cucumber support file |
+| `urn-forge/register-tsx` | Registers `tsx`, so that Cucumber can load TypeScript support files |
 | `urn-forge` | The compiler, `verify` and the registries, for your own tools |
 
 Each entry point is a `.ts` file. Plain Node.js cannot load it. Load your code through `tsx`:
@@ -91,7 +91,7 @@ Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/user/urn-forge/packages/
 
 The same script works with `npx tsx`.
 
-The generated files do not import urn-forge. Your shell code needs only `valibot` at run time.
+The generated files do not import urn-forge. Your shell code needs only `valibot` at run time. If you deploy the shell without urn-forge, add `valibot` to the `dependencies` of your project.
 
 ## Result
 
