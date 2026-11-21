@@ -240,7 +240,7 @@ To fix it, correct the handler. Do not remove the invariant to make the scenario
 gate 1  completeness  PASS  tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 gate 4  drift         PASS  3 generated file(s) compared byte for byte against insurance/generated
-verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```
 
 ## Related pages

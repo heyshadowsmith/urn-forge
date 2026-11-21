@@ -39,7 +39,7 @@ This guide makes a project in which `urn-forge compile`, `urn-forge verify` and 
    gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
    gate 3  gherkin       PASS  1 feature(s), 5 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features (boundaryCoverage: error)
    gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
-   verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+   verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
    ```
 
 3. Run `npm run test:features`. All scenarios pass:
@@ -247,7 +247,7 @@ For the steps, refer to [Write scenarios](write-scenarios).
        features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
        features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
    gate 4  drift         PASS  2 generated file(s) compared byte for byte against generated
-   verify passed with 2 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+   verify passed with 2 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
    ```
 
    The warnings show boundaries that no scenario tests. To remove them, refer to [Adopt strict coverage](adopt-strict-coverage).

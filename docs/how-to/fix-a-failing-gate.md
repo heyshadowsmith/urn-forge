@@ -440,7 +440,7 @@ If urn-forge did not write the file, the message tells you to rename or delete i
 gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
-verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```
 
 ## Related pages

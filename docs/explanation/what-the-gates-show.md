@@ -12,13 +12,13 @@ Conformance means that the parts agree with the manifest. Correctness means that
 
 ## What each gate shows
 
-urn-forge has gates 1, 3 and 4. It does not have gates 2 and 5 at this time, and `verify` says so:
+`verify` runs gates 1, 3 and 4. urn-forge does not have gate 2 at this time. Gate 5 compares two manifests, so it is the separate command `urn-forge diff`. `verify` says so:
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over self/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       PASS  3 feature(s), 18 scenario(s), 3/3 operations tagged, 3/3 errors expected, strict: 3/3 features (boundaryCoverage: error)
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against self/generated
-verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```
 
 | Gate | It shows | It cannot show |

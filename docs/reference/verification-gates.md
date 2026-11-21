@@ -36,8 +36,8 @@ The last line has one of these forms:
 
 | Last line | Stream | Condition |
 | --- | --- | --- |
-| `verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)` | stdout | All gates passed, with no warnings |
-| `verify passed with <n> warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)` | stdout | All gates passed, with `<n>` warnings |
+| `verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)` | stdout | All gates passed, with no warnings |
+| `verify passed with <n> warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)` | stdout | All gates passed, with `<n>` warnings |
 | `verify failed: gate <numbers>` | stderr | One or more gates failed, for example `verify failed: gate 1, 4` |
 | `verify failed: the manifest cannot be read` | stderr | urn-forge cannot read the manifest |
 | `verify failed: the manifest does not compile` | stderr | The manifest has an error |
@@ -57,7 +57,7 @@ gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 
     tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
     tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/2-declared-errors/generated
-verify passed with 2 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+verify passed with 2 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```
 
 ## Exit codes

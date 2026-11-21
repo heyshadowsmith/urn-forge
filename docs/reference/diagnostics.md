@@ -166,6 +166,12 @@ The messages of `incoherent-constraints`, for each primitive. `<lower>` is `min`
 | `unenforced-in-sql` | `warning`, or `error` with `unenforced: 'error'` | `<urn>: <rule>: <reason>; the SQL does not enforce it, and the Valibot schema at the boundary still does` | The `postgres` plugin cannot write a rule in SQL with exactly the same effect. Two of the five cases are `format: uri` and a `regex` outside the subset. Example: `urn:demo:store:shop:field:site: format uri: Valibot checks it with the URL parser, which has no SQL form; …`. The position is the field, the entity or the invariant | Accept the warning, because the schema at the boundary still enforces the rule. Or change the rule to one that SQL can express, for example a `regex` in the subset. Refer to [The Postgres schema](./postgres-schema) |
 | `invalid-sql-name` | `error` | `<urn>: the <part> name "<name>" is <n> bytes; Postgres keeps at most 63`<br>`<urn>: the <part> name "<schema>.<name>" is also a name that <urn> uses` | A name in the Postgres schema is longer than 63 bytes, or two parts get the same name. Examples: `the domain name "a_field_name_that_is_much_too_long_for_a_postgres_identifier_value" is 66 bytes`, and `the table name "order.order__lines" is also a name that urn:demo:shop:order:entity:order uses` | Use a shorter identifier, or give the property another name with `as`. For the names, refer to [The Postgres schema](./postgres-schema) |
 
+## urn-forge diff (gate 5)
+
+| Code | Severity | Message | Cause | Correction |
+| --- | --- | --- | --- | --- |
+| `breaking-change` | `error`, or `warning` while the old manifest is `stability: experimental` | `<urn>: <what> <narrows \| widens \| changes> a value that <use>, which breaks <who>` | A change to a live URN can break a consumer that worked before. Example: `urn:demo:shop:order:field:qty: max 10 → 5 narrows a value that callers send, which breaks callers that send it`. The file is the new manifest | Declare a new URN for the new meaning, and deprecate the old URN |
+
 ## Gate 1: completeness
 
 | Code | Severity | Message | Cause | Correction |

@@ -106,7 +106,7 @@ The `verify` command compiles the manifest in memory. It does not write files. I
 | 3 | `gherkin` | The tags, tables, declared errors and boundary cases of the feature files |
 | 4 | `drift` | The files in `--out` are the same as a new compile, byte for byte |
 
-A gate fails if one or more of its problems is an error. Warnings and notes do not make a gate fail. urn-forge does not have gates 2 and 5 at this time. For the checks of each gate, refer to [Verification gates](./verification-gates).
+A gate fails if one or more of its problems is an error. Warnings and notes do not make a gate fail. urn-forge does not have gate 2 at this time. Gate 5 is the separate command `urn-forge diff`. For the checks of each gate, refer to [Verification gates](./verification-gates).
 
 ## Settings from options, the configuration file and defaults
 
@@ -186,7 +186,7 @@ gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, 
     tutorial/1-first-domain/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
     tutorial/1-first-domain/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/1-first-domain/generated
-verify passed with 2 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+verify passed with 2 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```
 
 The line of a gate has this form:
@@ -197,7 +197,7 @@ gate <number>  <name>  PASS|FAIL  <summary>
 
 | Result line | Stream | Cause |
 | --- | --- | --- |
-| `verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)` | stdout | All gates pass, with no warnings |
+| `verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)` | stdout | All gates pass, with no warnings |
 | `verify passed with <n> warning(s) (gates 1, 3, 4; …)` | stdout | All gates pass. `<n>` is the number of warnings. Notes are not in this number |
 | `verify failed: gate <numbers>` | stderr | One or more gates fail, for example `verify failed: gate 1, 4` |
 | `verify failed: the manifest cannot be read` | stderr | The manifest file is not there, or urn-forge cannot read it. No gate ran |

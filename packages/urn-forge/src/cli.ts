@@ -4,6 +4,8 @@
  *   urn-forge init    [--namespace <name>] [--domain <name>]
  *   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--reference-date <YYYY-MM-DD>] [--format text|json]
  *   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--reference-date <YYYY-MM-DD>] [--format text|json]
+  urn-forge diff    <old manifest> <new manifest> [--config <file>] [--format text|json]
+ *   urn-forge diff    <old manifest> <new manifest> [--config <file>] [--format text|json]
  *
  * Each setting comes from its flag, else from the config file (`--config`, or
  * `urn-forge.config.ts` in the current directory when it exists), else its default.
@@ -16,6 +18,7 @@
 import { access, readFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { diffManifests } from './diff/index.js';
 import { isCalendarDate } from './primitives/exact.js';
 import { diagnosticJson, formatDiagnostic, hasErrors, relativePaths, type Diagnostic } from './diagnostics.js';
 import { CONFIG_FILE, loadConfig, pluginEntries, type UrnForgeConfig } from './config.js';
@@ -44,11 +47,12 @@ Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--reference-date <YYYY-MM-DD>] [--format text|json]
   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--reference-date <YYYY-MM-DD>] [--format text|json]
+  urn-forge diff    <old manifest> <new manifest> [--config <file>] [--format text|json]
 
 Options:
   --namespace <name> init: the namespace of the starter manifest (default: app)
   --domain <name>    init: the domain of the starter manifest (default: starter)
-  --config <file>    Config file (default: ${CONFIG_FILE}, when it exists). Flags override it
+  --config <file>    Config file (default: ${CONFIG_FILE}, when it exists). Flags override it. diff reads the postgres plugin's tables from it
   --manifest <file>  Manifest YAML (default: domain.manifest.yaml)
   --out <dir>        Directory for generated files (default: src/generated)
   --format <format>  text (default) or json: JSON lines on stdout, for CI annotations
@@ -242,6 +246,78 @@ async function runCompile(args: string[], io: CliIo): Promise<number> {
   return finish(true, result.fingerprint);
 }
 
+/** The short keys of the postgres plugin's tables in a config's plugin list, if it has one. */
+function postgresTables(specs: UrnForgeConfig['plugins']): readonly string[] {
+  for (const spec of specs ?? []) {
+    if (typeof spec !== 'string' && spec[0] === 'postgres') return ((spec[1] as { tables?: readonly string[] }).tables ?? []);
+  }
+  return [];
+}
+
+async function runDiff(args: string[], io: CliIo): Promise<number> {
+  const { values, positionals } = parseArgs({ args, options: { config: { type: 'string' }, ...FORMAT_OPTION }, strict: true, allowPositionals: true });
+  const format = outputFormat(values.format);
+  if (positionals.length !== 2) throw new UsageError('diff needs two manifests: <old manifest> <new manifest>');
+  const [oldPath, newPath] = positionals.map((p) => resolve(io.cwd, p)) as [string, string];
+  const [oldLabel, newLabel] = [display(io, oldPath), display(io, newPath)];
+
+  // The config is optional: diff reads only the postgres plugin's tables from it, for the Stored use.
+  let tables: readonly string[] = [];
+  const configPath = resolve(io.cwd, values.config ?? CONFIG_FILE);
+  const configExists = await access(configPath).then(() => true, () => false);
+  if (values.config !== undefined || configExists) {
+    const loaded = await loadConfig(configPath, display(io, configPath), io.cwd);
+    if (!loaded.ok) {
+      if (format === 'json') for (const d of loaded.diagnostics) io.stdout(diagnosticJson(d));
+      else printDiagnostics(io, '', loaded.diagnostics);
+      return 1;
+    }
+    tables = postgresTables(loaded.config.plugins);
+  }
+
+  const read = async (path: string, label: string): Promise<string | Diagnostic> =>
+    readFile(path, 'utf8').catch((error: Error) => ({ code: 'manifest-unreadable', severity: 'error', file: label, message: `cannot read manifest: ${relativePaths(error.message, io.cwd)}` }) as Diagnostic);
+  const sources = [await read(oldPath, oldLabel), await read(newPath, newLabel)];
+  const unreadable = sources.filter((s): s is Diagnostic => typeof s !== 'string');
+  const finish = (ok: boolean, counts: { breaking: number; compatible: number; lifecycle: number }) => {
+    if (format === 'json') io.stdout(JSON.stringify({ type: 'result', ok, ...counts }));
+    return ok ? 0 : 1;
+  };
+  if (unreadable.length > 0) {
+    if (format === 'json') for (const d of unreadable) io.stdout(diagnosticJson(d));
+    else printDiagnostics(io, '', unreadable);
+    return finish(false, { breaking: 0, compatible: 0, lifecycle: 0 });
+  }
+
+  const result = diffManifests(sources[0] as string, sources[1] as string, { tables });
+  if (!result.ok) {
+    const label = result.which === 'old' ? oldLabel : newLabel;
+    if (format === 'json') for (const d of result.diagnostics) io.stdout(diagnosticJson(d, label));
+    else {
+      printDiagnostics(io, label, result.diagnostics);
+      io.stderr(`diff failed: ${label} does not compile`);
+    }
+    return finish(false, { breaking: 0, compatible: 0, lifecycle: 0 });
+  }
+
+  const count = (c: string) => result.changes.filter((x) => x.class === c).length;
+  const counts = { breaking: count('breaking'), compatible: count('compatible'), lifecycle: count('lifecycle') };
+  const ok = result.experimental || counts.breaking === 0;
+  if (format === 'json') {
+    for (const change of result.changes) {
+      if (change.class !== 'breaking') io.stdout(JSON.stringify({ type: 'change', class: change.class, urn: change.urn, message: change.message }));
+    }
+    for (const d of result.breaking) io.stdout(diagnosticJson(d, newLabel));
+    return finish(ok, counts);
+  }
+  for (const change of result.changes) io.stdout(`${change.class.padEnd(10)}  ${change.urn}  ${change.message}`);
+  const summary = `${counts.breaking} breaking, ${counts.compatible} compatible, ${counts.lifecycle} lifecycle change(s)`;
+  if (counts.breaking === 0) io.stdout(`diff passed: ${summary}`);
+  else if (result.experimental) io.stdout(`diff passed: ${summary}; the breaking changes are warnings, because ${oldLabel} is experimental`);
+  else io.stderr(`diff failed: ${summary}`);
+  return ok ? 0 : 1;
+}
+
 async function runVerify(args: string[], io: CliIo): Promise<number> {
   const { values } = parseArgs({
     args,
@@ -319,10 +395,11 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
   return 1;
 }
 
-/** `verify passed [with N warning(s)] (gates …; gates … are not in the MVP)`. */
+/** `verify passed [with N warning(s)] (gates …; gate 2 is not built; gate 5 is urn-forge diff)`. */
 export function verifyPassedLine(ran: readonly number[], warnings: number): string {
-  const notBuilt = ([1, 2, 3, 4, 5] as const).filter((n) => !GATES.some((g) => g.number === n));
-  const scope = `gates ${ran.join(', ')}${notBuilt.length > 0 ? `; gates ${notBuilt.join(' and ')} are not in the MVP` : ''}`;
+  // Gate 5 compares two manifests, so it is its own command, not a gate of verify.
+  const notBuilt = ([1, 2, 3, 4] as const).filter((n) => !GATES.some((g) => g.number === n));
+  const scope = `gates ${ran.join(', ')}${notBuilt.map((n) => `; gate ${n} is not built`).join('')}; gate 5 is urn-forge diff`;
   return `verify passed${warnings > 0 ? ` with ${warnings} warning(s)` : ''} (${scope})`;
 }
 
@@ -336,6 +413,8 @@ export async function main(argv: readonly string[], io: CliIo = defaultIo): Prom
         return await runCompile(rest, io);
       case 'verify':
         return await runVerify(rest, io);
+      case 'diff':
+        return await runDiff(rest, io);
       case undefined:
       case '--help':
       case '-h':

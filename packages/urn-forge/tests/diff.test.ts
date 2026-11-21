@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { classify } from '../src/diff/classify.js';
 import { constraintRelation, listRelation } from '../src/diff/relation.js';
+import { main } from '../src/cli.js';
 import { compile } from '../src/engine.js';
 import { toUrn } from '../src/naming.js';
 import type { Urn } from '../src/ir/types.js';
@@ -54,5 +55,62 @@ describe('the relation of two sets of constraints', () => {
   it('compares a list rule by its count and uniqueness', () => {
     expect(listRelation({ minItems: 1 }, { minItems: 1, unique: true })).toBe('narrower');
     expect(listRelation({ maxItems: 3 }, { maxItems: 5 })).toBe('wider');
+  });
+});
+
+describe('the diff command', () => {
+  const CASE = (name: string, file: string) => `tests/diff/${name}/${file}`;
+  let out: string[];
+  let err: string[];
+  const io = () => ({ cwd: fileURLToPath(new URL('..', import.meta.url)), stdout: (l: string) => out.push(l), stderr: (l: string) => err.push(l) });
+  const run = async (args: string[]) => {
+    out = [];
+    err = [];
+    return main(['diff', ...args, '--config', 'tests/diff/no-config.ts'], io());
+  };
+
+  it('passes, and prints each change, when no change is breaking', async () => {
+    expect(await run([CASE('deprecated', 'old.yaml'), CASE('deprecated', 'new.yaml')])).toBe(0);
+    expect(out).toEqual(['lifecycle   urn:demo:shop:order:field:spare  status active → deprecated', 'diff passed: 0 breaking, 0 compatible, 1 lifecycle change(s)']);
+  });
+
+  it('fails on a breaking change to a live URN', async () => {
+    expect(await run([CASE('input-tightened', 'old.yaml'), CASE('input-tightened', 'new.yaml')])).toBe(1);
+    expect(out).toEqual(['breaking    urn:demo:shop:order:field:qty  max 10 → 5 narrows a value that callers send, which breaks callers that send it']);
+    expect(err).toEqual(['diff failed: 1 breaking, 0 compatible, 0 lifecycle change(s)']);
+  });
+
+  it('passes with a warning while the old manifest is experimental', async () => {
+    expect(await run([CASE('experimental', 'old.yaml'), CASE('experimental', 'new.yaml')])).toBe(0);
+    expect(out.at(-1)).toBe('diff passed: 1 breaking, 0 compatible, 0 lifecycle change(s); the breaking changes are warnings, because tests/diff/experimental/old.yaml is experimental');
+  });
+
+  it('writes JSON lines: a change for each compatible or lifecycle change, a diagnostic for each breaking one', async () => {
+    expect(await run([CASE('error-added', 'old.yaml'), CASE('error-added', 'new.yaml'), '--format', 'json'])).toBe(1);
+    expect(out.map((l) => JSON.parse(l))).toEqual([
+      { type: 'change', class: 'compatible', urn: 'urn:demo:shop:order:error:closed', message: 'is new' },
+      {
+        type: 'diagnostic',
+        severity: 'error',
+        code: 'breaking-change',
+        file: 'tests/diff/error-added/new.yaml',
+        urn: 'urn:demo:shop:order:operation:place',
+        message: 'urn:demo:shop:order:operation:place: the new declared error urn:demo:shop:order:error:closed widens a value that callers receive, which breaks callers that receive it',
+      },
+      { type: 'result', ok: false, breaking: 1, compatible: 1, lifecycle: 0 },
+    ]);
+  });
+
+  it('reads the Postgres tables from the config, for the Stored use', async () => {
+    out = [];
+    expect(await main(['diff', CASE('stored-tightened', 'old.yaml'), CASE('stored-tightened', 'new.yaml'), '--config', 'tests/diff/stored-tightened/urn-forge.config.ts'], io())).toBe(1);
+    expect(out[0]).toBe('breaking    urn:demo:shop:order:field:spare  min none → 5 narrows a value that the database stores, which breaks rows already stored');
+  });
+
+  it('reports a manifest that it cannot read, and a call without two manifests', async () => {
+    expect(await run([CASE('deprecated', 'old.yaml'), 'tests/diff/nope.yaml'])).toBe(1);
+    expect(err[0]).toMatch(/^tests\/diff\/nope\.yaml {2}error {2}manifest-unreadable {2}cannot read manifest: ENOENT/u);
+    expect(await run([CASE('deprecated', 'old.yaml')])).toBe(2);
+    expect(err[0]).toMatch(/^diff needs two manifests: <old manifest> <new manifest>/u);
   });
 });

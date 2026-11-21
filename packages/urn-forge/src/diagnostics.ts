@@ -65,6 +65,8 @@ export const DIAGNOSTIC_CODES = {
   'missing-plugin': 'A plugin requires another plugin that is not enabled',
   'unenforced-in-sql': 'A rule has no exact form in SQL, so the Postgres schema does not enforce it (a warning, or an error with unenforced: error)',
   'invalid-sql-name': 'A name in the Postgres schema is longer than 63 bytes, or two parts get the same name',
+  // urn-forge diff (gate 5)
+  'breaking-change': 'A change to a live URN can break a consumer that worked before it (a warning while the old manifest is experimental)',
   // Gate 1: completeness
   'tsconfig-unreadable': 'The tsconfig for gate 1 cannot be read',
   'core-not-found': 'The core entry file does not exist',

@@ -72,7 +72,7 @@ gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, 
     my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
     my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
-verify passed with 3 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+verify passed with 3 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```
 
 Gate 1 passes, because a handler that never fails is still correct. Gate 3 has a new warning, `uncovered-error`: no scenario expects the error. You add the rule to the core in step 5, and the scenario in step 7.
@@ -162,7 +162,7 @@ gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 
     my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
     my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
-verify passed with 2 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+verify passed with 2 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```
 
 The summary of gate 3 shows `1/1 errors expected`, and the `uncovered-error` warning is gone. The two boundary warnings stay. You close them in the next tutorial.

@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
 import { loadConfig, pluginEntries } from '../src/config.js';
 import { DIAGNOSTIC_CODES, type Diagnostic, type DiagnosticCode } from '../src/diagnostics.js';
+import { diffManifests } from '../src/diff/index.js';
 import { compile, DEFAULT_PLUGINS } from '../src/engine.js';
 import { PLUGINS } from '../src/plugins/index.js';
 import { indexFeatureSource } from '../src/verify/feature-index.js';
@@ -179,6 +180,12 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
     compile(`${HEADER}a.field.${'x'.repeat(60)}: { primitive: string }\na.entity.e:\n  description: d\n  key: a.field.${'x'.repeat(60)}\n  fields:\n    - ref: a.field.${'x'.repeat(60)}\n`, [
       { plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } },
     ]).diagnostics,
+  // urn-forge diff
+  'breaking-change': () => {
+    const result = diffManifests(`${HEADER}a.field.x: { primitive: integer, max: 10 }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\na.operation.o:\n  description: d\n  input: a.entity.e\n  output: a.entity.e\n`,
+      `${HEADER}a.field.x: { primitive: integer, max: 5 }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\na.operation.o:\n  description: d\n  input: a.entity.e\n  output: a.entity.e\n`);
+    return result.ok ? result.breaking : result.diagnostics;
+  },
   // Gate 1
   'tsconfig-unreadable': () => project({ tsconfigPath: at('nope.json') }),
   'core-not-found': () => project({ corePath: at('nope.ts') }),
