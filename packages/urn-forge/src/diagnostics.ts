@@ -64,6 +64,7 @@ export const DIAGNOSTIC_CODES = {
   'missing-column': 'The input table of an operation has no column for a required field',
   'undeclared-error': 'A scenario expects an error that its operation does not declare',
   'uncovered-error': 'A declared error has no scenario that expects it (a warning)',
+  'uncovered-boundary': 'The examples of an input field do not include every boundary case of its constraints (a warning)',
   // Gate 4: drift
   'generated-missing': 'A generated file is not in the output directory',
   'generated-differs': 'A generated file differs from a fresh compile',

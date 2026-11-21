@@ -95,7 +95,7 @@ describe('gate 3: required input columns', () => {
     checkGherkin({
       ir,
       features: { directory: 'features', features: [indexFeatureSource(source, 'f.feature')!], problems: [] },
-    } as unknown as GateContext).problems.filter((p) => p.code !== 'untagged-operation');
+    } as unknown as GateContext).problems.filter((p) => p.code !== 'untagged-operation' && p.code !== 'uncovered-boundary');
 
   it('fails when the input table has no column for a required field', () => {
     expect(problems(`${SAFE_DIVIDE}\nFeature: x\n  Scenario: y\n    When I run the operation with:\n      | dividend |\n      | 1        |\n`)).toEqual([
@@ -134,7 +134,7 @@ describe('gate 3: tables of the fails-with step', () => {
         ],
         problems: [],
       },
-    } as unknown as GateContext).problems.filter((p) => p.code !== 'uncovered-error');
+    } as unknown as GateContext).problems.filter((p) => p.code !== 'uncovered-error' && p.code !== 'uncovered-boundary');
 
   it('checks the headers against the fields of the named error, not the operation', () => {
     expect(problems('    Then the operation fails with "urn:demo:shop:order:error:price_unavailable":\n      | sku |\n      | ABC-1234 |\n')).toEqual([]);
@@ -149,7 +149,7 @@ describe('gate 3: declared errors', () => {
   const PRICE = '@urn:demo:shop:order:operation:price_line';
   const UNAVAILABLE = 'urn:demo:shop:order:error:price_unavailable';
   const OFFLINE = 'urn:demo:shop:order:error:pricing_offline';
-  const outcome = (...thens: string[]) =>
+  const rawOutcome = (...thens: string[]) =>
     checkGherkin({
       ir,
       features: {
@@ -166,6 +166,11 @@ describe('gate 3: declared errors', () => {
         problems: [],
       },
     } as unknown as GateContext);
+  /** These tests are about declared errors, not boundaries. */
+  const outcome = (...thens: string[]) => {
+    const result = rawOutcome(...thens);
+    return { ...result, problems: result.problems.filter((p) => p.code !== 'uncovered-boundary') };
+  };
 
   it('counts both forms of the step, and passes with no warning when every error is expected', () => {
     const { problems, summary } = outcome(`Then the operation fails with "${UNAVAILABLE}"`, `Then the operation fails with "${OFFLINE}":\n      | kind |\n      | ${OFFLINE} |`);
@@ -191,6 +196,49 @@ describe('gate 3: declared errors', () => {
         message: `"urn:demo:shop:order:error:sold_out" is not a declared error of urn:demo:shop:order:operation:price_line (errors: ${UNAVAILABLE}, ${OFFLINE})`,
       }),
     ]);
+  });
+});
+
+describe('gate 3: boundary coverage', () => {
+  const coverage = async (manifest: string, featuresDir: string) => {
+    const ir = compile(readFileSync(repo(manifest), 'utf8')).ir!;
+    const features = await indexFeatures(repo(featuresDir), repo(''));
+    return checkGherkin({ ir, features } as unknown as GateContext)
+      .problems.filter((p) => p.code === 'uncovered-boundary')
+      .map((p) => [p.severity, p.urn!.split(':').at(-1), p.message.replace(/^\S+ in the input of \S+:operation:/, '')]);
+  };
+
+  it('reports exactly the target: nothing for the math example', async () => {
+    expect(await coverage('tests/fixtures/math/domain.manifest.yaml', 'example/features')).toEqual([]);
+  });
+
+  it('reports exactly the target: six gaps in self/', async () => {
+    const regex = 'has no invalid value for regex [a-z][a-z0-9_]{0,62}';
+    expect(await coverage('self/domain.manifest.yaml', 'self/features')).toEqual([
+      ['warning', 'short_key', 'parse_short_key has no value of length 1 (minLength), no value of length 0 (below minLength)'],
+      ['warning', 'identifier', `to_brand_identifier ${regex}`],
+      ['warning', 'namespace', `to_urn ${regex}`],
+      ['warning', 'domain', `to_urn ${regex}`],
+      ['warning', 'context', `to_urn ${regex}`],
+      ['warning', 'identifier', `to_urn ${regex}`],
+    ]);
+  });
+
+  it('counts values per operation, through Outline placeholders', () => {
+    const ir = compile(readFileSync(repo('tests/fixtures/shop/domain.manifest.yaml'), 'utf8')).ir!;
+    const PRICE = '@urn:demo:shop:order:operation:price_line';
+    const gaps = (rows: string) =>
+      checkGherkin({
+        ir,
+        features: {
+          directory: 'features',
+          features: [indexFeatureSource(`${PRICE}\nFeature: x\n  Scenario Outline: y\n    When I run the operation with:\n      | quantity |\n      | <q> |\n    Examples:\n      | q |\n${rows}`, 'f.feature')!],
+          problems: [],
+        },
+      } as unknown as GateContext).problems.filter((p) => p.code === 'uncovered-boundary' && p.urn!.endsWith(':quantity'));
+    // quantity: integer, min 1, max 99, notEqual 13.
+    expect(gaps(['0', '1', '99', '100', '13'].map((q) => `      | ${q} |\n`).join(''))).toEqual([]);
+    expect(gaps(['1', '99', '13'].map((q) => `      | ${q} |\n`).join(''))[0]?.message).toMatch(/has no value at min − 1 \(0\), no value at max \+ 1 \(100\)$/);
   });
 });
 
