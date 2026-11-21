@@ -491,7 +491,7 @@ export interface BoundaryIssue {
 
 To find `fieldUrn`, `executeOperation` follows the path through the `fields` of the contract and of each `EmbeddedInfo`. It ignores the list indexes.
 
-An issue of an invariant has the path of the first field that the rule names. Thus it has a `fieldUrn` and an `invariantUrn`. The issue of an invariant of an embedded entity has the nested path, for example `coverages.1.limit`. To find the invariant, `executeOperation` compares the `requirement` of the Valibot issue with the `rule` of each `InvariantInfo`.
+An issue of an invariant has the path of its `reportOn` property, else of the first field that the rule names. Thus it has a `fieldUrn` and an `invariantUrn`. The issue of an invariant of an embedded entity has the nested path, for example `coverages.1.limit`. To find the invariant, `executeOperation` compares the `requirement` of the Valibot issue with the `rule` of each `InvariantInfo`.
 
 ### `EmittedEvent`
 

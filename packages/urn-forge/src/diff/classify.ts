@@ -12,6 +12,7 @@
  * A change that is neither narrower nor wider breaks every use. A URN with no use breaks no
  * one. The uses come from the old manifest: they are the consumers that exist.
  */
+import { firstField } from '../rules/index.js';
 import { liveIr } from '../ir/lifecycle.js';
 import { statusOf, type IRPropertyRef, type Lifecycle, type UniversalIR, type Urn } from '../ir/types.js';
 import { constraintRelation, listRelation, type Relation } from './relation.js';
@@ -251,6 +252,9 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     if (a.on !== b!.on) relate(urn, 'neither', `on ${a.on} → ${b!.on}`, uses);
     else if (a.ruleText !== b!.ruleText) relate(urn, 'neither', `rule ${a.ruleText} → ${b!.ruleText}`, uses);
     if (a.message !== b!.message) compatible(urn, 'message changed');
+    // reportOn moves the issue, not the set of values that the rule accepts (reportOn plan, decision 7).
+    const [fromField, toField] = [a.reportOn ?? firstField(a.rule), b!.reportOn ?? firstField(b!.rule)];
+    if (fromField !== toField) compatible(urn, `reports its issue on "${fromField}" → "${toField}"`);
   }
 
   for (const urn of Object.keys(old.errors) as Urn[]) {

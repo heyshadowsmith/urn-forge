@@ -225,7 +225,7 @@ export const <Brand>Schema = v.pipe(
 | `<Invariant brand>Rule` | One exported function for each invariant, in URN order. It gets the parsed object and returns `true` if the rule holds. For the TypeScript of each element of a rule, refer to [The rule language](./rule-language) |
 | The comment of a rule | The URN and the `description` of the invariant, then the canonical text of the rule |
 | `v.check` | Calls the rule function. The message is the `message` of the invariant, as a string literal in double quotes |
-| `v.forward` | Puts the issue on the first field that the rule names, in the sequence of the rule text. For `deductible is absent or deductible < premium`, this is `deductible` |
+| `v.forward` | Puts the issue on the `reportOn` property of the invariant. Without `reportOn`, on the first field that the rule names, in the sequence of the rule text. For `deductible is absent or deductible < premium`, this is `deductible` |
 | The sequence of the checks | URN order of the invariants |
 
 The checks of the invariants run only if each property of the object is valid. If a field schema refuses a value, the payload gets only the issues of the fields. If the fields are valid, each invariant runs, and each rule that does not hold gives one issue.
