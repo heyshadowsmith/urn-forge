@@ -41,7 +41,7 @@ export interface FieldInfoLike {
 export type FieldsLike = Readonly<Record<string, FieldInfoLike>>;
 
 export interface OperationContractLike {
-  readonly input: { readonly fields: FieldsLike };
+  readonly input: { readonly fields: FieldsLike; readonly invariants?: readonly { readonly urn: string }[] };
   readonly output: { readonly fields: FieldsLike };
   /** The operation's declared errors, keyed by error URN. */
   readonly errors: Readonly<Record<string, { readonly fields: FieldsLike }>>;
@@ -50,6 +50,7 @@ export interface OperationContractLike {
 export interface BoundaryIssueLike {
   readonly path: string;
   readonly fieldUrn?: string;
+  readonly invariantUrn?: string;
   readonly message: string;
 }
 
@@ -177,6 +178,17 @@ export function assertRejectedOn(result: ExecuteResultLike, fieldName: string, f
   }
 }
 
+/** Checks the input was rejected at the boundary because the invariant `invariantUrn` does not hold. */
+export function assertRejectedBy(result: ExecuteResultLike, invariantUrn: string, urn: string): void {
+  if (result.ok) throw new Error(`${urn} accepted the input; expected it to be rejected by ${invariantUrn}`);
+  if (result.kind !== 'InputRejected') {
+    throw new Error(`${urn} failed with ${describeFailure(result)}; expected InputRejected by ${invariantUrn}`);
+  }
+  if (!result.issues.some((issue) => issue.invariantUrn === invariantUrn)) {
+    throw new Error(`${urn} rejected the input, but not by ${invariantUrn}: ${describeFailure(result)}`);
+  }
+}
+
 /**
  * Checks the operation refused with the declared error `errorUrn`, and, when `expected` is
  * given, that the error's fields equal it (`undefined` means absent). Columns not in the
@@ -262,6 +274,15 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
   Then(STEP_PHRASES.rejected, function (this: StepsWorld, fieldName: string) {
     const { urn, result } = lastRun(this);
     assertRejectedOn(result, fieldName, contract(urn).input.fields, urn);
+  });
+
+  Then(STEP_PHRASES.rejectedBy, function (this: StepsWorld, invariantUrn: string) {
+    const { urn, result } = lastRun(this);
+    const invariants = (contract(urn).input.invariants ?? []).map((i) => i.urn);
+    if (!invariants.includes(invariantUrn)) {
+      throw new Error(`${invariantUrn} is not an invariant of the input of ${urn} (invariants: ${invariants.length > 0 ? invariants.join(', ') : 'none'})`);
+    }
+    assertRejectedBy(result, invariantUrn, urn);
   });
 
   Then(STEP_PHRASES.failsWith, function (this: StepsWorld, errorUrn: string) {

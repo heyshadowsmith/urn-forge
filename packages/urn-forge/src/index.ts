@@ -29,7 +29,9 @@ export {
 } from './diagnostics.js';
 
 // The IR
-export type { ErrorCategory, IREntity, IRError, IRField, IRFieldRef, IROperation, MessagePart, UniversalIR, Urn } from './ir/types.js';
+export { invariantsOf } from './ir/types.js';
+export type { ErrorCategory, IREntity, IRError, IRField, IRFieldRef, IRInvariant, IROperation, ListRule, MessagePart, UniversalIR, Urn } from './ir/types.js';
+export type { RuleExpr } from './rules/index.js';
 
 // Plugins
 export { DEFAULT_PLUGINS, PLUGINS, type PluginName } from './plugins/index.js';
@@ -44,6 +46,6 @@ export type {
 // Registries
 export { KIND_NAMES, type KindName } from './kinds/index.js';
 export { PRIMITIVE_NAMES, type ConstraintValue, type Primitive } from './primitives/index.js';
-export { handlerName, schemaNames, toBrandIdentifier, toUrn, type UrnParts } from './naming.js';
+export { handlerName, ruleName, schemaNames, toBrandIdentifier, toUrn, type UrnParts } from './naming.js';
 
 export { GENERATOR_VERSION } from './version.js';
