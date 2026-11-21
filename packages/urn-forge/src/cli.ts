@@ -21,7 +21,7 @@ import { compile, type PluginEntry } from './engine.js';
 import { DEFAULT_PLUGINS } from './plugins/index.js';
 import { GATES, verify } from './verify/index.js';
 import { GENERATOR_VERSION } from './version.js';
-import { writeGeneratedFiles } from './write.js';
+import { removeOrphanFiles, writeGeneratedFiles } from './write.js';
 
 export interface CliIo {
   readonly cwd: string;
@@ -194,6 +194,11 @@ async function runCompile(args: string[], io: CliIo): Promise<number> {
   for (const { path, changed } of await writeGeneratedFiles(paths.out, result.files)) {
     if (format === 'json') io.stdout(JSON.stringify({ type: 'file', path: display(io, path), changed }));
     else io.stdout(`${changed ? 'wrote     ' : 'unchanged '} ${display(io, path)}`);
+  }
+  // A file from an earlier compile that this one no longer writes would fail gate 4.
+  for (const path of await removeOrphanFiles(paths.out, result.files)) {
+    if (format === 'json') io.stdout(JSON.stringify({ type: 'file', path: display(io, path), changed: true, removed: true }));
+    else io.stdout(`removed    ${display(io, path)}`);
   }
   return finish(true, result.fingerprint);
 }
