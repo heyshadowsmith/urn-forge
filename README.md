@@ -10,7 +10,7 @@ This is an npm-workspaces monorepo:
 | --- | --- |
 | [`packages/urn-forge`](packages/urn-forge) | The CLI (`urn-forge compile`, `urn-forge verify`), the Cucumber step library, tests, and the math example |
 | [`packages/urn-forge/self`](packages/urn-forge/self) | urn-forge's own domain: the toolchain's pure functions, declared and traced with urn-forge |
-| [`packages/urn-forge/insurance`](packages/urn-forge/insurance) | The insurance domain: dates, exact decimals, an optional field and invariants, strict from the start |
+| [`packages/urn-forge/insurance`](packages/urn-forge/insurance) | The insurance domain: dates, exact decimals, an optional field, invariants, a link to a customer and an embedded list of coverages, strict from the start |
 | [`docs`](docs) | The VitePress documentation site, including the [MVP plan](docs/project/mvp-plan.md) and [spec v1.1](docs/project/spec-v1-1.md) |
 
 ## Commands
