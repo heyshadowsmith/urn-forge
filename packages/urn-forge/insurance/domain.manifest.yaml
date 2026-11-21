@@ -1,0 +1,91 @@
+# The insurance domain (MVP plan, Milestone 3; invariants plan, step 0). It uses dates, exact
+# decimals, an optional field and invariants, so each part of the rule language has a real use.
+manifest:
+  namespace: acme
+  domain: insurance
+  version: 0.1.0
+
+policy.field.policy_id:
+  primitive: string
+  format: uuid
+  description: The identifier of a policy
+policy.field.effective_date:
+  primitive: date
+  description: The first day that the policy covers
+policy.field.expiry_date:
+  primitive: date
+  description: The last day that the policy covers
+policy.field.premium:
+  primitive: decimal
+  exclusiveMin: "0"
+  scale: 2
+  description: The price of the policy for its whole term
+policy.field.deductible:
+  primitive: decimal
+  min: "0"
+  scale: 2
+  description: The amount of a claim that the holder pays first
+policy.field.cancellation_date:
+  primitive: date
+  description: The day from which the policy stops
+policy.field.refund:
+  primitive: decimal
+  min: "0"
+  scale: 2
+  description: The part of the premium that goes back to the holder
+
+policy.entity.policy:
+  description: An issued insurance policy
+  fields:
+    - ref: policy.field.policy_id
+    - ref: policy.field.effective_date
+    - ref: policy.field.expiry_date
+    - ref: policy.field.premium
+    - ref: policy.field.deductible
+      required: false
+policy.entity.cancellation:
+  description: A request to stop a policy, with the terms it needs
+  fields:
+    - ref: policy.field.effective_date
+    - ref: policy.field.expiry_date
+    - ref: policy.field.premium
+    - ref: policy.field.cancellation_date
+policy.entity.refund_quote:
+  description: The refund for a cancellation
+  fields:
+    - ref: policy.field.refund
+
+policy.invariant.term_is_positive:
+  description: A policy ends after it starts
+  on: policy.entity.policy
+  rule: expiry_date > effective_date
+  message: The expiry date must be after the effective date
+policy.invariant.deductible_below_premium:
+  description: A deductible, when there is one, is less than the premium
+  on: policy.entity.policy
+  rule: deductible is absent or deductible < premium
+  message: The deductible must be less than the premium
+policy.invariant.cancellation_within_term:
+  description: A policy can stop only on a day that it covers
+  on: policy.entity.cancellation
+  rule: cancellation_date >= effective_date and cancellation_date <= expiry_date
+  message: The cancellation date must be inside the term of the policy
+
+policy.error.refund_below_minimum:
+  description: The refund is too small to pay out
+  category: precondition
+  retryable: false
+  message: A refund of {refund} is below the minimum of 1.00
+  fields:
+    - ref: policy.field.refund
+
+policy.operation.issue_policy:
+  description: Issue a policy as requested
+  input: policy.entity.policy
+  output: policy.entity.policy
+policy.operation.cancel_policy:
+  description: Stop a policy and calculate the refund for the days it does not cover
+  input: policy.entity.cancellation
+  output: policy.entity.refund_quote
+  errors:
+    - policy.error.refund_below_minimum
