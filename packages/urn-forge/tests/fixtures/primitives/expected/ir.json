@@ -1,5 +1,36 @@
 {
   "entities": {
+    "urn:demo:kinds:value:entity:lists": {
+      "brandIdentifier": "ValueLists",
+      "description": "Lists of field values",
+      "fields": [
+        {
+          "field": "urn:demo:kinds:value:field:sku",
+          "many": {},
+          "name": "sku",
+          "required": true
+        },
+        {
+          "field": "urn:demo:kinds:value:field:size",
+          "many": {
+            "maxItems": 3,
+            "minItems": 1,
+            "unique": true
+          },
+          "name": "size",
+          "required": true
+        },
+        {
+          "field": "urn:demo:kinds:value:field:price",
+          "many": {
+            "maxItems": 2
+          },
+          "name": "price",
+          "required": false
+        }
+      ],
+      "urn": "urn:demo:kinds:value:entity:lists"
+    },
     "urn:demo:kinds:value:entity:sample": {
       "brandIdentifier": "ValueSample",
       "description": "One value of each field",
@@ -321,7 +352,7 @@
   "meta": {
     "domain": "kinds",
     "irSchemaVersion": 1,
-    "manifestHash": "e0b03b9ab5f5821c4438de5be459aead83b3aae6ed87e2e291f19b3d5fde7de3",
+    "manifestHash": "b9b8e014ab3cd3707f5380de8c7eacda32f7182d3f29c84a567bd4c76377d084",
     "manifestVersion": "0.1.0",
     "namespace": "demo",
     "stability": "stable"

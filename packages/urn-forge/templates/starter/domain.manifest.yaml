@@ -10,10 +10,9 @@ bill.field.total_cents:
   min: 0
   description: The total of the bill in cents
 bill.field.people:
-  primitive: integer
-  min: 1
-  max: 100
-  description: The number of people who share the bill
+  primitive: string
+  minLength: 1
+  description: The name of a person who shares the bill
 bill.field.share_cents:
   primitive: integer
   min: 0
@@ -23,7 +22,9 @@ bill.entity.split_request:
   description: A bill to split between people
   fields:
     - ref: bill.field.total_cents
+    # A list of names: 1 to 10 people, each one once.
     - ref: bill.field.people
+      many: { minItems: 1, maxItems: 10, unique: true }
 bill.entity.share:
   description: The amount that each person pays
   fields:
@@ -33,10 +34,9 @@ bill.error.uneven_split:
   description: The total cannot be split into equal shares of whole cents
   category: precondition
   retryable: false
-  message: A total of {total_cents} cents cannot be split evenly between {people} people
+  message: A total of {total_cents} cents cannot be split evenly between the people
   fields:
     - ref: bill.field.total_cents
-    - ref: bill.field.people
 
 bill.operation.split:
   description: Split a bill into equal shares

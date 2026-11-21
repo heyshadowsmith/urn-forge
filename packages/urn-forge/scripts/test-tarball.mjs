@@ -52,11 +52,11 @@ try {
   expect('verify passes with no warning', verify.code === 0 && verify.output.includes('verify passed (gates 1, 3, 4;'));
 
   const features = run('npm', ['run', 'test:features'], project);
-  expect('every scenario passes', features.code === 0 && features.output.includes('7 scenarios (7 passed)'));
+  expect('every scenario passes', features.code === 0 && features.output.includes('9 scenarios (9 passed)'));
 
   // A changed rule in the core: the scenarios must catch it.
   const corePath = join(project, 'src/core.ts');
-  writeFileSync(corePath, readFileSync(corePath, 'utf8').replace('total_cents / people', 'total_cents / people + 1'));
+  writeFileSync(corePath, readFileSync(corePath, 'utf8').replace('total_cents / count', 'total_cents / count + 1'));
   const broken = run('npm', ['run', 'test:features'], project);
   expect('a wrong core fails the scenarios', broken.code !== 0 && broken.output.includes('share_cents: expected 250, got 251'));
 

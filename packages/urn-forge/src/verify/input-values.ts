@@ -11,7 +11,7 @@
  */
 import { STEP_PHRASES } from '../gherkin/phrases.js';
 import type { UniversalIR, Urn } from '../ir/types.js';
-import { parseCell } from '../primitives/index.js';
+import { parseCell, parseListCell } from '../primitives/index.js';
 import type { FeatureIndex, IndexedScenario, IndexedTable, IndexedTag } from './feature-index.js';
 
 /** Operation URN → input property name → the values sent, in order of appearance. */
@@ -53,7 +53,7 @@ export function inputValues(ir: UniversalIR, features: FeatureIndex): InputValue
         const text = row[column] ?? '';
         if (text === '') continue;
         const list = values.get(operation)!.get(ref.name) ?? [];
-        list.push(parseCell(field.primitive, text));
+        list.push(ref.many ? parseListCell(field.primitive, text) : parseCell(field.primitive, text));
         values.get(operation)!.set(ref.name, list);
       }
     });

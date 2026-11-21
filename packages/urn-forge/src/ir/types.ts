@@ -45,6 +45,19 @@ export interface IRFieldRef {
    */
   readonly name: string;
   readonly required: boolean;
+  /**
+   * Present when the property holds a list of the field's values (primitives plan, step 10):
+   * how many it may hold, and whether a value may repeat. A list is structure, so it is a
+   * property of the reference, not of the field's primitive.
+   */
+  readonly many?: ListRule;
+}
+
+/** The item count and uniqueness of a list. `{}` is a list of any length. */
+export interface ListRule {
+  readonly minItems?: number;
+  readonly maxItems?: number;
+  readonly unique?: boolean;
 }
 
 export interface IREntity {

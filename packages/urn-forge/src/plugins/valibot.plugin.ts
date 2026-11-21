@@ -10,7 +10,7 @@
  * group declarations follow URN order.
  */
 import * as v from 'valibot';
-import type { IREntity, IRError, IRField, IRFieldRef, UniversalIR, Urn } from '../ir/types.js';
+import type { IREntity, IRError, IRField, IRFieldRef, ListRule, UniversalIR, Urn } from '../ir/types.js';
 import { schemaNames } from '../naming.js';
 import {
   constraintKeys,
@@ -165,9 +165,21 @@ function propertyLines(owner: Urn, refs: readonly IRFieldRef[], fields: Readonly
   return refs.map((ref) => {
     const field = fields[ref.field];
     if (!field) throw new Error(`IR is not resolved: ${owner} references missing ${ref.field}`);
-    const schema = schemaNames(field.brandIdentifier).schema;
+    const item = schemaNames(field.brandIdentifier).schema;
+    const schema = ref.many ? listSchema(item, ref.many) : item;
     return `  ${ref.name}: ${ref.required ? schema : `v.optional(${schema})`},`;
   });
+}
+
+/** A list of a field's values: `v.array`, with its item count and uniqueness. */
+function listSchema(item: string, rule: ListRule): string {
+  const actions = [
+    ...(rule.minItems === undefined ? [] : [`v.minLength(${numberLiteral(rule.minItems)})`]),
+    ...(rule.maxItems === undefined ? [] : [`v.maxLength(${numberLiteral(rule.maxItems)})`]),
+    // Values are compared as they cross the boundary (===), so "1.10" and "1.1" are two values.
+    ...(rule.unique ? ["v.check((list) => new Set(list).size === list.length, 'Invalid items: Expected no value more than once')"] : []),
+  ];
+  return actions.length === 0 ? `v.array(${item})` : `v.pipe(v.array(${item}), ${actions.join(', ')})`;
 }
 
 function entityDeclaration(entity: IREntity, fields: Readonly<Record<Urn, IRField>>): string {

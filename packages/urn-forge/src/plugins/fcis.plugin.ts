@@ -213,7 +213,7 @@ function fieldInfoLines(owner: Urn, refs: readonly IRFieldRef[], ir: UniversalIR
   return refs.map((ref) => {
     const field = ir.fields[ref.field];
     if (!field) throw new Error(`IR is not resolved: ${owner} references missing ${ref.field}`);
-    return `${indent}${ref.name}: { urn: ${q(field.urn)}, primitive: ${q(field.primitive)}, required: ${ref.required} },`;
+    return `${indent}${ref.name}: { urn: ${q(field.urn)}, primitive: ${q(field.primitive)}, required: ${ref.required}${ref.many ? ', many: true' : ''} },`;
   });
 }
 
@@ -299,6 +299,8 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       `  readonly urn: string;`,
       `  readonly primitive: ${PRIMITIVE_NAMES.map(q).join(' | ')};`,
       `  readonly required: boolean;`,
+      `  /** The property holds a list of the field's values. */`,
+      `  readonly many?: true;`,
       `}`,
       ``,
       `export interface EntityContract {`,

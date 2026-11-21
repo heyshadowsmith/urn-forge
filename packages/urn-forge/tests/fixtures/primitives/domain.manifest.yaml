@@ -63,3 +63,10 @@ value.entity.sample:
     - { ref: value.field.term_day, required: false }
     - { ref: value.field.at, required: false }
     - { ref: value.field.window, required: false }
+
+value.entity.lists:
+  description: Lists of field values
+  fields:
+    - { ref: value.field.sku, many: true }
+    - { ref: value.field.size, many: { minItems: 1, maxItems: 3, unique: true } }
+    - { ref: value.field.price, many: { maxItems: 2 }, required: false }

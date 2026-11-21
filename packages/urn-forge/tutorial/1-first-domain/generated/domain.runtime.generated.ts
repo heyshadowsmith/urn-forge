@@ -59,6 +59,8 @@ export interface FieldInfo {
   readonly urn: string;
   readonly primitive: 'boolean' | 'date' | 'decimal' | 'enum' | 'float' | 'integer' | 'string' | 'timestamp';
   readonly required: boolean;
+  /** The property holds a list of the field's values. */
+  readonly many?: true;
 }
 
 export interface EntityContract {

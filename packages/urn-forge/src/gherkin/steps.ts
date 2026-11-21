@@ -23,7 +23,7 @@
  *   });
  */
 import { Before, Then, When, type DataTable } from '@cucumber/cucumber';
-import { parseCell, type Primitive } from '../primitives/index.js';
+import { parseCell, parseListCell, type Primitive } from '../primitives/index.js';
 import { STEP_PHRASES } from './phrases.js';
 
 // Structural views of the generated runtime, so this library does not depend on any one domain.
@@ -34,6 +34,8 @@ export interface FieldInfoLike {
   readonly urn: string;
   readonly primitive: Primitive;
   readonly required: boolean;
+  /** A list: the cell is `[a, b, c]`. */
+  readonly many?: boolean;
 }
 
 export type FieldsLike = Readonly<Record<string, FieldInfoLike>>;
@@ -90,7 +92,7 @@ export function operationUrnFromTags(tags: readonly string[]): string {
  */
 export function coerceCell(cell: string, field: FieldInfoLike): unknown {
   if (cell === '') return undefined;
-  return parseCell(field.primitive, cell);
+  return field.many ? parseListCell(field.primitive, cell) : parseCell(field.primitive, cell);
 }
 
 /**
@@ -126,10 +128,14 @@ export function tableToObject(
 }
 
 function sameValue(actual: unknown, expected: unknown): boolean {
+  if (Array.isArray(actual) && Array.isArray(expected)) {
+    return actual.length === expected.length && actual.every((item, i) => sameValue(item, expected[i]));
+  }
   return actual === expected || (Number.isNaN(actual) && Number.isNaN(expected));
 }
 
 function show(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(show).join(', ')}]`;
   return value === undefined ? 'absent' : String(value);
 }
 

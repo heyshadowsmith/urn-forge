@@ -39,6 +39,7 @@
 import { failsWithUrn, STEP_PHRASES } from '../gherkin/phrases.js';
 import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
 import type { UniversalIR, Urn } from '../ir/types.js';
+import { listBoundaries } from '../kinds/field-refs.js';
 import { boundaryCases } from '../primitives/index.js';
 import { inputValues } from './input-values.js';
 import type { IndexedCell, IndexedTag, IndexedTable } from './feature-index.js';
@@ -232,7 +233,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     const op = ir.operations[operation];
     const ref = op && ir.entities[op.input]?.fields.find((f) => f.field === fieldUrn);
     const field = ref && ir.fields[ref.field];
-    return field !== undefined && boundaryCases(field.primitive, field.constraints).length > 0;
+    return field !== undefined && (boundaryCases(field.primitive, field.constraints).length > 0 || (ref?.many !== undefined && listBoundaries(ref.many).length > 0));
   };
   const waiverFor = (operation: Urn, fieldUrn: string) =>
     waivers.find((w) => w.field === fieldUrn && w.operations.includes(operation));
@@ -245,7 +246,12 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
       const field = ir.fields[ref.field];
       if (!field) continue;
       const sent = values.get(operation.urn)?.get(ref.name) ?? [];
-      const missing = boundaryCases(field.primitive, field.constraints).filter((c) => !sent.some((value) => c.covers(value)));
+      // A list's items are the field's values; the lists themselves have the count cases.
+      const items = ref.many ? sent.flatMap((value) => (Array.isArray(value) ? value : [])) : sent;
+      const missing = [
+        ...boundaryCases(field.primitive, field.constraints).filter((c) => !items.some((value) => c.covers(value))),
+        ...(ref.many ? listBoundaries(ref.many).filter((c) => !sent.some((value) => c.covers(value))) : []),
+      ];
       if (missing.length === 0) continue;
       const waiver = waiverFor(operation.urn, field.urn);
       if (waiver) {

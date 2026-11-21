@@ -71,7 +71,7 @@ describe('urn-forge init', () => {
     expect(out.at(-1)).toBe('verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)');
 
     const cucumber = spawnSync(join(nodeModules, '.bin/cucumber-js'), [], { cwd: dir, encoding: 'utf8' });
-    expect(cucumber.stdout + cucumber.stderr).toContain('7 scenarios (7 passed)');
+    expect(cucumber.stdout + cucumber.stderr).toContain('9 scenarios (9 passed)');
     expect(cucumber.status).toBe(0);
   });
 
