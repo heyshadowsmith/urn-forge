@@ -78,3 +78,23 @@ describe('the shell setting', () => {
     expect(result.ok ? [] : result.diagnostics.map((d) => d.message)).toEqual(['config.shell[0]: must not be empty']);
   });
 });
+
+describe('found while the docs were written', () => {
+  it('reports an any in an object property once, and a suppression only in a comment', async () => {
+    const { dir } = await project('clean');
+    await appendFile(
+      join(dir, 'core.ts'),
+      "\nexport const texts = ['// @ts-ignore is text here, not a comment'];\nexport function premiumBox(raw: string): { premium: PolicyPremium } {\n  return { premium: JSON.parse(raw) };\n}\n",
+    );
+    const result = await verify({
+      cwd: dir,
+      manifestPath: join(dir, 'domain.manifest.yaml'),
+      outDir: join(dir, 'generated'),
+      corePath: join(dir, 'core.ts'),
+      featuresDir: join(dir, 'features'),
+      tsconfigPath: join(pkg, 'tsconfig.json'),
+      gates: GATES_UNDER_TEST,
+    });
+    expect(result.gates.flatMap((g) => g.problems).map((p) => p.code)).toEqual(['brand-from-any']);
+  }, 60_000);
+});

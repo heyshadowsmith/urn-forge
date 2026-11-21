@@ -101,8 +101,20 @@ export function checkBoundary(context: GateContext): GateOutcome {
       return written.length > 60 ? `${written.slice(0, 57)}…` : written;
     };
 
-    for (const match of source.text.matchAll(SUPPRESSION)) {
-      report('suppressed-check', match.index, `@ts-${match[1]} turns off a type check, which could hide a forged brand; correct the type instead`);
+    // Only comments count: a string that holds the same text is not a suppression.
+    const comments = new Map<number, number>();
+    const collect = (node: ts.Node) => {
+      for (const range of [...(ts.getLeadingCommentRanges(source.text, node.getFullStart()) ?? []), ...(ts.getTrailingCommentRanges(source.text, node.getEnd()) ?? [])]) {
+        comments.set(range.pos, range.end);
+      }
+      ts.forEachChild(node, collect);
+    };
+    collect(source);
+    for (const range of ts.getLeadingCommentRanges(source.text, source.endOfFileToken.getFullStart()) ?? []) comments.set(range.pos, range.end);
+    for (const [pos, end] of [...comments].sort(([a], [b]) => a - b)) {
+      for (const match of source.text.slice(pos, end).matchAll(SUPPRESSION)) {
+        report('suppressed-check', pos + match.index, `@ts-${match[1]} turns off a type check, which could hide a forged brand; correct the type instead`);
+      }
     }
 
     const visit = (node: ts.Node): void => {
@@ -114,7 +126,9 @@ export function checkBoundary(context: GateContext): GateOutcome {
         }
       }
       // An any where a branded type belongs: an assignment, a return, an argument, a property.
-      if (ts.isExpression(node) && !ts.isParenthesizedExpression(node.parent) && checker.getTypeAtLocation(node).flags & ts.TypeFlags.Any) {
+      // A name is not a value: the property name in `{ premium: raw }` has the type of raw, which is reported once, at raw.
+      const isName = ts.isIdentifier(node) && !ts.isShorthandPropertyAssignment(node.parent) && (node.parent as { readonly name?: ts.Node }).name === node;
+      if (!isName && ts.isExpression(node) && !ts.isParenthesizedExpression(node.parent) && checker.getTypeAtLocation(node).flags & ts.TypeFlags.Any) {
         const expected = checker.getContextualType(node);
         if (expected && carriesBrand(checker, expected)) {
           report('brand-from-any', node, `${text(node)} is any where the branded type ${expectedText(node, expected)} belongs; parse the value with a generated schema in the shell`);

@@ -406,7 +406,7 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
   return 1;
 }
 
-/** `verify passed [with N warning(s)] (gates …; gate 2 is not built; gate 5 is urn-forge diff)`. */
+/** `verify passed [with N warning(s)] (gates 1, 2, 3, 4; gate 5 is urn-forge diff)`; a gate that is not built is named too. */
 export function verifyPassedLine(ran: readonly number[], warnings: number): string {
   // Gate 5 compares two manifests, so it is its own command, not a gate of verify.
   const notBuilt = ([1, 2, 3, 4] as const).filter((n) => !GATES.some((g) => g.number === n));
