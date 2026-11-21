@@ -73,10 +73,11 @@ The check is right when it reports exactly these six gaps and nothing for the ma
 
 Each step leaves the repository green and ends with a check you can run.
 
-- [ ] **1. Boundaries in the descriptors.**
+- [x] **1. Boundaries in the descriptors.**
   - Each primitive gains `boundaries(constraints)`: a list of required cases, each with a label (`at min 0`, `an invalid value for regex …`) and a test for a value.
   - The steps read a `""` cell as the empty string for `string` fields.
   - *Check:* unit tests per primitive and constraint; a step test sends `""`.
+  - *Done.* `boundaries` is a required member of the descriptor type, so `tsc` named all four primitives until each had its rules. The rules follow *The rules* above. `-0` covers a bound of `0`, as the schema treats them alike, and a string that is not a number never covers a numeric case. `""` is parsed in the `string` descriptor, so the steps and gate 3 (which converts cells the same way) agree. Boundaries are not a fingerprint input, because they do not change generated code; the generated files are byte-identical.
 - [ ] **2. Values per operation.**
   - The feature index, or a function over it, gives each operation's input values per field, with Outline placeholders resolved and cells converted.
   - *Check:* the values match the table above for `self/` and the math example.

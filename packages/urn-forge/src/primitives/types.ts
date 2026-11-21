@@ -25,6 +25,17 @@ export interface CoherenceProblem {
   readonly message: string;
 }
 
+/**
+ * One value that boundary coverage requires a field's examples to include (spec §8, gate 3
+ * check 3). Coverage only shows the case is present; the test run shows whether it passes.
+ */
+export interface BoundaryCase {
+  /** Completes "has no …": `value at min 0`, `value below min 0`, `invalid value for regex [a-z]+`. */
+  readonly label: string;
+  /** Whether a value covers the case. The value is a table cell after `parseCell`. */
+  readonly covers: (value: unknown) => boolean;
+}
+
 /** Each constraint key mapped to its value type. */
 export type ConstraintValues<C extends Readonly<Record<string, ConstraintSpec>>> = {
   readonly [K in keyof C]: C[K] extends ConstraintSpec<infer T> ? T : never;
@@ -41,6 +52,8 @@ export interface PrimitiveDescriptor<
   readonly coherence: (constraints: Partial<ConstraintValues<C>>) => readonly CoherenceProblem[];
   /** Turns a non-empty Gherkin table cell into the value the field's schema parses. */
   readonly parseCell: (cell: string) => unknown;
+  /** The cases boundary coverage requires for the constraints a field sets. */
+  readonly boundaries: (constraints: Partial<ConstraintValues<C>>) => readonly BoundaryCase[];
 }
 
 /** Infers a descriptor's literal name and constraint types. */

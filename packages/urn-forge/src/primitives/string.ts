@@ -1,5 +1,5 @@
 import * as v from 'valibot';
-import { definePrimitive, type CoherenceProblem, type ConstraintSpec } from './types.js';
+import { definePrimitive, type BoundaryCase, type CoherenceProblem, type ConstraintSpec } from './types.js';
 
 const length: ConstraintSpec<number> = { schema: v.pipe(v.number(), v.safeInteger(), v.minValue(0)) };
 
@@ -61,5 +61,29 @@ export const string = definePrimitive({
     }
     return problems;
   },
-  parseCell: (cell) => cell,
+  // `""` is the empty string: an empty cell means "absent", so it could not send one.
+  parseCell: (cell) => (cell === '""' ? '' : cell),
+  boundaries: ({ minLength, maxLength, regex: pattern, oneOf: values }) => {
+    const isString = (value: unknown): value is string => typeof value === 'string';
+    const ofLength = (n: number) => (value: unknown) => isString(value) && value.length === n;
+    const cases: BoundaryCase[] = [];
+    if (minLength !== undefined) {
+      cases.push({ label: `value of length ${minLength} (minLength)`, covers: ofLength(minLength) });
+      if (minLength > 0) cases.push({ label: `value of length ${minLength - 1} (below minLength)`, covers: ofLength(minLength - 1) });
+    }
+    if (maxLength !== undefined) {
+      cases.push({ label: `value of length ${maxLength} (maxLength)`, covers: ofLength(maxLength) });
+      cases.push({ label: `value of length ${maxLength + 1} (above maxLength)`, covers: ofLength(maxLength + 1) });
+    }
+    if (pattern !== undefined) {
+      const whole = wholeValuePattern(pattern);
+      cases.push({ label: `valid value for regex ${pattern}`, covers: (value) => isString(value) && whole.test(value) });
+      cases.push({ label: `invalid value for regex ${pattern}`, covers: (value) => isString(value) && !whole.test(value) });
+    }
+    if (values !== undefined) {
+      for (const listed of values) cases.push({ label: `value "${listed}" (oneOf)`, covers: (value) => value === listed });
+      cases.push({ label: 'value outside oneOf', covers: (value) => isString(value) && !values.includes(value) });
+    }
+    return cases;
+  },
 });

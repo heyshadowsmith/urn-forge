@@ -12,4 +12,12 @@ export const boolean = definePrimitive({
   coherence: () => [],
   // `true` and `false` become booleans; any other text stays a string, for the schema to reject.
   parseCell: (cell) => (cell === 'true' ? true : cell === 'false' ? false : cell),
+  // The required value, and the other one, which the schema refuses.
+  boundaries: ({ mustBe }) =>
+    mustBe === undefined
+      ? []
+      : [
+          { label: `value ${mustBe} (mustBe)`, covers: (value) => value === mustBe },
+          { label: `value ${!mustBe} (not mustBe)`, covers: (value) => value === !mustBe },
+        ],
 });
