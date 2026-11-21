@@ -35,3 +35,34 @@ describe('reportOn in the manifest and the IR', () => {
     for (const invariant of Object.values(insurance.invariants)) expect(invariant).not.toHaveProperty('reportOn');
   });
 });
+
+describe('the issue goes on reportOn (fixture: report-on)', async () => {
+  const runtime = await import('./fixtures/report-on/expected/domain.runtime.generated.js');
+  const { assertRejectedOn } = await import('../src/gherkin/steps.js');
+  const BOOK = 'urn:demo:resto:booking:operation:book';
+  const core = { [BOOK]: (request: never) => runtime.ok(request) } as never;
+
+  it('puts the issue of a party of 7 with no deposit on deposit, with its field URN', () => {
+    const result = runtime.executeOperation(BOOK, { party_size: 7 }, core);
+    expect(result).toMatchObject({
+      ok: false,
+      kind: 'InputRejected',
+      issues: [
+        {
+          path: 'deposit',
+          fieldUrn: 'urn:demo:resto:booking:field:deposit',
+          invariantUrn: 'urn:demo:resto:booking:invariant:large_party_has_deposit',
+          message: 'A party of 7 or more must pay a deposit',
+        },
+      ],
+    });
+    // The scenario step follows the issue: rejected on "deposit", not on "party_size".
+    const fields = runtime.DispatchMap[BOOK].input.fields;
+    expect(() => assertRejectedOn(result as never, 'deposit', fields as never, BOOK)).not.toThrow();
+    expect(() => assertRejectedOn(result as never, 'party_size', fields as never, BOOK)).toThrow('rejected the input, but not on "party_size"');
+  });
+
+  it('accepts a party of 7 with a deposit', () => {
+    expect(runtime.executeOperation(BOOK, { party_size: 7, deposit: '50.00' }, core)).toMatchObject({ ok: true });
+  });
+});

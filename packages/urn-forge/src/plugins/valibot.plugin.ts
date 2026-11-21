@@ -268,7 +268,7 @@ function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
     `export const ${names.schema} = v.pipe(`,
     `  ${object},`,
     ...invariants.map(
-      (invariant) => `  v.forward(v.check(${ruleName(invariant.brandIdentifier)}, ${JSON.stringify(invariant.message)}), [${JSON.stringify(firstField(invariant.rule))}]),`,
+      (invariant) => `  v.forward(v.check(${ruleName(invariant.brandIdentifier)}, ${JSON.stringify(invariant.message)}), [${JSON.stringify(invariant.reportOn ?? firstField(invariant.rule))}]),`,
     ),
     `);`,
     ...typeExports(entity.brandIdentifier),

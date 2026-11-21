@@ -79,7 +79,7 @@ export const BookingLargePartyHasDepositRule = (p: v.InferOutput<typeof BookingR
 /** urn:demo:resto:booking:entity:request — A request for a table */
 export const BookingRequestSchema = v.pipe(
   BookingRequestFields,
-  v.forward(v.check(BookingLargePartyHasDepositRule, "A party of 7 or more must pay a deposit"), ["party_size"]),
+  v.forward(v.check(BookingLargePartyHasDepositRule, "A party of 7 or more must pay a deposit"), ["deposit"]),
 );
 export type BookingRequest = v.InferOutput<typeof BookingRequestSchema>;
 export type BookingRequestInput = v.InferInput<typeof BookingRequestSchema>;

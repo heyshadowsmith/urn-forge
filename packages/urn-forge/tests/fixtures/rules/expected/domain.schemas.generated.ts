@@ -347,7 +347,7 @@ export const RSampleSchema = v.pipe(
   v.forward(v.check(RNotRuleRule, "not_rule does not hold"), ["i1"]),
   v.forward(v.check(ROptGuardRule, "opt_guard does not hold"), ["opt"]),
   v.forward(v.check(ROrRuleRule, "or_rule does not hold"), ["i1"]),
-  v.forward(v.check(RReportOnGuardedRule, "report_on_guarded does not hold"), ["opt"]),
+  v.forward(v.check(RReportOnGuardedRule, "report_on_guarded does not hold"), ["d1"]),
   v.forward(v.check(RStrNeRule, "str_ne does not hold"), ["s1"]),
   v.forward(v.check(RTsEqRule, "ts_eq does not hold"), ["t1"]),
   v.forward(v.check(RTsLtRule, "ts_lt does not hold"), ["t1"]),
