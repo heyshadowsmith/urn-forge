@@ -11,7 +11,8 @@
  *   Postgres runs when the transaction commits, so a shell can write the parent and its
  *   items in any order.
  */
-import type { IRPropertyRef, UniversalIR, Urn } from '../ir/types.js';
+import { invariantsOf, type IRPropertyRef, type UniversalIR, type Urn } from '../ir/types.js';
+import { ruleSql } from './postgres-rules.js';
 import { domainName, ident, literal, urnParts } from './postgres.plugin.js';
 
 /** One column, with its SQL type. */
@@ -37,8 +38,6 @@ export interface TableHooks {
   readonly nameTaken: (name: string, urn: Urn, what: string, owner: Urn) => void;
   /** Reports a rule that the SQL cannot enforce. */
   readonly unenforced: (urn: Urn, what: string) => void;
-  /** The CHECK lines of the invariants of an entity, over its column names (step 4). */
-  readonly invariantChecks: (entity: Urn) => readonly string[];
 }
 
 const qualified = (table: { readonly schema: string; readonly name: string }) => `${ident(table.schema)}.${ident(table.name)}`;
@@ -63,6 +62,30 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
   const links: string[] = [];
   const counts: string[] = [];
   const names = new Map<string, Urn>();
+  const unenforcedRules = new Set<Urn>();
+
+  /** The invariants of an entity as named CHECKs on `table`, with a comment that holds each URN. */
+  const invariants = (table: Table, entity: Urn): { lines: string[]; comments: string[] } => {
+    const lines: string[] = [];
+    const comments: string[] = [];
+    const constraintNames = new Map<string, Urn>();
+    for (const invariant of invariantsOf(ir, entity)) {
+      const translated = ruleSql(ir, invariant.rule, ir.entities[entity]!.fields);
+      if (!translated.ok) {
+        if (!unenforcedRules.has(invariant.urn)) hooks.unenforced(invariant.urn, `the rule ${invariant.ruleText}: ${translated.reason}`);
+        unenforcedRules.add(invariant.urn);
+        comments.push(`-- Not enforced here: ${invariant.urn} (${invariant.ruleText}).`);
+        continue;
+      }
+      const name = urnParts(invariant.urn).identifier;
+      const owner = constraintNames.get(name);
+      if (owner !== undefined) hooks.nameTaken(`${table.name}.${name}`, invariant.urn, 'check constraint', owner);
+      constraintNames.set(name, invariant.urn);
+      lines.push(`CONSTRAINT ${ident(name)} CHECK (${translated.sql})`);
+      comments.push(`COMMENT ON CONSTRAINT ${ident(name)} ON ${qualified(table)} IS ${literal(`${invariant.urn} — ${invariant.message}`)};`);
+    }
+    return { lines, comments };
+  };
 
   /** A table or index name must be unique in its schema. */
   const claim = (schema: string, name: string, urn: Urn, what: string) => {
@@ -112,7 +135,8 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
       if ('entity' in ref || ref.many !== undefined) children.push(() => child(table, entity, ref));
       else property(table, entity, ref, columns, comments);
     }
-    tables.push('', `CREATE TABLE ${qualified(table)} (`, [...columns, ...keyLines, ...hooks.invariantChecks(entity)].map((l) => `  ${l}`).join(',\n'), ');', ...comments);
+    const checks = invariants(table, entity);
+    tables.push('', `CREATE TABLE ${qualified(table)} (`, [...columns, ...keyLines, ...checks.lines].map((l) => `  ${l}`).join(',\n'), ');', ...comments, ...checks.comments);
     for (const make of children) make();
   };
 

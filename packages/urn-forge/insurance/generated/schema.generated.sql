@@ -59,7 +59,9 @@ CREATE TABLE "policy"."policy" (
   "expiry_date" "policy"."expiry_date_value" NOT NULL,
   "premium" "policy"."premium_value" NOT NULL,
   "deductible" "policy"."deductible_value",
-  CONSTRAINT "policy_pkey" PRIMARY KEY ("policy_id")
+  CONSTRAINT "policy_pkey" PRIMARY KEY ("policy_id"),
+  CONSTRAINT "deductible_below_premium" CHECK (("deductible" IS NULL OR "deductible" < "premium")),
+  CONSTRAINT "term_is_positive" CHECK ("expiry_date" > "effective_date")
 );
 COMMENT ON TABLE "policy"."policy" IS 'urn:acme:insurance:policy:entity:policy — An issued insurance policy';
 COMMENT ON COLUMN "policy"."policy"."policy_id" IS 'urn:acme:insurance:policy:field:policy_id';
@@ -68,6 +70,8 @@ COMMENT ON COLUMN "policy"."policy"."effective_date" IS 'urn:acme:insurance:poli
 COMMENT ON COLUMN "policy"."policy"."expiry_date" IS 'urn:acme:insurance:policy:field:expiry_date';
 COMMENT ON COLUMN "policy"."policy"."premium" IS 'urn:acme:insurance:policy:field:premium';
 COMMENT ON COLUMN "policy"."policy"."deductible" IS 'urn:acme:insurance:policy:field:deductible';
+COMMENT ON CONSTRAINT "deductible_below_premium" ON "policy"."policy" IS 'urn:acme:insurance:policy:invariant:deductible_below_premium — The deductible must be less than the premium';
+COMMENT ON CONSTRAINT "term_is_positive" ON "policy"."policy" IS 'urn:acme:insurance:policy:invariant:term_is_positive — The expiry date must be after the effective date';
 
 CREATE TABLE "policy"."policy__coverages" (
   "policy_id" "policy"."policy_id_value" NOT NULL,
@@ -77,12 +81,14 @@ CREATE TABLE "policy"."policy__coverages" (
   "note" "policy"."note_value",
   CONSTRAINT "policy__coverages_pkey" PRIMARY KEY ("policy_id", "position"),
   CONSTRAINT "policy__coverages_parent_fkey" FOREIGN KEY ("policy_id") REFERENCES "policy"."policy" ("policy_id") ON DELETE CASCADE,
-  CONSTRAINT "policy__coverages_peril_key" UNIQUE ("policy_id", "peril")
+  CONSTRAINT "policy__coverages_peril_key" UNIQUE ("policy_id", "peril"),
+  CONSTRAINT "limit_is_positive" CHECK ("limit" > 0)
 );
 COMMENT ON TABLE "policy"."policy__coverages" IS 'urn:acme:insurance:policy:entity:coverage (embedded in urn:acme:insurance:policy:entity:policy as coverages)';
 COMMENT ON COLUMN "policy"."policy__coverages"."peril" IS 'urn:acme:insurance:policy:field:peril';
 COMMENT ON COLUMN "policy"."policy__coverages"."limit" IS 'urn:acme:insurance:policy:field:limit';
 COMMENT ON COLUMN "policy"."policy__coverages"."note" IS 'urn:acme:insurance:policy:field:note';
+COMMENT ON CONSTRAINT "limit_is_positive" ON "policy"."policy__coverages" IS 'urn:acme:insurance:policy:invariant:limit_is_positive — The limit of a coverage must be more than 0';
 
 ALTER TABLE "policy"."policy" ADD CONSTRAINT "policy_holder_fkey" FOREIGN KEY ("holder") REFERENCES "customer"."customer" ("customer_id");
 

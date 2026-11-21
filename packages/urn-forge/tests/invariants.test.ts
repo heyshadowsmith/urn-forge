@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';
+import { RULE_CASES } from './rule-cases.js';
 import * as r from './fixtures/rules/expected/domain.schemas.generated.js';
 import { core as insuranceCore } from '../insurance/core.js';
 import * as insuranceRuntime from '../insurance/generated/domain.runtime.generated.js';
@@ -37,36 +38,34 @@ describe('the invariant kind', () => {
 });
 
 describe('the generated rule of each operator on each primitive (fixture: rules)', () => {
-  /** [rule, values that make it true, values that make it false] */
-  type Case = readonly [(p: never) => boolean, readonly object[], readonly object[]];
-  const cases: Readonly<Record<string, Case>> = {
-    'i1 < i2': [r.RIntLtRule, [{ i1: 1, i2: 2 }], [{ i1: 2, i2: 2 }, { i1: 3, i2: 2 }]],
-    'i1 <= i2': [r.RIntLeRule, [{ i1: 2, i2: 2 }], [{ i1: 3, i2: 2 }]],
-    'i1 = i2': [r.RIntEqRule, [{ i1: 2, i2: 2 }], [{ i1: 1, i2: 2 }]],
-    'i1 != i2': [r.RIntNeRule, [{ i1: 1, i2: 2 }], [{ i1: 2, i2: 2 }]],
-    'i1 >= i2': [r.RIntGeRule, [{ i1: 2, i2: 2 }], [{ i1: 1, i2: 2 }]],
-    'i1 > i2': [r.RIntGtRule, [{ i1: 3, i2: 2 }], [{ i1: 2, i2: 2 }]],
-    'i1 + 1 = i2': [r.RIntPlusRule, [{ i1: 1, i2: 2 }], [{ i1: 1, i2: 3 }]],
-    'i2 - i1 >= 2': [r.RIntMinusRule, [{ i1: 1, i2: 3 }], [{ i1: 1, i2: 2 }]],
-    'f1 < f2': [r.RFloatLtRule, [{ f1: 0.1, f2: 0.2 }], [{ f1: 0.2, f2: 0.2 }]],
-    'f1 > 0.5': [r.RFloatLiteralRule, [{ f1: 0.51 }], [{ f1: 0.5 }]],
-    // Decimals compare exactly: 0.1 + 0.2 is 0.3, and 1.10 equals 1.1.
-    'd1 < d2': [r.RDecLtRule, [{ d1: '9.99', d2: '10' }, { d1: '-1.5', d2: '-1.45' }], [{ d1: '10.00', d2: '10' }, { d1: '100', d2: '99.999' }]],
-    'd1 = d2': [r.RDecEqRule, [{ d1: '1.10', d2: '1.1' }, { d1: '-0', d2: '0' }], [{ d1: '1.1', d2: '1.11' }]],
-    "d1 + d2 = '3.30'": [r.RDecPlusRule, [{ d1: '1.1', d2: '2.2' }, { d1: '3.29', d2: '0.01' }], [{ d1: '1.1', d2: '2.21' }]],
-    'd2 - d1 >= 1': [r.RDecMinusRule, [{ d1: '0.1', d2: '1.1' }], [{ d1: '0.11', d2: '1.1' }]],
-    'dt1 < dt2': [r.RDateLtRule, [{ dt1: '2026-01-31', dt2: '2026-02-01' }], [{ dt1: '2026-02-01', dt2: '2026-02-01' }]],
-    "dt1 >= '2026-01-01'": [r.RDateLiteralRule, [{ dt1: '2026-01-01' }], [{ dt1: '2025-12-31' }]],
-    // Timestamps compare as instants.
-    't1 < t2': [r.RTsLtRule, [{ t1: '2026-01-01T00:00:00Z', t2: '2026-01-01T00:00:00.001Z' }], [{ t1: '2026-01-01T00:00:00.000Z', t2: '2026-01-01T00:00:00Z' }]],
-    't1 = t2': [r.RTsEqRule, [{ t1: '2026-01-01T00:00:00Z', t2: '2026-01-01T00:00:00.000Z' }], [{ t1: '2026-01-01T00:00:00Z', t2: '2026-01-01T00:00:01Z' }]],
-    's1 != s2': [r.RStrNeRule, [{ s1: 'a', s2: 'b' }], [{ s1: 'a', s2: 'a' }]],
-    "e1 = 'a'": [r.REnumEqRule, [{ e1: 'a' }], [{ e1: 'b' }]],
-    'b1 = true': [r.RBoolEqRule, [{ b1: true }], [{ b1: false }]],
-    'opt is absent or opt < d1': [r.ROptGuardRule, [{ d1: '5' }, { opt: '4.99', d1: '5' }], [{ opt: '5.00', d1: '5' }]],
-    'not i1 = 0': [r.RNotRuleRule, [{ i1: 1 }], [{ i1: 0 }]],
-    'i1 = 0 or i2 = 0': [r.ROrRuleRule, [{ i1: 0, i2: 5 }, { i1: 5, i2: 0 }], [{ i1: 1, i2: 1 }]],
+  /** The generated rule function of each rule text. */
+  const rules: Readonly<Record<string, (p: never) => boolean>> = {
+    'i1 < i2': r.RIntLtRule,
+    'i1 <= i2': r.RIntLeRule,
+    'i1 = i2': r.RIntEqRule,
+    'i1 != i2': r.RIntNeRule,
+    'i1 >= i2': r.RIntGeRule,
+    'i1 > i2': r.RIntGtRule,
+    'i1 + 1 = i2': r.RIntPlusRule,
+    'i2 - i1 >= 2': r.RIntMinusRule,
+    'f1 < f2': r.RFloatLtRule,
+    'f1 > 0.5': r.RFloatLiteralRule,
+    'd1 < d2': r.RDecLtRule,
+    'd1 = d2': r.RDecEqRule,
+    "d1 + d2 = '3.30'": r.RDecPlusRule,
+    'd2 - d1 >= 1': r.RDecMinusRule,
+    'dt1 < dt2': r.RDateLtRule,
+    "dt1 >= '2026-01-01'": r.RDateLiteralRule,
+    't1 < t2': r.RTsLtRule,
+    't1 = t2': r.RTsEqRule,
+    's1 != s2': r.RStrNeRule,
+    "e1 = 'a'": r.REnumEqRule,
+    'b1 = true': r.RBoolEqRule,
+    'opt is absent or opt < d1': r.ROptGuardRule,
+    'not i1 = 0': r.RNotRuleRule,
+    'i1 = 0 or i2 = 0': r.ROrRuleRule,
   };
+  const cases = Object.fromEntries(Object.entries(RULE_CASES).map(([text, [holds, breaks]]) => [text, [rules[text]!, holds, breaks] as const]));
   it.each(Object.entries(cases))('%s', (_rule, [rule, holds, breaks]) => {
     for (const p of holds) expect(rule(p as never), JSON.stringify(p)).toBe(true);
     for (const p of breaks) expect(rule(p as never), JSON.stringify(p)).toBe(false);

@@ -7,9 +7,6 @@ import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-/** Set to true when the plugin writes insurance's SQL (Postgres plan, step 4). */
-const TARGET_READY = false;
-
 const CUSTOMER = '9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d';
 const POLICY = '123e4567-e89b-12d3-a456-426614174000';
 
@@ -40,7 +37,7 @@ interface PgError {
   readonly constraint?: string;
 }
 
-describe.runIf(TARGET_READY)('insurance in Postgres', () => {
+describe('insurance in Postgres', () => {
   let db: PGlite;
 
   beforeEach(async () => {

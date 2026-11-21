@@ -9,6 +9,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';
 import { PLUGINS } from '../src/plugins/index.js';
 import { translateRegex } from '../src/plugins/postgres-regex.js';
+import { ruleSql } from '../src/plugins/postgres-rules.js';
+import { RULE_CASES } from './rule-cases.js';
 import { boundaryCases, type Primitive } from '../src/primitives/index.js';
 import * as schemas from './fixtures/postgres/expected/domain.schemas.generated.js';
 
@@ -256,5 +258,67 @@ describe('tables (decisions 1, 6 and 7)', () => {
       ['invalid-sql-name', 'urn:demo:shop:order:entity:order__lines: the table name "order.order__lines" is also a name that urn:demo:shop:order:entity:order uses'],
       ['invalid-sql-name', 'urn:demo:shop:order:entity:order__lines: the primary key name "order.order__lines_pkey" is also a name that urn:demo:shop:order:entity:order uses'],
     ]);
+  });
+});
+
+describe('invariants (decision 10)', () => {
+  const rules = compile(readFileSync(new URL('./fixtures/rules/domain.manifest.yaml', import.meta.url), 'utf8')).ir!;
+  const entity = Object.values(rules.entities)[0]!;
+  /** The base type of each primitive's domain (DOMAIN_TRANSLATIONS), for a row of values. */
+  const SQL_TYPE: { readonly [P in Primitive]: string } = {
+    boolean: 'BOOLEAN',
+    date: 'DATE',
+    decimal: 'NUMERIC',
+    enum: 'TEXT',
+    float: 'DOUBLE PRECISION',
+    integer: 'BIGINT',
+    string: 'TEXT',
+    timestamp: 'TIMESTAMPTZ',
+  };
+  let db: PGlite;
+  beforeAll(() => {
+    db = new PGlite();
+  });
+  afterAll(async () => db.close());
+
+  /** Whether a CHECK of `condition` passes for one row: a CHECK passes unless the condition is false. */
+  const check = async (condition: string, values: object): Promise<boolean> => {
+    const columns = entity.fields.map((ref) => {
+      if (!('field' in ref)) throw new Error('the rules fixture has only field references');
+      const field = rules.fields[ref.field]!;
+      const value = (values as Record<string, unknown>)[ref.name];
+      const sql = value === undefined ? 'NULL' : `'${String(value)}'`;
+      return `${sql}::${SQL_TYPE[field.primitive]} AS "${ref.name}"`;
+    });
+    const result = await db.query<{ ok: boolean }>(`SELECT (${condition}) IS NOT FALSE AS ok FROM (SELECT ${columns.join(', ')}) AS row`);
+    return result.rows[0]!.ok;
+  };
+
+  it('has a rule in the fixture for every case', () => {
+    const texts = Object.values(rules.invariants).map((i) => i.ruleText);
+    for (const text of Object.keys(RULE_CASES)) expect(texts, text).toContain(text);
+  });
+
+  it.each(Object.entries(RULE_CASES))('%s: Postgres gives the answer of the Valibot rule', async (text, [holds, breaks]) => {
+    const invariant = Object.values(rules.invariants).find((i) => i.ruleText === text)!;
+    const translated = ruleSql(rules, invariant.rule, entity.fields);
+    if (!translated.ok) throw new Error(translated.reason);
+    // Every other field gets a value, so a required field is never NULL in the row.
+    const defaults = { i1: 0, i2: 0, f1: 0, f2: 0, d1: '0', d2: '0', dt1: '2026-01-01', dt2: '2026-01-01', t1: '2026-01-01T00:00:00Z', t2: '2026-01-01T00:00:00Z', s1: 'a', s2: 'a', b1: true, e1: 'a' };
+    for (const p of holds) expect(await check(translated.sql, { ...defaults, ...p }), JSON.stringify(p)).toBe(true);
+    for (const p of breaks) expect(await check(translated.sql, { ...defaults, ...p }), JSON.stringify(p)).toBe(false);
+  });
+
+  it('reports a rule over a list or an embedded entity as unenforced-in-sql', () => {
+    const manifest =
+      'manifest:\n  namespace: demo\n  domain: shop\n  version: 1.0.0\n' +
+      'a.field.id: { primitive: integer }\na.field.tag: { primitive: string }\n' +
+      'a.entity.e:\n  description: d\n  key: a.field.id\n  fields:\n    - ref: a.field.id\n    - { ref: a.field.tag, as: tags, many: true, required: false }\n' +
+      'a.invariant.tagged:\n  description: d\n  on: a.entity.e\n  rule: tags is present\n  message: m\n';
+    const result = compile(manifest, [{ plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } }]);
+    expect(result.diagnostics.map((d) => d.message)).toContain(
+      'urn:demo:shop:a:invariant:tagged: the rule tags is present: "tags" is a list, which is rows of a child table, and a CHECK sees one row; the SQL does not enforce it, and the Valibot schema at the boundary still does',
+    );
+    expect(result.files[0]!.content).toContain('-- Not enforced here: urn:demo:shop:a:invariant:tagged (tags is present).');
   });
 });

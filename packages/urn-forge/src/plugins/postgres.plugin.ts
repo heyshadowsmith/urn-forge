@@ -251,7 +251,6 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof P
         checkName,
         nameTaken: (name, urn, what, owner) => report('invalid-sql-name', `${urn}: the ${what} name "${name}" is also a name that ${owner} uses`, urn),
         unenforced,
-        invariantChecks: () => [],
       }),
     );
 
