@@ -155,6 +155,7 @@
     }
   },
   "errors": {},
+  "events": {},
   "fields": {
     "urn:demo:kinds:value:field:accepted": {
       "brandIdentifier": "ValueAccepted",

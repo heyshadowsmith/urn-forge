@@ -65,6 +65,17 @@ export function usesOf(ir: UniversalIR, tables: readonly Urn[] = []): Map<Urn, S
       if (!error) continue;
       add(urn, 'out');
       properties(error.fields, 'out', new Set());
+      // The event that records the error reaches the shell's audit trail.
+      if (error.recordAs && live.events[error.recordAs]) {
+        add(error.recordAs, 'out');
+        properties(live.events[error.recordAs]!.fields, 'out', new Set());
+      }
+    }
+    // An event reaches whoever the shell publishes it to (events plan, decision 9).
+    for (const urn of op.emits) {
+      if (!live.events[urn]) continue;
+      add(urn, 'out');
+      properties(live.events[urn]!.fields, 'out', new Set());
     }
   }
   for (const table of tables) entity(table, 'stored');
@@ -134,7 +145,7 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
   const breaking = (urn: Urn, message: string) => changes.push({ class: 'breaking', urn, message });
 
   type Node = { readonly urn: Urn; readonly lifecycle?: Lifecycle; readonly description?: string };
-  const groups = ['fields', 'entities', 'invariants', 'operations', 'errors'] as const;
+  const groups = ['fields', 'entities', 'invariants', 'operations', 'events', 'errors'] as const;
   for (const group of groups) {
     const before = old[group] as Readonly<Record<Urn, Node>>;
     const after = now[group] as Readonly<Record<Urn, Node>>;
@@ -239,7 +250,14 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     if (a.category !== b!.category) relate(urn, 'neither', `category ${a.category} → ${b!.category}`, uses);
     if (a.retryable !== b!.retryable) relate(urn, 'neither', `retryable ${a.retryable} → ${b!.retryable}`, uses);
     if (JSON.stringify(a.message) !== JSON.stringify(b!.message)) compatible(urn, 'message changed');
+    if (a.recordAs !== b!.recordAs) relate(urn, 'neither', `recordAs ${show(a.recordAs)} → ${show(b!.recordAs)}`, uses);
     properties(urn, a.fields, b!.fields, uses);
+  }
+
+  for (const urn of Object.keys(old.events) as Urn[]) {
+    const [a, b] = [old.events[urn]!, now.events[urn]];
+    if (!live(a) || !live(b)) continue;
+    properties(urn, a.fields, b!.fields, usesFor(urn, true));
   }
 
   for (const urn of Object.keys(old.operations) as Urn[]) {
@@ -252,6 +270,9 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     // A new declared error is a new kind of result, which a caller that handles each kind does not know.
     for (const e of added) relate(urn, 'wider', `the new declared error ${e}`, new Set<Use>(['out']));
     for (const e of removed) relate(urn, 'narrower', `removing the declared error ${e}`, new Set<Use>(['out']));
+    // A new event is a new kind of fact, which a consumer that handles each kind does not know.
+    for (const e of b!.emits.filter((x) => !a.emits.includes(x))) relate(urn, 'wider', `the new event ${e}`, new Set<Use>(['out']));
+    for (const e of a.emits.filter((x) => !b!.emits.includes(x))) relate(urn, 'narrower', `removing the event ${e}`, new Set<Use>(['out']));
   }
 
   return changes.sort((x, y) => (x.urn < y.urn ? -1 : x.urn > y.urn ? 1 : 0));

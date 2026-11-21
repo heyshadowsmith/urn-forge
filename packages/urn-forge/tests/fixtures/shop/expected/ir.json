@@ -97,6 +97,7 @@
       "urn": "urn:demo:shop:order:error:pricing_offline"
     }
   },
+  "events": {},
   "fields": {
     "urn:demo:shop:order:field:delivery": {
       "brandIdentifier": "OrderDelivery",
@@ -193,6 +194,7 @@
     "urn:demo:shop:order:operation:price_line": {
       "brandIdentifier": "OrderPriceLine",
       "description": "Price one order line",
+      "emits": [],
       "errors": [
         "urn:demo:shop:order:error:price_unavailable",
         "urn:demo:shop:order:error:pricing_offline"

@@ -7,6 +7,7 @@ import type { ManifestPath } from '../diagnostics.js';
 import type { UniversalIR } from '../ir/types.js';
 import { entity } from './entity.js';
 import { error } from './error.js';
+import { event } from './event.js';
 import { field } from './field.js';
 import { invariant } from './invariant.js';
 import { operation } from './operation.js';
@@ -14,19 +15,10 @@ import type { KindDescriptor, KindName, ReferenceSlot } from './types.js';
 
 // `any` for the entry type: it is both produced (schema) and consumed (build), so no narrower wildcard fits.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const KINDS = { field, entity, invariant, operation, error } as const satisfies { readonly [K in KindName]: KindDescriptor<K, any, unknown> };
+export const KINDS = { field, entity, invariant, operation, event, error } as const satisfies { readonly [K in KindName]: KindDescriptor<K, any, unknown> };
 
 /** In the order diagnostics list them. */
 export const KIND_NAMES = Object.keys(KINDS) as KindName[];
-
-/**
- * Kinds in spec v1.1 that the compiler does not support yet; their keys get "not supported
- * yet". Typed so that a kind added to `KindName` must also leave this list.
- */
-export const NOT_YET_SUPPORTED_KINDS = ['event'] as const satisfies readonly Exclude<
-  'invariant' | 'event' | 'error',
-  KindName
->[];
 
 export type KindGroup = (typeof KINDS)[KindName]['group'];
 

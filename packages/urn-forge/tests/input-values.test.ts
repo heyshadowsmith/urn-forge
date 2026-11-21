@@ -40,7 +40,6 @@ describe('input values on the real features', () => {
         'Geometry.field.radius',
         'geometry.Field.radius',
         'geometry.field.radius.x',
-        'policy.event.placed',
         'policy.widget.x',
         // Added in boundary coverage step 6: the length-1 key and the empty string (a "" cell).
         'a',
@@ -50,11 +49,11 @@ describe('input values on the real features', () => {
       // The outline's examples, then the 64-character context, then the three invalid contexts;
       // the missing-identifier scenario's empty cell is no value.
       'to_brand_identifier.identifier': ['deductible_amount', 'circle_area', 'v2_key', 'b_', 'radius', 'metry_radius', 'radius', 'radius', 'radius', 'radius', 'Radius', '2d', 'has-dash'],
-      'to_urn.namespace': ['demo', 'acme', 'urn_forge', 'urn_forge', 'acme', 'demo', 'demo', 'demo', 'Demo', 'demo', 'demo', 'demo'],
-      'to_urn.domain': ['math', 'insurance', 'toolchain', 'toolchain', 'insurance', 'math', 'math', 'math', 'math', 'Math', 'math', 'math'],
-      'to_urn.context': ['arithmetic', 'policy', 'naming', 'naming', 'policy', 'geometry', 'geometry', 'geometry', 'geometry', 'geometry', 'geo-metry', 'geometry'],
+      'to_urn.namespace': ['demo', 'acme', 'urn_forge', 'urn_forge', 'acme', 'acme', 'demo', 'demo', 'Demo', 'demo', 'demo', 'demo'],
+      'to_urn.domain': ['math', 'insurance', 'toolchain', 'toolchain', 'insurance', 'insurance', 'math', 'math', 'math', 'Math', 'math', 'math'],
+      'to_urn.context': ['arithmetic', 'policy', 'naming', 'naming', 'policy', 'policy', 'geometry', 'geometry', 'geometry', 'geometry', 'geo-metry', 'geometry'],
       'to_urn.kind': ['operation', 'field', 'entity', 'error', 'invariant', 'event', 'widget', 'Field', 'field', 'field', 'field', 'field'],
-      'to_urn.identifier': ['safe_divide', 'deductible_amount', 'atom_address', 'invalid_short_key', 'term_is_positive', 'radius', 'radius', 'radius', 'radius', 'radius', 'radius', '2radius'],
+      'to_urn.identifier': ['safe_divide', 'deductible_amount', 'atom_address', 'invalid_short_key', 'term_is_positive', 'policy_issued', 'radius', 'radius', 'radius', 'radius', 'radius', '2radius'],
     });
   });
 });

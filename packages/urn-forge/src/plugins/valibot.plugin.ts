@@ -345,7 +345,7 @@ export const valibotPlugin: CodegenPlugin<ValibotPluginConfig> = {
   version: '0.1.0',
   configSchema: ConfigSchema,
   // Operations need no schema of their own: their input and output are entities.
-  supports: { kinds: ['field', 'entity', 'invariant', 'operation', 'error'], constraints: SUPPORTED_CONSTRAINTS },
+  supports: { kinds: ['field', 'entity', 'invariant', 'operation', 'event', 'error'], constraints: SUPPORTED_CONSTRAINTS },
   emit(ir) {
     const diagnostics = exportCollisions(ir);
     const helpers = helpersFor(ir);

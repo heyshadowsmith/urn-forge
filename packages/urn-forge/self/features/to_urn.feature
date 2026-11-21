@@ -20,6 +20,7 @@ Feature: URNs
       | urn_forge | toolchain | naming     | entity    | atom_address      | urn:urn_forge:toolchain:naming:entity:atom_address    |
       | urn_forge | toolchain | naming     | error     | invalid_short_key | urn:urn_forge:toolchain:naming:error:invalid_short_key |
       | acme      | insurance | policy     | invariant | term_is_positive  | urn:acme:insurance:policy:invariant:term_is_positive  |
+      | acme      | insurance | policy     | event     | policy_issued     | urn:acme:insurance:policy:event:policy_issued         |
 
   Scenario Outline: A kind the compiler does not support is rejected at the boundary
     When I run the operation with:
@@ -29,7 +30,6 @@ Feature: URNs
 
     Examples:
       | kind   |
-      | event  |
       | widget |
       | Field  |
 

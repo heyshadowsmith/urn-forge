@@ -102,6 +102,7 @@
       "urn": "urn:demo:warehouse:stock:error:inventory_offline"
     }
   },
+  "events": {},
   "fields": {
     "urn:demo:warehouse:stock:field:available": {
       "brandIdentifier": "StockAvailable",
@@ -149,6 +150,7 @@
     "urn:demo:warehouse:stock:operation:reserve": {
       "brandIdentifier": "StockReserve",
       "description": "Hold stock for an order",
+      "emits": [],
       "errors": [
         "urn:demo:warehouse:stock:error:insufficient_stock",
         "urn:demo:warehouse:stock:error:inventory_offline"

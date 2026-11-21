@@ -131,7 +131,6 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'not-a-mapping': () => compile('- a\n').diagnostics,
   'missing-header': () => compile('a.field.b: { primitive: float }\n').diagnostics,
   'invalid-key': () => manifest('Bad Key: { primitive: float }\n'),
-  'unsupported-kind': () => manifest('a.event.b: {}\n'),
   'unknown-kind': () => manifest('a.widget.b: {}\n'),
   'unknown-primitive': () => manifest('a.field.b: { primitive: money }\n'),
   'constraint-not-allowed': () => manifest('a.field.b: { primitive: boolean, min: 1 }\n'),
@@ -156,6 +155,9 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'deprecated-ref': () => manifest('a.field.x: { primitive: float, status: deprecated }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n'),
   'sunset-ref': () => manifest('a.field.x: { primitive: float, status: sunset }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n'),
   // Pass 6
+  'invalid-record-as': () =>
+    manifest('a.field.x: { primitive: float }\na.field.y: { primitive: float }\na.event.seen:\n  description: d\n  fields:\n    - ref: a.field.x\n    - ref: a.field.y\n' +
+      'a.error.e:\n  description: d\n  category: precondition\n  retryable: false\n  message: m\n  fields:\n    - ref: a.field.x\n  recordAs: a.event.seen\n'),
   'unknown-placeholder': () => manifest('a.error.e:\n  description: d\n  category: precondition\n  retryable: false\n  message: no {thing}\n'),
   // Pass 6: invariant rules
   'rule-syntax': () => invariant('expiry_date >'),

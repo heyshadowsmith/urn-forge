@@ -9,6 +9,8 @@ const OperationSchema = v.strictObject({
   output: ShortKeyRef,
   /** Expected domain rejections (spec §4.4). Absent means none. */
   errors: v.optional(v.array(ShortKeyRef)),
+  /** The events produced on success (spec §4.4, §4.5). Absent means none. */
+  emits: v.optional(v.array(ShortKeyRef)),
 });
 export type OperationDecl = v.InferOutput<typeof OperationSchema>;
 
@@ -22,6 +24,7 @@ export const operation = defineKind<OperationDecl, IROperation>()({
     { path: ['input'], targets: ['entity'] },
     { path: ['output'], targets: ['entity'] },
     { path: ['errors', '*'], targets: ['error'] },
+    { path: ['emits', '*'], targets: ['event'] },
   ],
   build({ atom, shortKey, decl, ref, report }) {
     const input = ref(['input']);
@@ -43,6 +46,17 @@ export const operation = defineKind<OperationDecl, IROperation>()({
         errors.push(target.urn);
       }
     });
+    const emits: Urn[] = [];
+    (decl.emits ?? []).forEach((_, index) => {
+      const target = ref(['emits', index]);
+      if (!target) {
+        resolved = false;
+      } else if (emits.includes(target.urn)) {
+        report({ code: 'duplicate-ref', urn: atom.urn, message: `${atom.urn}: emits[${index}] lists ${target.urn} more than once`, path: [shortKey, 'emits', index] });
+      } else {
+        emits.push(target.urn);
+      }
+    });
     if (!input || !output || !resolved) return undefined;
     return {
       urn: atom.urn,
@@ -51,6 +65,7 @@ export const operation = defineKind<OperationDecl, IROperation>()({
       input: input.urn,
       output: output.urn,
       errors,
+      emits,
     };
   },
 });

@@ -63,10 +63,10 @@ export function checkLifecycle(
 export function liveIr(ir: UniversalIR): UniversalIR {
   const live = <T extends { readonly lifecycle?: Lifecycle }>(nodes: Readonly<Record<Urn, T>>): Readonly<Record<Urn, T>> =>
     Object.fromEntries(Object.entries(nodes).filter(([, node]) => node.lifecycle?.status !== 'sunset')) as Readonly<Record<Urn, T>>;
-  return { ...ir, fields: live(ir.fields), entities: live(ir.entities), invariants: live(ir.invariants), operations: live(ir.operations), errors: live(ir.errors) };
+  return { ...ir, fields: live(ir.fields), entities: live(ir.entities), invariants: live(ir.invariants), operations: live(ir.operations), events: live(ir.events), errors: live(ir.errors) };
 }
 
 /** Whether any atom has a sunset date: then a missing reference date means a check that does not run. */
 export function hasSunsetDates(ir: UniversalIR): boolean {
-  return [ir.fields, ir.entities, ir.invariants, ir.operations, ir.errors].some((group) => Object.values(group).some((node) => node.lifecycle?.sunsetDate !== undefined));
+  return [ir.fields, ir.entities, ir.invariants, ir.operations, ir.events, ir.errors].some((group) => Object.values(group).some((node) => node.lifecycle?.sunsetDate !== undefined));
 }

@@ -14,7 +14,7 @@ import {
 
 const PARSE = 'urn:urn_forge:toolchain:naming:operation:parse_short_key';
 const TO_URN = 'urn:urn_forge:toolchain:naming:operation:to_urn';
-const UNSUPPORTED = 'urn:urn_forge:toolchain:naming:error:unsupported_kind';
+const UNKNOWN = 'urn:urn_forge:toolchain:naming:error:unknown_kind';
 const INVALID = 'urn:urn_forge:toolchain:naming:error:invalid_short_key';
 
 describe('executeOperation with declared errors', () => {
@@ -27,16 +27,16 @@ describe('executeOperation with declared errors', () => {
   });
 
   it('returns a DomainError with its metadata, parsed fields and rendered message', () => {
-    expect(executeOperation(PARSE, { short_key: 'policy.event.placed' }, core)).toEqual({
+    expect(executeOperation(PARSE, { short_key: 'policy.widget.placed' }, core)).toEqual({
       ok: false,
       kind: 'DomainError',
       urn: PARSE,
       error: {
-        urn: UNSUPPORTED,
+        urn: UNKNOWN,
         category: 'validation',
         retryable: false,
-        message: 'Kind event in policy.event.placed is not supported yet',
-        fields: { kind: UNSUPPORTED, short_key: 'policy.event.placed', kind_segment: 'event' },
+        message: 'Kind widget in policy.widget.placed is not a kind',
+        fields: { kind: UNKNOWN, short_key: 'policy.widget.placed', kind_segment: 'widget' },
       },
     });
     expect(executeOperation(PARSE, { short_key: 'geometry.radius' }, core)).toMatchObject({
@@ -46,17 +46,17 @@ describe('executeOperation with declared errors', () => {
   });
 
   it('reports an error the operation does not declare as a ContractViolation', () => {
-    const wrong = { ...core, [TO_URN]: () => fail(UNSUPPORTED, { short_key: 'a.event.b', kind_segment: 'event' }) };
+    const wrong = { ...core, [TO_URN]: () => fail(UNKNOWN, { short_key: 'a.widget.b', kind_segment: 'widget' }) };
     expect(executeOperation(TO_URN, { namespace: 'a', domain: 'b', context: 'c', kind: 'field', identifier: 'd' }, wrong as unknown as DomainCoreImplementation)).toMatchObject({
       ok: false,
       kind: 'ContractViolation',
-      issues: [{ message: `${TO_URN} failed with ${UNSUPPORTED}, which it does not declare` }],
+      issues: [{ message: `${TO_URN} failed with ${UNKNOWN}, which it does not declare` }],
     });
   });
 
   it('reports error fields that break their schema as a ContractViolation, tagged with the field', () => {
-    const sloppy = { ...core, [PARSE]: () => fail(UNSUPPORTED, { short_key: 'a.Event.b', kind_segment: 'Event' }) };
-    const result = executeOperation(PARSE, { short_key: 'a.event.b' }, sloppy satisfies DomainCoreImplementation);
+    const sloppy = { ...core, [PARSE]: () => fail(UNKNOWN, { short_key: 'a.Widget.b', kind_segment: 'Widget' }) };
+    const result = executeOperation(PARSE, { short_key: 'a.widget.b' }, sloppy satisfies DomainCoreImplementation);
     expect(result).toMatchObject({
       ok: false,
       kind: 'ContractViolation',
@@ -67,11 +67,11 @@ describe('executeOperation with declared errors', () => {
 
 describe('ok, fail and DomainError (type level, checked by tsc)', () => {
   it('fail requires the named error\'s fields, and a fieldless error needs none', () => {
-    const full = fail(UNSUPPORTED, { short_key: 'a.event.b', kind_segment: 'event' });
-    // @ts-expect-error unsupported_kind needs kind_segment too
-    const partial = fail(UNSUPPORTED, { short_key: 'a.event.b' });
+    const full = fail(UNKNOWN, { short_key: 'a.widget.b', kind_segment: 'widget' });
+    // @ts-expect-error unknown_kind needs kind_segment too
+    const partial = fail(UNKNOWN, { short_key: 'a.widget.b' });
     // @ts-expect-error invalid_short_key has no kind_segment
-    const extra = fail(INVALID, { short_key: 'x', kind_segment: 'event' });
+    const extra = fail(INVALID, { short_key: 'x', kind_segment: 'widget' });
     expect([full, partial, extra, ok(1)]).toBeDefined();
   });
 
@@ -87,13 +87,11 @@ describe('ok, fail and DomainError (type level, checked by tsc)', () => {
   it('DomainError narrows its fields by error URN', () => {
     const describe = (error: DomainError<typeof PARSE>): string => {
       switch (error.urn) {
-        case UNSUPPORTED:
+        case UNKNOWN:
           return error.fields.kind_segment;
         case INVALID:
           // @ts-expect-error invalid_short_key has no kind_segment
           return error.fields.kind_segment;
-        default:
-          return error.fields.short_key;
       }
     };
     expect(describe).toBeDefined();

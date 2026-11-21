@@ -25,7 +25,6 @@ export const DIAGNOSTIC_CODES = {
   'not-a-mapping': 'The top level of the manifest is not a mapping',
   'missing-header': 'The manifest has no `manifest:` header',
   'invalid-key': 'A top-level key is not a valid short key',
-  'unsupported-kind': 'A kind from the spec that this version does not support yet',
   'unknown-kind': 'The kind segment of a short key is not a known kind',
   'unknown-primitive': 'A field uses a primitive that this version does not support',
   'constraint-not-allowed': 'A constraint does not apply to the field primitive',
@@ -38,7 +37,7 @@ export const DIAGNOSTIC_CODES = {
   'duplicate-property': 'Two fields of one entity become the same property',
   'duplicate-ref': 'An entity lists the same field more than once',
   'invalid-entity-key': 'The key of an entity is not one of its own required, single-valued fields',
-  'reserved-property': 'An error field would become the property kind, which the error reserves for its URN',
+  'reserved-property': 'A field of an error or an event would become the property kind, which the payload reserves for its URN',
   // Pass 4: references
   'unresolved-ref': 'A reference names no atom in the manifest',
   'wrong-ref-kind': 'A reference names an atom of the wrong kind',
@@ -47,6 +46,7 @@ export const DIAGNOSTIC_CODES = {
   'embedding-cycle': 'Entities embed each other in a cycle, so the type of an object would never end',
   // Pass 6: rule and template typing
   'unknown-placeholder': 'An error message placeholder does not name a required field of the error',
+  'invalid-record-as': 'The recordAs event of an error cannot be built from the error: it lacks a property of the error, or has another required property',
   'rule-syntax': 'An invariant rule is not valid in the rule language',
   'unknown-rule-field': 'An invariant rule names a field that its entity does not have',
   'rule-type': 'An invariant rule mixes primitives, or uses an operator or a literal that does not fit them',

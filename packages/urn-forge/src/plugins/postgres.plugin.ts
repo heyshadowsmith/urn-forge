@@ -192,7 +192,7 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof P
   configSchema: PostgresConfigSchema,
   // Operations and errors are not stored: the plugin handles them by writing nothing.
   supports: {
-    kinds: ['field', 'entity', 'invariant', 'operation', 'error'],
+    kinds: ['field', 'entity', 'invariant', 'operation', 'event', 'error'],
   },
   emit(ir, config) {
     const diagnostics: PluginDiagnostic[] = [];

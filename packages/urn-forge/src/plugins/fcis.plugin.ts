@@ -298,7 +298,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
   version: '0.2.0',
   configSchema: ConfigSchema,
   // Reads primitives only as names for FieldInfo, and no constraints.
-  supports: { kinds: ['field', 'entity', 'invariant', 'operation', 'error'] },
+  supports: { kinds: ['field', 'entity', 'invariant', 'operation', 'event', 'error'] },
   // The runtime imports the schema module.
   requires: ['valibot'],
   emit(ir) {
