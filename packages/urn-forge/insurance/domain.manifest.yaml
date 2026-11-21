@@ -73,6 +73,8 @@ policy.entity.coverage:
 
 policy.entity.policy:
   description: An issued insurance policy
+  # What a link to a policy holds, and the primary key of its table (Postgres plan).
+  key: policy.field.policy_id
   fields:
     - ref: policy.field.policy_id
     # The customer who holds the policy: the policy holds the customer's key.
