@@ -81,8 +81,8 @@ export type ValueAtInput = v.InferInput<typeof ValueAtSchema>;
 /** urn:demo:kinds:value:field:code */
 export const ValueCodeSchema = v.pipe(
   v.string(),
-  v.minLength(2),
-  v.maxLength(4),
+  v.check((value) => [...value].length >= 2, (issue) => `Invalid length: Expected >=2 but received ${[...issue.input].length}`),
+  v.check((value) => [...value].length <= 4, (issue) => `Invalid length: Expected <=4 but received ${[...issue.input].length}`),
   v.brand("urn:demo:kinds:value:field:code"),
 );
 export type ValueCode = v.InferOutput<typeof ValueCodeSchema>;

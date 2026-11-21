@@ -117,8 +117,8 @@ export const <Brand>Schema = v.pipe(
 | `integer` | `max` | `v.maxValue(<n>)` | |
 | `integer` | `multipleOf` | `v.multipleOf(<n>)` | |
 | `integer` | `notIn` | `v.notValues([<values>])` | |
-| `string` | `minLength` | `v.minLength(<n>)` | The length is in UTF-16 code units |
-| `string` | `maxLength` | `v.maxLength(<n>)` | |
+| `string` | `minLength` | ``v.check((value) => [...value].length >= <n>, (issue) => `Invalid length: Expected >=<n> but received …`)`` | The length is in Unicode code points, not UTF-16 code units. The message is the message of `v.minLength` |
+| `string` | `maxLength` | The same, with `<=` | |
 | `string` | `regex` | `v.regex(/^(?:<pattern>)$/u)` | The pattern must match the whole value. The `u` flag is set. A `/` in the pattern becomes `\/` |
 | `string` | `format` | `v.uuid()`, `v.email()` or `v.url()` | For `uuid`, `email` and `uri` |
 | `timestamp` | `min` | `v.check((value) => !isUtcTimestamp(value) \|\| Date.parse(value) >= Date.parse("<t>"), "Invalid value: Expected >=<t>")` | The values compare as instants, so `09:00:00Z` and `09:00:00.000Z` are equal |

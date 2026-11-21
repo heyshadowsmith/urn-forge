@@ -89,7 +89,10 @@ describe('valibot plugin', () => {
       ].join('\n'),
     );
     expect(content).toContain('/** urn:demo:math:shop:field:note — Free text */');
-    expect(content).toContain('  v.minLength(1),\n  v.maxLength(140),\n');
+    expect(content).toContain(
+      "  v.check((value) => [...value].length >= 1, (issue) => `Invalid length: Expected >=1 but received ${[...issue.input].length}`),\n" +
+        "  v.check((value) => [...value].length <= 140, (issue) => `Invalid length: Expected <=140 but received ${[...issue.input].length}`),\n",
+    );
     expect(content).toContain('  quantity: ShopQuantitySchema,\n  note: v.optional(ShopNoteSchema),\n');
   });
 

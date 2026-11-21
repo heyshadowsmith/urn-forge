@@ -250,7 +250,7 @@ The comparisons of the values:
 - `decimal` values compare exactly, as numbers. Thus `"0.010"` covers `value at min 0.01`. A value that is not a decimal covers no case.
 - `date` values compare as text. Thus a `date` value must have the form `YYYY-MM-DD`.
 - `timestamp` values compare as instants. Thus `2026-01-01T00:00:00.000Z` covers `value at min 2026-01-01T00:00:00Z`.
-- The length of a text is its number of UTF-16 code units.
+- The length of a text is its number of Unicode code points. Thus one emoji counts as 1.
 
 Examples of labels from the tests: `value one step below min (0.00)` for `min: "0.01", scale: 2`, and `day before min (2024-02-29)` for `min: 2024-03-01`.
 

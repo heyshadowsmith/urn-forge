@@ -84,8 +84,8 @@ src/primitives/string.ts(58,7): error TS2741: Property 'aspect' is missing in ty
 
    ```diff
         constraints: {
-          minLength: (n) => `v.minLength(${numberLiteral(n)})`,
-          maxLength: (n) => `v.maxLength(${numberLiteral(n)})`,
+          minLength: (n) => codePointLength('>=', n),
+          maxLength: (n) => codePointLength('<=', n),
           // The whole-value pattern as a regex literal; `.source` escapes any `/` in it.
           regex: (pattern) => `v.regex(/${wholeValuePattern(pattern).source}/u)`,
    +      format: (name) => FORMAT_ACTIONS[name],

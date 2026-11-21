@@ -24,8 +24,8 @@ export type OrderGiftWrapInput = v.InferInput<typeof OrderGiftWrapSchema>;
 /** urn:demo:shop:order:field:note */
 export const OrderNoteSchema = v.pipe(
   v.string(),
-  v.minLength(1),
-  v.maxLength(140),
+  v.check((value) => [...value].length >= 1, (issue) => `Invalid length: Expected >=1 but received ${[...issue.input].length}`),
+  v.check((value) => [...value].length <= 140, (issue) => `Invalid length: Expected <=140 but received ${[...issue.input].length}`),
   v.brand("urn:demo:shop:order:field:note"),
 );
 export type OrderNote = v.InferOutput<typeof OrderNoteSchema>;

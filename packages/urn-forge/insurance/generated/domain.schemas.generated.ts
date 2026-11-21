@@ -57,7 +57,7 @@ export type CustomerCustomerIdInput = v.InferInput<typeof CustomerCustomerIdSche
 /** urn:acme:insurance:customer:field:name — The full name of a customer */
 export const CustomerNameSchema = v.pipe(
   v.string(),
-  v.minLength(1),
+  v.check((value) => [...value].length >= 1, (issue) => `Invalid length: Expected >=1 but received ${[...issue.input].length}`),
   v.brand("urn:acme:insurance:customer:field:name"),
 );
 export type CustomerName = v.InferOutput<typeof CustomerNameSchema>;
