@@ -341,6 +341,13 @@ describe('the MECE model (primitives plan)', () => {
     expect([...aspects].filter(([, set]) => set.size > 1)).toEqual([]);
   });
 
+  it('matches the constraint table of docs/reference/primitives.md, row for row', () => {
+    const page = readFileSync(new URL('../../../docs/reference/primitives.md', import.meta.url), 'utf8');
+    const section = page.slice(page.indexOf('\n## Constraints\n'), page.indexOf('\n### ', page.indexOf('\n## Constraints\n')));
+    const rows = [...section.matchAll(/^\| `(\w+)` \| `(\w+)` \| (\w+) \|/gm)].map((m) => `${m[2]}.${m[1]} ${m[3]!.toLowerCase()}`);
+    expect(rows.sort()).toEqual(specs.map(({ primitive, key, aspect }) => `${primitive}.${key} ${aspect}`).sort());
+  });
+
   it('groups as exclusive only constraints of the primitive that share one aspect', () => {
     for (const p of PRIMITIVE_NAMES) {
       const descriptor = PRIMITIVES[p] as { constraints: Record<string, { aspect: string }>; exclusive?: readonly { keys: readonly string[] }[] };
