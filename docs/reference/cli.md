@@ -13,14 +13,15 @@ The `urn-forge` command is `bin/urn-forge.js` in `packages/urn-forge`. It runs t
 | [`init`](#init) | Writes a starter project in the current directory, then compiles it | `0`, `1` or `2` |
 | [`compile`](#compile) | Examines the manifest and writes the generated files | `0`, `1` or `2` |
 | [`verify`](#verify) | Compiles the manifest in memory and runs gates 1, 3 and 4 | `0`, `1` or `2` |
+| [`diff`](#diff) | Compares two manifests and gives each change a class. This is gate 5 | `0`, `1` or `2` |
 | `--help`, `-h`, `help` | Writes the usage text to stdout | `0` |
 | `--version` | Writes the version, `0.1.0`, to stdout | `0` |
 | No command | Writes the usage text to stdout | `2` |
 | A different word | Writes `unknown command "<word>"` and the usage text to stderr | `2` |
 
-`--help` and `--version` are commands. They are correct only as the first argument. After `compile` or `verify`, they are unknown options.
+`--help` and `--version` are commands. They are correct only as the first argument. After `compile`, `verify` or `diff`, they are unknown options.
 
-urn-forge 0.1.0 does not have the `diff`, `inspect` and `graph` commands at this time. Refer to [Scope](./scope).
+urn-forge 0.1.0 does not have the `inspect` and `graph` commands at this time. Refer to [Scope](./scope).
 
 ## `init`
 
@@ -58,7 +59,7 @@ For the steps after `init`, refer to [Set up a project](../how-to/set-up-a-proje
 ## `compile`
 
 ```
-urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
+urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--reference-date <YYYY-MM-DD>] [--format text|json]
 ```
 
 | Option | Value | Default | Setting in the configuration file |
@@ -66,13 +67,14 @@ urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format 
 | `--config` | A file | `urn-forge.config.ts`, if it is in the current directory | None |
 | `--manifest` | A file | `domain.manifest.yaml` | `manifest` |
 | `--out` | A directory | `src/generated` | `out` |
+| `--reference-date` | A date `YYYY-MM-DD` | None. Pass 8 then does not compare sunset dates | `referenceDate` |
 | `--format` | `text` or `json` | `text` | None |
 
 The `compile` command does these steps:
 
 1. It loads the configuration file, if there is one.
-2. It reads the manifest and runs the [compiler passes](./compiler-passes).
-3. It runs the plugins in the sequence of the `plugins` setting.
+2. It reads the manifest and runs the [compiler passes](./compiler-passes). Pass 8 compares each `sunsetDate` with the reference date.
+3. It runs the plugins in the sequence of the `plugins` setting. The plugins get the IR with no sunset atoms, so a sunset atom makes no code.
 4. It writes each generated file in the `--out` directory.
 
 The files that the default plugins make are `domain.schemas.generated.ts` and `domain.runtime.generated.ts`.
@@ -85,7 +87,7 @@ The files that the default plugins make are `domain.schemas.generated.ts` and `d
 ## `verify`
 
 ```
-urn-forge verify [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
+urn-forge verify [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--reference-date <YYYY-MM-DD>] [--format text|json]
 ```
 
 | Option | Value | Default | Setting in the configuration file | Used by |
@@ -96,6 +98,7 @@ urn-forge verify [--config <file>] [--manifest <file>] [--out <dir>] [--core <fi
 | `--core` | A file | `src/core.ts` | `core` | Gate 1 |
 | `--features` | A directory | `features` | `features` | Gate 3. `verify` also reads its subdirectories |
 | `--tsconfig` | A file | `tsconfig.json` | `tsconfig` | Gate 1 |
+| `--reference-date` | A date `YYYY-MM-DD` | None | `referenceDate` | Pass 8 of the compile |
 | `--format` | `text` or `json` | `text` | None | All |
 
 The `verify` command compiles the manifest in memory. It does not write files. If the manifest has an error diagnostic, no gate runs. Then it runs the gates in this sequence:
@@ -106,7 +109,42 @@ The `verify` command compiles the manifest in memory. It does not write files. I
 | 3 | `gherkin` | The tags, tables, declared errors and boundary cases of the feature files |
 | 4 | `drift` | The files in `--out` are the same as a new compile, byte for byte |
 
-A gate fails if one or more of its problems is an error. Warnings and notes do not make a gate fail. urn-forge does not have gate 2 at this time. Gate 5 is the separate command `urn-forge diff`. For the checks of each gate, refer to [Verification gates](./verification-gates).
+A gate fails if one or more of its problems is an error. Warnings and notes do not make a gate fail. The gates examine the IR with no sunset atoms, so a sunset operation needs no handler and no scenario. urn-forge does not have gate 2 at this time. Gate 5 is the separate command [`urn-forge diff`](#diff). For the checks of each gate, refer to [Verification gates](./verification-gates).
+
+## `diff`
+
+```
+urn-forge diff <old manifest> <new manifest> [--config <file>] [--format text|json]
+```
+
+| Argument or option | Value | Default |
+| --- | --- | --- |
+| `<old manifest>` | The manifest before the change, for example the manifest at the merge base | Necessary |
+| `<new manifest>` | The manifest after the change | Necessary |
+| `--config` | A file. `diff` reads only the `tables` of the `postgres` plugin from it | `urn-forge.config.ts`, if it is in the current directory |
+| `--format` | `text` or `json` | `text` |
+
+The `diff` command does these steps:
+
+1. It loads the configuration file, if there is one. If the file is not valid, it shows the diagnostics and stops with exit code `1`.
+2. It reads the two manifests and compiles each one in memory. Pass 8 runs with no reference date. `diff` writes no files.
+3. If a manifest does not compile, it shows the diagnostics of that manifest and stops with exit code `1`.
+4. It finds the uses of each URN in the old manifest: In, Out and Stored. The Stored use comes from the `tables` of the `postgres` plugin.
+5. It gives each change a class: `compatible`, `breaking` or `lifecycle`. For the rules, refer to [Verification gates](./verification-gates).
+
+A breaking change is the diagnostic `breaking-change`. Its severity is `error`, or `warning` if the old manifest has `stability: experimental`. Compatible and lifecycle changes are report lines, not diagnostics.
+
+| Result | Last line | Stream | Exit code |
+| --- | --- | --- | --- |
+| No breaking change | `diff passed: <b> breaking, <c> compatible, <l> lifecycle change(s)` | stdout | `0` |
+| One or more breaking changes, and the old manifest is experimental | `diff passed: <b> breaking, <c> compatible, <l> lifecycle change(s); the breaking changes are warnings, because <old manifest> is experimental` | stdout | `0` |
+| One or more breaking changes | `diff failed: <b> breaking, <c> compatible, <l> lifecycle change(s)` | stderr | `1` |
+| A manifest does not compile | `diff failed: <manifest> does not compile` | stderr | `1` |
+| A manifest cannot be read | `diff failed: a manifest cannot be read`, after the `manifest-unreadable` diagnostics | stderr | `1` |
+| The configuration file is not valid | `diff failed: the config is not valid`, after the diagnostics of the configuration | stderr | `1` |
+| Not two manifests | `diff needs two manifests: <old manifest> <new manifest>`, and the usage text | stderr | `2` |
+
+`diff` does not read git. To compare with the manifest of a different commit, write that manifest to a file first, for example with `git show`. Refer to [Check compatibility in CI](../how-to/check-compatibility).
 
 ## Settings from options, the configuration file and defaults
 
@@ -118,7 +156,7 @@ Each path setting comes from the first of these sources that has a value:
 | 2 | The setting in the configuration file | The directory of the configuration file |
 | 3 | The default | The current directory |
 
-The `boundaryCoverage` and `plugins` settings do not have an option. They come only from the configuration file, or from their defaults. For each setting, refer to [The configuration file](./configuration).
+The `boundaryCoverage` and `plugins` settings do not have an option. They come only from the configuration file, or from their defaults. The reference date comes from `--reference-date`, else from `referenceDate`. It has no default: urn-forge never uses the clock. For each setting, refer to [The configuration file](./configuration).
 
 Examples:
 
@@ -132,8 +170,9 @@ Examples:
 
 - An option takes its value as the next argument (`--out gen`) or after `=` (`--out=gen`).
 - An option that the command does not have is a usage error. For example, `compile --core x` stops with `Unknown option '--core'` and exit code `2`.
-- A positional argument is a usage error. For example, `compile domain.manifest.yaml` stops with exit code `2`.
+- A positional argument is a usage error, except the two manifests of `diff`. For example, `compile domain.manifest.yaml` stops with exit code `2`.
 - A `--format` value other than `text` or `json` is a usage error: `--format must be text or json, not "<value>"`.
+- A `--reference-date` value that is not a day of the calendar is a usage error: `--reference-date must be a date YYYY-MM-DD, not "<value>"`.
 
 A usage error writes its message, an empty line and the usage text to stderr.
 
@@ -162,7 +201,7 @@ tests/fixtures/broken-references/domain.manifest.yaml:39:10  error  wrong-ref-ki
 ```
 unchanged  example/generated/domain.runtime.generated.ts
 unchanged  example/generated/domain.schemas.generated.ts
-fingerprint sha256:afc8912f125ce7b717f20352840a661f02f48258d3cf84d8f1eb426b1ff3b7ce
+fingerprint sha256:d13f6e9bbd5945562bf1ba244c46e0d9139125d85911d5acb59add6fa422b18e
 ```
 
 This is the output of `urn-forge compile --config example/urn-forge.config.ts` when the files are current.
@@ -178,7 +217,7 @@ If there is an error, `compile` writes only the diagnostics.
 
 ### Output of `verify`
 
-`verify` writes the manifest and configuration diagnostics to stderr. Then it writes one line for each gate to stdout. Below the line of a gate, it writes each problem of the gate, with an indent of four spaces. Then it writes one result line. This is the output of `urn-forge verify --config tutorial/1-first-domain/urn-forge.config.ts`:
+`verify` writes the manifest and configuration diagnostics to stderr. If the manifest has a `sunsetDate` and there is no reference date, it then writes `note: sunset dates are not checked: set --reference-date or referenceDate in the config` to stdout. Then it writes one line for each gate to stdout. Below the line of a gate, it writes each problem of the gate, with an indent of four spaces. Then it writes one result line. This is the output of `urn-forge verify --config tutorial/1-first-domain/urn-forge.config.ts`:
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/1-first-domain/core.ts; `core` satisfies DomainCoreImplementation
@@ -204,6 +243,35 @@ gate <number>  <name>  PASS|FAIL  <summary>
 | `verify failed: the manifest does not compile` | stderr | The manifest has an error diagnostic. No gate ran |
 | `verify failed: the config is not valid` | stderr | The configuration file has an error. No gate ran |
 
+### Output of `diff`
+
+`diff` writes one line for each change to stdout, in URN order, then the last line. A line has this form:
+
+```
+<class>  <URN>  <message>
+```
+
+The class has 10 characters, with spaces at the end. A change to the manifest itself, for example to `stability`, has the URN `urn:<namespace>:<domain>`. The insurance manifest of this branch, compared with its version on `main`:
+
+```bash
+git show origin/main:packages/urn-forge/insurance/domain.manifest.yaml > old.manifest.yaml
+urn-forge diff old.manifest.yaml insurance/domain.manifest.yaml --config insurance/urn-forge.config.ts
+```
+
+```
+compatible  urn:acme:insurance:policy:entity:coverage  adds the optional property "remark"
+lifecycle   urn:acme:insurance:policy:field:note  status active → deprecated
+compatible  urn:acme:insurance:policy:field:remark  is new
+diff passed: 0 breaking, 2 compatible, 1 lifecycle change(s)
+```
+
+A case from `tests/diff/`. The exit code is `1`:
+
+```
+breaking    urn:demo:shop:order:field:qty  max 10 → 5 narrows a value that callers send, which breaks callers that send it
+diff failed: 1 breaking, 0 compatible, 0 lifecycle change(s)
+```
+
 ## JSON output
 
 With `--format json`, urn-forge writes JSON lines to stdout and nothing to stderr. A usage error still writes text to stderr. The exit codes do not change. For each type of line, refer to [JSON output](./json-output).
@@ -212,9 +280,9 @@ With `--format json`, urn-forge writes JSON lines to stdout and nothing to stder
 
 | Exit code | Cause |
 | --- | --- |
-| `0` | The command is correct. `verify` can have warnings and notes |
-| `1` | An error diagnostic: in the configuration file, in the manifest, from a plugin, or in a gate. Also a file that urn-forge cannot read |
-| `2` | A usage error: no command, an unknown command, an unknown option, a positional argument or an incorrect `--format` value |
+| `0` | The command is correct. `verify` can have warnings and notes. `diff` found no breaking change, or the old manifest is experimental |
+| `1` | An error diagnostic: in the configuration file, in the manifest, from a plugin, or in a gate. For `diff`, a breaking change to a manifest that is not experimental. Also a file that urn-forge cannot read |
+| `2` | A usage error: no command, an unknown command, an unknown option, a positional argument, an incorrect `--format` or `--reference-date` value, or a `diff` with a number of manifests other than two |
 
 ## Scripts in this repository
 
@@ -227,9 +295,11 @@ With `--format json`, urn-forge writes JSON lines to stdout and nothing to stder
 | `npm run verify:example` | Runs `urn-forge verify` on the math example (`example/urn-forge.config.ts`) |
 | `npm run verify:self` | Runs `urn-forge verify` on the domain of urn-forge (`self/urn-forge.config.ts`) |
 | `npm run verify:tutorial` | Runs `urn-forge verify` on each of the three tutorial snapshots, in sequence. It stops at the first snapshot that fails |
+| `npm run verify:insurance` | Runs `urn-forge verify` on the insurance domain (`insurance/urn-forge.config.ts`) |
 | `npm run test:features` | Runs `cucumber-js` on the features of the math example |
 | `npm run test:features:self` | Runs `cucumber-js --profile self` on the features of the domain of urn-forge |
 | `npm run test:features:tutorial` | Runs `cucumber-js` with the profiles `tutorial-1`, `tutorial-2` and `tutorial-3`, in sequence |
+| `npm run test:features:insurance` | Runs `cucumber-js --profile insurance` on the features of the insurance domain |
 | `npm run docs:dev` | Starts this documentation site, with live reload |
 | `npm run docs:build` | Builds this site as static files |
 | `npm run docs:preview` | Shows the static site that `docs:build` made |
@@ -246,6 +316,8 @@ The root scripts other than the `docs:` scripts and `pack:tarball` run the scrip
 | --- | --- |
 | `npm run compile:example` | Runs `urn-forge compile --config example/urn-forge.config.ts`. It makes the files in `example/generated/` again |
 | `npm run compile:self` | Runs `urn-forge compile --config self/urn-forge.config.ts`. It makes the files in `self/generated/` again |
+| `npm run compile:insurance` | Runs `urn-forge compile --config insurance/urn-forge.config.ts`. It makes the files in `insurance/generated/` again |
+| `npm run diff:base -- <git ref>` | Runs `urn-forge diff` for each domain of this repository, from its manifest at `<git ref>` to the manifest in the work tree. A domain with no manifest at `<git ref>` is new, and it has nothing to compare. CI runs it with `HEAD^1` in the `compatibility` job |
 
 The tutorial snapshots are in `tutorial/1-first-domain`, `tutorial/2-declared-errors` and `tutorial/3-strict-coverage`. Each snapshot has its own `urn-forge.config.ts`. The Cucumber profiles are in `cucumber.json`.
 

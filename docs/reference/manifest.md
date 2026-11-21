@@ -6,7 +6,7 @@ This manifest uses each kind except `invariant`, an optional field reference and
 
 <<< @/../packages/urn-forge/tests/fixtures/shop/domain.manifest.yaml
 
-The insurance domain uses invariants, dates, exact decimals, an optional field, a link, an embedded entity and entity keys:
+The insurance domain uses invariants, dates, exact decimals, an optional field, a link, an embedded entity, entity keys and a deprecated field:
 
 <<< @/../packages/urn-forge/insurance/domain.manifest.yaml{yaml}
 
@@ -40,7 +40,7 @@ manifest:
 | `namespace` | string | Yes | — | A URN segment: `^[a-z][a-z0-9_]{0,62}$` |
 | `domain` | string | Yes | — | A URN segment: `^[a-z][a-z0-9_]{0,62}$` |
 | `version` | string | Yes | — | A semver version, for example `0.1.0`, `1.0.0-rc.1` or `1.0.0+build.5` |
-| `stability` | `stable` or `experimental` | No | `stable` | Written to the IR only. urn-forge 0.1.0 does not use it for a check |
+| `stability` | `stable` or `experimental` | No | `stable` | Written to the IR. `urn-forge diff` reads it from the old manifest: while it is `experimental`, a breaking change is a warning. Refer to [Verification gates](./verification-gates) |
 
 The header cannot have other properties (`unknown-property`).
 
@@ -57,6 +57,8 @@ Each atom has a short key of the form `<context>.<kind>.<identifier>`, for examp
 | `invariant` | A named rule over the fields of one entity | [Invariant](#invariant) |
 | `operation` | A handler contract: an input entity, an output entity and the declared errors | [Operation](#operation) |
 | `error` | A declared error: a named refusal of an operation | [Error](#error) |
+
+Each kind also accepts the [lifecycle keys](#lifecycle-keys) `status`, `supersededBy` and `sunsetDate`.
 
 ## Field
 
@@ -249,6 +251,48 @@ The `message` of an error is a template. A placeholder is `{` and `}` around one
 
 Each placeholder must name a property of the error with `required: true` and no `many` (pass 6, `unknown-placeholder`). The property can be a field or a link. It cannot be an embedded entity. The generated runtime puts the value of the field in place of the placeholder.
 
+## Lifecycle keys
+
+Each atom of each kind accepts these three keys, next to the properties of its kind:
+
+```yaml
+policy.field.note:
+  primitive: string
+  description: Free text about a coverage
+  status: deprecated
+  supersededBy: policy.field.remark
+  sunsetDate: 2027-06-30
+```
+
+| Property | Type | Necessary | Default | Rule |
+| --- | --- | --- | --- | --- |
+| `status` | `active`, `deprecated` or `sunset` | No | `active` | Other values cause `invalid-value`: `must be active, deprecated or sunset` |
+| `supersededBy` | string | No | None | Only if `status` is `deprecated` or `sunset`. A short key of an atom of the same kind in this manifest, not the atom itself (pass 4). A URN causes `invalid-value`: `must be a short key such as policy.field.remark` |
+| `sunsetDate` | A date `YYYY-MM-DD` | No | None | Only if `status` is `deprecated` or `sunset`. A day of the calendar, with quotes or not. Other values cause `invalid-value`: `must be a date YYYY-MM-DD` |
+
+| Problem | Code |
+| --- | --- |
+| `supersededBy` or `sunsetDate` on an atom with `status: active`, or with no `status` | `invalid-lifecycle`, one time for each key |
+| `supersededBy` names the atom itself | `invalid-lifecycle` |
+| `supersededBy` names an atom of a different kind | `wrong-ref-kind` |
+| `supersededBy` names no atom of the manifest | `unresolved-ref` |
+
+What each status does:
+
+| Status | References to the atom (pass 8) | Generated code | Gates |
+| --- | --- | --- | --- |
+| `active` | No diagnostic | All, as before | All checks |
+| `deprecated` | From an active atom: `deprecated-ref`, a warning. From a deprecated or a sunset atom: no diagnostic | All, with a mark: `@deprecated` in the TypeScript comment, and `deprecated: …` in the SQL comment | All checks |
+| `sunset` | From an active or a deprecated atom: `sunset-ref`, an error. From a sunset atom: no diagnostic | None. No schema, type, handler or table | No check. The atom needs no handler and no scenario |
+
+- If an atom has a `sunsetDate` on or before the reference date, a reference to it from an active or a deprecated atom is `sunset-ref`. Without a reference date, pass 8 does not compare sunset dates. Refer to [Compiler passes](./compiler-passes).
+- The generated code depends on `status` only, never on `sunsetDate`.
+- A sunset atom stays in the manifest, so that its URN never gets a second meaning. `urn-forge diff` reports a removed atom as a breaking change, also a sunset atom.
+- `status` moves forward only: `active`, then `deprecated`, then `sunset`. `urn-forge diff` reports a step back as a breaking change.
+- The IR has `lifecycle` on a node only if `status` is not `active`. Refer to [Compiler passes](./compiler-passes).
+
+For the reasons, refer to [Compatibility and the direction of use](../explanation/compatibility).
+
 ## Properties and kinds that urn-forge does not accept
 
 Specification v1.1 has these properties and kinds. urn-forge 0.1.0 does not accept them at this time. Refer to [Scope](./scope).
@@ -266,7 +310,7 @@ Specification v1.1 has these properties and kinds. urn-forge 0.1.0 does not acce
 | `invariants` | An entity | `unknown-property`. An invariant names its entity with `on`. urn-forge accepts `key`, with a different use. Refer to [Entity](#entity) |
 | `emits` | An operation | `unknown-property` |
 | `recordAs` | An error | `invalid-value`: `needs the event kind, which urn-forge does not support yet` |
-| `status`, `supersededBy` and `sunsetDate` | Each atom | `unknown-property` |
+| A URN in `supersededBy` | Each atom | `invalid-value`. Use the short key of the atom |
 | A field as `input` or `output` | An operation | `wrong-ref-kind` |
 
 ## Related pages

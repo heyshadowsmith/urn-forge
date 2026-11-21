@@ -4,7 +4,7 @@ This page compares urn-forge 0.1.0 with [specification v1.1](../project/spec-v1-
 
 ## Summary
 
-urn-forge 0.1.0 has the full traceability chain for five kinds of atom: the manifest, the IR, the generated contracts, the Gherkin checks and the drift check. It does not have the kinds, primitives, plugins, gates and commands that only make the product larger.
+urn-forge 0.1.0 has the full traceability chain for five kinds of atom: the manifest, the IR, the generated contracts, the Gherkin checks and the drift check. It also has the lifecycle of each atom and the compatibility check, `urn-forge diff`. It does not have the kinds, primitives, plugins, gates and commands that only make the product larger.
 
 ## URNs and versions (§3)
 
@@ -13,9 +13,9 @@ urn-forge 0.1.0 has the full traceability chain for five kinds of atom: the mani
 | URN grammar | Six segments, the segment pattern `^[a-z][a-z0-9_]{0,62}$`, case-sensitive URNs | The kind `event` in a URN |
 | Manifest scope | One YAML file with one `namespace` and one `domain`. Short keys that expand to URNs | — |
 | Brand identifiers | PascalCase of the context and the identifier. A collision is an error (`duplicate-brand`) | — |
-| Compatibility classes | — | `urn-forge diff` and the compatible, breaking and lifecycle classes |
-| Experimental stability | `stability: experimental` in the header. urn-forge writes it to the IR | A check that uses `stability` |
-| Lifecycle metadata | — | `status`, `supersededBy` and `sunsetDate`, also on invariants |
+| Compatibility classes | `urn-forge diff` with the classes `compatible`, `breaking` and `lifecycle`, by the direction of use: In, Out and Stored | A check of the `version` of the header against the class of the changes. A comparison of two regular expressions or two rules: such a change is breaking |
+| Experimental stability | `stability: experimental` in the header. While the old manifest is experimental, `diff` gives a breaking change as a warning | — |
+| Lifecycle metadata | `status`, `supersededBy` and `sunsetDate` on each kind. `deprecated-ref` and `sunset-ref` in pass 8. `@deprecated` in the TypeScript and `deprecated: …` in the SQL comments. A sunset atom makes no code | — |
 
 ## Manifest model (§4)
 
@@ -37,7 +37,7 @@ For the full schema, refer to [The manifest](./manifest).
 | Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
 | --- | --- | --- |
 | Form | Plain objects with URN keys in URN order, `meta` with `manifestHash` and `irSchemaVersion: 1` | — |
-| Nodes | `IRField`, `IREntity` (with `key`), `IRInvariant`, `IROperation`, `IRError`. `IRInvariant` has `ruleText` and `brandIdentifier`, which the specification does not have | Events, `Lifecycle` on each node. `invariants` on `IREntity`: `invariantsOf` finds them by `on` |
+| Nodes | `IRField`, `IREntity` (with `key`), `IRInvariant`, `IROperation`, `IRError`. `IRInvariant` has `ruleText` and `brandIdentifier`, which the specification does not have. `lifecycle` on a node whose `status` is not `active` | Events. `lifecycle` on an active node. `invariants` on `IREntity`: `invariantsOf` finds them by `on` |
 | Field references | `IRPropertyRef`, one of three forms: `IRFieldRef` (`field`), `IREmbedRef` (`entity`) and `IRLinkRef` (`link`). Each has `name` (the property name), `required` and `many`. The specification does not have `name`, `many` and the two other forms | `nullable` |
 | Errors | The parsed message template | `recordAs` |
 
@@ -48,11 +48,11 @@ For the full schema, refer to [The manifest](./manifest).
 | 1. Meta-schema | Built |
 | 2. Expansion | Built |
 | 3. Uniqueness | Built. It also examines property names in an entity or an error, the reserved property `kind`, and the `key` of each entity (`invalid-entity-key`) |
-| 4. Referential integrity | Built for `ref`, `link`, `key`, `input`, `output`, `errors` and `on`. urn-forge does not have `of`, `to`, `emits`, `recordAs` and `supersededBy` at this time |
+| 4. Referential integrity | Built for `ref`, `link`, `key`, `input`, `output`, `errors`, `on` and `supersededBy`. urn-forge does not have `of`, `to`, `emits` and `recordAs` at this time |
 | 5. Cycle check | Built for embedded entities (`embedding-cycle`). Links can make a cycle. Pass 5 also examines that each linked entity, and each entity in a unique list, has a `key` (`missing-key`) |
 | 6. Rule and template typing | Built for invariant rules and error message templates. urn-forge does not have `recordAs` at this time |
 | 7. Constraint coherence | Built for the range of each ordered primitive, `minLength` and `maxLength`, `multipleOf`, `scale` and `notIn` against the range, `format: uuid` against the length constraints, and `minItems` and `maxItems` of a list. Two constraints for one side of one aspect cause `conflicting-constraints`. Pass 1 examines that `values` is not empty. urn-forge does not have `precision` at this time |
-| 8. Lifecycle | Not built |
+| 8. Lifecycle | Built. `deprecated-ref` (a warning) and `sunset-ref` (an error), with the reference date from `--reference-date` or `referenceDate`. Without a reference date, sunset dates are not compared |
 
 Refer to [Compiler passes](./compiler-passes).
 
@@ -64,7 +64,7 @@ Refer to [Compiler passes](./compiler-passes).
 | Generated file header | `// @generated by urn-forge 0.1.0 — do not edit` and `// fingerprint: sha256:<hex>`. The SQL file uses `--` in place of `//` | — |
 | Fingerprint | The canonical IR, the plugin configurations, the urn-forge version, and the plugin names and versions | — |
 | Tests | Golden files in `tests/fixtures/*/expected`. A CI job that compiles and verifies again with the Turkish locale and the time zone `Pacific/Chatham` | — |
-| Reference date | — | `referenceDate` and `--reference-date` |
+| Reference date | `--reference-date` and `referenceDate`, never the clock. The generated files depend on `status` only, never on a date | — |
 
 ## Plugins (§7)
 
@@ -75,7 +75,7 @@ Refer to [Compiler passes](./compiler-passes).
 | FCIS plugin (§7.2) | `Result`, `ok` and `fail`, a handler type for each operation, `DomainCoreImplementation`, `DispatchMap`, `executeOperation` with `UnknownOperation`, `InputRejected`, `DomainError` and `ContractViolation`. The invariant URN on each issue of an invariant | Events in `Result`, `EmittedEvent`, the `recordAs` event of an error |
 | Gherkin plugin (§7.3) | A generic step library in `urn-forge/cucumber`, in place of generated code | `domain.cucumber.generated.ts`, `defineParameterType` for each field, `urn-forge.lint.json` |
 | Postgres plugin (§7.4) | `schema.generated.sql` with `CREATE` statements for Postgres 14 or later. The plugin is not in the default list. Its option `tables` names the entities that become tables, and `unenforced` sets the severity of `unenforced-in-sql`. A schema for each context. A domain for each stored field, with one `CHECK` for all its constraints. A root table for each entity in `tables`, with its `key` as the primary key. A child table for each list and each embedded entity. A foreign key for each link to a root table. `UNIQUE` for a unique list. A deferred constraint trigger for each count. A named `CHECK` for each invariant. `COMMENT ON` with the URNs. The codes `unenforced-in-sql` and `invalid-sql-name` | A table for each entity with a `key`. `ck_<brand>` checks on each table. The option `listStorage` and `JSONB` lists. `nullable`. `VARCHAR(n)`, `UUID` and `NUMERIC(p, s)` columns. Migrations, code that reads and writes rows, indexes other than keys and `UNIQUE`, and databases other than Postgres |
-| Config (§7.5) | `manifest`, `out`, `plugins`. Also `core`, `features`, `tsconfig` and `boundaryCoverage`. `defineConfig` from `urn-forge` and from `urn-forge/config` | `referenceDate`. `boundaryCoverage` is a top-level setting, not a setting of a `gherkin` plugin. `listStorage` in the configuration of `postgres` |
+| Config (§7.5) | `manifest`, `out`, `plugins`, `referenceDate`. Also `core`, `features`, `tsconfig` and `boundaryCoverage`. `defineConfig` from `urn-forge` and from `urn-forge/config` | `boundaryCoverage` is a top-level setting, not a setting of a `gherkin` plugin. `listStorage` in the configuration of `postgres` |
 
 For the generated code, refer to [The generated schemas](./generated-schemas), [The generated runtime](./generated-runtime) and [The Postgres schema](./postgres-schema).
 
@@ -87,7 +87,7 @@ For the generated code, refer to [The generated schemas](./generated-schemas), [
 | 2. Boundary discipline | — | The ESLint profile `urn-forge/eslint-config` and the rule `no-brand-construction` |
 | 3. Gherkin traceability | Tags, table headers, a column for each mandatory input field, list and object cells (`invalid-cell`), declared errors in steps, error coverage, input invariants in steps and invariant coverage (also of embedded entities), boundary coverage of each constraint at any depth and of the item count and `unique` of a list, `@urn-forge:strict`, `boundaryCoverage`, the `ratchet-ready` note, waivers, strict and non-strict counts | A waiver as the tag `@urn-forge:waive(<field URN>, <reason>)`: urn-forge uses the comment `# urn-forge:waive <field URN> <reason>` |
 | 4. Drift | A byte comparison with a new compile, and generated files with no source (`generated-orphan`) | — |
-| 5. Compatibility | — | `urn-forge diff` against the manifest at the merge base |
+| 5. Compatibility | The command `urn-forge diff <old> <new>`, apart from `verify`. The CI job `compatibility` of this repository runs it against the base branch | Gate 5 inside `verify`, with `--base` |
 
 Refer to [Verification gates](./verification-gates).
 
@@ -95,11 +95,11 @@ Refer to [Verification gates](./verification-gates).
 
 | Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
 | --- | --- | --- |
-| Commands | `init`, `compile`, `verify` | `diff`, `inspect`, `graph` |
-| Options | `--config`, `--manifest`, `--out`, `--core`, `--features`, `--tsconfig`, `--format` | `--reference-date`, `--src`, `--base`, `--force` |
+| Commands | `init`, `compile`, `verify`, `diff` | `inspect`, `graph` |
+| Options | `--config`, `--manifest`, `--out`, `--core`, `--features`, `--tsconfig`, `--reference-date`, `--format` | `--src`, `--base`, `--force` |
 | Diagnostics | `<file>:<line>:<column>  <severity>  <code>  <message>`, with the URN or the key at the start of the message. `--format json` | — |
 | Distribution | A tarball that `npm run pack:tarball` makes from a clone, with `bin`, `src` and the starter template. A project installs it with `npm install <file>`. The entry points are TypeScript source | An npm package with compiled JavaScript |
-| Repository layout | An npm-workspaces monorepo: `packages/urn-forge` and `docs`. `src/rules/` holds the parser, the type checker and the TypeScript translation of the rule language | `packages/eslint-config`, `src/diff/` |
+| Repository layout | An npm-workspaces monorepo: `packages/urn-forge` and `docs`. `src/rules/` holds the parser, the type checker and the TypeScript translation of the rule language. `src/diff/` holds the classifier of `urn-forge diff` | `packages/eslint-config` |
 
 Refer to [The CLI](./cli) and [The package API](./public-api).
 
@@ -135,6 +135,13 @@ urn-forge 0.1.0 changes these parts of the specification:
 | A rule that SQL cannot express | A compile error | `unenforced-in-sql`, a warning. The option `unenforced: 'error'` makes it an error |
 | SQL types | `VARCHAR(n)`, `UUID` or `TEXT` for a `string`. `NUMERIC(p, s)` for a `decimal` | `TEXT` for each `string`, also for `format: uuid`. `NUMERIC` with no precision, and a `scale` check |
 | The length of a string | Not specified | The number of Unicode code points, in Valibot, in gate 3 and in Postgres |
+| The class of a change | A tighter constraint, a removed field reference and an optional reference that becomes required are breaking. A wider constraint is compatible | The class depends on the direction of use: In, Out or Stored. A removed property whose target was deprecated is a lifecycle change |
+| A new declared error | Compatible | Breaking, because it widens what callers receive |
+| The removal of a sunset atom | Not specified | Breaking: a sunset atom stays as a tombstone |
+| Gate 5 | `verify --base <git-ref>` | The separate command `urn-forge diff <old> <new>` |
+| `Lifecycle` in the IR | On each node | Only on a node whose `status` is not `active` |
+| `supersededBy` | A URN | A short key |
+| No reference date | Sunset checks are warnings | Sunset dates are not compared, and `verify` says so |
 
 For the reasons, refer to [Departures from the specification](../explanation/departures-from-the-spec).
 

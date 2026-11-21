@@ -1,6 +1,6 @@
 # URNs as permanent names
 
-Every atom in a manifest has exactly one URN. The manifest, the generated code, the core and the features all refer to the atom by that URN. This page tells why urn-forge uses URNs, why a URN has six segments, and what a URN must never do.
+Every atom in a manifest has exactly one URN. The manifest, the generated code, the core and the features all refer to the atom by that URN. This page tells why urn-forge uses URNs, why a URN has six segments, what a URN must never do, and how it retires.
 
 ## Why a permanent name
 
@@ -29,7 +29,7 @@ The first segment, `urn`, is fixed. Each segment that is not the kind is lowerca
 
 The kind is part of the URN, so a reader can see what an atom is without the manifest. The kind does not make the name unique in practice. The brand identifier, which the next section describes, has no kind in it. Thus a field and an entity with the same context and identifier get the diagnostic `duplicate-brand`.
 
-Specification v1.1 names six kinds. urn-forge has `field`, `entity`, `operation` and `error`. It does not have `invariant` and `event` at this time. A key with one of these two kinds gets the diagnostic `unsupported-kind`.
+Specification v1.1 names six kinds. urn-forge has `field`, `entity`, `invariant`, `operation` and `error`. It does not have `event` at this time. A key with this kind gets the diagnostic `unsupported-kind`.
 
 ## Short keys
 
@@ -69,21 +69,27 @@ The cost is real. A large domain is one large file. Two domains cannot share a f
 
 A URN must never change its meaning. Consumers of a URN depend on what it accepts and what it returns. If the meaning changes, the old consumers break, but the name tells them nothing. The correct change is a new URN.
 
-Specification v1.1 plans three compatibility classes for a change to a URN that exists:
+Specification v1.1 gives three compatibility classes for a change to a URN that exists:
 
-| Class | Examples | Allowed on a URN that exists? |
+| Class | Meaning | Allowed on a URN that exists? |
 | --- | --- | --- |
-| Compatible | A new description; a wider constraint, such as a higher `maxLength` or a lower `min`; a new optional field reference; a new declared error | Yes |
-| Breaking | A tighter constraint; a different primitive; an optional reference that becomes required; a removed field reference, error or operation | No. Declare a new URN |
+| Compatible | No consumer that worked before the change can fail after it | Yes |
+| Breaking | A consumer that worked before the change can fail after it | No. Declare a new URN, and deprecate the old URN |
 | Lifecycle | `active`, then `deprecated`, then `sunset` | Yes, forward only |
 
-The specification plans gate 5 to apply these classes. It compares the manifest with the manifest at the merge base and fails on a change of the class "Breaking". A manifest header can set `stability: experimental`, which changes these failures to warnings while a domain is new.
+urn-forge applies these classes. Gate 5 is the command `urn-forge diff`. It compares the manifest with the manifest at the merge base, and it fails on a breaking change to a live URN. A manifest header can set `stability: experimental`, which changes these failures to warnings while a domain is new.
 
-urn-forge does not have gate 5, the `diff` command or lifecycle data at this time. It accepts `stability: experimental` in the header and records it in the IR, but no gate reads it. Thus the rule is a convention today. Code review must find a change of meaning. Refer to [Scope](../reference/scope).
+The class of a change depends on how the URN is used. A tighter constraint breaks a caller that sends the value, but not a caller that only receives it. For a value that callers receive, a wider constraint breaks them. [Compatibility and the direction of use](./compatibility) tells why.
+
+## How a URN retires
+
+A URN cannot change its meaning, but it can stop. Each atom has a `status`. A deprecated atom still makes all its code, and the generated TypeScript marks it `@deprecated`. A reference to it from an active atom gets the warning `deprecated-ref`. A sunset atom makes no code, and a reference to it from an active or a deprecated atom is the error `sunset-ref`. `supersededBy` names the replacement, and `sunsetDate` names the day after which nothing refers to the atom.
+
+A sunset atom stays in the manifest. Its name is not free again. If a person could declare the same short key later with a new meaning, old logs and old rows would name a URN with two meanings. Thus `urn-forge diff` reports the removal of a sunset atom as a breaking change. For the keys, refer to [The manifest](../reference/manifest).
 
 ## Related pages
 
 - [URNs and names](../reference/naming)
 - [The manifest](../reference/manifest)
-- [Add a field](../how-to/add-a-field)
-- [The traceability chain](./traceability)
+- [Retire a URN](../how-to/retire-a-urn)
+- [Compatibility and the direction of use](./compatibility)

@@ -26,8 +26,8 @@ verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 | 1. Completeness | Every operation has a handler of the generated type. The core uses `satisfies DomainCoreImplementation`, and the name resolves to the generated file, not to a copy | That a handler computes the correct value. A type assertion can also hide a wrong type from `tsc` |
 | 3. Gherkin | Every `@urn:` tag resolves. Every operation has a tagged feature. Table headers are fields. The input table has each required column. Each expected error is declared, and each declared error has a scenario. Each invariant of an operation input has a scenario that breaks it. The boundary values are present | That a scenario passes. That its expected values are correct. That a boundary scenario expects the correct outcome |
 | 4. Drift | Each committed generated file is equal, byte for byte, to a fresh compile. No committed generated file is left without a source | That the manifest is correct |
+| 5. Compatibility (`urn-forge diff`) | No change to a live URN can break a caller that sends it, a caller that receives it, or a row that a table stores | A change of meaning that keeps the schema. A consumer that the manifest and the configuration do not show. That a change that it calls breaking really breaks a consumer |
 | 2. Boundary discipline (not built) | The core does not make a false brand | — |
-| 5. Compatibility (not built) | No change breaks a URN that consumers use | — |
 
 Some limits need more words:
 
@@ -35,6 +35,9 @@ Some limits need more words:
 - **Gate 3 counts values, it does not judge them.** A scenario that sends `-1` to a field with `min: 0` covers the boundary, even if the scenario expects success. The Cucumber run then fails, and that is the correct result. But gate 3 alone does not see the problem. [Boundary coverage and the ratchet](./boundary-coverage) tells more.
 - **Gate 3 does not run the rules.** It sees that a scenario names an invariant in `the input is rejected by`. Only the Cucumber run shows that the rule refuses that input.
 - **Gate 4 trusts the manifest.** If the manifest says that a divisor can be zero, the generated schema accepts zero, and gate 4 agrees.
+- **Gate 5 sees the values, not the meaning.** If a field of cents becomes a field of euros with the same constraints, `diff` finds no change. A new `description` is compatible.
+- **Gate 5 is safe, not exact.** It cannot compare two regular expressions or two rules, so it calls each such change breaking. Refer to [Compatibility and the direction of use](./compatibility).
+- **Gate 5 knows only the uses that it can see.** It finds callers from the operations, and stored rows from the `tables` of the `postgres` plugin. Without `--config`, a stored field can look unused.
 
 ## Static checks and the Cucumber run
 
@@ -55,6 +58,7 @@ A build that passes says that the chain is complete:
 - Each operation has scenarios that use real field names and that include the boundary values.
 - Each scenario passes.
 - Nobody edited a generated file.
+- If CI also runs `urn-forge diff`, gate 5 found no breaking change to a live URN.
 
 It does not say that the domain is correct, that the scenarios test the important cases, or that the manifest describes the business well. These questions need people. The gates make sure that the place where people answer them, the scenarios, exists and stays connected to the code.
 

@@ -1,6 +1,6 @@
 # The configuration file
 
-The configuration file `urn-forge.config.ts` gives the settings of a project. The `compile` and `verify` commands read it. A command-line option overrides the setting with the same name.
+The configuration file `urn-forge.config.ts` gives the settings of a project. The `compile` and `verify` commands read it. The `diff` command reads only the `tables` of the `postgres` plugin from it. A command-line option overrides the setting with the same name.
 
 This is the configuration file of the math example:
 
@@ -18,7 +18,7 @@ This is the configuration file of the math example:
 
 ### How urn-forge finds the file
 
-The `compile` and `verify` commands use the first applicable item:
+The `compile`, `verify` and `diff` commands use the first applicable item:
 
 | Sequence | Condition | Result |
 | --- | --- | --- |
@@ -40,7 +40,8 @@ All settings are optional. The configuration object cannot have other properties
 | `features` | `string`, not empty | `features` | `--features` | `verify` (gate 3) |
 | `tsconfig` | `string`, not empty | `tsconfig.json` | `--tsconfig` | `verify` (gate 1) |
 | `boundaryCoverage` | `'warn'` or `'error'` | `'warn'` | None | `verify` (gate 3) |
-| `plugins` | An array of plugin entries | `['valibot', 'fcis']`, each with `{}` | None | `compile` and `verify` (gate 4) |
+| `referenceDate` | A date `'YYYY-MM-DD'` | None | `--reference-date` | `compile` and `verify` (pass 8) |
+| `plugins` | An array of plugin entries | `['valibot', 'fcis']`, each with `{}` | None | `compile` and `verify` (gate 4). `diff` reads the `tables` of `postgres` |
 
 ### `manifest`
 
@@ -72,6 +73,14 @@ The severity of the coverage gaps of gate 3. A coverage gap is an `uncovered-bou
 | `'error'` | Error | Error |
 
 If the value is `'warn'`, each feature has the tag `@urn-forge:strict` and gate 3 passes, gate 3 shows the note `ratchet-ready`. For the reasons, refer to [Boundary coverage and the ratchet](../explanation/boundary-coverage).
+
+### `referenceDate`
+
+The day that pass 8 compares each `sunsetDate` with. If an atom has a `sunsetDate` on or before this day, a reference to it from an active or a deprecated atom is `sunset-ref`, an error. The option `--reference-date` overrides the setting.
+
+urn-forge never uses the clock for this check. Thus one commit always gives one result. If there is no reference date, pass 8 does not compare sunset dates. `verify` then writes a note line, if the manifest has a `sunsetDate`. For the lifecycle keys, refer to [The manifest](./manifest).
+
+The value must be a day of the calendar, for example `'2027-06-30'`. A value such as `'2027-13-01'` causes `config-invalid`.
 
 ### `plugins`
 
@@ -146,6 +155,7 @@ urn-forge reports these errors against the configuration file. Each error stops 
 | An unknown setting | `config-invalid` | `config.foo: unknown option "foo"` |
 | A path setting that is an empty string | `config-invalid` | `config.core: must not be empty` |
 | A value of the incorrect type | `config-invalid` | `config.boundaryCoverage: Invalid type: Expected ("warn" \| "error") but received "strict"` |
+| A `referenceDate` that is not a day of the calendar | `config-invalid` | `config.referenceDate: must be a date YYYY-MM-DD` |
 | An unknown plugin | `config-invalid` | `config.plugins[1]: unknown plugin "mysql" (plugins: valibot, fcis, postgres)` |
 | A plugin that occurs two times | `config-invalid` | `config.plugins[2]: plugin "valibot" is listed more than once` |
 | An empty `plugins` list | `config-invalid` | `config.plugins: must list one or more plugins` |
