@@ -26,6 +26,7 @@ The command shows this output:
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       FAIL  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features
     my-shipping/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
     my-shipping/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
@@ -75,6 +76,7 @@ The command shows this output:
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       FAIL  1 feature(s), 5 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features
     my-shipping/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
@@ -129,10 +131,11 @@ The command shows this output:
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features
     my-shipping/features  note  ratchet-ready  every feature is @urn-forge:strict; set boundaryCoverage: 'error' in the config so new features are strict too
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
-verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
+verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 
 All the gaps are closed, and gate 3 passes. Thus gate 3 now shows the note `ratchet-ready`. It tells you that all the features are strict.
@@ -168,9 +171,10 @@ The command shows this output:
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
-verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
+verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 
 The note `ratchet-ready` is gone, and the summary of gate 3 shows `(boundaryCoverage: error)`. Your domain now has no warnings. Each new gap makes `verify` fail.

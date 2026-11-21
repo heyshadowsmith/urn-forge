@@ -10,7 +10,7 @@ The command `urn-forge verify` examines the chain from the manifest to the core,
 2. It reads the manifest and compiles it in memory, with the same plugins and the same reference date as `compile`. It does not write files. If the manifest has an error, `verify` shows the diagnostics and stops. No gate runs.
    If the manifest has a `sunsetDate` and there is no reference date, `verify` writes `note: sunset dates are not checked: set --reference-date or referenceDate in the config`.
 3. It reads each `.feature` file in the `--features` directory and its subdirectories, in path sequence. It reads each file one time, and all gates use the result.
-4. It runs gate 1, gate 3 and gate 4, in this sequence. Each gate runs also if a gate before it failed.
+4. It runs gate 1, gate 2, gate 3 and gate 4, in this sequence. Each gate runs also if a gate before it failed. Gate 2 uses the TypeScript program of gate 1.
 5. It shows the result of each gate and the last line.
 
 A gate fails if one or more of its problems has the severity `error`. A warning or a note does not make a gate fail. `verify` passes if all gates pass.
@@ -20,7 +20,7 @@ The gates examine the live IR: the IR with no sunset atoms. A sunset operation t
 | Gate | Name | What it shows | Status |
 | --- | --- | --- | --- |
 | 1 | `completeness` | The core has a handler of the correct type for each operation | Built |
-| 2 | Lint profile | — | urn-forge does not have this gate at this time. Refer to [Scope](./scope) |
+| 2 | `boundary` | No core file and no shell file makes a branded value without a parse | Built |
 | 3 | `gherkin` | The features use real URNs and real field names, and they cover the declared errors, the events, the input invariants and the boundary values | Built |
 | 4 | `drift` | The generated files in the repository are the same as a new compile | Built |
 | 5 | Compatibility | No change breaks a consumer of a live URN | Built, as the separate command `urn-forge diff`. Refer to [Gate 5: compatibility](#gate-5-compatibility) |
@@ -39,8 +39,8 @@ The last line has one of these forms:
 
 | Last line | Stream | Condition |
 | --- | --- | --- |
-| `verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)` | stdout | All gates passed, with no warnings |
-| `verify passed with <n> warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)` | stdout | All gates passed, with `<n>` warnings |
+| `verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)` | stdout | All gates passed, with no warnings |
+| `verify passed with <n> warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)` | stdout | All gates passed, with `<n>` warnings |
 | `verify failed: gate <numbers>` | stderr | One or more gates failed, for example `verify failed: gate 1, 4` |
 | `verify failed: the manifest cannot be read` | stderr | urn-forge cannot read the manifest |
 | `verify failed: the manifest does not compile` | stderr | The manifest has an error |
@@ -56,11 +56,12 @@ npx urn-forge verify --config tutorial/2-declared-errors/urn-forge.config.ts
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/2-declared-errors/core.ts; `core` satisfies DomainCoreImplementation
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
     tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
     tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/2-declared-errors/generated
-verify passed with 2 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
+verify passed with 2 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 
 ## Exit codes
@@ -107,6 +108,123 @@ The summary has one of these forms:
 | `` tsc: <n> error(s) over <core>; no `satisfies DomainCoreImplementation` `` | The gate ran checks 3 and 4. Check 4 found no export |
 | `tsconfig unreadable` | Check 1 failed |
 | `core entry missing` | Check 2 failed |
+
+## Gate 2: boundary discipline
+
+**No core file and no shell file makes a branded value without a parse.** Only the generated parsers make a branded value. The gate examines the syntax tree and the types of the files. It does not run the code.
+
+The gate uses the TypeScript program of gate 1, with the same compiler options. If there are shell files, it adds them to that program. It does not use ESLint.
+
+| Input | Option |
+| --- | --- |
+| The core entry | `--core` (default `src/core.ts`) |
+| The compiler options | `--tsconfig` (default `tsconfig.json`) |
+| The generated files | `--out` (default `src/generated`) |
+| The shell files | The `shell` setting of the [configuration file](./configuration). There is no option |
+
+### The files
+
+| Set | Files | Rules |
+| --- | --- | --- |
+| Core files | The core entry, and each file that it imports, directly or through other files, in the directory of the core entry and its subdirectories | `brand-assertion`, `brand-from-any`, `suppressed-check`, `core-parser-import` |
+| Shell files | Each file of the `shell` setting. For a directory, each `.ts`, `.tsx`, `.mts` and `.cts` file in it and its subdirectories. A core file is not also a shell file | `brand-assertion`, `brand-from-any`, `suppressed-check` |
+
+The gate does not examine these files:
+
+- The files in the `--out` directory.
+- Declaration files (`.d.ts`).
+- The files in a `node_modules` directory.
+- A file that the core entry imports from outside its directory, if the `shell` setting does not name it.
+- The test files and the step files, if the `shell` setting does not name them.
+
+In a directory of the `shell` setting, the gate also does not read a subdirectory whose name starts with `.`. A path of the `shell` setting that is not there adds no file.
+
+### A type that carries a brand
+
+A type carries a brand if it has the brand property of Valibot, `[BrandSymbol]`. The gate also looks inside these types, to a depth of four levels:
+
+- Each member of a union or an intersection.
+- The item type of an array, and each item type of a tuple.
+- The type of each property of an object. The gate does not look inside a function type or a class type.
+
+For example, `PolicyLimit` carries a brand. `PolicyLimit[]` and `PolicyPolicy`, an object with branded properties, also carry a brand. `string` and `Record<string, unknown>` do not.
+
+### Checks
+
+| Check | Rule | Code | Files |
+| --- | --- | --- | --- |
+| Type assertions | No type assertion, `x as T` or `<T>x`, has a target type that carries a brand. `as const` is permitted. An assertion to a type with no brand is permitted. For `x as unknown as T`, the gate gives one problem, for the outer assertion | `brand-assertion` | Core and shell |
+| Values of type `any` | No expression of type `any` is in a place whose type carries a brand. Such a place is a variable with a type annotation, a return, an argument or a property | `brand-from-any` | Core and shell |
+| Suppressed checks | No comment has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` after `//` or `/*`. Only comments count: the same text in a string is not a problem | `suppressed-check` | Core and shell |
+| Parser imports | No import declaration imports the generated schemas module or `valibot` as a value. `import type` is permitted. An import in which each name has `type` is permitted. An import with no names, for example `import 'valibot'`, is permitted | `core-parser-import` | Core only |
+
+All four codes have the severity `error`. There is no waiver for gate 2. For the messages, refer to [Diagnostics](./diagnostics).
+
+The shell can import the generated schemas and `valibot` as values, because the shell parses the values that come in.
+
+### The text in a message
+
+| Part | Value |
+| --- | --- |
+| `<expression>` | The text of the expression in the file, with each sequence of spaces and line breaks as one space. If the text has more than 60 characters, the gate keeps 57 characters and adds `…` |
+| `<type>` in `brand-assertion` | The target type, as the file writes it |
+| `<type>` in `brand-from-any` | The type annotation of the variable, or the return type of the function for a return. In other places, the type as the TypeScript checker writes it, for example `string & Brand<"urn:acme:insurance:policy:field:premium">` |
+| `<module>` in `core-parser-import` | The module name, as the import declaration writes it |
+
+### File and position of each problem
+
+| Code | File | Position |
+| --- | --- | --- |
+| `brand-assertion` | The core or shell file | The start of the assertion expression |
+| `brand-from-any` | The core or shell file | The start of the expression of type `any`. For a property of an object literal, the problem is at the value, one time |
+| `suppressed-check` | The core or shell file | The `//` or `/*` of the comment |
+| `core-parser-import` | The core file | The `import` keyword |
+
+The gate examines the core files first, then the shell files. In each file, the `suppressed-check` problems come first. The other problems follow in the sequence of the text.
+
+### Summary
+
+The summary has one of these forms:
+
+| Summary | Condition |
+| --- | --- |
+| `<c> core file(s), <s> shell file(s): <p> problem(s)` | The gate ran. If the core entry is not there, `<c>` is `0` |
+| `not run: gate 1 could not build the program` | Gate 1 cannot read the tsconfig. Gate 2 then has no problems, and gate 1 fails |
+
+Examples from real runs:
+
+```
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
+gate 2  boundary      PASS  not run: gate 1 could not build the program
+```
+
+Each core of this repository passes gate 2: `insurance`, `self`, `example`, the three tutorial snapshots and the starter of `urn-forge init`.
+
+Each case in `tests/gate-2/` adds one forgery to a copy of the insurance domain. Each case gives one problem and this gate line:
+
+```
+gate 2  boundary      FAIL  1 core file(s), 0 shell file(s): 1 problem(s)
+```
+
+These problems come from real runs of the cases `assertion`, `double-assertion`, `object-assertion`, `from-any`, `return-any`, `suppressed`, `core-imports-parser` and `core-imports-valibot`, in this sequence:
+
+```
+    insurance/core.ts:44:21  error  brand-assertion  '0' as PolicyLimit asserts the branded type PolicyLimit; only a generated parser makes a branded value
+    insurance/core.ts:44:24  error  brand-assertion  ('c-17' as unknown) as CustomerCustomerId asserts the branded type CustomerCustomerId; only a generated parser makes a branded value
+    insurance/core.ts:44:22  error  brand-assertion  {} as PolicyPolicy asserts the branded type PolicyPolicy; only a generated parser makes a branded value
+    insurance/core.ts:45:34  error  brand-from-any  JSON.parse(raw) is any where the branded type CustomerCustomerId belongs; parse the value with a generated schema in the shell
+    insurance/core.ts:45:10  error  brand-from-any  JSON.parse(raw) is any where the branded type PolicyPremium belongs; parse the value with a generated schema in the shell
+    insurance/core.ts:44:1  error  suppressed-check  @ts-expect-error turns off a type check, which could hide a forged brand; correct the type instead
+    insurance/core.ts:43:1  error  core-parser-import  the core imports ./generated/domain.schemas.generated as a value, which can make branded values; the core receives branded input and returns plain output, so import types only (import type)
+    insurance/core.ts:43:1  error  core-parser-import  the core imports valibot as a value, which can make branded values; the core receives branded input and returns plain output, so import types only (import type)
+```
+
+For the next run, the insurance configuration got `shell: ['./shell']`. The directory `insurance/shell` had two files. `run.ts` parses with `valibot` and calls `executeOperation`. `forged.ts` asserts a branded type:
+
+```
+gate 2  boundary      FAIL  1 core file(s), 2 shell file(s): 1 problem(s)
+    insurance/shell/forged.ts:2:23  error  brand-assertion  '9' as PolicyLimit asserts the branded type PolicyLimit; only a generated parser makes a branded value
+```
 
 ## Gate 3: Gherkin traceability
 
@@ -351,7 +469,7 @@ Examples from real runs:
 
 ```
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
-gate 3  gherkin       PASS  3 feature(s), 18 scenario(s), 3/3 operations tagged, 3/3 errors expected, strict: 3/3 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  3 feature(s), 17 scenario(s), 3/3 operations tagged, 2/2 errors expected, strict: 3/3 features (boundaryCoverage: error)
 gate 3  gherkin       FAIL  2 feature(s), 4 scenario(s), 1/1 operations tagged, 0/1 errors expected, strict: 1/2 features, 1 waiver(s)
 gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 ```

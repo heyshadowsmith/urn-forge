@@ -12,7 +12,7 @@ The `urn-forge` command is `bin/urn-forge.js` in `packages/urn-forge`. It runs t
 | --- | --- | --- |
 | [`init`](#init) | Writes a starter project in the current directory, then compiles it | `0`, `1` or `2` |
 | [`compile`](#compile) | Examines the manifest and writes the generated files | `0`, `1` or `2` |
-| [`verify`](#verify) | Compiles the manifest in memory and runs gates 1, 3 and 4 | `0`, `1` or `2` |
+| [`verify`](#verify) | Compiles the manifest in memory and runs gates 1, 2, 3 and 4 | `0`, `1` or `2` |
 | [`diff`](#diff) | Compares two manifests and gives each change a class. This is gate 5 | `0`, `1` or `2` |
 | `--help`, `-h`, `help` | Writes the usage text to stdout | `0` |
 | `--version` | Writes the version, `0.1.0`, to stdout | `0` |
@@ -94,10 +94,10 @@ urn-forge verify [--config <file>] [--manifest <file>] [--out <dir>] [--core <fi
 | --- | --- | --- | --- | --- |
 | `--config` | A file | `urn-forge.config.ts`, if it is in the current directory | None | All |
 | `--manifest` | A file | `domain.manifest.yaml` | `manifest` | All |
-| `--out` | A directory | `src/generated` | `out` | Gates 1 and 4 |
-| `--core` | A file | `src/core.ts` | `core` | Gate 1 |
+| `--out` | A directory | `src/generated` | `out` | Gates 1, 2 and 4 |
+| `--core` | A file | `src/core.ts` | `core` | Gates 1 and 2 |
 | `--features` | A directory | `features` | `features` | Gate 3. `verify` also reads its subdirectories |
-| `--tsconfig` | A file | `tsconfig.json` | `tsconfig` | Gate 1 |
+| `--tsconfig` | A file | `tsconfig.json` | `tsconfig` | Gates 1 and 2 |
 | `--reference-date` | A date `YYYY-MM-DD` | None | `referenceDate` | Pass 8 of the compile |
 | `--format` | `text` or `json` | `text` | None | All |
 
@@ -106,10 +106,11 @@ The `verify` command compiles the manifest in memory. It does not write files. I
 | Gate | Name | Examines |
 | --- | --- | --- |
 | 1 | `completeness` | The core has a handler of the generated type for each operation |
+| 2 | `boundary` | The core files and the shell files make no branded value without a parse |
 | 3 | `gherkin` | The tags, tables, declared errors and boundary cases of the feature files |
 | 4 | `drift` | The files in `--out` are the same as a new compile, byte for byte |
 
-A gate fails if one or more of its problems is an error. Warnings and notes do not make a gate fail. The gates examine the IR with no sunset atoms, so a sunset operation needs no handler and no scenario. urn-forge does not have gate 2 at this time. Gate 5 is the separate command [`urn-forge diff`](#diff). For the checks of each gate, refer to [Verification gates](./verification-gates).
+A gate fails if one or more of its problems is an error. Warnings and notes do not make a gate fail. The gates examine the IR with no sunset atoms, so a sunset operation needs no handler and no scenario. Gate 2 also examines the files of the `shell` setting. The setting has no option. Gate 5 is the separate command [`urn-forge diff`](#diff). For the checks of each gate, refer to [Verification gates](./verification-gates).
 
 ## `diff`
 
@@ -221,11 +222,12 @@ If there is an error, `compile` writes only the diagnostics.
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/1-first-domain/core.ts; `core` satisfies DomainCoreImplementation
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, strict: 0/1 features
     tutorial/1-first-domain/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
     tutorial/1-first-domain/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/1-first-domain/generated
-verify passed with 2 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
+verify passed with 2 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 
 The line of a gate has this form:
@@ -236,8 +238,8 @@ gate <number>  <name>  PASS|FAIL  <summary>
 
 | Result line | Stream | Cause |
 | --- | --- | --- |
-| `verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)` | stdout | All gates pass, with no warnings |
-| `verify passed with <n> warning(s) (gates 1, 3, 4; …)` | stdout | All gates pass. `<n>` is the number of warnings. Notes are not in this number |
+| `verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)` | stdout | All gates pass, with no warnings |
+| `verify passed with <n> warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)` | stdout | All gates pass. `<n>` is the number of warnings. Notes are not in this number |
 | `verify failed: gate <numbers>` | stderr | One or more gates fail, for example `verify failed: gate 1, 4` |
 | `verify failed: the manifest cannot be read` | stderr | The manifest file is not there, or urn-forge cannot read it. No gate ran |
 | `verify failed: the manifest does not compile` | stderr | The manifest has an error diagnostic. No gate ran |

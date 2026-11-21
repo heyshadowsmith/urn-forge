@@ -2,7 +2,7 @@
 
 urn-forge follows [specification v1.1](../project/spec-v1-1), with some differences. Some rules of the specification could not work together, some could not work with the tools, and some left a question open. This page lists each place where urn-forge 0.1.0 differs, and why. The plans in the Project section record each decision when it was made.
 
-This page does not list the parts of the specification that urn-forge does not have at this time. Examples are gate 2 and `urn-forge graph`. [Scope](../reference/scope) lists them. It does list the places where a part that is not built changes a part that is.
+This page does not list the parts of the specification that urn-forge does not have at this time. Examples are `urn-forge graph` and the `nullable` key. [Scope](../reference/scope) lists them. It does list the places where a part that is not built changes a part that is.
 
 ## Handlers and results
 
@@ -134,6 +134,23 @@ The [Postgres plan](../project/postgres-plan) built the plugin of §7.4. It chan
 | The specification does not say how a count of a list goes into SQL | A deferred constraint trigger for each count | A count is about many rows, and a `CHECK` sees one row. A deferred trigger lets the shell write a parent and its items in any sequence in one transaction |
 
 Sources: the [Postgres plan](../project/postgres-plan), decisions 1 to 9.
+
+## Gate 2
+
+The [gate 2 plan](../project/gate-2-plan) built boundary discipline of §8. Gate 2 refuses a branded value that no parser made. For the model, refer to [The functional core and brands](./functional-core).
+
+| Specification v1.1 | urn-forge | Why |
+| --- | --- | --- |
+| Gate 2 is a shipped ESLint profile, `urn-forge/eslint-config`, with typescript-eslint (§8) | Gate 2 is part of `verify`. Four rules of urn-forge run on the TypeScript checker of gate 1, on the same program. There is no ESLint profile | typescript-eslint adds two large dependencies, a second configuration and a second type check of the same files. The checker of gate 1 can answer each question of the gate exactly, and it is already there |
+| The profile forbids every `any`, every type assertion and every `@ts-` comment in a core or shell file (§8) | The rules are about brands only. No type assertion to a type that carries a brand (`brand-assertion`). No `any` where a branded type belongs (`brand-from-any`). Every `@ts-ignore`, `@ts-expect-error` and `@ts-nocheck` is refused (`suppressed-check`) | `as const`, or an assertion to a type with no brand, does not forge a value. A rule against all `any` is a style choice, and a team can keep its own linter for it. A `@ts-` comment can hide any forged brand, so the gate refuses each one |
+| `no-brand-construction` refuses an import of the `brand` of Valibot or of the generated schemas in the core directory (§8) | `core-parser-import` refuses a value import of the generated schemas module or of `valibot` in a core file. A type import is correct. A shell file can import both | The core needs the branded types to name its values, but it never needs to parse. The shell is where values come in, so it parses |
+| The specification does not say if a rule of gate 2 can be turned off for one case | There is no waiver for gate 2. Each problem is an error | The parsers make each branded value, so the core and the shell never need to forge one. A handler that is not there has no waiver either |
+| The profile applies to "the configured core and shell paths" (§8) | Core files: the core entry and the files that it imports, directly or through other files, in its directory. Shell files: the new setting `shell`, a list of files and directories, with no default. Generated files, `node_modules`, declaration files and tests are not examined | The core entry is already in the configuration, so the core needs no second setting. A shell has no fixed shape, so the project names it. Tests forge values on purpose, to test the boundary |
+| `urn-forge init` writes an ESLint configuration (§9) | `init` writes no ESLint configuration. The starter passes gate 2 | Gate 2 needs no ESLint |
+
+Gate 2 cannot see a forged value in a file outside its two sets. A core that imports helpers from a different directory can add that directory to `shell`, where the three common rules apply.
+
+Sources: the [gate 2 plan](../project/gate-2-plan), "The model", decisions 1 to 10 and "Risks".
 
 ## Lifecycle and compatibility
 

@@ -7,9 +7,11 @@ This page gives each term that this site uses, in alphabetical sequence. The pag
 | **atom** | One declaration in the manifest: a field, an entity, an invariant, an operation, an event or an error. Each atom has one URN. |
 | **boundary case** | A value that gate 3 must find in the scenarios of an operation for a constrained input field, for example the value at `min` and the value at `min − 1`. Refer to [Primitives and constraints](./primitives). |
 | **boundary coverage** | The check of gate 3 that the scenarios of each operation send each boundary case of its input fields. A case that is not there causes `uncovered-boundary`. |
+| **boundary discipline** | Gate 2. No core file and no shell file makes a branded value without a parse. Refer to [Verification gates](./verification-gates). |
 | **`boundaryCoverage`** | The setting that makes the coverage gaps of gate 3 warnings (`warn`, the default) or errors (`error`). Refer to [The configuration file](./configuration). |
 | **brand** | A TypeScript type mark that only a generated schema adds to a value, with `v.brand("<field URN>")`. A value with a brand has passed the schema of its field. |
 | **brand identifier** | The PascalCase form of the context and the identifier of an atom, for example `OrderUnitCost`. The generated export names start with it. Refer to [URNs and names](./naming). |
+| **branded value** | A value whose type carries a brand. Only a generated parser makes it: the schema of a field, an entity, an event or an error, which `executeOperation` also uses. |
 | **breaking change** | A change to a live URN after which a consumer that worked before can fail. `urn-forge diff` reports it as `breaking-change`. The correct change is a new URN. Refer to [Verification gates](./verification-gates). |
 | **canonical text** | The text of an invariant rule with one space around each operator and only the necessary parentheses. The IR keeps it as `ruleText`. Refer to [The rule language](./rule-language). |
 | **category** | A property of an error: `validation`, `conflict`, `not_found`, `forbidden` or `precondition`. The shell can use it. The core does not read it. |
@@ -17,13 +19,14 @@ This page gives each term that this site uses, in alphabetical sequence. The pag
 | **coherence** | The agreement of the constraints of one field: they accept one or more values. Pass 7 examines it. |
 | **compatible change** | A change to a URN after which no consumer that worked before can fail, for example a new optional property. |
 | **compile** | The command that examines the manifest and writes the generated files. Refer to [The CLI](./cli). |
-| **configuration file** | The file `urn-forge.config.ts`, which gives the paths, `boundaryCoverage`, `referenceDate` and the plugins of a project. |
+| **configuration file** | The file `urn-forge.config.ts`, which gives the paths, the shell files, `boundaryCoverage`, `referenceDate` and the plugins of a project. |
 | **constraint** | A property of a field that limits its values, for example `min` or `regex`. Each primitive accepts a fixed set of constraints. |
 | **context** | The first segment of a short key. It groups atoms of one subject, for example `order`. |
 | **contract** | The generated types and schemas of an operation: its input, its output, its declared errors, its events and its handler type. |
 | **ContractViolation** | A result of `executeOperation` when the core breaks its contract. Examples: the handler returns an undeclared error, an output that its schema rejects or that breaks an invariant, an event that its operation does not emit or that its schema rejects, or a value that is not a `Result`. It shows a defect in the core. |
-| **core** | The handlers of a project, in the core entry file. The core receives only values with a brand and does no I/O. |
-| **core entry** | The file that exports the core with `satisfies DomainCoreImplementation`. The default is `src/core.ts`. Gate 1 type-checks it. |
+| **core** | The handlers of a project, in the core entry file. The core receives only values with a brand and does no I/O. It does not make a branded value. |
+| **core entry** | The file that exports the core with `satisfies DomainCoreImplementation`. The default is `src/core.ts`. Gate 1 type-checks it, and gate 2 examines it. |
+| **core file** | The core entry, or a file that it imports, directly or through other files, in its directory. Gate 2 examines each core file with four rules. |
 | **count trigger** | A deferred constraint trigger of the Postgres schema that counts the rows of a child table when the transaction commits. It enforces `minItems`, `maxItems` and a required embedded entity. |
 | **declared error** | An error that an operation lists in its `errors`. Its handler can return it with `fail(…)`. |
 | **deprecated** | A `status` of an atom: it still makes all its code, with a mark, and a reference to it from an active atom is the warning `deprecated-ref`. |
@@ -47,7 +50,8 @@ This page gives each term that this site uses, in alphabetical sequence. The pag
 | **field** | A kind of atom: one value, with a primitive and constraints. |
 | **field reference** | An item of the `fields` list of an entity, an event or an error. It has `ref` to a field or an entity, or `link` to an entity, and optional `as`, `required` and `many`. Each field reference makes one property. |
 | **fingerprint** | A SHA-256 hash of the IR, the plugin names, versions and configurations, and the urn-forge version. Each generated file has it in its header. |
-| **gate** | One check of the chain: 1 (completeness), 3 (Gherkin traceability) and 4 (drift) in the `verify` command, and 5 (compatibility), which is the `diff` command. A gate fails if it finds an error. Refer to [Verification gates](./verification-gates). |
+| **forge** | To make a branded value without a parse. The three ways are a type assertion to a branded type, a value of type `any`, and a `@ts-` comment that turns off a type check. Gate 2 refuses it. |
+| **gate** | One check of the chain: 1 (completeness), 2 (boundary discipline), 3 (Gherkin traceability) and 4 (drift) in the `verify` command, and 5 (compatibility), which is the `diff` command. A gate fails if it finds an error. Refer to [Verification gates](./verification-gates). |
 | **generated file** | A file that `compile` writes: `domain.schemas.generated.ts`, `domain.runtime.generated.ts` or `schema.generated.sql`. If a person edits it, gate 4 fails. |
 | **Gherkin** | The language of the feature files: `Feature`, `Scenario`, `Given`, `When`, `Then` and tables. Cucumber runs it. |
 | **guard** | `x is present and …` or `x is absent or …` on the left side of a rule. An invariant rule can use the value of an optional field only after a guard. |
@@ -90,6 +94,7 @@ This page gives each term that this site uses, in alphabetical sequence. The pag
 | **Scenario Outline** | A scenario that Cucumber runs one time for each row of its `Examples` table. |
 | **severity** | The level of a diagnostic: `error`, `warning` or `note`. |
 | **shell** | The code that calls `executeOperation`. It does the I/O and handles the results. |
+| **shell file** | A file of the `shell` setting of the configuration file. Gate 2 examines it with three rules. A shell file can parse values with the generated schemas. |
 | **short key** | The name of an atom in the manifest: `<context>.<kind>.<identifier>`, for example `order.field.quantity`. |
 | **stability** | A property of the header: `stable` (the default) or `experimental`. While the old manifest is `experimental`, `urn-forge diff` gives a breaking change as a warning. |
 | **step** | One line of a scenario, for example `When I run the operation with:`. urn-forge gives nine generic steps. Refer to [Gherkin steps](./gherkin-steps). |

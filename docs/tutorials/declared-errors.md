@@ -67,12 +67,13 @@ The command shows this output:
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, 0/1 errors expected, strict: 0/1 features
     my-shipping/features  warning  uncovered-error  error urn:demo:shipping:quote:error:too_heavy_for_express of urn:demo:shipping:quote:operation:quote_shipping has no scenario that expects it; add one with Then the operation fails with "urn:demo:shipping:quote:error:too_heavy_for_express"
     my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
     my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
-verify passed with 3 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
+verify passed with 3 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 
 Gate 1 passes, because a handler that never fails is still correct. Gate 3 has a new warning, `uncovered-error`: no scenario expects the error. You add the rule to the core in step 5, and the scenario in step 7.
@@ -108,6 +109,7 @@ Gate 1 makes sure that the core returns only the declared errors. Do a test of t
    ```
    gate 1  completeness  FAIL  tsc: 1 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
        my-shipping/core.ts:10:19  error  type-error  TS2345: Argument of type '"urn:demo:shipping:quote:error:too_heavy"' is not assignable to parameter of type '"urn:demo:shipping:quote:error:too_heavy_for_express"'.
+   gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
    gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, 0/1 errors expected, strict: 0/1 features
        my-shipping/features  warning  uncovered-error  error urn:demo:shipping:quote:error:too_heavy_for_express of urn:demo:shipping:quote:operation:quote_shipping has no scenario that expects it; add one with Then the operation fails with "urn:demo:shipping:quote:error:too_heavy_for_express"
        my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
@@ -158,11 +160,12 @@ The command shows this output:
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
     my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
     my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
-verify passed with 2 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
+verify passed with 2 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 
 The summary of gate 3 shows `1/1 errors expected`, and the `uncovered-error` warning is gone. The two boundary warnings stay. You close them in the next tutorial.

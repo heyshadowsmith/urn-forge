@@ -31,7 +31,7 @@ UniversalIR (canonical, sorted by URN)
    │
 generated files ──▶ compile writes them      (src/cli.ts, src/write.ts)
                 └─▶ verify gives them, with the IR and the feature index,
-                    to gates 1, 3 and 4       (src/verify/)
+                    to gates 1, 2, 3 and 4    (src/verify/)
 ```
 
 The stages have these jobs:
@@ -48,6 +48,22 @@ The stages have these jobs:
 The engine has no access to the file system, the clock or the environment. The CLI writes what the engine returns. `src/write.ts` knows the two forms of the header, so `compile` and gate 4 find an orphan SQL file as well as an orphan TypeScript file. This keeps the engine deterministic. Refer to [Determinism and the fingerprint](./determinism).
 
 `verify` compiles in memory, then builds one context for all gates: the live IR, the fresh files, the paths and the feature index. Each gate is an entry in the `GATES` registry, with a number, a name and a `run` function. A gate passes when none of its problems is an error. Thus a gate can give warnings and notes and still pass. Boundary coverage needs this for its warn-then-ratchet mode.
+
+### Gate 2 on the program of gate 1
+
+Gate 2 (`src/verify/boundary.ts`) needs the types of the core, and gate 1 already builds a TypeScript program for them. `programFor` in `src/verify/completeness.ts` builds the program one time for each run and keeps it in a `WeakMap`, with the gate context as the key. Gate 1 type-checks it, and gate 2 reads it with the same checker. The core files are thus parsed and checked one time.
+
+The core files are the source files of that program in the directory of the core entry, except the generated files, `node_modules` and declaration files. If the `shell` setting names files, gate 2 makes a second program with them as more roots. It gives the first program to `ts.createProgram` as the old program, so TypeScript uses the files again that did not change.
+
+Each rule is a small visit of the syntax tree:
+
+- A type assertion asks the checker for the target type.
+- An expression of type `any` asks for its contextual type.
+- An import asks the module resolution of TypeScript for its file.
+
+A type carries a brand if it has the property of the unique symbol `BrandSymbol` of Valibot. The test looks into unions, intersections, arrays, tuples and object properties, to a fixed depth, so a recursive type cannot make it run forever.
+
+The specification gives gate 2 to an ESLint profile with typescript-eslint. urn-forge uses the checker that gate 1 already has, with no new dependency and no second configuration. The cost is four rules that urn-forge must keep itself. Each rule has a case in `tests/gate-2/`. Refer to [Departures from the specification](./departures-from-the-spec).
 
 ## The diff
 
