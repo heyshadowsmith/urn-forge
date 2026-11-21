@@ -99,6 +99,8 @@ async function project(options: Partial<VerifyOptions>, prepare?: () => Promise<
     await undo?.();
   }
 }
+/** Verify with one shell file of this source (gate 2). */
+const shell = (text: string) => project({ shellPaths: [at('shell.ts')] }, () => writeFile(at('shell.ts'), text), () => rm(at('shell.ts')));
 const RUNTIME = 'generated/domain.runtime.generated.ts';
 const runtime = () => source('tutorial/2-declared-errors/generated/domain.runtime.generated.ts');
 
@@ -193,6 +195,12 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'core-not-found': () => project({ corePath: at('nope.ts') }),
   'type-error': () => project({ corePath: at('broken.ts') }, () => writeFile(at('broken.ts'), "const n: number = 'one';\nexport { n };\n")),
   'missing-satisfies': () => project({ corePath: at('broken.ts') }, () => writeFile(at('broken.ts'), 'export const core = {};\n')),
+  // Gate 2
+  'brand-assertion': () => shell("import type { ParcelWeightGrams } from './generated/domain.schemas.generated';\nexport const w = 1 as ParcelWeightGrams;\n"),
+  'brand-from-any': () => shell("import type { ParcelWeightGrams } from './generated/domain.schemas.generated';\nexport const w: ParcelWeightGrams = JSON.parse('1');\n"),
+  'suppressed-check': () => shell('// @ts-ignore\nexport const n: number = 1;\n'),
+  'core-parser-import': () =>
+    project({ corePath: at('parser.ts') }, () => writeFile(at('parser.ts'), "import { ParcelWeightGramsSchema } from './generated/domain.schemas.generated';\nexport const s = ParcelWeightGramsSchema;\n"), () => rm(at('parser.ts'))),
   // Gate 3
   'features-unreadable': () => project({ featuresDir: at('nope') }),
   'feature-parse-error': () => project({}, () => writeFile(at('features/bad.feature'), 'Feature: x\n  Scenario: y\n    Given a\n      | a |\n      | b | c |\n'), () => rm(at('features/bad.feature'))),

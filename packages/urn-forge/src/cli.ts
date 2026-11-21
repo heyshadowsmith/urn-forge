@@ -100,6 +100,8 @@ interface Settings {
   readonly boundaryCoverage: 'warn' | 'error';
   /** Pass 8's reference date: the flag, else the config. */
   readonly referenceDate?: string;
+  /** Gate 2: the shell's paths from the config, absolute. */
+  readonly shellPaths: readonly string[];
   /** Display path of the config file, when one was loaded. */
   readonly configLabel?: string;
 }
@@ -156,6 +158,7 @@ async function resolveSettings(
       paths: paths as Settings['paths'],
       plugins,
       boundaryCoverage: config.boundaryCoverage ?? 'warn',
+      shellPaths: (config.shell ?? []).map((p) => resolve(configDir, p)),
       ...(referenceDate === undefined ? {} : { referenceDate }),
       ...(configLabel === undefined ? {} : { configLabel }),
     },
@@ -360,6 +363,7 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
     tsconfigPath: paths.tsconfig,
     plugins,
     boundaryCoverage: resolved.settings.boundaryCoverage,
+    shellPaths: resolved.settings.shellPaths,
     ...(resolved.settings.referenceDate === undefined ? {} : { referenceDate: resolved.settings.referenceDate }),
   });
 

@@ -49,7 +49,7 @@ try {
   expect('package.json is an ES module package', JSON.parse(readFileSync(join(project, 'package.json'), 'utf8')).type === 'module');
 
   const verify = run('npm', ['run', 'verify'], project);
-  expect('verify passes with no warning', verify.code === 0 && verify.output.includes('verify passed (gates 1, 3, 4;'));
+  expect('verify passes with no warning', verify.code === 0 && verify.output.includes('verify passed (gates 1, 2, 3, 4;'));
 
   const features = run('npm', ['run', 'test:features'], project);
   expect('every scenario passes', features.code === 0 && features.output.includes('9 scenarios (9 passed)'));

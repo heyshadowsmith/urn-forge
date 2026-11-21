@@ -7,6 +7,9 @@ import { cp, mkdtemp, rm, writeFile, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
+import { main } from '../src/cli.js';
+import { loadConfig } from '../src/config.js';
+import { boundaryGate } from '../src/verify/boundary.js';
 import { completenessGate } from '../src/verify/completeness.js';
 import { verify } from '../src/verify/index.js';
 import type { Gate } from '../src/verify/types.js';
@@ -14,8 +17,8 @@ import type { Gate } from '../src/verify/types.js';
 const pkg = fileURLToPath(new URL('..', import.meta.url));
 const CASES = join(pkg, 'tests', 'gate-2');
 const cases = readdirSync(CASES, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
-/** The gates to run: gate 1, and gate 2 once it exists. */
-export const GATES_UNDER_TEST: Gate[] = [completenessGate];
+/** The gates to run: gate 1, which must pass, and gate 2. */
+export const GATES_UNDER_TEST: Gate[] = [completenessGate, boundaryGate];
 
 const temps: string[] = [];
 afterAll(async () => {
@@ -47,10 +50,31 @@ describe.each(cases)('gate 2 case %s', (name) => {
       tsconfigPath: join(pkg, 'tsconfig.json'),
       shellPaths: shell,
       gates: GATES_UNDER_TEST,
-    } as never);
+    });
     const problems = result.gates.flatMap((g) => g.problems);
     expect(result.gates.find((g) => g.gate === 1)?.problems, 'gate 1').toEqual([]);
     const expected = readFileSync(join(CASES, name, 'expected.txt'), 'utf8').trim();
     expect(problems.map((p) => p.code).join('\n'), problems.map((p) => `${p.file}:${p.location?.line}  ${p.code}  ${p.message}`).join('\n')).toBe(GATES_UNDER_TEST.length > 1 ? expected : '');
   }, 60_000);
+});
+
+describe('the shell setting', () => {
+  it('reads shell paths from the config, relative to it, and checks them', async () => {
+    const { dir } = await project('clean');
+    await writeFile(join(dir, 'shell.ts'), "import type { PolicyLimit } from './generated/domain.schemas.generated';\nexport const forged = '9' as PolicyLimit;\n");
+    await writeFile(join(dir, 'urn-forge.config.ts'), "export default { manifest: './domain.manifest.yaml', out: './generated', core: './core.ts', features: './features', tsconfig: '../tsconfig.json', shell: ['./shell.ts'] };\n");
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = await main(['verify', '--config', join(dir, 'urn-forge.config.ts')], { cwd: dir, stdout: (l) => out.push(l), stderr: (l) => err.push(l) });
+    expect(code).toBe(1);
+    expect(out).toContain('gate 2  boundary      FAIL  1 core file(s), 1 shell file(s): 1 problem(s)');
+    expect(out).toContain("    shell.ts:2:23  error  brand-assertion  '9' as PolicyLimit asserts the branded type PolicyLimit; only a generated parser makes a branded value");
+  }, 60_000);
+
+  it('refuses an empty shell path', async () => {
+    const { dir } = await project('clean');
+    await writeFile(join(dir, 'urn-forge.config.ts'), "export default { shell: [''] };\n");
+    const result = await loadConfig(join(dir, 'urn-forge.config.ts'), 'urn-forge.config.ts', dir);
+    expect(result.ok ? [] : result.diagnostics.map((d) => d.message)).toEqual(['config.shell[0]: must not be empty']);
+  });
 });
