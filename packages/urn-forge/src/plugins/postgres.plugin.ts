@@ -19,6 +19,7 @@ import { toUrn } from '../naming.js';
 import type { ConstraintsOf, Primitive } from '../primitives/index.js';
 import type { Format } from '../primitives/string.js';
 import { translateRegex } from './postgres-regex.js';
+import { tablesSql } from './postgres-tables.js';
 import { numberLiteral, valuesInUrnOrder, type CodegenPlugin, type PluginDiagnostic } from './plugin.interface.js';
 
 export const POSTGRES_SCHEMA_FILE = 'schema.generated.sql';
@@ -185,10 +186,10 @@ function storedFields(ir: UniversalIR, entities: readonly Urn[]): Set<Urn> {
 // The plugin
 // ---------------------------------------------------------------------------
 
-export const postgresPlugin: CodegenPlugin<PostgresConfig> = {
+export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof PostgresConfigSchema>> = {
   name: 'postgres',
   version: '0.1.0',
-  configSchema: PostgresConfigSchema as v.GenericSchema<PostgresConfig>,
+  configSchema: PostgresConfigSchema,
   // Operations and errors are not stored: the plugin handles them by writing nothing.
   supports: {
     kinds: ['field', 'entity', 'invariant', 'operation', 'error'],
@@ -244,6 +245,15 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig> = {
       if (sql.conditions.length > 0) out.push(`  CONSTRAINT ${ident(identifier)} CHECK (${sql.conditions.join(' AND ')});`);
       out.push(`COMMENT ON DOMAIN ${qualified(domainName(field.urn))} IS ${literal(describe(field.urn, field.description))};`);
     }
+
+    out.push(
+      ...tablesSql(ir, tables, {
+        checkName,
+        nameTaken: (name, urn, what, owner) => report('invalid-sql-name', `${urn}: the ${what} name "${name}" is also a name that ${owner} uses`, urn),
+        unenforced,
+        invariantChecks: () => [],
+      }),
+    );
 
     if (diagnostics.some((d) => d.severity === 'error')) return { artifacts: [], diagnostics };
     return { artifacts: [{ relativePath: POSTGRES_SCHEMA_FILE, content: `${out.join('\n')}\n` }], diagnostics };

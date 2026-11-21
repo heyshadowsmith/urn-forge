@@ -104,3 +104,60 @@ COMMENT ON DOMAIN "value"."window_value" IS 'urn:demo:stored:value:field:window'
 CREATE DOMAIN "value"."word_value" AS TEXT
   CONSTRAINT "word" CHECK (VALUE ~ '^(?:[A-Za-z0-9_]+\.[0-9]+)$');
 COMMENT ON DOMAIN "value"."word_value" IS 'urn:demo:stored:value:field:word';
+
+CREATE TABLE "value"."sample" (
+  "sample_id" "value"."sample_id_value" NOT NULL,
+  "word" "value"."word_value",
+  "line" "value"."line_value",
+  "hex" "value"."hex_value",
+  "flag" "value"."flag_value",
+  "accepted" "value"."accepted_value",
+  "size" "value"."size_value",
+  "text" "value"."text_value",
+  "code" "value"."code_value",
+  "sku" "value"."sku_value",
+  "id" "value"."id_value",
+  "email" "value"."email_value",
+  "count" "value"."count_value",
+  "quantity" "value"."quantity_value",
+  "pack" "value"."pack_value",
+  "ratio" "value"."ratio_value",
+  "share" "value"."share_value",
+  "weight" "value"."weight_value",
+  "divisor" "value"."divisor_value",
+  "amount" "value"."amount_value",
+  "price" "value"."price_value",
+  "rate" "value"."rate_value",
+  "day" "value"."day_value",
+  "term_day" "value"."term_day_value",
+  "at" "value"."at_value",
+  "window" "value"."window_value",
+  CONSTRAINT "sample_pkey" PRIMARY KEY ("sample_id")
+);
+COMMENT ON TABLE "value"."sample" IS 'urn:demo:stored:value:entity:sample — One value of each field';
+COMMENT ON COLUMN "value"."sample"."sample_id" IS 'urn:demo:stored:value:field:sample_id';
+COMMENT ON COLUMN "value"."sample"."word" IS 'urn:demo:stored:value:field:word';
+COMMENT ON COLUMN "value"."sample"."line" IS 'urn:demo:stored:value:field:line';
+COMMENT ON COLUMN "value"."sample"."hex" IS 'urn:demo:stored:value:field:hex';
+COMMENT ON COLUMN "value"."sample"."flag" IS 'urn:demo:stored:value:field:flag';
+COMMENT ON COLUMN "value"."sample"."accepted" IS 'urn:demo:stored:value:field:accepted';
+COMMENT ON COLUMN "value"."sample"."size" IS 'urn:demo:stored:value:field:size';
+COMMENT ON COLUMN "value"."sample"."text" IS 'urn:demo:stored:value:field:text';
+COMMENT ON COLUMN "value"."sample"."code" IS 'urn:demo:stored:value:field:code';
+COMMENT ON COLUMN "value"."sample"."sku" IS 'urn:demo:stored:value:field:sku';
+COMMENT ON COLUMN "value"."sample"."id" IS 'urn:demo:stored:value:field:id';
+COMMENT ON COLUMN "value"."sample"."email" IS 'urn:demo:stored:value:field:email';
+COMMENT ON COLUMN "value"."sample"."count" IS 'urn:demo:stored:value:field:count';
+COMMENT ON COLUMN "value"."sample"."quantity" IS 'urn:demo:stored:value:field:quantity';
+COMMENT ON COLUMN "value"."sample"."pack" IS 'urn:demo:stored:value:field:pack';
+COMMENT ON COLUMN "value"."sample"."ratio" IS 'urn:demo:stored:value:field:ratio';
+COMMENT ON COLUMN "value"."sample"."share" IS 'urn:demo:stored:value:field:share';
+COMMENT ON COLUMN "value"."sample"."weight" IS 'urn:demo:stored:value:field:weight';
+COMMENT ON COLUMN "value"."sample"."divisor" IS 'urn:demo:stored:value:field:divisor';
+COMMENT ON COLUMN "value"."sample"."amount" IS 'urn:demo:stored:value:field:amount';
+COMMENT ON COLUMN "value"."sample"."price" IS 'urn:demo:stored:value:field:price';
+COMMENT ON COLUMN "value"."sample"."rate" IS 'urn:demo:stored:value:field:rate';
+COMMENT ON COLUMN "value"."sample"."day" IS 'urn:demo:stored:value:field:day';
+COMMENT ON COLUMN "value"."sample"."term_day" IS 'urn:demo:stored:value:field:term_day';
+COMMENT ON COLUMN "value"."sample"."at" IS 'urn:demo:stored:value:field:at';
+COMMENT ON COLUMN "value"."sample"."window" IS 'urn:demo:stored:value:field:window';

@@ -9,4 +9,6 @@ export default defineConfig({
   tsconfig: '../tsconfig.json',
   // Strict from the start (invariants plan, step 6).
   boundaryCoverage: 'error',
+  // The customer and the policy are tables; the coverages are a child table of the policy (Postgres plan).
+  plugins: ['valibot', 'fcis', ['postgres', { tables: ['customer.entity.customer', 'policy.entity.policy'] }]],
 });

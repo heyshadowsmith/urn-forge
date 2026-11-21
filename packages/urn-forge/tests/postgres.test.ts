@@ -159,3 +159,102 @@ describe('the config', () => {
     ]);
   });
 });
+
+describe('tables (decisions 1, 6 and 7)', () => {
+  // A shop: an order embeds an address (required, single) and lines (a list), each line embeds
+  // a list of tags (values) and links to products (a list of links).
+  const SHOP =
+    'manifest:\n  namespace: demo\n  domain: shop\n  version: 1.0.0\n' +
+    'catalog.field.sku: { primitive: string, minLength: 1 }\n' +
+    'catalog.entity.product:\n  description: A product\n  key: catalog.field.sku\n  fields:\n    - ref: catalog.field.sku\n' +
+    'order.field.order_id: { primitive: integer }\norder.field.street: { primitive: string }\n' +
+    'order.field.line_no: { primitive: integer, min: 1 }\norder.field.tag: { primitive: string }\norder.field.quantity: { primitive: integer, min: 1 }\n' +
+    'order.entity.address:\n  description: d\n  fields:\n    - ref: order.field.street\n' +
+    'order.entity.line:\n  description: d\n  key: order.field.line_no\n  fields:\n    - ref: order.field.line_no\n    - ref: order.field.quantity\n' +
+    '    - { ref: order.field.tag, as: tags, many: { maxItems: 2, unique: true } }\n' +
+    '    - { link: catalog.entity.product, as: parts, many: { minItems: 1 } }\n' +
+    'order.entity.order:\n  description: d\n  key: order.field.order_id\n  fields:\n    - ref: order.field.order_id\n' +
+    '    - { ref: order.entity.address, as: ship_to }\n' +
+    '    - { ref: order.entity.line, as: lines, many: { minItems: 1, unique: true } }\n';
+  const result = compile(SHOP, [{ plugin: PLUGINS.postgres, config: { tables: ['catalog.entity.product', 'order.entity.order'] } }]);
+  const sql = result.files[0]!.content;
+  let db: PGlite;
+
+  beforeAll(async () => {
+    db = new PGlite();
+    await db.exec(sql);
+    await db.exec(`INSERT INTO "catalog"."product" ("sku") VALUES ('A'), ('B');`);
+  });
+  afterAll(async () => db.close());
+
+  /** Runs `sql` in one transaction; returns the constraint name of its error, 'ok', or the error text. */
+  const run = async (statements: string): Promise<string> => {
+    try {
+      await db.exec(`BEGIN;\n${statements}\nCOMMIT;`);
+      return 'ok';
+    } catch (error) {
+      await db.exec('ROLLBACK;').catch(() => undefined);
+      const e = error as { constraint?: string; message: string };
+      return e.constraint ?? e.message;
+    }
+  };
+  let id = 0;
+  /** An order with one line, as statements; the parts may change. */
+  const order = (options: { address?: boolean; tags?: readonly string[]; parts?: readonly string[]; lines?: number } = {}) => {
+    id += 1;
+    const { address = true, tags = ['x'], parts = ['A'], lines = 1 } = options;
+    return [
+      `INSERT INTO "order"."order" ("order_id") VALUES (${id});`,
+      ...(address ? [`INSERT INTO "order"."order__ship_to" ("order_id", "street") VALUES (${id}, 'Main St');`] : []),
+      ...Array.from({ length: lines }, (_, l) => [
+        `INSERT INTO "order"."order__lines" ("order_id", "position", "line_no", "quantity") VALUES (${id}, ${l}, ${l + 1}, 1);`,
+        ...tags.map((t, i) => `INSERT INTO "order"."order__lines__tags" ("order_id", "lines_position", "position", "tags") VALUES (${id}, ${l}, ${i}, '${t}');`),
+        ...parts.map((p, i) => `INSERT INTO "order"."order__lines__parts" ("order_id", "lines_position", "position", "parts") VALUES (${id}, ${l}, ${i}, '${p}');`),
+      ]).flat(),
+    ].join('\n');
+  };
+
+  it('warns only about the rules it cannot enforce', () => {
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('names a grandchild table after its parents, and its parent position after the property', () => {
+    expect(sql).toContain('CREATE TABLE "order"."order__lines__tags" (\n  "order_id" "order"."order_id_value" NOT NULL,\n  "lines_position" INTEGER NOT NULL,\n  "position" INTEGER NOT NULL CHECK ("position" >= 0),\n  "tags" "order"."tag_value" NOT NULL,');
+  });
+
+  it('accepts a correct order, and removes its rows with it', async () => {
+    expect(await run(order())).toBe('ok');
+    expect(await run(`DELETE FROM "order"."order" WHERE "order_id" = ${id};`)).toBe('ok');
+    expect((await db.query('SELECT count(*)::int AS n FROM "order"."order__lines__tags"')).rows).toEqual([{ n: 0 }]);
+  });
+
+  it.each([
+    ['a required embedded entity that is not there', { address: false }, 'ship_to_count'],
+    ['a list with fewer items than minItems', { lines: 0 }, 'lines_count'],
+    ['a nested list with more items than maxItems', { tags: ['x', 'y', 'z'] }, 'tags_count'],
+    ['a repeated value in a unique list', { tags: ['x', 'x'] }, 'order__lines__tags_tags_key'],
+    ['a nested list of links with fewer items than minItems', { parts: [] }, 'parts_count'],
+    ['a link to a row that does not exist', { parts: ['Z'] }, 'order__lines__parts_parts_fkey'],
+  ] as const)('refuses %s', async (_, options, constraint) => {
+    expect(await run(order(options))).toBe(constraint);
+  });
+
+  it('warns about a link to an entity that is not a table, and about an optional list', () => {
+    const diagnostics = compile(SHOP.replace('    - { ref: order.field.tag, as: tags, many: { maxItems: 2, unique: true } }\n', '    - { ref: order.field.tag, as: tags, required: false, many: true }\n'), [
+      { plugin: PLUGINS.postgres, config: { tables: ['order.entity.order'] } },
+    ]).diagnostics;
+    expect(diagnostics.map((d) => [d.code, d.message])).toEqual([
+      ['unenforced-in-sql', 'urn:demo:shop:order:entity:line: the optional list "tags": no rows can mean absent or empty, so the SQL keeps them apart only as no rows; the SQL does not enforce it, and the Valibot schema at the boundary still does'],
+      ['unenforced-in-sql', 'urn:demo:shop:order:entity:line: the link "parts" to urn:demo:shop:catalog:entity:product: that entity is not a table in the postgres config, so no foreign key can name it; the SQL does not enforce it, and the Valibot schema at the boundary still does'],
+    ]);
+  });
+
+  it('refuses two parts of the schema with one name', () => {
+    const clash = `${SHOP}order.entity.order__lines:\n  description: d\n  key: order.field.order_id\n  fields:\n    - ref: order.field.order_id\n`;
+    const diagnostics = compile(clash, [{ plugin: PLUGINS.postgres, config: { tables: ['catalog.entity.product', 'order.entity.order', 'order.entity.order__lines'] } }]).diagnostics;
+    expect(diagnostics.map((d) => [d.code, d.message])).toEqual([
+      ['invalid-sql-name', 'urn:demo:shop:order:entity:order__lines: the table name "order.order__lines" is also a name that urn:demo:shop:order:entity:order uses'],
+      ['invalid-sql-name', 'urn:demo:shop:order:entity:order__lines: the primary key name "order.order__lines_pkey" is also a name that urn:demo:shop:order:entity:order uses'],
+    ]);
+  });
+});
