@@ -93,7 +93,7 @@ describe('IR builder', () => {
     expect(
       issuesFor({
         'geometry.field.radius': { primitive: 'float' },
-        'geometry.entity.circle': { description: 'A circle', fields: [{ ref: 'geometry.entity.circle' }] },
+        'geometry.entity.circle': { description: 'A circle', fields: [{ ref: 'geometry.operation.compute_area' }] },
         'geometry.operation.compute_area': {
           description: 'Area',
           input: 'geometry.field.radius',
@@ -101,8 +101,8 @@ describe('IR builder', () => {
         },
       }),
     ).toEqual([
-      'urn:demo:math:geometry:entity:circle: fields[0].ref "geometry.entity.circle" must name a field, ' +
-        'but urn:demo:math:geometry:entity:circle is an entity',
+      'urn:demo:math:geometry:entity:circle: fields[0].ref "geometry.operation.compute_area" must name a field or an entity, ' +
+        'but urn:demo:math:geometry:operation:compute_area is an operation',
       'urn:demo:math:geometry:operation:compute_area: input "geometry.field.radius" must name an entity, ' +
         'but urn:demo:math:geometry:field:radius is a field',
       'urn:demo:math:geometry:operation:compute_area: output "geometry.operation.compute_area" must name ' +
@@ -122,7 +122,7 @@ describe('IR builder', () => {
       }),
     ).toEqual([
       'urn:demo:math:geometry:entity:shape: fields[1].ref urn:demo:math:arithmetic:field:size and ' +
-        'urn:demo:math:geometry:field:size both become property "size"',
+        'urn:demo:math:geometry:field:size both become property "size"; rename one with as',
     ]);
   });
 });

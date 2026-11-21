@@ -11,7 +11,9 @@
  */
 import { STEP_PHRASES } from '../gherkin/phrases.js';
 import type { UniversalIR, Urn } from '../ir/types.js';
-import { parseCell, parseListCell } from '../primitives/index.js';
+import { CellSyntaxError, readCell } from '../gherkin/cells.js';
+import type { SourceLocation } from '../diagnostics.js';
+import { propertyShape } from './shapes.js';
 import type { FeatureIndex, IndexedScenario, IndexedTable, IndexedTag } from './feature-index.js';
 
 /** Operation URN → input property name → the values sent, in order of appearance. */
@@ -38,8 +40,16 @@ function substitute(table: IndexedTable, example?: { header: readonly string[]; 
   );
 }
 
-export function inputValues(ir: UniversalIR, features: FeatureIndex): InputValues {
+/** A cell that the reader refuses: a malformed list or object, or an unknown nested property. */
+export interface CellProblem {
+  readonly file: string;
+  readonly location: SourceLocation;
+  readonly message: string;
+}
+
+export function inputValues(ir: UniversalIR, features: FeatureIndex, onProblem?: (problem: CellProblem) => void): InputValues {
   const values: InputValues = new Map(Object.keys(ir.operations).map((urn) => [urn as Urn, new Map()]));
+  let file = '';
 
   const record = (operation: Urn | undefined, table: IndexedTable, rows: readonly (readonly string[])[]) => {
     if (!operation) return;
@@ -47,13 +57,21 @@ export function inputValues(ir: UniversalIR, features: FeatureIndex): InputValue
     const fields = ir.entities[op.input]?.fields ?? [];
     table.header.forEach((cell, column) => {
       const ref = fields.find((f) => f.name === cell.value);
-      const field = ref && ir.fields[ref.field];
-      if (!ref || !field) return;
+      const shape = ref && propertyShape(ir, ref);
+      if (!ref || !shape) return;
       for (const row of rows) {
         const text = row[column] ?? '';
         if (text === '') continue;
+        let value: unknown;
+        try {
+          value = readCell(text, shape);
+        } catch (error) {
+          if (!(error instanceof CellSyntaxError)) throw error;
+          onProblem?.({ file, location: cell.location, message: `${ref.name}: ${error.message}: ${text}` });
+          continue;
+        }
         const list = values.get(operation)!.get(ref.name) ?? [];
-        list.push(ref.many ? parseListCell(field.primitive, text) : parseCell(field.primitive, text));
+        list.push(value);
         values.get(operation)!.set(ref.name, list);
       }
     });
@@ -76,6 +94,9 @@ export function inputValues(ir: UniversalIR, features: FeatureIndex): InputValue
     }
   };
 
-  for (const feature of features.features) for (const scenario of feature.scenarios) scan(scenario);
+  for (const feature of features.features) {
+    file = feature.file;
+    for (const scenario of feature.scenarios) scan(scenario);
+  }
   return values;
 }

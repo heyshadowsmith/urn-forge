@@ -62,14 +62,18 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 | --- | --- | --- |
 | `UniversalIR` | Type | The IR: `meta`, `fields`, `entities`, `invariants`, `operations` and `errors`. Each record has URNs as keys, in URN order |
 | `IRField` | Type | `{ urn; brandIdentifier; primitive; constraints; description? }` |
-| `IREntity` | Type | `{ urn; brandIdentifier; description; fields: readonly IRFieldRef[] }` |
-| `IRFieldRef` | Type | `{ field: Urn; name: string; required: boolean; many?: ListRule }`. `name` is the property name. `many` is present only for a list, and `many: true` in the manifest is `{}` |
+| `IREntity` | Type | `{ urn; brandIdentifier; description; key?: Urn; fields: readonly IRPropertyRef[] }`. `key` is the URN of the key field. It is present only if the manifest sets `key` |
+| `IRPropertyRef` | Type | `IRFieldRef \| IREmbedRef \| IRLinkRef`. One property of an entity or an error. The key `field`, `entity` or `link` shows the form |
+| `IRFieldRef` | Type | `{ field: Urn; name: string; required: boolean; many?: ListRule }`. `ref` to a field. `name` is the property name: the `as` of the reference, or the identifier of the target. `many` is present only for a list, and `many: true` in the manifest is `{}` |
+| `IREmbedRef` | Type | `{ entity: Urn; name: string; required: boolean; many?: ListRule }`. `ref` to an entity: the property holds an embedded object of the entity |
+| `IRLinkRef` | Type | `{ link: Urn; name: string; required: boolean; many?: ListRule }`. `link` to an entity: the property holds the value of the key of the entity |
+| `valueField` | Function | `valueField(ir: UniversalIR, ref: IRPropertyRef): Urn \| undefined`. The field whose values the property holds: the `field` of an `IRFieldRef`, or the `key` of the linked entity of an `IRLinkRef`. `undefined` for an `IREmbedRef` |
 | `ListRule` | Type | `{ minItems?: number; maxItems?: number; unique?: boolean }`. The item count and uniqueness of a list |
 | `IRInvariant` | Type | `{ urn; brandIdentifier; description; on: Urn; rule: RuleExpr; ruleText: string; message: string }`. `on` is the URN of the entity. `ruleText` is the canonical text of the rule |
 | `RuleExpr` | Type | The parsed rule of an invariant: a tree of nodes with an `op`. Refer to [The rule language](./rule-language) |
 | `invariantsOf` | Function | `invariantsOf(ir: UniversalIR, entity: Urn): IRInvariant[]`. The invariants whose `on` is the entity, in URN order. An `IREntity` does not list its invariants |
 | `IROperation` | Type | `{ urn; brandIdentifier; description; input: Urn; output: Urn; errors: readonly Urn[] }` |
-| `IRError` | Type | `{ urn; brandIdentifier; description; category: ErrorCategory; retryable: boolean; message: readonly MessagePart[]; fields: readonly IRFieldRef[] }` |
+| `IRError` | Type | `{ urn; brandIdentifier; description; category: ErrorCategory; retryable: boolean; message: readonly MessagePart[]; fields: readonly IRPropertyRef[] }` |
 | `ErrorCategory` | Type | `'validation' \| 'conflict' \| 'not_found' \| 'forbidden' \| 'precondition'` |
 | `MessagePart` | Type | `{ text: string } \| { field: string }`. One part of a parsed message template: text, or a placeholder with a property name |
 | `Urn` | Type | A `string` with a brand, for the URNs in the IR |
@@ -131,14 +135,14 @@ This support file of the math example uses the entry point:
 | --- | --- | --- |
 | `registerOperationSteps` | `registerOperationSteps(options: OperationStepsOptions): void` | Registers a `Before` hook and the six generic steps with Cucumber. Refer to [Gherkin steps](./gherkin-steps) |
 | `operationUrnFromTags` | `operationUrnFromTags(tags: readonly string[]): string` | The one operation URN in the tags. It throws an error if there is no operation tag or more than one |
-| `coerceCell` | `coerceCell(cell: string, field: FieldInfoLike): unknown` | Changes a table cell to a value with the primitive of the field. If `field.many` is `true`, the cell is a list. An empty cell gives `undefined`. Refer to [Primitives and constraints](./primitives) |
+| `coerceCell` | `coerceCell(cell: string, field: PropertyInfoLike): unknown` | Changes a table cell to a value with the primitive of the field. If `field.many` is `true`, the cell is a list. For an embedded entity, the cell is an object. An empty cell gives `undefined`. It throws an error for a malformed list or object cell. Refer to [Gherkin steps](./gherkin-steps) |
 | `tableToObject` | `tableToObject(rows: readonly (readonly string[])[], fields: FieldsLike, side: 'input' \| 'output' \| 'error', urn: string): Record<string, unknown>` | Changes a table of one header row and one data row to an object. It throws an error for a header that is not a field, or for a different number of rows. `urn` is the operation for `input` and `output`, and the error for `error`. An empty input cell adds no key. An empty output or error cell adds the key with the value `undefined`, which means "absent" |
 | `assertOutput` | `assertOutput(result: ExecuteResultLike, expected: Record<string, unknown>, urn: string): void` | Throws an error if the operation did not succeed, or if a property of `expected` is different in the output |
-| `assertRejectedOn` | `assertRejectedOn(result: ExecuteResultLike, fieldName: string, fields: FieldsLike, urn: string): void` | Throws an error if the result is not `InputRejected` with an issue on the field |
+| `assertRejectedOn` | `assertRejectedOn(result: ExecuteResultLike, fieldName: string, fields: FieldsLike, urn: string): void` | Throws an error if the result is not `InputRejected` with an issue whose path starts with the property name `fieldName` |
 | `assertRejectedBy` | `assertRejectedBy(result: ExecuteResultLike, invariantUrn: string, urn: string): void` | Throws an error if the result is not `InputRejected` with an issue whose `invariantUrn` is `invariantUrn` |
 | `assertFailsWith` | `assertFailsWith(result: ExecuteResultLike, errorUrn: string, urn: string, expected?: Record<string, unknown>): void` | Throws an error if the result is not a `DomainError` with this URN, or if a property of `expected` is different in the error fields |
 
-The assert functions compare values with `===`. They also accept `NaN` as equal to `NaN`. A property that is not in `expected` is not compared. A property of `expected` with the value `undefined` must be absent.
+The assert functions compare values with `===`. They also accept `NaN` as equal to `NaN`. They compare lists item by item. They compare embedded objects property by property, and an object must have no property that the expected object does not give. A property that is not in `expected` is not compared. A property of `expected` with the value `undefined` must be absent.
 
 ### Types
 
@@ -148,8 +152,10 @@ These types describe the generated runtime by its shape. Thus the step library d
 | --- | --- |
 | `OperationStepsOptions` | `{ dispatch: Readonly<Record<string, OperationContractLike>>; execute: (urn: string, payload: unknown) => ExecuteResultLike }` |
 | `OperationContractLike` | `{ input: { fields: FieldsLike; invariants?: readonly { urn: string }[] }; output: { fields: FieldsLike }; errors: Readonly<Record<string, { fields: FieldsLike }>> }` |
-| `FieldsLike` | `Readonly<Record<string, FieldInfoLike>>` |
-| `FieldInfoLike` | `{ urn: string; primitive: Primitive; required: boolean; many?: boolean }` |
+| `FieldsLike` | `Readonly<Record<string, PropertyInfoLike>>` |
+| `PropertyInfoLike` | `FieldInfoLike \| EmbeddedInfoLike` |
+| `FieldInfoLike` | `{ urn: string; primitive: Primitive; required: boolean; many?: boolean; link?: string }` |
+| `EmbeddedInfoLike` | `{ entity: string; required: boolean; many?: boolean; fields: Readonly<Record<string, PropertyInfoLike>> }` |
 | `ExecuteResultLike` | `{ ok: true; output: unknown } \| { ok: false; kind: 'DomainError'; error: DomainErrorLike } \| { ok: false; kind: string; issues: readonly BoundaryIssueLike[] }` |
 | `DomainErrorLike` | `{ urn: string; message: string; fields: unknown }` |
 | `BoundaryIssueLike` | `{ path: string; fieldUrn?: string; invariantUrn?: string; message: string }` |

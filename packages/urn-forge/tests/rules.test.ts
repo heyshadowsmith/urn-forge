@@ -125,7 +125,7 @@ describe('checkRule (pass 6)', () => {
   });
 
   it('refuses a list outside presence, and presence of a required field', () => {
-    expect(problems("tags = 'a'")).toEqual([['rule-type', 1, '"tags" is a list; a rule can use a list only in "tags is present" or "tags is absent"']]);
+    expect(problems("tags = 'a'")).toEqual([['rule-type', 1, '"tags" is a list; a rule can use it only in "tags is present" or "tags is absent"']]);
     expect(problems('premium is present')).toEqual([['rule-type', 1, '"premium" is required, so "premium is present" is always true']]);
   });
 });

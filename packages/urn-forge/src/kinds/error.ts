@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { Description } from '../grammar.js';
 import { ERROR_CATEGORIES, type IRError, type MessagePart } from '../ir/types.js';
-import { FIELDS_SLOT, FieldRef, buildFieldRefs } from './field-refs.js';
+import { FIELDS_SLOT, FieldRef, LINKS_SLOT, buildFieldRefs } from './field-refs.js';
 import { defineKind } from './types.js';
 
 const ErrorSchema = v.strictObject({
@@ -48,21 +48,24 @@ export const error = defineKind<ErrorDecl, IRError>()({
   group: 'errors',
   article: 'an',
   schema: ErrorSchema,
-  references: [FIELDS_SLOT],
+  references: [FIELDS_SLOT, LINKS_SLOT],
   build(context) {
     const { atom, shortKey, decl, report } = context;
     const fields = buildFieldRefs(context as never, decl.fields);
     const message = parseMessage(decl.message);
 
     // The payload carries `kind: '<error URN>'` (spec §7.1), so no field may become `kind`.
-    decl.fields.forEach((_, index) => {
-      const target = context.ref(['fields', index, 'ref']);
-      if (target?.identifier !== RESERVED_PROPERTY) return;
+    // The property name is `as`, or the identifier of what the reference names.
+    decl.fields.forEach((fieldRef, index) => {
+      const slot = fieldRef.link !== undefined ? 'link' : 'ref';
+      const name = fieldRef.as ?? context.ref(['fields', index, slot])?.identifier;
+      if (name !== RESERVED_PROPERTY) return;
+      const by = fieldRef.as !== undefined ? 'as' : slot;
       report({
         code: 'reserved-property',
         urn: atom.urn,
-        message: `${atom.urn}: fields[${index}].ref ${target.urn} becomes property "${RESERVED_PROPERTY}", which an error reserves for its URN; rename the field`,
-        path: [shortKey, 'fields', index, 'ref'],
+        message: `${atom.urn}: fields[${index}] becomes property "${RESERVED_PROPERTY}", which an error reserves for its URN; ${by === 'as' ? 'choose another name with as' : 'give it another name with as'}`,
+        path: [shortKey, 'fields', index, by],
       });
     });
 
@@ -71,7 +74,7 @@ export const error = defineKind<ErrorDecl, IRError>()({
     for (const part of message) {
       if (!('field' in part)) continue;
       const field = fields.find((f) => f.name === part.field);
-      if (!field || !field.required || field.many) {
+      if (!field || !field.required || field.many || 'entity' in field) {
         report({
           code: 'unknown-placeholder',
           urn: atom.urn,
@@ -81,6 +84,8 @@ export const error = defineKind<ErrorDecl, IRError>()({
               ? 'names no field of the error'
               : field.many
                 ? 'names a list; placeholders must name single values'
+                : 'entity' in field
+                  ? 'names an embedded entity; placeholders must name single values'
                 : 'names an optional field; placeholders must name required fields') +
             ` (required fields: ${required.length > 0 ? required.join(', ') : 'none'})`,
           path: [shortKey, 'message'],

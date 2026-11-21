@@ -44,7 +44,7 @@ In YAML, put a rule that starts with `'` in double quotes, for example `rule: "'
 
 | Element | Form | Operands | Result |
 | --- | --- | --- | --- |
-| Field | `expiry_date` | — | A value of the primitive of the field |
+| Field | `expiry_date` | — | A value of the primitive of the field. A link is a value of the primitive of the key field of the linked entity |
 | Number literal | `0`, `-3`, `1.5` | — | A value. Its primitive comes from the other side. Refer to [Literals](#literals) |
 | Text literal | `'2026-01-01'`, `'gold'` | — | A value. Its primitive comes from the other side |
 | `true`, `false` | `true` | — | A value of a `boolean` |
@@ -52,7 +52,7 @@ In YAML, put a rule that starts with `'` in double quotes, for example `rule: "'
 | Arithmetic | `a + b`, `a - b` | Two values of one primitive: `integer` or `decimal` | A value of that primitive |
 | `and`, `or` | `c and d`, `c or d` | Two conditions | A condition |
 | `not` | `not c` | One condition | A condition |
-| Presence | `x is present`, `x is absent` | An optional field, or a list | A condition |
+| Presence | `x is present`, `x is absent` | An optional field, a list or an embedded entity | A condition |
 | Parentheses | `( … )` | Any expression | The same expression |
 
 A rule must be a condition. A value alone is not a condition, also a `boolean` field. Write `flag = true`, not `flag`.
@@ -128,6 +128,19 @@ A field with `required: false` in the entity can be absent. A rule can use its v
 
 A list is a field reference with `many`. A rule can use a list only in `x is present` and `x is absent`. The language has no functions, so a rule cannot count the items of a list or examine one item. Any other use of a list causes `rule-type`.
 
+## Links and embedded entities
+
+A rule names only the properties of its `on` entity. The rule language has no path, so a rule cannot name a property inside an embedded entity.
+
+| Property | Use in a rule | Example |
+| --- | --- | --- |
+| A link, `link: <entity>` | A value of the primitive of the key field of the linked entity. A rule can compare it as a value of that primitive | `holder != '9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d'`, for a link to `customer`, whose key `customer_id` is a `string`. The TypeScript is `(p.holder as string) !== "9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d"` |
+| An embedded entity, `ref: <entity>` | Only in `x is present` and `x is absent`. Any other use causes `rule-type` | `coverage is present or premium > 100`, for an optional embedded `coverage`. The TypeScript of `coverage is present` is `p.coverage !== undefined` |
+
+- A rule compares the value of a link. It does not read the linked object.
+- The invariants of an embedded entity apply inside each embedded object. To restrict a value in an embedded object, put an invariant on the embedded entity. In the insurance domain, `limit_is_positive` is on `coverage`, not on `policy`.
+- `x is present` on a required embedded entity causes `rule-type`, as on a required field.
+
 ## What pass 6 refuses
 
 Pass 6 parses the rule and then examines its types. The parser stops at the first syntax problem. The type checker reports each type problem that it finds.
@@ -144,7 +157,7 @@ The column starts at 1. It counts the characters of the rule as the manifest wri
 | --- | --- | --- |
 | `rule-syntax` | The rule does not agree with the grammar | `expected a field, a literal or "(", found the end of the rule`<br>`a comparison cannot follow another comparison; use and`<br>`a text literal has no closing quote`<br>`unexpected character "*"`<br>`expected "present" or "absent", found "here"`<br>`expected "and", "or" or the end of the rule, found "count"`<br>`expected ")", found the end of the rule` |
 | `unknown-rule-field` | A field name is not a property of the `on` entity | `"expiry" is not a field of the entity (fields: effective_date, expiry_date, premium, deductible, riders)` |
-| `rule-type` | The primitives or the parts of the rule do not agree | `">" has a decimal on the left and a date on the right; both sides must have one primitive`<br>`"<" compares two literals; one side must be a field`<br>`"<" needs an order, which string does not have; use = or !=`<br>`"+" works on integer and decimal only, not on float`<br>`"+" needs a value on each side, not a condition`<br>`a rule needs a condition, such as a comparison, not an integer`<br>`not needs a condition, such as a comparison, not an integer`<br>`"riders" is a list; a rule can use a list only in "riders is present" or "riders is absent"`<br>`"start" is required, so "start is present" is always true`<br>The literal messages in [Literals](#literals) |
+| `rule-type` | The primitives or the parts of the rule do not agree | `">" has a decimal on the left and a date on the right; both sides must have one primitive`<br>`"<" compares two literals; one side must be a field`<br>`"<" needs an order, which string does not have; use = or !=`<br>`"+" works on integer and decimal only, not on float`<br>`"+" needs a value on each side, not a condition`<br>`a rule needs a condition, such as a comparison, not an integer`<br>`not needs a condition, such as a comparison, not an integer`<br>`"riders" is a list; a rule can use it only in "riders is present" or "riders is absent"`<br>`"item" is an embedded entity; a rule can use it only in "item is present" or "item is absent"`<br>`"start" is required, so "start is present" is always true`<br>The literal messages in [Literals](#literals) |
 | `unguarded-field` | An optional field is used where no guard is in effect | `"deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …"` |
 
 Pass 6 examines the types only if `on` resolves to an entity. A field reference of the entity that does not resolve is not a field for the rule, so a rule that names it also gets `unknown-rule-field`. Correct the `unresolved-ref` first, and compile again. Pass 6 parses the rule also if `on` does not resolve, so a `rule-syntax` problem always shows.
@@ -157,7 +170,7 @@ This fixture has one problem in each invariant:
 
 ```
 tests/fixtures/invalid-rules/domain.manifest.yaml:25:9  error  rule-syntax  urn:acme:rules:policy:invariant:incomplete: rule: expected a field, a literal or "(", found the end of the rule (at column 14 of the rule)
-tests/fixtures/invalid-rules/domain.manifest.yaml:45:9  error  rule-type  urn:acme:rules:policy:invariant:list_value: rule: "riders" is a list; a rule can use a list only in "riders is present" or "riders is absent" (at column 1 of the rule)
+tests/fixtures/invalid-rules/domain.manifest.yaml:45:9  error  rule-type  urn:acme:rules:policy:invariant:list_value: rule: "riders" is a list; a rule can use it only in "riders is present" or "riders is absent" (at column 1 of the rule)
 tests/fixtures/invalid-rules/domain.manifest.yaml:35:9  error  rule-type  urn:acme:rules:policy:invariant:mixed_types: rule: ">" has a decimal on the left and a date on the right; both sides must have one primitive (at column 1 of the rule)
 tests/fixtures/invalid-rules/domain.manifest.yaml:49:7  error  wrong-ref-kind  urn:acme:rules:policy:invariant:on_a_field: on "policy.field.premium" must name an entity, but urn:acme:rules:policy:field:premium is a field
 tests/fixtures/invalid-rules/domain.manifest.yaml:40:9  error  unguarded-field  urn:acme:rules:policy:invariant:unguarded: rule: "deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …" (at column 1 of the rule)

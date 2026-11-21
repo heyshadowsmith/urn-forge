@@ -5,6 +5,34 @@ manifest:
   domain: insurance
   version: 0.1.0
 
+customer.field.customer_id:
+  primitive: string
+  format: uuid
+  description: The identifier of a customer
+customer.field.name:
+  primitive: string
+  minLength: 1
+  description: The full name of a customer
+
+customer.entity.customer:
+  description: A person who holds policies
+  key: customer.field.customer_id
+  fields:
+    - ref: customer.field.customer_id
+    - ref: customer.field.name
+
+policy.field.peril:
+  primitive: enum
+  values: [fire, flood, theft]
+  description: A kind of damage that a policy covers
+policy.field.limit:
+  primitive: decimal
+  scale: 2
+  description: The most that a policy pays for one peril
+policy.field.note:
+  primitive: string
+  description: Free text about a coverage
+
 policy.field.policy_id:
   primitive: string
   format: uuid
@@ -34,10 +62,26 @@ policy.field.refund:
   scale: 2
   description: The part of the premium that goes back to the holder
 
+policy.entity.coverage:
+  description: One peril that a policy covers, up to a limit
+  key: policy.field.peril
+  fields:
+    - ref: policy.field.peril
+    - ref: policy.field.limit
+    - ref: policy.field.note
+      required: false
+
 policy.entity.policy:
   description: An issued insurance policy
   fields:
     - ref: policy.field.policy_id
+    # The customer who holds the policy: the policy holds the customer's key.
+    - link: customer.entity.customer
+      as: holder
+    # Each peril at most once: a list of coverage objects, unique by their key.
+    - ref: policy.entity.coverage
+      as: coverages
+      many: { minItems: 1, maxItems: 3, unique: true }
     - ref: policy.field.effective_date
     - ref: policy.field.expiry_date
     - ref: policy.field.premium
@@ -55,6 +99,11 @@ policy.entity.refund_quote:
   fields:
     - ref: policy.field.refund
 
+policy.invariant.limit_is_positive:
+  description: A coverage pays something
+  on: policy.entity.coverage
+  rule: limit > 0
+  message: The limit of a coverage must be more than 0
 policy.invariant.term_is_positive:
   description: A policy ends after it starts
   on: policy.entity.policy

@@ -53,19 +53,6 @@ export function boundaryCases(
   return descriptor.boundaries(constraints);
 }
 
-/**
- * A Gherkin table cell for a list: `[a, b, c]`, each item parsed as a cell of the field's
- * primitive, and `[]` for the empty list. A cell without the brackets stays text, so the
- * schema refuses it. An item cannot hold a comma.
- */
-export function parseListCell(primitive: Primitive, cell: string): unknown {
-  const match = /^\[(.*)\]$/su.exec(cell.trim());
-  if (!match) return cell;
-  const inner = (match[1] ?? '').trim();
-  if (inner === '') return [];
-  return inner.split(',').map((item) => parseCell(primitive, item.trim()));
-}
-
 /** A non-empty Gherkin table cell as the value a field of `primitive` parses. */
 export function parseCell(primitive: Primitive, cell: string): unknown {
   return PRIMITIVES[primitive].parseCell(cell);

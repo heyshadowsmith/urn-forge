@@ -16,8 +16,8 @@
  *   (and so brands) its output or its declared error, rendering the error's message.
  */
 import * as v from 'valibot';
-import type { IREntity, IRError, IRFieldRef, MessagePart, UniversalIR, Urn } from '../ir/types.js';
-import { ERROR_CATEGORIES, invariantsOf } from '../ir/types.js';
+import type { IREntity, IRError, IRPropertyRef, MessagePart, UniversalIR, Urn } from '../ir/types.js';
+import { ERROR_CATEGORIES, invariantsOf, valueField } from '../ir/types.js';
 import { handlerName, ruleName, schemaNames } from '../naming.js';
 import { PRIMITIVE_NAMES } from '../primitives/index.js';
 import { valuesInUrnOrder, type CodegenPlugin } from './plugin.interface.js';
@@ -69,9 +69,9 @@ const SHELL = `// Shell gatekeeper
 export type OperationUrn = keyof DomainCoreImplementation;
 
 export interface BoundaryIssue {
-  /** Dot path into the payload, e.g. \`divisor\`; empty for the payload as a whole. */
+  /** Dot path into the payload, e.g. \`divisor\` or \`coverages.1.limit\`; empty for the payload as a whole. */
   readonly path: string;
-  /** URN of the field the issue is about, when the path starts at a declared field. */
+  /** URN of the field the issue is about: the deepest declared field on the path, if any. */
   readonly fieldUrn?: string;
   /** URN of the invariant that does not hold, when the issue comes from one. */
   readonly invariantUrn?: string;
@@ -126,8 +126,20 @@ export type ExecuteResult<U extends OperationUrn = OperationUrn> =
 function boundaryIssues(issues: readonly v.BaseIssue<unknown>[], contract: EntityContract): BoundaryIssue[] {
   return issues.map((issue) => {
     const path = v.getDotPath(issue) ?? '';
-    const head = path.split('.')[0] ?? '';
-    const field = Object.hasOwn(contract.fields, head) ? contract.fields[head] : undefined;
+    // Walk the path through embedded entities to the deepest field it names; list indexes do not name one.
+    let properties: Readonly<Record<string, PropertyInfo>> | undefined = contract.fields;
+    let field: FieldInfo | undefined;
+    for (const segment of path.split('.')) {
+      if (/^[0-9]+$/.test(segment) || !properties) continue;
+      const info: PropertyInfo | undefined = Object.hasOwn(properties, segment) ? properties[segment] : undefined;
+      if (!info) break;
+      if ('entity' in info) {
+        properties = info.fields;
+      } else {
+        field = info;
+        break;
+      }
+    }
     // A check issue keeps the function that failed; an invariant's rule is one such function.
     const requirement = (issue as { readonly requirement?: unknown }).requirement;
     const invariant = contract.invariants?.find((candidate) => candidate.rule === requirement);
@@ -216,16 +228,38 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
 }
 `;
 
-function fieldInfoLines(owner: Urn, refs: readonly IRFieldRef[], ir: UniversalIR, indent: string): string[] {
-  return refs.map((ref) => {
-    const field = ir.fields[ref.field];
-    if (!field) throw new Error(`IR is not resolved: ${owner} references missing ${ref.field}`);
-    return `${indent}${ref.name}: { urn: ${q(field.urn)}, primitive: ${q(field.primitive)}, required: ${ref.required}${ref.many ? ', many: true' : ''} },`;
+/**
+ * One line per property: a field's (or a linked key's) FieldInfo, or for an embedded entity
+ * its EmbeddedInfo with the nested properties, as deep as the entity goes.
+ */
+function fieldInfoLines(owner: Urn, refs: readonly IRPropertyRef[], ir: UniversalIR, indent: string): string[] {
+  return refs.flatMap((ref) => {
+    const count = `required: ${ref.required}${ref.many ? ', many: true' : ''}`;
+    if ('entity' in ref) {
+      const entity = ir.entities[ref.entity];
+      if (!entity) throw new Error(`IR is not resolved: ${owner} embeds missing ${ref.entity}`);
+      return [`${indent}${ref.name}: { entity: ${q(entity.urn)}, ${count}, fields: {`, ...fieldInfoLines(entity.urn, entity.fields, ir, `${indent}  `), `${indent}} },`];
+    }
+    const fieldUrn = valueField(ir, ref);
+    const field = fieldUrn && ir.fields[fieldUrn];
+    if (!field) throw new Error(`IR is not resolved: ${owner} has no field for property ${ref.name}`);
+    const link = 'link' in ref ? `, link: ${q(ref.link)}` : '';
+    return [`${indent}${ref.name}: { urn: ${q(field.urn)}, primitive: ${q(field.primitive)}, ${count}${link} },`];
   });
 }
 
+/** The invariants of an entity and of each entity it embeds, at any depth, each once. */
+function invariantsWithin(ir: UniversalIR, entity: IREntity, seen = new Set<Urn>()): ReturnType<typeof invariantsOf> {
+  if (seen.has(entity.urn)) return [];
+  seen.add(entity.urn);
+  return [
+    ...invariantsOf(ir, entity.urn),
+    ...entity.fields.flatMap((ref) => ('entity' in ref && ir.entities[ref.entity] ? invariantsWithin(ir, ir.entities[ref.entity]!, seen) : [])),
+  ];
+}
+
 function entityContract(entity: IREntity, ir: UniversalIR, indent: string): string[] {
-  const invariants = invariantsOf(ir, entity.urn);
+  const invariants = invariantsWithin(ir, entity);
   return [
     `${indent}schema: s.${schemaNames(entity.brandIdentifier).schema},`,
     `${indent}fields: {`,
@@ -311,12 +345,25 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
 
     const dispatch = [
       `export interface FieldInfo {`,
+      `  /** The field whose values the property holds; for a link, the linked entity's key field. */`,
       `  readonly urn: string;`,
       `  readonly primitive: ${PRIMITIVE_NAMES.map(q).join(' | ')};`,
       `  readonly required: boolean;`,
       `  /** The property holds a list of the field's values. */`,
       `  readonly many?: true;`,
+      `  /** The entity that a link points at, by its key. */`,
+      `  readonly link?: string;`,
       `}`,
+      ``,
+      `/** A property that holds an embedded entity: its properties, nested. */`,
+      `export interface EmbeddedInfo {`,
+      `  readonly entity: string;`,
+      `  readonly required: boolean;`,
+      `  readonly many?: true;`,
+      `  readonly fields: Readonly<Record<string, PropertyInfo>>;`,
+      `}`,
+      ``,
+      `export type PropertyInfo = FieldInfo | EmbeddedInfo;`,
       ``,
       `export interface InvariantInfo {`,
       `  readonly urn: string;`,
@@ -327,7 +374,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       `export interface EntityContract {`,
       `  readonly schema: v.GenericSchema;`,
       `  /** Keyed by property name, in declaration order. */`,
-      `  readonly fields: Readonly<Record<string, FieldInfo>>;`,
+      `  readonly fields: Readonly<Record<string, PropertyInfo>>;`,
       `  /** The invariants of the entity, when it has any. */`,
       `  readonly invariants?: readonly InvariantInfo[];`,
       `}`,

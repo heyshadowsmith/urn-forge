@@ -36,10 +36,14 @@ export const DIAGNOSTIC_CODES = {
   'duplicate-brand': 'Two atoms derive the same brand identifier',
   'duplicate-property': 'Two fields of one entity become the same property',
   'duplicate-ref': 'An entity lists the same field more than once',
+  'invalid-entity-key': 'The key of an entity is not one of its own required, single-valued fields',
   'reserved-property': 'An error field would become the property kind, which the error reserves for its URN',
   // Pass 4: references
   'unresolved-ref': 'A reference names no atom in the manifest',
   'wrong-ref-kind': 'A reference names an atom of the wrong kind',
+  // Pass 5: structure
+  'missing-key': 'A link, or a unique list of an embedded entity, names an entity that has no key',
+  'embedding-cycle': 'Entities embed each other in a cycle, so the type of an object would never end',
   // Pass 6: rule and template typing
   'unknown-placeholder': 'An error message placeholder does not name a required field of the error',
   'rule-syntax': 'An invariant rule is not valid in the rule language',
@@ -67,6 +71,7 @@ export const DIAGNOSTIC_CODES = {
   'untagged-operation': 'An operation has no feature or scenario tagged with its URN',
   'ambiguous-tag': 'A scenario has more than one operation or entity tag',
   'unknown-header': 'A table header is not a field key of the tagged operation or entity',
+  'invalid-cell': 'A list or object cell is malformed, or names a property that its entity does not have',
   'missing-column': 'The input table of an operation has no column for a required field',
   'undeclared-error': 'A scenario expects an error that its operation does not declare',
   'uncovered-error': 'A declared error has no scenario that expects it (a warning)',

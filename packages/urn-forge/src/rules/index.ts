@@ -304,6 +304,8 @@ export interface RuleField {
   readonly many: boolean;
   /** The names of an `enum`, to check a text literal. */
   readonly values?: readonly string[];
+  /** An embedded entity: a rule can use it only in `is present` and `is absent`. */
+  readonly embedded?: boolean;
 }
 
 type ValueType = { readonly kind: 'value'; readonly primitive: Primitive } | { readonly kind: 'literal'; readonly literal: 'number' | 'text' | 'boolean'; readonly text: string };
@@ -392,8 +394,9 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
           problem('unknown-rule-field', e.at, `"${e.name}" is not a field of the entity (fields: ${Object.keys(fields).join(', ')})`);
           return undefined;
         }
-        if (field.many) {
-          problem('rule-type', e.at, `"${e.name}" is a list; a rule can use a list only in "${e.name} is present" or "${e.name} is absent"`);
+        if (field.many || field.embedded) {
+          const what = field.many ? 'a list' : 'an embedded entity';
+          problem('rule-type', e.at, `"${e.name}" is ${what}; a rule can use it only in "${e.name} is present" or "${e.name} is absent"`);
           return undefined;
         }
         if (!field.required && !present.has(e.name)) {

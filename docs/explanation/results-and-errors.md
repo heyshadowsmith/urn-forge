@@ -88,7 +88,7 @@ domain.manifest.yaml:98:12  error  unknown-placeholder  urn:urn_forge:toolchain:
 
 A handler gives plain values to `fail`, and `executeOperation` parses and brands them. This is the same rule as for output: the core does not make brands. [The functional core and brands](./functional-core) tells why.
 
-The parsed error has a `kind` property that holds the error URN. Callers can switch on it. As a result, no field of an error can have the identifier `kind`. The compiler reports such a field as `reserved-property`.
+The parsed error has a `kind` property that holds the error URN. Callers can switch on it. As a result, no property of an error can have the name `kind`. The compiler reports such a field as `reserved-property`.
 
 ## Why events and `recordAs` wait
 

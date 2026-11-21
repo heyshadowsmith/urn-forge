@@ -1,6 +1,6 @@
 # Fix a gate that fails
 
-`urn-forge verify` runs gates 1, 3 and 4. A gate fails when it reports one error or more. This guide gives the symptom and the fix for each code that a gate can report. The output on this page comes from the domain of [tutorial 3](../tutorials/strict-coverage), with one part broken on purpose for each example. The examples for invariants come from the insurance domain in `packages/urn-forge/insurance/`.
+`urn-forge verify` runs gates 1, 3 and 4. A gate fails when it reports one error or more. This guide gives the symptom and the fix for each code that a gate can report. The output on this page comes from the domain of [tutorial 3](../tutorials/strict-coverage), with one part broken on purpose for each example. The examples for invariants, embedded entities and links come from the insurance domain in `packages/urn-forge/insurance/`.
 
 ## Before you start
 
@@ -44,7 +44,7 @@ Correct the manifest at the line and column that the problem gives. [Diagnostics
 Pass 6 examines the `rule` of each invariant. A problem in a rule also stops `verify` before the gates:
 
 ```
-insurance/domain.manifest.yaml:66:9  error  unguarded-field  urn:acme:insurance:policy:invariant:deductible_below_premium: rule: "deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …" (at column 1 of the rule)
+insurance/domain.manifest.yaml:115:9  error  unguarded-field  urn:acme:insurance:policy:invariant:deductible_below_premium: rule: "deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …" (at column 1 of the rule)
 verify failed: the manifest does not compile
 ```
 
@@ -59,6 +59,37 @@ The line and column give the start of the rule. The message gives the column in 
 | `wrong-ref-kind` | `on` names an atom that is not an entity | Set `on` to an entity |
 
 [Add an invariant](add-an-invariant) shows the real message of each code.
+
+### If an entity reference is not correct
+
+Passes 1, 3 and 5 examine the `fields` list and the `key` of each entity. A problem there also stops `verify` before the gates. Here the coverage embeds the policy, and the policy embeds the coverage:
+
+```
+insurance/domain.manifest.yaml:69:5  error  embedding-cycle  urn:acme:insurance:policy:entity:coverage: urn:acme:insurance:policy:entity:coverage embeds urn:acme:insurance:policy:entity:policy embeds urn:acme:insurance:policy:entity:coverage, so its type would never end; use a link for one of them
+verify failed: the manifest does not compile
+```
+
+Each code has one fix:
+
+| Code | Cause | Fix |
+| --- | --- | --- |
+| `invalid-value` with `must have either ref or link` | A field reference has both `ref` and `link`, or neither | Keep one of the two |
+| `invalid-entity-key` | The `key` is not a field of the entity, or the field is optional or a list | Set `key` to a required, single-valued field of the entity |
+| `missing-key` | A `link` names an entity without a `key`, or a `unique` list embeds one | Add `key` to the target entity |
+| `embedding-cycle` | Entities embed each other in a cycle | Change one `ref` in the cycle to `link` |
+| `duplicate-ref` | The `fields` list has one target two times with one name | Give one of them a different name with `as` |
+| `duplicate-property` | Two different targets become one property name | Give one of them a different name with `as` |
+
+These are the real messages of the other codes:
+
+```
+insurance/domain.manifest.yaml:79:7  error  invalid-value  policy.entity.policy.fields.1: must have either ref or link
+insurance/domain.manifest.yaml:67:8  error  invalid-entity-key  urn:acme:insurance:policy:entity:coverage: key urn:acme:insurance:policy:field:note is optional; a key must be required
+insurance/domain.manifest.yaml:78:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[1].link urn:acme:insurance:customer:entity:customer has no key, so a link to it holds nothing; set key on it
+insurance/domain.manifest.yaml:80:13  error  duplicate-ref  urn:acme:insurance:policy:entity:policy: fields[2].link lists urn:acme:insurance:customer:entity:customer more than once; give one of them another name with as
+```
+
+Each line comes from a different change to the manifest. [Add an entity](add-an-entity) shows each change and its fix.
 
 If urn-forge cannot read the manifest, the last line is `verify failed: the manifest cannot be read`. Make sure that `--manifest`, or `manifest` in the configuration, gives the correct file.
 
@@ -216,15 +247,38 @@ Do one of these:
 A scenario expects an invariant that is not on the input entity of its operation:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 10 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/3 invariants broken, strict: 2/2 features (boundaryCoverage: error)
-    insurance/features/issue_policy.feature:51:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive)
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features/issue_policy.feature:77:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
 ```
 
 Do one of these:
 
-- If the URN in the step is incorrect, use a URN from the `invariants` list in the message. The `uncovered-invariant` problem goes away with it.
+- If the URN in the step is incorrect, use a URN from the `invariants` list in the message. The `uncovered-invariant` problem goes away with it. The list also has the invariants of the entities that the input embeds, such as `limit_is_positive` of the coverage.
 - If the rule must apply to the input, set `on` of the invariant to the input entity of the operation. Refer to [Add an invariant](add-an-invariant).
+
+### `invalid-cell`
+
+Gate 3 reads each list cell and each object cell of the input tables. If a cell is malformed, or it names a property that its entity does not have, gate 3 reports `invalid-cell`. Here a note holds a comma without quotes:
+
+```
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features/issue_policy.feature:7:145  error  invalid-cell  coverages: expected ":" after "see" (at column 91 of the cell): [{ peril: flood, limit: 500 }, { peril: theft, limit: 250.5, note: Basement excluded, see {clause 4} }]
+```
+
+Here a brace is not closed:
+
+```
+    insurance/features/issue_policy.feature:7:145  error  invalid-cell  coverages: expected "," or "}" (at column 32 of the cell): [{ peril: fire, limit: 1000.00 ]
+```
+
+The line and column give the header of the column. The message gives the property, the column in the cell, and the cell. To fix it, do one of these:
+
+- If a value holds a comma, a bracket, a brace or a double quote, put the value in double quotes.
+- If a bracket or a brace is not closed, close it.
+- If a name is not a property of the entity, use a name from the `properties` list in the message.
+
+The scenario fails with the same message when Cucumber runs it. Refer to [Write scenarios](write-scenarios).
 
 ### `features-unreadable`
 
@@ -264,6 +318,18 @@ gate 3  gherkin       FAIL  1 feature(s), 5 scenario(s), 1/1 operations tagged, 
     tutorial/3-strict-coverage/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at max + 1 (30001)
 ```
 
+A value inside an embedded entity has no example at a boundary. The message gives the path of the value after `at`. A list of entities also needs its item counts and a list with a repeated key:
+
+```
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features  error  uncovered-boundary  urn:acme:insurance:policy:field:peril at coverages.peril in the input of urn:acme:insurance:policy:operation:issue_policy has no value outside values
+    insurance/features  error  uncovered-boundary  urn:acme:insurance:policy:field:limit at coverages.limit in the input of urn:acme:insurance:policy:operation:issue_policy has no value with 3 digits after the point (above scale)
+```
+
+```
+    insurance/features  error  uncovered-boundary  urn:acme:insurance:policy:entity:coverage at coverages in the input of urn:acme:insurance:policy:operation:issue_policy has no list of 4 item(s) (above maxItems), no list with a repeated peril (unique)
+```
+
 A declared error has no scenario that expects it. Here it is a warning:
 
 ```
@@ -274,13 +340,13 @@ gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, 
 An invariant of the input entity has no scenario that breaks it. The insurance features are strict, so it is an error:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 9 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/3 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 12 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
 ```
 
 To fix a gap, add a scenario for it:
 
-- For a boundary, send each value that the message names.
+- For a boundary, send each value that the message names. For a path such as `coverages.limit`, send the value inside an object of the list.
 - For an error, expect it with `Then the operation fails with "<error URN>"`.
 - For an invariant, break it and expect `Then the input is rejected by "<invariant URN>"`.
 

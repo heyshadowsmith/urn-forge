@@ -59,6 +59,31 @@ export interface IRField {
   readonly description?: string;
 }
 
+/**
+ * What one property of an entity or an error holds (structure plan): the values of a field,
+ * an embedded entity, or a link to an entity (its key's value). The three forms share the
+ * property name, presence and count; each form has one target.
+ */
+export type IRPropertyRef = IRFieldRef | IREmbedRef | IRLinkRef;
+
+interface PropertyBase {
+  /** The property name: the target's identifier, or `as` in the manifest. */
+  readonly name: string;
+  readonly required: boolean;
+  /** Present when the property holds a list. */
+  readonly many?: ListRule;
+}
+
+/** `ref: <entity>`: the property holds an object of that entity, with its invariants. */
+export interface IREmbedRef extends PropertyBase {
+  readonly entity: Urn;
+}
+
+/** `link: <entity>`: the property holds the value of that entity's key, with the key field's brand. */
+export interface IRLinkRef extends PropertyBase {
+  readonly link: Urn;
+}
+
 export interface IRFieldRef {
   readonly field: Urn;
   /**
@@ -87,8 +112,17 @@ export interface IREntity {
   readonly urn: Urn;
   readonly brandIdentifier: string;
   readonly description: string;
+  /** The field whose value a link to this entity holds; one of its own required, single-valued fields. */
+  readonly key?: Urn;
   /** Declaration order preserved. */
-  readonly fields: readonly IRFieldRef[];
+  readonly fields: readonly IRPropertyRef[];
+}
+
+/** The field a property's values belong to: its own field, or a linked entity's key; undefined for an embedded entity. */
+export function valueField(ir: UniversalIR, ref: IRPropertyRef): Urn | undefined {
+  if ('field' in ref) return ref.field;
+  if ('link' in ref) return ir.entities[ref.link]?.key;
+  return undefined;
 }
 
 /** The five error categories of spec §4.6. Metadata for the shell; the core never reads them. */
@@ -108,7 +142,7 @@ export interface IRError {
   /** Parsed; every placeholder names a required field of this error (pass 6). */
   readonly message: readonly MessagePart[];
   /** Declaration order preserved; may be empty. */
-  readonly fields: readonly IRFieldRef[];
+  readonly fields: readonly IRPropertyRef[];
 }
 
 export interface IROperation {

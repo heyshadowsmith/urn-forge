@@ -37,12 +37,12 @@ For the full rules, refer to [The manifest](../reference/manifest).
 ## 2. Obey the placeholder and `kind` rules
 
 - **A placeholder must name a required field of the error.** Then the message is always complete.
-- **No field of the error can have the identifier `kind`.** The error payload uses the property `kind` for the URN of the error.
+- **No property of the error can have the name `kind`.** The error payload uses the property `kind` for the URN of the error. A field with the identifier `kind` is correct if `as` gives it another name.
 
 If you do not obey these rules, `compile` stops:
 
 ```
-bad-error.yaml:20:12  error  reserved-property  urn:demo:shop:order:error:price_unavailable: fields[1].ref urn:demo:shop:order:field:kind becomes property "kind", which an error reserves for its URN; rename the field
+bad-error.yaml:20:12  error  reserved-property  urn:demo:shop:order:error:price_unavailable: fields[1] becomes property "kind", which an error reserves for its URN; give it another name with as
 bad-error.yaml:17:12  error  unknown-placeholder  urn:demo:shop:order:error:price_unavailable: message placeholder {note} names an optional field; placeholders must name required fields (required fields: sku, kind)
 bad-error.yaml:17:12  error  unknown-placeholder  urn:demo:shop:order:error:price_unavailable: message placeholder {region} names no field of the error (required fields: sku, kind)
 ```

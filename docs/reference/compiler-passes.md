@@ -1,6 +1,6 @@
 # Compiler passes
 
-The `compile` and `verify` commands send the manifest through a sequence of passes. The passes make the IR. Then the plugins make the generated files from the IR. The pass numbers come from specification v1.1. urn-forge 0.1.0 does not have passes 5 and 8 at this time.
+The `compile` and `verify` commands send the manifest through a sequence of passes. The passes make the IR. Then the plugins make the generated files from the IR. The pass numbers come from specification v1.1. urn-forge 0.1.0 does not have pass 8 at this time.
 
 ## Sequence
 
@@ -10,16 +10,16 @@ The `compile` and `verify` commands send the manifest through a sequence of pass
 | YAML | Parse the YAML | The file is valid YAML with no key two times in one mapping | `yaml-syntax`, `duplicate-key` | Stop after this step |
 | 1 | [Meta-schema](#pass-1-meta-schema) | The structure of the header and of each entry | `not-a-mapping`, `missing-header`, `invalid-key`, `unsupported-kind`, `unknown-kind`, `unknown-primitive`, `constraint-not-allowed`, `unknown-property`, `missing-property`, `invalid-value` | Stop after this step |
 | 2 | [Expansion](#pass-2-expansion) | None. It makes the URNs and the brand identifiers | None | — |
-| 3 | [Uniqueness](#pass-3-uniqueness) | Brand identifiers and property names are unique | `duplicate-brand`, `duplicate-property`, `duplicate-ref`, `reserved-property` | Stop after pass 7 |
+| 3 | [Uniqueness](#pass-3-uniqueness) | Brand identifiers and property names are unique. The `key` of each entity is one of its own fields | `duplicate-brand`, `duplicate-property`, `duplicate-ref`, `invalid-entity-key`, `reserved-property` | Stop after pass 7 |
 | 4 | [References](#pass-4-references) | Each reference names an atom of the correct kind | `unresolved-ref`, `wrong-ref-kind` | Stop after pass 7 |
-| 5 | Cycle check | Not built | — | — |
+| 5 | [Structure](#pass-5-structure) | Each linked entity has a `key`, and each entity in a unique list has a `key`. No entity embeds itself | `missing-key`, `embedding-cycle` | Stop |
 | 6 | [Rule and template typing](#pass-6-rule-and-template-typing) | Each invariant rule is valid and agrees with the types of its entity. Each placeholder in an error message names a mandatory field of the error | `rule-syntax`, `unknown-rule-field`, `rule-type`, `unguarded-field`, `unknown-placeholder` | Stop after pass 7 |
 | 7 | [Constraint coherence](#pass-7-constraint-coherence) | A field has one constraint for each side of each aspect. The constraints of each field accept one or more values. The `many` of each field reference accepts one or more lists | `conflicting-constraints`, `incoherent-constraints` | Stop after pass 7 |
 | 8 | Lifecycle | Not built | — | — |
 | Plugins | [Plugin checks](#plugin-checks) | The plugins and their configurations agree with the IR | `plugin-config`, `missing-plugin`, `unsupported-construct`, `export-collision`, `output-conflict` | No files |
 
 - Each step reports all the problems that it finds, not only the first problem.
-- Passes 2 to 7 run together, and urn-forge reports their diagnostics together.
+- Passes 2, 3, 4, 6 and 7 run together, and urn-forge reports their diagnostics together. Pass 5 runs after them, only if they find no error.
 - Each diagnostic has a position in the manifest, except `manifest-unreadable`, `not-a-mapping`, `missing-header`, `plugin-config`, `missing-plugin` and `output-conflict`.
 - For the message, the cause and the correction of each code, refer to [Diagnostics](./diagnostics).
 
@@ -38,7 +38,8 @@ Pass 1 examines the parsed YAML with Valibot schemas. It examines these items, i
 | A `primitive` that is not `boolean`, `date`, `decimal`, `enum`, `float`, `integer`, `string` or `timestamp`, or no `primitive` | `unknown-primitive` | The value, or the entry key if there is no `primitive` |
 | A key on a field that is a constraint of a different primitive | `constraint-not-allowed` | The key |
 | A key on the header, an atom or a field reference that it does not accept, and on a field a key that is a constraint of no primitive. On a field, `oneOf` and `notEqual` get a hint in the message | `unknown-property` | The key |
-| A value of the wrong type or form. Examples: an empty `values` list, a `decimal` bound that is a YAML number, a `timestamp` bound with an offset, or a `many` that is not `true` or a mapping | `invalid-value` | The value |
+| A value of the wrong type or form. Examples: an empty `values` list, a `decimal` bound that is a YAML number, a `timestamp` bound with an offset, a `many` that is not `true` or a mapping, or an `as` that is not a URN segment | `invalid-value` | The value |
+| A field reference with both `ref` and `link`, or with neither. The message is `must have either ref or link` | `invalid-value` | The field reference |
 | A necessary property that is not there, for example the `values` of an `enum` | `missing-property` | The entry key |
 
 The schema of each kind is on [The manifest](./manifest). The rules for constraint values are on [Primitives and constraints](./primitives).
@@ -54,10 +55,13 @@ Each URN is unique without a check. A URN comes from its short key with one rule
 | Check | Code | Where |
 | --- | --- | --- |
 | Two atoms have the same brand identifier | `duplicate-brand` | All atoms, also of different kinds |
-| One `fields` list has two fields with the same identifier | `duplicate-property` | Entities and errors |
-| One `fields` list refers to the same field two times | `duplicate-ref` | Entities and errors |
+| One `fields` list has two properties with the same name, from two different targets | `duplicate-property` | Entities and errors |
+| One `fields` list refers to the same target two times with the same name | `duplicate-ref` | Entities and errors |
 | One `errors` list refers to the same error two times | `duplicate-ref` | Operations |
-| A field of an error has the identifier `kind` | `reserved-property` | Errors |
+| The `key` of an entity is not a field of its `fields` list with `ref`, or the reference has `required: false` or `many` | `invalid-entity-key` | Entities |
+| A property of an error has the name `kind` | `reserved-property` | Errors |
+
+The name of a property is its `as`, or the identifier of its target if there is no `as`. The messages of `duplicate-property` and `duplicate-ref` tell you to use `as`, for example `both become property "sku"; rename one with as`.
 
 Pass 3 examines URNs and brand identifiers over all atoms first. The other checks run for each atom, after pass 4 for that atom. A reference that does not resolve is not part of the `duplicate-property` and `duplicate-ref` checks.
 
@@ -65,8 +69,11 @@ Pass 3 examines URNs and brand identifiers over all atoms first. The other check
 
 | Kind | Reference | Must name |
 | --- | --- | --- |
-| `entity` | `fields[<i>].ref` | A field |
-| `error` | `fields[<i>].ref` | A field |
+| `entity` | `fields[<i>].ref` | A field or an entity |
+| `entity` | `fields[<i>].link` | An entity |
+| `entity` | `key` | A field |
+| `error` | `fields[<i>].ref` | A field or an entity |
+| `error` | `fields[<i>].link` | An entity |
 | `invariant` | `on` | An entity |
 | `operation` | `input` | An entity |
 | `operation` | `output` | An entity |
@@ -79,6 +86,25 @@ Pass 3 examines URNs and brand identifiers over all atoms first. The other check
 
 The message names the reference with its path, for example `fields[1].ref`, `errors[2]` or `on`. Example: `on "policy.field.premium" must name an entity, but urn:acme:rules:policy:field:premium is a field`.
 
+## Pass 5: structure
+
+Pass 5 runs after the IR builder builds each atom, because each check reads a different entity. Pass 5 runs only if passes 2, 3, 4, 6 and 7 find no error.
+
+| Check | Code | Position |
+| --- | --- | --- |
+| The entity that a `link` names has a `key` | `missing-key` | The `link` |
+| The embedded entity of a `ref` with `many: { unique: true }` has a `key` | `missing-key` | The `many` |
+| No entity embeds itself, directly or through other entities. Links can make a cycle | `embedding-cycle` | The `fields` of the first entity of the cycle in URN order |
+
+Pass 5 reports one `embedding-cycle` for each cycle. It examines the entities and the errors in URN order, and reports `missing-key` first.
+
+These diagnostics come from a copy of the insurance manifest with two changes. The `customer` entity has no `key`, and `coverage` embeds `policy`:
+
+```
+insurance/domain.manifest.yaml:81:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[1].link urn:acme:insurance:customer:entity:customer has no key, so a link to it holds nothing; set key on it
+insurance/domain.manifest.yaml:68:5  error  embedding-cycle  urn:acme:insurance:policy:entity:coverage: urn:acme:insurance:policy:entity:coverage embeds urn:acme:insurance:policy:entity:policy embeds urn:acme:insurance:policy:entity:coverage, so its type would never end; use a link for one of them
+```
+
 ## Pass 6: rule and template typing
 
 Pass 6 examines the text of invariant rules and error messages.
@@ -88,21 +114,21 @@ Pass 6 examines the text of invariant rules and error messages.
 For each invariant, pass 6 does these steps:
 
 1. It parses the `rule` with the grammar of the [rule language](./rule-language). If the parse fails, it reports `rule-syntax` and stops for this invariant.
-2. If `on` resolves to an entity, it examines the rule against the property names of the entity. It gives each property the primitive of its field, `required` and `many`.
+2. If `on` resolves to an entity, it examines the rule against the property names of the entity. It gives each property the primitive of its field, `required` and `many`. A link gets the primitive of the key field of the linked entity. An embedded entity has no primitive: a rule can use it only in `is present` or `is absent`.
 3. It reports each problem that it finds: `unknown-rule-field`, `rule-type` or `unguarded-field`.
 
 | Check | Code |
 | --- | --- |
 | The rule agrees with the grammar | `rule-syntax` |
 | Each field name is a property of the `on` entity | `unknown-rule-field` |
-| The two sides of each operator have one primitive. Each literal fits the primitive of the other side. An order operator is on an ordered primitive. `+` and `-` are on `integer` or `decimal`. `and`, `or`, `not` and the rule itself have conditions. A list is only in `is present` or `is absent`. `is present` and `is absent` are not on a required field | `rule-type` |
+| The two sides of each operator have one primitive. Each literal fits the primitive of the other side. An order operator is on an ordered primitive. `+` and `-` are on `integer` or `decimal`. `and`, `or`, `not` and the rule itself have conditions. A list or an embedded entity is only in `is present` or `is absent`. `is present` and `is absent` are not on a required field | `rule-type` |
 | Each optional field is used only after a guard | `unguarded-field` |
 
 The position of each diagnostic is the `rule` value. The message gives the column in the rule, for example `(at column 14 of the rule)`. If pass 6 finds no problem, the IR keeps the parsed rule and its canonical text. For each check and its messages, refer to [The rule language](./rule-language).
 
 ### Message templates
 
-Pass 6 parses the `message` of each error into text and placeholders. Each placeholder must name a field of the error with `required: true`. If not, pass 6 reports `unknown-placeholder` at the `message`, one time for each placeholder. For the form of a placeholder, refer to [The manifest](./manifest).
+Pass 6 parses the `message` of each error into text and placeholders. Each placeholder must name a property of the error with `required: true` and no `many`. The property cannot be an embedded entity. If not, pass 6 reports `unknown-placeholder` at the `message`, one time for each placeholder. For the form of a placeholder, refer to [The manifest](./manifest).
 
 The specification also puts `recordAs` events in pass 6. urn-forge 0.1.0 does not have events at this time.
 
@@ -113,7 +139,7 @@ Pass 7 examines the constraints of each field together, in two steps:
 1. Each constraint restricts one aspect of a value, for example the range or the shape. A field can set only one constraint for each side of an aspect. If a field sets `min` and `exclusiveMin`, `max` and `exclusiveMax`, or `regex` and `format`, pass 7 reports `conflicting-constraints` at the second key. Then it does not do step 2 for the field.
 2. The constraints together must accept one or more values. If they do not, pass 7 reports `incoherent-constraints` at the constraint to correct.
 
-Pass 7 also examines the `many` of each field reference in an entity or an error. If `minItems` is greater than `maxItems`, pass 7 reports `incoherent-constraints` at `many`, with the URN of the entity or the error.
+Pass 7 also examines the `many` of each field reference in an entity or an error, also of a link and of an embedded entity. If `minItems` is greater than `maxItems`, pass 7 reports `incoherent-constraints` at `many`, with the URN of the entity or the error.
 
 Pass 1, not pass 7, examines that a `values` list is not empty and has no value two times. For the rules of each primitive, refer to [Primitives and constraints](./primitives). For the aspects, refer to [The MECE model of primitives](../explanation/primitives-model).
 
@@ -146,7 +172,7 @@ The IR builder builds the atoms in two stages. A kind that reads the nodes of ot
 | 1 | `field`, `entity`, `operation`, `error` |
 | 2 | `invariant` |
 
-urn-forge reports the diagnostics of passes 3 to 7 in this sequence:
+urn-forge reports the diagnostics of passes 3, 4, 6 and 7 in this sequence:
 
 1. `duplicate-brand`, for all atoms in URN order.
 2. For each atom of stage 1 in URN order, and then for each atom of stage 2 in URN order:
@@ -156,7 +182,7 @@ urn-forge reports the diagnostics of passes 3 to 7 in this sequence:
 | Kind | Checks, in sequence |
 | --- | --- |
 | `field` | Pass 7: `conflicting-constraints`, then `incoherent-constraints` |
-| `entity` | `duplicate-property` and `duplicate-ref`, then the `many` check of pass 7, for each item of `fields` |
+| `entity` | `duplicate-property` and `duplicate-ref`, then the `many` check of pass 7, for each item of `fields`. Then `invalid-entity-key` |
 | `invariant` | Pass 6: `rule-syntax`. Then, if `on` resolves, `unknown-rule-field`, `rule-type` and `unguarded-field` in the sequence that the type check finds them |
 | `operation` | `duplicate-ref`, for each item of `errors` |
 | `error` | `duplicate-property` and `duplicate-ref`, then the `many` check of pass 7, for each item of `fields`. Then `reserved-property`, then pass 6 |
@@ -176,7 +202,7 @@ tests/fixtures/broken-references/domain.manifest.yaml:18:12  error  wrong-ref-ki
 tests/fixtures/broken-references/domain.manifest.yaml:32:12  error  unknown-placeholder  urn:demo:broken:order:error:limit: message placeholder {code} names an optional field; placeholders must name required fields (required fields: none)
 tests/fixtures/broken-references/domain.manifest.yaml:23:12  error  unknown-placeholder  urn:demo:broken:order:error:limit_exceeded: message placeholder {quantiy} names no field of the error (required fields: quantity)
 tests/fixtures/broken-references/domain.manifest.yaml:23:12  error  unknown-placeholder  urn:demo:broken:order:error:limit_exceeded: message placeholder {limit} names no field of the error (required fields: quantity)
-tests/fixtures/broken-references/domain.manifest.yaml:52:19  error  reserved-property  urn:demo:broken:order:error:wrong_kind: fields[0].ref urn:demo:broken:order:field:kind becomes property "kind", which an error reserves for its URN; rename the field
+tests/fixtures/broken-references/domain.manifest.yaml:52:19  error  reserved-property  urn:demo:broken:order:error:wrong_kind: fields[0] becomes property "kind", which an error reserves for its URN; give it another name with as
 tests/fixtures/broken-references/domain.manifest.yaml:10:71  error  incoherent-constraints  urn:demo:broken:order:field:code: minLength (3) is greater than maxLength (2), so no value is valid
 tests/fixtures/broken-references/domain.manifest.yaml:9:61  error  incoherent-constraints  urn:demo:broken:order:field:quantity: min (10) is greater than max (1), so no value is valid
 tests/fixtures/broken-references/domain.manifest.yaml:11:70  error  incoherent-constraints  urn:demo:broken:order:field:size: notIn lists every value that min, max allow, so no value is valid
@@ -193,6 +219,16 @@ If passes 1 to 7 find no error, urn-forge makes the IR. The IR has these parts:
 | --- | --- |
 | `meta` | `namespace`, `domain`, `manifestVersion` (the `version` of the header), `stability` (default `stable`), `manifestHash` (SHA-256 of the canonical JSON of the manifest) and `irSchemaVersion` (`1`) |
 | `fields`, `entities`, `invariants`, `operations`, `errors` | One node for each atom, with the URN as the key, in URN order. A group with no atoms is `{}` |
+
+The `fields` of an `IREntity` and of an `IRError` is a list of `IRPropertyRef`. Each item has one of three forms. Each form has `name`, `required` and, for a list, `many`:
+
+| Form in the manifest | IR type | Target key |
+| --- | --- | --- |
+| `ref: <field>` | `IRFieldRef` | `field`: the URN of the field |
+| `ref: <entity>` | `IREmbedRef` | `entity`: the URN of the embedded entity |
+| `link: <entity>` | `IRLinkRef` | `link`: the URN of the linked entity |
+
+An `IREntity` has `key`, the URN of its key field, only if the manifest sets `key`. The function `valueField(ir, ref)` gives the field whose values a property holds: the field of an `IRFieldRef`, or the key field of the linked entity. For an `IREmbedRef`, it gives `undefined`.
 
 An `IREntity` does not list its invariants. The function `invariantsOf(ir, entityUrn)` finds them by their `on`, in URN order. An `IRInvariant` has `urn`, `brandIdentifier`, `description`, `on`, `rule` (the parsed rule), `ruleText` (the canonical text) and `message`. Refer to [The rule language](./rule-language).
 

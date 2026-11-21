@@ -33,11 +33,19 @@ The output on this page comes from the domain of [tutorial 2](../tutorials/decla
    For example, take a copy of the insurance domain without `boundaryCoverage: 'error'`. Remove the strict tag of `issue_policy.feature` and the scenario that breaks `term_is_positive`. Gate 3 then shows this:
 
    ```
-   gate 3  gherkin       PASS  2 feature(s), 9 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/3 invariants broken, strict: 1/2 features
+   gate 3  gherkin       PASS  2 feature(s), 12 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/4 invariants broken, strict: 1/2 features
        insurance/features  warning  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
    ```
 
-   `2/3 invariants broken` shows that a scenario breaks two invariants of three.
+   `3/4 invariants broken` shows that a scenario breaks three invariants of four. The count includes `limit_is_positive`, an invariant of the coverage that the policy embeds.
+
+4. Read the path after `at`, if a message has one. A value inside an embedded entity has the boundary cases of its field, at any depth. A list of entities also needs its item counts, and a list with a repeated key if it is `unique`. Remove the rows of the list that is too long and of the repeated peril from the strict insurance feature. Gate 3 then shows this:
+
+   ```
+   insurance/features  error  uncovered-boundary  urn:acme:insurance:policy:entity:coverage at coverages in the input of urn:acme:insurance:policy:operation:issue_policy has no list of 4 item(s) (above maxItems), no list with a repeated peril (unique)
+   ```
+
+   A message for a nested field names the field and its path, for example `urn:acme:insurance:policy:field:limit at coverages.limit`.
 
 [Primitives and constraints](../reference/primitives) lists the boundary cases of each constraint.
 
@@ -49,6 +57,7 @@ Do these steps for one feature at a time. Start with a feature whose operation h
    - A value inside the limits must succeed. Use `Then the output is:`.
    - A value outside the limits must fail at the boundary. Use `Then the input is rejected on "<field>"`.
    - To send the empty string to a `string` field, write `""` in the cell. An empty cell sends no value.
+   - For a path such as `coverages.limit`, send the value inside an object, for example `[{ peril: fire, limit: 1.005 }]`. For a repeated key, send two objects with one key, for example `[{ peril: fire, limit: 1 }, { peril: fire, limit: 2 }]`. Refer to [Write scenarios](write-scenarios).
 2. For each `uncovered-error` message, add a scenario with `Then the operation fails with "<error URN>"`.
 3. For each `uncovered-invariant` message, add a scenario that breaks the rule, with `Then the input is rejected by "<invariant URN>"`. Refer to [Add an invariant](add-an-invariant).
 4. Run Cucumber, and make sure that the new scenarios pass. Gate 3 shows only that the values are present. The test run shows that they give the correct result.
