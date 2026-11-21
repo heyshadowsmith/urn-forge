@@ -167,17 +167,38 @@ function sameValue(actual: unknown, expected: unknown): boolean {
   return actual === expected || (Number.isNaN(actual) && Number.isNaN(expected));
 }
 
+/** A text longer than this is shown shortened, and so is a list with more items (formula cells plan, decision 11). */
+const SHOWN_CHARACTERS = 60;
+const SHOWN_ITEMS = 10;
+
+/** A value for a message: a long text shows its first 40 characters and its length; a long list its first 3 items and its length. */
 function show(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(show).join(', ')}]`;
+  if (Array.isArray(value)) {
+    if (value.length > SHOWN_ITEMS) return `[${value.slice(0, 3).map(show).join(', ')}, …(${value.length} items)]`;
+    return `[${value.map(show).join(', ')}]`;
+  }
   if (isObject(value)) return `{ ${Object.entries(value).map(([k, v]) => `${k}: ${show(v)}`).join(', ')} }`;
-  return value === undefined ? 'absent' : String(value);
+  if (value === undefined) return 'absent';
+  const text = String(value);
+  const characters = [...text];
+  return characters.length > SHOWN_CHARACTERS ? `${characters.slice(0, 40).join('')}…(${characters.length} characters)` : text;
+}
+
+/** Where two long texts first differ, when a shortened message would hide it. */
+function firstDifference(expected: unknown, actual: unknown): string {
+  if (typeof expected !== 'string' || typeof actual !== 'string') return '';
+  const [e, a] = [[...expected], [...actual]];
+  if (e.length <= SHOWN_CHARACTERS && a.length <= SHOWN_CHARACTERS) return '';
+  let at = 0;
+  while (at < e.length && at < a.length && e[at] === a[at]) at += 1;
+  return ` (first difference at character ${at + 1})`;
 }
 
 /** One `key: expected …, got …` entry for each expected key whose value differs; `undefined` expects the key to be absent. */
 function differences(actual: Record<string, unknown>, expected: Record<string, unknown>): string[] {
   return Object.entries(expected)
     .filter(([key, value]) => !sameValue(actual[key], value))
-    .map(([key, value]) => `${key}: expected ${show(value)}, got ${show(actual[key])}`);
+    .map(([key, value]) => `${key}: expected ${show(value)}, got ${show(actual[key])}${firstDifference(value, actual[key])}`);
 }
 
 function describeFailure(result: Extract<ExecuteResultLike, { ok: false }>): string {

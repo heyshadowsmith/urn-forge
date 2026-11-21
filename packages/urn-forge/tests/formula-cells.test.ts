@@ -102,3 +102,14 @@ describe('each long value is refused at the boundary', async () => {
     expect(result).toMatchObject({ ok: false, kind: 'InputRejected', issues: [expect.objectContaining({ path: expect.stringMatching(new RegExp(`^${field}`)) })] });
   });
 });
+
+describe('failure messages shorten a long value', async () => {
+  const { assertOutput, readCell } = await import('../src/gherkin/steps.js').then(async (steps) => ({ ...steps, ...(await import('../src/gherkin/cells.js')) }));
+  it('shows a long list and a long text by their start and their length', () => {
+    const items = readCell('=repeat(10000, fire)', { primitive: 'enum', many: true });
+    const result = { ok: true as const, output: { perils: ['fire'], note: `${'x'.repeat(150)}y` } };
+    expect(() => assertOutput(result, { perils: items, note: 'x'.repeat(151) }, 'op')).toThrow(
+      'op output differs: perils: expected [fire, fire, fire, …(10000 items)], got [fire]; note: expected xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(151 characters), got xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…(151 characters) (first difference at character 151)',
+    );
+  });
+});
