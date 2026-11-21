@@ -23,7 +23,7 @@ The texts come from `src/gherkin/phrases.ts`. Gate 3 reads the same texts.
 - The library registers the first step with `When` and the other steps with `Then`. Cucumber does not compare the keyword, so `Given`, `And` and `But` also match.
 - `{string}` accepts text in double quotes or in single quotes. Gate 3 reads both forms of `the operation fails with`, of `the input is rejected by`, of `the operation emits` and of `the refusal is recorded as`.
 - The `<field>` is a property name of the input entity, for example `weight_grams` or `coverages`. It cannot be a property of an embedded entity, for example `limit`. The `<error URN>` is the full URN of the error, and the `<event URN>` is the full URN of the event. The `<invariant URN>` is the full URN of the invariant, for example `urn:acme:insurance:policy:invariant:term_is_positive`.
-- An issue of an invariant is on the first field that its rule names. Thus `the input is rejected on "expiry_date"` also passes if `term_is_positive` refuses the input. Use `the input is rejected by` to name the rule.
+- An issue of an invariant is on its `reportOn` property, else on the first field that its rule names. Thus `the input is rejected on "expiry_date"` also passes if `term_is_positive` refuses the input. Use `the input is rejected by` to name the rule.
 - `the operation emits` does not examine the count or the sequence of the events. If the operation emits two events with one URN, the step passes if one of them agrees with the table.
 - `the operation emits no event` passes after a `DomainError`, because a refusal never has events. It fails after `InputRejected`, `ContractViolation` and `UnknownOperation`. The `record` of a `DomainError` is not an emitted event.
 

@@ -614,6 +614,7 @@ A new name with `as` is a removal and an addition. A removed property with a dep
 | A new invariant | Narrower, on the uses of its entity in the old manifest |
 | A changed `rule` or `on` of an invariant | Neither |
 | A changed `message` of an invariant or an error | `compatible` |
+| A changed `reportOn` of an invariant, or a new or removed one, that moves the issue to a different field | `compatible`: `reports its issue on "<a>" → "<b>"` |
 | A changed `category` or `retryable` of an error | Neither, on the uses of the error |
 | A new `recordAs` on an error | Compatible: `adds the record <event urn>` |
 | A removed `recordAs` | Wider, on the uses of the error |

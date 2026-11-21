@@ -185,6 +185,7 @@ policy.invariant.deductible_below_premium:
 | `on` | string | Yes | — | A short key of an entity in this manifest (pass 4). A different kind causes `wrong-ref-kind` |
 | `rule` | string | Yes | — | Not empty. A condition in the [rule language](./rule-language) over the property names of the `on` entity (pass 6) |
 | `message` | string | Yes | — | Not empty. The message of the issue if the rule does not hold. It has no placeholders |
+| `reportOn` | string | No | The first property that the rule names | A property name of the `on` entity that the rule names, as the rule writes it. The issue goes on it. Else `invalid-report-on` (pass 6) |
 
 - An invariant holds for each value of its entity: the input of an operation, its output, or both.
 - A rule can name only properties of the `on` entity. It cannot name a property of an embedded entity. The invariants of the embedded entity apply inside it.

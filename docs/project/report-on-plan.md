@@ -63,20 +63,26 @@ Step 0 adds the two fixtures. Until step 1, `compile` refuses `reportOn` with `u
 
 One PR (decision 11), one commit per step. Each step leaves the repository green and ends with a check.
 
-- [ ] **0. The target.** As above. *Check:* `compile` gives exactly one `unknown-property` for each `reportOn`.
-- [ ] **1. Manifest, IR and pass 6.** `reportOn` in the invariant schema; `reportOn?` on `IRInvariant`; `invalid-report-on` when the rule does not name the property. *Check:* the fixtures compile; a case for a property that the rule does not name, and for one that the entity does not have; the IRs of the other domains do not change.
-- [ ] **2. Valibot and the runtime.** The `v.forward` path is `reportOn`, else the first field. *Check:* the expected schemas of the fixtures; a parse of the restaurant request gives the issue on `deposit`, with the `fieldUrn` of `deposit`; `rejected on "deposit"` passes in a scenario.
-- [ ] **3. `diff`, docs and notes.** *Check:* a diff case for a changed `reportOn` (compatible); CI green; every sabotage below fails.
+- [x] **0. The target.** As above. *Check:* `compile` gives exactly one `unknown-property` for each `reportOn`.
+  - *Done.* The check was met: one `unknown-property` for each of the two fixtures. The restaurant fixture also has a property with `as` (`guest_notes`), to test decision 2. The target went in with step 1, because CI compiles the fixtures.
+- [x] **1. Manifest, IR and pass 6.** `reportOn` in the invariant schema; `reportOn?` on `IRInvariant`; `invalid-report-on` when the rule does not name the property. *Check:* the fixtures compile; a case for a property that the rule does not name, and for one that the entity does not have; the IRs of the other domains do not change.
+  - *Done.* The check was met: gate 4 passes for every domain with no compile. `namesIn` gives the properties of a rule, in a value or in a presence condition. The message says which of two faults it is: a property that the rule does not name, or no property of the entity (also a short key).
+- [x] **2. Valibot and the runtime.** The `v.forward` path is `reportOn`, else the first field. *Check:* the expected schemas of the fixtures; a parse of the restaurant request gives the issue on `deposit`, with the `fieldUrn` of `deposit`; `rejected on "deposit"` passes in a scenario.
+  - *Done.* The check was met. Only one line of the generator changed; the runtime finds the `fieldUrn` from the path, as before, so it needed no change.
+- [x] **3. `diff`, docs and notes.** *Check:* a diff case for a changed `reportOn` (compatible); CI green; every sabotage below fails.
+  - *Done.* `diff` compares the field that the issue goes on, not the key: `reportOn` set to the field that was first already moves nothing, so it is no change. A move is `reports its issue on "qty" → "pack"` (case `invariant-report-on`). The advice in Add an invariant to write the rule in another order is replaced by a section on `reportOn`.
 
 ## Done
 
 | Sabotage | What catches it | Result |
 | --- | --- | --- |
-| `reportOn: seats`, which the rule does not name | Pass 6, `invalid-report-on` | |
-| `reportOn: nope`, which the entity does not have | Pass 6, `invalid-report-on` | |
-| `reportOn: booking.field.deposit`, a short key | Pass 6, `invalid-report-on` | |
-| `reportOn` on a manifest that had none | No fingerprint changes in the other domains | |
-| A scenario `rejected on "party_size"` for the restaurant rule with `reportOn: deposit` | Cucumber: the issue is on `deposit` | |
+| `reportOn: seats`, which the rule does not name | Pass 6, `invalid-report-on` | Caught: `is a property that the rule does not name` |
+| `reportOn: nope`, which the entity does not have | Pass 6, `invalid-report-on` | Caught: `is not a property of the entity` |
+| `reportOn: booking.field.deposit`, a short key | Pass 6, `invalid-report-on` | Caught: `is not a property of the entity` |
+| `reportOn` on a manifest that had none | No fingerprint changes in the other domains | Met: gate 4 passes for each domain, and no insurance invariant has the key in its IR |
+| A scenario `rejected on "party_size"` for the restaurant rule with `reportOn: deposit` | Cucumber: the issue is on `deposit` | Caught: `rejected the input, but not on "party_size"` |
+
+**Met.**
 
 ## Risks
 

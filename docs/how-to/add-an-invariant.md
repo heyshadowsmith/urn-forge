@@ -87,10 +87,36 @@ fingerprint sha256:04b8be134285c63b71d20830b972a6ce13674939834448d2ee98a85c4d3f6
 
 The `deprecated-ref` warning is about the field `note`, which the insurance domain retires. It does not stop `compile`. Refer to [Retire a URN](retire-a-urn).
 
-The schema of the entity now checks each of its invariants. If a rule does not hold, the issue points at the first field that the rule names. For `term_is_positive`, that field is `expiry_date`. Thus write first the field that the caller must correct. For example, `deposit is present or party <= 6` puts the issue on `deposit`, and `party <= 6 or deposit is present` puts it on `party`. Both rules hold for the same values. The issue also carries the URN of the invariant in `invariantUrn`. For an invariant of an embedded entity, the path of the issue goes into the object, for example `coverages.0.limit`. Refer to [The generated schemas](../reference/generated-schemas).
+The schema of the entity now checks each of its invariants. If a rule does not hold, the issue points at the first field that the rule names. For `term_is_positive`, that field is `expiry_date`. To put the issue on a different field, give `reportOn` the name of a property that the rule names. Refer to [Report the issue on the field to correct](#report-the-issue-on-the-field-to-correct). The issue also carries the URN of the invariant in `invariantUrn`. For an invariant of an embedded entity, the path of the issue goes into the object, for example `coverages.0.limit`. Refer to [The generated schemas](../reference/generated-schemas).
 
 The insurance domain also enables the `postgres` plugin. It writes each invariant as a `CHECK` constraint with the identifier of the invariant as its name, for example `term_is_positive`. Refer to [Store entities in Postgres](store-in-postgres).
 
+
+### Report the issue on the field to correct
+
+A form puts each issue next to its input. Thus the issue must be on the field that the caller can correct. This rule refuses a party of 7 or more with no deposit:
+
+```yaml
+booking.invariant.large_party_has_deposit:
+  description: A party of 7 or more pays a deposit
+  on: booking.entity.request
+  rule: party_size <= 6 or deposit is present
+  reportOn: deposit
+  message: A party of 7 or more must pay a deposit
+```
+
+Without `reportOn`, the issue is on `party_size`, the first field of the rule. With it, a party of 7 with no deposit gives this issue:
+
+```json
+{ "path": "deposit", "fieldUrn": "urn:demo:resto:booking:field:deposit", "invariantUrn": "urn:demo:resto:booking:invariant:large_party_has_deposit", "message": "A party of 7 or more must pay a deposit" }
+```
+
+- `reportOn` is a property name of the `on` entity, as the rule writes it. With `as`, it is the `as` name. It is not a short key.
+- The rule must name the property, also in a presence condition. If not, `compile` stops with `invalid-report-on`.
+- Use `reportOn` and not a new order of the rule. A guarded field must be on the left, so an order cannot always put the issue where you want it. A changed rule is also a breaking change in `urn-forge diff`, and a changed `reportOn` is compatible.
+- `Then the input is rejected on "deposit"` follows the issue, so it passes for this rule.
+
+The example is the fixture `tests/fixtures/report-on/` of the urn-forge repository, which `tests/report-on.test.ts` tests.
 ## 4. Fix the rule problems
 
 Pass 6 examines each rule against the fields of its entity. If a rule is not correct, `compile` writes no files. Each problem gives the line and column of the rule in the manifest, and the column in the rule.

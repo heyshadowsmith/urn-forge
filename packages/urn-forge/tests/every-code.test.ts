@@ -165,6 +165,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'unknown-rule-field': () => invariant('expiry > effective_date'),
   'rule-type': () => invariant('premium > effective_date'),
   'unguarded-field': () => invariant('deductible < premium'),
+  'invalid-report-on': () => invariant('expiry_date > effective_date\n  reportOn: premium'),
   // Pass 7
   'conflicting-constraints': () => manifest('a.field.b: { primitive: float, min: 0, exclusiveMin: 0 }\n'),
   'incoherent-constraints': () => manifest('a.field.b: { primitive: integer, min: 5, max: 1 }\n'),
