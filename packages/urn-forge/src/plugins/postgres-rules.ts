@@ -6,11 +6,12 @@
  *
  * Each comparison follows its primitive, as in the Valibot schema: `decimal` as NUMERIC
  * (exact), `date` as DATE, `timestamp` as TIMESTAMPTZ (instants), the rest as their types.
+ * Days use the date operators of Postgres: `date ± integer` and `date - date`.
  * Integer arithmetic is in BIGINT, so a sum of two INTEGER columns cannot overflow.
  */
 import type { IRPropertyRef, UniversalIR } from '../ir/types.js';
 import type { Primitive } from '../primitives/index.js';
-import type { RuleExpr } from '../rules/index.js';
+import { valueType, type RuleExpr } from '../rules/index.js';
 import { ident, literal } from './postgres.plugin.js';
 
 export type RuleSql = { readonly ok: true; readonly sql: string } | { readonly ok: false; readonly reason: string };
@@ -53,11 +54,7 @@ export function ruleSql(ir: UniversalIR, rule: RuleExpr, properties: readonly IR
     }
     return ident(name);
   };
-  const typeOf = (e: RuleExpr): Primitive | undefined => {
-    if (e.op === 'field') return primitiveOf(e.name);
-    if (e.op === '+' || e.op === '-') return typeOf(e.left) ?? typeOf(e.right);
-    return undefined;
-  };
+  const typeOf = (e: RuleExpr): Primitive | undefined => valueType(e, primitiveOf);
 
   const value = (e: RuleExpr, primitive: Primitive): string => {
     switch (e.op) {
@@ -69,6 +66,13 @@ export function ruleSql(ir: UniversalIR, rule: RuleExpr, properties: readonly IR
         return literalOf(primitive, e);
       case '+':
       case '-': {
+        // Days (date arithmetic plan, decision 8): Postgres's own date - date, date + integer and date - integer.
+        if (typeOf(e.left) === 'date' || typeOf(e.right) === 'date') {
+          if (primitive === 'integer') return `(${value(e.left, 'date')} - ${value(e.right, 'date')})`;
+          // date + integer has no form for BIGINT, so a column or a sum of days is cast to INTEGER.
+          const days = e.right.op === 'number' ? e.right.value : `${value(e.right, 'integer')}::INTEGER`;
+          return `(${value(e.left, 'date')} ${e.op} ${days})`;
+        }
         const [left, right] = [value(e.left, primitive), value(e.right, primitive)];
         return primitive === 'integer' ? `(${left}::BIGINT ${e.op} ${right})` : `(${left} ${e.op} ${right})`;
       }

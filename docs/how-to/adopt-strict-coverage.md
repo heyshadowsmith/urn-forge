@@ -36,11 +36,11 @@ The commands on this page ran in a clone of the urn-forge repository, from `pack
    For example, take a copy of the insurance domain without `boundaryCoverage: 'error'`. Remove the strict tag of `issue_policy.feature` and the scenario that breaks `term_is_positive`. Gate 3 then shows this:
 
    ```
-   gate 3  gherkin       PASS  2 feature(s), 12 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 3/4 invariants broken, strict: 1/2 features
+   gate 3  gherkin       PASS  2 feature(s), 14 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/5 invariants broken, strict: 1/2 features
        insurance/features  warning  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
    ```
 
-   `3/4 invariants broken` shows that a scenario breaks three invariants of four. The count includes `limit_is_positive`, an invariant of the coverage that the policy embeds.
+   `4/5 invariants broken` shows that a scenario breaks four invariants of five. The count includes `limit_is_positive`, an invariant of the coverage that the policy embeds.
 
 4. Read the path after `at`, if a message has one. A value inside an embedded entity has the boundary cases of its field, at any depth. A list of entities also needs its item counts, and a list with a repeated key if it is `unique`. Remove the rows of the list that is too long and of the repeated peril from the strict insurance feature. Gate 3 then shows this:
 

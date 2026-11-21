@@ -14,9 +14,9 @@ The commands on this page ran in a clone of the urn-forge repository, from `pack
 
 ## 1. Write the invariant
 
-Add an entry with the short key `<context>.invariant.<identifier>`. The insurance manifest has four invariants (highlighted):
+Add an entry with the short key `<context>.invariant.<identifier>`. The insurance manifest has five invariants (highlighted). The last one counts days:
 
-<<< @/../packages/urn-forge/insurance/domain.manifest.yaml{114-133 yaml}
+<<< @/../packages/urn-forge/insurance/domain.manifest.yaml{114-133,179-183 yaml}
 
 | Key | Value |
 | --- | --- |
@@ -26,7 +26,7 @@ Add an entry with the short key `<context>.invariant.<identifier>`. The insuranc
 | `message` | Necessary. The text of the issue when the rule does not hold |
 
 - Do not list the invariant on the entity. The link is `on` only, so the two places cannot disagree.
-- One entity can have more than one invariant. `policy.entity.policy` has two.
+- One entity can have more than one invariant. `policy.entity.policy` has three.
 - The rule can name only properties of the `on` entity. To make a rule over the fields of an embedded entity, put `on` on the embedded entity. `limit_is_positive` is on `policy.entity.coverage`, not on the policy.
 
 A rule compares fields and literals:
@@ -34,6 +34,7 @@ A rule compares fields and literals:
 - `expiry_date > effective_date` compares two fields of one primitive.
 - `cancellation_date >= effective_date and cancellation_date <= expiry_date` joins two comparisons with `and`.
 - A text literal is in single quotes, for example `'2026-01-01'` for a `date`. The other side of the comparison gives its type.
+- `expiry_date - effective_date <= 366` counts the days between two dates. A rule can also add days to a date: `due_date <= loan_date + 28`. The unit is the day. Refer to [Days](../reference/rule-language#days).
 
 For each operator and the types that it accepts, refer to [The rule language](../reference/rule-language).
 
@@ -81,7 +82,7 @@ insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insuranc
 wrote      insurance/generated/domain.runtime.generated.ts
 wrote      insurance/generated/domain.schemas.generated.ts
 wrote      insurance/generated/schema.generated.sql
-fingerprint sha256:f72f538c562a7bf23f518078548823cbd2d25d9125377d8c83bf9a42eebe1128
+fingerprint sha256:04b8be134285c63b71d20830b972a6ce13674939834448d2ee98a85c4d3f6764
 ```
 
 The `deprecated-ref` warning is about the field `note`, which the insurance domain retires. It does not stop `compile`. Refer to [Retire a URN](retire-a-urn).
@@ -193,13 +194,13 @@ npx urn-forge verify --config insurance/urn-forge.config.ts
 The gate 3 summary counts the invariants that a scenario breaks:
 
 ```
-gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 ```
 
 Each invariant on the input entity of a tagged operation needs a scenario that breaks it. An invariant of an entity that the input embeds counts as an invariant of the input. If no scenario breaks one, gate 3 reports `uncovered-invariant`. The insurance features are strict, so it is an error. Here the scenario of lines 72 to 76 is not there:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 12 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 14 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:limit_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:limit_is_positive"
 ```
 
@@ -245,7 +246,7 @@ To fix it, correct the handler. Do not remove the invariant to make the scenario
 insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
 gate 1  completeness  PASS  tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
-gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 gate 4  drift         PASS  3 generated file(s) compared byte for byte against insurance/generated
 verify passed with 1 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```

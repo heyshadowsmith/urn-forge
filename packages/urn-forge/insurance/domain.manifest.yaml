@@ -174,3 +174,10 @@ policy.operation.cancel_policy:
   errors:
     - policy.error.refund_below_minimum
   emits: [policy.event.policy_cancelled]
+
+# Days (date arithmetic plan): at the end, so the line numbers that the docs quote do not move.
+policy.invariant.term_at_most_a_year:
+  description: A policy lasts one year at most, also in a leap year
+  on: policy.entity.policy
+  rule: expiry_date - effective_date <= 366
+  message: A policy can last 366 days at most

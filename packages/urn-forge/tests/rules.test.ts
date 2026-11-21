@@ -107,7 +107,7 @@ describe('checkRule (pass 6)', () => {
 
   it('refuses an order on a primitive without one, and arithmetic outside integer and decimal', () => {
     expect(problems("tier < 'gold'")).toEqual([['rule-type', 1, '"<" needs an order, which enum does not have; use = or !=']]);
-    expect(problems('ratio + 1 > 2')).toEqual([['rule-type', 1, '"+" works on integer and decimal only, not on float']]);
+    expect(problems('ratio + 1 > 2')).toEqual([['rule-type', 1, '"+" works on integer, decimal and date only, not on float']]);
   });
 
   it('needs conditions where logic is, and values where comparisons are', () => {
@@ -127,5 +127,42 @@ describe('checkRule (pass 6)', () => {
   it('refuses a list outside presence, and presence of a required field', () => {
     expect(problems("tags = 'a'")).toEqual([['rule-type', 1, '"tags" is a list; a rule can use it only in "tags is present" or "tags is absent"']]);
     expect(problems('premium is present')).toEqual([['rule-type', 1, '"premium" is required, so "premium is present" is always true']]);
+  });
+});
+
+describe('days (date arithmetic plan)', () => {
+  it('accepts a date plus or minus days, and the days between two dates', () => {
+    for (const rule of [
+      'expiry_date <= effective_date + 28',
+      'effective_date - 7 < expiry_date',
+      'expiry_date - effective_date <= 366',
+      'expiry_date <= effective_date + count',
+      "effective_date - '2026-01-01' >= 0",
+      "'2027-01-01' - effective_date >= 0",
+      'expiry_date - effective_date - 1 >= count',
+      'expiry_date <= effective_date + (expiry_date - effective_date)',
+      "effective_date + 1 > '2026-01-01'",
+    ]) {
+      expect(problems(rule), rule).toEqual([]);
+    }
+  });
+
+  it('refuses each other form, with what to write', () => {
+    expect(problems('effective_date + expiry_date > effective_date')).toEqual([['rule-type', 1, '"+" cannot add two dates; "-" of two dates gives the days between them']]);
+    expect(problems('28 + effective_date > expiry_date')).toEqual([['rule-type', 1, '"+" needs the date on the left and an integer of days on the right']]);
+    expect(problems('count - effective_date > 0')).toEqual([['rule-type', 1, '"-" needs the date on the left and an integer of days on the right']]);
+    expect(problems('effective_date + 1.5 > expiry_date')).toEqual([['rule-type', 1, '1.5 is not an integer, so it cannot be the days in "+"']]);
+    expect(problems("effective_date + '7' > expiry_date")).toEqual([['rule-type', 1, '\'7\' is not an integer, so it cannot be the days in "+"']]);
+    expect(problems("effective_date - 'soon' > 0")).toEqual([['rule-type', 1, "'soon' is not a date in quotes, such as '2026-01-31', so it cannot meet a date in \"-\""]]);
+    expect(problems('effective_date + premium > expiry_date')).toEqual([['rule-type', 1, '"+" adds an integer of days to a date, not a decimal']]);
+    expect(problems('effective_date - premium > expiry_date')).toEqual([['rule-type', 1, '"-" takes an integer of days from a date, not a decimal']]);
+    expect(problems('at + 1 > at')).toEqual([['rule-type', 1, '"+" works on integer, decimal and date only, not on timestamp']]);
+    // The days between two dates are an integer, not a date.
+    expect(problems('expiry_date - effective_date > effective_date')).toEqual([['rule-type', 1, '">" has an integer on the left and a date on the right; both sides must have one primitive']]);
+  });
+
+  it('prints the canonical text as written', () => {
+    expect(canonical('(expiry_date - effective_date) - 1 >= count')).toBe('expiry_date - effective_date - 1 >= count');
+    expect(canonical('expiry_date <= (effective_date + 28)')).toBe('expiry_date <= effective_date + 28');
   });
 });

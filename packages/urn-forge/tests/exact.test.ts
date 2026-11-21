@@ -5,14 +5,15 @@
  */
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { compareDecimal, fractionDigits, isCalendarDate, isUtcTimestamp } from '../src/primitives/exact.js';
+import { addDays, compareDecimal, epochDay, fractionDigits, isCalendarDate, isUtcTimestamp } from '../src/primitives/exact.js';
 import { VALIBOT_HELPERS } from '../src/plugins/valibot-helpers.js';
 
-const source = `${Object.values(VALIBOT_HELPERS).join('\n\n')}\nreturn { compareDecimal, decimalFraction, isCalendarDate, isUtcTimestamp, DECIMAL };`;
+const source = `${Object.values(VALIBOT_HELPERS).join('\n\n')}\nreturn { compareDecimal, decimalFraction, epochDay, isCalendarDate, isUtcTimestamp, DECIMAL };`;
 const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 const generated = new Function(js)() as {
   compareDecimal(a: string, b: string): number;
   decimalFraction(value: string): number;
+  epochDay(value: string): number;
   isCalendarDate(value: string): boolean;
   isUtcTimestamp(value: string): boolean;
 };
@@ -60,6 +61,19 @@ describe('calendar days and instants', () => {
     samples.push('2024-02-29', '2100-02-29', '2000-02-29', '0001-01-01', '0050-06-15', '2026-1-1', 'x');
     for (const s of samples) expect(generated.isCalendarDate(s), s).toBe(isCalendarDate(s));
     expect(samples.filter((s) => isCalendarDate(s)).length).toBe(365 + 366 + 365 + 4);
+  });
+
+  it('count days the same way, one day at a time, from year 1 to year 9999', () => {
+    expect(epochDay('1970-01-01')).toBe(0);
+    expect(epochDay('2026-11-21')).toBe(Date.UTC(2026, 10, 21) / 86_400_000);
+    // Each step of addDays is one day more; the two copies agree at every step.
+    for (const start of ['0001-01-01', '1899-12-25', '1999-12-25', '2028-02-20', '2100-02-20', '9999-12-01']) {
+      let day = start;
+      for (let i = 0; i < 40 && isCalendarDate(day); i++, day = addDays(day, 1)) {
+        expect(epochDay(day), day).toBe(epochDay(start) + i);
+        expect(generated.epochDay(day), day).toBe(epochDay(day));
+      }
+    }
   });
 
   it('agree on timestamps', () => {

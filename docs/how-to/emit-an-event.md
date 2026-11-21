@@ -65,7 +65,7 @@ insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insuranc
 wrote      insurance/generated/domain.runtime.generated.ts
 wrote      insurance/generated/domain.schemas.generated.ts
 wrote      insurance/generated/schema.generated.sql
-fingerprint sha256:f72f538c562a7bf23f518078548823cbd2d25d9125377d8c83bf9a42eebe1128
+fingerprint sha256:04b8be134285c63b71d20830b972a6ce13674939834448d2ee98a85c4d3f6764
 ```
 
 The generated runtime now has `emit`, and the result type of each handler allows only the events of its operation. The `deprecated-ref` warning is about the field `note`. Refer to [Retire a URN](retire-a-urn).
@@ -148,7 +148,7 @@ Error: urn:acme:insurance:policy:event:policy_cancelled fields differ: cancellat
 Gate 3 counts the events that a scenario expects. Each event of a tagged operation needs a scenario that expects it. If no scenario expects one, gate 3 reports `uncovered-event`. The insurance features are strict, so it is an error. Here lines 12 to 14 of `cancel_policy.feature` are not there:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-event  event urn:acme:insurance:policy:event:policy_cancelled of urn:acme:insurance:policy:operation:cancel_policy has no scenario that expects it; add one with Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"
 ```
 
@@ -157,7 +157,7 @@ In a feature that is not strict, it is a warning. Refer to [Adopt strict coverag
 If a step names an event that the operation does not list, gate 3 reports `undeclared-event`. Here line 12 names `policy_issued`:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features/cancel_policy.feature:12:5  error  undeclared-event  "urn:acme:insurance:policy:event:policy_issued" is not an event of urn:acme:insurance:policy:operation:cancel_policy (emits: urn:acme:insurance:policy:event:policy_cancelled)
     insurance/features  error  uncovered-event  event urn:acme:insurance:policy:event:policy_cancelled of urn:acme:insurance:policy:operation:cancel_policy has no scenario that expects it; add one with Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"
 ```
@@ -247,7 +247,7 @@ The fields of an event have the Out use, as the fields of an output do. Refer to
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
-gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 gate 4  drift         PASS  3 generated file(s) compared byte for byte against insurance/generated
 ```
 

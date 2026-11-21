@@ -86,23 +86,30 @@ Until step 1, `compile` refuses each new rule with `rule-type` (`"+" works on in
 
 One PR (decision 14), one commit per step. Each step leaves the repository green and ends with a check.
 
-- [ ] **0. The target.** As above. *Check:* `compile` gives exactly one `rule-type` for each new invariant, with the message of today.
-- [ ] **1. The type checker.** The three operations, the literal typing of decision 3, the `rule-type` messages for the refused forms (`"+" needs the date on the left and an integer of days on the right`, `"-" of two dates gives days; it cannot be part of a date`), and the guards. *Check:* the fixture compiles; a case for each refused form gives its message; the IRs of the other domains and their fingerprints do not change.
-- [ ] **2. Valibot.** `epochDay` in the generated schemas when a rule needs it; the translation of decision 7. *Check:* the expected schemas of the fixture; a test for each rule at its edge (`28` days passes, `29` fails), across a month end, a year end and 29 February; the insurance scenario passes.
-- [ ] **3. Postgres.** The native translation. *Check:* the expected SQL of the fixture; on PGlite, the insurance CHECK accepts 366 days and refuses 367, with the URN of the invariant in the mapped error.
-- [ ] **4. Ship.** The docs and the notes of this plan. *Check:* CI green; every sabotage below fails.
+- [x] **0. The target.** As above. *Check:* `compile` gives exactly one `rule-type` for each new invariant, with the message of today.
+  - *Done.* The check was met: five `rule-type` problems, one for each rule, with three different messages of today (`28 is not a date …`, `"-" works on integer and decimal only …`, and `"+" has a date on the left and an integer on the right …`). The fixture uses its own fields: `dt1`, `dt2`, and `i1` as the days. As planned, the fixture rules went in with step 2, and insurance with step 3.
+- [x] **1. The type checker.** The three operations, the literal typing of decision 3, the `rule-type` messages for the refused forms (`"+" needs the date on the left and an integer of days on the right`, `"-" of two dates gives days; it cannot be part of a date`), and the guards. *Check:* the fixture compiles; a case for each refused form gives its message; the IRs of the other domains and their fingerprints do not change.
+  - *Done.* The check was met: gate 4 passes for every domain with no compile, so no fingerprint changed. The message for an arithmetic on a primitive with none (`"+" works on integer, decimal and date only, not on timestamp`) now comes before the message for a literal that does not fit it. `valueType` gives the primitive of each value to both translations, so the two cannot disagree about a type.
+- [x] **2. Valibot.** `epochDay` in the generated schemas when a rule needs it; the translation of decision 7. *Check:* the expected schemas of the fixture; a test for each rule at its edge (`28` days passes, `29` fails), across a month end, a year end and 29 February; the insurance scenario passes.
+  - *Done*, in one commit with step 3, because the Postgres tests run the same edge cases (`tests/rule-cases.ts`) as the Valibot tests. A date with no days in its comparison still compares as text, so no generated file of the other domains changed. A test runs `epochDay` one day at a time from the year 1 to the year 9999, in both copies (the generated helper and `src/primitives/exact.ts`).
+- [x] **3. Postgres.** The native translation. *Check:* the expected SQL of the fixture; on PGlite, the insurance CHECK accepts 366 days and refuses 367, with the URN of the invariant in the mapped error.
+  - *Done.* The check was met. One finding: Postgres has `date + integer` but not `date + bigint`, and an `integer` column can be `BIGINT`. A field or a sum used as days is cast to `INTEGER`; a number stays a number. Every edge case agrees with the Valibot rule, also the year 1 minus 7 days (a day BC in Postgres) and `9999-12-31` plus 28 days. The insurance invariant and its two scenarios are at the end of their files, so the line numbers that the docs quote did not move.
+- [x] **4. Ship.** The docs and the notes of this plan. *Check:* CI green; every sabotage below fails.
+  - *Done.* New section [Days](../reference/rule-language#days) in the rule language reference, and updates in the Postgres schema reference, Add an invariant, the primitives model, and the departures from the spec. Each quoted output of the insurance domain changed by the new invariant and its two scenarios was run again.
 
 ## Done
 
 | Sabotage | What catches it | Result |
 | --- | --- | --- |
-| `loan_date + due_date` | Pass 6, `rule-type` | |
-| `28 + loan_date` | Pass 6, `rule-type` (the date goes on the left) | |
-| `loan_date + 1.5` | Pass 6, `rule-type` (`1.5 is not an integer`) | |
-| `at + 1`, with `at` a `timestamp` | Pass 6, `rule-type` | |
-| `epochDay` off by one day across a month end | The edge tests of step 2 | |
-| A CHECK that differs from the TypeScript at 29 February | The PGlite test of step 3, with the same dates | |
-| The 367-day scenario removed | Gate 3, `uncovered-invariant` | |
+| `loan_date + due_date` | Pass 6, `rule-type` | Caught: `"+" cannot add two dates; "-" of two dates gives the days between them` |
+| `28 + loan_date` | Pass 6, `rule-type` (the date goes on the left) | Caught: `"+" needs the date on the left and an integer of days on the right` |
+| `loan_date + 1.5` | Pass 6, `rule-type` (`1.5 is not an integer`) | Caught: `1.5 is not an integer, so it cannot be the days in "+"` |
+| `at + 1`, with `at` a `timestamp` | Pass 6, `rule-type` | Caught: `"+" works on integer, decimal and date only, not on timestamp` |
+| `epochDay` off by one day across a month end | The edge tests of step 2 | Caught: a helper one day off in March fails the edge test at `2028-03-01` (`expected 21245 to be 21244`), and the generated file no longer matches the fixture |
+| A CHECK that differs from the TypeScript at 29 February | The PGlite test of step 3, with the same dates | Met: both agree on every case; the first form of the SQL, with no cast, was refused by Postgres for a `BIGINT` column |
+| The 367-day scenario removed | Gate 3, `uncovered-invariant` | Caught, before the scenario was written |
+
+**Met.**
 
 ## Risks
 
