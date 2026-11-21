@@ -84,27 +84,35 @@ Step 0 deprecates `policy.field.note` in `insurance/`, superseded by a new `poli
 
 One PR (decision 18), one commit per step. Each step leaves the repository green and ends with a check.
 
-- [ ] **0. The target.** As above. *Check:* `compile` refuses exactly the three lifecycle keys.
-- [ ] **1. Lifecycle in the manifest and the IR.** The keys on every kind, `lifecycle?` in the IR and the fingerprint, `supersededBy` in pass 4, `invalid-lifecycle`. *Check:* insurance compiles to an IR with one `lifecycle`; the other IRs and fixtures do not change.
-- [ ] **2. Pass 8 and the generated code.** The reference date from the CLI and the config; `deprecated-ref` and `sunset-ref`; sunset atoms out of the plugins and the gates; `@deprecated` and the SQL comment. *Check:* insurance compiles with one warning, `deprecated-ref` for the coverage's note; a fixture for each code; a sunset field generates no schema, no column and no domain.
-- [ ] **3. The classifier.** Uses from the IR and the config; each table of this plan as code, typed so that a new primitive or constraint without a comparison fails `tsc`. *Check:* every pair in `tests/diff/` gives its expected report.
-- [ ] **4. The `diff` command.** Two manifests and an optional config; text and `--format json`; exit code 1 for a breaking change to a live URN; warnings while experimental. *Check:* `diff` of insurance against its version on `main` reports one lifecycle change and the new optional `remark`, and no breaking change.
-- [ ] **5. Ship.** A CI job that runs `diff` for each domain against the merge base; the docs (manifest, passes, CLI, diagnostics, a how-to to retire a URN, a how-to to run `diff` in CI, the explanation of direction of use). *Check:* CI green; every sabotage below fails.
+- [x] **0. The target.** As above. *Check:* `compile` refuses exactly the three lifecycle keys.
+  - *Done*, in two commits. The cases went in first. The insurance change went in with step 1, because CI compiles insurance and a red commit would hide other failures. `compile` reported only the first lifecycle key, `status`: a field's schema is a strict object, and it reports one unknown key.
+- [x] **1. Lifecycle in the manifest and the IR.** The keys on every kind, `lifecycle?` in the IR and the fingerprint, `supersededBy` in pass 4, `invalid-lifecycle`. *Check:* insurance compiles to an IR with one `lifecycle`; the other IRs and fixtures do not change.
+  - *Done.* Pass 1 checks the lifecycle keys apart from each kind's own keys, so no kind changed. Pass 8 came in this step too, because a deprecated note in insurance needs it to compile with a warning. `remark` has `maxLength: 40`, not 500, so the two new boundary rows in insurance's features stay readable.
+- [x] **2. Pass 8 and the generated code.** The reference date from the CLI and the config; `deprecated-ref` and `sunset-ref`; sunset atoms out of the plugins and the gates; `@deprecated` and the SQL comment. *Check:* insurance compiles with one warning, `deprecated-ref` for the coverage's note; a fixture for each code; a sunset field generates no schema, no column and no domain.
+  - *Done*, with one change to decision 5. Without a reference date, a sunset date is not checked at all, not checked as a warning: with no date there is nothing to compare. `verify` then prints `note: sunset dates are not checked: set --reference-date or referenceDate in the config`, and its JSON result has `sunsetDatesChecked: false`. The codes are tested in `tests/lifecycle.test.ts` and `tests/every-code.test.ts`, not in fixtures.
+- [x] **3. The classifier.** Uses from the IR and the config; each table of this plan as code, typed so that a new primitive or constraint without a comparison fails `tsc`. *Check:* every pair in `tests/diff/` gives its expected report.
+  - *Done.* All 34 cases passed at the first run, so I read each message by hand before the commit. The constraint table is typed by primitive (`src/diff/relation.ts`). A unit test covers the edges: exclusive bounds, scale, a `notIn` of decimals by value, a `multipleOf` that is neither a multiple nor a divisor, and timestamps as instants.
+- [x] **4. The `diff` command.** Two manifests and an optional config; text and `--format json`; exit code 1 for a breaking change to a live URN; warnings while experimental. *Check:* `diff` of insurance against its version on `main` reports one lifecycle change and the new optional `remark`, and no breaking change.
+  - *Done.* The check was met: 0 breaking, 2 compatible (the new field and the new optional property), 1 lifecycle. `verify`'s summary now says `gate 5 is urn-forge diff`. The package exports `classify`, `diffManifests`, `usesOf`, `liveIr` and `statusOf`.
+- [x] **5. Ship.** A CI job that runs `diff` for each domain against the merge base; the docs (manifest, passes, CLI, diagnostics, a how-to to retire a URN, a how-to to run `diff` in CI, the explanation of direction of use). *Check:* CI green; every sabotage below fails.
+  - *Done.* `scripts/diff-base.mjs` runs `diff` for each domain against a git ref, and the CI job `compatibility` runs it on each pull request against `HEAD^1`. New pages: [Retire a URN](../how-to/retire-a-urn), [Check compatibility in CI](../how-to/check-compatibility) and [Compatibility and the direction of use](../explanation/compatibility). Two things changed while the docs were written: removing a property whose target was deprecated is a lifecycle change, so a retirement passes gate 5 on its sunset date; and a deprecated-ref stays a warning when a sunset-ref fails the same build. After review, the test domains were decoupled from time and from gate 5: insurance fixes `referenceDate: '2026-11-21'` in its config, so its sunset date can never fail urn-forge's CI on a future day (a unit test checks the failure at 2027-06-30), and the `compatibility` job runs `diff:base --report`, because test domains change on purpose; `tests/diff.test.ts` proves that `diff` fails on a breaking change.
 
 ## Done
 
-| Sabotage | What catches it |
-| --- | --- |
-| `supersededBy` on an active atom | Pass 1, `invalid-lifecycle` |
-| `supersededBy` that names an entity for a field | Pass 4, `wrong-ref-kind` |
-| An active entity that refers to a sunset field | Pass 8, `sunset-ref` |
-| A reference date after `sunsetDate`, with the reference still there | Pass 8, `sunset-ref` |
-| `maxLength` lowered on a field that an operation's input uses | `diff`, `breaking-change` |
-| `maxLength` raised on a field that only an output uses | `diff`, `breaking-change` |
-| The same raise on a field that only an input uses | `diff`: compatible |
-| A new declared error on an operation | `diff`, `breaking-change` |
-| `sunset → active` | `diff`, `breaking-change` |
-| A breaking change in a manifest with `stability: experimental` | `diff`: a warning, exit code 0 |
+| Sabotage | What catches it | Result |
+| --- | --- | --- |
+| `supersededBy` on an active atom | Pass 1, `invalid-lifecycle` | Caught |
+| `supersededBy` that names an entity for a field | Pass 4, `wrong-ref-kind` | Caught |
+| An active entity that refers to a sunset field | Pass 8, `sunset-ref` | Caught |
+| A reference date after `sunsetDate`, with the reference still there | Pass 8, `sunset-ref` | Caught on insurance: `verify --reference-date 2027-06-30` fails on the coverage's note |
+| `maxLength` lowered on a field that an operation's input uses | `diff`, `breaking-change` | Caught on insurance: `remark` 40 → 30 fails `diff:base`, for callers that send it and rows already stored |
+| `maxLength` raised on a field that only an output uses | `diff`, `breaking-change` | Caught (case `output-widened`, with `max`) |
+| The same raise on a field that only an input uses | `diff`: compatible | Met (case `input-widened`) |
+| A new declared error on an operation | `diff`, `breaking-change` | Caught (case `error-added`) |
+| `sunset → active` | `diff`, `breaking-change` | Caught (case `sunset-revived`) |
+| A breaking change in a manifest with `stability: experimental` | `diff`: a warning, exit code 0 | Met (case `experimental`, and the CLI test) |
+
+**Met.**
 
 ## Risks
 

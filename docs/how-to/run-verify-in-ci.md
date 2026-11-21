@@ -1,6 +1,6 @@
 # Run verify in CI
 
-This guide makes `urn-forge verify` a step of a GitHub Actions job, next to the tests and the scenarios. It also turns the problems into annotations on the pull request. A second job makes sure that the output does not depend on the time zone or the locale.
+This guide makes `urn-forge verify` a step of a GitHub Actions job, next to the tests and the scenarios. It also turns the problems into annotations on the pull request. A second job makes sure that the output does not depend on the time zone or the locale. To add gate 5, `urn-forge diff`, refer to [Check compatibility in CI](check-compatibility).
 
 The example is the workflow of the urn-forge repository, `.github/workflows/ci.yml`.
 
@@ -33,6 +33,26 @@ The `traceability` job of urn-forge runs each check in its own step:
 4. If the project is in a subfolder, set `working-directory` on the steps that run urn-forge and Cucumber.
 5. Give `verify` the config of the project with `--config`. Refer to [The CLI](../reference/cli).
 
+## Set the reference date
+
+`verify` compares each `sunsetDate` of the manifest with a reference date. urn-forge never reads the clock. Without a reference date, `verify` does not check the sunset dates. If the manifest has a `sunsetDate`, `verify` shows this note:
+
+```
+note: sunset dates are not checked: set --reference-date or referenceDate in the config
+```
+
+In CI, give the date of the commit to `--reference-date`:
+
+```yaml
+        run: npx urn-forge verify --config example/urn-forge.config.ts --reference-date "$(git log -1 --format=%cs)"
+```
+
+- `%cs` gives the date of the commit as `YYYY-MM-DD`.
+- The date comes from the commit, not from the clock of the runner. Thus a new run of one commit gives the same result.
+- On or after a sunset date, a reference to the atom fails `verify` with `sunset-ref`. Refer to [Retire a URN](retire-a-urn).
+
+You can also set `referenceDate` in the config. `--reference-date` overrides it. Refer to [The configuration file](../reference/configuration).
+
 ## Use the exit code
 
 `verify` stops with one of three exit codes:
@@ -57,7 +77,7 @@ npx urn-forge verify --config example/urn-forge.config.ts --format json
 {"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over example/core.ts; `core` satisfies DomainCoreImplementation"}
 {"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"2 feature(s), 4 scenario(s), 2/2 operations tagged, strict: 2/2 features (boundaryCoverage: error)"}
 {"type":"gate","gate":4,"name":"drift","ok":true,"summary":"2 generated file(s) compared byte for byte against example/generated"}
-{"type":"result","ok":true,"failedGates":[],"warnings":0}
+{"type":"result","ok":true,"failedGates":[],"warnings":0,"sunsetDatesChecked":true}
 ```
 
 Each problem is a line with `"type":"diagnostic"`, before the gate lines:
@@ -110,7 +130,7 @@ A problem without a line, such as `uncovered-error`, has the features folder as 
 
 urn-forge must give the same bytes and the same result in each time zone and locale. The `determinism` job of urn-forge runs the checks again with a Turkish locale and the time zone of the Chatham Islands (UTC+12:45):
 
-<<< @/../.github/workflows/ci.yml{97-130}
+<<< @/../.github/workflows/ci.yml{98-131}
 
 1. Add a job that sets `TZ`, `LANG` and `LC_ALL` in `env`.
 2. Run `compile` for each domain, then `git diff --exit-code`. If `compile` writes a different byte, `git diff` fails the step.
@@ -125,6 +145,7 @@ A pull request that breaks the chain fails the job:
 - A handler that is not there fails the `urn-forge verify` step at gate 1.
 - A table header that is not a field fails it at gate 3.
 - An edit to a generated file fails it at gate 4.
+- A reference to an atom on or after its sunset date fails it before the gates, with `sunset-ref`.
 - A failed scenario fails the `cucumber-js` step.
 
 Each problem of `verify` shows as an annotation on its file and line.

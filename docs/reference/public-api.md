@@ -22,26 +22,39 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 
 | Export | Kind | Signature | Description |
 | --- | --- | --- | --- |
-| `compile` | Function | `compile(manifestSource: string, plugins?: readonly PluginEntry[]): CompileResult` | Runs the [compiler passes](./compiler-passes) and the plugins on the YAML text. It does not read or write files. The default for `plugins` is `DEFAULT_PLUGINS` |
-| `CompileResult` | Type | `{ files: readonly GeneratedArtifact[]; diagnostics: readonly Diagnostic[]; ir?: UniversalIR; fingerprint?: string }` | The result of `compile`. `files` is empty if `diagnostics` has an error. `files` is in path order |
+| `compile` | Function | `compile(manifestSource: string, plugins?: readonly PluginEntry[], options?: CompileOptions): CompileResult` | Runs the [compiler passes](./compiler-passes) and the plugins on the YAML text. It does not read or write files. The default for `plugins` is `DEFAULT_PLUGINS`. The plugins get the live IR |
+| `CompileOptions` | Type | `{ referenceDate?: string }` | The day `YYYY-MM-DD` that pass 8 compares each `sunsetDate` with. Without it, pass 8 does not compare sunset dates |
+| `CompileResult` | Type | `{ files: readonly GeneratedArtifact[]; diagnostics: readonly Diagnostic[]; ir?: UniversalIR; fingerprint?: string }` | The result of `compile`. `files` is empty if `diagnostics` has an error. `files` is in path order. `ir` is the full IR, with the sunset atoms |
 | `PluginEntry` | Type | `{ plugin: CodegenPlugin<any>; config: unknown }` | One plugin and its configuration, in run order |
 | `unsupportedConstructs` | Function | `unsupportedConstructs(ir: UniversalIR, plugin: CodegenPlugin<unknown>): PluginDiagnostic[]` | The `unsupported-construct` diagnostics for each kind, primitive and constraint of the IR that the plugin does not declare in `supports` |
 | `verify` | Function | `verify(options: VerifyOptions): Promise<VerifyResult>` | Reads the manifest, compiles it in memory and runs the gates |
-| `VerifyOptions` | Type | `{ cwd; manifestPath; outDir; corePath; featuresDir; tsconfigPath: string; plugins?; boundaryCoverage?; gates? }` | The input of `verify`. The paths are absolute. The defaults are `DEFAULT_PLUGINS`, `'warn'` and `GATES` |
-| `VerifyResult` | Type | `{ ok: boolean; diagnostics: readonly Diagnostic[]; gates: readonly GateResult[] }` | `ok` is `true` if there is no error. If `diagnostics` has an error, `gates` is empty |
+| `VerifyOptions` | Type | `{ cwd; manifestPath; outDir; corePath; featuresDir; tsconfigPath: string; plugins?; boundaryCoverage?; gates?; referenceDate?: string }` | The input of `verify`. The paths are absolute. The defaults are `DEFAULT_PLUGINS`, `'warn'` and `GATES`. Without `referenceDate`, pass 8 does not compare sunset dates |
+| `VerifyResult` | Type | `{ ok: boolean; diagnostics: readonly Diagnostic[]; gates: readonly GateResult[]; sunsetDatesChecked: boolean }` | `ok` is `true` if there is no error. If `diagnostics` has an error, `gates` is empty. `sunsetDatesChecked` is `false` if the manifest has a `sunsetDate` and there is no `referenceDate` |
 | `GATES` | Constant | `readonly Gate[]` | The gates that `verify` runs, in sequence: `completeness` (1), `gherkin` (3), `drift` (4) |
 | `Gate` | Type | `{ number: GateNumber; name: string; run(context: GateContext): GateOutcome \| Promise<GateOutcome> }` | One gate |
-| `GateContext` | Type | `{ cwd; ir; files; outDir; corePath; tsconfigPath; featuresDir; features; boundaryCoverage }` | The data that each gate can read. `verify` makes it one time |
+| `GateContext` | Type | `{ cwd; ir; files; outDir; corePath; tsconfigPath; featuresDir; features; boundaryCoverage }` | The data that each gate can read. `verify` makes it one time. `ir` is the live IR |
 | `GateNumber` | Type | `1 \| 2 \| 3 \| 4 \| 5` | The number of a gate |
 | `GateOutcome` | Type | `{ summary: string; problems: readonly Diagnostic[] }` | What a gate returns |
 | `GateResult` | Type | `GateOutcome & { gate: GateNumber; name: string; ok: boolean }` | The result of one gate. `ok` is `true` if no problem is an error |
+
+### Diff
+
+| Export | Kind | Signature | Description |
+| --- | --- | --- | --- |
+| `diffManifests` | Function | `diffManifests(oldSource: string, newSource: string, options?: DiffOptions): DiffResult` | Compiles the two YAML texts with no reference date and no plugins, and classifies each change. This is `urn-forge diff` without the files and the output. Refer to [Verification gates](./verification-gates) |
+| `DiffOptions` | Type | `{ tables?: readonly string[] }` | The short keys of the tables of the `postgres` plugin. Their values have the Stored use |
+| `DiffResult` | Type | `{ ok: true; changes: readonly Change[]; breaking: readonly Diagnostic[]; experimental: boolean } \| { ok: false; which: 'old' \| 'new'; diagnostics: readonly Diagnostic[] }` | `ok` is `false` if a manifest does not compile. `which` tells which one. `breaking` has one `breaking-change` diagnostic for each breaking change, with the severity `warning` if `experimental` is `true` |
+| `classify` | Function | `classify(old: UniversalIR, now: UniversalIR, options?: { tables?: readonly Urn[] }): Change[]` | Each change from `old` to `now`, in URN order. `tables` are the URNs of the stored entities. The type of `options` is `ClassifyOptions` |
+| `Change` | Type | `{ class: ChangeClass; urn: string; message: string }` | One change. `urn` is `urn:<namespace>:<domain>` for a change to the manifest itself |
+| `ChangeClass` | Type | `'compatible' \| 'breaking' \| 'lifecycle'` | The class of a change |
+| `usesOf` | Function | `usesOf(ir: UniversalIR, tables?: readonly Urn[]): Map<Urn, Set<'in' \| 'out' \| 'stored'>>` | The uses of each atom of the live IR: In, Out and Stored. An atom with no use is not in the map |
 
 ### Configuration
 
 | Export | Kind | Signature | Description |
 | --- | --- | --- | --- |
 | `defineConfig` | Function | `defineConfig(config: UrnForgeConfig): UrnForgeConfig` | Returns the object without a change. It gives the type only. The same function as in `urn-forge/config` |
-| `UrnForgeConfig` | Type | `{ manifest?; out?; core?; features?; tsconfig?: string; boundaryCoverage?: 'warn' \| 'error'; plugins?: readonly PluginSpec[] }` | The configuration object. Refer to [The configuration file](./configuration) |
+| `UrnForgeConfig` | Type | `{ manifest?; out?; core?; features?; tsconfig?: string; boundaryCoverage?: 'warn' \| 'error'; referenceDate?: string; plugins?: readonly PluginSpec[] }` | The configuration object. Refer to [The configuration file](./configuration) |
 | `PluginSpec` | Type | `'valibot' \| 'fcis' \| 'postgres' \| readonly ['valibot', {}] \| readonly ['fcis', {}] \| readonly ['postgres', { tables?: string[]; unenforced?: 'warn' \| 'error' }]` | One entry of the `plugins` setting. The configuration type of each plugin is the input type of its `configSchema`, so an option with a default is optional. `src/plugins/index.ts` derives it with the type `PluginConfigOf<N>`, which is not an export |
 
 ### Diagnostics
@@ -61,6 +74,9 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 | Export | Kind | Description |
 | --- | --- | --- |
 | `UniversalIR` | Type | The IR: `meta`, `fields`, `entities`, `invariants`, `operations` and `errors`. Each record has URNs as keys, in URN order |
+| `Lifecycle` | Type | `{ status: 'active' \| 'deprecated' \| 'sunset'; supersededBy?: Urn; sunsetDate?: string }`. Each node type has `lifecycle?: Lifecycle`. The IR has it only on a node whose `status` is not `active` |
+| `statusOf` | Function | `statusOf(node: { lifecycle?: Lifecycle }): 'active' \| 'deprecated' \| 'sunset'`. The status of a node: `active` if it has no `lifecycle` |
+| `liveIr` | Function | `liveIr(ir: UniversalIR): UniversalIR`. The IR with no sunset atoms. The plugins and the gates read it |
 | `IRField` | Type | `{ urn; brandIdentifier; primitive; constraints; description? }` |
 | `IREntity` | Type | `{ urn; brandIdentifier; description; key?: Urn; fields: readonly IRPropertyRef[] }`. `key` is the URN of the key field. It is present only if the manifest sets `key` |
 | `IRPropertyRef` | Type | `IRFieldRef \| IREmbedRef \| IRLinkRef`. One property of an entity or an error. The key `field`, `entity` or `link` shows the form |
@@ -118,7 +134,7 @@ For the steps to write a plugin, refer to [Contributor: add a plugin](../how-to/
 | `UrnForgeConfig` | Type | Refer to [Configuration](#configuration) | The configuration object |
 | `PluginSpec` | Type | Refer to [Configuration](#configuration) | One entry of the `plugins` setting |
 | `CONFIG_FILE` | Constant | `'urn-forge.config.ts'` | The default name of the configuration file |
-| `loadConfig` | Function | `loadConfig(path: string, file: string): Promise<ConfigResult>` | Imports the file at `path` and examines its default export. `file` is the path in the diagnostics |
+| `loadConfig` | Function | `loadConfig(path: string, file: string, cwd?: string): Promise<ConfigResult>` | Imports the file at `path` and examines its default export. `file` is the path in the diagnostics. Paths in a message are relative to `cwd`. The default is the current directory |
 | `ConfigResult` | Type | `{ ok: true; config: UrnForgeConfig } \| { ok: false; diagnostics: readonly Diagnostic[] }` | The result of `loadConfig` |
 | `pluginEntries` | Function | `pluginEntries(specs: readonly PluginSpec[], file: string): PluginEntriesResult` | Changes a `plugins` setting to `PluginEntry` items. It reports an unknown name and a name two times as `config-invalid` |
 | `PluginEntriesResult` | Type | `{ ok: true; entries: readonly PluginEntry[] } \| { ok: false; diagnostics: readonly Diagnostic[] }` | The result of `pluginEntries` |

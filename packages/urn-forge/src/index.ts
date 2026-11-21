@@ -10,7 +10,8 @@
  */
 
 // Compile and verify
-export { compile, unsupportedConstructs, type CompileResult, type PluginEntry } from './engine.js';
+export { compile, unsupportedConstructs, type CompileOptions, type CompileResult, type PluginEntry } from './engine.js';
+export { classify, diffManifests, usesOf, type Change, type ChangeClass, type ClassifyOptions, type DiffOptions, type DiffResult } from './diff/index.js';
 export { verify, GATES, type VerifyOptions, type VerifyResult } from './verify/index.js';
 export type { Gate, GateContext, GateNumber, GateOutcome, GateResult } from './verify/types.js';
 
@@ -29,8 +30,9 @@ export {
 } from './diagnostics.js';
 
 // The IR
-export { invariantsOf, valueField } from './ir/types.js';
-export type { ErrorCategory, IREmbedRef, IREntity, IRError, IRField, IRFieldRef, IRInvariant, IRLinkRef, IROperation, IRPropertyRef, ListRule, MessagePart, UniversalIR, Urn } from './ir/types.js';
+export { invariantsOf, statusOf, valueField } from './ir/types.js';
+export { liveIr } from './ir/lifecycle.js';
+export type { ErrorCategory, IREmbedRef, IREntity, IRError, IRField, IRFieldRef, IRInvariant, IRLinkRef, IROperation, IRPropertyRef, Lifecycle, ListRule, MessagePart, UniversalIR, Urn } from './ir/types.js';
 export type { RuleExpr } from './rules/index.js';
 
 // Plugins

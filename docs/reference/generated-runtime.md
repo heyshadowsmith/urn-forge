@@ -28,7 +28,7 @@ The file has five sections. Each section starts with a comment. Some parts are t
 | | | `DispatchMap` | Generated |
 | Shell gatekeeper | `// Shell gatekeeper` | `OperationUrn`, `BoundaryIssue`, `DomainError`, `ExecuteResult`, `executeOperation` | Fixed |
 
-The operations are in URN sequence, and the errors in `ErrorPayloads` are in URN sequence. The sort compares UTF-16 code units. The errors of one operation are in the sequence of its `errors` list in the manifest.
+The file has no part for a sunset atom: the plugin reads the live IR. A sunset operation thus has no handler type, no property in `DomainCoreImplementation` and no entry in `DispatchMap`. The operations are in URN sequence, and the errors in `ErrorPayloads` are in URN sequence. The sort compares UTF-16 code units. The errors of one operation are in the sequence of its `errors` list in the manifest.
 
 ## Results
 
@@ -108,6 +108,18 @@ export type <Operation brand>Handler = (
 | `input` | `s.<Input entity brand>` | The parsed, branded input entity |
 | Output | `s.<Output entity brand>Input` | The plain output entity, with no brands |
 | Error | `s.<Error brand>Input`, one for each declared error | The union of the plain payloads of the declared errors, in the sequence of the `errors` list. `never` if the operation declares no errors |
+
+If the operation is deprecated, the comment has an `@deprecated` tag, as in the schema file. Refer to [The generated schemas](./generated-schemas). This handler type comes from a copy of the insurance domain with `status: deprecated` and `supersededBy: policy.operation.issue_policy` on `cancel_policy`:
+
+```ts
+/**
+ * urn:acme:insurance:policy:operation:cancel_policy — Stop a policy and calculate the refund for the days it does not cover
+ * @deprecated Superseded by urn:acme:insurance:policy:operation:issue_policy.
+ */
+export type PolicyCancelPolicyHandler = (
+  input: s.PolicyCancellation,
+) => Result<s.PolicyRefundQuoteInput, s.PolicyRefundBelowMinimumInput>;
+```
 
 A handler is synchronous. It returns the `Result`. It does not return a `Promise`. Example from tutorial 2:
 

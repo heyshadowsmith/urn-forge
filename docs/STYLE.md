@@ -65,6 +65,8 @@ All four types use STE. These are the rules that this site applies.
 | `how-to/fix-a-failing-gate.md` | Fix a gate that fails |
 | `how-to/adopt-strict-coverage.md` | Adopt strict coverage |
 | `how-to/waive-a-boundary.md` | Waive a boundary |
+| `how-to/retire-a-urn.md` | Retire a URN |
+| `how-to/check-compatibility.md` | Check compatibility in CI |
 | `how-to/run-verify-in-ci.md` | Run verify in CI |
 | `how-to/add-a-primitive.md` | Contributor: add a primitive |
 | `how-to/add-a-constraint.md` | Contributor: add a constraint |
@@ -97,6 +99,7 @@ All four types use STE. These are the rules that this site applies.
 | `explanation/determinism.md` | Determinism and the fingerprint |
 | `explanation/what-the-gates-show.md` | What the gates show |
 | `explanation/boundary-coverage.md` | Boundary coverage and the ratchet |
+| `explanation/compatibility.md` | Compatibility and the direction of use |
 | `explanation/primitives-model.md` | The MECE model of primitives |
 | `explanation/architecture.md` | How urn-forge is built |
 | `explanation/dogfooding.md` | Dogfooding |

@@ -132,7 +132,7 @@ gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` sat
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features
     my-shipping/features  note  ratchet-ready  every feature is @urn-forge:strict; set boundaryCoverage: 'error' in the config so new features are strict too
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
-verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```
 
 All the gaps are closed, and gate 3 passes. Thus gate 3 now shows the note `ratchet-ready`. It tells you that all the features are strict.
@@ -170,7 +170,7 @@ The command shows this output:
 gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
-verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```
 
 The note `ratchet-ready` is gone, and the summary of gate 3 shows `(boundaryCoverage: error)`. Your domain now has no warnings. Each new gap makes `verify` fail.

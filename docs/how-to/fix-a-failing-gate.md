@@ -44,7 +44,7 @@ Correct the manifest at the line and column that the problem gives. [Diagnostics
 Pass 6 examines the `rule` of each invariant. A problem in a rule also stops `verify` before the gates:
 
 ```
-insurance/domain.manifest.yaml:117:9  error  unguarded-field  urn:acme:insurance:policy:invariant:deductible_below_premium: rule: "deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …" (at column 1 of the rule)
+insurance/domain.manifest.yaml:127:9  error  unguarded-field  urn:acme:insurance:policy:invariant:deductible_below_premium: rule: "deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …" (at column 1 of the rule)
 verify failed: the manifest does not compile
 ```
 
@@ -65,7 +65,7 @@ The line and column give the start of the rule. The message gives the column in 
 Passes 1, 3 and 5 examine the `fields` list and the `key` of each entity. A problem there also stops `verify` before the gates. Here the coverage embeds the policy, and the policy embeds the coverage:
 
 ```
-insurance/domain.manifest.yaml:69:5  error  embedding-cycle  urn:acme:insurance:policy:entity:coverage: urn:acme:insurance:policy:entity:coverage embeds urn:acme:insurance:policy:entity:policy embeds urn:acme:insurance:policy:entity:coverage, so its type would never end; use a link for one of them
+insurance/domain.manifest.yaml:77:5  error  embedding-cycle  urn:acme:insurance:policy:entity:coverage: urn:acme:insurance:policy:entity:coverage embeds urn:acme:insurance:policy:entity:policy embeds urn:acme:insurance:policy:entity:coverage, so its type would never end; use a link for one of them
 verify failed: the manifest does not compile
 ```
 
@@ -83,11 +83,11 @@ Each code has one fix:
 These are the real messages of the other codes:
 
 ```
-insurance/domain.manifest.yaml:81:7  error  invalid-value  policy.entity.policy.fields.1: must have either ref or link
-insurance/domain.manifest.yaml:67:8  error  invalid-entity-key  urn:acme:insurance:policy:entity:coverage: key urn:acme:insurance:policy:field:note is optional; a key must be required
-insurance/domain.manifest.yaml:80:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[1].link urn:acme:insurance:customer:entity:customer has no key, so a link to it holds nothing; set key on it
-insurance/domain.manifest.yaml:82:13  error  duplicate-ref  urn:acme:insurance:policy:entity:policy: fields[2].link lists urn:acme:insurance:customer:entity:customer more than once; give one of them another name with as
-insurance/domain.manifest.yaml:74:1  error  missing-key  urn:acme:insurance:policy:entity:policy: is a table in the postgres config, so it needs a key: one of its own required, single-valued fields
+insurance/domain.manifest.yaml:91:7  error  invalid-value  policy.entity.policy.fields.1: must have either ref or link
+insurance/domain.manifest.yaml:75:8  error  invalid-entity-key  urn:acme:insurance:policy:entity:coverage: key urn:acme:insurance:policy:field:note is optional; a key must be required
+insurance/domain.manifest.yaml:90:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[1].link urn:acme:insurance:customer:entity:customer has no key, so a link to it holds nothing; set key on it
+insurance/domain.manifest.yaml:92:13  error  duplicate-ref  urn:acme:insurance:policy:entity:policy: fields[2].link lists urn:acme:insurance:customer:entity:customer more than once; give one of them another name with as
+insurance/domain.manifest.yaml:84:1  error  missing-key  urn:acme:insurance:policy:entity:policy: is a table in the postgres config, so it needs a key: one of its own required, single-valued fields
 ```
 
 Each line comes from a different change to the manifest. [Add an entity](add-an-entity) shows each change and its fix. For the last line, refer to [Store entities in Postgres](store-in-postgres).
@@ -249,7 +249,7 @@ A scenario expects an invariant that is not on the input entity of its operation
 
 ```
 gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
-    insurance/features/issue_policy.feature:77:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
+    insurance/features/issue_policy.feature:79:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
 ```
 
@@ -440,7 +440,7 @@ If urn-forge did not write the file, the message tells you to rename or delete i
 gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
-verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```
 
 ## Related pages

@@ -195,7 +195,7 @@ describe('--format json', () => {
     expect(await main(['verify', '--format', 'json'], io())).toBe(1);
     expect(lines()).toEqual([
       expect.objectContaining({ type: 'diagnostic', code: 'unknown-primitive' }),
-      { type: 'result', ok: false, failedGates: [], warnings: 0 },
+      { type: 'result', ok: false, failedGates: [], warnings: 0, sunsetDatesChecked: true },
     ]);
   });
 

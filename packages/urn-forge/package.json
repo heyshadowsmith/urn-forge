@@ -35,7 +35,8 @@
     "test:tarball": "node scripts/test-tarball.mjs",
     "verify:insurance": "node bin/urn-forge.js verify --config insurance/urn-forge.config.ts",
     "test:features:insurance": "cucumber-js --profile insurance",
-    "compile:insurance": "node bin/urn-forge.js compile --config insurance/urn-forge.config.ts"
+    "compile:insurance": "node bin/urn-forge.js compile --config insurance/urn-forge.config.ts",
+    "diff:base": "node scripts/diff-base.mjs"
   },
   "dependencies": {
     "@cucumber/cucumber": "^13.3.0",

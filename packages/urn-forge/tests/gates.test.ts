@@ -469,7 +469,7 @@ describe('gate framework', () => {
     const out: string[] = [];
     const io = { cwd: repo(''), stdout: (l: string) => out.push(l), stderr: () => undefined };
     expect(await main(['verify', '--config', 'example/urn-forge.config.ts'], io)).toBe(0);
-    expect(out.at(-1)).toBe('verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)');
-    expect(verifyPassedLine([1, 3, 4], 2)).toBe('verify passed with 2 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)');
+    expect(out.at(-1)).toBe('verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)');
+    expect(verifyPassedLine([1, 3, 4], 2)).toBe('verify passed with 2 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)');
   });
 });

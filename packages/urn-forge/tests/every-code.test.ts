@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
 import { loadConfig, pluginEntries } from '../src/config.js';
 import { DIAGNOSTIC_CODES, type Diagnostic, type DiagnosticCode } from '../src/diagnostics.js';
+import { diffManifests } from '../src/diff/index.js';
 import { compile, DEFAULT_PLUGINS } from '../src/engine.js';
 import { PLUGINS } from '../src/plugins/index.js';
 import { indexFeatureSource } from '../src/verify/feature-index.js';
@@ -143,6 +144,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
     manifest('a.field.x: { primitive: float }\nb.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n    - ref: b.field.x\n'),
   'duplicate-ref': () => manifest('a.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n    - ref: a.field.x\n'),
   'reserved-property': () => manifest('a.field.kind: { primitive: string }\na.error.e:\n  description: d\n  category: precondition\n  retryable: false\n  message: m\n  fields:\n    - ref: a.field.kind\n'),
+  'invalid-lifecycle': () => manifest('a.field.x: { primitive: float, supersededBy: a.field.y }\na.field.y: { primitive: float }\n'),
   // Pass 4
   'unresolved-ref': () => manifest('a.entity.e:\n  description: d\n  fields:\n    - ref: a.field.nope\n'),
   'wrong-ref-kind': () => manifest('a.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - link: a.field.x\n'),
@@ -150,6 +152,9 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'missing-key': () => manifest('a.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\na.entity.f:\n  description: d\n  fields:\n    - link: a.entity.e\n'),
   'embedding-cycle': () => manifest('a.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n    - ref: a.entity.f\na.entity.f:\n  description: d\n  fields:\n    - ref: a.entity.e\n'),
   'invalid-cell': () => gate3(scenario('    When I run the operation with:\n      | policy_id | holder | effective_date | expiry_date | premium | coverages |\n      | 123e4567-e89b-12d3-a456-426614174000 | 9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d | 2026-01-01 | 2026-12-31 | 1.00 | [{ peril: fire, limit: 1 } |\n', ISSUE), 'warn', insurance),
+  // Pass 8
+  'deprecated-ref': () => manifest('a.field.x: { primitive: float, status: deprecated }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n'),
+  'sunset-ref': () => manifest('a.field.x: { primitive: float, status: sunset }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n'),
   // Pass 6
   'unknown-placeholder': () => manifest('a.error.e:\n  description: d\n  category: precondition\n  retryable: false\n  message: no {thing}\n'),
   // Pass 6: invariant rules
@@ -175,6 +180,12 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
     compile(`${HEADER}a.field.${'x'.repeat(60)}: { primitive: string }\na.entity.e:\n  description: d\n  key: a.field.${'x'.repeat(60)}\n  fields:\n    - ref: a.field.${'x'.repeat(60)}\n`, [
       { plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } },
     ]).diagnostics,
+  // urn-forge diff
+  'breaking-change': () => {
+    const result = diffManifests(`${HEADER}a.field.x: { primitive: integer, max: 10 }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\na.operation.o:\n  description: d\n  input: a.entity.e\n  output: a.entity.e\n`,
+      `${HEADER}a.field.x: { primitive: integer, max: 5 }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\na.operation.o:\n  description: d\n  input: a.entity.e\n  output: a.entity.e\n`);
+    return result.ok ? result.breaking : result.diagnostics;
+  },
   // Gate 1
   'tsconfig-unreadable': () => project({ tsconfigPath: at('nope.json') }),
   'core-not-found': () => project({ corePath: at('nope.ts') }),

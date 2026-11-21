@@ -7,7 +7,7 @@
  */
 import type * as v from 'valibot';
 import type { DiagnosticCode } from '../diagnostics.js';
-import type { UniversalIR, Urn } from '../ir/types.js';
+import type { Lifecycle, UniversalIR, Urn } from '../ir/types.js';
 import type { KindName } from '../kinds/index.js';
 import type { Primitive } from '../primitives/index.js';
 
@@ -67,4 +67,20 @@ export function numberLiteral(value: number): string {
 /** Records keyed by URN in the IR are already sorted; this keeps call sites explicit about it. */
 export function valuesInUrnOrder<T>(record: Readonly<Record<Urn, T>>): T[] {
   return Object.values(record) as T[];
+}
+
+/** "deprecated: superseded by <urn>; sunset on <date>" for a deprecated node, else undefined (lifecycle plan, decision 7). */
+export function deprecationNote(node: { readonly lifecycle?: Lifecycle }): string | undefined {
+  const life = node.lifecycle;
+  if (life?.status !== 'deprecated') return undefined;
+  const plans = [life.supersededBy ? `superseded by ${life.supersededBy}` : undefined, life.sunsetDate ? `sunset on ${life.sunsetDate}` : undefined].filter(Boolean);
+  return `deprecated${plans.length > 0 ? `: ${plans.join('; ')}` : ''}`;
+}
+
+/** A doc comment, with an `@deprecated` tag for a deprecated node, so editors cross its name out. */
+export function docComment(text: string, node: { readonly lifecycle?: Lifecycle }): string {
+  const note = deprecationNote(node);
+  if (note === undefined) return `/** ${text} */`;
+  const why = note.replace(/^deprecated:? ?/u, '');
+  return `/**\n * ${text}\n * @deprecated${why ? ` ${why.charAt(0).toUpperCase()}${why.slice(1)}.` : ''}\n */`;
 }

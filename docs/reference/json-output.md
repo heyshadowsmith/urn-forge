@@ -1,10 +1,11 @@
 # JSON output
 
-The option `--format json` changes the output of `urn-forge compile` and `urn-forge verify` to JSON lines. Each line is one JSON object. The `type` property of the object gives the kind of line. This page gives each kind of line, its properties and the sequence of the lines.
+The option `--format json` changes the output of `urn-forge compile`, `urn-forge verify` and `urn-forge diff` to JSON lines. Each line is one JSON object. The `type` property of the object gives the kind of line. This page gives each kind of line, its properties and the sequence of the lines.
 
 ```bash
 npx urn-forge compile --format json
 npx urn-forge verify --format json
+npx urn-forge diff old.manifest.yaml domain.manifest.yaml --format json
 ```
 
 ## Streams and exit codes
@@ -12,8 +13,8 @@ npx urn-forge verify --format json
 | Item | `--format text` | `--format json` |
 | --- | --- | --- |
 | Diagnostics of the configuration and the manifest | stderr | stdout |
-| Gate problems, gate lines and file lines | stdout | stdout |
-| The last line of `verify` when it fails | stderr | stdout, as the `result` line |
+| Gate problems, gate lines, file lines and the change lines of `diff` | stdout | stdout |
+| The last line of `verify` or `diff` when it fails | stderr | stdout, as the `result` line |
 | A usage error | stderr, as text | stderr, as text. urn-forge writes no JSON line |
 | Exit codes | `0`, `1`, `2` | The same |
 
@@ -21,18 +22,19 @@ With `--format json`, urn-forge writes all JSON lines to stdout and nothing to s
 
 | Exit code | Description |
 | --- | --- |
-| `0` | The command is correct. For `verify`, all gates passed. Warnings and notes do not change the exit code |
-| `1` | An error diagnostic, a configuration or manifest that urn-forge cannot read, or a gate that failed |
+| `0` | The command is correct. For `verify`, all gates passed. For `diff`, no change is breaking, or the old manifest is experimental. Warnings and notes do not change the exit code |
+| `1` | An error diagnostic, a configuration or manifest that urn-forge cannot read, a gate that failed, or a breaking change |
 | `2` | A usage error |
 
 ## The kinds of line
 
 | `type` | Command | Number of lines | Description |
 | --- | --- | --- | --- |
-| `diagnostic` | `compile`, `verify` | Zero or more | One diagnostic: a problem in the configuration, the manifest, a plugin or a gate |
+| `diagnostic` | `compile`, `verify`, `diff` | Zero or more | One diagnostic: a problem in the configuration, the manifest, a plugin or a gate, or a breaking change |
+| `change` | `diff` | One for each compatible change and each lifecycle change, or zero | One change that is not breaking |
 | `file` | `compile` | One for each generated file and each removed file, or zero | One file that `compile` wrote, did not change, or removed |
 | `gate` | `verify` | One for each gate that ran, or zero | The result of one gate |
-| `result` | `compile`, `verify` | Exactly one, always the last line | The result of the command |
+| `result` | `compile`, `verify`, `diff` | Exactly one, always the last line | The result of the command |
 
 ## `diagnostic`
 
@@ -44,7 +46,7 @@ The properties occur in this sequence. urn-forge leaves out a property that has 
 | `gate` | `1`, `3` or `4` | `verify`, for a gate problem only | The gate that found the problem. A diagnostic of the configuration or the manifest has no `gate` |
 | `severity` | `"error"`, `"warning"` or `"note"` | Always | Refer to [Diagnostics](./diagnostics) |
 | `code` | string | Always | The stable code. Each code is in [Diagnostics](./diagnostics) |
-| `file` | string | Always | The file that has the problem, relative to the current directory, with forward slashes. For a manifest diagnostic, this is the `--manifest` path. For some gate 3 problems, this is the `--features` directory |
+| `file` | string | Always | The file that has the problem, relative to the current directory, with forward slashes. For a manifest diagnostic, this is the `--manifest` path. For some gate 3 problems, this is the `--features` directory. For `breaking-change`, this is the new manifest of `diff` |
 | `line` | number | If the diagnostic has a position | The line, from 1 |
 | `column` | number | If the diagnostic has a position | The column, from 1 |
 | `urn` | string | If the diagnostic is about one atom | The URN of the atom |
@@ -58,6 +60,15 @@ The properties occur in this sequence. urn-forge leaves out a property that has 
 | `path` | string | The generated file, relative to the current directory, with forward slashes |
 | `changed` | boolean | `true` if `compile` wrote or removed the file. `false` if the file had the same content, so `compile` did not write it |
 | `removed` | `true` | Only for a removed file: a `*.generated.*` file from an earlier compile that this compile does not make |
+
+## `change`
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `type` | `"change"` | The kind of line |
+| `class` | `"compatible"` or `"lifecycle"` | The class of the change. A breaking change is a `diagnostic` line with the code `breaking-change` |
+| `urn` | string | The URN that changed, or `urn:<namespace>:<domain>` for a change to the manifest itself |
+| `message` | string | The same message as in the text format |
 
 ## `gate`
 
@@ -73,11 +84,15 @@ The properties occur in this sequence. urn-forge leaves out a property that has 
 
 | Property | Type | Command | Description |
 | --- | --- | --- | --- |
-| `type` | `"result"` | Both | The kind of line |
-| `ok` | boolean | Both | `true` if the command is correct. The exit code is then `0` |
+| `type` | `"result"` | All | The kind of line |
+| `ok` | boolean | All | `true` if the command is correct. The exit code is then `0` |
 | `fingerprint` | string | `compile`, only if `ok` is `true` | The fingerprint of the generated files, `sha256:` and 64 hexadecimal digits |
 | `failedGates` | array of numbers | `verify` | The numbers of the gates that failed, in gate sequence. It is empty if no gate ran |
 | `warnings` | number | `verify` | The number of diagnostics with the severity `warning`. Notes are not counted |
+| `sunsetDatesChecked` | boolean | `verify`, if the configuration is valid | `false` if the manifest has a `sunsetDate` and there is no reference date, so pass 8 did not compare sunset dates. Else `true` |
+| `breaking` | number | `diff` | The number of breaking changes |
+| `compatible` | number | `diff` | The number of compatible changes |
+| `lifecycle` | number | `diff` | The number of lifecycle changes |
 
 ## The sequence of the lines
 
@@ -98,6 +113,15 @@ If there is an error, `compile` writes no files and no `file` lines. The `result
 
 If the configuration is not valid, or if the manifest has an error, no gate runs. Then the output has only the diagnostics of step 1 and the `result` line, with `"failedGates":[]` and `"warnings":0`.
 
+### `diff`
+
+1. If the configuration is not valid: its `diagnostic` lines, and no other lines. If a manifest cannot be read or does not compile: its `diagnostic` lines, then the `result` line, and no other lines.
+2. One `change` line for each compatible change and each lifecycle change, in URN order.
+3. One `diagnostic` line with the code `breaking-change` for each breaking change, in URN order.
+4. One `result` line.
+
+The `breaking-change` lines have the severity `error`, or `warning` if the old manifest is experimental. If a manifest cannot be read or does not compile, the `result` line has `"breaking":0`, `"compatible":0` and `"lifecycle":0`.
+
 ## Examples
 
 ### `compile`
@@ -107,7 +131,7 @@ A correct compile in a project where the files did not change:
 ```json
 {"type":"file","path":"generated/domain.runtime.generated.ts","changed":false}
 {"type":"file","path":"generated/domain.schemas.generated.ts","changed":false}
-{"type":"result","ok":true,"fingerprint":"sha256:b48297b4537c103460a0d8c21ae9ae155f0bd5b185c94813eb2a78c92b66c4bf"}
+{"type":"result","ok":true,"fingerprint":"sha256:41977ee7f05fd381d206aaa6f109c0548fa807b8e3196598c5a6932dcae530c8"}
 ```
 
 A manifest with an error. The exit code is `1`:
@@ -132,7 +156,7 @@ npx urn-forge verify --config tutorial/2-declared-errors/urn-forge.config.ts --f
 {"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over tutorial/2-declared-errors/core.ts; `core` satisfies DomainCoreImplementation"}
 {"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features"}
 {"type":"gate","gate":4,"name":"drift","ok":true,"summary":"2 generated file(s) compared byte for byte against tutorial/2-declared-errors/generated"}
-{"type":"result","ok":true,"failedGates":[],"warnings":2}
+{"type":"result","ok":true,"failedGates":[],"warnings":2,"sunsetDatesChecked":true}
 ```
 
 A project with a problem at each gate: a handler with an incorrect URN, a column name with an error, and a manual edit of a generated file. The exit code is `1`:
@@ -150,7 +174,7 @@ A project with a problem at each gate: a handler with an incorrect URN, a column
 {"type":"gate","gate":1,"name":"completeness","ok":false,"summary":"tsc: 4 error(s) over core.ts; `core` satisfies DomainCoreImplementation"}
 {"type":"gate","gate":3,"name":"gherkin","ok":false,"summary":"1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features"}
 {"type":"gate","gate":4,"name":"drift","ok":false,"summary":"2 generated file(s) compared byte for byte against generated"}
-{"type":"result","ok":false,"failedGates":[1,3,4],"warnings":2}
+{"type":"result","ok":false,"failedGates":[1,3,4],"warnings":2,"sunsetDatesChecked":true}
 ```
 
 A message with more than one line. The line break is `\n` in the JSON string:
@@ -164,14 +188,58 @@ A manifest with an error. No gate runs:
 ```json
 {"type":"diagnostic","severity":"error","code":"unknown-primitive","file":"domain.manifest.yaml","line":7,"column":14,"urn":"urn:demo:shipping:parcel:field:weight_grams","message":"parcel.field.weight_grams.primitive: unknown primitive \"money\" (MVP primitives: boolean, date, decimal, enum, float, integer, string, timestamp)"}
 {"type":"diagnostic","severity":"error","code":"unknown-primitive","file":"domain.manifest.yaml","line":19,"column":14,"urn":"urn:demo:shipping:quote:field:price_cents","message":"quote.field.price_cents.primitive: unknown primitive \"money\" (MVP primitives: boolean, date, decimal, enum, float, integer, string, timestamp)"}
-{"type":"result","ok":false,"failedGates":[],"warnings":0}
+{"type":"result","ok":false,"failedGates":[],"warnings":0,"sunsetDatesChecked":true}
 ```
 
-A configuration file with an unknown option. No gate runs:
+A configuration file with an unknown option. No gate runs, and the `result` line has no `sunsetDatesChecked`:
 
 ```json
 {"type":"diagnostic","severity":"error","code":"config-invalid","file":"bad.config.ts","message":"config.colour: unknown option \"colour\""}
 {"type":"result","ok":false,"failedGates":[],"warnings":0}
+```
+
+The insurance domain has a `sunsetDate`, and its configuration sets `referenceDate`, so `sunsetDatesChecked` is `true`. Without a reference date it is `false`. The exit code is `0`:
+
+```bash
+npx urn-forge verify --config insurance/urn-forge.config.ts --format json
+```
+
+```json
+{"type":"diagnostic","severity":"warning","code":"deprecated-ref","file":"insurance/domain.manifest.yaml","line":79,"column":12,"urn":"urn:acme:insurance:policy:entity:coverage","message":"urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)"}
+{"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation"}
+{"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)"}
+{"type":"gate","gate":4,"name":"drift","ok":true,"summary":"3 generated file(s) compared byte for byte against insurance/generated"}
+{"type":"result","ok":true,"failedGates":[],"warnings":1,"sunsetDatesChecked":true}
+```
+
+### `diff`
+
+The insurance manifest, compared with its version on `main`, with `--config insurance/urn-forge.config.ts`. The exit code is `0`:
+
+```json
+{"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:entity:coverage","message":"adds the optional property \"remark\""}
+{"type":"change","class":"lifecycle","urn":"urn:acme:insurance:policy:field:note","message":"status active → deprecated"}
+{"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:field:remark","message":"is new"}
+{"type":"result","ok":true,"breaking":0,"compatible":2,"lifecycle":1}
+```
+
+A case from `tests/diff/` with a new declared error. The exit code is `1`:
+
+```bash
+npx urn-forge diff tests/diff/error-added/old.yaml tests/diff/error-added/new.yaml --config tests/diff/no-config.ts --format json
+```
+
+```json
+{"type":"change","class":"compatible","urn":"urn:demo:shop:order:error:closed","message":"is new"}
+{"type":"diagnostic","severity":"error","code":"breaking-change","file":"tests/diff/error-added/new.yaml","urn":"urn:demo:shop:order:operation:place","message":"urn:demo:shop:order:operation:place: the new declared error urn:demo:shop:order:error:closed widens a value that callers receive, which breaks callers that receive it"}
+{"type":"result","ok":false,"breaking":1,"compatible":1,"lifecycle":0}
+```
+
+With an old manifest that is experimental, a breaking change is a warning. The exit code is `0`:
+
+```json
+{"type":"diagnostic","severity":"warning","code":"breaking-change","file":"tests/diff/experimental/new.yaml","urn":"urn:demo:shop:order:field:qty","message":"urn:demo:shop:order:field:qty: max 10 → 5 narrows a value that callers send, which breaks callers that send it"}
+{"type":"result","ok":true,"breaking":1,"compatible":0,"lifecycle":0}
 ```
 
 ## Related pages

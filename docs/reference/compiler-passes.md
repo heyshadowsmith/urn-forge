@@ -1,6 +1,6 @@
 # Compiler passes
 
-The `compile` and `verify` commands send the manifest through a sequence of passes. The passes make the IR. Then the plugins make the generated files from the IR. The pass numbers come from specification v1.1. urn-forge 0.1.0 does not have pass 8 at this time.
+The `compile` and `verify` commands send the manifest through a sequence of passes. The passes make the IR. Then the plugins make the generated files from the IR. The pass numbers come from specification v1.1.
 
 ## Sequence
 
@@ -8,18 +8,18 @@ The `compile` and `verify` commands send the manifest through a sequence of pass
 | --- | --- | --- | --- | --- |
 | Read | Read the file | The manifest file can be read | `manifest-unreadable` | Stop |
 | YAML | Parse the YAML | The file is valid YAML with no key two times in one mapping | `yaml-syntax`, `duplicate-key` | Stop after this step |
-| 1 | [Meta-schema](#pass-1-meta-schema) | The structure of the header and of each entry | `not-a-mapping`, `missing-header`, `invalid-key`, `unsupported-kind`, `unknown-kind`, `unknown-primitive`, `constraint-not-allowed`, `unknown-property`, `missing-property`, `invalid-value` | Stop after this step |
+| 1 | [Meta-schema](#pass-1-meta-schema) | The structure of the header and of each entry | `not-a-mapping`, `missing-header`, `invalid-key`, `unsupported-kind`, `unknown-kind`, `unknown-primitive`, `constraint-not-allowed`, `unknown-property`, `missing-property`, `invalid-value`, `invalid-lifecycle` | Stop after this step |
 | 2 | [Expansion](#pass-2-expansion) | None. It makes the URNs and the brand identifiers | None | — |
 | 3 | [Uniqueness](#pass-3-uniqueness) | Brand identifiers and property names are unique. The `key` of each entity is one of its own fields | `duplicate-brand`, `duplicate-property`, `duplicate-ref`, `invalid-entity-key`, `reserved-property` | Stop after pass 7 |
-| 4 | [References](#pass-4-references) | Each reference names an atom of the correct kind | `unresolved-ref`, `wrong-ref-kind` | Stop after pass 7 |
+| 4 | [References](#pass-4-references) | Each reference names an atom of the correct kind. `supersededBy` does not name the atom itself | `unresolved-ref`, `wrong-ref-kind`, `invalid-lifecycle` | Stop after pass 7 |
 | 5 | [Structure](#pass-5-structure) | Each linked entity has a `key`, and each entity in a unique list has a `key`. No entity embeds itself | `missing-key`, `embedding-cycle` | Stop |
 | 6 | [Rule and template typing](#pass-6-rule-and-template-typing) | Each invariant rule is valid and agrees with the types of its entity. Each placeholder in an error message names a mandatory field of the error | `rule-syntax`, `unknown-rule-field`, `rule-type`, `unguarded-field`, `unknown-placeholder` | Stop after pass 7 |
 | 7 | [Constraint coherence](#pass-7-constraint-coherence) | A field has one constraint for each side of each aspect. The constraints of each field accept one or more values. The `many` of each field reference accepts one or more lists | `conflicting-constraints`, `incoherent-constraints` | Stop after pass 7 |
-| 8 | Lifecycle | Not built | — | — |
+| 8 | [Lifecycle](#pass-8-lifecycle) | No active atom refers to a sunset atom or to an atom after its sunset date. A reference from an active atom to a deprecated atom is a warning | `deprecated-ref`, `sunset-ref` | Stop. A warning does not stop |
 | Plugins | [Plugin checks](#plugin-checks) | The plugins and their configurations agree with the IR | `plugin-config`, `missing-plugin`, `unsupported-construct`, `export-collision`, `output-conflict`. From `postgres`: `wrong-ref-kind`, `unresolved-ref`, `missing-key`, `plugin-config`, `invalid-sql-name`, `unenforced-in-sql` | No files |
 
 - Each step reports all the problems that it finds, not only the first problem.
-- Passes 2, 3, 4, 6 and 7 run together, and urn-forge reports their diagnostics together. Pass 5 runs after them, only if they find no error.
+- Passes 2, 3, 4, 6 and 7 run together, and urn-forge reports their diagnostics together. Pass 5 runs after them, only if they find no error. Pass 8 runs after pass 5, only if pass 5 finds no error.
 - Each diagnostic has a position in the manifest, except `manifest-unreadable`, `not-a-mapping`, `missing-header`, `plugin-config`, `missing-plugin` and `output-conflict`. A diagnostic of the `postgres` configuration that names no URN also has no position.
 - For the message, the cause and the correction of each code, refer to [Diagnostics](./diagnostics).
 
@@ -32,6 +32,7 @@ Pass 1 examines the parsed YAML with Valibot schemas. It examines these items, i
 3. Each other top-level key, in the sequence of the file:
    1. The key is a short key (`invalid-key`) of a known kind (`unknown-kind`). The kind `event` causes `unsupported-kind`.
    2. The entry agrees with the schema of its kind. For a field, the schema comes from its primitive.
+   3. The lifecycle keys `status`, `supersededBy` and `sunsetDate` agree with their schema. Pass 1 examines them apart from the keys of the kind, because each kind accepts them.
 
 | Problem in an entry | Code | Position |
 | --- | --- | --- |
@@ -41,6 +42,8 @@ Pass 1 examines the parsed YAML with Valibot schemas. It examines these items, i
 | A value of the wrong type or form. Examples: an empty `values` list, a `decimal` bound that is a YAML number, a `timestamp` bound with an offset, a `many` that is not `true` or a mapping, or an `as` that is not a URN segment | `invalid-value` | The value |
 | A field reference with both `ref` and `link`, or with neither. The message is `must have either ref or link` | `invalid-value` | The field reference |
 | A necessary property that is not there, for example the `values` of an `enum` | `missing-property` | The entry key |
+| A `status` that is not `active`, `deprecated` or `sunset`, a `supersededBy` that is not a short key, or a `sunsetDate` that is not a date `YYYY-MM-DD` | `invalid-value` | The value |
+| A `supersededBy` or a `sunsetDate` on an atom whose `status` is `active`, or that has no `status` | `invalid-lifecycle` | The key |
 
 The schema of each kind is on [The manifest](./manifest). The rules for constraint values are on [Primitives and constraints](./primitives).
 
@@ -78,11 +81,13 @@ Pass 3 examines URNs and brand identifiers over all atoms first. The other check
 | `operation` | `input` | An entity |
 | `operation` | `output` | An entity |
 | `operation` | `errors[<i>]` | An error |
+| Each kind | `supersededBy` | An atom of the same kind that is not the atom itself |
 
 | Problem | Code |
 | --- | --- |
 | The manifest does not declare the atom | `unresolved-ref` |
 | The atom is of a kind that the reference does not accept | `wrong-ref-kind` |
+| `supersededBy` names the atom itself | `invalid-lifecycle` |
 
 The message names the reference with its path, for example `fields[1].ref`, `errors[2]` or `on`. Example: `on "policy.field.premium" must name an entity, but urn:acme:rules:policy:field:premium is a field`.
 
@@ -101,8 +106,8 @@ Pass 5 reports one `embedding-cycle` for each cycle. It examines the entities an
 These diagnostics come from a copy of the insurance manifest with two changes. The `customer` entity has no `key`, and `coverage` embeds `policy`:
 
 ```
-insurance/domain.manifest.yaml:81:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[1].link urn:acme:insurance:customer:entity:customer has no key, so a link to it holds nothing; set key on it
-insurance/domain.manifest.yaml:68:5  error  embedding-cycle  urn:acme:insurance:policy:entity:coverage: urn:acme:insurance:policy:entity:coverage embeds urn:acme:insurance:policy:entity:policy embeds urn:acme:insurance:policy:entity:coverage, so its type would never end; use a link for one of them
+insurance/domain.manifest.yaml:91:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[1].link urn:acme:insurance:customer:entity:customer has no key, so a link to it holds nothing; set key on it
+insurance/domain.manifest.yaml:76:5  error  embedding-cycle  urn:acme:insurance:policy:entity:coverage: urn:acme:insurance:policy:entity:coverage embeds urn:acme:insurance:policy:entity:policy embeds urn:acme:insurance:policy:entity:coverage, so its type would never end; use a link for one of them
 ```
 
 ## Pass 6: rule and template typing
@@ -163,6 +168,45 @@ tests/fixtures/conflicting-constraints/domain.manifest.yaml:16:84  error  incohe
 tests/fixtures/conflicting-constraints/domain.manifest.yaml:14:56  error  incoherent-constraints  urn:demo:conflicts:value:field:short_uuid: a uuid has 36 characters, which the length constraints exclude, so no value is valid
 ```
 
+## Pass 8: lifecycle
+
+Pass 8 examines each reference that pass 4 resolved, also `key`, `on` and the `errors` of an operation. It does not examine `supersededBy`. For each reference, it compares the `status` of the atom that refers with the `status` and `sunsetDate` of the atom that it names:
+
+| The atom that refers | The atom that it names | Code | Severity |
+| --- | --- | --- | --- |
+| `active` or `deprecated` | `status: sunset` | `sunset-ref` | `error` |
+| `active` or `deprecated` | A `sunsetDate` on or before the reference date | `sunset-ref` | `error` |
+| `active` | `status: deprecated`, and no `sunsetDate` on or before the reference date | `deprecated-ref` | `warning` |
+| `deprecated` | `status: deprecated` | None | — |
+| `sunset` | Any atom | None | — |
+
+- The position is the reference, for example the `ref` of a field reference.
+- The message names the reference with its path, for example `fields[2].ref`. It gives the `supersededBy` and the `sunsetDate` of the named atom, if it has them.
+- If pass 8 finds an error, it reports all its diagnostics, and the compile stops. If it finds only warnings, `compile` reports them before the diagnostics of the plugins, and continues.
+
+### The reference date
+
+Pass 8 compares a `sunsetDate` with the reference date, never with the clock. Thus one commit always gives one result. The reference date comes from the first of these sources that has a value:
+
+1. The option `--reference-date <YYYY-MM-DD>` of `compile` or `verify`.
+2. The setting `referenceDate` in the configuration file.
+
+If neither has a value, pass 8 does not compare sunset dates. It still examines `status`. If the manifest has a `sunsetDate`, `verify` then writes the line `note: sunset dates are not checked: set --reference-date or referenceDate in the config`. With `--format json`, its `result` line has `"sunsetDatesChecked":false`. `urn-forge diff` runs pass 8 with no reference date.
+
+The insurance domain deprecates `policy.field.note`, with `sunsetDate: 2027-06-30`. The coverage still refers to it. `npm run compile:insurance` writes this warning:
+
+```
+insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
+```
+
+On the sunset date, the same reference is an error. `urn-forge compile --config insurance/urn-forge.config.ts --reference-date 2027-06-30` writes this diagnostic, and no files:
+
+```
+insurance/domain.manifest.yaml:79:12  error  sunset-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, whose sunset date 2027-06-30 is on or before the reference date 2027-06-30 (superseded by urn:acme:insurance:policy:field:remark); refer to its replacement
+```
+
+With `status: sunset` on the note, the message is `… refers to urn:acme:insurance:policy:field:note, which is sunset (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30); refer to its replacement`, with or without a reference date.
+
 ## Sequence of the diagnostics
 
 The IR builder builds the atoms in two stages. A kind that reads the nodes of other kinds builds after them. An invariant reads its entity and the fields of that entity, so the invariants build last.
@@ -176,7 +220,7 @@ urn-forge reports the diagnostics of passes 3, 4, 6 and 7 in this sequence:
 
 1. `duplicate-brand`, for all atoms in URN order.
 2. For each atom of stage 1 in URN order, and then for each atom of stage 2 in URN order:
-   1. Pass 4, for each reference in the sequence of the entry.
+   1. Pass 4, for each reference in the sequence of the entry. Then pass 4 for `supersededBy`.
    2. The checks of the kind of the atom:
 
 | Kind | Checks, in sequence |
@@ -218,7 +262,9 @@ If passes 1 to 7 find no error, urn-forge makes the IR. The IR has these parts:
 | Part | Contents |
 | --- | --- |
 | `meta` | `namespace`, `domain`, `manifestVersion` (the `version` of the header), `stability` (default `stable`), `manifestHash` (SHA-256 of the canonical JSON of the manifest) and `irSchemaVersion` (`1`) |
-| `fields`, `entities`, `invariants`, `operations`, `errors` | One node for each atom, with the URN as the key, in URN order. A group with no atoms is `{}` |
+| `fields`, `entities`, `invariants`, `operations`, `errors` | One node for each atom, with the URN as the key, in URN order. A group with no atoms is `{}`. Sunset atoms are in the IR too |
+
+A node has `lifecycle` only if its `status` is not `active`: `{ status, supersededBy?, sunsetDate? }`. `supersededBy` is the URN of the replacement. Thus the IR of a manifest with no lifecycle keys does not change.
 
 The `fields` of an `IREntity` and of an `IRError` is a list of `IRPropertyRef`. Each item has one of three forms. Each form has `name`, `required` and, for a list, `many`:
 
@@ -232,7 +278,7 @@ An `IREntity` has `key`, the URN of its key field, only if the manifest sets `ke
 
 An `IREntity` does not list its invariants. The function `invariantsOf(ir, entityUrn)` finds them by their `on`, in URN order. An `IRInvariant` has `urn`, `brandIdentifier`, `description`, `on`, `rule` (the parsed rule), `ruleText` (the canonical text) and `message`. Refer to [The rule language](./rule-language).
 
-The plugins read only the IR. The IR types are exports of the [package API](./public-api).
+The plugins read only the IR. They get the live IR: the IR with no sunset atoms. The function `liveIr(ir)` makes it. The gates of `verify` also read the live IR. `CompileResult.ir` is the full IR. The IR types are exports of the [package API](./public-api).
 
 ## Plugin checks
 
@@ -240,7 +286,7 @@ After the passes, the engine examines the plugins in this sequence:
 
 1. The configuration of each plugin agrees with its schema (`plugin-config`).
 2. Each plugin in the `requires` list of a plugin is also in the plugin list (`missing-plugin`).
-3. Each plugin can use each kind, primitive and constraint in the IR (`unsupported-construct`). A plugin declares these in its `supports` property.
+3. Each plugin can use each kind, primitive and constraint in the live IR (`unsupported-construct`). A plugin declares these in its `supports` property.
 4. Each plugin makes its files. The Valibot plugin reports `export-collision`. The Postgres plugin reports the problems of its configuration and of its SQL. Two plugins that make a file with the same path cause `output-conflict`.
 
 If step 1 or step 2 finds an error, steps 3 and 4 do not run. If step 3 finds an error, step 4 does not run. The `valibot`, `fcis` and `postgres` plugins can use all the kinds, primitives and constraints of urn-forge 0.1.0. Thus the CLI cannot cause `unsupported-construct` and `output-conflict` at this time.

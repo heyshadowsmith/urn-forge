@@ -1,18 +1,21 @@
 # Verification gates
 
-The command `urn-forge verify` examines the chain from the manifest to the core, the features and the generated files. It reads files and does a type check. It does not run the core or the scenarios. This page gives what `verify` does, each gate, each check of a gate, and the output. For the options of the command, refer to [The CLI](./cli). For the reasons for the gates, refer to [What the gates show](../explanation/what-the-gates-show).
+The command `urn-forge verify` examines the chain from the manifest to the core, the features and the generated files. It reads files and does a type check. It does not run the core or the scenarios. The command `urn-forge diff` is gate 5: it compares two manifests. This page gives what `verify` does, each gate, each check of a gate, and the output. For the options of the command, refer to [The CLI](./cli). For the reasons for the gates, refer to [What the gates show](../explanation/what-the-gates-show).
 
 ## What `verify` does
 
 `verify` does these steps in this sequence:
 
 1. It reads the [configuration file](./configuration), if there is one. If the file is not valid, `verify` shows the diagnostics and stops. No gate runs.
-2. It reads the manifest and compiles it in memory, with the same plugins as `compile`. It does not write files. If the manifest has an error, `verify` shows the diagnostics and stops. No gate runs.
+2. It reads the manifest and compiles it in memory, with the same plugins and the same reference date as `compile`. It does not write files. If the manifest has an error, `verify` shows the diagnostics and stops. No gate runs.
+   If the manifest has a `sunsetDate` and there is no reference date, `verify` writes `note: sunset dates are not checked: set --reference-date or referenceDate in the config`.
 3. It reads each `.feature` file in the `--features` directory and its subdirectories, in path sequence. It reads each file one time, and all gates use the result.
 4. It runs gate 1, gate 3 and gate 4, in this sequence. Each gate runs also if a gate before it failed.
 5. It shows the result of each gate and the last line.
 
 A gate fails if one or more of its problems has the severity `error`. A warning or a note does not make a gate fail. `verify` passes if all gates pass.
+
+The gates examine the live IR: the IR with no sunset atoms. A sunset operation thus needs no handler and no scenario, and a sunset field has no boundary cases. A deprecated atom gets all the checks.
 
 | Gate | Name | What it shows | Status |
 | --- | --- | --- | --- |
@@ -20,7 +23,7 @@ A gate fails if one or more of its problems has the severity `error`. A warning 
 | 2 | Lint profile | — | urn-forge does not have this gate at this time. Refer to [Scope](./scope) |
 | 3 | `gherkin` | The features use real URNs and real field names, and they cover the declared errors, the input invariants and the boundary values | Built |
 | 4 | `drift` | The generated files in the repository are the same as a new compile | Built |
-| 5 | Compatibility | — | urn-forge does not have this gate at this time. Refer to [Scope](./scope) |
+| 5 | Compatibility | No change breaks a consumer of a live URN | Built, as the separate command `urn-forge diff`. Refer to [Gate 5: compatibility](#gate-5-compatibility) |
 
 ## Output
 
@@ -36,8 +39,8 @@ The last line has one of these forms:
 
 | Last line | Stream | Condition |
 | --- | --- | --- |
-| `verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)` | stdout | All gates passed, with no warnings |
-| `verify passed with <n> warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)` | stdout | All gates passed, with `<n>` warnings |
+| `verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)` | stdout | All gates passed, with no warnings |
+| `verify passed with <n> warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)` | stdout | All gates passed, with `<n>` warnings |
 | `verify failed: gate <numbers>` | stderr | One or more gates failed, for example `verify failed: gate 1, 4` |
 | `verify failed: the manifest cannot be read` | stderr | urn-forge cannot read the manifest |
 | `verify failed: the manifest does not compile` | stderr | The manifest has an error |
@@ -57,7 +60,7 @@ gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 
     tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
     tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/2-declared-errors/generated
-verify passed with 2 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+verify passed with 2 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```
 
 ## Exit codes
@@ -180,8 +183,8 @@ The gate converts each cell with the primitive of the field, in the same way as 
 If a list or object cell is malformed, or names a property that its entity does not have, the gate reports `invalid-cell` and does not use the cell. A cell for a list that does not start with `[`, or a cell for an embedded entity that does not start with `{`, stays text. It is not an `invalid-cell`. The schema refuses it when Cucumber runs the scenario. These problems come from a real run of the insurance domain with two rows added to an `Examples` block of `coverages`:
 
 ```
-    insurance/features/issue_policy.feature:55:128  error  invalid-cell  coverages: "lmit" is not a property of urn:acme:insurance:policy:entity:coverage (properties: peril, limit, note) (at column 17 of the cell): [{ peril: fire, lmit: 1 }]
-    insurance/features/issue_policy.feature:55:128  error  invalid-cell  coverages: expected "," or "]" (at column 27 of the cell): [{ peril: fire, limit: 1 }
+    insurance/features/issue_policy.feature:56:128  error  invalid-cell  coverages: "lmit" is not a property of urn:acme:insurance:policy:entity:coverage (properties: peril, limit, note, remark) (at column 17 of the cell): [{ peril: fire, lmit: 1 }]
+    insurance/features/issue_policy.feature:56:128  error  invalid-cell  coverages: expected "," or "]" (at column 27 of the cell): [{ peril: fire, limit: 1 }
 ```
 
 Each operation needs its own values. If two operations have the same field in their input, each operation needs scenarios with the values. An operation with no tag has no boundary check, because `untagged-operation` is already an error.
@@ -283,10 +286,10 @@ If the field reference has `many`, each item of each list counts as a value of t
 | `unique: true` | A list in which a value occurs two or more times | `list with a repeated value (unique)` |
 | `unique: true` on a list of an embedded entity | A list in which a key value occurs in two or more objects | `list with a repeated <key> (unique)` |
 
-The list cases of a list of an embedded entity have the URN of the entity in the message, and the path of the property after `at`. This message comes from the insurance domain with the row that repeats the peril `fire` removed:
+The list cases of a list of an embedded entity have the URN of the entity in the message, and the path of the property after `at`. This message comes from the insurance domain with the two rows that repeat the peril `fire` removed. One of the rows also had four coverages:
 
 ```
-urn:acme:insurance:policy:entity:coverage at coverages in the input of urn:acme:insurance:policy:operation:issue_policy has no list with a repeated peril (unique)
+urn:acme:insurance:policy:entity:coverage at coverages in the input of urn:acme:insurance:policy:operation:issue_policy has no list of 4 item(s) (above maxItems), no list with a repeated peril (unique)
 ```
 
 `many: true` has no list cases. If the field also has no constraints, the field has no boundary cases. The list cases come after the cases of the constraints in the message.
@@ -353,7 +356,7 @@ The last example is the insurance domain (`npm run verify:insurance`). Its 4 inp
 
 ```
 gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
-    insurance/features/issue_policy.feature:77:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
+    insurance/features/issue_policy.feature:79:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
 ```
 
@@ -376,6 +379,141 @@ The summary has this form:
 ```
 <n> generated file(s) compared byte for byte against <out>
 ```
+
+## Gate 5: compatibility
+
+**No change breaks a consumer of a live URN.** A live URN is the URN of an atom that is not sunset.
+
+Gate 5 compares two manifests. `verify` has one manifest and no git history, so gate 5 is the separate command `urn-forge diff`. CI gives it the manifest of the base branch and the manifest of the change. For the options, the output and the exit codes, refer to [The CLI](./cli). For the reasons for the rules, refer to [Compatibility and the direction of use](../explanation/compatibility).
+
+```bash
+urn-forge diff <old manifest> <new manifest> --config urn-forge.config.ts
+```
+
+`diff` compiles the two manifests in memory, with no reference date. Then it gives each change one of three classes:
+
+| Class | Meaning | Line | Effect |
+| --- | --- | --- | --- |
+| `compatible` | No consumer that worked before the change can fail after it | `compatible` | None |
+| `lifecycle` | A `status` that moves forward, a new `supersededBy` or `sunsetDate`, or the removal of a property whose target was deprecated | `lifecycle` | None |
+| `breaking` | A consumer that worked before the change can fail after it | `breaking`, and the diagnostic `breaking-change` | An error. A warning if the old manifest has `stability: experimental` |
+
+### The uses
+
+The class of most changes depends on how the URN is used. `diff` finds the uses of each atom in the live IR of the old manifest. For a URN that is new, it uses the new manifest.
+
+| Use | The atoms that have it | Message text |
+| --- | --- | --- |
+| In | The input entity of each operation. Each field and entity that it embeds, at any depth. The key field of each entity that it links | `callers send` |
+| Out | The output entity of each operation, with its embedded entities and the key fields of its links. Each declared error of each operation, with the same parts of its fields | `callers receive` |
+| Stored | Each entity in the `tables` of the `postgres` plugin of `--config`, with its embedded entities and the key fields of its links | `the database stores` |
+
+An invariant has the uses of its entity. An atom can have zero, one, two or three uses. If no operation and no table uses an atom, each change to it is compatible.
+
+### The relation of a change
+
+For each change to the values of an atom, `diff` finds the relation of the new set of correct values to the old set. The relation and the uses give the class:
+
+| Relation | Verb in the message | In | Out | Stored |
+| --- | --- | --- | --- | --- |
+| Narrower: fewer values | `narrows` | `breaking` | `compatible` | `breaking` |
+| Wider: more values | `widens` | `compatible` | `breaking` | `compatible` |
+| Neither: `diff` cannot say narrower or wider | `changes` | `breaking` | `breaking` | `breaking` |
+
+A change is breaking if one or more of its uses breaks. The message names all the uses, and then the uses that break:
+
+```
+breaking    urn:acme:insurance:policy:field:remark  maxLength 40 → 60 widens a value that callers send and callers receive and the database stores, which breaks callers that receive it
+compatible  urn:demo:shop:order:field:qty  max 10 → 20 widens a value that callers send
+compatible  urn:demo:shop:order:field:spare  min none → 5 narrows a value that nothing uses
+```
+
+### Changes to a field
+
+A change of `primitive` is "neither". For the same primitive, `diff` compares each aspect of the constraints:
+
+| Aspect | Constraints | Narrower | Wider | Neither |
+| --- | --- | --- | --- | --- |
+| Lower bound | `min`, `exclusiveMin`, `minLength` | A new bound, a higher bound, or the same value that becomes exclusive | No bound, a lower bound, or the same value that becomes inclusive | — |
+| Upper bound | `max`, `exclusiveMax`, `maxLength` | A new bound, a lower bound, or the same value that becomes exclusive | No bound, a higher bound, or the same value that becomes inclusive | — |
+| Step | `multipleOf` | The new step is a multiple of the old step. No `multipleOf` is a step of 1 | The new step is a divisor of the old step | Each other change |
+| Scale | `scale` | A new `scale`, or a smaller `scale` | No `scale`, or a larger `scale` | — |
+| Excluded values | `notIn` | The new list has each old value, and more | The old list has each new value, and more | Each other change |
+| Allowed values | `values` of an `enum` | The old list has each new value, and more | The new list has each old value, and more | Each other change |
+| Shape | `regex`, `format`, `mustBe` | A new constraint | No constraint | A changed value |
+
+- `decimal` bounds compare as exact numbers, `timestamp` bounds as instants, and `date` bounds as text.
+- The values of `notIn` and of `values` compare as sets. Their sequence is not important.
+- If the aspects that change all have one relation, the field has that relation. If they have different relations, the field has "neither".
+- A changed `regex` or `format` is always "neither", also if the new pattern accepts more values. Thus `regex [A-Z]+ → [A-Z]*` is breaking for each use.
+
+### Changes to an entity or an error
+
+`diff` compares the properties of an entity or an error by property name. The relation applies to the uses of the entity or the error:
+
+| Change | Relation | Message |
+| --- | --- | --- |
+| A new required property | Narrower | `the new required property "<name>"` |
+| A new optional property | Compatible for each use | `adds the optional property "<name>"` |
+| A property that is not there any more | Wider | `removing the <required \| optional> property "<name>"` |
+| A property that is not there any more, whose target was deprecated in the old manifest | `lifecycle` | `removes the property "<name>", whose target <urn> was deprecated` |
+| `required: false` becomes `required: true` | Narrower | `the property "<name>" (optional → required)` |
+| `required: true` becomes `required: false` | Wider | `the property "<name>" (required → optional)` |
+| A change to the `many` rule of a list | `minItems` and `maxItems` as bounds. `unique: true` added is narrower, removed is wider | `the list "<name>" (<changes>)` |
+| A different target, or a change between one value and a list | Neither | `the property "<name>" (<old target> → <new target>)` |
+| A different `key` of an entity | Neither | `key <old> → <new>` |
+
+A new name with `as` is a removal and an addition. A removed property with a deprecated target is a lifecycle change, also on an entity that callers receive. The deprecation warned its callers, and they had until the sunset date to move. A change of the target atom itself, for example a tighter field, is a change to that atom, not to the entity.
+
+### Changes to the other kinds
+
+| Change | Class |
+| --- | --- |
+| A new invariant | Narrower, on the uses of its entity in the old manifest |
+| A changed `rule` or `on` of an invariant | Neither |
+| A changed `message` of an invariant or an error | `compatible` |
+| A changed `category` or `retryable` of an error | Neither, on the uses of the error |
+| A changed `input` or `output` of an operation | `breaking` |
+| A new declared error in the `errors` of an operation | Wider, on Out: `breaking` |
+| A declared error that is not in the `errors` of an operation any more | Narrower, on Out: `compatible` |
+| A changed `description` of an atom | `compatible` |
+
+### Atoms, the lifecycle and the manifest
+
+| Change | Class | Message |
+| --- | --- | --- |
+| A new atom, except an invariant | `compatible` | `is new` |
+| An atom that is not in the new manifest. Also a sunset atom | `breaking` | `is removed; deprecate it, and set status: sunset when no one uses it`, or for a sunset atom `is removed; keep a sunset atom in the manifest, so its URN is never used again` |
+| `status` moves forward: `active` to `deprecated`, `active` to `sunset`, or `deprecated` to `sunset` | `lifecycle` | `status <old> → <new>` |
+| An entity or an error that removes a property whose target was deprecated in the old manifest | `lifecycle` | `removes the property "<name>", whose target <urn> was deprecated` |
+| A changed `supersededBy` or `sunsetDate`, with the same `status` | `lifecycle` | `<key> <old> → <new>` |
+| `status` moves back, for example `sunset` to `active` | `breaking` | `status <old> → <new>: a status only moves forward; declare a new URN instead` |
+| Any change to an atom that is sunset in the two manifests | Not reported | — |
+| Other changes to an atom that becomes sunset | Not reported. Only the `lifecycle` line | — |
+| A different `namespace` or `domain` | `breaking`, one line for the manifest and no other line | `the namespace or domain changed to urn:<namespace>:<domain>, so every URN changed` |
+| `stability: experimental` to `stable` | `compatible` | `stability experimental → stable: from now on, a breaking change fails` |
+| `stability: stable` to `experimental` | `breaking` | `stability stable → experimental: a published manifest cannot go back to experimental` |
+
+`diff` does not compare the `version` of the header with the class of the changes.
+
+### The cases in `tests/diff/`
+
+Each directory of `tests/diff/` holds one rule: `old.yaml`, `new.yaml` and `expected.txt`. `tests/diff.test.ts` runs each case. Examples from real runs, with `--config tests/diff/no-config.ts`:
+
+```
+breaking    urn:demo:shop:order:field:total  max 1000 → 2000 widens a value that callers receive, which breaks callers that receive it
+compatible  urn:demo:shop:order:field:total  max 1000 → 500 narrows a value that callers receive
+breaking    urn:demo:shop:order:entity:order  the new required property "spare" narrows a value that callers send, which breaks callers that send it
+compatible  urn:demo:shop:order:entity:order  removing the optional property "note" widens a value that callers send
+breaking    urn:demo:shop:order:field:pack  multipleOf 2 → 4 narrows a value that callers send, which breaks callers that send it
+breaking    urn:demo:shop:order:error:out_of_stock  retryable true → false changes a value that callers receive, which breaks callers that receive it
+breaking    urn:demo:shop:order:field:spare  status sunset → active: a status only moves forward; declare a new URN instead
+lifecycle   urn:demo:shop:order:entity:receipt  removes the property "spare", whose target urn:demo:shop:order:field:spare was deprecated
+```
+
+### Gate 5 in CI
+
+The CI job `compatibility` runs `npm run diff:base -- HEAD^1` for each pull request. The script runs `urn-forge diff` for each domain of the repository, from its manifest on the base branch to the manifest of the pull request. For the steps in your own CI, refer to [Check compatibility in CI](../how-to/check-compatibility).
 
 ## Related pages
 

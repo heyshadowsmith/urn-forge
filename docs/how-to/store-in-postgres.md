@@ -36,7 +36,7 @@ policy.entity.policy:
 If an entity in `tables` has no `key`, `compile` stops:
 
 ```
-insurance/domain.manifest.yaml:74:1  error  missing-key  urn:acme:insurance:policy:entity:policy: is a table in the postgres config, so it needs a key: one of its own required, single-valued fields
+insurance/domain.manifest.yaml:84:1  error  missing-key  urn:acme:insurance:policy:entity:policy: is a table in the postgres config, so it needs a key: one of its own required, single-valued fields
 ```
 
 To fix it, add `key` with a required, single-valued field of the entity. For the rules of a key, refer to [Add an entity](add-an-entity).
@@ -52,11 +52,14 @@ npx urn-forge compile --config insurance/urn-forge.config.ts
 The first compile with the plugin writes the new file:
 
 ```
+insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
 unchanged  insurance/generated/domain.runtime.generated.ts
 unchanged  insurance/generated/domain.schemas.generated.ts
 wrote      insurance/generated/schema.generated.sql
-fingerprint sha256:54cd88275382c52deabac2825d0ae353a3a027e039916362b9e8abd674c6dac8
+fingerprint sha256:957beb20d7d7f9f6d395ce04f1fcb67c71fa406c51f82bf94bdc7a06871ba427
 ```
+
+The `deprecated-ref` warning is about the retired field `note`. Refer to [Retire a URN](retire-a-urn).
 
 Commit `schema.generated.sql` with the other generated files. Gate 4 of `verify` compares it with a fresh compile, as it does for the TypeScript files.
 
@@ -69,13 +72,13 @@ The file of the insurance domain:
 The plugin does not write an approximate check. If a rule has no exact SQL form, `compile` shows `unenforced-in-sql`. The file is still written. Here the customer is not in `tables`:
 
 ```
-insurance/domain.manifest.yaml:74:1  warning  unenforced-in-sql  urn:acme:insurance:policy:entity:policy: the link "holder" to urn:acme:insurance:customer:entity:customer: that entity is not a table in the postgres config, so no foreign key can name it; the SQL does not enforce it, and the Valibot schema at the boundary still does
+insurance/domain.manifest.yaml:84:1  warning  unenforced-in-sql  urn:acme:insurance:policy:entity:policy: the link "holder" to urn:acme:insurance:customer:entity:customer: that entity is not a table in the postgres config, so no foreign key can name it; the SQL does not enforce it, and the Valibot schema at the boundary still does
 ```
 
 Here `coverages` has `required: false`:
 
 ```
-insurance/domain.manifest.yaml:74:1  warning  unenforced-in-sql  urn:acme:insurance:policy:entity:policy: the optional list "coverages": no rows can mean absent or empty, so the SQL keeps them apart only as no rows; the SQL does not enforce it, and the Valibot schema at the boundary still does
+insurance/domain.manifest.yaml:84:1  warning  unenforced-in-sql  urn:acme:insurance:policy:entity:policy: the optional list "coverages": no rows can mean absent or empty, so the SQL keeps them apart only as no rows; the SQL does not enforce it, and the Valibot schema at the boundary still does
 ```
 
 Here `customer.field.name` has a `regex` with a lookahead, `^(?!admin).*$`:
@@ -92,13 +95,13 @@ The other causes are `format: uri`, and an invariant rule that names a list or a
 If no rule may be outside the SQL, set `unenforced: 'error'` in the plugin config. Then each case is an error, and `compile` writes no files:
 
 ```
-insurance/domain.manifest.yaml:74:1  error  unenforced-in-sql  urn:acme:insurance:policy:entity:policy: the link "holder" to urn:acme:insurance:customer:entity:customer: that entity is not a table in the postgres config, so no foreign key can name it; the SQL does not enforce it, and the Valibot schema at the boundary still does
+insurance/domain.manifest.yaml:84:1  error  unenforced-in-sql  urn:acme:insurance:policy:entity:policy: the link "holder" to urn:acme:insurance:customer:entity:customer: that entity is not a table in the postgres config, so no foreign key can name it; the SQL does not enforce it, and the Valibot schema at the boundary still does
 ```
 
 A name that is longer than 63 bytes, or a name that two parts of the schema use, is `invalid-sql-name`. It is always an error. Here a second invariant `customer.invariant.term_is_positive` is on the policy too:
 
 ```
-insurance/domain.manifest.yaml:109:1  error  invalid-sql-name  urn:acme:insurance:policy:invariant:term_is_positive: the check constraint name "policy.term_is_positive" is also a name that urn:acme:insurance:customer:invariant:term_is_positive uses
+insurance/domain.manifest.yaml:119:1  error  invalid-sql-name  urn:acme:insurance:policy:invariant:term_is_positive: the check constraint name "policy.term_is_positive" is also a name that urn:acme:insurance:customer:invariant:term_is_positive uses
 ```
 
 To fix it, give one of the two atoms a different identifier, or a shorter property name with `as`. For the subset of regular expressions and each name rule, refer to [The Postgres schema](../reference/postgres-schema).

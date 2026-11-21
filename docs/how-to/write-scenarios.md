@@ -101,9 +101,9 @@ If the property holds an embedded entity, write the object in braces. Give each 
 - Leave out an optional property to send no value.
 - In the output table and the error table, the step compares the objects property by property. A property that the cell leaves out must be absent.
 
-The insurance feature sends lists of coverages (highlighted). Lines 13 to 17 also expect each list in the output:
+The insurance feature sends lists of coverages (highlighted). Lines 13 to 18 also expect each list in the output:
 
-<<< @/../packages/urn-forge/insurance/features/issue_policy.feature{13-17,59-65 gherkin}
+<<< @/../packages/urn-forge/insurance/features/issue_policy.feature{13-18,60-67 gherkin}
 
 ### Quote a value
 
@@ -139,7 +139,7 @@ gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged,
 A name that is not a property of the embedded entity also gives `invalid-cell`. The message lists the correct names:
 
 ```
-    insurance/features/issue_policy.feature:69:128  error  invalid-cell  coverages: "limits" is not a property of urn:acme:insurance:policy:entity:coverage (properties: peril, limit, note) (at column 17 of the cell): [{ peril: fire, limits: 0 }]
+    insurance/features/issue_policy.feature:71:128  error  invalid-cell  coverages: "limits" is not a property of urn:acme:insurance:policy:entity:coverage (properties: peril, limit, note, remark) (at column 17 of the cell): [{ peril: fire, limits: 0 }]
 ```
 
 To fix the cell, do these steps:

@@ -13,7 +13,7 @@
  */
 import { invariantsOf, type IRPropertyRef, type UniversalIR, type Urn } from '../ir/types.js';
 import { ruleSql } from './postgres-rules.js';
-import { domainName, ident, literal, urnParts } from './postgres.plugin.js';
+import { describe, domainName, ident, literal, urnParts } from './postgres.plugin.js';
 
 /** One column, with its SQL type. */
 interface Column {
@@ -244,7 +244,7 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
     const table: Table = { schema: context, name: identifier, key: [key] };
     claim(context, `${identifier}_pkey`, root, 'primary key');
     const node = ir.entities[root]!;
-    entityTable(table, root, [], [`CONSTRAINT ${ident(`${identifier}_pkey`)} PRIMARY KEY (${ident(key.name)})`], node.description ? `${root} — ${node.description}` : root);
+    entityTable(table, root, [], [`CONSTRAINT ${ident(`${identifier}_pkey`)} PRIMARY KEY (${ident(key.name)})`], describe(root, node.description, node));
   }
 
   return [...tables, ...(links.length > 0 ? ['', ...links] : []), ...counts];

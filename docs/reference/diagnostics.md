@@ -1,6 +1,6 @@
 # Diagnostics
 
-This page gives each diagnostic that urn-forge can show. Each diagnostic has a stable **code**. The codes are in groups, one group for each step of `compile` and for each gate of `verify`. In a message, the `<…>` text shows a value that changes.
+This page gives each diagnostic that urn-forge can show. Each diagnostic has a stable **code**. The codes are in groups, one group for each step of `compile`, one for `urn-forge diff` and one for each gate of `verify`. In a message, the `<…>` text shows a value that changes.
 
 ## The parts of a diagnostic
 
@@ -33,7 +33,7 @@ The position in a manifest points to the part that has the problem:
 | `warning` | None | Yes, for example `verify passed with 2 warning(s)` |
 | `note` | None. The note gives information only | No |
 
-Most codes always have the same severity. The severity of `uncovered-error`, `uncovered-invariant` and `uncovered-boundary` changes with the coverage mode. Refer to [Verification gates](./verification-gates). The severity of `unenforced-in-sql` changes with the `unenforced` option of the `postgres` plugin. Refer to [The Postgres schema](./postgres-schema).
+Most codes always have the same severity. The severity of `uncovered-error`, `uncovered-invariant` and `uncovered-boundary` changes with the coverage mode. Refer to [Verification gates](./verification-gates). The severity of `unenforced-in-sql` changes with the `unenforced` option of the `postgres` plugin. Refer to [The Postgres schema](./postgres-schema). The severity of `breaking-change` changes with the `stability` of the old manifest. Refer to [Verification gates](./verification-gates).
 
 ## Read the configuration
 
@@ -66,6 +66,7 @@ These diagnostics have the configuration file as their file, and no position.
 | `unknown-property` | `error` | `<key>.<property>: unknown property "<property>"`<br>`<key>.oneOf: unknown property "oneOf"; for a fixed set of values, use primitive: enum with values: [ … ]`<br>`<key>.notEqual: unknown property "notEqual"; to exclude values, use notIn: [ … ]` | An atom or the header has a key that it does not accept. On a field, this is a key that is a constraint of no primitive, for example `colour`. `oneOf` and `notEqual` were constraints in earlier versions, so on a field their message has a hint | Remove the key, or correct its name. For `oneOf`, use the `enum` primitive. For `notEqual`, use `notIn` |
 | `missing-property` | `error` | `<key>.<property>: missing property "<property>"` | An entry does not have a property that it must have, for example the `description` of an entity or an invariant, the `message` of an error or the `values` of an `enum` field | Add the property |
 | `invalid-value` | `error` | `<key>.<property>: <message>` | A value has the wrong type or form. Refer to the examples after this table | Correct the value. The message gives the necessary type or form |
+| `invalid-lifecycle` | `error` | `<key>.<property>: an active atom has no <property>; set status: deprecated or status: sunset, or remove <property>`<br>`<urn>: supersededBy "<short key>" names the atom itself; name the atom that replaces it` | An atom with `status: active`, or with no `status`, sets `supersededBy` or `sunsetDate` (the first form, one for each key). The position is the key. Or `supersededBy` names the atom itself (the second form). Pass 4 finds this, and the position is the value | Set `status: deprecated` or `status: sunset`, or remove the key. Name the replacement in `supersededBy` |
 
 Examples of `invalid-value` messages:
 
@@ -82,6 +83,9 @@ order.entity.a.fields.0: must have either ref or link
 order.entity.b.fields.0.as: must be lowercase snake_case, start with a letter and be at most 63 characters
 p.invariant.b.rule: must not be empty
 geometry.error.e.recordAs: needs the event kind, which urn-forge does not support yet
+policy.field.note.status: must be active, deprecated or sunset
+policy.field.note.supersededBy: must be a short key such as policy.field.remark
+policy.field.note.sunsetDate: must be a date YYYY-MM-DD
 manifest.namespace: must be lowercase snake_case, start with a letter and be at most 63 characters
 ```
 
@@ -99,8 +103,8 @@ manifest.namespace: must be lowercase snake_case, start with a letter and be at 
 
 | Code | Severity | Message | Cause | Correction |
 | --- | --- | --- | --- | --- |
-| `unresolved-ref` | `error` | `<urn>: <where> "<short key>" does not resolve (no atom <urn> in this manifest)`<br>`postgres config: tables[<i>] "<short key>" does not resolve (no atom <urn> in this manifest)` | A `fields[<i>].ref`, `fields[<i>].link`, `key`, `input`, `output`, `errors[<i>]` or `on` refers to an atom that the manifest does not declare. The second form comes from the `postgres` plugin, after the passes. Its file is the manifest, with no position | Declare the atom, or correct the short key |
-| `wrong-ref-kind` | `error` | `<urn>: <where> "<short key>" must name <kind>, but <urn> is <kind>` | A reference refers to an atom of the wrong kind. A `fields[<i>].ref` must name a field or an entity. A `fields[<i>].link` must name an entity. The `key` of an entity must name a field. An `input`, an `output` or the `on` of an invariant must name an entity. An `errors[<i>]` must name an error. Example: `input "geometry.field.radius" must name an entity, but urn:demo:math:geometry:field:radius is a field`. An item of `tables` in the configuration of `postgres` must name an entity: `postgres config: tables[0] "shop.field.site" must name an entity, but it names a field`. Its file is the manifest, with no position | Refer to an atom of the correct kind. To use a field as an input or an output, put it in an entity |
+| `unresolved-ref` | `error` | `<urn>: <where> "<short key>" does not resolve (no atom <urn> in this manifest)`<br>`postgres config: tables[<i>] "<short key>" does not resolve (no atom <urn> in this manifest)` | A `fields[<i>].ref`, `fields[<i>].link`, `key`, `input`, `output`, `errors[<i>]`, `on` or `supersededBy` refers to an atom that the manifest does not declare. The second form comes from the `postgres` plugin, after the passes. Its file is the manifest, with no position | Declare the atom, or correct the short key |
+| `wrong-ref-kind` | `error` | `<urn>: <where> "<short key>" must name <kind>, but <urn> is <kind>` | A reference refers to an atom of the wrong kind. A `fields[<i>].ref` must name a field or an entity. A `fields[<i>].link` must name an entity. The `key` of an entity must name a field. An `input`, an `output` or the `on` of an invariant must name an entity. An `errors[<i>]` must name an error. A `supersededBy` must name an atom of the same kind. Example: `input "geometry.field.radius" must name an entity, but urn:demo:math:geometry:field:radius is a field`. An item of `tables` in the configuration of `postgres` must name an entity: `postgres config: tables[0] "shop.field.site" must name an entity, but it names a field`. Its file is the manifest, with no position | Refer to an atom of the correct kind. To use a field as an input or an output, put it in an entity |
 
 ## Pass 5: structure
 
@@ -146,6 +150,13 @@ The messages of `incoherent-constraints`, for each primitive. `<lower>` is `min`
 
 `boolean` and `enum` have no `incoherent-constraints` message. urn-forge examines `notIn` against the bounds only if the field has a lower and an upper bound. On a `decimal`, the field must also have `scale`. If 100,000 or more allowed values are between the bounds, urn-forge does not examine `notIn`.
 
+## Pass 8: lifecycle
+
+| Code | Severity | Message | Cause | Correction |
+| --- | --- | --- | --- | --- |
+| `deprecated-ref` | `warning` | `<urn>: <reference> refers to <urn>, which is deprecated[ (<plans>)]` | An active atom refers to a deprecated atom. `<plans>` is `superseded by <urn>`, `sunset on <date>` or both, separated by `; `, if the deprecated atom has them. Example: `urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)`. A deprecated or a sunset atom that refers to a deprecated atom gets no warning | Refer to the replacement before the sunset date. The warning does not stop the compile |
+| `sunset-ref` | `error` | `<urn>: <reference> refers to <urn>, which is sunset[ (<plans>)]; refer to its replacement`<br>`<urn>: <reference> refers to <urn>, whose sunset date <date> is on or before the reference date <date>[ (superseded by <urn>)]; refer to its replacement` | An active or a deprecated atom refers to an atom with `status: sunset` (the first form), or to an atom whose `sunsetDate` is on or before the reference date (the second form). Without a reference date, pass 8 does not compare sunset dates. A sunset atom can refer to any atom | Refer to the replacement, or set `status: sunset` on the atom that refers |
+
 ## Plugins
 
 | Code | Severity | Message | Cause | Correction |
@@ -157,6 +168,12 @@ The messages of `incoherent-constraints`, for each primitive. `<lower>` is `min`
 | `missing-plugin` | `error` | `plugin <name> requires plugin <name>, which is not enabled` | A plugin uses the output of a plugin that is not in the `plugins` list. Example: `plugin fcis requires plugin valibot, which is not enabled`. The file is the configuration file | Add the necessary plugin to the list |
 | `unenforced-in-sql` | `warning`, or `error` with `unenforced: 'error'` | `<urn>: <rule>: <reason>; the SQL does not enforce it, and the Valibot schema at the boundary still does` | The `postgres` plugin cannot write a rule in SQL with exactly the same effect. Two of the five cases are `format: uri` and a `regex` outside the subset. Example: `urn:demo:store:shop:field:site: format uri: Valibot checks it with the URL parser, which has no SQL form; …`. The position is the field, the entity or the invariant | Accept the warning, because the schema at the boundary still enforces the rule. Or change the rule to one that SQL can express, for example a `regex` in the subset. Refer to [The Postgres schema](./postgres-schema) |
 | `invalid-sql-name` | `error` | `<urn>: the <part> name "<name>" is <n> bytes; Postgres keeps at most 63`<br>`<urn>: the <part> name "<schema>.<name>" is also a name that <urn> uses` | A name in the Postgres schema is longer than 63 bytes, or two parts get the same name. Examples: `the domain name "a_field_name_that_is_much_too_long_for_a_postgres_identifier_value" is 66 bytes`, and `the table name "order.order__lines" is also a name that urn:demo:shop:order:entity:order uses` | Use a shorter identifier, or give the property another name with `as`. For the names, refer to [The Postgres schema](./postgres-schema) |
+
+## urn-forge diff (gate 5)
+
+| Code | Severity | Message | Cause | Correction |
+| --- | --- | --- | --- | --- |
+| `breaking-change` | `error`, or `warning` if the old manifest has `stability: experimental` | `<urn>: <change> <narrows \| widens \| changes> a value that <uses>, which breaks <consumers>`<br>`<urn>: is removed; <advice>`<br>`<urn>: status <old> → <new>: a status only moves forward; declare a new URN instead`<br>`<urn>: input <urn> → <urn>: callers send another entity`<br>`<urn>: output <urn> → <urn>: callers receive another entity`<br>`urn:<namespace>:<domain>: the namespace or domain changed to urn:<namespace>:<domain>, so every URN changed`<br>`urn:<namespace>:<domain>: stability stable → experimental: a published manifest cannot go back to experimental` | A change from the old manifest to the new manifest can break a consumer that worked before it. `<uses>` is `callers send`, `callers receive` or `the database stores`, or two or three of them with `and`. Example: `urn:demo:shop:order:field:qty: max 10 → 5 narrows a value that callers send, which breaks callers that send it`. The file is the new manifest, with no position | Declare a new URN for the new meaning, and deprecate the old URN. Refer to [Retire a URN](../how-to/retire-a-urn) |
 
 ## Gate 1: completeness
 
