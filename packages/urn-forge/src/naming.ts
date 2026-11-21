@@ -36,6 +36,11 @@ export function schemaNames(brandIdentifier: string) {
   } as const;
 }
 
+/** The exported function of an invariant's rule: `<Brand>Rule` (invariants plan, step 3). */
+export function ruleName(brandIdentifier: string): string {
+  return `${brandIdentifier}Rule`;
+}
+
 /** The handler type of an operation: `<Brand>Handler`. */
 export function handlerName(brandIdentifier: string): string {
   return `${brandIdentifier}Handler`;

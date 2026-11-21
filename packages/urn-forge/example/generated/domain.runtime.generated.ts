@@ -69,10 +69,18 @@ export interface FieldInfo {
   readonly many?: true;
 }
 
+export interface InvariantInfo {
+  readonly urn: string;
+  /** The exported rule; an issue whose requirement is this function comes from the invariant. */
+  readonly rule: unknown;
+}
+
 export interface EntityContract {
   readonly schema: v.GenericSchema;
   /** Keyed by property name, in declaration order. */
   readonly fields: Readonly<Record<string, FieldInfo>>;
+  /** The invariants of the entity, when it has any. */
+  readonly invariants?: readonly InvariantInfo[];
 }
 
 export type ErrorCategory = 'validation' | 'conflict' | 'not_found' | 'forbidden' | 'precondition';
@@ -136,6 +144,8 @@ export interface BoundaryIssue {
   readonly path: string;
   /** URN of the field the issue is about, when the path starts at a declared field. */
   readonly fieldUrn?: string;
+  /** URN of the invariant that does not hold, when the issue comes from one. */
+  readonly invariantUrn?: string;
   readonly message: string;
 }
 
@@ -184,15 +194,20 @@ export type ExecuteResult<U extends OperationUrn = OperationUrn> =
       readonly issues: readonly BoundaryIssue[];
     };
 
-function boundaryIssues(
-  issues: readonly v.BaseIssue<unknown>[],
-  fields: Readonly<Record<string, FieldInfo>>,
-): BoundaryIssue[] {
+function boundaryIssues(issues: readonly v.BaseIssue<unknown>[], contract: EntityContract): BoundaryIssue[] {
   return issues.map((issue) => {
     const path = v.getDotPath(issue) ?? '';
     const head = path.split('.')[0] ?? '';
-    const field = Object.hasOwn(fields, head) ? fields[head] : undefined;
-    return field ? { path, fieldUrn: field.urn, message: issue.message } : { path, message: issue.message };
+    const field = Object.hasOwn(contract.fields, head) ? contract.fields[head] : undefined;
+    // A check issue keeps the function that failed; an invariant's rule is one such function.
+    const requirement = (issue as { readonly requirement?: unknown }).requirement;
+    const invariant = contract.invariants?.find((candidate) => candidate.rule === requirement);
+    return {
+      path,
+      ...(field ? { fieldUrn: field.urn } : {}),
+      ...(invariant ? { invariantUrn: invariant.urn } : {}),
+      message: issue.message,
+    };
   });
 }
 
@@ -231,7 +246,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
 
   const input = v.safeParse(contract.input.schema, rawPayload);
   if (!input.success) {
-    return { ok: false, kind: 'InputRejected', urn, issues: boundaryIssues(input.issues, contract.input.fields) };
+    return { ok: false, kind: 'InputRejected', urn, issues: boundaryIssues(input.issues, contract.input) };
   }
 
   const handler: unknown = core[urn];
@@ -248,7 +263,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
     if (!declared) return violation(`${urn} failed with ${String(errorUrn)}, which it does not declare`);
     const error = v.safeParse(declared.schema, result.error);
     if (!error.success) {
-      return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(error.issues, declared.fields) };
+      return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(error.issues, declared) };
     }
     return {
       ok: false,
@@ -266,7 +281,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
 
   const output = v.safeParse(contract.output.schema, result.value);
   if (!output.success) {
-    return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(output.issues, contract.output.fields) };
+    return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(output.issues, contract.output) };
   }
   return { ok: true, urn, output: output.output } as ExecuteResult;
 }

@@ -10,8 +10,10 @@
  * group declarations follow URN order.
  */
 import * as v from 'valibot';
-import type { IREntity, IRError, IRField, IRFieldRef, ListRule, UniversalIR, Urn } from '../ir/types.js';
-import { schemaNames } from '../naming.js';
+import { invariantsOf, type IREntity, type IRError, type IRField, type IRFieldRef, type ListRule, type UniversalIR, type Urn } from '../ir/types.js';
+import { ruleName, schemaNames } from '../naming.js';
+import { firstField } from '../rules/index.js';
+import { emitRule } from '../rules/emit.js';
 import {
   constraintKeys,
   type ConstraintKey,
@@ -182,13 +184,40 @@ function listSchema(item: string, rule: ListRule): string {
   return actions.length === 0 ? `v.array(${item})` : `v.pipe(v.array(${item}), ${actions.join(', ')})`;
 }
 
-function entityDeclaration(entity: IREntity, fields: Readonly<Record<Urn, IRField>>): string {
+function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
   const names = schemaNames(entity.brandIdentifier);
+  const invariants = invariantsOf(ir, entity.urn);
+  if (invariants.length === 0) {
+    return [
+      `/** ${entity.urn} — ${entity.description} */`,
+      `export const ${names.schema} = v.object({`,
+      ...propertyLines(entity.urn, entity.fields, ir.fields),
+      `});`,
+      ...typeExports(entity.brandIdentifier),
+    ].join('\n');
+  }
+  // With invariants (spec §7.1): the object, then one exported rule for each invariant, then
+  // the schema, whose checks point at the first field each rule names (v.forward).
+  const object = `${entity.brandIdentifier}Fields`;
+  const primitiveOf = (name: string) => ir.fields[entity.fields.find((f) => f.name === name)!.field]!.primitive;
   return [
-    `/** ${entity.urn} — ${entity.description} */`,
-    `export const ${names.schema} = v.object({`,
-    ...propertyLines(entity.urn, entity.fields, fields),
+    `const ${object} = v.object({`,
+    ...propertyLines(entity.urn, entity.fields, ir.fields),
     `});`,
+    ...invariants.map((invariant) =>
+      [
+        `/** ${invariant.urn} — ${invariant.description}: ${invariant.ruleText} */`,
+        `export const ${ruleName(invariant.brandIdentifier)} = (p: v.InferOutput<typeof ${object}>): boolean =>`,
+        `  ${emitRule(invariant.rule, primitiveOf).code};`,
+      ].join('\n'),
+    ),
+    `/** ${entity.urn} — ${entity.description} */`,
+    `export const ${names.schema} = v.pipe(`,
+    `  ${object},`,
+    ...invariants.map(
+      (invariant) => `  v.forward(v.check(${ruleName(invariant.brandIdentifier)}, ${JSON.stringify(invariant.message)}), [${JSON.stringify(firstField(invariant.rule))}]),`,
+    ),
+    `);`,
     ...typeExports(entity.brandIdentifier),
   ].join('\n');
 }
@@ -215,6 +244,11 @@ function helpersFor(ir: UniversalIR): ValibotHelper[] {
   for (const field of Object.values(ir.fields)) {
     for (const helper of TRANSLATIONS[field.primitive].helpers ?? []) for (const need of HELPER_NEEDS[helper]) needed.add(need);
   }
+  for (const invariant of Object.values(ir.invariants ?? {})) {
+    const entity = ir.entities[invariant.on]!;
+    const primitiveOf = (name: string) => ir.fields[entity.fields.find((f) => f.name === name)!.field]!.primitive;
+    for (const helper of emitRule(invariant.rule, primitiveOf).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
+  }
   return (Object.keys(VALIBOT_HELPERS) as ValibotHelper[]).filter((name) => needed.has(name));
 }
 
@@ -230,8 +264,14 @@ function typeExports(brandIdentifier: string): string[] {
 function exportCollisions(ir: UniversalIR): PluginDiagnostic[] {
   const owners = new Map<string, Urn>();
   const diagnostics: PluginDiagnostic[] = [];
-  for (const atom of [...valuesInUrnOrder(ir.fields), ...valuesInUrnOrder(ir.entities), ...valuesInUrnOrder(ir.errors)]) {
-    for (const name of Object.values(schemaNames(atom.brandIdentifier))) {
+  const exported = (atom: { readonly urn: Urn; readonly brandIdentifier: string }, kind: 'schema' | 'rule') =>
+    kind === 'rule' ? [ruleName(atom.brandIdentifier)] : Object.values(schemaNames(atom.brandIdentifier));
+  const atoms = [
+    ...[...valuesInUrnOrder(ir.fields), ...valuesInUrnOrder(ir.entities), ...valuesInUrnOrder(ir.errors)].map((atom) => ({ atom, kind: 'schema' as const })),
+    ...valuesInUrnOrder(ir.invariants ?? {}).map((atom) => ({ atom, kind: 'rule' as const })),
+  ];
+  for (const { atom, kind } of atoms) {
+    for (const name of exported(atom, kind)) {
       const owner = owners.get(name);
       if (owner) {
         diagnostics.push({
@@ -253,7 +293,7 @@ export const valibotPlugin: CodegenPlugin<ValibotPluginConfig> = {
   version: '0.1.0',
   configSchema: ConfigSchema,
   // Operations need no schema of their own: their input and output are entities.
-  supports: { kinds: ['field', 'entity', 'operation', 'error'], constraints: SUPPORTED_CONSTRAINTS },
+  supports: { kinds: ['field', 'entity', 'invariant', 'operation', 'error'], constraints: SUPPORTED_CONSTRAINTS },
   emit(ir) {
     const diagnostics = exportCollisions(ir);
     const helpers = helpersFor(ir);
@@ -263,7 +303,7 @@ export const valibotPlugin: CodegenPlugin<ValibotPluginConfig> = {
       `// Fields`,
       ...valuesInUrnOrder(ir.fields).map(fieldDeclaration),
       `// Entities`,
-      ...valuesInUrnOrder(ir.entities).map((entity) => entityDeclaration(entity, ir.fields)),
+      ...valuesInUrnOrder(ir.entities).map((entity) => entityDeclaration(entity, ir)),
       ...(Object.keys(ir.errors).length > 0
         ? [`// Errors`, ...valuesInUrnOrder(ir.errors).map((error) => errorDeclaration(error, ir.fields))]
         : []),

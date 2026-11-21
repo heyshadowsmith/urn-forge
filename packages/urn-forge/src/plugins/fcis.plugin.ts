@@ -17,8 +17,8 @@
  */
 import * as v from 'valibot';
 import type { IREntity, IRError, IRFieldRef, MessagePart, UniversalIR, Urn } from '../ir/types.js';
-import { ERROR_CATEGORIES } from '../ir/types.js';
-import { handlerName, schemaNames } from '../naming.js';
+import { ERROR_CATEGORIES, invariantsOf } from '../ir/types.js';
+import { handlerName, ruleName, schemaNames } from '../naming.js';
 import { PRIMITIVE_NAMES } from '../primitives/index.js';
 import { valuesInUrnOrder, type CodegenPlugin } from './plugin.interface.js';
 import { VALIBOT_SCHEMAS_FILE } from './valibot.plugin.js';
@@ -73,6 +73,8 @@ export interface BoundaryIssue {
   readonly path: string;
   /** URN of the field the issue is about, when the path starts at a declared field. */
   readonly fieldUrn?: string;
+  /** URN of the invariant that does not hold, when the issue comes from one. */
+  readonly invariantUrn?: string;
   readonly message: string;
 }
 
@@ -121,15 +123,20 @@ export type ExecuteResult<U extends OperationUrn = OperationUrn> =
       readonly issues: readonly BoundaryIssue[];
     };
 
-function boundaryIssues(
-  issues: readonly v.BaseIssue<unknown>[],
-  fields: Readonly<Record<string, FieldInfo>>,
-): BoundaryIssue[] {
+function boundaryIssues(issues: readonly v.BaseIssue<unknown>[], contract: EntityContract): BoundaryIssue[] {
   return issues.map((issue) => {
     const path = v.getDotPath(issue) ?? '';
     const head = path.split('.')[0] ?? '';
-    const field = Object.hasOwn(fields, head) ? fields[head] : undefined;
-    return field ? { path, fieldUrn: field.urn, message: issue.message } : { path, message: issue.message };
+    const field = Object.hasOwn(contract.fields, head) ? contract.fields[head] : undefined;
+    // A check issue keeps the function that failed; an invariant's rule is one such function.
+    const requirement = (issue as { readonly requirement?: unknown }).requirement;
+    const invariant = contract.invariants?.find((candidate) => candidate.rule === requirement);
+    return {
+      path,
+      ...(field ? { fieldUrn: field.urn } : {}),
+      ...(invariant ? { invariantUrn: invariant.urn } : {}),
+      message: issue.message,
+    };
   });
 }
 
@@ -168,7 +175,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
 
   const input = v.safeParse(contract.input.schema, rawPayload);
   if (!input.success) {
-    return { ok: false, kind: 'InputRejected', urn, issues: boundaryIssues(input.issues, contract.input.fields) };
+    return { ok: false, kind: 'InputRejected', urn, issues: boundaryIssues(input.issues, contract.input) };
   }
 
   const handler: unknown = core[urn];
@@ -185,7 +192,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
     if (!declared) return violation(\`\${urn} failed with \${String(errorUrn)}, which it does not declare\`);
     const error = v.safeParse(declared.schema, result.error);
     if (!error.success) {
-      return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(error.issues, declared.fields) };
+      return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(error.issues, declared) };
     }
     return {
       ok: false,
@@ -203,7 +210,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
 
   const output = v.safeParse(contract.output.schema, result.value);
   if (!output.success) {
-    return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(output.issues, contract.output.fields) };
+    return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(output.issues, contract.output) };
   }
   return { ok: true, urn, output: output.output } as ExecuteResult;
 }
@@ -218,11 +225,19 @@ function fieldInfoLines(owner: Urn, refs: readonly IRFieldRef[], ir: UniversalIR
 }
 
 function entityContract(entity: IREntity, ir: UniversalIR, indent: string): string[] {
+  const invariants = invariantsOf(ir, entity.urn);
   return [
     `${indent}schema: s.${schemaNames(entity.brandIdentifier).schema},`,
     `${indent}fields: {`,
     ...fieldInfoLines(entity.urn, entity.fields, ir, `${indent}  `),
     `${indent}},`,
+    ...(invariants.length === 0
+      ? []
+      : [
+          `${indent}invariants: [`,
+          ...invariants.map((i) => `${indent}  { urn: ${q(i.urn)}, rule: s.${ruleName(i.brandIdentifier)} },`),
+          `${indent}],`,
+        ]),
   ];
 }
 
@@ -249,7 +264,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
   version: '0.2.0',
   configSchema: ConfigSchema,
   // Reads primitives only as names for FieldInfo, and no constraints.
-  supports: { kinds: ['field', 'entity', 'operation', 'error'] },
+  supports: { kinds: ['field', 'entity', 'invariant', 'operation', 'error'] },
   // The runtime imports the schema module.
   requires: ['valibot'],
   emit(ir) {
@@ -303,10 +318,18 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       `  readonly many?: true;`,
       `}`,
       ``,
+      `export interface InvariantInfo {`,
+      `  readonly urn: string;`,
+      `  /** The exported rule; an issue whose requirement is this function comes from the invariant. */`,
+      `  readonly rule: unknown;`,
+      `}`,
+      ``,
       `export interface EntityContract {`,
       `  readonly schema: v.GenericSchema;`,
       `  /** Keyed by property name, in declaration order. */`,
       `  readonly fields: Readonly<Record<string, FieldInfo>>;`,
+      `  /** The invariants of the entity, when it has any. */`,
+      `  readonly invariants?: readonly InvariantInfo[];`,
       `}`,
       ``,
       `export type ErrorCategory = ${ERROR_CATEGORIES.map(q).join(' | ')};`,
