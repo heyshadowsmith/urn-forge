@@ -68,6 +68,7 @@ When I run the operation with:
 | 5 | `unique` on a list of entities | **Compares the keys**; the entity must have a `key` | Objects have no equality of their own. The key is the entity's identity |
 | 6 | Cycles | **Pass 5: an embedding cycle is an error (`embedding-cycle`)**; links may cycle | Spec pass 5. A link is a value, so a cycle of links is data, not a type |
 | 7 | How does a table cell hold an embedded entity? | **`{ name: value, … }`**, each value read by its field's primitive, nested as deep as the entity; a list of them is `[{ … }, { … }]`. A link is the key's value, as a plain cell | The list syntax (`[a, b]`) already reads like YAML flow style; objects follow it. Dotted headers cannot hold a list of objects |
+| 7a | How does a value inside `[ … ]` or `{ … }` hold a comma, a brace, a bracket or a quote? | **Quote it as a JSON string literal**, with JSON's escapes: `["Smith, Ada", "a \"quoted\" word"]`, `{ note: "x{y}" }`. A bare value is still read as today. The same rule applies to list cells, which removes today's limit that a list item cannot hold a comma. A plain cell outside brackets does not change | Real values hold commas and braces: names, addresses, notes, codes. JSON's string rules are known and exact, and a bare value stays short where it is safe. Decided in review of this plan |
 | 8 | Boundary coverage of nested values | **The nested values count for their fields**, per operation, at any depth; a list of entities adds its count cases, and a repeated key for `unique` | The field's rules apply wherever the field is. Coverage is per operation, as today |
 | 9 | Invariants and structure | **A rule names only its entity's own properties.** A link compares as the key's primitive. An embedded entity's invariants run inside it, and an issue points at the nested path (`coverages.1.limit`) | Spec §4.3: single-entity rules. Invariants on the embedded entity already say what it allows |
 | 10 | Errors | **An error's fields can link and embed too**; a message placeholder names a single value or a link, not an embedded entity | Errors share the reference code; a placeholder needs text |
@@ -77,7 +78,7 @@ When I run the operation with:
 
 ## Scope
 
-**In:** `ref` to an entity, `link`, `key`, `as`; passes 3 to 5 for them; the IR; Valibot (nested schemas, link types); the runtime (nested paths, `FieldInfo` for nested values); the steps (object cells); gate 3 (headers, nested values, coverage); `insurance/` and the docs.
+**In:** `ref` to an entity, `link`, `key`, `as`; passes 3 to 5 for them; the IR; Valibot (nested schemas, link types); the runtime (nested paths, `FieldInfo` for nested values); the steps (object cells, and quoted values in list and object cells); gate 3 (headers, nested values, coverage); `insurance/` and the docs.
 
 **Out:** `record`; links across manifests; SQL foreign keys (no Postgres plugin yet); a link that the runtime resolves to its target (the shell does that).
 
@@ -92,7 +93,7 @@ One PR (decision 13), one commit per step. Each step leaves the repository green
 - [ ] **0. The target.** As above. *Check:* `compile` refuses exactly the new keys and references.
 - [ ] **1. The manifest and the IR.** `key` on entities; `ref` to a field or an entity; `link`; `as`. The IR's field reference becomes one of three forms. Pass 3 checks names and keys; pass 4 resolves the targets; pass 5 finds embedding cycles. *Check:* insurance builds an IR; a fixture for each new diagnostic.
 - [ ] **2. Valibot.** An embedded entity uses its schema (with its invariants); a link uses the key field's schema; a list of entities with `unique` compares keys. Schemas emit in dependency order. *Check:* the fixture's schemas parse nested values and refuse each broken rule at its nested path.
-- [ ] **3. The runtime and the steps.** `FieldInfo` describes nested entities, so the steps read `{ … }` cells and compare nested output; issues keep nested paths and their field URNs. *Check:* the insurance scenarios with nested values pass.
+- [ ] **3. The runtime and the steps.** `FieldInfo` describes nested entities, so the steps read `{ … }` cells and compare nested output; issues keep nested paths and their field URNs. One cell reader for lists and objects reads bare and quoted values (decision 7a); a malformed cell (an open quote, a missing brace) is a step error with the column. *Check:* the insurance scenarios with nested values pass, one of them with a value that holds a comma and a brace.
 - [ ] **4. Gate 3.** Headers of a nested entity's cells are checked; nested values count for coverage; list-of-entity cases. *Check:* a scenario removed gives the expected `uncovered-boundary` at a nested field.
 - [ ] **5. Ship.** Insurance strict in CI with the new parts; the docs gain the reference forms, `key`, `as`, the cell syntax and the cycle rule; an explanation of structure in the MECE model. *Check:* CI green; every sabotage below fails.
 
@@ -106,11 +107,12 @@ One PR (decision 13), one commit per step. Each step leaves the repository green
 | Two links to one entity without `as` | Pass 3, `duplicate-property` |
 | `unique` on a list of an entity without a key | Pass 3 |
 | A coverage with a limit of 0 in a scenario that expects success | Cucumber: `InputRejected` at `coverages.0.limit` |
+| A list cell `["Smith, Ada"]` read as two items | The cell reader's tests: one item, `Smith, Ada` |
 | The scenario for the repeated peril removed | Gate 3, `uncovered-boundary` |
 
 ## Risks
 
-- **Cell syntax.** `{ … }` inside a table cell is dense, and a value cannot hold a comma or a brace. A long nested value may need a scenario of its own. The syntax is the same one level deep as at any depth.
+- **Cell syntax.** `{ … }` inside a table cell is dense. A value that holds a comma, a brace, a bracket or a quote must be quoted (decision 7a), and a `|` must be escaped as Gherkin requires (`\|`). A long nested value may need a scenario of its own. If cells get too dense in real use, a payload step with a DocString can come later as an addition.
 - **Generated order.** An entity's schema must come after the schemas it embeds; today schemas emit in URN order. Emitting in dependency order changes the order of existing files only where an entity embeds another.
 - **Link semantics.** A link holds the key's value; urn-forge does not make sure that the target exists. That is the shell's job, with its store; the docs must say so.
 - **Size.** This plan touches every layer. Each step stays small by keeping the three reference forms in one place in the IR.
