@@ -78,9 +78,10 @@ Each step leaves the repository green and ends with a check you can run.
   - The steps read a `""` cell as the empty string for `string` fields.
   - *Check:* unit tests per primitive and constraint; a step test sends `""`.
   - *Done.* `boundaries` is a required member of the descriptor type, so `tsc` named all four primitives until each had its rules. The rules follow *The rules* above. `-0` covers a bound of `0`, as the schema treats them alike, and a string that is not a number never covers a numeric case. `""` is parsed in the `string` descriptor, so the steps and gate 3 (which converts cells the same way) agree. Boundaries are not a fingerprint input, because they do not change generated code; the generated files are byte-identical.
-- [ ] **2. Values per operation.**
+- [x] **2. Values per operation.**
   - The feature index, or a function over it, gives each operation's input values per field, with Outline placeholders resolved and cells converted.
   - *Check:* the values match the table above for `self/` and the math example.
+  - *Done* as `inputValues(ir, features)` in `src/verify/input-values.ts`. Placeholders are substituted anywhere in a cell, as Cucumber does, once per `Examples` row, and an `Examples` block's own tags can choose the operation. On the real features it returns exactly the values the target was computed from (`tests/input-values.test.ts`); writing that test also corrected a hand count, without changing which values exist, so the six gaps stand.
 - [ ] **3. The check.**
   - Gate 3 reports `uncovered-boundary` as a warning, one per field and operation.
   - *Check:* exactly the six gaps of the target table, and none for the math example; `verify:self` passes with 6 warnings.
