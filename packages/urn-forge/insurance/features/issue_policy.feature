@@ -15,6 +15,7 @@ Feature: Issue a policy
       | 120.00  |            | [{ peril: fire, limit: 1000.00 }]                                                                            |
       | 0.01    | 0          | [{ peril: flood, limit: 500 }, { peril: theft, limit: 250.5, note: "Basement excluded, see {clause 4}" }]    |
       | 120.50  | 50.25      | [{ peril: fire, limit: 1 }, { peril: flood, limit: 2 }, { peril: theft, limit: 3 }]                          |
+      | 99.00   |            | [{ peril: flood, limit: 10, remark: "Flood cover excludes the basement area 4" }]                                          |
 
   Scenario Outline: A premium that is not more than 0, or has more than 2 decimals, is rejected
     When I run the operation with:
@@ -63,6 +64,7 @@ Feature: Issue a policy
       | [{ peril: fire, limit: 1 }, { peril: fire, limit: 2 }]                                                       |
       | [{ peril: hail, limit: 1 }]                                                                                  |
       | [{ peril: fire, limit: 1.005 }]                                                                              |
+      | [{ peril: flood, limit: 10, remark: "Flood cover excludes the basement area 45" }]                                       |
 
   Scenario: A coverage that pays nothing is rejected
     When I run the operation with:

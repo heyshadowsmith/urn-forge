@@ -87,8 +87,13 @@ function normalize(content: string): string {
   return `${content.replace(/\r\n?/g, '\n').replace(/\n*$/, '')}\n`;
 }
 
-export function compile(manifestSource: string, plugins: readonly PluginEntry[] = DEFAULT_PLUGINS): CompileResult {
-  const built = buildIrFromSource(manifestSource);
+export interface CompileOptions {
+  /** The day that pass 8 compares sunset dates with (YYYY-MM-DD). Without it, sunset dates are not checked. */
+  readonly referenceDate?: string;
+}
+
+export function compile(manifestSource: string, plugins: readonly PluginEntry[] = DEFAULT_PLUGINS, options: CompileOptions = {}): CompileResult {
+  const built = buildIrFromSource(manifestSource, options);
   if (!built.success) {
     return {
       files: [],
@@ -103,7 +108,14 @@ export function compile(manifestSource: string, plugins: readonly PluginEntry[] 
   }
   const { ir, locator } = built;
 
-  const diagnostics: Diagnostic[] = [];
+  // Pass 8 warnings (deprecated-ref) come first, in manifest order.
+  const diagnostics: Diagnostic[] = (built.warnings ?? []).map(({ code, urn, message, location }) => ({
+    code,
+    severity: 'warning' as const,
+    message,
+    ...(urn === undefined ? {} : { urn }),
+    ...(location === undefined ? {} : { location }),
+  }));
   const configs: unknown[] = [];
   for (const { plugin, config } of plugins) {
     const parsed = v.safeParse(plugin.configSchema, config);
@@ -130,7 +142,7 @@ export function compile(manifestSource: string, plugins: readonly PluginEntry[] 
       }
     }
   }
-  if (diagnostics.length > 0) return { files: [], diagnostics, ir };
+  if (hasErrors(diagnostics)) return { files: [], diagnostics, ir };
 
   // Spec §7: a plugin must handle every construct in the IR, or compilation fails naming it.
   for (const { plugin } of plugins) {

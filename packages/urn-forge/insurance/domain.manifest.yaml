@@ -32,6 +32,14 @@ policy.field.limit:
 policy.field.note:
   primitive: string
   description: Free text about a coverage
+  # Retired for remark, which is limited in length (lifecycle plan). Callers receive both until the sunset.
+  status: deprecated
+  supersededBy: policy.field.remark
+  sunsetDate: 2027-06-30
+policy.field.remark:
+  primitive: string
+  maxLength: 40
+  description: Free text about a coverage, at most 40 characters
 
 policy.field.policy_id:
   primitive: string
@@ -69,6 +77,8 @@ policy.entity.coverage:
     - ref: policy.field.peril
     - ref: policy.field.limit
     - ref: policy.field.note
+      required: false
+    - ref: policy.field.remark
       required: false
 
 policy.entity.policy:

@@ -66,6 +66,7 @@ These diagnostics have the configuration file as their file, and no position.
 | `unknown-property` | `error` | `<key>.<property>: unknown property "<property>"`<br>`<key>.oneOf: unknown property "oneOf"; for a fixed set of values, use primitive: enum with values: [ … ]`<br>`<key>.notEqual: unknown property "notEqual"; to exclude values, use notIn: [ … ]` | An atom or the header has a key that it does not accept. On a field, this is a key that is a constraint of no primitive, for example `colour`. `oneOf` and `notEqual` were constraints in earlier versions, so on a field their message has a hint | Remove the key, or correct its name. For `oneOf`, use the `enum` primitive. For `notEqual`, use `notIn` |
 | `missing-property` | `error` | `<key>.<property>: missing property "<property>"` | An entry does not have a property that it must have, for example the `description` of an entity or an invariant, the `message` of an error or the `values` of an `enum` field | Add the property |
 | `invalid-value` | `error` | `<key>.<property>: <message>` | A value has the wrong type or form. Refer to the examples after this table | Correct the value. The message gives the necessary type or form |
+| `invalid-lifecycle` | `error` | `<key>.<supersededBy \| sunsetDate>: an active atom has no <key>; set status: deprecated or status: sunset, or remove <key>`, or `<urn>: supersededBy "<key>" names the atom itself; name the atom that replaces it` | An active atom sets `supersededBy` or `sunsetDate`, or `supersededBy` names the atom itself | Set `status: deprecated` or `status: sunset`, or remove the key. Name the replacement in `supersededBy` |
 
 Examples of `invalid-value` messages:
 
@@ -118,6 +119,13 @@ manifest.namespace: must be lowercase snake_case, start with a letter and be at 
 | `unknown-rule-field` | `error` | `<urn>: rule: "<name>" is not a field of the entity (fields: <names>) (at column <n> of the rule)` | The rule names a property that the `on` entity does not have. A field reference of the entity that does not resolve is not in the list | Use a property name from the list |
 | `rule-type` | `error` | `<urn>: rule: <problem> (at column <n> of the rule)` | The two sides of an operator have different primitives, a literal does not fit its primitive, an order or `+`/`-` is on a primitive that does not have it, a list or an embedded entity is outside `is present`/`is absent`, a required field is in `is present`/`is absent`, or a value is where a condition must be. Examples: `">" has a decimal on the left and a date on the right; both sides must have one primitive`, `"tags" is a list; a rule can use it only in "tags is present" or "tags is absent"` | Correct the rule as the message says. Refer to [The rule language](./rule-language) |
 | `unguarded-field` | `error` | `<urn>: rule: "<name>" is optional, so the rule must guard it: write "<name> is present and …" or "<name> is absent or …" (at column <n> of the rule)` | The rule uses an optional field where no guard makes sure that the field is present. A guard on the right side, for example `deductible < premium or deductible is absent`, is not a guard | Add the guard that the message gives, on the left side |
+
+## Pass 8: lifecycle
+
+| Code | Severity | Message | Cause | Correction |
+| --- | --- | --- | --- | --- |
+| `deprecated-ref` | `warning` | `<urn>: <reference> refers to <urn>, which is deprecated (superseded by <urn>; sunset on <date>)` | An active atom refers to a deprecated atom. Example: `urn:demo:math:a:entity:e: fields[0].ref refers to urn:demo:math:a:field:x, which is deprecated (sunset on 2027-01-01)`. A deprecated atom that refers to a deprecated atom gets no warning | Refer to the replacement before the sunset date |
+| `sunset-ref` | `error` | `<urn>: <reference> refers to <urn>, which is sunset; refer to its replacement`, or `… whose sunset date <date> is on or before the reference date <date> …` | An active or deprecated atom refers to a sunset atom, or to an atom whose `sunsetDate` is on or before the reference date. Without a reference date, sunset dates are not checked | Refer to the replacement |
 
 ## Pass 7: constraint coherence
 

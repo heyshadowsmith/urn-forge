@@ -32,6 +32,7 @@ export const DIAGNOSTIC_CODES = {
   'unknown-property': 'An entry has a property it does not accept',
   'missing-property': 'An entry does not have a property that it must have',
   'invalid-value': 'A property has a value of the wrong type or form',
+  'invalid-lifecycle': 'An active atom sets supersededBy or sunsetDate, or supersededBy names the atom itself',
   // Pass 3: uniqueness
   'duplicate-brand': 'Two atoms derive the same brand identifier',
   'duplicate-property': 'Two fields of one entity become the same property',
@@ -50,6 +51,9 @@ export const DIAGNOSTIC_CODES = {
   'unknown-rule-field': 'An invariant rule names a field that its entity does not have',
   'rule-type': 'An invariant rule mixes primitives, or uses an operator or a literal that does not fit them',
   'unguarded-field': 'An invariant rule uses an optional field outside a guard such as x is present and …',
+  // Pass 8: lifecycle
+  'deprecated-ref': 'An active atom refers to a deprecated atom (a warning)',
+  'sunset-ref': 'An atom refers to a sunset atom, or to an atom whose sunset date is on or before the reference date',
   // Pass 7: constraint coherence
   'conflicting-constraints': 'A field sets two constraints for one side of one aspect, such as min and exclusiveMin',
   'incoherent-constraints': 'The constraints of a field admit no value',

@@ -9,16 +9,17 @@
  *   belong to one kind: an entity's duplicate properties, and pass 7 (constraint coherence)
  *   for fields.
  *
- * Pass 6 (message templates) runs in the error kind's `build` (src/kinds/error.ts). Passes 5
- * and 8 (cycles, lifecycle) and pass 6's invariant rules are not built yet.
+ * Pass 6 runs in the kinds' `build` (src/kinds/). Pass 5 (structure) runs once every node
+ * exists (structure.ts), and pass 8 (lifecycle) last (lifecycle.ts).
  */
 import type { ManifestLocator, ManifestPath } from '../diagnostics.js';
 import { KINDS, KIND_NAMES, kind, namedKinds, referenceOccurrences, type Atom, type KindName } from '../kinds/index.js';
-import { parseManifest, parseShortKey, type ValidManifest } from '../meta-schema.js';
+import { parseManifest, parseShortKey, splitLifecycle, type LifecycleDecl, type ValidManifest } from '../meta-schema.js';
 import { toBrandIdentifier, toUrn } from '../naming.js';
 import { canonicalJson, compareCodeUnits, sha256Hex } from './canonical.js';
 import { checkStructure } from './structure.js';
-import type { IRBuildResult, IRIssue, UniversalIR, Urn } from './types.js';
+import type { IRBuildResult, IRIssue, Lifecycle, UniversalIR, Urn } from './types.js';
+import { checkLifecycle, type Reference } from './lifecycle.js';
 
 function sortedByUrn<T>(record: Map<Urn, T>): Record<Urn, T> {
   const out = {} as Record<Urn, T>;
@@ -26,8 +27,13 @@ function sortedByUrn<T>(record: Map<Urn, T>): Record<Urn, T> {
   return out;
 }
 
-/** Runs passes 2–4 and 7 and returns the sorted IR, or every issue found. */
-export function buildIr(manifest: ValidManifest): IRBuildResult {
+export interface BuildOptions {
+  /** The day that pass 8 compares sunset dates with (YYYY-MM-DD). Without it, sunset dates are not checked. */
+  readonly referenceDate?: string;
+}
+
+/** Runs passes 2–8 and returns the sorted IR, or every issue found. */
+export function buildIr(manifest: ValidManifest, options: BuildOptions = {}): IRBuildResult {
   const { header } = manifest;
   const groups = manifest as unknown as Readonly<Record<string, Readonly<Record<string, unknown>>>>;
   const issues: IRIssue[] = [];
@@ -76,6 +82,8 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
   }
 
   const nodes = new Map<KindName, Map<Urn, unknown>>(KIND_NAMES.map((name) => [name, new Map()]));
+  /** Every resolved reference, for pass 8. */
+  const references: Reference[] = [];
 
   // A kind that reads other nodes (`after`) builds once those kinds have built.
   const stage = (atom: Atom) => (kind(atom.kind).after ? 1 : 0);
@@ -83,7 +91,9 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
     if (byUrn.get(atom.urn) !== atom) continue; // duplicate, already reported
     const descriptor = kind(atom.kind);
     const shortKey = `${atom.context}.${atom.kind}.${atom.identifier}`;
-    const decl = groups[descriptor.group]?.[shortKey];
+    // The lifecycle keys are the same for every kind; the kind builds from its own keys only.
+    const { lifecycle: lifecycleKeys, rest: decl } = splitLifecycle(groups[descriptor.group]?.[shortKey]);
+    const life = lifecycleKeys as LifecycleDecl;
 
     // Pass 4: resolve every reference the kind declares, to an atom of an allowed kind.
     const resolved = new Map<string, Atom>();
@@ -108,6 +118,25 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
         });
       } else {
         resolved.set(JSON.stringify(occurrence.path), target);
+        references.push({ from: atom.urn, to: target.urn, path, label: occurrence.label });
+      }
+    }
+
+    // supersededBy names an atom of the same kind, which is not the atom itself.
+    let supersededBy: Urn | undefined;
+    if (life.supersededBy !== undefined) {
+      const path: ManifestPath = [shortKey, 'supersededBy'];
+      const where = `${atom.urn}: supersededBy "${life.supersededBy}"`;
+      const expanded = expand(life.supersededBy);
+      const target = expanded && byUrn.get(expanded.urn);
+      if (!target) {
+        issues.push({ code: 'unresolved-ref', urn: atom.urn, message: `${where} does not resolve (no atom ${expanded?.urn ?? life.supersededBy} in this manifest)`, path });
+      } else if (target.kind !== atom.kind) {
+        issues.push({ code: 'wrong-ref-kind', urn: atom.urn, message: `${where} must name ${namedKinds([atom.kind])}, but ${target.urn} is ${namedKinds([target.kind])}`, path });
+      } else if (target.urn === atom.urn) {
+        issues.push({ code: 'invalid-lifecycle', urn: atom.urn, message: `${where} names the atom itself; name the atom that replaces it`, path });
+      } else {
+        supersededBy = target.urn;
       }
     }
 
@@ -119,7 +148,12 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
       report: (issue) => issues.push(issue),
       node: (name, urn) => nodes.get(name)!.get(urn),
     });
-    if (node !== undefined) nodes.get(atom.kind)!.set(atom.urn, node);
+    if (node === undefined) continue;
+    // The IR has a lifecycle only for an atom that is not plain active (lifecycle plan, decision 2).
+    const status = life.status ?? 'active';
+    const lifecycle: Lifecycle | undefined =
+      status === 'active' ? undefined : { status, ...(supersededBy ? { supersededBy } : {}), ...(life.sunsetDate ? { sunsetDate: life.sunsetDate } : {}) };
+    nodes.get(atom.kind)!.set(atom.urn, lifecycle ? { ...(node as object), lifecycle } : node);
   }
 
   if (issues.length > 0) return { success: false, issues };
@@ -130,6 +164,12 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
     errors: Object.fromEntries(nodes.get('error')!) as UniversalIR['errors'],
   });
   if (structure.length > 0) return { success: false, issues: structure };
+
+  // Pass 8: lifecycle, over every reference that pass 4 resolved.
+  const statuses = new Map<Urn, Lifecycle | undefined>();
+  for (const group of nodes.values()) for (const [urn, node] of group) statuses.set(urn, (node as { lifecycle?: Lifecycle }).lifecycle);
+  const lifecycleIssues = checkLifecycle(references, statuses, options.referenceDate);
+  if (lifecycleIssues.some((issue) => issue.severity !== 'warning')) return { success: false, issues: lifecycleIssues };
 
   const ir = {
     meta: {
@@ -144,7 +184,7 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
     },
     ...Object.fromEntries(KIND_NAMES.map((name) => [KINDS[name].group, sortedByUrn(nodes.get(name)!)])),
   } as unknown as UniversalIR;
-  return { success: true, ir };
+  return { success: true, ir, warnings: lifecycleIssues };
 }
 
 /** Places each issue that has a manifest path at its line and column. */
@@ -160,10 +200,10 @@ export function locateIssues(issues: readonly IRIssue[], locator: ManifestLocato
  * line and column. On success the locator is returned too, so later stages (plugins) can
  * place their diagnostics.
  */
-export function buildIrFromSource(source: string): IRBuildResult & { readonly locator?: ManifestLocator } {
+export function buildIrFromSource(source: string, options: BuildOptions = {}): IRBuildResult & { readonly locator?: ManifestLocator } {
   const validated = parseManifest(source);
   if (!validated.success) return { success: false, issues: validated.issues };
-  const result = buildIr(validated.manifest);
-  if (result.success) return { ...result, locator: validated.locator };
+  const result = buildIr(validated.manifest, options);
+  if (result.success) return { ...result, warnings: locateIssues(result.warnings ?? [], validated.locator), locator: validated.locator };
   return { success: false, issues: locateIssues(result.issues, validated.locator), locator: validated.locator };
 }

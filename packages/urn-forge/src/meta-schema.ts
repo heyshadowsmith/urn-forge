@@ -23,6 +23,7 @@ import type { FieldDecl } from './kinds/field.js';
 import type { OperationDecl } from './kinds/operation.js';
 import { toUrn } from './naming.js';
 import { PRIMITIVE_NAMES, constraintKeys, isPrimitive } from './primitives/index.js';
+import { isCalendarDate } from './primitives/exact.js';
 
 export { SEGMENT_PATTERN };
 export type { EntityDecl, FieldDecl, OperationDecl };
@@ -46,6 +47,36 @@ export const HeaderSchema = v.strictObject({
   stability: v.optional(v.picklist(['experimental', 'stable'])),
 });
 export type ManifestHeader = v.InferOutput<typeof HeaderSchema>;
+
+// ---------------------------------------------------------------------------
+// Lifecycle (lifecycle plan): keys that every kind accepts
+// ---------------------------------------------------------------------------
+
+/** The lifecycle keys, which every kind accepts next to its own keys. */
+export const LIFECYCLE_KEYS = ['status', 'supersededBy', 'sunsetDate'] as const;
+
+const LifecycleSchema = v.pipe(
+  v.strictObject({
+    status: v.optional(v.picklist(['active', 'deprecated', 'sunset'], 'must be active, deprecated or sunset')),
+    supersededBy: v.optional(v.pipe(v.string(), v.regex(SHORT_KEY_PATTERN, 'must be a short key such as policy.field.remark'))),
+    sunsetDate: v.optional(v.pipe(v.string('must be a date YYYY-MM-DD'), v.check((value: string) => isCalendarDate(value), 'must be a date YYYY-MM-DD'))),
+  }),
+);
+
+export interface LifecycleDecl {
+  readonly status?: 'active' | 'deprecated' | 'sunset';
+  readonly supersededBy?: string;
+  readonly sunsetDate?: string;
+}
+
+/** Splits an entry into its lifecycle keys and the keys of its kind. */
+export function splitLifecycle(entry: unknown): { readonly lifecycle: Readonly<Record<string, unknown>>; readonly rest: unknown } {
+  if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return { lifecycle: {}, rest: entry };
+  const lifecycle: Record<string, unknown> = {};
+  const rest: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(entry)) ((LIFECYCLE_KEYS as readonly string[]).includes(key) ? lifecycle : rest)[key] = value;
+  return { lifecycle, rest };
+}
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -218,8 +249,23 @@ export function validateManifest(doc: unknown): MetaSchemaResult {
     }
     const { context, kind, identifier } = parsed.value;
     const urn = header && toUrn({ namespace: header.namespace, domain: header.domain, context, kind, identifier });
-    const output = collect(key, KINDS[kind].schema, entry, issues, urn);
-    if (output !== undefined) groups[KINDS[kind].group]![key] = output;
+    // The lifecycle keys are the same on every kind, so they are checked here, apart from the kind's own keys.
+    const { lifecycle, rest } = splitLifecycle(entry);
+    const output = collect(key, KINDS[kind].schema, rest, issues, urn);
+    const life = collect(key, LifecycleSchema, lifecycle, issues, urn) as LifecycleDecl | undefined;
+    if (life && (life.status ?? 'active') === 'active') {
+      for (const name of ['supersededBy', 'sunsetDate'] as const) {
+        if (life[name] === undefined) continue;
+        issues.push({
+          code: 'invalid-lifecycle',
+          message: `${key}.${name}: an active atom has no ${name}; set status: deprecated or status: sunset, or remove ${name}`,
+          path: [key, name],
+          target: 'key',
+          ...(urn === undefined ? {} : { urn }),
+        });
+      }
+    }
+    if (output !== undefined && life !== undefined) groups[KINDS[kind].group]![key] = { ...(output as object), ...life };
   }
 
   if (issues.length > 0 || header === undefined) return { success: false, issues };

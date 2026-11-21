@@ -43,11 +43,25 @@ export interface IRInvariant {
   /** The canonical text of the rule (`printRule`). */
   readonly ruleText: string;
   readonly message: string;
+  readonly lifecycle?: Lifecycle;
 }
 
 /** The invariants of an entity, in URN order. */
 export function invariantsOf(ir: UniversalIR, entity: Urn): IRInvariant[] {
   return Object.values(ir.invariants ?? {}).filter((i) => i.on === entity);
+}
+
+/** Where an atom is in its life (lifecycle plan). The IR has it only when the atom is not plain active. */
+export interface Lifecycle {
+  readonly status: 'active' | 'deprecated' | 'sunset';
+  readonly supersededBy?: Urn;
+  /** YYYY-MM-DD. */
+  readonly sunsetDate?: string;
+}
+
+/** The status of a node: `active` when it has no lifecycle. */
+export function statusOf(node: { readonly lifecycle?: Lifecycle }): Lifecycle['status'] {
+  return node.lifecycle?.status ?? 'active';
 }
 
 export interface IRField {
@@ -57,6 +71,7 @@ export interface IRField {
   /** Only the constraint keys the manifest set, validated per primitive by the meta-schema. */
   readonly constraints: Readonly<Record<string, ConstraintValue>>;
   readonly description?: string;
+  readonly lifecycle?: Lifecycle;
 }
 
 /**
@@ -116,6 +131,7 @@ export interface IREntity {
   readonly key?: Urn;
   /** Declaration order preserved. */
   readonly fields: readonly IRPropertyRef[];
+  readonly lifecycle?: Lifecycle;
 }
 
 /** The field a property's values belong to: its own field, or a linked entity's key; undefined for an embedded entity. */
@@ -143,6 +159,7 @@ export interface IRError {
   readonly message: readonly MessagePart[];
   /** Declaration order preserved; may be empty. */
   readonly fields: readonly IRPropertyRef[];
+  readonly lifecycle?: Lifecycle;
 }
 
 export interface IROperation {
@@ -155,6 +172,7 @@ export interface IROperation {
   readonly output: Urn;
   /** The declared errors (error URNs), in declaration order. */
   readonly errors: readonly Urn[];
+  readonly lifecycle?: Lifecycle;
 }
 
 /** A diagnostic from passes 1–4. `urn` is set whenever the problem belongs to an atom. */
@@ -168,8 +186,10 @@ export interface IRIssue {
   readonly target?: 'key' | 'value';
   /** Set when the issue was built from source text (`buildIrFromSource`). */
   readonly location?: SourceLocation;
+  /** Pass 8 gives warnings too; every other issue is an error. */
+  readonly severity?: 'warning';
 }
 
 export type IRBuildResult =
-  | { readonly success: true; readonly ir: UniversalIR }
+  | { readonly success: true; readonly ir: UniversalIR; readonly warnings?: readonly IRIssue[] }
   | { readonly success: false; readonly issues: readonly IRIssue[] };
