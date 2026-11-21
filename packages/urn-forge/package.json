@@ -16,6 +16,11 @@
   "bin": {
     "urn-forge": "./bin/urn-forge.js"
   },
+  "files": [
+    "bin",
+    "src",
+    "templates"
+  ],
   "scripts": {
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
