@@ -140,6 +140,7 @@
     }
   },
   "errors": {},
+  "events": {},
   "fields": {
     "urn:demo:stored:value:field:accepted": {
       "brandIdentifier": "ValueAccepted",

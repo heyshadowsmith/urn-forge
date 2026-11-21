@@ -1,6 +1,6 @@
 # Fix a gate that fails
 
-`urn-forge verify` runs gates 1, 3 and 4. A gate fails when it reports one error or more. This guide gives the symptom and the fix for each code that a gate can report. The output on this page comes from the domain of [tutorial 3](../tutorials/strict-coverage), with one part broken on purpose for each example. The examples for invariants, embedded entities and links come from the insurance domain in `packages/urn-forge/insurance/`.
+`urn-forge verify` runs gates 1, 3 and 4. A gate fails when it reports one error or more. This guide gives the symptom and the fix for each code that a gate can report. The output on this page comes from the domain of [tutorial 3](../tutorials/strict-coverage), with one part broken on purpose for each example. The examples for invariants, embedded entities, links and events come from the insurance domain in `packages/urn-forge/insurance/`.
 
 ## Before you start
 
@@ -92,6 +92,24 @@ insurance/domain.manifest.yaml:84:1  error  missing-key  urn:acme:insurance:poli
 
 Each line comes from a different change to the manifest. [Add an entity](add-an-entity) shows each change and its fix. For the last line, refer to [Store entities in Postgres](store-in-postgres).
 
+### If an event or a recordAs is not correct
+
+Passes 1, 3, 4 and 6 examine each event, the `emits` list of each operation and the `recordAs` of each error. Here the `recordAs` event of an error has a required property that the error does not have:
+
+```
+insurance/domain.manifest.yaml:162:13  error  invalid-record-as  urn:acme:insurance:policy:error:refund_below_minimum: recordAs urn:acme:insurance:policy:event:refund_refused has the required property "cancellation_date", which the error does not have; make it optional, so the error's fields can build the event
+verify failed: the manifest does not compile
+```
+
+| Code | Cause | Fix |
+| --- | --- | --- |
+| `invalid-record-as` | The `recordAs` event does not have a property of the error, or has another required property | Give the event each property of the error. Make each other property optional |
+| `reserved-property` | A field of an event becomes the property `kind` | Give the field another name with `as` |
+| `wrong-ref-kind` | `emits` names an atom that is not an event, or `recordAs` names an atom that is not an event | Name an event |
+| `unknown-property` with `key` | An event has a `key` | Remove the `key`. An event has no key |
+
+[Emit an event](emit-an-event) shows the real message of each code.
+
 If urn-forge cannot read the manifest, the last line is `verify failed: the manifest cannot be read`. Make sure that `--manifest`, or `manifest` in the configuration, gives the correct file.
 
 ## Gate 1: completeness
@@ -127,11 +145,13 @@ A handler returns a plain object, not a `Result`:
 ```
 gate 1  completeness  FAIL  tsc: 1 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
     tutorial/3-strict-coverage/core.ts:8:3  error  type-error  TS2322: Type '({ weight_grams, zone, express }: { weight_grams: number & Brand<"urn:demo:shipping:parcel:field:weight_grams">; zone: ("domestic" | "international") & Brand<"urn:demo:shipping:parcel:field:zone">; express?: (boolean & Brand<...>) | undefined; }) => Failure<...> | { ...; }' is not assignable to type 'QuoteQuoteShippingHandler'.
-      Type 'Failure<{ kind: "urn:demo:shipping:quote:error:too_heavy_for_express"; weight_grams: number; }> | { price_cents: number; }' is not assignable to type 'Result<{ price_cents: number; }, { kind: "urn:demo:shipping:quote:error:too_heavy_for_express"; weight_grams: number; }>'.
-        Type '{ price_cents: number; }' is not assignable to type 'Result<{ price_cents: number; }, { kind: "urn:demo:shipping:quote:error:too_heavy_for_express"; weight_grams: number; }>'.
+      Type 'Failure<{ kind: "urn:demo:shipping:quote:error:too_heavy_for_express"; weight_grams: number; }> | { price_cents: number; }' is not assignable to type 'Result<{ price_cents: number; }, { kind: "urn:demo:shipping:quote:error:too_heavy_for_express"; weight_grams: number; }, never>'.
+        Type '{ price_cents: number; }' is not assignable to type 'Result<{ price_cents: number; }, { kind: "urn:demo:shipping:quote:error:too_heavy_for_express"; weight_grams: number; }, never>'.
 ```
 
 To fix it, return `ok(…)` for a success and `fail(…)` for a declared error. Refer to [Use branded values in the core](use-branded-values) and [Declare an error](declare-an-error).
+
+A handler that emits an event that its operation does not list also gives `TS2322`. The message names the event that is not in the `Result` type of the handler. To fix it, add the event to `emits` of the operation, or remove the `emit` call. Refer to [Emit an event](emit-an-event).
 
 If the error is in a generated file, a generated file is possibly not there. Fix gate 4 first.
 
@@ -243,13 +263,28 @@ Do one of these:
 - If the URN in the step is incorrect, use a URN from the `errors` list in the message.
 - If the operation must refuse with a new error, add the error to `errors` of the operation in the manifest. Refer to [Declare an error](declare-an-error).
 
+### `undeclared-event`
+
+A scenario expects an event that its operation does not list under `emits`:
+
+```
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features/cancel_policy.feature:12:5  error  undeclared-event  "urn:acme:insurance:policy:event:policy_issued" is not an event of urn:acme:insurance:policy:operation:cancel_policy (emits: urn:acme:insurance:policy:event:policy_cancelled)
+    insurance/features  error  uncovered-event  event urn:acme:insurance:policy:event:policy_cancelled of urn:acme:insurance:policy:operation:cancel_policy has no scenario that expects it; add one with Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"
+```
+
+Do one of these:
+
+- If the URN in the step is incorrect, use a URN from the `emits` list in the message. The `uncovered-event` problem goes away with it.
+- If the operation must emit the event, add the event to `emits` of the operation in the manifest. Refer to [Emit an event](emit-an-event).
+
 ### `undeclared-invariant`
 
 A scenario expects an invariant that is not on the input entity of its operation:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
-    insurance/features/issue_policy.feature:79:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features/issue_policy.feature:82:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
 ```
 
@@ -263,7 +298,7 @@ Do one of these:
 Gate 3 reads each list cell and each object cell of the input tables. If a cell is malformed, or it names a property that its entity does not have, gate 3 reports `invalid-cell`. Here a note holds a comma without quotes:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features/issue_policy.feature:7:145  error  invalid-cell  coverages: expected ":" after "see" (at column 91 of the cell): [{ peril: flood, limit: 500 }, { peril: theft, limit: 250.5, note: Basement excluded, see {clause 4} }]
 ```
 
@@ -308,7 +343,7 @@ gate 3  gherkin       FAIL  0 feature(s), 0 scenario(s), 0/1 operations tagged, 
 
 One error can cause more errors on the lines after it. Correct the first one, then run `verify` again. In this example, line 20 has `Scenari:` in place of `Scenario:`.
 
-### Coverage: `uncovered-boundary`, `uncovered-error` and `uncovered-invariant`
+### Coverage: `uncovered-boundary`, `uncovered-error`, `uncovered-event` and `uncovered-invariant`
 
 A coverage gap is an error when the feature has the tag `@urn-forge:strict`, or when the config sets `boundaryCoverage: 'error'`. Otherwise it is a warning, and the gate passes.
 
@@ -322,7 +357,7 @@ gate 3  gherkin       FAIL  1 feature(s), 5 scenario(s), 1/1 operations tagged, 
 A value inside an embedded entity has no example at a boundary. The message gives the path of the value after `at`. A list of entities also needs its item counts and a list with a repeated key:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-boundary  urn:acme:insurance:policy:field:peril at coverages.peril in the input of urn:acme:insurance:policy:operation:issue_policy has no value outside values
     insurance/features  error  uncovered-boundary  urn:acme:insurance:policy:field:limit at coverages.limit in the input of urn:acme:insurance:policy:operation:issue_policy has no value with 3 digits after the point (above scale)
 ```
@@ -338,10 +373,17 @@ gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, 
     tutorial/2-declared-errors/features  warning  uncovered-error  error urn:demo:shipping:quote:error:too_heavy_for_express of urn:demo:shipping:quote:operation:quote_shipping has no scenario that expects it; add one with Then the operation fails with "urn:demo:shipping:quote:error:too_heavy_for_express"
 ```
 
+An event of an operation has no scenario that expects it. The insurance features are strict, so it is an error:
+
+```
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features  error  uncovered-event  event urn:acme:insurance:policy:event:policy_cancelled of urn:acme:insurance:policy:operation:cancel_policy has no scenario that expects it; add one with Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"
+```
+
 An invariant of the input entity has no scenario that breaks it. The insurance features are strict, so it is an error:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 12 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 12 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
 ```
 
@@ -349,6 +391,7 @@ To fix a gap, add a scenario for it:
 
 - For a boundary, send each value that the message names. For a path such as `coverages.limit`, send the value inside an object of the list.
 - For an error, expect it with `Then the operation fails with "<error URN>"`.
+- For an event, expect it with `Then the operation emits "<event URN>"`.
 - For an invariant, break it and expect `Then the input is rejected by "<invariant URN>"`.
 
 Refer to [Adopt strict coverage](adopt-strict-coverage). If a scenario cannot test a boundary, [waive the boundary](waive-a-boundary).
@@ -379,7 +422,7 @@ npx urn-forge compile --config tutorial/3-strict-coverage/urn-forge.config.ts
 ```
 unchanged  tutorial/3-strict-coverage/generated/domain.runtime.generated.ts
 wrote      tutorial/3-strict-coverage/generated/domain.schemas.generated.ts
-fingerprint sha256:b48297b4537c103460a0d8c21ae9ae155f0bd5b185c94813eb2a78c92b66c4bf
+fingerprint sha256:492eef5cf4429536322062da365f080ff6cc4091bb6ae5563c713a73570b3b10
 ```
 
 ::: warning

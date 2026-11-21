@@ -53,10 +53,10 @@ The first compile with the plugin writes the new file:
 
 ```
 insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
-unchanged  insurance/generated/domain.runtime.generated.ts
-unchanged  insurance/generated/domain.schemas.generated.ts
+wrote      insurance/generated/domain.runtime.generated.ts
+wrote      insurance/generated/domain.schemas.generated.ts
 wrote      insurance/generated/schema.generated.sql
-fingerprint sha256:957beb20d7d7f9f6d395ce04f1fcb67c71fa406c51f82bf94bdc7a06871ba427
+fingerprint sha256:f72f538c562a7bf23f518078548823cbd2d25d9125377d8c83bf9a42eebe1128
 ```
 
 The `deprecated-ref` warning is about the retired field `note`. Refer to [Retire a URN](retire-a-urn).

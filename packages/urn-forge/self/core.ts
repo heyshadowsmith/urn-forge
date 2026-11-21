@@ -15,8 +15,6 @@ export const core = {
     // parseShortKey checked the grammar, so the second segment is the kind as written.
     const kind_segment = short_key.split('.')[1] ?? '';
     switch (parsed.code) {
-      case 'unsupported-kind':
-        return fail('urn:urn_forge:toolchain:naming:error:unsupported_kind', { short_key, kind_segment });
       case 'unknown-kind':
         return fail('urn:urn_forge:toolchain:naming:error:unknown_kind', { short_key, kind_segment });
       default:

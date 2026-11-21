@@ -132,6 +132,27 @@ policy.invariant.cancellation_within_term:
   rule: cancellation_date >= effective_date and cancellation_date <= expiry_date
   message: The cancellation date must be inside the term of the policy
 
+# Events (events plan): the facts that the operations return on success, and the audit record of a refusal.
+policy.event.policy_issued:
+  description: A policy was issued
+  fields:
+    - ref: policy.field.policy_id
+    - link: customer.entity.customer
+      as: holder
+    - ref: policy.field.premium
+policy.event.policy_cancelled:
+  description: A policy stopped, with the refund for the days it does not cover
+  fields:
+    - ref: policy.field.cancellation_date
+    - ref: policy.field.refund
+policy.event.refund_refused:
+  description: A cancellation was refused because its refund was below the minimum, for an audit trail
+  fields:
+    - ref: policy.field.refund
+    # Optional, so the error's fields can build the event (events plan, decision 6).
+    - ref: policy.field.cancellation_date
+      required: false
+
 policy.error.refund_below_minimum:
   description: The refund is too small to pay out
   category: precondition
@@ -139,14 +160,17 @@ policy.error.refund_below_minimum:
   message: A refund of {refund} is below the minimum of 1.00
   fields:
     - ref: policy.field.refund
+  recordAs: policy.event.refund_refused
 
 policy.operation.issue_policy:
   description: Issue a policy as requested
   input: policy.entity.policy
   output: policy.entity.policy
+  emits: [policy.event.policy_issued]
 policy.operation.cancel_policy:
   description: Stop a policy and calculate the refund for the days it does not cover
   input: policy.entity.cancellation
   output: policy.entity.refund_quote
   errors:
     - policy.error.refund_below_minimum
+  emits: [policy.event.policy_cancelled]

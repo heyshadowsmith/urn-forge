@@ -1,6 +1,6 @@
 # The traceability chain
 
-urn-forge is a compiler and a CI gate for domain contracts. You declare the atoms of a domain once, in a YAML manifest: fields, entities, operations and errors. Each atom gets a URN, a name that does not change. urn-forge then makes sure that the same URN connects the declaration, the code that implements it and the scenario that tests it. This page tells why that connection is the product.
+urn-forge is a compiler and a CI gate for domain contracts. You declare the atoms of a domain once, in a YAML manifest: fields, entities, invariants, operations, events and errors. Each atom gets a URN, a name that does not change. urn-forge then makes sure that the same URN connects the declaration, the code that implements it and the scenario that tests it. This page tells why that connection is the product.
 
 ## One URN, six links
 
@@ -21,6 +21,7 @@ Each link in the chain holds the URN of the operation. The shipping domain of th
    "urn:demo:shipping:quote:operation:quote_shipping": {
      "brandIdentifier": "QuoteQuoteShipping",
      "description": "Calculate the price to send a parcel",
+     "emits": [],
      "errors": [],
      "input": "urn:demo:shipping:parcel:entity:parcel",
      "output": "urn:demo:shipping:quote:entity:quote",

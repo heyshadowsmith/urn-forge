@@ -6,6 +6,9 @@
  *   Then the input is rejected on "<field>"
  *   Then the operation fails with "<error URN>"
  *   Then the operation fails with "<error URN>":   one header row of error field names + one data row
+ *   Then the operation emits "<event URN>"
+ *   Then the operation emits "<event URN>":        one header row of event field names + one data row
+ *   Then the operation emits no event
  *
  * The operation is the feature's (or scenario's) `@urn:…:operation:…` tag. Table cells are
  * coerced by the field's primitive (from the generated `DispatchMap`, read through the
@@ -58,6 +61,13 @@ export interface OperationContractLike {
   readonly output: { readonly fields: FieldsLike };
   /** The operation's declared errors, keyed by error URN. */
   readonly errors: Readonly<Record<string, { readonly fields: FieldsLike }>>;
+  /** The operation's events, keyed by event URN. */
+  readonly events?: Readonly<Record<string, { readonly fields: FieldsLike }>>;
+}
+
+export interface EmittedEventLike {
+  readonly urn: string;
+  readonly fields: unknown;
 }
 
 export interface BoundaryIssueLike {
@@ -74,7 +84,7 @@ export interface DomainErrorLike {
 }
 
 export type ExecuteResultLike =
-  | { readonly ok: true; readonly output: unknown }
+  | { readonly ok: true; readonly output: unknown; readonly events?: readonly EmittedEventLike[] }
   | { readonly ok: false; readonly kind: 'DomainError'; readonly error: DomainErrorLike }
   | { readonly ok: false; readonly kind: string; readonly issues: readonly BoundaryIssueLike[] };
 
@@ -120,7 +130,7 @@ export function coerceCell(cell: string, field: PropertyInfoLike): unknown {
 export function tableToObject(
   rows: readonly (readonly string[])[],
   fields: FieldsLike,
-  side: 'input' | 'output' | 'error',
+  side: 'input' | 'output' | 'error' | 'event',
   urn: string,
 ): Record<string, unknown> {
   if (rows.length !== 2) {
@@ -132,7 +142,7 @@ export function tableToObject(
     const field = Object.hasOwn(fields, header) ? fields[header] : undefined;
     if (!field) {
       throw new Error(
-        `"${header}" is not a field of ${side === 'error' ? urn : `the ${side} of ${urn}`} (fields: ${Object.keys(fields).join(', ')})`,
+        `"${header}" is not a field of ${side === 'error' || side === 'event' ? urn : `the ${side} of ${urn}`} (fields: ${Object.keys(fields).join(', ')})`,
       );
     }
     const value = coerceCell(values[i] ?? '', field);
@@ -234,6 +244,36 @@ export function assertFailsWith(
   if (mismatches.length > 0) throw new Error(`${errorUrn} fields differ: ${mismatches.join('; ')}`);
 }
 
+/**
+ * Checks the operation succeeded and returned the event `eventUrn`; when `expected` is given,
+ * one event of that URN must have those fields (`undefined` means absent). Columns not in the
+ * table are not checked, and neither are the count and the order of the events.
+ */
+export function assertEmits(result: ExecuteResultLike, eventUrn: string, urn: string, expected?: Record<string, unknown>): void {
+  if (!result.ok) throw new Error(`${urn} did not succeed: ${describeFailure(result)}; expected it to emit ${eventUrn}`);
+  const events = result.events ?? [];
+  const named = events.filter((event) => event.urn === eventUrn);
+  if (named.length === 0) {
+    throw new Error(`${urn} did not emit ${eventUrn} (emitted: ${events.length > 0 ? events.map((e) => e.urn).join(', ') : 'nothing'})`);
+  }
+  if (!expected) return;
+  const mismatches = named.map((event) => differences((event.fields ?? {}) as Record<string, unknown>, expected));
+  if (mismatches.every((m) => m.length > 0)) {
+    throw new Error(`${eventUrn} fields differ: ${mismatches.map((m) => m.join('; ')).join(' | ')}`);
+  }
+}
+
+/**
+ * Checks the operation returned no event: it succeeded with none, or refused with a declared
+ * error, which never has events (spec §4.5). Any other failure is not "no event".
+ */
+export function assertEmitsNone(result: ExecuteResultLike, urn: string): void {
+  if (!result.ok && 'error' in result) return;
+  if (!result.ok) throw new Error(`${urn} failed with ${describeFailure(result)}; expected it to emit no event`);
+  const events = result.events ?? [];
+  if (events.length > 0) throw new Error(`${urn} emitted ${events.map((e) => e.urn).join(', ')}; expected no event`);
+}
+
 // ---------------------------------------------------------------------------
 // Cucumber registration
 // ---------------------------------------------------------------------------
@@ -265,6 +305,15 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     if (!found) {
       const declared = Object.keys(errors);
       throw new Error(`${errorUrn} is not a declared error of ${urn} (errors: ${declared.length > 0 ? declared.join(', ') : 'none'})`);
+    }
+    return found;
+  };
+  const declaredEvent = (urn: string, eventUrn: string): { readonly fields: FieldsLike } => {
+    const events = contract(urn).events ?? {};
+    const found = Object.hasOwn(events, eventUrn) ? events[eventUrn] : undefined;
+    if (!found) {
+      const declared = Object.keys(events);
+      throw new Error(`${eventUrn} is not an event of ${urn} (emits: ${declared.length > 0 ? declared.join(', ') : 'none'})`);
     }
     return found;
   };
@@ -317,5 +366,22 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     const { urn, result } = lastRun(this);
     const expected = tableToObject(table.raw(), declaredError(urn, errorUrn).fields, 'error', errorUrn);
     assertFailsWith(result, errorUrn, urn, expected);
+  });
+
+  Then(STEP_PHRASES.emits, function (this: StepsWorld, eventUrn: string) {
+    const { urn, result } = lastRun(this);
+    declaredEvent(urn, eventUrn);
+    assertEmits(result, eventUrn, urn);
+  });
+
+  Then(STEP_PHRASES.emitsWithFields, function (this: StepsWorld, eventUrn: string, table: DataTable) {
+    const { urn, result } = lastRun(this);
+    const expected = tableToObject(table.raw(), declaredEvent(urn, eventUrn).fields, 'event', eventUrn);
+    assertEmits(result, eventUrn, urn, expected);
+  });
+
+  Then(STEP_PHRASES.emitsNone, function (this: StepsWorld) {
+    const { urn, result } = lastRun(this);
+    assertEmitsNone(result, urn);
   });
 }

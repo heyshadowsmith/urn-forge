@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertEmits,
+  assertEmitsNone,
   assertFailsWith,
   assertOutput,
   assertRejectedOn,
@@ -154,5 +156,28 @@ describe('assertFailsWith', () => {
     );
     expect(() => assertFailsWith(refused, ERR, URN, { sku: 'XYZ-0000' })).toThrow(`${ERR} fields differ: sku: expected XYZ-0000, got ABC-1234`);
     expect(() => assertFailsWith(refused, ERR, URN, { sku: undefined })).toThrow(`${ERR} fields differ: sku: expected absent, got ABC-1234`);
+  });
+});
+
+describe('assertEmits and assertEmitsNone (events plan, decision 7)', () => {
+  const URN = 'urn:demo:shop:order:operation:place';
+  const PLACED = 'urn:demo:shop:order:event:placed';
+  const ok = { ok: true as const, output: {}, events: [{ urn: PLACED, fields: { kind: PLACED, order_id: 1 } }, { urn: PLACED, fields: { kind: PLACED, order_id: 2 } }] };
+
+  it('passes when one event of the URN has the expected fields, whatever the count and the order', () => {
+    expect(() => assertEmits(ok, PLACED, URN)).not.toThrow();
+    expect(() => assertEmits(ok, PLACED, URN, { order_id: 2 })).not.toThrow();
+  });
+
+  it('names what was emitted, or the fields that differ', () => {
+    expect(() => assertEmits({ ok: true, output: {}, events: [] }, PLACED, URN)).toThrow(`${URN} did not emit ${PLACED} (emitted: nothing)`);
+    expect(() => assertEmits(ok, PLACED, URN, { order_id: 3 })).toThrow(`${PLACED} fields differ: order_id: expected 3, got 1 | order_id: expected 3, got 2`);
+  });
+
+  it('expects no event after a success with none, or a declared refusal, but not after another failure', () => {
+    expect(() => assertEmitsNone({ ok: true, output: {}, events: [] }, URN)).not.toThrow();
+    expect(() => assertEmitsNone({ ok: false, kind: 'DomainError', error: { urn: 'e', message: 'm', fields: {} } }, URN)).not.toThrow();
+    expect(() => assertEmitsNone(ok, URN)).toThrow(`${URN} emitted ${PLACED}, ${PLACED}; expected no event`);
+    expect(() => assertEmitsNone({ ok: false, kind: 'InputRejected', issues: [] }, URN)).toThrow(`${URN} failed with InputRejected; expected it to emit no event`);
   });
 });

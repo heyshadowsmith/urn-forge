@@ -121,3 +121,28 @@ export function listBoundaries(rule: ListRule, key?: string): BoundaryCase[] {
   }
   return cases;
 }
+
+/** The property that an error or an event payload uses for its URN, so no field of either may have this name. */
+export const RESERVED_PROPERTY = 'kind';
+
+/** Reports each property of an error or an event that would be named `kind` (spec §7.1). */
+export function checkReservedProperty(
+  context: { readonly atom: { readonly urn: string }; readonly shortKey: string; ref(path: readonly (string | number)[]): { readonly identifier: string } | undefined; report(issue: never): void },
+  decl: { readonly fields: readonly FieldRefDecl[] },
+  what: 'an error' | 'an event',
+): void {
+  const { atom, shortKey } = context;
+  decl.fields.forEach((fieldRef, index) => {
+    const slot = fieldRef.link !== undefined ? 'link' : 'ref';
+    // The property name is `as`, or the identifier of what the reference names.
+    const name = fieldRef.as ?? context.ref(['fields', index, slot])?.identifier;
+    if (name !== RESERVED_PROPERTY) return;
+    const by = fieldRef.as !== undefined ? 'as' : slot;
+    context.report({
+      code: 'reserved-property',
+      urn: atom.urn,
+      message: `${atom.urn}: fields[${index}] becomes property "${RESERVED_PROPERTY}", which ${what} reserves for its URN; ${by === 'as' ? 'choose another name with as' : 'give it another name with as'}`,
+      path: [shortKey, 'fields', index, by],
+    } as never);
+  });
+}

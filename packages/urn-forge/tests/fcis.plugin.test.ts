@@ -55,11 +55,13 @@ describe('executeOperation (generated) with example/core.ts', () => {
       ok: true,
       urn: SAFE_DIVIDE,
       output: { quotient: 5 },
+      events: [],
     });
     expect(executeOperation(COMPUTE_AREA, { radius: 2 }, core)).toEqual({
       ok: true,
       urn: COMPUTE_AREA,
       output: { area: Math.PI * 4 },
+      events: [],
     });
   });
 

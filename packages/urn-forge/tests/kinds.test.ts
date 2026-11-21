@@ -7,7 +7,6 @@ import { compile } from '../src/engine.js';
 import {
   KINDS,
   KIND_NAMES,
-  NOT_YET_SUPPORTED_KINDS,
   namedKinds,
   referenceLabel,
   referenceOccurrences,
@@ -22,8 +21,8 @@ const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 0.1.0\n
 
 describe('kind registry', () => {
   it('lists each kind with the group it fills in the manifest and the IR', () => {
-    expect(KIND_NAMES).toEqual(['field', 'entity', 'invariant', 'operation', 'error']);
-    expect(KIND_NAMES.map((k) => KINDS[k].group)).toEqual(['fields', 'entities', 'invariants', 'operations', 'errors']);
+    expect(KIND_NAMES).toEqual(['field', 'entity', 'invariant', 'operation', 'event', 'error']);
+    expect(KIND_NAMES.map((k) => KINDS[k].group)).toEqual(['fields', 'entities', 'invariants', 'operations', 'events', 'errors']);
   });
 
   it('declares where each kind makes references, and what they may name', () => {
@@ -39,19 +38,23 @@ describe('kind registry', () => {
         { path: ['input'], targets: ['entity'] },
         { path: ['output'], targets: ['entity'] },
         { path: ['errors', '*'], targets: ['error'] },
+        { path: ['emits', '*'], targets: ['event'] },
+      ],
+      event: [
+        { path: ['fields', '*', 'ref'], targets: ['field', 'entity'] },
+        { path: ['fields', '*', 'link'], targets: ['entity'] },
       ],
       error: [
         { path: ['fields', '*', 'ref'], targets: ['field', 'entity'] },
         { path: ['fields', '*', 'link'], targets: ['entity'] },
+        { path: ['recordAs'], targets: ['event'] },
       ],
     });
   });
 
-  it('accepts registered kinds before checking the not-yet-supported list', () => {
+  it('accepts every kind of the spec, and refuses any other', () => {
     for (const kind of KIND_NAMES) expect(parseShortKey(`a.${kind}.b`).ok).toBe(true);
-    for (const kind of NOT_YET_SUPPORTED_KINDS) {
-      expect(parseShortKey(`a.${kind}.b`)).toMatchObject({ ok: false, code: 'unsupported-kind' });
-    }
+    expect(KIND_NAMES).toEqual(['field', 'entity', 'invariant', 'operation', 'event', 'error']);
     expect(parseShortKey('a.widget.b')).toMatchObject({ ok: false, code: 'unknown-kind' });
   });
 

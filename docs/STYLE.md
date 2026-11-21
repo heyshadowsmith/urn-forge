@@ -56,6 +56,7 @@ All four types use STE. These are the rules that this site applies.
 | `how-to/add-an-entity.md` | Add an entity |
 | `how-to/add-an-operation.md` | Add an operation |
 | `how-to/declare-an-error.md` | Declare an error |
+| `how-to/emit-an-event.md` | Emit an event |
 | `how-to/add-an-invariant.md` | Add an invariant |
 | `how-to/write-scenarios.md` | Write scenarios |
 | `how-to/use-branded-values.md` | Use branded values in the core |

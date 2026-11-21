@@ -1,6 +1,6 @@
 # The generated runtime
 
-The FCIS plugin (`fcis`, version 0.2.0) writes the file `domain.runtime.generated.ts` in the `--out` directory. The file has the `Result` type, the handler type of each operation, the registry `DomainCoreImplementation`, the contracts in `DispatchMap`, and the gatekeeper `executeOperation`. This page gives each export, its signature and its behavior. For the reasons for this design, refer to [The functional core and brands](../explanation/functional-core) and [Results and declared errors](../explanation/results-and-errors).
+The FCIS plugin (`fcis`, version 0.2.0) writes the file `domain.runtime.generated.ts` in the `--out` directory. The file has the `Result` type and its helpers, the handler type of each operation, the registry `DomainCoreImplementation`, the contracts in `DispatchMap`, and the gatekeeper `executeOperation`. This page gives each export, its signature and its behavior. For the reasons for this design, refer to [The functional core and brands](../explanation/functional-core) and [Results and declared errors](../explanation/results-and-errors).
 
 ## The file
 
@@ -20,15 +20,15 @@ The file has five sections. Each section starts with a comment. Some parts are t
 
 | Section | Comment | Exports | Fixed or generated |
 | --- | --- | --- | --- |
-| Results | `// Results` | `ErrorPayloads` | Generated |
-| | | `Success`, `Failure`, `Result`, `ErrorUrn`, `ErrorFields`, `ok`, `fail` | Fixed |
-| Handler contracts | `// Handler contracts: branded input in; plain output or a plain declared error out (the shell brands both).` | One `<Brand>Handler` type for each operation | Generated |
+| Results | `// Results` | `ErrorPayloads`, `EventPayloads` | Generated |
+| | | `Success`, `Failure`, `Result`, `ErrorUrn`, `ErrorFields`, `EventUrn`, `EventFields`, `ok`, `emit`, `fail` | Fixed |
+| Handler contracts | `// Handler contracts: branded input in; plain output and events, or a plain declared error, out (the shell brands them).` | One `<Brand>Handler` type for each operation | Generated |
 | Registry | `// Registry` | `DomainCoreImplementation` | Generated |
 | Dispatch | `// Dispatch` | `FieldInfo`, `EmbeddedInfo`, `PropertyInfo`, `InvariantInfo`, `EntityContract`, `ErrorCategory`, `MessagePart`, `ErrorContract`, `OperationContract` | Fixed |
 | | | `DispatchMap` | Generated |
-| Shell gatekeeper | `// Shell gatekeeper` | `OperationUrn`, `BoundaryIssue`, `DomainError`, `ExecuteResult`, `executeOperation` | Fixed |
+| Shell gatekeeper | `// Shell gatekeeper` | `OperationUrn`, `BoundaryIssue`, `EmittedEvent`, `DomainError`, `ExecuteResult`, `executeOperation` | Fixed |
 
-The file has no part for a sunset atom: the plugin reads the live IR. A sunset operation thus has no handler type, no property in `DomainCoreImplementation` and no entry in `DispatchMap`. The operations are in URN sequence, and the errors in `ErrorPayloads` are in URN sequence. The sort compares UTF-16 code units. The errors of one operation are in the sequence of its `errors` list in the manifest.
+The file has no part for a sunset atom: the plugin reads the live IR. A sunset operation thus has no handler type, no property in `DomainCoreImplementation` and no entry in `DispatchMap`. The operations are in URN sequence. The errors in `ErrorPayloads` and the events in `EventPayloads` are also in URN sequence. The sort compares UTF-16 code units. The errors of one operation are in the sequence of its `errors` list in the manifest, and its events are in the sequence of its `emits` list.
 
 ## Results
 
@@ -42,12 +42,31 @@ export interface ErrorPayloads {
 
 One property for each error of the manifest. The key is the URN of the error. The value is the input type of the error schema: the plain payload, with `kind`. If the manifest has no errors, the interface is `export interface ErrorPayloads {}`. Then `ErrorUrn` is `never`, and a handler cannot call `fail`.
 
+### `EventPayloads`
+
+```ts
+export interface EventPayloads {
+  readonly '<event URN>': s.<Event brand>Input;
+}
+```
+
+One property for each event of the manifest, also for an event that no operation emits. The key is the URN of the event. The value is the input type of the event schema: the plain payload, with `kind`. If the manifest has no events, the interface is `export interface EventPayloads {}`. Then `EventUrn` is `never`, and a handler cannot call `emit`. From the insurance domain:
+
+```ts
+export interface EventPayloads {
+  readonly 'urn:acme:insurance:policy:event:policy_cancelled': s.PolicyPolicyCancelledInput;
+  readonly 'urn:acme:insurance:policy:event:policy_issued': s.PolicyPolicyIssuedInput;
+  readonly 'urn:acme:insurance:policy:event:refund_refused': s.PolicyRefundRefusedInput;
+}
+```
+
 ### `Success`, `Failure` and `Result`
 
 ```ts
-export interface Success<T> {
+export interface Success<T, V = never> {
   readonly ok: true;
   readonly value: T;
+  readonly events: readonly V[];
 }
 
 export interface Failure<E> {
@@ -55,10 +74,10 @@ export interface Failure<E> {
   readonly error: E;
 }
 
-export type Result<T, E> = Success<T> | Failure<E>;
+export type Result<T, E, V = never> = Success<T, V> | Failure<E>;
 ```
 
-Each handler returns a `Result`: its output, or one of the declared errors of its operation.
+Each handler returns a `Result`: its output and its events, or one of the declared errors of its operation. `V` is the union of the event payloads that the handler can return. If the operation emits no events, `V` is `never`, and `events` can only be empty. A `Failure` has no events.
 
 ### `ErrorUrn` and `ErrorFields`
 
@@ -70,13 +89,46 @@ export type ErrorFields<K extends ErrorUrn> = Omit<ErrorPayloads[K], 'kind'>;
 
 `ErrorUrn` is the union of all error URNs of the manifest. `ErrorFields<K>` is the payload of the error `K` without `kind`, as a handler gives it to `fail`.
 
+### `EventUrn` and `EventFields`
+
+```ts
+export type EventUrn = keyof EventPayloads;
+
+export type EventFields<K extends EventUrn> = Omit<EventPayloads[K], 'kind'>;
+```
+
+`EventUrn` is the union of all event URNs of the manifest. `EventFields<K>` is the payload of the event `K` without `kind`, as a handler gives it to `emit`.
+
 ### `ok`
 
 ```ts
-export function ok<T>(value: T): Success<T>;
+export function ok<T, V = never>(value: T, events: readonly V[] = []): Success<T, V>;
 ```
 
-Returns `{ ok: true, value }`.
+Returns `{ ok: true, value, events }`. Without the second argument, `events` is `[]`.
+
+```ts
+ok({ price_cents: 600 })
+// {"ok":true,"value":{"price_cents":600},"events":[]}
+```
+
+### `emit`
+
+```ts
+export function emit<K extends EventUrn>(
+  kind: K,
+  ...fields: {} extends EventFields<K> ? [fields?: EventFields<K>] : [fields: EventFields<K>]
+): EventPayloads[K];
+```
+
+Returns `{ ...fields, kind }`: the plain payload of the event. The fields argument is optional only if the event has no mandatory fields. `emit` does not parse the fields. `executeOperation` parses them. Give the results of `emit` to `ok` as its second argument:
+
+```ts
+ok({ refund: '30.00' }, [emit('urn:acme:insurance:policy:event:policy_cancelled', { cancellation_date: '2026-09-30', refund: '30.00' })])
+// {"ok":true,"value":{"refund":"30.00"},"events":[{"cancellation_date":"2026-09-30","refund":"30.00","kind":"urn:acme:insurance:policy:event:policy_cancelled"}]}
+```
+
+`emit` accepts each event of the manifest. The handler type accepts only the events of its operation. Refer to [Handler contracts](#handler-contracts).
 
 ### `fail`
 
@@ -100,7 +152,7 @@ fail('urn:demo:shipping:quote:error:too_heavy_for_express', { weight_grams: 6000
 /** <operation URN> — <description> */
 export type <Operation brand>Handler = (
   input: s.<Input entity brand>,
-) => Result<s.<Output entity brand>Input, <error types>>;
+) => Result<s.<Output entity brand>Input, <error types>[, <event types>]>;
 ```
 
 | Part | Type | Description |
@@ -108,6 +160,15 @@ export type <Operation brand>Handler = (
 | `input` | `s.<Input entity brand>` | The parsed, branded input entity |
 | Output | `s.<Output entity brand>Input` | The plain output entity, with no brands |
 | Error | `s.<Error brand>Input`, one for each declared error | The union of the plain payloads of the declared errors, in the sequence of the `errors` list. `never` if the operation declares no errors |
+| Events | `s.<Event brand>Input`, one for each event in `emits` | The union of the plain payloads of the events, in the sequence of the `emits` list. The type argument is there only if the operation emits one or more events. If not, the default `never` applies |
+
+The events type has only the events of the operation. If a handler returns a different event, `tsc` refuses the core at gate 1. This message comes from a copy of the insurance core in which `issue_policy` emits `policy_cancelled`. This page shortens the message:
+
+```
+insurance/core.ts:24:5  error  type-error  TS2322: Type 'Success<…>' is not assignable to type 'Result<…, never, { ...; }>'.
+  …
+    Type '{ kind: "urn:acme:insurance:policy:event:policy_cancelled"; cancellation_date: string; refund: string; }' is missing the following properties from type '{ kind: "urn:acme:insurance:policy:event:policy_issued"; policy_id: string; holder: string; premium: string; }': policy_id, holder, premium
+```
 
 If the operation is deprecated, the comment has an `@deprecated` tag, as in the schema file. Refer to [The generated schemas](./generated-schemas). This handler type comes from a copy of the insurance domain with `status: deprecated` and `supersededBy: policy.operation.issue_policy` on `cancel_policy`:
 
@@ -118,10 +179,10 @@ If the operation is deprecated, the comment has an `@deprecated` tag, as in the 
  */
 export type PolicyCancelPolicyHandler = (
   input: s.PolicyCancellation,
-) => Result<s.PolicyRefundQuoteInput, s.PolicyRefundBelowMinimumInput>;
+) => Result<s.PolicyRefundQuoteInput, s.PolicyRefundBelowMinimumInput, s.PolicyPolicyCancelledInput>;
 ```
 
-A handler is synchronous. It returns the `Result`. It does not return a `Promise`. Example from tutorial 2:
+A handler is synchronous. It returns the `Result`. It does not return a `Promise`. Example from tutorial 2, whose operation emits no events:
 
 ```ts
 /** urn:demo:shipping:quote:operation:quote_shipping — Calculate the price to send a parcel */
@@ -260,6 +321,7 @@ export interface ErrorContract extends EntityContract {
   readonly category: ErrorCategory;
   readonly retryable: boolean;
   readonly message: readonly MessagePart[];
+  readonly recordAs?: EntityContract & { readonly urn: string };
 }
 ```
 
@@ -271,6 +333,7 @@ export interface ErrorContract extends EntityContract {
 | `category` | The `category` of the error in the manifest |
 | `retryable` | The `retryable` value of the error in the manifest |
 | `message` | The `message` of the error in the manifest, as a list of parts |
+| `recordAs` | The `recordAs` event of the error: its `urn`, `schema` and `fields`. The property is there only if the error has `recordAs` |
 
 ### `OperationContract`
 
@@ -279,10 +342,11 @@ export interface OperationContract {
   readonly input: EntityContract;
   readonly output: EntityContract;
   readonly errors: Readonly<Record<string, ErrorContract>>;
+  readonly events: Readonly<Record<string, EntityContract>>;
 }
 ```
 
-`errors` has one `ErrorContract` for each declared error of the operation, keyed by error URN.
+`errors` has one `ErrorContract` for each declared error of the operation, keyed by error URN. `events` has one `EntityContract` for each event in `emits`, keyed by event URN. An event contract has `schema` and `fields`, and never `invariants`.
 
 ### `DispatchMap`
 
@@ -291,12 +355,13 @@ export const DispatchMap = {
   '<operation URN>': {
     input: { schema: s.<…>Schema, fields: { … }, invariants: [ … ] },
     output: { schema: s.<…>Schema, fields: { … }, invariants: [ … ] },
-    errors: { '<error URN>': { schema, category, retryable, message, fields }, … },
+    errors: { '<error URN>': { schema, category, retryable, message, fields, recordAs? }, … },
+    events: { '<event URN>': { schema, fields }, … },
   },
 } as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;
 ```
 
-One entry for each operation, keyed by operation URN. If an operation declares no errors, its `errors` is `{}`. The `invariants` of an input or an output are there only if the entity has invariants. Because of `as const`, each value has its literal type. Example from tutorial 2:
+One entry for each operation, keyed by operation URN. If an operation declares no errors, its `errors` is `{}`. If it emits no events, its `events` is `{}`. The `invariants` of an input or an output are there only if the entity has invariants. Because of `as const`, each value has its literal type. Example from tutorial 2:
 
 ```ts
 export const DispatchMap = {
@@ -326,6 +391,7 @@ export const DispatchMap = {
         },
       },
     },
+    events: {},
   },
 } as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;
 ```
@@ -342,6 +408,7 @@ The input of `issue_policy` in the insurance domain has a link, `holder`, and a 
           peril: { urn: 'urn:acme:insurance:policy:field:peril', primitive: 'enum', required: true },
           limit: { urn: 'urn:acme:insurance:policy:field:limit', primitive: 'decimal', required: true },
           note: { urn: 'urn:acme:insurance:policy:field:note', primitive: 'string', required: false },
+          remark: { urn: 'urn:acme:insurance:policy:field:remark', primitive: 'string', required: false },
         } },
         effective_date: { urn: 'urn:acme:insurance:policy:field:effective_date', primitive: 'date', required: true },
         expiry_date: { urn: 'urn:acme:insurance:policy:field:expiry_date', primitive: 'date', required: true },
@@ -356,7 +423,40 @@ The input of `issue_policy` in the insurance domain has a link, `holder`, and a 
     },
 ```
 
-The [Gherkin steps](./gherkin-steps) read `DispatchMap` to find the fields, the primitives and the input invariants of each operation.
+The errors and the events of `cancel_policy` in the insurance domain. The error has `recordAs`:
+
+```ts
+    errors: {
+      'urn:acme:insurance:policy:error:refund_below_minimum': {
+        schema: s.PolicyRefundBelowMinimumSchema,
+        category: 'precondition',
+        retryable: false,
+        message: [{ text: 'A refund of ' }, { field: 'refund' }, { text: ' is below the minimum of 1.00' }],
+        fields: {
+          refund: { urn: 'urn:acme:insurance:policy:field:refund', primitive: 'decimal', required: true },
+        },
+        recordAs: {
+          urn: 'urn:acme:insurance:policy:event:refund_refused',
+          schema: s.PolicyRefundRefusedSchema,
+          fields: {
+            refund: { urn: 'urn:acme:insurance:policy:field:refund', primitive: 'decimal', required: true },
+            cancellation_date: { urn: 'urn:acme:insurance:policy:field:cancellation_date', primitive: 'date', required: false },
+          },
+        },
+      },
+    },
+    events: {
+      'urn:acme:insurance:policy:event:policy_cancelled': {
+        schema: s.PolicyPolicyCancelledSchema,
+        fields: {
+          cancellation_date: { urn: 'urn:acme:insurance:policy:field:cancellation_date', primitive: 'date', required: true },
+          refund: { urn: 'urn:acme:insurance:policy:field:refund', primitive: 'decimal', required: true },
+        },
+      },
+    },
+```
+
+The [Gherkin steps](./gherkin-steps) read `DispatchMap` to find the fields, the primitives, the input invariants and the events of each operation.
 
 ## Shell gatekeeper
 
@@ -390,6 +490,26 @@ To find `fieldUrn`, `executeOperation` follows the path through the `fields` of 
 
 An issue of an invariant has the path of the first field that the rule names. Thus it has a `fieldUrn` and an `invariantUrn`. The issue of an invariant of an embedded entity has the nested path, for example `coverages.1.limit`. To find the invariant, `executeOperation` compares the `requirement` of the Valibot issue with the `rule` of each `InvariantInfo`.
 
+### `EmittedEvent`
+
+```ts
+export type EmittedEvent<U extends OperationUrn = OperationUrn> = U extends OperationUrn
+  ? {
+      readonly [K in keyof DeclaredEvents<U>]: {
+        readonly urn: K;
+        readonly fields: DeclaredEvents<U>[K] extends { readonly schema: infer S extends v.GenericSchema } ? v.InferOutput<S> : never;
+      };
+    }[keyof DeclaredEvents<U>]
+  : never;
+```
+
+An event of the operation `U`, after the parse. `DeclaredEvents<U>` is the `events` entry of `U` in `DispatchMap`. It is not exported. `EmittedEvent<U>` is a union with one member for each event in `emits`, so a `switch` on `urn` gives the correct `fields`. If `U` emits no events, the type is `never`.
+
+| Property | Description |
+| --- | --- |
+| `urn` | The URN of the event |
+| `fields` | The parsed, branded payload of the event, with `kind` |
+
 ### `DomainError`
 
 ```ts
@@ -402,6 +522,11 @@ export type DomainError<U extends OperationUrn = OperationUrn> = U extends Opera
         readonly message: string;
         readonly fields: DeclaredErrors<U>[K] extends { readonly schema: infer S extends v.GenericSchema }
           ? v.InferOutput<S>
+          : never;
+        readonly record?: DeclaredErrors<U>[K] extends {
+          readonly recordAs: { readonly urn: infer R; readonly schema: infer S extends v.GenericSchema };
+        }
+          ? { readonly urn: R; readonly fields: v.InferOutput<S> }
           : never;
       };
     }[keyof DeclaredErrors<U>]
@@ -417,12 +542,13 @@ A declared error of the operation `U`, after the parse. `DeclaredErrors<U>` is t
 | `retryable` | The `retryable` value of the error |
 | `message` | The message template, with the value of the field in each `{placeholder}`. Each value goes through `String(…)` |
 | `fields` | The parsed, branded payload of the error, with `kind` |
+| `record` | The `recordAs` event of the error: `{ urn, fields }`, with the parsed, branded payload of the event, with `kind`. The property is there only if the error has `recordAs`. The shell can record it, for example in an audit trail |
 
 ### `ExecuteResult`
 
 ```ts
 export type ExecuteResult<U extends OperationUrn = OperationUrn> =
-  | { readonly ok: true; readonly urn: U; readonly output: v.InferOutput<(typeof DispatchMap)[U]['output']['schema']> }
+  | { readonly ok: true; readonly urn: U; readonly output: v.InferOutput<(typeof DispatchMap)[U]['output']['schema']>; readonly events: readonly EmittedEvent<U>[] }
   | { readonly ok: false; readonly kind: 'DomainError'; readonly urn: U; readonly error: DomainError<U> }
   | { readonly ok: false; readonly kind: 'UnknownOperation'; readonly urn: string; readonly issues: readonly BoundaryIssue[] }
   | { readonly ok: false; readonly kind: 'InputRejected' | 'ContractViolation'; readonly urn: U; readonly issues: readonly BoundaryIssue[] };
@@ -432,11 +558,11 @@ The generated file writes each member on more than one line. The members are the
 
 | `ok` | `kind` | Other properties | Description |
 | --- | --- | --- | --- |
-| `true` | None | `urn`, `output` | The operation succeeded. `output` is the parsed, branded output entity |
+| `true` | None | `urn`, `output`, `events` | The operation succeeded. `output` is the parsed, branded output entity. `events` holds the parsed, branded events, in the sequence that the handler gave them. It is `[]` if the handler gave no events |
 | `false` | `'DomainError'` | `urn`, `error` | The handler refused with a declared error. This is a correct result |
 | `false` | `'UnknownOperation'` | `urn`, `issues` | The URN is not an operation of this domain |
 | `false` | `'InputRejected'` | `urn`, `issues` | The caller sent a payload that the input schema refuses. This includes a payload that breaks an invariant of the input entity |
-| `false` | `'ContractViolation'` | `urn`, `issues` | The core did not obey its contract. This includes an output that breaks an invariant of the output entity. This shows a bug in the core |
+| `false` | `'ContractViolation'` | `urn`, `issues` | The core did not obey its contract. This includes an output that breaks an invariant of the output entity, and an event that the operation does not emit or that its schema refuses. This shows a bug in the core |
 
 ### `executeOperation`
 
@@ -461,21 +587,27 @@ With a literal operation URN, the first signature applies, and the result type i
 | 4 | Call the handler with the parsed, branded input | The return value is not a `Result`: an object with `ok: true` and a `value` key, or with `ok: false` and an `error` key | `ContractViolation`, with the message `the handler for <urn> did not return a Result; return ok(…) or fail(…)` |
 | 5a | If `ok` is `false`: find the error by its `kind` in the `errors` of the operation | The operation does not declare the error | `ContractViolation`, with the message `<urn> failed with <kind>, which it does not declare` |
 | 5b | Parse the error with the error schema | The parse fails | `ContractViolation`, with one issue for each Valibot issue |
-| 5c | Make the domain error | Always | `DomainError`, with `urn`, `category`, `retryable`, the rendered `message` and the parsed `fields` |
+| 5c | If the error has `recordAs`: parse the parsed error fields, with the `kind` of the event, with the event schema | The parse fails | `ContractViolation`, with one issue for each Valibot issue. Pass 6 makes sure that the fields of the error can make the event |
+| 5d | Make the domain error | Always | `DomainError`, with `urn`, `category`, `retryable`, the rendered `message`, the parsed `fields`, and `record` if the error has `recordAs` |
 | 6a | If `ok` is `true`: parse `value` with the output schema | The parse fails | `ContractViolation`, with one issue for each Valibot issue |
-| 6b | Return the output | Always | `{ ok: true, urn, output }` |
+| 6b | Read the `events` of the `Result`. If there is no `events` key, use `[]` | `events` is not a list | `ContractViolation`, with the message `the handler for <urn> returned events that are not a list` |
+| 6c | For each event, in sequence: find it by its `kind` in the `events` of the operation | The operation does not emit the event | `ContractViolation`, with the message `<urn> emitted <kind>, which it does not emit` |
+| 6d | Parse the event with the event schema | The parse fails | `ContractViolation`, with one issue for each Valibot issue |
+| 6e | Return the output and the events | Always | `{ ok: true, urn, output, events }`. Each event is `{ urn, fields }` |
 
 - A parse removes the keys that are not properties of the entity. Refer to [The generated schemas](./generated-schemas).
-- The issues of steps 1, 3, 4 and 5a have an empty `path` and no `fieldUrn`.
-- In steps 2, 5b and 6a, `fieldUrn` comes from the properties of the input, the error or the output, at each depth. In steps 2 and 6a, `invariantUrn` comes from the invariants of the input or the output. These include the invariants of the embedded entities.
+- The issues of steps 1, 3, 4, 5a, 6b and 6c have an empty `path` and no `fieldUrn`.
+- In steps 2, 5b, 5c, 6a and 6d, `fieldUrn` comes from the properties of the input, the error, the `recordAs` event, the output or the event, at each depth. In steps 2 and 6a, `invariantUrn` comes from the invariants of the input or the output. These include the invariants of the embedded entities.
 - `executeOperation` does not make sure that a link points at an object that exists. The shell does that, with its store.
 - `executeOperation` does not catch an exception that the handler throws.
+- A `ContractViolation` in step 6 has no `output` and no `events`. The shell gets no part of the result, so it does not publish an event that breaks the contract.
+- `executeOperation` does not examine the count or the sequence of the events. It keeps the sequence of the handler.
 
 Results from a real run with the core of tutorial 2:
 
 ```ts
 executeOperation(U, { weight_grams: 800, zone: 'domestic' }, core)
-// {"ok":true,"urn":"urn:demo:shipping:quote:operation:quote_shipping","output":{"price_cents":600}}
+// {"ok":true,"urn":"urn:demo:shipping:quote:operation:quote_shipping","output":{"price_cents":600},"events":[]}
 
 executeOperation('urn:demo:shipping:quote:operation:nope', {}, core)
 // {"ok":false,"kind":"UnknownOperation","urn":"urn:demo:shipping:quote:operation:nope","issues":[{"path":"","message":"unknown operation urn:demo:shipping:quote:operation:nope"}]}
@@ -507,6 +639,15 @@ executeOperation(U, { weight_grams: 6000, zone: 'domestic', express: true }, cor
 
 // The handler returns ok({ price_cents: 1.5 }).
 // {"ok":false,"kind":"ContractViolation","urn":"urn:demo:shipping:quote:operation:quote_shipping","issues":[{"path":"price_cents","fieldUrn":"urn:demo:shipping:quote:field:price_cents","message":"Invalid safe integer: Received 1.5"}]}
+
+// The handler returns { ok: true, value: { price_cents: 600 } }, with no events key.
+// {"ok":true,"urn":"urn:demo:shipping:quote:operation:quote_shipping","output":{"price_cents":600},"events":[]}
+
+// The handler returns { ok: true, value: { price_cents: 600 }, events: 5 }.
+// {"ok":false,"kind":"ContractViolation","urn":"urn:demo:shipping:quote:operation:quote_shipping","issues":[{"path":"","message":"the handler for urn:demo:shipping:quote:operation:quote_shipping returned events that are not a list"}]}
+
+// The handler returns { ok: true, value: { price_cents: 600 }, events: [{ kind: 'urn:x' }] }.
+// {"ok":false,"kind":"ContractViolation","urn":"urn:demo:shipping:quote:operation:quote_shipping","issues":[{"path":"","message":"urn:demo:shipping:quote:operation:quote_shipping emitted urn:x, which it does not emit"}]}
 ```
 
 Results from a real run with the core of the insurance domain, where `I` is `'urn:acme:insurance:policy:operation:issue_policy'`. `P` is a valid policy:
@@ -552,6 +693,29 @@ executeOperation(I, { ...P, holder: 'customer-1' }, core)
 // {"ok":false,"kind":"ContractViolation","urn":"urn:acme:insurance:policy:operation:issue_policy","issues":[{"path":"expiry_date","fieldUrn":"urn:acme:insurance:policy:field:expiry_date","invariantUrn":"urn:acme:insurance:policy:invariant:term_is_positive","message":"The expiry date must be after the effective date"}]}
 ```
 
+Results with events, from the same core. `I` emits `policy_issued`. `C` is `'urn:acme:insurance:policy:operation:cancel_policy'`, which emits `policy_cancelled`. Its error `refund_below_minimum` has `recordAs: policy.event.refund_refused`:
+
+```ts
+executeOperation(I, P, core)
+// {"ok":true,"urn":"urn:acme:insurance:policy:operation:issue_policy","output":{"policy_id":"123e4567-e89b-12d3-a456-426614174000","holder":"9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d","coverages":[{"peril":"fire","limit":"1000.00"}],"effective_date":"2026-06-01","expiry_date":"2026-12-31","premium":"120.00"},"events":[{"urn":"urn:acme:insurance:policy:event:policy_issued","fields":{"kind":"urn:acme:insurance:policy:event:policy_issued","policy_id":"123e4567-e89b-12d3-a456-426614174000","holder":"9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d","premium":"120.00"}}]}
+
+executeOperation(C, { effective_date: '2026-01-01', expiry_date: '2026-12-31', premium: '365.00', cancellation_date: '2026-12-01' }, core)
+// {"ok":true,"urn":"urn:acme:insurance:policy:operation:cancel_policy","output":{"refund":"30.00"},"events":[{"urn":"urn:acme:insurance:policy:event:policy_cancelled","fields":{"kind":"urn:acme:insurance:policy:event:policy_cancelled","cancellation_date":"2026-12-01","refund":"30.00"}}]}
+
+executeOperation(C, { effective_date: '2026-01-01', expiry_date: '2026-12-31', premium: '365.00', cancellation_date: '2026-12-31' }, core)
+// {"ok":false,"kind":"DomainError","urn":"urn:acme:insurance:policy:operation:cancel_policy","error":{"urn":"urn:acme:insurance:policy:error:refund_below_minimum","category":"precondition","retryable":false,"message":"A refund of 0.00 is below the minimum of 1.00","fields":{"kind":"urn:acme:insurance:policy:error:refund_below_minimum","refund":"0.00"},"record":{"urn":"urn:acme:insurance:policy:event:refund_refused","fields":{"kind":"urn:acme:insurance:policy:event:refund_refused","refund":"0.00"}}}}
+```
+
+The `record` of the error has no `cancellation_date`, because the error does not have that field. These results come from changed handlers of `cancel_policy`, with the cancellation on `2026-12-01`:
+
+```ts
+// The handler returns an event of issue_policy.
+// {"ok":false,"kind":"ContractViolation","urn":"urn:acme:insurance:policy:operation:cancel_policy","issues":[{"path":"","message":"urn:acme:insurance:policy:operation:cancel_policy emitted urn:acme:insurance:policy:event:policy_issued, which it does not emit"}]}
+
+// The handler returns ok({ refund: '30.00' }, [emit(…policy_cancelled, { cancellation_date: '2026-12-01', refund: '30.001' })]).
+// {"ok":false,"kind":"ContractViolation","urn":"urn:acme:insurance:policy:operation:cancel_policy","issues":[{"path":"refund","fieldUrn":"urn:acme:insurance:policy:field:refund","message":"Invalid decimal: Expected at most 2 digit(s) after the point"}]}
+```
+
 ## Declarations that are not exported
 
 The file also declares these items. Other modules cannot import them.
@@ -559,9 +723,10 @@ The file also declares these items. Other modules cannot import them.
 | Name | Description |
 | --- | --- |
 | `DeclaredErrors<U>` | `(typeof DispatchMap)[U]['errors']` |
+| `DeclaredEvents<U>` | `(typeof DispatchMap)[U]['events']` |
 | `boundaryIssues(issues, contract)` | Changes Valibot issues to `BoundaryIssue` objects, with the properties and the invariants of the `EntityContract` |
 | `isOperationUrn(urn)` | Returns `true` if the URN is a key of `DispatchMap` |
-| `isResult(value)` | Returns `true` if the value has the form of a `Result` |
+| `isResult(value)` | Returns `true` if the value has the form of a `Result`. It does not examine `events` |
 | `renderMessage(parts, fields)` | Puts the field values in the message template |
 
 ## A complete example
@@ -574,12 +739,12 @@ The generated runtime file:
 
 <<< @/../packages/urn-forge/tutorial/2-declared-errors/generated/domain.runtime.generated.ts
 
-The runtime file of urn-forge's own domain is `self/generated/domain.runtime.generated.ts`. It has three operations and three errors.
+The runtime file of urn-forge's own domain is `self/generated/domain.runtime.generated.ts`. It has three operations and two errors. The insurance domain, `insurance/generated/domain.runtime.generated.ts`, has events and a `recordAs` event.
 
 ## Related pages
 
 - [The generated schemas](./generated-schemas)
 - [Gherkin steps](./gherkin-steps)
 - [Call an operation from the shell](../how-to/call-an-operation)
-- [The functional core and brands](../explanation/functional-core)
+- [Emit an event](../how-to/emit-an-event)
 - [Results and declared errors](../explanation/results-and-errors)

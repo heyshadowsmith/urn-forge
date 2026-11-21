@@ -82,24 +82,31 @@ Step 0 adds to `insurance/` the three events, `emits` on both operations, `recor
 
 One PR (decision 13), one commit per step. Each step leaves the repository green and ends with a check.
 
-- [ ] **0. The target.** As above. *Check:* `compile` refuses exactly the event keys, `emits` and `recordAs`.
-- [ ] **1. The kind.** `event` in the registry and the IR; `emits` and `recordAs` in pass 1 and pass 4; `invalid-record-as` in pass 6; `reserved-property` on events; events in `liveIr`, the Postgres plugin's `supports`, and `diff`'s uses. *Check:* insurance builds an IR with three events; a fixture for each new diagnostic; the other IRs change only by `emits: []`.
-- [ ] **2. Valibot and the FCIS runtime.** Event schemas; `emit`, `ok(value, events)`, the handler types; `executeOperation` with `events` and `record`; `ContractViolation` for an undeclared or a malformed event. *Check:* a core that emits an undeclared event fails `tsc`; one that emits a malformed event gets `ContractViolation`; insurance's cores pass `verify`.
-- [ ] **3. Steps and gate 3.** The two steps; `undeclared-event` and `uncovered-event`. *Check:* the insurance scenarios expect each event and pass; a removed scenario gives exactly one `uncovered-event`.
-- [ ] **4. Ship.** The docs: the kind, the steps, the runtime, the codes, a how-to to emit an event, the model in the explanation pages. *Check:* CI green; every sabotage below fails.
+- [x] **0. The target.** As above. *Check:* `compile` refuses exactly the event keys, `emits` and `recordAs`.
+  - *Done* in parts, because CI compiles insurance and runs its scenarios: the manifest with step 1, the core's `emit` calls with step 2, and the scenario steps with step 3. Each part went in with the step that makes it pass.
+- [x] **1. The kind.** `event` in the registry and the IR; `emits` and `recordAs` in pass 1 and pass 4; `invalid-record-as` in pass 6; `reserved-property` on events; events in `liveIr`, the Postgres plugin's `supports`, and `diff`'s uses. *Check:* insurance builds an IR with three events; a fixture for each new diagnostic; the other IRs change only by `emits: []`.
+  - *Done*, with one consequence the plan did not name: every kind of the spec is now built, so `unsupported-kind` cannot happen, and it left the compiler and the docs. In `self/`, the error `unsupported_kind` retired through the lifecycle: `status: sunset`, out of `parse_short_key`'s errors, its scenario removed. `event` joined the kind enum, and strict coverage asked for an example of it. The new codes are tested in `tests/events.test.ts` and `tests/every-code.test.ts`, not in fixtures.
+- [x] **2. Valibot and the FCIS runtime.** Event schemas; `emit`, `ok(value, events)`, the handler types; `executeOperation` with `events` and `record`; `ContractViolation` for an undeclared or a malformed event. *Check:* a core that emits an undeclared event fails `tsc`; one that emits a malformed event gets `ContractViolation`; insurance's cores pass `verify`.
+  - *Done.* The check was met in `tests/events.test.ts`: an `@ts-expect-error` on a handler that emits another operation's event, a `ContractViolation` that names `premium` and its field URN for a malformed event, and `record` on the refused cancellation. A domain with no events types `events` as `never[]`, so the runtime casts its success result through `unknown`.
+- [x] **3. Steps and gate 3.** The two steps; `undeclared-event` and `uncovered-event`. *Check:* the insurance scenarios expect each event and pass; a removed scenario gives exactly one `uncovered-event`.
+  - *Done.* The check was met: 29 scenarios pass, and removing the expectation of `policy_cancelled` gives exactly one `uncovered-event`. `Then the operation emits no event` also passes after a declared refusal, which has no events by definition (spec §4.5), so a scenario can say so after `fails with`; it fails after `InputRejected` or `ContractViolation`.
+- [x] **4. Ship.** The docs: the kind, the steps, the runtime, the codes, a how-to to emit an event, the model in the explanation pages. *Check:* CI green; every sabotage below fails.
+  - *Done.* A new diff case, `event-added`, shows a new event in `emits` as breaking. The docs writers found four more things, each fixed with a test: pass 5 did not check the links of an event (an event that links to an entity with no key crashed `compile`); an event URN was not a tag that resolves; `IREvent` was not exported; and a new `recordAs` was breaking. It is now compatible (`adds the record …`), like a new optional property; a removed one breaks Out, and a changed one is neither (case `record-added`). New page: [Emit an event](../how-to/emit-an-event).
 
 ## Done
 
-| Sabotage | What catches it |
-| --- | --- |
-| `emits` names an entity | Pass 4, `wrong-ref-kind` |
-| An event field named `kind` | Pass 3, `reserved-property` |
-| `recordAs` names an event with a required property that the error does not have | Pass 6, `invalid-record-as` |
-| A core that emits an event its operation does not declare | Gate 1, `tsc` |
-| A core that emits an event with a field that breaks its constraint | Cucumber: `ContractViolation` with the field URN |
-| A scenario that expects an event its operation does not emit | Gate 3, `undeclared-event` |
-| The scenario that expects `policy_cancelled` removed | Gate 3, `uncovered-event` |
-| A new event in `emits` | `diff`, `breaking-change` |
+| Sabotage | What catches it | Result |
+| --- | --- | --- |
+| `emits` names an entity | Pass 4, `wrong-ref-kind` | Caught |
+| An event field named `kind` | Pass 3, `reserved-property` | Caught |
+| `recordAs` names an event with a required property that the error does not have | Pass 6, `invalid-record-as` | Caught |
+| A core that emits an event its operation does not declare | Gate 1, `tsc` | Caught (an `@ts-expect-error` that `tsc` checks); at run time it is also a `ContractViolation` |
+| A core that emits an event with a field that breaks its constraint | Cucumber: `ContractViolation` with the field URN | Caught: `premium: 1.005` gives `path: premium` and its field URN |
+| A scenario that expects an event its operation does not emit | Gate 3, `undeclared-event` | Caught |
+| The scenario that expects `policy_cancelled` removed | Gate 3, `uncovered-event` | Caught: exactly one |
+| A new event in `emits` | `diff`, `breaking-change` | Caught (case `event-added`) |
+
+**Met.**
 
 ## Risks
 

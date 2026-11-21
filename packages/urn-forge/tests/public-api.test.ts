@@ -67,6 +67,8 @@ describe('public API', () => {
     expect((await import('urn-forge/config')).defineConfig).toBe(direct.defineConfig);
     const cucumber = await import('urn-forge/cucumber');
     expect(Object.keys(cucumber).sort()).toEqual([
+      'assertEmits',
+      'assertEmitsNone',
       'assertFailsWith',
       'assertOutput',
       'assertRejectedBy',

@@ -201,7 +201,7 @@ tests/fixtures/broken-references/domain.manifest.yaml:39:10  error  wrong-ref-ki
 ```
 unchanged  example/generated/domain.runtime.generated.ts
 unchanged  example/generated/domain.schemas.generated.ts
-fingerprint sha256:d13f6e9bbd5945562bf1ba244c46e0d9139125d85911d5acb59add6fa422b18e
+fingerprint sha256:e69e1912890b626f5d271fdf69961f88eb5848e7928186ab788ce9f150ec1002
 ```
 
 This is the output of `urn-forge compile --config example/urn-forge.config.ts` when the files are current.

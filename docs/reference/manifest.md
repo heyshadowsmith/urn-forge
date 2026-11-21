@@ -6,7 +6,7 @@ This manifest uses each kind except `invariant`, an optional field reference and
 
 <<< @/../packages/urn-forge/tests/fixtures/shop/domain.manifest.yaml
 
-The insurance domain uses invariants, dates, exact decimals, an optional field, a link, an embedded entity, entity keys and a deprecated field:
+The insurance domain uses invariants, dates, exact decimals, an optional field, a link, an embedded entity, entity keys, a deprecated field, events and `recordAs`:
 
 <<< @/../packages/urn-forge/insurance/domain.manifest.yaml{yaml}
 
@@ -20,7 +20,7 @@ The primitives test fixture, `tests/fixtures/primitives/domain.manifest.yaml`, u
 | A key occurs only one time in each mapping | `duplicate-key` |
 | The top level is a mapping. An empty file is not a mapping | `not-a-mapping` |
 | The top level has the key `manifest`, which is the header | `missing-header` |
-| Each other top-level key is a short key that declares one atom | `invalid-key`, `unknown-kind`, `unsupported-kind` |
+| Each other top-level key is a short key that declares one atom | `invalid-key`, `unknown-kind` |
 
 - The sequence of the top-level keys is not important. The generated code uses URN order.
 - A manifest with a header and no atoms is correct.
@@ -55,7 +55,8 @@ Each atom has a short key of the form `<context>.<kind>.<identifier>`, for examp
 | `field` | One value, with a primitive and constraints | [Field](#field) |
 | `entity` | A named group of properties. Each property refers to a field or to a different entity | [Entity](#entity) |
 | `invariant` | A named rule over the fields of one entity | [Invariant](#invariant) |
-| `operation` | A handler contract: an input entity, an output entity and the declared errors | [Operation](#operation) |
+| `operation` | A handler contract: an input entity, an output entity, the declared errors and the events | [Operation](#operation) |
+| `event` | A named fact that an operation returns when it succeeds | [Event](#event) |
 | `error` | A declared error: a named refusal of an operation | [Error](#error) |
 
 Each kind also accepts the [lifecycle keys](#lifecycle-keys) `status`, `supersededBy` and `sunsetDate`.
@@ -79,11 +80,11 @@ order.field.delivery: { primitive: enum, values: [standard, express, "click & co
 - The constraints of a field must accept one or more values (pass 7, `incoherent-constraints`).
 - Write each bound of a `decimal` in quotes, for example `min: "0.01"`. A YAML number causes `invalid-value`, because YAML reads it as a binary float.
 - Write a bound of a `timestamp` in quotes, for example `min: "2026-01-01T00:00:00Z"`. A bound of a `date` can have quotes or not, for example `min: 2026-01-01`.
-- A field does not set if it is optional. The field reference in an entity or an error sets it.
+- A field does not set if it is optional. The field reference in an entity, an event or an error sets it.
 
 ## Field reference
 
-A field reference is an item of the `fields` list of an entity or an error. Each field reference makes one property of the payload. It has one of three forms:
+A field reference is an item of the `fields` list of an entity, an event or an error. Each field reference makes one property of the payload. It has one of three forms:
 
 | Form | The property holds | The parsed type of the property |
 | --- | --- | --- |
@@ -212,9 +213,48 @@ order.operation.price_line:
 | `input` | string | Yes | — | A short key of an entity in this manifest |
 | `output` | string | Yes | — | A short key of an entity in this manifest |
 | `errors` | A list of strings | No | `[]` | Each item is a short key of an error in this manifest, and occurs only one time. The list can be empty |
+| `emits` | A list of strings | No | `[]` | Each item is a short key of an event in this manifest, and occurs only one time. The list can be empty |
+
+From the insurance domain:
+
+```yaml
+policy.operation.issue_policy:
+  description: Issue a policy as requested
+  input: policy.entity.policy
+  output: policy.entity.policy
+  emits: [policy.event.policy_issued]
+```
 
 - `input` and `output` can be the same entity.
 - An operation with no `errors` can only succeed. Its handler type has the error type `never`.
+- An item of `emits` that names a different kind causes `wrong-ref-kind`. An item that occurs two times causes `duplicate-ref`.
+- An operation returns its events only when it succeeds. It can return zero, one or more events of each kind in `emits`, in any sequence. The manifest does not set a count or a sequence.
+- The handler type of an operation accepts only the events in its `emits`. Refer to [The generated runtime](./generated-runtime).
+
+## Event
+
+An event records a fact that happened, for example that a policy was issued. An operation lists its events in `emits`, and returns them only when it succeeds. An event never tells of a refusal: a declared error does that.
+
+```yaml
+policy.event.policy_issued:
+  description: A policy was issued
+  fields:
+    - ref: policy.field.policy_id
+    - link: customer.entity.customer
+      as: holder
+    - ref: policy.field.premium
+```
+
+| Property | Type | Necessary | Default | Rule |
+| --- | --- | --- | --- | --- |
+| `description` | string | Yes | — | Not empty |
+| `fields` | A list of [field references](#field-reference) | No | `[]` | Can be empty |
+
+- The field references of an event have the same forms and rules as those of an entity: `ref` to a field or an entity, `link`, `as`, `required` and `many`.
+- No property of an event can have the name `kind` (`reserved-property`), from the identifier of its target or from `as`. The payload of each event has the property `kind`, which contains the URN of the event.
+- An event has no `key`. A `key` on an event causes `unknown-property`.
+- An invariant cannot be on an event. An `on` that names an event causes `wrong-ref-kind`. To give an event a rule, embed an entity that has the invariant.
+- An event that no operation emits, and that no error names in `recordAs`, is correct.
 
 ## Error
 
@@ -234,9 +274,43 @@ order.error.price_unavailable:
 | `retryable` | boolean | Yes | — | Metadata for the shell. `true` if the same request can be correct at a later time |
 | `message` | string | Yes | — | Not empty. A [message template](#message-template) |
 | `fields` | A list of [field references](#field-reference) | No | `[]` | Can be empty |
+| `recordAs` | string | No | None | A short key of an event in this manifest. A different kind causes `wrong-ref-kind`. The event must agree with the error (pass 6, `invalid-record-as`) |
 
 - No property of an error can have the name `kind` (`reserved-property`), from the identifier of its target or from `as`. The payload of each error has the property `kind`, which contains the URN of the error.
 - An error that no operation declares is correct.
+
+### `recordAs`
+
+`recordAs` names an event that the shell can record when the error occurs, for example in an audit trail. The core does not return this event. `executeOperation` makes it from the fields of the error, and gives it as `record` on the `DomainError`. The event is not one of the events in `emits`. Refer to [The generated runtime](./generated-runtime).
+
+From the insurance domain:
+
+```yaml
+policy.event.refund_refused:
+  description: A cancellation was refused because its refund was below the minimum, for an audit trail
+  fields:
+    - ref: policy.field.refund
+    # Optional, so the error's fields can build the event (events plan, decision 6).
+    - ref: policy.field.cancellation_date
+      required: false
+
+policy.error.refund_below_minimum:
+  description: The refund is too small to pay out
+  category: precondition
+  retryable: false
+  message: A refund of {refund} is below the minimum of 1.00
+  fields:
+    - ref: policy.field.refund
+  recordAs: policy.event.refund_refused
+```
+
+The fields of the error must make the event. Thus pass 6 compares the properties of the two atoms by property name:
+
+| Rule | If the rule is not obeyed |
+| --- | --- |
+| The event has each property of the error | `invalid-record-as`: `has no property "<name>", which the error has` |
+| Each such property of the event has the same target, the same `required` and the same `many` as in the error | `invalid-record-as`: `has a property "<name>" that differs from the error's; it must have the same target, presence and count` |
+| Each other property of the event has `required: false` | `invalid-record-as`: `has the required property "<name>", which the error does not have; make it optional, so the error's fields can build the event` |
 
 ### Message template
 
@@ -293,13 +367,12 @@ What each status does:
 
 For the reasons, refer to [Compatibility and the direction of use](../explanation/compatibility).
 
-## Properties and kinds that urn-forge does not accept
+## Properties that urn-forge does not accept
 
-Specification v1.1 has these properties and kinds. urn-forge 0.1.0 does not accept them at this time. Refer to [Scope](./scope).
+Specification v1.1 has these properties. urn-forge 0.1.0 does not accept them at this time. Refer to [Scope](./scope).
 
 | Item | Where in the specification | Diagnostic in urn-forge 0.1.0 |
 | --- | --- | --- |
-| The kind `event` | A short key | `unsupported-kind` |
 | The primitives `list`, `record` and `ref` | `primitive` of a field | `unknown-primitive`. For a list, use `many` on the field reference. For a different entity, use `ref` or `link` on the field reference. urn-forge does not have a `record` at this time |
 | The constraint `oneOf` | A `string` field | `unknown-property`, with the hint `for a fixed set of values, use primitive: enum with values: [ … ]` |
 | The constraint `notEqual` | A number field | `unknown-property`, with the hint `to exclude values, use notIn: [ … ]` |
@@ -308,8 +381,8 @@ Specification v1.1 has these properties and kinds. urn-forge 0.1.0 does not acce
 | The constraints `after` and `before` | A field | `unknown-property`. For a `date` or a `timestamp`, use `min` and `max` |
 | `nullable` | A field reference | `unknown-property` |
 | `invariants` | An entity | `unknown-property`. An invariant names its entity with `on`. urn-forge accepts `key`, with a different use. Refer to [Entity](#entity) |
-| `emits` | An operation | `unknown-property` |
-| `recordAs` | An error | `invalid-value`: `needs the event kind, which urn-forge does not support yet` |
+| `key` | An event | `unknown-property`. An event is not stored, so it has no key |
+| A `recordAs` event with a mandatory property that the error does not have | An error | `invalid-record-as`. The specification permits any event whose fields are a superset of the fields of the error |
 | A URN in `supersededBy` | Each atom | `invalid-value`. Use the short key of the atom |
 | A field as `input` or `output` | An operation | `wrong-ref-kind` |
 

@@ -84,6 +84,7 @@
     }
   },
   "errors": {},
+  "events": {},
   "fields": {
     "urn:demo:rules:r:field:b1": {
       "brandIdentifier": "RB1",

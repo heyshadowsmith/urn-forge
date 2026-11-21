@@ -4,13 +4,13 @@ This page compares urn-forge 0.1.0 with [specification v1.1](../project/spec-v1-
 
 ## Summary
 
-urn-forge 0.1.0 has the full traceability chain for five kinds of atom: the manifest, the IR, the generated contracts, the Gherkin checks and the drift check. It also has the lifecycle of each atom and the compatibility check, `urn-forge diff`. It does not have the kinds, primitives, plugins, gates and commands that only make the product larger.
+urn-forge 0.1.0 has the full traceability chain for the six kinds of atom of the specification: the manifest, the IR, the generated contracts, the Gherkin checks and the drift check. It also has the lifecycle of each atom and the compatibility check, `urn-forge diff`. It does not have the kinds, primitives, plugins, gates and commands that only make the product larger.
 
 ## URNs and versions (§3)
 
 | Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
 | --- | --- | --- |
-| URN grammar | Six segments, the segment pattern `^[a-z][a-z0-9_]{0,62}$`, case-sensitive URNs | The kind `event` in a URN |
+| URN grammar | Six segments, the segment pattern `^[a-z][a-z0-9_]{0,62}$`, case-sensitive URNs | — |
 | Manifest scope | One YAML file with one `namespace` and one `domain`. Short keys that expand to URNs | — |
 | Brand identifiers | PascalCase of the context and the identifier. A collision is an error (`duplicate-brand`) | — |
 | Compatibility classes | `urn-forge diff` with the classes `compatible`, `breaking` and `lifecycle`, by the direction of use: In, Out and Stored | A check of the `version` of the header against the class of the changes. A comparison of two regular expressions or two rules: such a change is breaking |
@@ -21,14 +21,15 @@ urn-forge 0.1.0 has the full traceability chain for five kinds of atom: the mani
 
 | Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
 | --- | --- | --- |
-| Kinds | `field`, `entity`, `invariant`, `operation`, `error` | `event` (§4.5) |
+| Kinds | `field`, `entity`, `invariant`, `operation`, `event`, `error` | — |
 | Primitives (§4.1) | `boolean`, `date`, `decimal`, `enum`, `float`, `integer`, `string`, `timestamp`. The specification does not have `date` and `enum` | `list`, `record`, `ref` as primitives. A list is `many` on a field reference. An embedded entity is `ref: <entity>`, and a reference to an entity is `link: <entity>`, on a field reference. A map (`record`) |
 | Constraints (§4.1) | `mustBe`; `values`; `minLength`, `maxLength`, `regex`, `format` (`uuid`, `email`, `uri`); `min`, `max`, `exclusiveMin`, `exclusiveMax`; `multipleOf`; `scale`; `notIn`. `minItems`, `maxItems` and `unique` are in `many` on a field reference | `format: iso-date`, `precision`, `after`, `before`, `of`, `keyType`, `valueType`, `to`. `oneOf` and `notEqual` have replacements: `enum` with `values`, and `notIn` |
 | Constraint values | Pass 1 examines the type of each constraint value against its primitive | — |
 | Entities (§4.2) | `description`, `fields`, `key`. On each field reference: `ref` to a field or an entity, `link` to an entity, `as`, `required` and `many`. Embedded entities and lists of them, with `unique` by the key. Links by the key | `nullable`. The `invariants` list on an entity: an invariant names its entity with `on`. A link to an entity in a different manifest. A check that the linked object exists: the shell does that |
 | Invariants (§4.3) | `description`, `on` (one entity), `rule`, `message`. The rule language: fields, literals, `< <= = != >= >`, `+ -` on `integer` and `decimal`, `and`, `or`, `not`, `is present`, `is absent`. Guards for optional fields. A link compares as the value of its key. The invariants of an embedded entity apply inside it | Invariants across entities. Rules over the items of a list, or over the properties of an embedded entity. Functions in a rule |
-| Operations (§4.4) | `description`, `input` and `output` (entities), `errors`. Synchronous handlers | A field as `input` or `output`. `emits` |
-| Errors (§4.6) | `description`, the five categories, `retryable`, `message` with placeholders, `fields`, with the same field references as an entity. The reserved property `kind` | `recordAs` |
+| Operations (§4.4) | `description`, `input` and `output` (entities), `errors`, `emits`. Synchronous handlers | A field as `input` or `output` |
+| Events (§4.5) | `description` and `fields`, with the same field references as an entity. The reserved property `kind`. An event only on success | `key` on an event. An invariant on an event. A count or a sequence of the events of an operation. Events across manifests |
+| Errors (§4.6) | `description`, the five categories, `retryable`, `message` with placeholders, `fields`, with the same field references as an entity. The reserved property `kind`. `recordAs`, with an event that the fields of the error can make | A `recordAs` event with a mandatory property that the error does not have |
 
 For the full schema, refer to [The manifest](./manifest).
 
@@ -37,9 +38,9 @@ For the full schema, refer to [The manifest](./manifest).
 | Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
 | --- | --- | --- |
 | Form | Plain objects with URN keys in URN order, `meta` with `manifestHash` and `irSchemaVersion: 1` | — |
-| Nodes | `IRField`, `IREntity` (with `key`), `IRInvariant`, `IROperation`, `IRError`. `IRInvariant` has `ruleText` and `brandIdentifier`, which the specification does not have. `lifecycle` on a node whose `status` is not `active` | Events. `lifecycle` on an active node. `invariants` on `IREntity`: `invariantsOf` finds them by `on` |
+| Nodes | `IRField`, `IREntity` (with `key`), `IRInvariant`, `IROperation` (with `emits`), `IREvent`, `IRError`. `IREvent` is an `IREntity` without `key`. `IRInvariant` has `ruleText` and `brandIdentifier`, which the specification does not have. `lifecycle` on a node whose `status` is not `active` | `lifecycle` on an active node. `invariants` on `IREntity`: `invariantsOf` finds them by `on` |
 | Field references | `IRPropertyRef`, one of three forms: `IRFieldRef` (`field`), `IREmbedRef` (`entity`) and `IRLinkRef` (`link`). Each has `name` (the property name), `required` and `many`. The specification does not have `name`, `many` and the two other forms | `nullable` |
-| Errors | The parsed message template | `recordAs` |
+| Errors | The parsed message template. `recordAs` | — |
 
 ## Compiler passes (§5)
 
@@ -47,10 +48,10 @@ For the full schema, refer to [The manifest](./manifest).
 | --- | --- |
 | 1. Meta-schema | Built |
 | 2. Expansion | Built |
-| 3. Uniqueness | Built. It also examines property names in an entity or an error, the reserved property `kind`, and the `key` of each entity (`invalid-entity-key`) |
-| 4. Referential integrity | Built for `ref`, `link`, `key`, `input`, `output`, `errors`, `on` and `supersededBy`. urn-forge does not have `of`, `to`, `emits` and `recordAs` at this time |
+| 3. Uniqueness | Built. It also examines property names in an entity, an event or an error, the reserved property `kind`, and the `key` of each entity (`invalid-entity-key`) |
+| 4. Referential integrity | Built for `ref`, `link`, `key`, `input`, `output`, `errors`, `emits`, `recordAs`, `on` and `supersededBy`. urn-forge does not have `of` and `to` at this time |
 | 5. Cycle check | Built for embedded entities (`embedding-cycle`). Links can make a cycle. Pass 5 also examines that each linked entity, and each entity in a unique list, has a `key` (`missing-key`) |
-| 6. Rule and template typing | Built for invariant rules and error message templates. urn-forge does not have `recordAs` at this time |
+| 6. Rule and template typing | Built for invariant rules, error message templates and `recordAs` events (`invalid-record-as`) |
 | 7. Constraint coherence | Built for the range of each ordered primitive, `minLength` and `maxLength`, `multipleOf`, `scale` and `notIn` against the range, `format: uuid` against the length constraints, and `minItems` and `maxItems` of a list. Two constraints for one side of one aspect cause `conflicting-constraints`. Pass 1 examines that `values` is not empty. urn-forge does not have `precision` at this time |
 | 8. Lifecycle | Built. `deprecated-ref` (a warning) and `sunset-ref` (an error), with the reference date from `--reference-date` or `referenceDate`. Without a reference date, sunset dates are not compared |
 
@@ -71,10 +72,10 @@ Refer to [Compiler passes](./compiler-passes).
 | Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
 | --- | --- | --- |
 | Plugin contract | `name`, `version`, `configSchema`, `emit`. Also `supports` and `requires`, which the specification does not have | — |
-| Valibot plugin (§7.1) | A `v.pipe(…)` with `v.brand` for each field, a `v.object` for each entity and error, `v.optional` for `required: false`, `v.array` for `many`, the entity schema for an embedded entity, the key field schema for a link, a `kind` literal on each error, input and output types. `v.uuid`, `v.email` and `v.url` for `format`. Exact `decimal` comparison without a library. Invariants as `v.forward(v.check(…), [<field>])` in a `v.pipe` of the entity, with an exported rule function for each invariant | `v.isoDate` (`format: iso-date`), `v.nullable` |
-| FCIS plugin (§7.2) | `Result`, `ok` and `fail`, a handler type for each operation, `DomainCoreImplementation`, `DispatchMap`, `executeOperation` with `UnknownOperation`, `InputRejected`, `DomainError` and `ContractViolation`. The invariant URN on each issue of an invariant | Events in `Result`, `EmittedEvent`, the `recordAs` event of an error |
+| Valibot plugin (§7.1) | A `v.pipe(…)` with `v.brand` for each field, a `v.object` for each entity, event and error, `v.optional` for `required: false`, `v.array` for `many`, the entity schema for an embedded entity, the key field schema for a link, a `kind` literal on each event and error, input and output types. `v.uuid`, `v.email` and `v.url` for `format`. Exact `decimal` comparison without a library. Invariants as `v.forward(v.check(…), [<field>])` in a `v.pipe` of the entity, with an exported rule function for each invariant | `v.isoDate` (`format: iso-date`), `v.nullable` |
+| FCIS plugin (§7.2) | `Result` with events, `ok`, `emit` and `fail`, a handler type for each operation that accepts only its events, `DomainCoreImplementation`, `DispatchMap`, `executeOperation` with `UnknownOperation`, `InputRejected`, `DomainError` and `ContractViolation`. The parsed events of a success, and the `recordAs` event of a declared error as `record`. The invariant URN on each issue of an invariant | — |
 | Gherkin plugin (§7.3) | A generic step library in `urn-forge/cucumber`, in place of generated code | `domain.cucumber.generated.ts`, `defineParameterType` for each field, `urn-forge.lint.json` |
-| Postgres plugin (§7.4) | `schema.generated.sql` with `CREATE` statements for Postgres 14 or later. The plugin is not in the default list. Its option `tables` names the entities that become tables, and `unenforced` sets the severity of `unenforced-in-sql`. A schema for each context. A domain for each stored field, with one `CHECK` for all its constraints. A root table for each entity in `tables`, with its `key` as the primary key. A child table for each list and each embedded entity. A foreign key for each link to a root table. `UNIQUE` for a unique list. A deferred constraint trigger for each count. A named `CHECK` for each invariant. `COMMENT ON` with the URNs. The codes `unenforced-in-sql` and `invalid-sql-name` | A table for each entity with a `key`. `ck_<brand>` checks on each table. The option `listStorage` and `JSONB` lists. `nullable`. `VARCHAR(n)`, `UUID` and `NUMERIC(p, s)` columns. Migrations, code that reads and writes rows, indexes other than keys and `UNIQUE`, and databases other than Postgres |
+| Postgres plugin (§7.4) | `schema.generated.sql` with `CREATE` statements for Postgres 14 or later. Nothing for an operation, an event or an error. The plugin is not in the default list. Its option `tables` names the entities that become tables, and `unenforced` sets the severity of `unenforced-in-sql`. A schema for each context. A domain for each stored field, with one `CHECK` for all its constraints. A root table for each entity in `tables`, with its `key` as the primary key. A child table for each list and each embedded entity. A foreign key for each link to a root table. `UNIQUE` for a unique list. A deferred constraint trigger for each count. A named `CHECK` for each invariant. `COMMENT ON` with the URNs. The codes `unenforced-in-sql` and `invalid-sql-name` | A table for each entity with a `key`. `ck_<brand>` checks on each table. The option `listStorage` and `JSONB` lists. `nullable`. `VARCHAR(n)`, `UUID` and `NUMERIC(p, s)` columns. Migrations, code that reads and writes rows, indexes other than keys and `UNIQUE`, and databases other than Postgres. An event store, an outbox table or a publisher of events |
 | Config (§7.5) | `manifest`, `out`, `plugins`, `referenceDate`. Also `core`, `features`, `tsconfig` and `boundaryCoverage`. `defineConfig` from `urn-forge` and from `urn-forge/config` | `boundaryCoverage` is a top-level setting, not a setting of a `gherkin` plugin. `listStorage` in the configuration of `postgres` |
 
 For the generated code, refer to [The generated schemas](./generated-schemas), [The generated runtime](./generated-runtime) and [The Postgres schema](./postgres-schema).
@@ -85,7 +86,7 @@ For the generated code, refer to [The generated schemas](./generated-schemas), [
 | --- | --- | --- |
 | 1. Implementation completeness | `tsc` over the core entry, and a check for `satisfies DomainCoreImplementation` | — |
 | 2. Boundary discipline | — | The ESLint profile `urn-forge/eslint-config` and the rule `no-brand-construction` |
-| 3. Gherkin traceability | Tags, table headers, a column for each mandatory input field, list and object cells (`invalid-cell`), declared errors in steps, error coverage, input invariants in steps and invariant coverage (also of embedded entities), boundary coverage of each constraint at any depth and of the item count and `unique` of a list, `@urn-forge:strict`, `boundaryCoverage`, the `ratchet-ready` note, waivers, strict and non-strict counts | A waiver as the tag `@urn-forge:waive(<field URN>, <reason>)`: urn-forge uses the comment `# urn-forge:waive <field URN> <reason>` |
+| 3. Gherkin traceability | Tags, table headers, a column for each mandatory input field, list and object cells (`invalid-cell`), declared errors in steps, error coverage, events in steps and event coverage, input invariants in steps and invariant coverage (also of embedded entities), boundary coverage of each constraint at any depth and of the item count and `unique` of a list, `@urn-forge:strict`, `boundaryCoverage`, the `ratchet-ready` note, waivers, strict and non-strict counts | A waiver as the tag `@urn-forge:waive(<field URN>, <reason>)`: urn-forge uses the comment `# urn-forge:waive <field URN> <reason>` |
 | 4. Drift | A byte comparison with a new compile, and generated files with no source (`generated-orphan`) | — |
 | 5. Compatibility | The command `urn-forge diff <old> <new>`, apart from `verify`. The CI job `compatibility` of this repository runs it against the base branch | Gate 5 inside `verify`, with `--base` |
 
@@ -137,6 +138,10 @@ urn-forge 0.1.0 changes these parts of the specification:
 | The length of a string | Not specified | The number of Unicode code points, in Valibot, in gate 3 and in Postgres |
 | The class of a change | A tighter constraint, a removed field reference and an optional reference that becomes required are breaking. A wider constraint is compatible | The class depends on the direction of use: In, Out or Stored. A removed property whose target was deprecated is a lifecycle change |
 | A new declared error | Compatible | Breaking, because it widens what callers receive |
+| A new event in `emits` | Not specified | Breaking, because it widens what callers receive |
+| The events of a successful `Result` | `events` is always in `Success`, and `Result<T, E>` has two type arguments | `Result<T, E, V = never>`. `events` holds only the events of the operation |
+| `recordAs` | The fields of the event are a superset of the fields of the error | The event has each property of the error, with the same target, `required` and `many`. Each other property is optional |
+| `IREvent` | The shape of `IREntity` | The shape of `IREntity` without `key` |
 | The removal of a sunset atom | Not specified | Breaking: a sunset atom stays as a tombstone |
 | Gate 5 | `verify --base <git-ref>` | The separate command `urn-forge diff <old> <new>` |
 | `Lifecycle` in the IR | On each node | Only on a node whose `status` is not `active` |

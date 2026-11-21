@@ -11,7 +11,7 @@ import type { ManifestPath } from '../diagnostics.js';
 import type { IRIssue, Urn } from '../ir/types.js';
 
 /** Every kind the compiler supports. The registry in index.ts must have one descriptor per name. */
-export type KindName = 'field' | 'entity' | 'invariant' | 'operation' | 'error';
+export type KindName = 'field' | 'entity' | 'invariant' | 'operation' | 'event' | 'error';
 
 /** An atom after expansion (pass 2). */
 export interface Atom {

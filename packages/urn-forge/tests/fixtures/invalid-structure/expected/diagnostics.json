@@ -18,15 +18,6 @@
     "severity": "error"
   },
   {
-    "code": "unsupported-kind",
-    "location": {
-      "column": 1,
-      "line": 8
-    },
-    "message": "invalid key \"order.event.placed\": kind \"event\" is not supported yet (MVP kinds: field, entity, invariant, operation, error)",
-    "severity": "error"
-  },
-  {
     "code": "unknown-primitive",
     "location": {
       "column": 37,
@@ -105,15 +96,6 @@
       "line": 19
     },
     "message": "order.error.sold_out.category: Invalid type: Expected (\"validation\" | \"conflict\" | \"not_found\" | \"forbidden\" | \"precondition\") but received \"gone\"",
-    "severity": "error"
-  },
-  {
-    "code": "invalid-value",
-    "location": {
-      "column": 13,
-      "line": 22
-    },
-    "message": "order.error.sold_out.recordAs: needs the event kind, which urn-forge does not support yet",
     "severity": "error"
   },
   {

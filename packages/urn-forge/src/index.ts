@@ -32,7 +32,7 @@ export {
 // The IR
 export { invariantsOf, statusOf, valueField } from './ir/types.js';
 export { liveIr } from './ir/lifecycle.js';
-export type { ErrorCategory, IREmbedRef, IREntity, IRError, IRField, IRFieldRef, IRInvariant, IRLinkRef, IROperation, IRPropertyRef, Lifecycle, ListRule, MessagePart, UniversalIR, Urn } from './ir/types.js';
+export type { ErrorCategory, IREmbedRef, IREntity, IRError, IREvent, IRField, IRFieldRef, IRInvariant, IRLinkRef, IROperation, IRPropertyRef, Lifecycle, ListRule, MessagePart, UniversalIR, Urn } from './ir/types.js';
 export type { RuleExpr } from './rules/index.js';
 
 // Plugins

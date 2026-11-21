@@ -122,7 +122,7 @@ The command shows this output:
 ```
 wrote      my-shipping/generated/domain.runtime.generated.ts
 wrote      my-shipping/generated/domain.schemas.generated.ts
-fingerprint sha256:aded2f13d2ed2e8accfdf2cd9f56fc86cf8b0742bb5522ea91c99da97a64edd6
+fingerprint sha256:40bd31f60e13cbb2b5a8223690a04d4856b7e8b3c82fb1a732a2af1dbe8f8d92
 ```
 
 Your fingerprint is the same, because the compile is deterministic. The same manifest always gives the same files.

@@ -34,7 +34,7 @@ features:
       light: /icons/trace-light.svg
       dark: /icons/trace-dark.svg
     title: Features linked to URNs
-    details: Put an operation URN tag on a feature. Six generic steps send it through the real gatekeeper. You do not write glue code for each operation.
+    details: Put an operation URN tag on a feature. Nine generic steps send it through the real gatekeeper. You do not write glue code for each operation.
   - icon:
       light: /icons/gate-light.svg
       dark: /icons/gate-dark.svg

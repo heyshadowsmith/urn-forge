@@ -73,7 +73,7 @@ function isBlocked(customer: CustomerCustomerId): boolean {
 
 ```
 gate 1  completeness  FAIL  tsc: 1 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
-    insurance/core.ts:27:78  error  type-error  TS2345: Argument of type 'string & Brand<"urn:acme:insurance:policy:field:policy_id">' is not assignable to parameter of type 'string & Brand<"urn:acme:insurance:customer:field:customer_id">'.
+    insurance/core.ts:29:33  error  type-error  TS2345: Argument of type 'string & Brand<"urn:acme:insurance:policy:field:policy_id">' is not assignable to parameter of type 'string & Brand<"urn:acme:insurance:customer:field:customer_id">'.
       Type 'string & Brand<"urn:acme:insurance:policy:field:policy_id">' is not assignable to type 'Brand<"urn:acme:insurance:customer:field:customer_id">'.
         Types of property '[BrandSymbol]' are incompatible.
           Property '"urn:acme:insurance:customer:field:customer_id"' is missing in type '{ "urn:acme:insurance:policy:field:policy_id": "urn:acme:insurance:policy:field:policy_id"; }' but required in type '{ "urn:acme:insurance:customer:field:customer_id": "urn:acme:insurance:customer:field:customer_id"; }'.

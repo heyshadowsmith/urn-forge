@@ -26,6 +26,7 @@ export interface UniversalIR {
   readonly entities: Readonly<Record<Urn, IREntity>>;
   readonly invariants: Readonly<Record<Urn, IRInvariant>>;
   readonly operations: Readonly<Record<Urn, IROperation>>;
+  readonly events: Readonly<Record<Urn, IREvent>>;
   readonly errors: Readonly<Record<Urn, IRError>>;
 }
 
@@ -141,6 +142,19 @@ export function valueField(ir: UniversalIR, ref: IRPropertyRef): Urn | undefined
   return undefined;
 }
 
+/**
+ * A fact that happened (spec §4.5): a payload with the shape of an entity, without a key.
+ * Operations list events under `emits` and return them only on success.
+ */
+export interface IREvent {
+  readonly urn: Urn;
+  readonly brandIdentifier: string;
+  readonly description: string;
+  /** Declaration order preserved; may be empty. */
+  readonly fields: readonly IRPropertyRef[];
+  readonly lifecycle?: Lifecycle;
+}
+
 /** The five error categories of spec §4.6. Metadata for the shell; the core never reads them. */
 export const ERROR_CATEGORIES = ['validation', 'conflict', 'not_found', 'forbidden', 'precondition'] as const;
 export type ErrorCategory = (typeof ERROR_CATEGORIES)[number];
@@ -159,6 +173,8 @@ export interface IRError {
   readonly message: readonly MessagePart[];
   /** Declaration order preserved; may be empty. */
   readonly fields: readonly IRPropertyRef[];
+  /** The event that the shell may record when this error is returned (spec §4.6). */
+  readonly recordAs?: Urn;
   readonly lifecycle?: Lifecycle;
 }
 
@@ -172,6 +188,8 @@ export interface IROperation {
   readonly output: Urn;
   /** The declared errors (error URNs), in declaration order. */
   readonly errors: readonly Urn[];
+  /** The events it may return on success (event URNs), in declaration order. */
+  readonly emits: readonly Urn[];
   readonly lifecycle?: Lifecycle;
 }
 

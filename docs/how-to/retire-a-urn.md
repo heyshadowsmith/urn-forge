@@ -110,7 +110,7 @@ insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insuranc
 unchanged  insurance/generated/domain.runtime.generated.ts
 unchanged  insurance/generated/domain.schemas.generated.ts
 unchanged  insurance/generated/schema.generated.sql
-fingerprint sha256:957beb20d7d7f9f6d395ce04f1fcb67c71fa406c51f82bf94bdc7a06871ba427
+fingerprint sha256:f72f538c562a7bf23f518078548823cbd2d25d9125377d8c83bf9a42eebe1128
 ```
 
 - The location is the reference, not the deprecated atom. Here it is the `ref` of `note` in the coverage.
@@ -165,7 +165,7 @@ The sunset date itself already gives the error. Thus `sunsetDate: 2027-06-30` ma
 
 Before the sunset date, move each use of the old atom to the replacement:
 
-1. Change the scenarios that send or expect the old property. Line 16 of `issue_policy.feature` sends a `note`. Send a `remark` in its place.
+1. Change the scenarios that send or expect the old property. Line 19 of `issue_policy.feature` sends a `note`. Send a `remark` in its place.
 2. Change the core and the shell, if they read or write the old property.
 3. Tell the callers outside your repository to move to the replacement.
 

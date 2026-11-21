@@ -11,6 +11,11 @@ export const STEP_PHRASES = {
   failsWith: 'the operation fails with {string}',
   /** The same, followed by a table of the error's fields. */
   failsWithFields: 'the operation fails with {string}:',
+  /** The operation succeeded and returned this event (events plan, decision 7). */
+  emits: 'the operation emits {string}',
+  /** The same, followed by a table of the event's fields. */
+  emitsWithFields: 'the operation emits {string}:',
+  emitsNone: 'the operation emits no event',
 } as const;
 
 /**
@@ -25,6 +30,15 @@ export const REJECTED_BY_TEXT = /^the input is rejected by (?:"([^"]*)"|'([^']*)
 /** The invariant URN of a `rejected by` step text, or `undefined` for any other step. */
 export function rejectedByUrn(text: string): string | undefined {
   const match = REJECTED_BY_TEXT.exec(text);
+  return match ? (match[1] ?? match[2]) : undefined;
+}
+
+/** Matches the text of either `emits` step, in double or single quotes: group 1 or group 2 is the event URN. */
+export const EMITS_TEXT = /^the operation emits (?:"([^"]*)"|'([^']*)')(:?)$/;
+
+/** The event URN of an `emits` step text, or `undefined` for any other step. */
+export function emitsUrn(text: string): string | undefined {
+  const match = EMITS_TEXT.exec(text);
   return match ? (match[1] ?? match[2]) : undefined;
 }
 

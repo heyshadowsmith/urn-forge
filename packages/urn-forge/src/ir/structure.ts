@@ -15,10 +15,11 @@ function shortKeyOf(urn: Urn): string {
   return `${context}.${kind}.${identifier}`;
 }
 
-export function checkStructure(ir: Pick<UniversalIR, 'entities' | 'errors'>): IRIssue[] {
+export function checkStructure(ir: Pick<UniversalIR, 'entities' | 'events' | 'errors'>): IRIssue[] {
   const issues: IRIssue[] = [];
   const owners: [Urn, readonly IRPropertyRef[]][] = [
     ...Object.values(ir.entities).map((e) => [e.urn, e.fields] as [Urn, readonly IRPropertyRef[]]),
+    ...Object.values(ir.events).map((e) => [e.urn, e.fields] as [Urn, readonly IRPropertyRef[]]),
     ...Object.values(ir.errors).map((e) => [e.urn, e.fields] as [Urn, readonly IRPropertyRef[]]),
   ].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 

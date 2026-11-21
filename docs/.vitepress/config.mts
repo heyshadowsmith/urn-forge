@@ -50,6 +50,7 @@ export default defineConfig({
           { text: "Add an entity", link: '/how-to/add-an-entity' },
           { text: "Add an operation", link: '/how-to/add-an-operation' },
           { text: "Declare an error", link: '/how-to/declare-an-error' },
+          { text: "Emit an event", link: '/how-to/emit-an-event' },
           { text: "Add an invariant", link: '/how-to/add-an-invariant' },
           { text: "Write scenarios", link: '/how-to/write-scenarios' },
           { text: "Use branded values in the core", link: '/how-to/use-branded-values' },

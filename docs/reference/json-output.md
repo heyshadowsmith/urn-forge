@@ -131,7 +131,7 @@ A correct compile in a project where the files did not change:
 ```json
 {"type":"file","path":"generated/domain.runtime.generated.ts","changed":false}
 {"type":"file","path":"generated/domain.schemas.generated.ts","changed":false}
-{"type":"result","ok":true,"fingerprint":"sha256:41977ee7f05fd381d206aaa6f109c0548fa807b8e3196598c5a6932dcae530c8"}
+{"type":"result","ok":true,"fingerprint":"sha256:492eef5cf4429536322062da365f080ff6cc4091bb6ae5563c713a73570b3b10"}
 ```
 
 A manifest with an error. The exit code is `1`:
@@ -207,20 +207,23 @@ npx urn-forge verify --config insurance/urn-forge.config.ts --format json
 ```json
 {"type":"diagnostic","severity":"warning","code":"deprecated-ref","file":"insurance/domain.manifest.yaml","line":79,"column":12,"urn":"urn:acme:insurance:policy:entity:coverage","message":"urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)"}
 {"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation"}
-{"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)"}
+{"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)"}
 {"type":"gate","gate":4,"name":"drift","ok":true,"summary":"3 generated file(s) compared byte for byte against insurance/generated"}
 {"type":"result","ok":true,"failedGates":[],"warnings":1,"sunsetDatesChecked":true}
 ```
 
 ### `diff`
 
-The insurance manifest, compared with its version on `main`, with `--config insurance/urn-forge.config.ts`. The exit code is `0`:
+The insurance manifest, compared with its version before it had events, with `--config insurance/urn-forge.config.ts`. The new events and the new record are compatible. A new event in `emits` is breaking. The exit code is `1`:
 
 ```json
-{"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:entity:coverage","message":"adds the optional property \"remark\""}
-{"type":"change","class":"lifecycle","urn":"urn:acme:insurance:policy:field:note","message":"status active → deprecated"}
-{"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:field:remark","message":"is new"}
-{"type":"result","ok":true,"breaking":0,"compatible":2,"lifecycle":1}
+{"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:error:refund_below_minimum","message":"adds the record urn:acme:insurance:policy:event:refund_refused"}
+{"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:event:policy_cancelled","message":"is new"}
+{"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:event:policy_issued","message":"is new"}
+{"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:event:refund_refused","message":"is new"}
+{"type":"diagnostic","severity":"error","code":"breaking-change","file":"insurance/domain.manifest.yaml","urn":"urn:acme:insurance:policy:operation:cancel_policy","message":"urn:acme:insurance:policy:operation:cancel_policy: the new event urn:acme:insurance:policy:event:policy_cancelled widens a value that callers receive, which breaks callers that receive it"}
+{"type":"diagnostic","severity":"error","code":"breaking-change","file":"insurance/domain.manifest.yaml","urn":"urn:acme:insurance:policy:operation:issue_policy","message":"urn:acme:insurance:policy:operation:issue_policy: the new event urn:acme:insurance:policy:event:policy_issued widens a value that callers receive, which breaks callers that receive it"}
+{"type":"result","ok":false,"breaking":2,"compatible":4,"lifecycle":0}
 ```
 
 A case from `tests/diff/` with a new declared error. The exit code is `1`:

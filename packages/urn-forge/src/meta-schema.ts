@@ -17,7 +17,7 @@ import {
   type SourceLocation,
 } from './diagnostics.js';
 import { SEGMENT_PATTERN, SHORT_KEY_PATTERN, Segment } from './grammar.js';
-import { KINDS, KIND_NAMES, NOT_YET_SUPPORTED_KINDS, isKindName, type DeclOf, type KindName } from './kinds/index.js';
+import { KINDS, KIND_NAMES, isKindName, type DeclOf, type KindName } from './kinds/index.js';
 import type { EntityDecl } from './kinds/entity.js';
 import type { FieldDecl } from './kinds/field.js';
 import type { OperationDecl } from './kinds/operation.js';
@@ -134,17 +134,10 @@ export function parseShortKey(
   }
   const [, context, kind, identifier] = match as unknown as [string, string, string, string];
   if (isKindName(kind)) return { ok: true, value: { context, kind, identifier } };
-  if ((NOT_YET_SUPPORTED_KINDS as readonly string[]).includes(kind)) {
-    return {
-      ok: false,
-      code: 'unsupported-kind',
-      message: `invalid key "${key}": kind "${kind}" is not supported yet (MVP kinds: ${KIND_NAMES.join(', ')})`,
-    };
-  }
   return {
     ok: false,
     code: 'unknown-kind',
-    message: `invalid key "${key}": unknown kind "${kind}" (MVP kinds: ${KIND_NAMES.join(', ')})`,
+    message: `invalid key "${key}": unknown kind "${kind}" (kinds: ${KIND_NAMES.join(', ')})`,
   };
 }
 

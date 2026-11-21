@@ -1,6 +1,6 @@
 # Results and declared errors
 
-A handler can refuse an operation. For example, a policy is already cancelled, or a parcel is too heavy for express delivery. urn-forge calls this a declared error. Every handler returns a `Result`, and the `Result` holds either the output or one declared error. This page tells why, and how a declared error differs from the other ways that a call can fail.
+A handler can refuse an operation. For example, a policy is already cancelled, or a parcel is too heavy for express delivery. urn-forge calls this a declared error. Every handler returns a `Result`, and the `Result` holds either the output and its events, or one declared error. This page tells why, how a declared error differs from the other ways that a call can fail, and how an event differs from an error.
 
 ## Why every handler returns a `Result`
 
@@ -18,7 +18,7 @@ export type QuoteQuoteShippingHandler = (
 ) => Result<s.QuoteQuoteInput, s.QuoteTooHeavyForExpressInput>;
 ```
 
-The generated helpers `ok(value)` and `fail(errorUrn, fields)` build the two cases. `fail` is typed for each error URN, so `tsc` checks the fields of each error. If a handler fails with an error that its operation does not declare, `tsc` refuses the handler at gate 1.
+The generated helpers `ok(value, events)` and `fail(errorUrn, fields)` build the two cases. `fail` is typed for each error URN, so `tsc` checks the fields of each error. If a handler fails with an error that its operation does not declare, `tsc` refuses the handler at gate 1.
 
 Every handler returns a `Result`, also when its operation declares no errors. Its error type is then `never`. This gives one shape for all handlers. When a project adds the first error to an operation, the signature of the handler does not change again. The cost was one change that broke every handler, once: each return value went into `ok(…)`. `tsc` named each handler that needed the change.
 
@@ -30,7 +30,7 @@ Every handler returns a `Result`, also when its operation declares no errors. It
 | --- | --- | --- |
 | `DomainError` | The handler refused with `fail(…)` and a declared error. Nothing changed | The caller. The request was correct in form, but the domain refused it |
 | `InputRejected` | The payload did not pass the input schema. The handler did not run | The caller. The request was not correct in form |
-| `ContractViolation` | The handler broke its contract: its output or error fields did not pass their schema, it failed with an error that its operation does not declare, or it did not return a `Result` | The team that owns the core. This is a bug |
+| `ContractViolation` | The handler broke its contract: its output, error fields or event fields did not pass their schema, it failed with an error that its operation does not declare, it returned an event that its operation does not emit, or it did not return a `Result` | The team that owns the core. This is a bug |
 | An exception | The handler threw. `executeOperation` does not catch it | The shell, as for any other fault |
 
 A fifth outcome, `UnknownOperation`, occurs when the URN names no operation of the domain.
@@ -81,7 +81,7 @@ The compiler checks each placeholder (pass 6). A placeholder must name a field o
 A placeholder is `{…}` with no space inside. Thus text such as `{ and }` stays text, but a typo such as `{kind_segmnt}` is still a placeholder, and the compiler reports it:
 
 ```
-domain.manifest.yaml:98:12  error  unknown-placeholder  urn:urn_forge:toolchain:naming:error:unsupported_kind: message placeholder {kind_segmnt} names no field of the error (required fields: short_key, kind_segment)
+domain.manifest.yaml:107:12  error  unknown-placeholder  urn:urn_forge:toolchain:naming:error:unknown_kind: message placeholder {kind_segmnt} names no field of the error (required fields: short_key, kind_segment)
 ```
 
 ## Why error fields are plain
@@ -90,16 +90,32 @@ A handler gives plain values to `fail`, and `executeOperation` parses and brands
 
 The parsed error has a `kind` property that holds the error URN. Callers can switch on it. As a result, no property of an error can have the name `kind`. The compiler reports such a field as `reserved-property`.
 
-## Why events and `recordAs` wait
+## Events: facts beside refusals
 
-Specification v1.1 has two more parts that touch errors and results:
+An operation can also tell other systems what happened, for example that a policy was issued. urn-forge calls this an event. A handler returns its events with its output: `ok(policy, [emit('…:event:policy_issued', { … })])`. `executeOperation` parses each event, and the shell gets the events in `events`. The shell can then publish them, or keep them in an outbox.
 
-- A successful `Result` holds the events that the operation emits.
-- An error can name an event in `recordAs`, which the shell can record for an audit trail.
+An error and an event look alike. Both have a URN, fields, and a `kind` property in the payload. They have opposite meanings:
 
-Both parts name events, and urn-forge does not have the `event` kind at this time. To build them now would mean to build events first. Thus a successful `Result` holds only `{ ok: true, value }`, and the manifest refuses `recordAs` with the message that it "needs the event kind". Refer to [Scope](../reference/scope).
+| | A declared error | An event |
+| --- | --- | --- |
+| Meaning | A refusal: the operation did not happen | A fact: the operation happened |
+| When | Only on a failure | Only on a success |
+| How many | Exactly one | Zero, one or more, of the kinds in `emits` |
+| Who reads it | The caller | The shell, and the systems that it publishes to |
 
-The helpers keep the shape of a `Result` out of the handlers. A handler calls `ok(…)` and does not write the object itself. Thus a handler does not have to write an `events` list that is always empty.
+A failure has no events. [Specification v1.1](../project/spec-v1-1) gives the reason: an event never tells of a refusal, "so anything that consumes an event stream can trust every item in it". A refusal that changed nothing is not a fact that other systems must know. Thus `Failure` has no `events` property, and the step `Then the operation emits no event` passes after a declared error.
+
+The handler type lists only the events of its operation. Thus, at gate 1, `tsc` refuses an event that is not in the `emits` of the operation. `executeOperation` also refuses it at run time, with `ContractViolation`. It also refuses an event whose fields break its schema. In both cases, the shell gets no output and no events. Thus a shell never publishes an event that breaks the contract.
+
+The manifest does not set how many events of each kind an operation returns, or their sequence. One call can emit one `line_added` event for each line of an order, so a count depends on the input. A count rule would be a second rule language. A scenario that must show a count can show it in the output table.
+
+`ok(value)` with no events stays correct, and gives `events: []`. Thus a handler of an operation with no events did not change when urn-forge added events.
+
+## `recordAs`: an audit record of a refusal
+
+A refusal is not an event, but a team can still want a record of it, for example in an audit trail. `recordAs` is the one bridge between the two kinds. An error can name an event in `recordAs`. The core never returns this event. When the handler fails with the error, `executeOperation` makes the event from the fields of the error, and gives it as `record` on the `DomainError`. The shell can store it. It is not one of the events of the operation, so it never gets into the stream of facts.
+
+The specification says that the fields of the event must be "a superset of the error's". urn-forge is stricter: each other property of the event must be optional. If the event had a mandatory property that the error does not have, the runtime could not make the event from the error. Pass 6 thus refuses such an event with `invalid-record-as`, and the build of each record is sure to succeed. If a team needs more data in the audit record, the shell can make its own record from the `DomainError`.
 
 ## Related pages
 
@@ -107,4 +123,4 @@ The helpers keep the shape of a `Result` out of the handlers. A handler calls `o
 - [Declare an error](../how-to/declare-an-error)
 - [Call an operation from the shell](../how-to/call-an-operation)
 - [The generated runtime](../reference/generated-runtime)
-- [The functional core and brands](./functional-core)
+- [Emit an event](../how-to/emit-an-event)

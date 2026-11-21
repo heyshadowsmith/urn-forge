@@ -41,7 +41,7 @@ naming.field.domain:
   description: The domain segment of a URN, such as insurance
 naming.field.kind:
   primitive: enum
-  values: [field, entity, invariant, operation, error]
+  values: [field, entity, invariant, operation, event, error]
   description: The kind segment of a URN; the kinds the compiler supports
 naming.field.urn:
   primitive: string
@@ -93,6 +93,9 @@ naming.error.invalid_short_key:
   fields: [{ ref: naming.field.short_key }]
 naming.error.unsupported_kind:
   description: The kind is in the spec but the compiler does not support it yet
+  # Every kind of the spec is supported since the events plan, so this error can no longer happen.
+  # It stays as a tombstone, so its URN is never used again (lifecycle plan).
+  status: sunset
   category: validation
   retryable: false
   message: Kind {kind_segment} in {short_key} is not supported yet
@@ -110,5 +113,4 @@ naming.operation.parse_short_key:
   output: naming.entity.short_key_parts
   errors:
     - naming.error.invalid_short_key
-    - naming.error.unsupported_kind
     - naming.error.unknown_kind
