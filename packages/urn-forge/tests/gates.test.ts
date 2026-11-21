@@ -304,6 +304,58 @@ describe('gate 3: strictness (warn, then ratchet)', () => {
   });
 });
 
+describe('gate 3: waivers', () => {
+  const ir = compile(readFileSync(repo('self/domain.manifest.yaml'), 'utf8')).ir!;
+  const FIELD = 'urn:urn_forge:toolchain:naming:field';
+  /** self/'s features, with comment lines added at the top of parse_short_key.feature. */
+  const run = async (...comments: string[]) => {
+    const real = await indexFeatures(repo('self/features'), repo(''));
+    const features = real.features.map((f) =>
+      f.file.endsWith('parse_short_key.feature')
+        ? indexFeatureSource(`${comments.join('\n')}\n${readFileSync(repo('self/features/parse_short_key.feature'), 'utf8')}`, f.file)!
+        : f,
+    );
+    const result = checkGherkin({ ir, features: { ...real, features }, boundaryCoverage: 'warn' } as unknown as GateContext);
+    return {
+      summary: result.summary,
+      waivers: result.problems.filter((p) => /waive/.test(p.code)).map((p) => [p.code, p.severity, p.location?.line]),
+      shortKeyGap: result.problems.some((p) => p.code === 'uncovered-boundary' && p.urn === `${FIELD}:short_key`),
+    };
+  };
+
+  it('keeps comments in the feature index, with their line', () => {
+    const feature = indexFeatureSource('# one\nFeature: x\n  # two\n  Scenario: y\n    Given z\n', 'f.feature')!;
+    expect(feature.comments).toEqual([
+      { text: '# one', location: { line: 1, column: 1 } },
+      { text: '# two', location: { line: 3, column: 1 } },
+    ]);
+  });
+
+  it('removes the field\'s gap and lists the waiver as a note with its reason', async () => {
+    expect((await run()).shortKeyGap).toBe(true);
+    const waived = await run(`# urn-forge:waive ${FIELD}:short_key a one-letter key is covered elsewhere`);
+    expect(waived.shortKeyGap).toBe(false);
+    expect(waived.waivers).toEqual([['waived-boundary', 'note', 1]]);
+    expect(waived.summary).toMatch(/, 1 waiver\(s\)$/);
+  });
+
+  it('rejects a waiver without a reason, and one for a field the feature\'s operations do not constrain', async () => {
+    expect((await run(`# urn-forge:waive ${FIELD}:short_key`)).waivers).toEqual([['invalid-waiver', 'error', 1]]);
+    expect((await run(`# urn-forge:waive ${FIELD}:namespace not an input of parse_short_key`)).waivers).toEqual([['unknown-waiver', 'error', 1]]);
+  });
+
+  it('warns about a waiver that waives nothing, and ignores other comments', async () => {
+    const other = await run('# a plain comment', `#   urn-forge:waive ${FIELD}:short_key covered elsewhere`);
+    expect(other.waivers).toEqual([['waived-boundary', 'note', 2]]);
+    const real = await indexFeatures(repo('self/features'), repo(''));
+    const covered = real.features.map((f) =>
+      f.file.endsWith('to_urn.feature') ? { ...f, comments: [{ text: `# urn-forge:waive ${FIELD}:kind already complete`, location: { line: 1, column: 1 } }] } : f,
+    );
+    const result = checkGherkin({ ir, features: { ...real, features: covered }, boundaryCoverage: 'warn' } as unknown as GateContext);
+    expect(result.problems.filter((p) => /waive/.test(p.code)).map((p) => [p.code, p.severity])).toEqual([['unused-waiver', 'warning']]);
+  });
+});
+
 describe('gate framework', () => {
   let dir: string;
   beforeEach(async () => {
