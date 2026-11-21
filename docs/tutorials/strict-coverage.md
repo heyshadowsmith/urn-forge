@@ -28,7 +28,7 @@ The command shows this output:
 gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       FAIL  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features
     my-shipping/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-    my-shipping/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf
+    my-shipping/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
 verify failed: gate 3
 ```
@@ -36,7 +36,7 @@ verify failed: gate 3
 The two boundary gaps of tutorial 1 are now errors, and gate 3 fails. Each message gives the values that no scenario sends:
 
 - For `weight_grams`, the values `1` (`min`), `30000` (`max`) and `30001` (`max + 1`). Your scenarios already send `0` (`min − 1`).
-- For `zone`, a value that is not in the `oneOf` list. Your scenarios already send `domestic` and `international`.
+- For `zone`, a value that is not in the `values` list. Your scenarios already send `domestic` and `international`.
 
 ## 3. Add the weight scenarios
 
@@ -76,7 +76,7 @@ The command shows this output:
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       FAIL  1 feature(s), 5 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features
-    my-shipping/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf
+    my-shipping/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
 verify failed: gate 3
 ```

@@ -22,7 +22,7 @@ Commands run from `packages/urn-forge`, except where a step says the root folder
    For example, with `'event'` added to `KindName`, the first two errors in `src/kinds/index.ts` are these:
 
    ```
-   src/kinds/index.ts(16,67): error TS1360: Type '{ readonly field: KindDescriptor<"field", FieldDecl, IRField, "fields">; readonly entity: KindDescriptor<"entity", { description: string; fields: { ref: string; required: boolean; }[]; }, IREntity, "entities">; readonly operation: KindDescriptor<...>; readonly error: KindDescriptor<...>; }' does not satisfy the expected type '{ readonly error: KindDescriptor<"error", any, unknown, string>; readonly field: KindDescriptor<"field", any, unknown, string>; readonly entity: KindDescriptor<"entity", any, unknown, string>; readonly operation: KindDescriptor<...>; readonly event: KindDescriptor<...>; }'.
+   src/kinds/index.ts(16,67): error TS1360: Type '{ readonly field: KindDescriptor<"field", FieldDecl, IRField, "fields">; readonly entity: KindDescriptor<"entity", { description: string; fields: { ref: string; required: boolean; many?: true | ... 1 more ... | undefined; }[]; }, IREntity, "entities">; readonly operation: KindDescriptor<...>; readonly error: KindDes...' does not satisfy the expected type '{ readonly error: KindDescriptor<"error", any, unknown, string>; readonly field: KindDescriptor<"field", any, unknown, string>; readonly entity: KindDescriptor<"entity", any, unknown, string>; readonly operation: KindDescriptor<...>; readonly event: KindDescriptor<...>; }'.
    src/kinds/index.ts(25,54): error TS2322: Type '"event"' is not assignable to type '"invariant"'.
    ```
 
@@ -97,7 +97,7 @@ If the kind changes what a handler returns or what a scenario can expect, the ge
 ## Update the tests and self/
 
 1. Update `tests/kinds.test.ts`. It lists each kind with its group and its reference slots.
-2. Add the new kind to the `oneOf` list of `naming.field.kind` in `self/domain.manifest.yaml`. A test keeps that list equal to `KIND_NAMES`.
+2. Add the new kind to the `values` list of `naming.field.kind` in `self/domain.manifest.yaml`. This field is an `enum`. A test keeps its list equal to `KIND_NAMES`.
 3. Add entries with problems to the `invalid-structure` and `broken-references` fixtures, for each new code.
 4. Write the expected files again, then run the harness a second time:
 

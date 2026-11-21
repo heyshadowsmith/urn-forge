@@ -148,7 +148,7 @@ A table header is not a field key of the operation:
 gate 3  gherkin       FAIL  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
     tutorial/3-strict-coverage/features/quote_shipping.feature:55:24  error  unknown-header  table header "zones" is not a field key of the input or output of urn:demo:shipping:quote:operation:quote_shipping (allowed: weight_grams, zone, express, price_cents)
     tutorial/3-strict-coverage/features/quote_shipping.feature:55:7  error  missing-column  the table of "I run the operation with:" has no column for required input field(s) "zone" of urn:demo:shipping:quote:operation:quote_shipping; to test a missing value, keep the column and leave the cell empty
-    tutorial/3-strict-coverage/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf
+    tutorial/3-strict-coverage/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 ```
 
 To fix it, use a key from the `allowed` list. The two other problems go away with it. Every `Examples` header must also be a field key, even a column that only the step text uses.
@@ -263,7 +263,7 @@ npx urn-forge compile --config tutorial/3-strict-coverage/urn-forge.config.ts
 ```
 unchanged  tutorial/3-strict-coverage/generated/domain.runtime.generated.ts
 wrote      tutorial/3-strict-coverage/generated/domain.schemas.generated.ts
-fingerprint sha256:6c451e521ca60fdcbfbb38f9a7cc41e23de3a9ee6e62323bc7aa67033f70bf4e
+fingerprint sha256:b48297b4537c103460a0d8c21ae9ae155f0bd5b185c94813eb2a78c92b66c4bf
 ```
 
 ::: warning

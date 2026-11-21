@@ -12,7 +12,7 @@ A waiver removes the boundary gaps of one input field from gate 3, and records w
 
 A waiver hides a gap. A scenario closes it. Write a scenario if one of these is true:
 
-- The schema can refuse the value. A value outside `min`, `max`, `minLength`, `maxLength`, `oneOf`, `regex` or `mustBe` fails at the boundary, so `Then the input is rejected on "<field>"` can test it.
+- The schema can refuse the value. A value that a constraint refuses, such as a value outside `min`, `max`, `minLength`, `values`, `regex` or `mustBe`, fails at the boundary. Thus `Then the input is rejected on "<field>"` can test it. This is also true for a list with too many items or too few.
 - The value is the empty string. Write `""` in the cell.
 - The value is valid but rare. A row in an `Examples` table costs one line.
 

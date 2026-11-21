@@ -37,7 +37,7 @@ The command shows this output:
 ```
 wrote      my-shipping/generated/domain.runtime.generated.ts
 wrote      my-shipping/generated/domain.schemas.generated.ts
-fingerprint sha256:6c451e521ca60fdcbfbb38f9a7cc41e23de3a9ee6e62323bc7aa67033f70bf4e
+fingerprint sha256:b48297b4537c103460a0d8c21ae9ae155f0bd5b185c94813eb2a78c92b66c4bf
 ```
 
 The manifest changed. Thus, the fingerprint changed too.
@@ -70,7 +70,7 @@ gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` sat
 gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, 0/1 errors expected, strict: 0/1 features
     my-shipping/features  warning  uncovered-error  error urn:demo:shipping:quote:error:too_heavy_for_express of urn:demo:shipping:quote:operation:quote_shipping has no scenario that expects it; add one with Then the operation fails with "urn:demo:shipping:quote:error:too_heavy_for_express"
     my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-    my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf
+    my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
 verify passed with 3 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
 ```
@@ -111,7 +111,7 @@ Gate 1 makes sure that the core returns only the declared errors. Do a test of t
    gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, 0/1 errors expected, strict: 0/1 features
        my-shipping/features  warning  uncovered-error  error urn:demo:shipping:quote:error:too_heavy_for_express of urn:demo:shipping:quote:operation:quote_shipping has no scenario that expects it; add one with Then the operation fails with "urn:demo:shipping:quote:error:too_heavy_for_express"
        my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-       my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf
+       my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
    gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
    verify failed: gate 1
    ```
@@ -160,7 +160,7 @@ The command shows this output:
 gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
     my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-    my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf
+    my-shipping/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
 verify passed with 2 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
 ```
