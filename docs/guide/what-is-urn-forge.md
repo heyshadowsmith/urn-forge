@@ -1,6 +1,6 @@
 # What is urn-forge?
 
-urn-forge is a compiler and a CI gate for domain contracts. You write the parts of a domain in a YAML manifest. These parts are fields, entities and operations. urn-forge gives each part a permanent URN:
+urn-forge is a compiler and a CI gate for domain contracts. You write the parts of a domain in a YAML manifest. These parts are fields, entities, operations and errors. urn-forge gives each part a permanent URN:
 
 ```
 urn:<namespace>:<domain>:<context>:<kind>:<identifier>
@@ -21,7 +21,7 @@ The MVP shows one claim: **a URN in a YAML file traces to a typed handler and to
 
 | Link | Description | Author | Cause of a failure |
 | --- | --- | --- | --- |
-| Manifest | `domain.manifest.yaml` declares fields, entities and operations | You | A structure that is not correct, a reference to an item that is not there, or two items with the same name |
+| Manifest | `domain.manifest.yaml` declares fields, entities, operations and errors | You | A structure that is not correct, a reference to an item that is not there, or two items with the same name |
 | IR | A sorted graph of URNs with all references resolved | `urn-forge compile` | None. urn-forge makes the IR from the manifest |
 | Generated contracts | Valibot schemas, handler types and `executeOperation` | `urn-forge compile` | A person edits a generated file, or does not compile again after a manifest change (gate 4) |
 | Core | `export const core = { … } satisfies DomainCoreImplementation` | You | A handler that is not there or that has the wrong type (gate 1) |

@@ -4,15 +4,15 @@ urn-forge is an MVP. It keeps the four links of the traceability chain: the mani
 
 | Area | Parts in the MVP | Parts not in the MVP at this time |
 | --- | --- | --- |
-| Atom kinds | `field`, `entity`, `operation`. `error` is in progress: urn-forge examines error entries, but the plugins do not make code for them at this time. Refer to the [error kind plan](../project/error-kind-plan) | `invariant`, `event`, lifecycle data |
+| Atom kinds | `field`, `entity`, `operation`, `error` | `invariant`, `event`, lifecycle data. `recordAs` on an error waits for `event` |
 | Primitives | `boolean`, `integer`, `float`, `string` | `decimal`, `timestamp`, `list`, `record`, `ref` |
 | Constraints | `mustBe`, `min`, `max`, `notEqual`, `minLength`, `maxLength`, `regex`, `oneOf` | `format`, `precision` |
 | Optional fields | `required` on each field reference | `nullable` |
 | Operation input and output | Entities | Fields |
 | Compiler passes | Meta-schema, expansion, uniqueness, references, constraint coherence | Cycles, rule types, lifecycle |
 | Deterministic output | Sorted output, no clock, fingerprint header, a CI run in a different locale and time zone | `referenceDate` |
-| Plugins | Valibot and FCIS. Handlers return the output directly | The `Result` type, Gherkin parameter types, Postgres |
-| Gates | 1 (completeness), 3 (tags and headers), 4 (drift) | 2 (lint profile), the boundary coverage part of 3, 5 (compatibility) |
+| Plugins | Valibot and FCIS. Handlers return a `Result`, with `ok(…)` or `fail(…)` | Events in the `Result`, Gherkin parameter types, Postgres |
+| Gates | 1 (completeness), 3 (tags, headers and declared errors; an error without a scenario is a warning), 4 (drift) | 2 (lint profile), the boundary coverage part of 3, 5 (compatibility) |
 | CLI | `compile`, `verify`, a [configuration file](./config) | `init`, `diff`, `inspect`, `graph` |
 | Diagnostics | A stable code, `file:line:col`, the key or URN and a message. `--format json` | — |
 | Distribution | Run from a clone of the repository. Packages in the same workspace can import `urn-forge`, `urn-forge/config` and `urn-forge/cucumber` | An npm package with compiled JavaScript |
