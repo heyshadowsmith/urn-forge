@@ -28,7 +28,7 @@ The commands on this page ran in a clone of the urn-forge repository, from `pack
    npx urn-forge diff old.manifest.yaml insurance/domain.manifest.yaml --config insurance/urn-forge.config.ts
    ```
 
-`diff` writes one line for each change, then a summary:
+In this example, the change of the branch deprecates `policy.field.note` for `policy.field.remark`. The old manifest has `note` with `status: active`, and no `remark`. The new manifest is the insurance manifest of today. `diff` writes one line for each change, then a summary:
 
 ```
 compatible  urn:acme:insurance:policy:entity:coverage  adds the optional property "remark"
@@ -72,9 +72,10 @@ A looser `maxLength` breaks the callers that receive it:
 
 ```
 breaking    urn:acme:insurance:policy:field:remark  maxLength 40 → 50 widens a value that callers send and callers receive and the database stores, which breaks callers that receive it
+diff failed: 1 breaking, 0 compatible, 0 lifecycle change(s)
 ```
 
-A new declared error is a new result that a caller does not know. Thus it is breaking, also if the error itself is new:
+A new declared error is a new result that a caller does not know. Thus it is breaking, also if the error itself is new. Here the new manifest adds the error `policy.error.policy_already_cancelled` and lists it in the `errors` of `cancel_policy`:
 
 ```
 compatible  urn:acme:insurance:policy:error:policy_already_cancelled  is new
@@ -89,6 +90,8 @@ These changes are breaking too:
 - A change of `regex`, `format` or an invariant `rule`. `diff` cannot compare two patterns or two rules, so it treats each change as breaking for each use.
 
 For the reasons, refer to [Compatibility and the direction of use](../explanation/compatibility).
+
+Each output on this page and on the pages [Retire a URN](retire-a-urn) and [Emit an event](emit-an-event) comes from one change to the current insurance manifest. `tests/docs-diff.test.ts` makes each pair of manifests, runs `diff`, and makes sure that the page shows the same output.
 
 ## 3. Give the config for the Stored use
 
