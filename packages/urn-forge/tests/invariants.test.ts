@@ -21,6 +21,7 @@ describe('the invariant kind', () => {
       ['cancellation_within_term', 'cancellation', 'cancellation_date >= effective_date and cancellation_date <= expiry_date'],
       ['deductible_below_premium', 'policy', 'deductible is absent or deductible < premium'],
       ['limit_is_positive', 'coverage', 'limit > 0'],
+      ['term_at_most_a_year', 'policy', 'expiry_date - effective_date <= 366'],
       ['term_is_positive', 'policy', 'expiry_date > effective_date'],
     ]);
     expect(ir.invariants['urn:acme:insurance:policy:invariant:term_is_positive' as Urn]).toMatchObject({
@@ -31,6 +32,7 @@ describe('the invariant kind', () => {
     // The entity does not list its invariants; they are found by `on`.
     expect(invariantsOf(ir, 'urn:acme:insurance:policy:entity:policy' as Urn).map((i) => i.brandIdentifier)).toEqual([
       'PolicyDeductibleBelowPremium',
+      'PolicyTermAtMostAYear',
       'PolicyTermIsPositive',
     ]);
     expect(invariantsOf(ir, 'urn:acme:insurance:policy:entity:refund_quote' as Urn)).toEqual([]);
@@ -56,6 +58,11 @@ describe('the generated rule of each operator on each primitive (fixture: rules)
     'd2 - d1 >= 1': r.RDecMinusRule,
     'dt1 < dt2': r.RDateLtRule,
     "dt1 >= '2026-01-01'": r.RDateLiteralRule,
+    'dt2 <= dt1 + 28': r.RDatePlusDaysRule,
+    'dt1 - 7 < dt2': r.RDateMinusDaysRule,
+    'dt2 - dt1 >= 1': r.RDaysBetweenRule,
+    'dt2 <= dt1 + i1': r.RDaysFromFieldRule,
+    "dt1 - '2026-01-01' >= 0": r.RDaysBetweenLiteralRule,
     't1 < t2': r.RTsLtRule,
     't1 = t2': r.RTsEqRule,
     's1 != s2': r.RStrNeRule,

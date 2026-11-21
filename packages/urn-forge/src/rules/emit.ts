@@ -1,16 +1,17 @@
 /**
  * An invariant rule as a TypeScript expression over `p`, the parsed entity (invariants plan,
  * step 3). Each comparison follows its primitive: `decimal` exactly (compareDecimal),
- * `date` as text, `timestamp` as instants, the others with === and the order operators.
+ * `date` as text (or as day numbers when the rule counts days), `timestamp` as instants,
+ * the others with === and the order operators.
  * The rule has passed pass 6, so every field exists and both sides of each operator agree.
  */
 import type { Primitive } from '../primitives/index.js';
-import type { RuleExpr } from './index.js';
+import { hasDateArithmetic, valueType, type RuleExpr } from './index.js';
 
 export interface EmittedRule {
   readonly code: string;
   /** Helpers the code calls, by the names of VALIBOT_HELPERS. */
-  readonly helpers: ReadonlySet<'decimal' | 'decimalArithmetic'>;
+  readonly helpers: ReadonlySet<'decimal' | 'decimalArithmetic' | 'days'>;
 }
 
 const PLAIN_TYPE: { readonly [P in Primitive]: string } = {
@@ -27,13 +28,25 @@ const PLAIN_TYPE: { readonly [P in Primitive]: string } = {
 const JS_OPERATOR: Readonly<Record<string, string>> = { '=': '===', '!=': '!==', '<': '<', '<=': '<=', '>': '>', '>=': '>=' };
 
 export function emitRule(rule: RuleExpr, primitiveOf: (field: string) => Primitive): EmittedRule {
-  const helpers = new Set<'decimal' | 'decimalArithmetic'>();
+  const helpers = new Set<'decimal' | 'decimalArithmetic' | 'days'>();
 
-  /** The primitive of a value: a field's, or for a literal the other side's. */
-  const typeOf = (e: RuleExpr): Primitive | undefined => {
-    if (e.op === 'field') return primitiveOf(e.name);
-    if (e.op === '+' || e.op === '-') return typeOf(e.left) ?? typeOf(e.right);
-    return undefined;
+  /** The primitive of a value: a field's or an arithmetic's; undefined for a literal. */
+  const typeOf = (e: RuleExpr): Primitive | undefined => valueType(e, primitiveOf);
+
+  /** A date as a day number (date arithmetic plan, decision 7): a field, a date text, or a date ± days. */
+  const days = (e: RuleExpr): string => {
+    helpers.add('days');
+    switch (e.op) {
+      case 'field':
+        return `epochDay((p.${e.name} as string))`;
+      case 'text':
+        return `epochDay(${JSON.stringify(e.value)})`;
+      case '+':
+      case '-':
+        return `(${days(e.left)} ${e.op} ${value(e.right, 'integer')})`;
+      default:
+        throw new Error(`internal error: ${e.op} is not a date`);
+    }
   };
 
   const value = (e: RuleExpr, primitive: Primitive): string => {
@@ -50,6 +63,8 @@ export function emitRule(rule: RuleExpr, primitiveOf: (field: string) => Primiti
         return String(e.value);
       case '+':
       case '-':
+        // The days between two dates: a date (or a date text) minus a date.
+        if (primitive === 'integer' && (typeOf(e.left) === 'date' || typeOf(e.right) === 'date')) return `(${days(e.left)} - ${days(e.right)})`;
         if (primitive === 'decimal') {
           helpers.add('decimalArithmetic');
           return `${e.op === '+' ? 'addDecimal' : 'subtractDecimal'}(${value(e.left, primitive)}, ${value(e.right, primitive)})`;
@@ -79,6 +94,10 @@ export function emitRule(rule: RuleExpr, primitiveOf: (field: string) => Primiti
       case '>': {
         const primitive = typeOf(e.left) ?? typeOf(e.right);
         if (primitive === undefined) throw new Error('internal error: a comparison of two literals passed pass 6');
+        // A date with days in it compares as day numbers; two plain dates still compare as text.
+        if (primitive === 'date' && (hasDateArithmetic(e.left, primitiveOf) || hasDateArithmetic(e.right, primitiveOf))) {
+          return `${days(e.left)} ${JS_OPERATOR[e.op]!} ${days(e.right)}`;
+        }
         const [left, right, op] = [value(e.left, primitive), value(e.right, primitive), JS_OPERATOR[e.op]!];
         if (primitive === 'decimal') {
           helpers.add('decimal');

@@ -240,6 +240,136 @@
       "ruleText": "dt1 < dt2",
       "urn": "urn:demo:rules:r:invariant:date_lt"
     },
+    "urn:demo:rules:r:invariant:date_minus_days": {
+      "brandIdentifier": "RDateMinusDays",
+      "description": "date_minus_days",
+      "message": "date_minus_days does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "left": {
+            "name": "dt1",
+            "op": "field"
+          },
+          "op": "-",
+          "right": {
+            "op": "number",
+            "value": "7"
+          }
+        },
+        "op": "<",
+        "right": {
+          "name": "dt2",
+          "op": "field"
+        }
+      },
+      "ruleText": "dt1 - 7 < dt2",
+      "urn": "urn:demo:rules:r:invariant:date_minus_days"
+    },
+    "urn:demo:rules:r:invariant:date_plus_days": {
+      "brandIdentifier": "RDatePlusDays",
+      "description": "date_plus_days",
+      "message": "date_plus_days does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "dt2",
+          "op": "field"
+        },
+        "op": "<=",
+        "right": {
+          "left": {
+            "name": "dt1",
+            "op": "field"
+          },
+          "op": "+",
+          "right": {
+            "op": "number",
+            "value": "28"
+          }
+        }
+      },
+      "ruleText": "dt2 <= dt1 + 28",
+      "urn": "urn:demo:rules:r:invariant:date_plus_days"
+    },
+    "urn:demo:rules:r:invariant:days_between": {
+      "brandIdentifier": "RDaysBetween",
+      "description": "days_between",
+      "message": "days_between does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "left": {
+            "name": "dt2",
+            "op": "field"
+          },
+          "op": "-",
+          "right": {
+            "name": "dt1",
+            "op": "field"
+          }
+        },
+        "op": ">=",
+        "right": {
+          "op": "number",
+          "value": "1"
+        }
+      },
+      "ruleText": "dt2 - dt1 >= 1",
+      "urn": "urn:demo:rules:r:invariant:days_between"
+    },
+    "urn:demo:rules:r:invariant:days_between_literal": {
+      "brandIdentifier": "RDaysBetweenLiteral",
+      "description": "days_between_literal",
+      "message": "days_between_literal does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "left": {
+            "name": "dt1",
+            "op": "field"
+          },
+          "op": "-",
+          "right": {
+            "op": "text",
+            "value": "2026-01-01"
+          }
+        },
+        "op": ">=",
+        "right": {
+          "op": "number",
+          "value": "0"
+        }
+      },
+      "ruleText": "dt1 - '2026-01-01' >= 0",
+      "urn": "urn:demo:rules:r:invariant:days_between_literal"
+    },
+    "urn:demo:rules:r:invariant:days_from_field": {
+      "brandIdentifier": "RDaysFromField",
+      "description": "days_from_field",
+      "message": "days_from_field does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "dt2",
+          "op": "field"
+        },
+        "op": "<=",
+        "right": {
+          "left": {
+            "name": "dt1",
+            "op": "field"
+          },
+          "op": "+",
+          "right": {
+            "name": "i1",
+            "op": "field"
+          }
+        }
+      },
+      "ruleText": "dt2 <= dt1 + i1",
+      "urn": "urn:demo:rules:r:invariant:days_from_field"
+    },
     "urn:demo:rules:r:invariant:dec_eq": {
       "brandIdentifier": "RDecEq",
       "description": "dec_eq",
@@ -695,7 +825,7 @@
   "meta": {
     "domain": "rules",
     "irSchemaVersion": 1,
-    "manifestHash": "fea215f893af42e632a204a0263544d5a5d4efae3474e611d664cf4ab30a4751",
+    "manifestHash": "d6cb3985dc4b58645e83aa32689377494009b5c09ff29dee163268f6c0c9192d",
     "manifestVersion": "0.1.0",
     "namespace": "demo",
     "stability": "stable"

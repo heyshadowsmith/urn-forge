@@ -19,11 +19,11 @@ interface Coverage {
 const literal = (value: string | undefined) => (value === undefined ? 'NULL' : `'${value.replaceAll("'", "''")}'`);
 
 /** One transaction that writes a policy and its coverages, as a shell would. */
-function writePolicy(options: { holder?: string; premium?: string; coverages?: readonly Coverage[] } = {}): string {
-  const { holder = CUSTOMER, premium = '120.00', coverages = [{ peril: 'fire', limit: '1000.00' }, { peril: 'flood', limit: '500.00', note: 'Basement excluded, see {clause 4}' }] } = options;
+function writePolicy(options: { holder?: string; premium?: string; effective?: string; expiry?: string; coverages?: readonly Coverage[] } = {}): string {
+  const { holder = CUSTOMER, premium = '120.00', effective = '2026-01-01', expiry = '2026-12-31', coverages = [{ peril: 'fire', limit: '1000.00' }, { peril: 'flood', limit: '500.00', note: 'Basement excluded, see {clause 4}' }] } = options;
   return [
     'BEGIN;',
-    `INSERT INTO "policy"."policy" ("policy_id", "holder", "effective_date", "expiry_date", "premium") VALUES (${literal(POLICY)}, ${literal(holder)}, '2026-01-01', '2026-12-31', ${literal(premium)});`,
+    `INSERT INTO "policy"."policy" ("policy_id", "holder", "effective_date", "expiry_date", "premium") VALUES (${literal(POLICY)}, ${literal(holder)}, ${literal(effective)}, ${literal(expiry)}, ${literal(premium)});`,
     ...coverages.map(
       (c, i) =>
         `INSERT INTO "policy"."policy__coverages" ("policy_id", "position", "peril", "limit", "note") VALUES (${literal(POLICY)}, ${i}, ${literal(c.peril)}, ${literal(c.limit)}, ${literal(c.note)});`,
@@ -77,11 +77,21 @@ describe('insurance in Postgres', () => {
     ['four coverages', { coverages: ['fire', 'flood', 'theft', 'fire'].map((peril, i) => ({ peril, limit: `${i + 1}.00` })) }, '23505', 'policy__coverages_peril_key'],
     ['a repeated peril, by its constraint', { coverages: [{ peril: 'fire', limit: '1.00' }, { peril: 'fire', limit: '2.00' }] }, '23505', 'policy__coverages_peril_key'],
     ['a premium with three decimals', { premium: '1.005' }, '23514', 'premium'],
+    // Date arithmetic plan: 2027-03-01 to 2028-03-02 is 367 days, across 29 February.
+    ['a policy of 367 days', { effective: '2027-03-01', expiry: '2028-03-02' }, '23514', 'term_at_most_a_year'],
     ['a peril that is not in the enum', { coverages: [{ peril: 'hail', limit: '1.00' }] }, '23514', 'peril'],
   ] as const)('refuses %s', async (_, options, code, constraint) => {
     const error = await failure(writePolicy(options));
     expect(error).toBeDefined();
     if (code !== undefined) expect(error?.code).toBe(code);
     if (constraint !== undefined) expect(error?.constraint).toBe(constraint);
+  });
+
+  it('accepts a policy of 366 days across 29 February, as the Valibot rule does, and names the rule that refuses 367', async () => {
+    expect(await failure(writePolicy({ effective: '2027-03-01', expiry: '2028-03-01' }))).toBeUndefined();
+    const comment = await db.query<{ comment: string }>(
+      `SELECT obj_description(oid, 'pg_constraint') AS comment FROM pg_constraint WHERE conname = 'term_at_most_a_year'`,
+    );
+    expect(comment.rows[0]?.comment).toBe('urn:acme:insurance:policy:invariant:term_at_most_a_year — A policy can last 366 days at most');
   });
 });

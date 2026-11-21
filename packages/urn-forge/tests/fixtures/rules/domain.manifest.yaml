@@ -160,3 +160,29 @@ r.invariant.or_rule:
   on: r.entity.sample
   rule: "i1 = 0 or i2 = 0"
   message: or_rule does not hold
+# Days (date arithmetic plan): a date plus or minus an integer of days, and the days between two dates.
+r.invariant.date_plus_days:
+  description: date_plus_days
+  on: r.entity.sample
+  rule: "dt2 <= dt1 + 28"
+  message: date_plus_days does not hold
+r.invariant.date_minus_days:
+  description: date_minus_days
+  on: r.entity.sample
+  rule: "dt1 - 7 < dt2"
+  message: date_minus_days does not hold
+r.invariant.days_between:
+  description: days_between
+  on: r.entity.sample
+  rule: "dt2 - dt1 >= 1"
+  message: days_between does not hold
+r.invariant.days_from_field:
+  description: days_from_field
+  on: r.entity.sample
+  rule: "dt2 <= dt1 + i1"
+  message: days_from_field does not hold
+r.invariant.days_between_literal:
+  description: days_between_literal
+  on: r.entity.sample
+  rule: "dt1 - '2026-01-01' >= 0"
+  message: days_between_literal does not hold

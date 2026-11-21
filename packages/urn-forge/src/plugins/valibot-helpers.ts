@@ -66,6 +66,12 @@ function isUtcTimestamp(value: string): boolean {
   const match = /^(\\d{4}-\\d{2}-\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(\\.\\d{1,3})?Z$/u.exec(value);
   return match !== null && isCalendarDate(match[1] ?? '') && Number(match[2]) < 24 && Number(match[3]) < 60 && Number(match[4]) < 60;
 }`,
+  days: `/** The days from 1970-01-01 to a YYYY-MM-DD day: exact, with no time zone. */
+function epochDay(value: string): number {
+  const date = new Date(0);
+  date.setUTCFullYear(Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1, Number(value.slice(8, 10)));
+  return date.getTime() / 86400000;
+}`,
 } as const;
 
 export type ValibotHelper = keyof typeof VALIBOT_HELPERS;
@@ -76,4 +82,5 @@ export const HELPER_NEEDS: { readonly [H in ValibotHelper]: readonly ValibotHelp
   decimalArithmetic: ['decimal', 'decimalArithmetic'],
   date: ['date'],
   timestamp: ['date', 'timestamp'],
+  days: ['days'],
 };

@@ -121,6 +121,11 @@ policy.invariant.term_is_positive:
   on: policy.entity.policy
   rule: expiry_date > effective_date
   message: The expiry date must be after the effective date
+policy.invariant.term_at_most_a_year:
+  description: A policy lasts one year at most, also in a leap year (date arithmetic plan)
+  on: policy.entity.policy
+  rule: expiry_date - effective_date <= 366
+  message: A policy can last 366 days at most
 policy.invariant.deductible_below_premium:
   description: A deductible, when there is one, is less than the premium
   on: policy.entity.policy
