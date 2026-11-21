@@ -61,6 +61,7 @@ Do these steps for one feature at a time. Start with a feature whose operation h
    - A value outside the limits must fail at the boundary. Use `Then the input is rejected on "<field>"`.
    - To send the empty string to a `string` field, write `""` in the cell. An empty cell sends no value.
    - For a path such as `coverages.limit`, send the value inside an object, for example `[{ peril: fire, limit: 1.005 }]`. For a repeated key, send two objects with one key, for example `[{ peril: fire, limit: 1 }, { peril: fire, limit: 2 }]`. Refer to [Write scenarios](write-scenarios).
+   - For a long value, such as a text of 201 characters or a list of 21 items, write a formula: `=repeat(201, "x")`, `=repeat(21, { … })`. Refer to [Formula cells](../reference/gherkin-steps#formula-cells).
 2. For each `uncovered-error` message, add a scenario with `Then the operation fails with "<error URN>"`.
 3. For each `uncovered-event` message, add `Then the operation emits "<event URN>"` to a scenario that succeeds. Refer to [Emit an event](emit-an-event).
 4. For each `uncovered-invariant` message, add a scenario that breaks the rule, with `Then the input is rejected by "<invariant URN>"`. Refer to [Add an invariant](add-an-invariant).

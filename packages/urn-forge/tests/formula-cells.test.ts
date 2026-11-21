@@ -37,6 +37,11 @@ describe('gate 3 reads formula cells', () => {
     expect(messages.filter((m) => /above maxItems|above maxLength/u.test(m))).toEqual([]);
     expect(gaps(FEATURE).filter((p) => p.code === 'invalid-cell')).toEqual([]);
   });
+
+  it('still finds the gap when the formula makes one item too few', () => {
+    const messages = gaps(FEATURE.replace('=repeat(21, ', '=repeat(20, ')).map((p) => p.message);
+    expect(messages).toContain('urn:demo:expenses:claim:entity:line at lines in the input of urn:demo:expenses:claim:operation:submit has no list of 0 item(s) (below minItems), no list of 21 item(s) (above maxItems)');
+  });
 });
 
 describe('the forms of a formula', async () => {
