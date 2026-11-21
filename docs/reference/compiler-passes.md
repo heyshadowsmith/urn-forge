@@ -36,8 +36,8 @@ Pass 1 examines the parsed YAML with Valibot schemas. It examines these items, i
 | Problem in an entry | Code | Position |
 | --- | --- | --- |
 | A `primitive` that is not `boolean`, `float`, `integer` or `string`, or no `primitive` | `unknown-primitive` | The value, or the entry key if there is no `primitive` |
-| A key on a field that is not a constraint of its primitive | `constraint-not-allowed` | The key |
-| A key on the header, an entity, an operation, an error or a field reference that it does not accept | `unknown-property` | The key |
+| A key on a field that is a constraint of a different primitive | `constraint-not-allowed` | The key |
+| A key on the header, an atom or a field reference that it does not accept, and on a field a key that is a constraint of no primitive | `unknown-property` | The key |
 | A value of the wrong type or form, or a necessary property that is not there | `invalid-value` | The value, or the entry key for a property that is not there |
 
 The schema of each kind is on [The manifest](./manifest). The rules for constraint values are on [Primitives and constraints](./primitives).

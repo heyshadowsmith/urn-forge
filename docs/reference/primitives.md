@@ -34,7 +34,7 @@ urn-forge 0.1.0 does not have the primitives `decimal`, `timestamp`, `list`, `re
 | `regex` | `string` | string | Not empty. A valid JavaScript regular expression with the `u` flag | `v.regex(/^(?:<value>)$/u)` |
 | `oneOf` | `string` | list of strings | One or more items. No item two times | `v.picklist([<values>])` |
 
-All constraints are optional. A constraint that is not a constraint of the primitive causes `constraint-not-allowed`. A value of the wrong type or form causes `invalid-value`.
+All constraints are optional. A constraint of a different primitive causes `constraint-not-allowed`. A key that is a constraint of no primitive causes `unknown-property`. A value of the wrong type or form causes `invalid-value`.
 
 ### Valid values for each constraint
 

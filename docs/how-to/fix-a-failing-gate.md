@@ -303,10 +303,18 @@ The output folder has a `*.generated.*` file that the compile does not make:
 
 ```
 gate 4  drift         FAIL  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
-    tutorial/3-strict-coverage/generated/old.schemas.generated.ts  error  generated-orphan  generated file has no source in the current compile; delete it
+    tutorial/3-strict-coverage/generated/old.schemas.generated.ts  error  generated-orphan  generated file has no source in the current compile; run `urn-forge compile`, which removes it
 ```
 
-To fix it, delete the file. `compile` does not delete files.
+To fix it, run `compile`. It removes each generated file that it no longer makes:
+
+```
+unchanged  tutorial/3-strict-coverage/generated/domain.runtime.generated.ts
+unchanged  tutorial/3-strict-coverage/generated/domain.schemas.generated.ts
+removed    tutorial/3-strict-coverage/generated/old.schemas.generated.ts
+```
+
+If urn-forge did not write the file, the message tells you to rename or delete it. `compile` does not remove a file without the urn-forge header.
 
 ## Result
 

@@ -130,7 +130,7 @@ The gate does these checks. The table gives them in the sequence of the output.
 | Required columns | The table of `I run the operation with:` has a column for each mandatory input field of the operation. Fields with `required: false` are not mandatory | `missing-column` | `error` |
 | Declared errors | The error URN in `the operation fails with "<error URN>"` is a declared error of the operation of the scenario. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-error` | `error` |
 | Tagged operations | Each operation of the manifest has its URN in one or more tags, in any feature file | `untagged-operation` | `error` |
-| Error coverage | Each declared error of each operation has one or more scenarios of that operation with `the operation fails with "<error URN>"` | `uncovered-error` | Coverage mode |
+| Error coverage | Each declared error of each tagged operation has one or more scenarios of that operation with `the operation fails with "<error URN>"`. An untagged operation already has `untagged-operation`, so the gate does not examine its errors | `uncovered-error` | Coverage mode |
 | Waiver form | Each comment that starts with `# urn-forge:waive` has a field URN and a reason | `invalid-waiver` | `error` |
 | Boundary coverage | For each tagged operation and each input field with constraints, the values that the scenarios send include each boundary case | `uncovered-boundary` | Coverage mode |
 | Waiver result | Each valid waiver names a constrained input field of an operation of its feature file. Then it removes a gap, or it removes nothing | `unknown-waiver`, `waived-boundary`, `unused-waiver` | `error`, `note`, `warning` |

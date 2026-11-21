@@ -141,6 +141,8 @@ urn-forge reports these errors against the configuration file. Each error stops 
 | A value of the incorrect type | `config-invalid` | `config.boundaryCoverage: Invalid type: Expected ("warn" \| "error") but received "strict"` |
 | An unknown plugin | `config-invalid` | `config.plugins[1]: unknown plugin "postgres" (plugins: valibot, fcis)` |
 | A plugin that occurs two times | `config-invalid` | `config.plugins[2]: plugin "valibot" is listed more than once` |
+| An empty `plugins` list | `config-invalid` | `config.plugins: must list one or more plugins` |
+| A plugin entry with more than two items, for example `['valibot', {}, 'extra']` | `config-invalid` | `config.plugins[0]: must be a plugin name or [name, config]` |
 | A plugin configuration that is not `{}` | `plugin-config` | `plugin valibot config: unknown option "strict"` |
 | A plugin needs a plugin that is not in the array | `missing-plugin` | `plugin fcis requires plugin valibot, which is not enabled` |
 

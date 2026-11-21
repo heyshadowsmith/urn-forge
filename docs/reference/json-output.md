@@ -30,7 +30,7 @@ With `--format json`, urn-forge writes all JSON lines to stdout and nothing to s
 | `type` | Command | Number of lines | Description |
 | --- | --- | --- | --- |
 | `diagnostic` | `compile`, `verify` | Zero or more | One diagnostic: a problem in the configuration, the manifest, a plugin or a gate |
-| `file` | `compile` | One for each generated file, or zero | One file that `compile` wrote or did not change |
+| `file` | `compile` | One for each generated file and each removed file, or zero | One file that `compile` wrote, did not change, or removed |
 | `gate` | `verify` | One for each gate that ran, or zero | The result of one gate |
 | `result` | `compile`, `verify` | Exactly one, always the last line | The result of the command |
 
@@ -56,7 +56,8 @@ The properties occur in this sequence. urn-forge leaves out a property that has 
 | --- | --- | --- |
 | `type` | `"file"` | The kind of line |
 | `path` | string | The generated file, relative to the current directory, with forward slashes |
-| `changed` | boolean | `true` if `compile` wrote the file. `false` if the file had the same content, so `compile` did not write it |
+| `changed` | boolean | `true` if `compile` wrote or removed the file. `false` if the file had the same content, so `compile` did not write it |
+| `removed` | `true` | Only for a removed file: a `*.generated.*` file from an earlier compile that this compile does not make |
 
 ## `gate`
 

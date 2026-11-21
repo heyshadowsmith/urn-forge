@@ -65,9 +65,10 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 | `IREntity` | Type | `{ urn; brandIdentifier; description; fields: readonly IRFieldRef[] }` |
 | `IRFieldRef` | Type | `{ field: Urn; name: string; required: boolean }`. `name` is the property name |
 | `IROperation` | Type | `{ urn; brandIdentifier; description; input: Urn; output: Urn; errors: readonly Urn[] }` |
+| `IRError` | Type | `{ urn; brandIdentifier; description; category: ErrorCategory; retryable: boolean; message: readonly MessagePart[]; fields: readonly IRFieldRef[] }` |
+| `ErrorCategory` | Type | `'validation' \| 'conflict' \| 'not_found' \| 'forbidden' \| 'precondition'` |
+| `MessagePart` | Type | `{ text: string } \| { field: string }`. One part of a parsed message template: text, or a placeholder with a property name |
 | `Urn` | Type | A `string` with a brand, for the URNs in the IR |
-
-The package does not export the type of an error node. Use `UniversalIR['errors'][Urn]`.
 
 ### Plugins
 

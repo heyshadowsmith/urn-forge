@@ -63,7 +63,7 @@ order.field.quantity: { primitive: integer, min: 1, max: 99, notEqual: 13 }
 | `description` | string | No | None | Not empty. The generated schema has it in its comment |
 | A constraint | Refer to [Primitives and constraints](./primitives) | No | None | A constraint of the primitive of the field |
 
-- A field accepts only the constraints of its primitive. A different key, also a key that is not a constraint, causes `constraint-not-allowed`. The message gives the constraints of the primitive.
+- A field accepts only the constraints of its primitive. A constraint of a different primitive causes `constraint-not-allowed`, and the message gives the constraints of the primitive. A key that is a constraint of no primitive causes `unknown-property`.
 - The constraints of a field must accept one or more values (pass 7, `incoherent-constraints`).
 - A field does not set if it is optional. The field reference in an entity or an error sets it.
 
@@ -168,7 +168,7 @@ Specification v1.1 has these properties and kinds. urn-forge 0.1.0 does not acce
 | `key` and `invariants` | An entity | `unknown-property` |
 | `emits` | An operation | `unknown-property` |
 | `recordAs` | An error | `invalid-value`: `needs the event kind, which urn-forge does not support yet` |
-| `status`, `supersededBy` and `sunsetDate` | Each atom | `unknown-property`, or `constraint-not-allowed` on a field |
+| `status`, `supersededBy` and `sunsetDate` | Each atom | `unknown-property` |
 | A field as `input` or `output` | An operation | `wrong-ref-kind` |
 
 ## Related pages
