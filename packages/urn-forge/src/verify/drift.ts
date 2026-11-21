@@ -5,11 +5,11 @@
  * then byte-compares every file against the committed copy under `--out`. Also fails on a
  * committed `*.generated.*` file that the compile no longer produces (a file with no source).
  */
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import type { GeneratedArtifact } from '../plugins/plugin.interface.js';
-import { generatedPath, writeGeneratedFiles } from '../write.js';
+import { GENERATED_MARK, generatedPath, listGeneratedFiles, writeGeneratedFiles } from '../write.js';
 import type { Diagnostic } from '../diagnostics.js';
 import { displayPath, type Gate, type GateOutcome } from './types.js';
 
@@ -27,13 +27,6 @@ function firstDifferentLine(expected: string, actual: string): number {
   return 1;
 }
 
-async function committedGeneratedFiles(outDir: string): Promise<string[]> {
-  const entries = await readdir(outDir, { recursive: true, withFileTypes: true }).catch(() => []);
-  return entries
-    .filter((e) => e.isFile() && /\.generated\./.test(e.name))
-    .map((e) => relative(outDir, join(e.parentPath, e.name)).split('\\').join('/'))
-    .sort();
-}
 
 export async function checkDrift(options: DriftOptions): Promise<GateOutcome> {
   const show = (path: string) => displayPath(options.cwd, path, relative);
@@ -68,12 +61,17 @@ export async function checkDrift(options: DriftOptions): Promise<GateOutcome> {
   }
 
   const produced = new Set(options.files.map((f) => f.relativePath));
-  for (const orphan of (await committedGeneratedFiles(options.outDir)).filter((p) => !produced.has(p))) {
+  for (const orphan of (await listGeneratedFiles(options.outDir)).filter((p) => !produced.has(p))) {
+    const path = generatedPath(options.outDir, orphan);
+    // compile removes an orphan only if urn-forge wrote it (removeOrphanFiles in src/write.ts).
+    const ours = (await readFile(path, 'utf8').catch(() => '')).startsWith(GENERATED_MARK);
     problems.push({
       code: 'generated-orphan',
       severity: 'error',
-      file: show(generatedPath(options.outDir, orphan)),
-      message: 'generated file has no source in the current compile; delete it',
+      file: show(path),
+      message: ours
+        ? 'generated file has no source in the current compile; run `urn-forge compile`, which removes it'
+        : 'generated file has no source in the current compile, and urn-forge did not write it (no urn-forge header); rename or delete it',
     });
   }
 

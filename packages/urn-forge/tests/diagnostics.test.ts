@@ -211,4 +211,12 @@ describe('docs/reference/diagnostics.md', () => {
     const missing = Object.keys(DIAGNOSTIC_CODES).filter((code) => !page.includes(`\`${code}\``));
     expect(missing).toEqual([]);
   });
+
+  it('documents no code that does not exist', () => {
+    const page = readFileSync(repo('../../docs/reference/diagnostics.md'), 'utf8');
+    // A row of the code tables: | `code` | `severity` | …
+    const documented = [...page.matchAll(/^\| `([a-z-]+)` \| `(?:error|warning|note)`/gm)].map((m) => m[1]!);
+    expect(documented.filter((code) => !Object.hasOwn(DIAGNOSTIC_CODES, code))).toEqual([]);
+    expect(new Set(documented)).toEqual(new Set(Object.keys(DIAGNOSTIC_CODES)));
+  });
 });

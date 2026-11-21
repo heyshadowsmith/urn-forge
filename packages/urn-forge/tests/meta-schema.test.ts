@@ -63,6 +63,13 @@ describe('meta-schema', () => {
     expect(message).toContain('"minLength" is not a constraint of primitive "float"');
   });
 
+  it('calls a key that is no constraint of any primitive an unknown property, not a constraint', () => {
+    const result = validateManifest({ manifest: header, 'geometry.field.radius': { primitive: 'float', colour: 'red' } });
+    expect(result.success ? [] : result.issues.map((i) => [i.code, i.message])).toEqual([
+      ['unknown-property', 'geometry.field.radius.colour: unknown property "colour"'],
+    ]);
+  });
+
   it('rejects a kind cut from the MVP, naming the key', () => {
     const result = validateManifest({
       manifest: header,

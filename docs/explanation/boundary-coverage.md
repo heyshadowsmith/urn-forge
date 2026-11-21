@@ -45,7 +45,7 @@ Specification v1.1 was written for teams that already have Cucumber suites. If b
 
 1. **Warn.** By default, each gap is a warning. `verify` passes and counts the warnings.
 2. **Strict features.** The tag `@urn-forge:strict` on a feature makes the gaps of its operations errors. A team can make one feature strict at a time.
-3. **Error.** When every feature is strict, `verify` shows the note `ratchet-ready`. The team then sets `boundaryCoverage: 'error'` in the configuration. From then on, every gap is an error, and every new feature is strict from the start.
+3. **Error.** When every feature is strict and gate 3 passes, `verify` shows the note `ratchet-ready`. The team then sets `boundaryCoverage: 'error'` in the configuration. From then on, every gap is an error, and every new feature is strict from the start.
 
 Gate 3 shows the progress in its summary, for example `strict: 3/3 features (boundaryCoverage: error)`.
 

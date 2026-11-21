@@ -2,7 +2,8 @@
  * Gate 3: Gherkin traceability (spec §8: tags, headers, declared errors and boundary coverage).
  * Reads the feature index; it does not run the features.
  *
- * 1. Tags. Every `@urn:…` tag resolves to a URN in the IR, and every operation has at
+ * 1. Tags. Every `@urn:…` tag resolves to an atom in the IR (a field, entity, operation or
+ *    error; only operation and entity tags choose the table keys), and every operation has at
  *    least one feature or scenario tagged with it.
  * 2. Headers. In a scenario tagged (directly or via its feature, rule or examples) with an
  *    operation URN, every DataTable header and every `Examples` header must be a field key
@@ -35,7 +36,7 @@
  * operation carries `@urn-forge:strict`; then they are errors.
  */
 
-import { FAILS_WITH_TEXT, STEP_PHRASES } from '../gherkin/phrases.js';
+import { failsWithUrn, STEP_PHRASES } from '../gherkin/phrases.js';
 import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
 import type { UniversalIR, Urn } from '../ir/types.js';
 import { boundaryCases } from '../primitives/index.js';
@@ -94,7 +95,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     for (const tag of feature.declaredTags) {
       if (!tag.name.startsWith('@urn:')) continue;
       const urn = tag.name.slice(1);
-      if (!(urn in ir.fields || urn in ir.entities || urn in ir.operations)) {
+      if (!(urn in ir.fields || urn in ir.entities || urn in ir.operations || urn in ir.errors)) {
         report('unresolved-tag', tag.location, `tag ${tag.name} does not resolve to a URN in the manifest`);
       }
       if (urn in ir.operations) covered.add(urn);
@@ -147,9 +148,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
       const owner = ownerOf(scenario.tags, scenario.location);
       for (const step of scenario.steps) {
         // 4. `the operation fails with "<urn>"`, with or without a table of that error's fields.
-        const failsWith = FAILS_WITH_TEXT.exec(step.text);
-        if (failsWith) {
-          const errorUrn = failsWith[1]!;
+        const errorUrn = failsWithUrn(step.text);
+        if (errorUrn !== undefined) {
           if (owner?.errors) {
             if (owner.errors.includes(errorUrn as Urn)) {
               expectedErrors.add(`${owner.urn} ${errorUrn}`);
@@ -189,12 +189,14 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     }
   }
 
-  // Error coverage: a warning for each declared error that no scenario of its operation expects.
+  // Error coverage: a warning for each declared error that no scenario of its operation
+  // expects. An untagged operation is already an error, so its errors add nothing (as with
+  // boundary coverage); they still count in the summary.
   let declaredErrors = 0;
   for (const operation of Object.values(ir.operations)) {
     for (const errorUrn of operation.errors) {
       declaredErrors += 1;
-      if (expectedErrors.has(`${operation.urn} ${errorUrn}`)) continue;
+      if (!covered.has(operation.urn) || expectedErrors.has(`${operation.urn} ${errorUrn}`)) continue;
       problems.push({
         code: 'uncovered-error',
         severity: coverageSeverity(operation.urn),
@@ -286,8 +288,10 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const errorSummary = declaredErrors > 0 ? `, ${expectedErrors.size}/${declaredErrors} errors expected` : '';
   const featureCount = features.features.length;
 
-  // The ratchet trigger (spec §8): once every feature is strict, the config can say so.
-  if (boundaryCoverage === 'warn' && featureCount > 0 && strictFeatures.length === featureCount) {
+  // The ratchet trigger (spec §8): once every feature is strict and the gate passes, the
+  // config can say so. While the gate fails, the errors come first.
+  const passes = !problems.some((p) => p.severity === 'error');
+  if (passes && boundaryCoverage === 'warn' && featureCount > 0 && strictFeatures.length === featureCount) {
     problems.push({
       code: 'ratchet-ready',
       severity: 'note',

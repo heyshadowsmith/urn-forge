@@ -10,7 +10,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { AstBuilder, GherkinClassicTokenMatcher, Parser } from '@cucumber/gherkin';
 import { IdGenerator, type Location, type Scenario, type Step, type TableRow, type Tag } from '@cucumber/messages';
-import type { Diagnostic, SourceLocation } from '../diagnostics.js';
+import { relativePaths, type Diagnostic, type SourceLocation } from '../diagnostics.js';
 import { displayPath } from './types.js';
 
 export interface IndexedTag {
@@ -176,7 +176,7 @@ export async function indexFeatures(dir: string, cwd: string): Promise<FeatureIn
     return {
       directory: label,
       features: [],
-      problems: [{ code: 'features-unreadable', severity: 'error', file: label, message: `cannot read features: ${(error as Error).message}` }],
+      problems: [{ code: 'features-unreadable', severity: 'error', file: label, message: `cannot read features: ${relativePaths((error as Error).message, cwd)}` }],
     };
   }
 
@@ -188,13 +188,28 @@ export async function indexFeatures(dir: string, cwd: string): Promise<FeatureIn
       const feature = indexFeatureSource(await readFile(path, 'utf8'), file);
       if (feature) features.push(feature);
     } catch (error) {
-      problems.push({
-        code: 'feature-parse-error',
-        severity: 'error',
-        file,
-        message: `cannot parse: ${(error as Error).message.split('\n')[0]}`,
-      });
+      problems.push(...parseErrors(error, file));
     }
   }
   return { directory: label, features, problems };
+}
+
+/**
+ * One `feature-parse-error` for each error the Gherkin parser reports, at its line and
+ * column. The parser joins its errors into one exception; the first line of that alone
+ * ("Parser errors:") does not say what is wrong.
+ */
+function parseErrors(error: unknown, file: string): Diagnostic[] {
+  const parts = (error as { readonly errors?: readonly unknown[] }).errors ?? [error];
+  return parts.map((part) => {
+    const { message, location } = part as { readonly message?: unknown; readonly location?: { line?: number; column?: number } };
+    const text = String(message ?? part).replace(/^\(\d+:\d+\): /, '');
+    return {
+      code: 'feature-parse-error',
+      severity: 'error',
+      file,
+      ...(location?.line === undefined ? {} : { location: { line: location.line, column: location.column ?? 1 } }),
+      message: text,
+    };
+  });
 }

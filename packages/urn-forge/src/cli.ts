@@ -15,13 +15,13 @@
 import { access, readFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { diagnosticJson, formatDiagnostic, hasErrors, type Diagnostic } from './diagnostics.js';
+import { diagnosticJson, formatDiagnostic, hasErrors, relativePaths, type Diagnostic } from './diagnostics.js';
 import { CONFIG_FILE, loadConfig, pluginEntries, type UrnForgeConfig } from './config.js';
 import { compile, type PluginEntry } from './engine.js';
 import { DEFAULT_PLUGINS } from './plugins/index.js';
 import { GATES, verify } from './verify/index.js';
 import { GENERATOR_VERSION } from './version.js';
-import { writeGeneratedFiles } from './write.js';
+import { removeOrphanFiles, writeGeneratedFiles } from './write.js';
 
 export interface CliIo {
   readonly cwd: string;
@@ -112,7 +112,7 @@ async function resolveSettings(
     () => false,
   );
   if (flags.config !== undefined || configExists) {
-    const loaded = await loadConfig(configPath, display(io, configPath));
+    const loaded = await loadConfig(configPath, display(io, configPath), io.cwd);
     if (!loaded.ok) return loaded;
     config = loaded.config;
     configDir = dirname(configPath);
@@ -183,7 +183,7 @@ async function runCompile(args: string[], io: CliIo): Promise<number> {
   try {
     source = await readFile(paths.manifest, 'utf8');
   } catch (error) {
-    report([{ code: 'manifest-unreadable', severity: 'error', message: `cannot read manifest: ${(error as Error).message}` }]);
+    report([{ code: 'manifest-unreadable', severity: 'error', message: `cannot read manifest: ${relativePaths((error as Error).message, io.cwd)}` }]);
     return finish(false);
   }
 
@@ -194,6 +194,11 @@ async function runCompile(args: string[], io: CliIo): Promise<number> {
   for (const { path, changed } of await writeGeneratedFiles(paths.out, result.files)) {
     if (format === 'json') io.stdout(JSON.stringify({ type: 'file', path: display(io, path), changed }));
     else io.stdout(`${changed ? 'wrote     ' : 'unchanged '} ${display(io, path)}`);
+  }
+  // A file from an earlier compile that this one no longer writes would fail gate 4.
+  for (const path of await removeOrphanFiles(paths.out, result.files)) {
+    if (format === 'json') io.stdout(JSON.stringify({ type: 'file', path: display(io, path), changed: true, removed: true }));
+    else io.stdout(`removed    ${display(io, path)}`);
   }
   return finish(true, result.fingerprint);
 }
@@ -264,7 +269,12 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
     io.stdout(verifyPassedLine(result.gates.map((g) => g.gate), warnings));
     return 0;
   }
-  io.stderr(failed.length > 0 ? `verify failed: gate ${failed.join(', ')}` : 'verify failed: the manifest does not compile');
+  const unreadable = diagnostics.some((d) => d.code === 'manifest-unreadable');
+  io.stderr(
+    failed.length > 0
+      ? `verify failed: gate ${failed.join(', ')}`
+      : `verify failed: the manifest ${unreadable ? 'cannot be read' : 'does not compile'}`,
+  );
   return 1;
 }
 

@@ -11,7 +11,9 @@
  * coerced by the field's primitive (from the generated `DispatchMap`, read through the
  * primitive registry in src/primitives/) before the generated
  * `executeOperation` parses them, so `10` reaches a `float` field as a number and `abc`
- * stays a string for the schema to reject. An empty cell means the key is absent.
+ * stays a string for the schema to reject. An empty cell means the key is absent: in an
+ * input table it is not sent, and in an output or error table the key must be absent from
+ * the result. `""` is the empty string.
  *
  * The project wires in its own generated runtime and core from a support file:
  *
@@ -91,7 +93,14 @@ export function coerceCell(cell: string, field: FieldInfoLike): unknown {
   return parseCell(field.primitive, cell);
 }
 
-/** Reads a two-row table (headers + one data row) into an object, coercing each cell by its field. */
+/**
+ * Reads a two-row table (headers + one data row) into an object, coercing each cell by its
+ * field. `urn` is the operation for `input` and `output`, and the error for `error`.
+ *
+ * An empty input cell leaves the key out, so the payload does not send it. An empty output
+ * or error cell keeps the key with the value `undefined`, so the assertion makes sure that
+ * the key is absent. It never skips the column.
+ */
 export function tableToObject(
   rows: readonly (readonly string[])[],
   fields: FieldsLike,
@@ -107,11 +116,11 @@ export function tableToObject(
     const field = Object.hasOwn(fields, header) ? fields[header] : undefined;
     if (!field) {
       throw new Error(
-        `"${header}" is not a field of the ${side} of ${urn} (fields: ${Object.keys(fields).join(', ')})`,
+        `"${header}" is not a field of ${side === 'error' ? urn : `the ${side} of ${urn}`} (fields: ${Object.keys(fields).join(', ')})`,
       );
     }
     const value = coerceCell(values[i] ?? '', field);
-    if (value !== undefined) object[header] = value;
+    if (value !== undefined || side !== 'input') object[header] = value;
   });
   return object;
 }
@@ -120,19 +129,30 @@ function sameValue(actual: unknown, expected: unknown): boolean {
   return actual === expected || (Number.isNaN(actual) && Number.isNaN(expected));
 }
 
+function show(value: unknown): string {
+  return value === undefined ? 'absent' : String(value);
+}
+
+/** One `key: expected …, got …` entry for each expected key whose value differs; `undefined` expects the key to be absent. */
+function differences(actual: Record<string, unknown>, expected: Record<string, unknown>): string[] {
+  return Object.entries(expected)
+    .filter(([key, value]) => !sameValue(actual[key], value))
+    .map(([key, value]) => `${key}: expected ${show(value)}, got ${show(actual[key])}`);
+}
+
 function describeFailure(result: Extract<ExecuteResultLike, { ok: false }>): string {
   if ('error' in result) return `DomainError ${result.error.urn} (${result.error.message})`;
   const issues = result.issues.map((i) => `${i.path || '(payload)'}: ${i.message}`).join('; ');
   return `${result.kind}${issues ? ` (${issues})` : ''}`;
 }
 
-/** Checks every expected column against the output; columns not in the table are not checked. */
+/**
+ * Checks every expected column against the output; an `undefined` expected value means the
+ * key must be absent. Columns not in the table are not checked.
+ */
 export function assertOutput(result: ExecuteResultLike, expected: Record<string, unknown>, urn: string): void {
   if (!result.ok) throw new Error(`${urn} did not succeed: ${describeFailure(result)}`);
-  const output = (result.output ?? {}) as Record<string, unknown>;
-  const mismatches = Object.entries(expected)
-    .filter(([key, value]) => !sameValue(output[key], value))
-    .map(([key, value]) => `${key}: expected ${String(value)}, got ${String(output[key])}`);
+  const mismatches = differences((result.output ?? {}) as Record<string, unknown>, expected);
   if (mismatches.length > 0) throw new Error(`${urn} output differs: ${mismatches.join('; ')}`);
 }
 
@@ -153,7 +173,8 @@ export function assertRejectedOn(result: ExecuteResultLike, fieldName: string, f
 
 /**
  * Checks the operation refused with the declared error `errorUrn`, and, when `expected` is
- * given, that the error's fields equal it. Columns not in the table are not checked.
+ * given, that the error's fields equal it (`undefined` means absent). Columns not in the
+ * table are not checked.
  */
 export function assertFailsWith(
   result: ExecuteResultLike,
@@ -169,10 +190,7 @@ export function assertFailsWith(
     throw new Error(`${urn} failed with ${result.error.urn} (${result.error.message}); expected ${errorUrn}`);
   }
   if (!expected) return;
-  const fields = (result.error.fields ?? {}) as Record<string, unknown>;
-  const mismatches = Object.entries(expected)
-    .filter(([key, value]) => !sameValue(fields[key], value))
-    .map(([key, value]) => `${key}: expected ${String(value)}, got ${String(fields[key])}`);
+  const mismatches = differences((result.error.fields ?? {}) as Record<string, unknown>, expected);
   if (mismatches.length > 0) throw new Error(`${errorUrn} fields differ: ${mismatches.join('; ')}`);
 }
 
@@ -248,7 +266,7 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
 
   Then(STEP_PHRASES.failsWithFields, function (this: StepsWorld, errorUrn: string, table: DataTable) {
     const { urn, result } = lastRun(this);
-    const expected = tableToObject(table.raw(), declaredError(urn, errorUrn).fields, 'error', urn);
+    const expected = tableToObject(table.raw(), declaredError(urn, errorUrn).fields, 'error', errorUrn);
     assertFailsWith(result, errorUrn, urn, expected);
   });
 }

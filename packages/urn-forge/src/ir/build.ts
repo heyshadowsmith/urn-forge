@@ -50,15 +50,14 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
     .filter((atom): atom is Atom => atom !== undefined)
     .sort((a, b) => compareCodeUnits(a.urn, b.urn));
 
-  // Pass 3: uniqueness of URN and brandIdentifier, reported in URN order.
+  // Pass 3: uniqueness of URN and brandIdentifier, reported in URN order. A URN is a
+  // one-to-one function of its short key, and the keys of a mapping are unique (YAML reports
+  // a repeated key as duplicate-key), so two atoms with one URN is a bug, not a manifest error.
   const byUrn = new Map<Urn, Atom>();
   const byBrand = new Map<string, Atom>();
   for (const atom of atoms) {
     const at = { path: [`${atom.context}.${atom.kind}.${atom.identifier}`], target: 'key' } as const;
-    if (byUrn.has(atom.urn)) {
-      issues.push({ code: 'duplicate-urn', urn: atom.urn, message: `${atom.urn}: declared more than once`, ...at });
-      continue;
-    }
+    if (byUrn.has(atom.urn)) throw new Error(`internal error: ${atom.urn} expanded from two keys`);
     byUrn.set(atom.urn, atom);
     const first = byBrand.get(atom.brandIdentifier);
     if (first) {

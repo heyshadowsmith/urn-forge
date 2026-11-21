@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -96,6 +96,43 @@ describe('urn-forge compile (CLI)', () => {
       'unchanged  src/generated/domain.schemas.generated.ts',
     ]);
     expect(await read(join(dir, 'src/generated/domain.schemas.generated.ts'))).toBe(first);
+  });
+
+  it('removes a generated file that the compile no longer writes, and keeps every other file', async () => {
+    expect(await main(['compile'], io)).toBe(0);
+    const gen = (name: string) => join(dir, 'src/generated', name);
+    const header = (await read(gen('domain.runtime.generated.ts'))).split('\n').slice(0, 2).join('\n');
+    await writeFile(gen('old.generated.ts'), `${header}\nexport {};\n`);
+    await mkdir(join(dir, 'src/generated/sub'), { recursive: true });
+    await writeFile(gen('sub/older.generated.ts'), `${header}\n`);
+    await writeFile(gen('mine.generated.ts'), '// written by hand, with no urn-forge header\n');
+    await writeFile(gen('notes.md'), 'kept\n');
+
+    out = [];
+    expect(await main(['compile'], io)).toBe(0);
+    expect(out.slice(0, 4)).toEqual([
+      'unchanged  src/generated/domain.runtime.generated.ts',
+      'unchanged  src/generated/domain.schemas.generated.ts',
+      'removed    src/generated/old.generated.ts',
+      'removed    src/generated/sub/older.generated.ts',
+    ]);
+    expect(await readdir(join(dir, 'src/generated'), { recursive: true })).toEqual(
+      expect.arrayContaining(['mine.generated.ts', 'notes.md']),
+    );
+    expect(await read(gen('old.generated.ts')).catch(() => 'gone')).toBe('gone');
+
+    out = [];
+    expect(await main(['compile', '--format', 'json'], io)).toBe(0);
+    expect(out.filter((l) => l.includes('removed'))).toEqual([]);
+  });
+
+  it('reports a removed file in JSON', async () => {
+    expect(await main(['compile'], io)).toBe(0);
+    const runtime = await read(join(dir, 'src/generated/domain.runtime.generated.ts'));
+    await writeFile(join(dir, 'src/generated/old.generated.ts'), runtime);
+    out = [];
+    expect(await main(['compile', '--format', 'json'], io)).toBe(0);
+    expect(out.map((l) => JSON.parse(l))).toContainEqual({ type: 'file', path: 'src/generated/old.generated.ts', changed: true, removed: true });
   });
 
   it('honours --manifest and --out', async () => {

@@ -6,17 +6,28 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as direct from '../src/index.js';
+import type { ErrorCategory, IRError, MessagePart, UniversalIR, Urn } from '../src/index.js';
 
 const packageJson = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as {
   exports: Record<string, string>;
 };
 
+// Type exports have no runtime trace, so tsc checks these: every type that UniversalIR
+// contains can be named from the package.
+type ErrorOf<I extends UniversalIR> = I['errors'][Urn];
+const typesOfTheIr: [IRError, ErrorCategory, MessagePart] extends [ErrorOf<UniversalIR>, IRError['category'], IRError['message'][number]] ? true : never = true;
+
 describe('public API', () => {
+  it('names every type of the IR, errors included (checked by tsc)', () => {
+    expect(typesOfTheIr).toBe(true);
+  });
+
   it('maps the package entry points to their modules', () => {
     expect(packageJson.exports).toEqual({
       '.': './src/index.ts',
       './config': './src/config.ts',
       './cucumber': './src/gherkin/steps.ts',
+      './register-tsx': './src/gherkin/register-tsx.mjs',
     });
   });
 

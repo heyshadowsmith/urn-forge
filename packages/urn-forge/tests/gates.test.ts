@@ -214,6 +214,34 @@ describe('gate 3: declared errors', () => {
     expect(summary).toContain('1/2 errors expected');
   });
 
+  it('counts a single-quoted step, which Cucumber runs, as coverage too', () => {
+    const { problems, summary } = outcome(`Then the operation fails with '${UNAVAILABLE}'`, `Then the operation fails with '${OFFLINE}':\n      | sku |\n      | ABC-1234 |`);
+    expect(problems).toEqual([expect.objectContaining({ code: 'unknown-header', message: expect.stringContaining(`the error ${OFFLINE}`) })]);
+    expect(summary).toContain('2/2 errors expected');
+    expect(outcome(`Then the operation fails with 'urn:demo:shop:order:error:sold_out'`).problems.map((p) => p.code)).toContain('undeclared-error');
+  });
+
+  it('reports only untagged-operation for an operation with no scenarios, not each of its errors', () => {
+    const untagged = checkGherkin({
+      ir,
+      features: { directory: 'features', features: [indexFeatureSource('@wip\nFeature: x\n  Scenario: y\n    Given nothing\n', 'f.feature')!], problems: [] },
+    } as unknown as GateContext);
+    expect(untagged.problems.map((p) => p.code)).toEqual(['untagged-operation']);
+    expect(untagged.summary).toContain('0/2 errors expected');
+  });
+
+  it('resolves a tag that names an error URN', () => {
+    const tagged = checkGherkin({
+      ir,
+      features: {
+        directory: 'features',
+        features: [indexFeatureSource(`${PRICE} @${UNAVAILABLE}\nFeature: x\n  Scenario: y\n    When I run the operation with:\n      | sku | quantity | unit_cost | terms_accepted |\n      | ABC-1234 | 1 | 1 | true |\n    Then the operation fails with "${UNAVAILABLE}"\n`, 'f.feature')!],
+        problems: [],
+      },
+    } as unknown as GateContext);
+    expect(tagged.problems.map((p) => p.code)).not.toContain('unresolved-tag');
+  });
+
   it('fails a scenario that expects an error its operation does not declare, at the step', () => {
     const { problems } = outcome(`Then the operation fails with "urn:demo:shop:order:error:sold_out"`, `Then the operation fails with "${UNAVAILABLE}"`, `Then the operation fails with "${OFFLINE}"`);
     expect(problems).toEqual([
@@ -327,12 +355,24 @@ describe('gate 3: strictness (warn, then ratchet)', () => {
     expect(result.problems.filter((p) => p.code === 'uncovered-error').map((p) => p.severity)).toEqual(['error']);
   });
 
-  it('adds a note when every feature is strict but the mode is still warn', async () => {
-    const all = ['parse_short_key', 'to_brand_identifier', 'to_urn'];
-    const notes = (result: Awaited<ReturnType<typeof run>>) => result.problems.filter((p) => p.severity === 'note').map((p) => p.code);
-    expect(notes(await run(all))).toEqual(['ratchet-ready']);
-    expect(notes(await run(all, 'error'))).toEqual([]);
+  it('adds a note when every feature is strict and the gate passes, but the mode is still warn', async () => {
+    const real = await indexFeatures(repo('self/features'), repo(''));
+    const allStrict = (boundaryCoverage: 'warn' | 'error') =>
+      checkGherkin({
+        ir,
+        features: { ...real, features: real.features.map((f) => ({ ...f, tags: [...f.tags, { name: '@urn-forge:strict', location: { line: 1, column: 1 } }] })) },
+        boundaryCoverage,
+      } as unknown as GateContext);
+    const notes = (result: { problems: readonly { severity: string; code: string }[] }) => result.problems.filter((p) => p.severity === 'note').map((p) => p.code);
+    expect(notes(allStrict('warn'))).toEqual(['ratchet-ready']);
+    expect(notes(allStrict('error'))).toEqual([]);
     expect(notes(await run(['to_urn']))).toEqual([]);
+  });
+
+  it('gives no ratchet note while the gate fails: the gaps come first', async () => {
+    const result = await run(['parse_short_key', 'to_brand_identifier', 'to_urn']);
+    expect(result.problems.some((p) => p.severity === 'error')).toBe(true);
+    expect(result.problems.map((p) => p.code)).not.toContain('ratchet-ready');
   });
 });
 

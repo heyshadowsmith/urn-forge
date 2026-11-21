@@ -98,15 +98,14 @@ The location gives the first line that is different:
 If a generated file has no source in the current compile, gate 4 also fails:
 
 ```
-    generated/old.generated.ts  error  generated-orphan  generated file has no source in the current compile; delete it
+    generated/old.generated.ts  error  generated-orphan  generated file has no source in the current compile; run `urn-forge compile`, which removes it
 ```
 
 To fix drift, do these steps:
 
-1. If the file is an orphan, delete it.
-2. Run `npx urn-forge compile`.
-3. Run `npx urn-forge verify`, and make sure that gate 4 passes.
-4. Commit the generated files.
+1. Run `npx urn-forge compile`. It also removes the generated files that it no longer makes.
+2. Run `npx urn-forge verify`, and make sure that gate 4 passes.
+3. Commit the generated files, and the removal of the old files.
 
 If you want a change in the generated code, change the manifest or the configuration, not the file.
 

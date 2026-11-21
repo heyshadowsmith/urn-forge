@@ -7,6 +7,7 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 | `urn-forge` | `src/index.ts` | Compile, verify, diagnostics, the IR types, the plugins, the registries and the name functions |
 | `urn-forge/config` | `src/config.ts` | `defineConfig` and the loader of the configuration file |
 | `urn-forge/cucumber` | `src/gherkin/steps.ts` | The generic Cucumber steps and their helper functions |
+| `urn-forge/register-tsx` | `src/gherkin/register-tsx.mjs` | No exports. When Node.js loads it, it registers `tsx`, for example with `NODE_OPTIONS="--import urn-forge/register-tsx"` |
 
 ## Runtime
 
@@ -64,9 +65,10 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 | `IREntity` | Type | `{ urn; brandIdentifier; description; fields: readonly IRFieldRef[] }` |
 | `IRFieldRef` | Type | `{ field: Urn; name: string; required: boolean }`. `name` is the property name |
 | `IROperation` | Type | `{ urn; brandIdentifier; description; input: Urn; output: Urn; errors: readonly Urn[] }` |
+| `IRError` | Type | `{ urn; brandIdentifier; description; category: ErrorCategory; retryable: boolean; message: readonly MessagePart[]; fields: readonly IRFieldRef[] }` |
+| `ErrorCategory` | Type | `'validation' \| 'conflict' \| 'not_found' \| 'forbidden' \| 'precondition'` |
+| `MessagePart` | Type | `{ text: string } \| { field: string }`. One part of a parsed message template: text, or a placeholder with a property name |
 | `Urn` | Type | A `string` with a brand, for the URNs in the IR |
-
-The package does not export the type of an error node. Use `UniversalIR['errors'][Urn]`.
 
 ### Plugins
 
@@ -125,12 +127,12 @@ This support file of the math example uses the entry point:
 | `registerOperationSteps` | `registerOperationSteps(options: OperationStepsOptions): void` | Registers a `Before` hook and the five generic steps with Cucumber. Refer to [Gherkin steps](./gherkin-steps) |
 | `operationUrnFromTags` | `operationUrnFromTags(tags: readonly string[]): string` | The one operation URN in the tags. It throws an error if there is no operation tag or more than one |
 | `coerceCell` | `coerceCell(cell: string, field: FieldInfoLike): unknown` | Changes a table cell to a value with the primitive of the field. An empty cell gives `undefined`. Refer to [Primitives and constraints](./primitives) |
-| `tableToObject` | `tableToObject(rows: readonly (readonly string[])[], fields: FieldsLike, side: 'input' \| 'output' \| 'error', urn: string): Record<string, unknown>` | Changes a table of one header row and one data row to an object. It throws an error for a header that is not a field, or for a different number of rows. An empty cell adds no key |
+| `tableToObject` | `tableToObject(rows: readonly (readonly string[])[], fields: FieldsLike, side: 'input' \| 'output' \| 'error', urn: string): Record<string, unknown>` | Changes a table of one header row and one data row to an object. It throws an error for a header that is not a field, or for a different number of rows. `urn` is the operation for `input` and `output`, and the error for `error`. An empty input cell adds no key. An empty output or error cell adds the key with the value `undefined`, which means "absent" |
 | `assertOutput` | `assertOutput(result: ExecuteResultLike, expected: Record<string, unknown>, urn: string): void` | Throws an error if the operation did not succeed, or if a property of `expected` is different in the output |
 | `assertRejectedOn` | `assertRejectedOn(result: ExecuteResultLike, fieldName: string, fields: FieldsLike, urn: string): void` | Throws an error if the result is not `InputRejected` with an issue on the field |
 | `assertFailsWith` | `assertFailsWith(result: ExecuteResultLike, errorUrn: string, urn: string, expected?: Record<string, unknown>): void` | Throws an error if the result is not a `DomainError` with this URN, or if a property of `expected` is different in the error fields |
 
-The assert functions compare values with `===`. They also accept `NaN` as equal to `NaN`. A property that is not in `expected` is not compared.
+The assert functions compare values with `===`. They also accept `NaN` as equal to `NaN`. A property that is not in `expected` is not compared. A property of `expected` with the value `undefined` must be absent.
 
 ### Types
 

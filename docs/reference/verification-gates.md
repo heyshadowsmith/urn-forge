@@ -39,7 +39,8 @@ The last line has one of these forms:
 | `verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)` | stdout | All gates passed, with no warnings |
 | `verify passed with <n> warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)` | stdout | All gates passed, with `<n>` warnings |
 | `verify failed: gate <numbers>` | stderr | One or more gates failed, for example `verify failed: gate 1, 4` |
-| `verify failed: the manifest does not compile` | stderr | urn-forge cannot read the manifest, or the manifest has an error |
+| `verify failed: the manifest cannot be read` | stderr | urn-forge cannot read the manifest |
+| `verify failed: the manifest does not compile` | stderr | The manifest has an error |
 | `verify failed: the config is not valid` | stderr | The configuration file is not valid |
 
 The number of warnings counts the diagnostics with the severity `warning`. Notes are not counted. For the output with `--format json`, refer to [JSON output](./json-output).
@@ -90,9 +91,10 @@ Check 4 accepts these forms. Parentheses around the expression are permitted:
 
 - `export const <name> = <expression> satisfies DomainCoreImplementation;`
 - `export default <expression> satisfies DomainCoreImplementation;`
+- `const <name> = <expression> satisfies DomainCoreImplementation;` and then, in the same file, `export { <name> };`, `export { <name> as <other> };` or `export default <name>;`.
 - A qualified name, for example `rt.DomainCoreImplementation`, or an imported alias of the interface.
 
-Check 4 does not accept an export that is not in the same statement, for example `const core = …; export { core };`. It does not accept an interface with the same name that is not in the generated runtime file.
+Check 4 does not accept a `let`, because a `let` can get a different value later. It does not accept an interface with the same name that is not in the generated runtime file.
 
 The summary has one of these forms:
 
@@ -121,20 +123,20 @@ The gate does these checks. The table gives them in the sequence of the output.
 | --- | --- | --- | --- |
 | Read the directory | The `--features` directory can be read | `features-unreadable` | `error` |
 | Parse the files | Each `.feature` file is valid Gherkin | `feature-parse-error` | `error` |
-| Tags resolve | Each tag that starts with `@urn:` is the URN of a field, an entity or an operation of the manifest. The gate examines each tag one time, where it is written | `unresolved-tag` | `error` |
+| Tags resolve | Each tag that starts with `@urn:` is the URN of a field, an entity, an operation or an error of the manifest. The gate examines each tag one time, where it is written | `unresolved-tag` | `error` |
 | One owner | A scenario or an `Examples` block has one owner or no owner, not two or more | `ambiguous-tag` | `error` |
 | Headers | Each header of a step table and of an `Examples` table is a property of the owner. For an operation, this is a property of its input or output entity. For an entity, this is a property of the entity. A scenario with no owner, or with two or more owners, is not examined | `unknown-header` | `error` |
 | Error headers | Each header of the table of `the operation fails with "<error URN>":` is a field of that error. The gate examines this only if the operation declares the error | `unknown-header` | `error` |
 | Required columns | The table of `I run the operation with:` has a column for each mandatory input field of the operation. Fields with `required: false` are not mandatory | `missing-column` | `error` |
-| Declared errors | The error URN in `the operation fails with "<error URN>"` is a declared error of the operation of the scenario. The gate examines this only if the owner is an operation | `undeclared-error` | `error` |
+| Declared errors | The error URN in `the operation fails with "<error URN>"` is a declared error of the operation of the scenario. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-error` | `error` |
 | Tagged operations | Each operation of the manifest has its URN in one or more tags, in any feature file | `untagged-operation` | `error` |
-| Error coverage | Each declared error of each operation has one or more scenarios of that operation with `the operation fails with "<error URN>"` | `uncovered-error` | Coverage mode |
+| Error coverage | Each declared error of each tagged operation has one or more scenarios of that operation with `the operation fails with "<error URN>"`. An untagged operation already has `untagged-operation`, so the gate does not examine its errors | `uncovered-error` | Coverage mode |
 | Waiver form | Each comment that starts with `# urn-forge:waive` has a field URN and a reason | `invalid-waiver` | `error` |
 | Boundary coverage | For each tagged operation and each input field with constraints, the values that the scenarios send include each boundary case | `uncovered-boundary` | Coverage mode |
 | Waiver result | Each valid waiver names a constrained input field of an operation of its feature file. Then it removes a gap, or it removes nothing | `unknown-waiver`, `waived-boundary`, `unused-waiver` | `error`, `note`, `warning` |
-| Ratchet | If `boundaryCoverage` is `warn`, and the directory has one or more features, and each feature is strict, the gate gives a note | `ratchet-ready` | `note` |
+| Ratchet | If `boundaryCoverage` is `warn`, the directory has one or more features, each feature is strict, and the gate has no error, the gate gives a note | `ratchet-ready` | `note` |
 
-The gate finds the step texts as written in the feature file, without the keyword. The text `the operation fails with "<error URN>"` must use double quotes, with or without a colon at the end.
+The gate finds the step texts as written in the feature file, without the keyword. The text `the operation fails with "<error URN>"` can use double or single quotes, as Cucumber accepts both. It can have a colon at the end or not.
 
 ### File and position of each problem
 

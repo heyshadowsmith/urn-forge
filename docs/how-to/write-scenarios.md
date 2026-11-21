@@ -38,7 +38,7 @@ Each table has two rows: a header row and one data row.
 
 - The header row has property names: fields of the input, the output or the error.
 - The input table must have a column for each required input field. If not, gate 3 fails with `missing-column`.
-- In the output table and the error table, list only the values that you want to check. Other values are not checked.
+- In the output table and the error table, list only the values that you want to check. Other values are not checked. An empty cell in these tables means that the value must be absent.
 
 The step converts each cell with the primitive of its field:
 
@@ -48,7 +48,7 @@ The step converts each cell with the primitive of its field:
 | `boolean` | `true`, `false` | The boolean |
 | `string` | `domestic` | The string `domestic` |
 | `string` | `""` | The empty string |
-| Any | Empty cell | No value. The step does not send the property |
+| Any | Empty cell | No value. In the input table, the step does not send the property. In the output and error tables, the property must be absent |
 
 A cell that the primitive cannot read stays a string. Then the schema rejects it.
 

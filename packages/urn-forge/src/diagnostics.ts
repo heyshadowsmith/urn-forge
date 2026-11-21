@@ -6,6 +6,7 @@
  * gates, is one `Diagnostic` with a stable `code`. The CLI renders it as text or as a JSON
  * line; the message text is the same in both.
  */
+import { isAbsolute, relative } from 'node:path';
 import { isMap, isScalar, isSeq, type Document, type LineCounter, type Node } from 'yaml';
 
 /**
@@ -31,7 +32,6 @@ export const DIAGNOSTIC_CODES = {
   'unknown-property': 'An entry has a property it does not accept',
   'invalid-value': 'A property has a value of the wrong type or form',
   // Pass 3: uniqueness
-  'duplicate-urn': 'Two entries expand to the same URN',
   'duplicate-brand': 'Two atoms derive the same brand identifier',
   'duplicate-property': 'Two fields of one entity become the same property',
   'duplicate-ref': 'An entity lists the same field more than once',
@@ -121,6 +121,16 @@ export function diagnosticJson(diagnostic: Diagnostic, file = '', extra: Readonl
     ...(diagnostic.urn === undefined ? {} : { urn: diagnostic.urn }),
     message: diagnostic.message,
   });
+}
+
+/**
+ * Rewrites the absolute paths in a message from Node, TypeScript or esbuild as paths
+ * relative to `cwd`, with `/` separators, so a message is the same on every machine.
+ */
+export function relativePaths(message: string, cwd: string): string {
+  return message.replace(/(?<![\w.:/\\])(?:\/|[A-Za-z]:\\)[^\s'"`:,()]+/g, (path) =>
+    isAbsolute(path) ? relative(cwd, path).split('\\').join('/') || '.' : path,
+  );
 }
 
 export function hasErrors(diagnostics: readonly Diagnostic[]): boolean {

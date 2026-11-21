@@ -60,7 +60,6 @@ Tutorial 3 closes the four gaps of tutorial 2 with the three scenarios at the en
    gate 3  gherkin       FAIL  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features
        tutorial/2-declared-errors/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
        tutorial/2-declared-errors/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf
-       tutorial/2-declared-errors/features  note  ratchet-ready  every feature is @urn-forge:strict; set boundaryCoverage: 'error' in the config so new features are strict too
    ```
 
    Close the gaps, or remove the tag again.
@@ -79,7 +78,7 @@ An operation is strict when one or more of the features that it tags is strict. 
        tutorial/3-strict-coverage/features  note  ratchet-ready  every feature is @urn-forge:strict; set boundaryCoverage: 'error' in the config so new features are strict too
    ```
 
-   The note can show while strict features still have errors. Fix the errors first.
+   The note shows only when gate 3 passes. While a strict feature has a gap, gate 3 fails and the note does not show.
 
 2. Set `boundaryCoverage` to `'error'` in the config:
 

@@ -136,12 +136,13 @@ function describeIssue(key: string, entry: unknown, issue: v.BaseIssue<unknown>,
   });
 
   if (issue.type === 'variant' && dotPath === 'primitive') {
-    return at(
-      'unknown-primitive',
-      `${prefix}: unknown primitive ${issue.received} (MVP primitives: ${PRIMITIVE_NAMES.join(', ')})`,
-    );
+    const what = issue.input === undefined ? 'a field must have a primitive' : `unknown primitive ${issue.received}`;
+    return at('unknown-primitive', `${prefix}: ${what} (MVP primitives: ${PRIMITIVE_NAMES.join(', ')})`);
   }
-  if (unknownKey && typeof primitive === 'string' && isPrimitive(primitive)) {
+  // A key that is a constraint of another primitive is a misplaced constraint; any other key
+  // is an unknown property, as on the other kinds.
+  const isSomeConstraint = PRIMITIVE_NAMES.some((p) => constraintKeys(p).includes(dotPath.split('.')[0] ?? ''));
+  if (unknownKey && isSomeConstraint && typeof primitive === 'string' && isPrimitive(primitive)) {
     const allowed = constraintKeys(primitive);
     return at(
       'constraint-not-allowed',

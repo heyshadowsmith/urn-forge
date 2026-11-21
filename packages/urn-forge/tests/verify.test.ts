@@ -144,6 +144,33 @@ describe('urn-forge verify', () => {
       const gate1 = (await run()).gates.find((g) => g.gate === 1)!;
       expect(gate1).toMatchObject({ ok: true, summary: expect.stringContaining('`default` satisfies') });
     });
+
+    it('accepts a core declared first and exported by name, renamed or as the default', async () => {
+      const core = await readFile(at('example/core.ts'), 'utf8');
+      const local = core.replace('export const core =', 'const core =');
+      expect(local).not.toBe(core);
+      for (const [tail, name] of [['export { core };', 'core'], ['export { core as impl };', 'impl'], ['export default core;', 'default']] as const) {
+        await writeFile(at('example/core.ts'), `${local}\n${tail}\n`);
+        const gate1 = (await run()).gates.find((g) => g.gate === 1)!;
+        expect(gate1, tail).toMatchObject({ ok: true, summary: expect.stringContaining(`\`${name}\` satisfies`) });
+      }
+    });
+
+    it('still fails when the exported name does not satisfy the registry', async () => {
+      const core = await readFile(at('example/core.ts'), 'utf8');
+      await writeFile(at('example/core.ts'), `${core.replace('export const core =', 'const core =').replace('} satisfies DomainCoreImplementation;', '};')}\nexport { core };\n`);
+      expect(failures(await run())[1]!.at(-1)).toContain('missing-satisfies');
+    });
+
+    it('passes with a tsconfig that is not strict', async () => {
+      for (const compilerOptions of [
+        { target: 'ES2022', module: 'ESNext', moduleResolution: 'Bundler', skipLibCheck: true },
+        { target: 'ES2022', module: 'ESNext', moduleResolution: 'Bundler', skipLibCheck: true, strict: true },
+      ]) {
+        await writeFile(at('tsconfig.json'), JSON.stringify({ compilerOptions }));
+        expect(failures(await run()), JSON.stringify(compilerOptions)).toEqual({});
+      }
+    });
   });
 
   describe('gate 3', () => {
@@ -196,7 +223,17 @@ describe('urn-forge verify', () => {
       await writeFile(at('example/generated/old.generated.ts'), 'export {};\n');
       expect(failures(await run())[4]).toEqual([
         'example/generated/domain.runtime.generated.ts  error  generated-missing  missing; run `urn-forge compile`',
-        'example/generated/old.generated.ts  error  generated-orphan  generated file has no source in the current compile; delete it',
+        'example/generated/old.generated.ts  error  generated-orphan  generated file has no source in the current compile, ' +
+          'and urn-forge did not write it (no urn-forge header); rename or delete it',
+      ]);
+    });
+
+    it('tells to run compile for an orphan that urn-forge wrote, because compile removes it', async () => {
+      const runtime = await readFile(at('example/generated/domain.runtime.generated.ts'), 'utf8');
+      await writeFile(at('example/generated/old.generated.ts'), runtime);
+      expect(failures(await run())[4]).toEqual([
+        'example/generated/old.generated.ts  error  generated-orphan  generated file has no source in the current compile; ' +
+          'run `urn-forge compile`, which removes it',
       ]);
     });
   });

@@ -46,7 +46,7 @@ The files that the default plugins make are `domain.schemas.generated.ts` and `d
 - If the `--out` directory does not exist, `compile` makes it.
 - If a file has the same content as the new output, `compile` does not write it. The modification time of the file does not change.
 - If there is an error diagnostic, `compile` writes no files.
-- `compile` does not delete files that it does not make. Gate 4 reports a `*.generated.*` file in `--out` that the compile does not make as `generated-orphan`.
+- `compile` removes each `*.generated.*` file in `--out` and its subdirectories that it does not make, if the file starts with the urn-forge header. For example, it removes the file of a plugin that you removed from the configuration. It does not remove other files. Gate 4 reports a `*.generated.*` file that the compile does not make as `generated-orphan`.
 
 ## `verify`
 
@@ -137,6 +137,7 @@ This is the output of `urn-forge compile --config example/urn-forge.config.ts` w
 | --- | --- |
 | `wrote      <path>` | `compile` wrote the file, because it was not there or its content changed |
 | `unchanged  <path>` | The file had the same content. `compile` did not write it |
+| `removed    <path>` | `compile` removed a generated file from an earlier compile that it no longer makes |
 | `fingerprint sha256:<hex>` | The fingerprint in the header of each generated file |
 
 If there is an error, `compile` writes only the diagnostics.
@@ -165,6 +166,7 @@ gate <number>  <name>  PASS|FAIL  <summary>
 | `verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)` | stdout | All gates pass, with no warnings |
 | `verify passed with <n> warning(s) (gates 1, 3, 4; …)` | stdout | All gates pass. `<n>` is the number of warnings. Notes are not in this number |
 | `verify failed: gate <numbers>` | stderr | One or more gates fail, for example `verify failed: gate 1, 4` |
+| `verify failed: the manifest cannot be read` | stderr | The manifest file is not there, or urn-forge cannot read it. No gate ran |
 | `verify failed: the manifest does not compile` | stderr | The manifest has an error diagnostic. No gate ran |
 | `verify failed: the config is not valid` | stderr | The configuration file has an error. No gate ran |
 

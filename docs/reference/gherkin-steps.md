@@ -15,7 +15,7 @@ The texts come from `src/gherkin/phrases.ts`. Gate 3 reads the same texts.
 | `the operation fails with "<error URN>":` | `the operation fails with {string}:` | Error fields | The same, and the fields of the error agree with the table |
 
 - The library registers the first step with `When` and the other steps with `Then`. Cucumber does not compare the keyword, so `Given`, `And` and `But` also match.
-- `{string}` accepts text in double quotes or in single quotes. Use double quotes. Gate 3 reads only `the operation fails with "<error URN>"` with double quotes, so it does not examine a URN in single quotes.
+- `{string}` accepts text in double quotes or in single quotes. Gate 3 reads both forms of `the operation fails with`.
 - The `<field>` is a property name of the input entity, for example `weight_grams`. The `<error URN>` is the full URN of the error.
 
 ## The operation tag
@@ -71,7 +71,7 @@ You cannot send the text `""` itself to a `string` field. Gate 3 converts the ce
 The steps `the output is:` and `the operation fails with "<error URN>":` compare only the columns of the table:
 
 - A property that is not in the table is not compared.
-- A column with an empty cell is not compared, because the cell gives no value.
+- An empty cell means that the property must be absent. If the property has a value, the step fails with `<name>: expected absent, got <value>`. To expect the empty string, write `""`.
 - The values must be equal by `===`. Also, `NaN` is equal to `NaN`. Thus `0` and `-0` are equal.
 - The step compares the parsed output or the parsed error fields. These values are the result of the schema parse.
 
@@ -97,7 +97,7 @@ Each step fails with one of these messages. The messages are in the sequence in 
 | The table does not have two rows | `expected a header row and exactly one data row, got <n> row(s)` |
 | A header is not an output property | `"<header>" is not a field of the output of <operation URN> (fields: <names>)` |
 | The operation did not succeed | `<operation URN> did not succeed: <failure>` |
-| One or more values are different | `<operation URN> output differs: <name>: expected <value>, got <value>; …` |
+| One or more values are different | `<operation URN> output differs: <name>: expected <value>, got <value>; …`. An absent value shows as `absent` |
 
 ### `the input is rejected on "<field>"`
 
@@ -116,7 +116,7 @@ Each step fails with one of these messages. The messages are in the sequence in 
 | No operation has run | `no operation has run yet; start with "When I run the operation with:"` |
 | The operation does not declare the error | `<error URN> is not a declared error of <operation URN> (errors: <error URNs>)`. If the operation declares no errors, the list is `none` |
 | The table does not have two rows (form with `:` only) | `expected a header row and exactly one data row, got <n> row(s)` |
-| A header is not a field of the error (form with `:` only) | `"<header>" is not a field of the error of <operation URN> (fields: <names>)` |
+| A header is not a field of the error (form with `:` only) | `"<header>" is not a field of <error URN> (fields: <names>)` |
 | The operation succeeded | `<operation URN> succeeded; expected it to fail with <error URN>` |
 | The result is not a `DomainError` | `<operation URN> failed with <failure>; expected the declared error <error URN>` |
 | The result is a different declared error | `<operation URN> failed with <other error URN> (<message>); expected <error URN>` |
@@ -135,6 +135,7 @@ These messages come from a real Cucumber run on the domain of tutorial 2:
 
 ```
 urn:demo:shipping:quote:operation:quote_shipping output differs: price_cents: expected 1, got 600
+urn:demo:shipping:quote:operation:quote_shipping output differs: price_cents: expected absent, got 600
 urn:demo:shipping:quote:operation:quote_shipping did not succeed: InputRejected (weight_grams: Invalid value: Expected >=1 but received 0)
 "weight" is not a field of the input of urn:demo:shipping:quote:operation:quote_shipping (fields: weight_grams, zone, express)
 expected a header row and exactly one data row, got 3 row(s)
@@ -145,7 +146,7 @@ urn:demo:shipping:quote:operation:quote_shipping succeeded; expected it to fail 
 urn:demo:shipping:quote:operation:quote_shipping failed with InputRejected (weight_grams: Invalid value: Expected >=1 but received 0); expected the declared error urn:demo:shipping:quote:error:too_heavy_for_express
 urn:demo:shipping:quote:error:other is not a declared error of urn:demo:shipping:quote:operation:quote_shipping (errors: urn:demo:shipping:quote:error:too_heavy_for_express)
 urn:demo:shipping:quote:error:too_heavy_for_express fields differ: weight_grams: expected 6001, got 6000
-"weight" is not a field of the error of urn:demo:shipping:quote:operation:quote_shipping (fields: weight_grams)
+"weight" is not a field of urn:demo:shipping:quote:error:too_heavy_for_express (fields: weight_grams)
 no operation has run yet; start with "When I run the operation with:"
 no @urn:<namespace>:<domain>:<context>:operation:<identifier> tag on this scenario or its feature
 more than one operation tag on this scenario: urn:demo:shipping:quote:operation:quote_shipping, urn:demo:shipping:quote:operation:other

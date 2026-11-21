@@ -4,7 +4,8 @@
  * 1. `tsc --noEmit` over the core entry, using the project's tsconfig options. Because the
  *    core uses `satisfies DomainCoreImplementation`, a missing or mistyped handler is a
  *    type error.
- * 2. The core file must export a value whose initializer is `… satisfies DomainCoreImplementation`,
+ * 2. The core file must export a value whose initializer is `… satisfies DomainCoreImplementation`
+ *    (`export const`, a `const` exported later with `export { … }`, or `export default`),
  *    and that name must resolve to the interface in the generated runtime file, not a
  *    look-alike declared elsewhere. Without this check, deleting the `satisfies` clause
  *    would silently switch the gate off.
@@ -13,7 +14,7 @@ import { dirname, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import { FCIS_RUNTIME_FILE } from '../plugins/fcis.plugin.js';
 import { generatedPath } from '../write.js';
-import type { Diagnostic } from '../diagnostics.js';
+import { relativePaths, type Diagnostic } from '../diagnostics.js';
 import { displayPath, type Gate, type GateOutcome } from './types.js';
 
 export interface CompletenessOptions {
@@ -52,16 +53,31 @@ function satisfyingExports(source: ts.SourceFile, checker: ts.TypeChecker, runti
     return ts.isSatisfiesExpression(expression) && isGeneratedRegistry(expression.type);
   };
 
+  // Top-level `const` declarations that satisfy the registry, exported or not, so that
+  // `const core = … satisfies …; export { core };` counts. A `let` can be reassigned, so it does not.
+  const satisfyingConsts = new Set<string>();
   const found: string[] = [];
   for (const statement of source.statements) {
-    if (ts.isVariableStatement(statement)) {
-      const exported = ts.getModifiers(statement)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
-      if (!exported) continue;
-      for (const declaration of statement.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name) && satisfies(declaration.initializer)) found.push(declaration.name.text);
+    if (!ts.isVariableStatement(statement) || !(statement.declarationList.flags & ts.NodeFlags.Const)) continue;
+    const exported = ts.getModifiers(statement)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || !satisfies(declaration.initializer)) continue;
+      satisfyingConsts.add(declaration.name.text);
+      if (exported) found.push(declaration.name.text);
+    }
+  }
+  const namesSatisfyingConst = (expression: ts.Expression): boolean => {
+    const inner = unwrap(expression);
+    return ts.isIdentifier(inner) && satisfyingConsts.has(inner.text);
+  };
+  for (const statement of source.statements) {
+    if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && !statement.isTypeOnly && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const element of statement.exportClause.elements) {
+        if (element.isTypeOnly) continue;
+        if (satisfyingConsts.has((element.propertyName ?? element.name).text)) found.push(element.name.text);
       }
-    } else if (ts.isExportAssignment(statement) && !statement.isExportEquals && satisfies(statement.expression)) {
-      found.push('default');
+    } else if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
+      if (satisfies(statement.expression) || namesSatisfyingConst(statement.expression)) found.push('default');
     }
   }
   return found;
@@ -78,7 +94,7 @@ export function checkCompleteness(options: CompletenessOptions): GateOutcome {
         code: 'tsconfig-unreadable',
         severity: 'error',
         file: show(options.tsconfigPath),
-        message: ts.flattenDiagnosticMessageText(config.error.messageText, '\n'),
+        message: relativePaths(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'), options.cwd),
       },
       'tsconfig unreadable',
     );
