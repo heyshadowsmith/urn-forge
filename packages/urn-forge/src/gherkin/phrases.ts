@@ -11,5 +11,14 @@ export const STEP_PHRASES = {
   failsWithFields: 'the operation fails with {string}:',
 } as const;
 
-/** Matches the text of either `fails with` step, capturing the error URN. */
-export const FAILS_WITH_TEXT = /^the operation fails with "([^"]*)"(:?)$/;
+/**
+ * Matches the text of either `fails with` step. Cucumber's `{string}` accepts double or
+ * single quotes, so this does too: group 1 or group 2 is the error URN.
+ */
+export const FAILS_WITH_TEXT = /^the operation fails with (?:"([^"]*)"|'([^']*)')(:?)$/;
+
+/** The error URN of a `fails with` step text, or `undefined` for any other step. */
+export function failsWithUrn(text: string): string | undefined {
+  const match = FAILS_WITH_TEXT.exec(text);
+  return match ? (match[1] ?? match[2]) : undefined;
+}

@@ -298,7 +298,9 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
   const result: unknown = handler(input.output);
   if (!isResult(result)) return violation(`the handler for ${urn} did not return a Result; return ok(…) or fail(…)`);
 
-  if (!result.ok) {
+  // `=== false`, not `!result.ok`: without strictNullChecks, TypeScript narrows a union on
+  // an equality test but not on a truthiness test, and the core's tsconfig may not be strict.
+  if (result.ok === false) {
     const errorUrn = (result.error as { readonly kind?: unknown } | null | undefined)?.kind;
     const declared =
       typeof errorUrn === 'string' && Object.hasOwn(contract.errors, errorUrn) ? contract.errors[errorUrn] : undefined;
