@@ -90,25 +90,30 @@ Step 0 extends `insurance/`: a `customer` entity with `key: customer.field.custo
 
 One PR (decision 13), one commit per step. Each step leaves the repository green and ends with a check.
 
-- [ ] **0. The target.** As above. *Check:* `compile` refuses exactly the new keys and references.
-- [ ] **1. The manifest and the IR.** `key` on entities; `ref` to a field or an entity; `link`; `as`. The IR's field reference becomes one of three forms. Pass 3 checks names and keys; pass 4 resolves the targets; pass 5 finds embedding cycles. *Check:* insurance builds an IR; a fixture for each new diagnostic.
-- [ ] **2. Valibot.** An embedded entity uses its schema (with its invariants); a link uses the key field's schema; a list of entities with `unique` compares keys. Schemas emit in dependency order. *Check:* the fixture's schemas parse nested values and refuse each broken rule at its nested path.
-- [ ] **3. The runtime and the steps.** `FieldInfo` describes nested entities, so the steps read `{ … }` cells and compare nested output; issues keep nested paths and their field URNs. One cell reader for lists and objects reads bare and quoted values (decision 7a); a malformed cell (an open quote, a missing brace) is a step error with the column. *Check:* the insurance scenarios with nested values pass, one of them with a value that holds a comma and a brace.
-- [ ] **4. Gate 3.** Headers of a nested entity's cells are checked; nested values count for coverage; list-of-entity cases. *Check:* a scenario removed gives the expected `uncovered-boundary` at a nested field.
-- [ ] **5. Ship.** Insurance strict in CI with the new parts; the docs gain the reference forms, `key`, `as`, the cell syntax and the cycle rule; an explanation of structure in the MECE model. *Check:* CI green; every sabotage below fails.
+- [x] **0. The target.** As above. *Check:* `compile` refuses exactly the new keys and references.
+  - *Done*, with two changes to the target. A list holds 1 to 3 coverages, not 1 to 5, so the outline that breaks the count stays short. The perils are an `enum` (fire, flood, theft), and a coverage has an optional `note`, so a scenario can show a quoted value with a comma and braces. A second commit split the identifier check into two scenarios, `policy_id` and `holder`, because gate 3 refuses an `Examples` column that is not a field.
+- [x] **1. The manifest and the IR.** `key` on entities; `ref` to a field or an entity; `link`; `as`. The IR's field reference becomes one of three forms. Pass 3 checks names and keys; pass 4 resolves the targets; pass 5 finds embedding cycles. *Check:* insurance builds an IR; a fixture for each new diagnostic.
+- [x] **2. Valibot.** An embedded entity uses its schema (with its invariants); a link uses the key field's schema; a list of entities with `unique` compares keys. Schemas emit in dependency order. *Check:* the fixture's schemas parse nested values and refuse each broken rule at its nested path.
+- [x] **3. The runtime and the steps.** `FieldInfo` describes nested entities, so the steps read `{ … }` cells and compare nested output; issues keep nested paths and their field URNs. One cell reader for lists and objects reads bare and quoted values (decision 7a); a malformed cell (an open quote, a missing brace) is a step error with the column. *Check:* the insurance scenarios with nested values pass, one of them with a value that holds a comma and a brace.
+- [x] **4. Gate 3.** Headers of a nested entity's cells are checked; nested values count for coverage; list-of-entity cases. *Check:* a scenario removed gives the expected `uncovered-boundary` at a nested field.
+  - *Done* (steps 1 to 4 are one commit). The IR's field reference became one of three forms, and every consumer reads it: the kinds, the rules, both plugins, the steps and gate 3. No step was green alone. The IR keeps `{ field }` in its old shape, so code that reads only fields did not change; `valueField(ir, ref)` gives the field that a field reference or a link holds. A link to an entity without a key, and a unique list of an entity without a key, are found in pass 5 (`missing-key`), after every atom is built, not in pass 3: the target entity can come later in the manifest. Gate 3 got a fourth new code, `invalid-cell`, so a malformed cell fails `verify`, not only Cucumber. A list cell that does not start with `[` stays text, and the schema refuses it, as before. Two old wrong-kind tests used `ref` to an entity as their example of a wrong kind. That is now an embedding, so they use `ref` to an operation and `link` to a field.
+- [x] **5. Ship.** Insurance strict in CI with the new parts; the docs gain the reference forms, `key`, `as`, the cell syntax and the cycle rule; an explanation of structure in the MECE model. *Check:* CI green; every sabotage below fails.
+  - *Done.* `urn-forge` exports `valueField` and the types `IRPropertyRef`, `IREmbedRef` and `IRLinkRef`. Insurance verifies strict with 13 scenarios in 2 features (27 with the outline rows), and every invariant broken. Each sabotage below was run on a fresh copy of insurance, with the result in the table.
 
 ## Done
 
-| Sabotage | What catches it |
-| --- | --- |
-| A embeds B and B embeds A | Pass 5, `embedding-cycle` |
-| `link` to an entity with no `key` | Pass 3 |
-| `key` that names a field the entity does not have, or an optional one | Pass 3 |
-| Two links to one entity without `as` | Pass 3, `duplicate-property` |
-| `unique` on a list of an entity without a key | Pass 3 |
-| A coverage with a limit of 0 in a scenario that expects success | Cucumber: `InputRejected` at `coverages.0.limit` |
-| A list cell `["Smith, Ada"]` read as two items | The cell reader's tests: one item, `Smith, Ada` |
-| The scenario for the repeated peril removed | Gate 3, `uncovered-boundary` |
+| Sabotage | What catches it | Result |
+| --- | --- | --- |
+| A embeds B and B embeds A | Pass 5, `embedding-cycle` | Caught |
+| `link` to an entity with no `key` | Pass 5, `missing-key` (the plan said pass 3) | Caught |
+| `key` that names a field the entity does not have, or an optional one | Pass 3, `invalid-entity-key` | Caught |
+| Two links to one entity without `as` | Pass 3, `duplicate-ref` (the plan said `duplicate-property`): the two references have one name, and the message says to rename one with `as` | Caught |
+| `unique` on a list of an entity without a key | Pass 5, `missing-key` (the plan said pass 3) | Caught |
+| A coverage with a limit of 0 in a scenario that expects success | Cucumber: `InputRejected` at `coverages.0.limit` | Caught |
+| A list cell `["Smith, Ada"]` read as two items | The cell reader's tests: one item, `Smith, Ada` | Caught |
+| The scenarios for the repeated peril removed | Gate 3, `uncovered-boundary` | Caught: `… coverage at coverages … no list with a repeated peril (unique)`. Two rows repeat a peril, because the list of 4 also repeats `fire`, so both had to go |
+
+**Met.**
 
 ## Risks
 
