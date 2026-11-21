@@ -11,7 +11,7 @@
 
 // Compile and verify
 export { compile, unsupportedConstructs, type CompileOptions, type CompileResult, type PluginEntry } from './engine.js';
-export { classify, diffManifests, usesOf, type Change, type ChangeClass, type DiffOptions, type DiffResult } from './diff/index.js';
+export { classify, diffManifests, usesOf, type Change, type ChangeClass, type ClassifyOptions, type DiffOptions, type DiffResult } from './diff/index.js';
 export { verify, GATES, type VerifyOptions, type VerifyResult } from './verify/index.js';
 export type { Gate, GateContext, GateNumber, GateOutcome, GateResult } from './verify/types.js';
 

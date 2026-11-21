@@ -1,10 +1,9 @@
 /**
- * urn-forge CLI (spec §9; the MVP ships `compile` and `verify`, plus `init` for a new project).
+ * urn-forge CLI (spec §9): `compile`, `verify` and `diff`, plus `init` for a new project.
  *
  *   urn-forge init    [--namespace <name>] [--domain <name>]
  *   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--reference-date <YYYY-MM-DD>] [--format text|json]
  *   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--reference-date <YYYY-MM-DD>] [--format text|json]
-  urn-forge diff    <old manifest> <new manifest> [--config <file>] [--format text|json]
  *   urn-forge diff    <old manifest> <new manifest> [--config <file>] [--format text|json]
  *
  * Each setting comes from its flag, else from the config file (`--config`, or
@@ -268,8 +267,13 @@ async function runDiff(args: string[], io: CliIo): Promise<number> {
   if (values.config !== undefined || configExists) {
     const loaded = await loadConfig(configPath, display(io, configPath), io.cwd);
     if (!loaded.ok) {
-      if (format === 'json') for (const d of loaded.diagnostics) io.stdout(diagnosticJson(d));
-      else printDiagnostics(io, '', loaded.diagnostics);
+      if (format === 'json') {
+        for (const d of loaded.diagnostics) io.stdout(diagnosticJson(d));
+        io.stdout(JSON.stringify({ type: 'result', ok: false, breaking: 0, compatible: 0, lifecycle: 0 }));
+      } else {
+        printDiagnostics(io, '', loaded.diagnostics);
+        io.stderr('diff failed: the config is not valid');
+      }
       return 1;
     }
     tables = postgresTables(loaded.config.plugins);
@@ -285,7 +289,10 @@ async function runDiff(args: string[], io: CliIo): Promise<number> {
   };
   if (unreadable.length > 0) {
     if (format === 'json') for (const d of unreadable) io.stdout(diagnosticJson(d));
-    else printDiagnostics(io, '', unreadable);
+    else {
+      printDiagnostics(io, '', unreadable);
+      io.stderr('diff failed: a manifest cannot be read');
+    }
     return finish(false, { breaking: 0, compatible: 0, lifecycle: 0 });
   }
 

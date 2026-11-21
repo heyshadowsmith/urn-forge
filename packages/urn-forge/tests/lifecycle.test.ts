@@ -59,6 +59,11 @@ describe('pass 8', () => {
     expect(report(used(', status: sunset', '  status: sunset\n'))).toEqual([]);
   });
 
+  it('keeps a deprecated-ref a warning when a sunset-ref fails the same build', () => {
+    const body = 'a.field.x: { primitive: float, status: sunset }\na.field.y: { primitive: float, status: deprecated }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n    - ref: a.field.y\n';
+    expect(run(body).diagnostics.map((d) => `${d.severity} ${d.code}`)).toEqual(['error sunset-ref', 'warning deprecated-ref']);
+  });
+
   it('compares a sunset date with the reference date, never with the clock', () => {
     const body = used(', status: deprecated, sunsetDate: 2027-01-01');
     expect(report(body, { referenceDate: '2026-12-31' }).map((d) => d.split(':')[0])).toEqual(['warning deprecated-ref']);

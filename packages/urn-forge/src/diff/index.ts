@@ -26,9 +26,9 @@ function irOf(source: string): { ir: UniversalIR } | { diagnostics: Diagnostic[]
   const built = buildIrFromSource(source);
   if (built.success) return { ir: built.ir };
   return {
-    diagnostics: built.issues.map(({ code, urn, message, location }) => ({
+    diagnostics: built.issues.map(({ code, urn, message, location, severity }) => ({
       code,
-      severity: 'error' as const,
+      severity: severity ?? ('error' as const),
       message,
       ...(urn === undefined ? {} : { urn }),
       ...(location === undefined ? {} : { location }),

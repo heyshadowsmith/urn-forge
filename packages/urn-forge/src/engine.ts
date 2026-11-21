@@ -98,9 +98,10 @@ export function compile(manifestSource: string, plugins: readonly PluginEntry[] 
   if (!built.success) {
     return {
       files: [],
-      diagnostics: built.issues.map(({ code, urn, message, location }) => ({
+      diagnostics: built.issues.map(({ code, urn, message, location, severity }) => ({
         code,
-        severity: 'error' as const,
+        // Pass 8 keeps its warnings when a sunset-ref fails the build.
+        severity: severity ?? ('error' as const),
         message,
         ...(urn === undefined ? {} : { urn }),
         ...(location === undefined ? {} : { location }),
