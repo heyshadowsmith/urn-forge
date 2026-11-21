@@ -32,7 +32,7 @@ All four types use STE. These are the rules that this site applies.
 
 ## 3. Conventions of this site
 
-- **Real code only.** Show files with VitePress snippet imports, for example `<<< @/../packages/urn-forge/tutorial/1-first-domain/core.ts`. The tutorial snapshots, `example/`, `self/` and `tests/fixtures/` are tested in CI, so a snippet import cannot drift. Write code inline only for short fragments that no file contains, and then make sure that it is correct.
+- **Real code only.** Show files with VitePress snippet imports, for example `<<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts`. The tutorial snapshots, `example/`, `self/` and `tests/fixtures/` are tested in CI, so a snippet import cannot drift. Write code inline only for short fragments that no file contains, and then make sure that it is correct.
 - **Real output only.** Copy command output from a real run in this repository. Shorten long URNs with `…` only where the line is too long, and keep one full example on the page.
 - **Commands** run from `packages/urn-forge` unless the page says otherwise. Show them in `bash` blocks.
 - **Links** go to other pages with relative paths, for example `[Diagnostics](../reference/diagnostics)`. Link to a page, not to a heading on a page that someone else writes.

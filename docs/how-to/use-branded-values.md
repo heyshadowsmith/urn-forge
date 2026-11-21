@@ -47,7 +47,7 @@ To correct it, do these steps:
 1. Assign the value to a constant with the plain union type.
 2. Use that constant as the key.
 
-<<< @/../packages/urn-forge/tutorial/1-first-domain/core.ts{8,9,11}
+<<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts{8,9,11}
 
 The assignment is correct, because a branded value is also a value of its plain type. It does not change the value at run time.
 
@@ -115,8 +115,8 @@ const HEAVY: ParcelWeightGrams = JSON.parse('30000');
 
 ```
 gate 2  boundary      FAIL  1 core file(s), 0 shell file(s): 2 problem(s)
-    tutorial/1-first-domain/core.ts:6:15  error  brand-assertion  1000 as ParcelWeightGrams asserts the branded type ParcelWeightGrams; only a generated parser makes a branded value
-    tutorial/1-first-domain/core.ts:7:34  error  brand-from-any  JSON.parse('30000') is any where the branded type ParcelWeightGrams belongs; parse the value with a generated schema in the shell
+    tutorial/1-first-domain/src/core.ts:6:15  error  brand-assertion  1000 as ParcelWeightGrams asserts the branded type ParcelWeightGrams; only a generated parser makes a branded value
+    tutorial/1-first-domain/src/core.ts:7:34  error  brand-from-any  JSON.parse('30000') is any where the branded type ParcelWeightGrams belongs; parse the value with a generated schema in the shell
 ```
 
 To correct it, do one of these:
@@ -140,7 +140,7 @@ The output type and the error types of a handler are plain. They have no brands:
 Run `npx urn-forge verify`. Gate 1 shows no type errors, and gate 2 shows no problems. For the core of tutorial 1, the output starts with these lines:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/1-first-domain/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/1-first-domain/src/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 ```
 

@@ -110,9 +110,10 @@ The plugins to run, in sequence. Refer to [Plugins](#plugins).
 | --- | --- |
 | A setting in the configuration file | The directory of the configuration file |
 | An option on the command line | The current directory |
-| A default | The current directory |
+| A default, when urn-forge loads a configuration file | The directory of the configuration file |
+| A default, with no configuration file | The current directory |
 
-Example: the configuration file `example/urn-forge.config.ts` has `out: './generated'`. As a result, the output directory is `example/generated`, also if you run the command from a different directory.
+Example: the configuration file `example/urn-forge.config.ts` has `out: './generated'`. As a result, the output directory is `example/generated`, also if you run the command from a different directory. The same is true for a default: with `--config my-shipping/urn-forge.config.ts` and no `core` setting, the core is `my-shipping/src/core.ts`.
 
 ## Plugins
 

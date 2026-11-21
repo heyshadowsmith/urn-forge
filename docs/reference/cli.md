@@ -155,7 +155,7 @@ Each path setting comes from the first of these sources that has a value:
 | --- | --- | --- |
 | 1 | The option on the command line | The current directory |
 | 2 | The setting in the configuration file | The directory of the configuration file |
-| 3 | The default | The current directory |
+| 3 | The default | The directory of the configuration file, if urn-forge loads one. Else the current directory |
 
 The `boundaryCoverage` and `plugins` settings do not have an option. They come only from the configuration file, or from their defaults. The reference date comes from `--reference-date`, else from `referenceDate`. It has no default: urn-forge never uses the clock. For each setting, refer to [The configuration file](./configuration).
 
@@ -165,6 +165,7 @@ Examples:
 | --- | --- |
 | `urn-forge compile` with no `urn-forge.config.ts` | `./domain.manifest.yaml` |
 | `urn-forge compile --config example/urn-forge.config.ts` | `example/../tests/fixtures/math/domain.manifest.yaml`, from the `manifest` setting |
+| `urn-forge compile --config tutorial/1-first-domain/urn-forge.config.ts` | `tutorial/1-first-domain/domain.manifest.yaml`, the default, from the directory of the configuration file |
 | `urn-forge compile --config example/urn-forge.config.ts --manifest other.yaml` | `./other.yaml`. The option overrides the setting |
 
 ## Options
@@ -221,12 +222,12 @@ If there is an error, `compile` writes only the diagnostics.
 `verify` writes the manifest and configuration diagnostics to stderr. If the manifest has a `sunsetDate` and there is no reference date, it then writes `note: sunset dates are not checked: set --reference-date or referenceDate in the config` to stdout. Then it writes one line for each gate to stdout. Below the line of a gate, it writes each problem of the gate, with an indent of four spaces. Then it writes one result line. This is the output of `urn-forge verify --config tutorial/1-first-domain/urn-forge.config.ts`:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/1-first-domain/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/1-first-domain/src/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, strict: 0/1 features
     tutorial/1-first-domain/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
     tutorial/1-first-domain/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/1-first-domain/generated
+gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/1-first-domain/src/generated
 verify passed with 2 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 

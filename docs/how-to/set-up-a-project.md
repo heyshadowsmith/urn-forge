@@ -164,7 +164,7 @@ Commit the files in `generated/`. Gate 4 compares them with a fresh compile. Ref
 
 Make `core.ts`. Export one object that has a handler for each operation, and end it with `satisfies DomainCoreImplementation`:
 
-<<< @/../packages/urn-forge/tutorial/1-first-domain/core.ts
+<<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts
 
 The `satisfies` clause is necessary:
 

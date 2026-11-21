@@ -70,7 +70,7 @@ The error type of the handler is now the payload of `too_heavy_for_express`. If 
 
 Import `fail` from the generated runtime. Call it with the URN of the error and its fields:
 
-<<< @/../packages/urn-forge/tutorial/2-declared-errors/core.ts
+<<< @/../packages/urn-forge/tutorial/2-declared-errors/src/core.ts
 
 - `fail` does not take `kind`. It adds `kind` itself.
 - If the error has no fields, call `fail` with the URN only, for example `fail('urn:demo:shop:order:error:pricing_offline')`.

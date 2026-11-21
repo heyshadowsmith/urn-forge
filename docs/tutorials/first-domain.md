@@ -156,7 +156,7 @@ The other file, `domain.schemas.generated.ts`, has a Valibot schema for each fie
 
 Make the file `my-shipping/core.ts` with this content:
 
-<<< @/../packages/urn-forge/tutorial/1-first-domain/core.ts
+<<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts
 
 The core is one object. Its key is the operation URN, and it `satisfies` the generated `DomainCoreImplementation`. As a result, TypeScript knows the type of each parameter, and you do not write type annotations. The handler returns its output in `ok(…)`.
 

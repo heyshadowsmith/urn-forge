@@ -88,7 +88,7 @@ Open `my-shipping/core.ts`. Make these changes:
 
 Make sure that your core is the same as this file. The highlighted lines are new or changed:
 
-<<< @/../packages/urn-forge/tutorial/2-declared-errors/core.ts{1,5,9-11}
+<<< @/../packages/urn-forge/tutorial/2-declared-errors/src/core.ts{1,5,9-11}
 
 `fail(…)` gets the URN of the error and the fields of the error. The handler returns a plain value. The shell parses and brands it.
 

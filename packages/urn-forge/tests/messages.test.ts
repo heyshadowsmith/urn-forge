@@ -28,10 +28,6 @@ const at = (path: string) => join(dir, path);
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'urn-forge-messages-'));
   await cp(repo('tutorial/1-first-domain'), dir, { recursive: true });
-  await cp(repo('tsconfig.json'), at('tsconfig.base.json'));
-  await writeFile(at('tsconfig.json'), JSON.stringify({ extends: './tsconfig.base.json', include: ['.'] }));
-  const config = await readFile(at('urn-forge.config.ts'), 'utf8');
-  await writeFile(at('urn-forge.config.ts'), config.replace("'../../tsconfig.json'", "'./tsconfig.json'"));
   await symlink(nodeModules, at('node_modules'), 'dir');
 });
 
@@ -49,6 +45,14 @@ async function run(...args: string[]): Promise<{ code: number; out: string[]; er
 describe('messages', () => {
   it('starts from a project that passes', async () => {
     expect((await run('verify')).code).toBe(0);
+  });
+
+  it('starts the defaults from the config file\'s directory', async () => {
+    // tutorial 1's config sets no path, so every path is a default.
+    const out: string[] = [];
+    const code = await main(['verify', '--config', join(basename(dir), 'urn-forge.config.ts')], { cwd: dirname(dir), stdout: (l) => out.push(l), stderr: (l) => out.push(l) });
+    expect(code, out.join('\n')).toBe(0);
+    expect(out[0]).toContain(`over ${basename(dir)}/src/core.ts`);
   });
 
   it('gives the whole config load error, with relative paths', async () => {
@@ -129,8 +133,8 @@ describe('bin/urn-forge.js', () => {
     // `true` exits before the CLI writes, so every write meets a closed pipe.
     const { stdout, stderr } = spawnSync(
       'bash',
-      ['-c', 'node bin/urn-forge.js verify --config tutorial/1-first-domain/urn-forge.config.ts | true; echo "exit ${PIPESTATUS[0]}"'],
-      { cwd: repo(''), encoding: 'utf8' },
+      ['-c', 'node ../../bin/urn-forge.js verify | true; echo "exit ${PIPESTATUS[0]}"'],
+      { cwd: repo('tutorial/1-first-domain'), encoding: 'utf8' },
     );
     expect(stderr).not.toContain('EPIPE');
     expect(stdout.trim()).toBe('exit 0');

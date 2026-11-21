@@ -39,7 +39,7 @@ Each link in the chain holds the URN of the operation. The shipping domain of th
 
 4. **The core.** Your handler has the same URN as its key. The `satisfies` clause connects it to the registry.
 
-   <<< @/../packages/urn-forge/tutorial/1-first-domain/core.ts
+   <<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts
 
 5. **The features.** The feature file has the URN as a tag. The generic steps read the tag to find the operation that they call.
 

@@ -45,7 +45,7 @@ The `required` key belongs to the reference, not to the field. Thus, one field c
 
 In the generated types, an optional field is an optional property. In the core, read it as a value that can be `undefined`:
 
-<<< @/../packages/urn-forge/tutorial/1-first-domain/core.ts{7,12}
+<<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts{7,12}
 
 ## 3. Make a field a list
 

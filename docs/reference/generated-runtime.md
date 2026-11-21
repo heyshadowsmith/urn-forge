@@ -739,7 +739,7 @@ The manifest of tutorial 2:
 
 The generated runtime file:
 
-<<< @/../packages/urn-forge/tutorial/2-declared-errors/generated/domain.runtime.generated.ts
+<<< @/../packages/urn-forge/tutorial/2-declared-errors/src/generated/domain.runtime.generated.ts
 
 The runtime file of urn-forge's own domain is `self/generated/domain.runtime.generated.ts`. It has three operations and two errors. The insurance domain, `insurance/generated/domain.runtime.generated.ts`, has events and a `recordAs` event.
 

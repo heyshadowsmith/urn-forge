@@ -122,3 +122,16 @@ describe('urn-forge init', () => {
     expect(await read('src/core.ts').catch(() => 'absent')).toBe('absent');
   });
 });
+
+describe('the tutorials (docs/tutorials)', () => {
+  // A reader starts each tutorial from `urn-forge init` and keeps the starter's tsconfig and
+  // support file, so the copies that CI runs must be the same files.
+  const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+  for (const tutorial of ['1-first-domain', '2-declared-errors', '3-strict-coverage']) {
+    it(`${tutorial} keeps the starter's tsconfig.json and features/support/steps.ts`, async () => {
+      for (const file of ['tsconfig.json', 'features/support/steps.ts']) {
+        expect(await read(`tutorial/${tutorial}/${file}`), file).toBe(await read(`templates/starter/${file}`));
+      }
+    });
+  }
+});

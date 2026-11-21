@@ -118,10 +118,10 @@ To make annotations:
 When a scenario expects an error that the operation does not declare, the step writes these lines to the log. GitHub shows the first one on line 30 of the feature file:
 
 ```
-gate 1 completeness PASS  tsc: 0 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
+gate 1 completeness PASS  tsc: 0 error(s) over tutorial/3-strict-coverage/src/core.ts; `core` satisfies DomainCoreImplementation
 gate 2 boundary PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3 gherkin FAIL  1 feature(s), 6 scenario(s), 1/1 operations tagged, 0/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
-gate 4 drift PASS  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
+gate 4 drift PASS  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/src/generated
 ::error file=packages/urn-forge/tutorial/3-strict-coverage/features/quote_shipping.feature,line=30,col=5,title=undeclared-error::"urn:demo:shipping:quote:error:too_heavy" is not a declared error of urn:demo:shipping:quote:operation:quote_shipping (errors: urn:demo:shipping:quote:error:too_heavy_for_express)
 ::error file=packages/urn-forge/tutorial/3-strict-coverage/features,title=uncovered-error::error urn:demo:shipping:quote:error:too_heavy_for_express of urn:demo:shipping:quote:operation:quote_shipping has no scenario that expects it; add one with Then the operation fails with "urn:demo:shipping:quote:error:too_heavy_for_express"
 ```
