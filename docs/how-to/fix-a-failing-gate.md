@@ -39,6 +39,8 @@ verify failed: the manifest does not compile
 
 Correct the manifest at the line and column that the problem gives. [Diagnostics](../reference/diagnostics) lists every manifest code.
 
+If urn-forge cannot read the manifest, the last line is `verify failed: the manifest cannot be read`. Make sure that `--manifest`, or `manifest` in the configuration, gives the correct file.
+
 ## Gate 1: completeness
 
 Gate 1 type-checks the core with `tsc`. It also makes sure that the core has an export that uses `satisfies DomainCoreImplementation`.

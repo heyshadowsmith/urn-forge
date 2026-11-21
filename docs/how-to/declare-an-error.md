@@ -86,7 +86,7 @@ Add a scenario that ends with `Then the operation fails with "<error URN>"`. To 
 <<< @/../packages/urn-forge/tutorial/2-declared-errors/features/quote_shipping.feature{gherkin}
 
 - The step must name an error that the operation lists. If not, gate 3 fails with `undeclared-error`.
-- The table columns must be fields of the error. A field that is not in the table is not checked.
+- The table columns must be fields of the error. A field that is not in the table is not checked. An empty cell means that the field must be absent.
 
 If no scenario expects an error, gate 3 shows a warning:
 

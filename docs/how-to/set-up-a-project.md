@@ -76,7 +76,7 @@ This tsconfig is sufficient:
 
 Two options are important for gate 1:
 
-- **`strict: true`** is necessary. Without it, the generated runtime does not type-check. Gate 1 then fails with `TS2339: Property 'error' does not exist on type 'Result<unknown, unknown>'`.
+- **`strict: true`** is recommended. With it, TypeScript examines the core more carefully, for example for `undefined` values. The generated runtime type-checks with or without it.
 - **The module resolution** must find the import in `core.ts`. With `Bundler`, the import `./generated/domain.runtime.generated` has no extension. With `NodeNext`, write `./generated/domain.runtime.generated.js`. If you do not, gate 1 fails with `TS2307: Cannot find module`.
 
 The generated files use `.js` in their own imports, so they work with both settings.
@@ -145,6 +145,12 @@ Write the same file in each project. Only the import paths change.
    ```
 
 `tsx` must register before Cucumber loads the support file. If it does not, Node.js cannot load the extensionless imports of the support file, and Cucumber stops with `ERR_MODULE_NOT_FOUND`.
+
+You can also use the module that urn-forge exports, and not make `register-tsx.mjs`. Then remove `register-tsx.mjs` from `import`, and start Cucumber with this command:
+
+```bash
+NODE_OPTIONS="--import urn-forge/register-tsx" npx cucumber-js
+```
 
 The urn-forge package uses the same pattern, with one profile for each domain:
 

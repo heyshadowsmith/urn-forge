@@ -165,6 +165,7 @@ gate <number>  <name>  PASS|FAIL  <summary>
 | `verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)` | stdout | All gates pass, with no warnings |
 | `verify passed with <n> warning(s) (gates 1, 3, 4; …)` | stdout | All gates pass. `<n>` is the number of warnings. Notes are not in this number |
 | `verify failed: gate <numbers>` | stderr | One or more gates fail, for example `verify failed: gate 1, 4` |
+| `verify failed: the manifest cannot be read` | stderr | The manifest file is not there, or urn-forge cannot read it. No gate ran |
 | `verify failed: the manifest does not compile` | stderr | The manifest has an error diagnostic. No gate ran |
 | `verify failed: the config is not valid` | stderr | The configuration file has an error. No gate ran |
 
