@@ -197,6 +197,12 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     return node !== undefined && statusOf(node) === 'deprecated' ? urn : undefined;
   };
 
+  /**
+   * A required list that may be empty does not break stored rows: a row with no child rows holds
+   * the empty list, which is valid (blind trial 2). Callers still have to send it.
+   */
+  const withoutEmptyRows = (ref: IRPropertyRef, uses: ReadonlySet<Use>): ReadonlySet<Use> =>
+    ref.many !== undefined && (ref.many.minItems ?? 0) === 0 ? new Set([...uses].filter((u) => u !== 'stored')) : uses;
   /** The properties of an entity or an error, compared by name. */
   const properties = (urn: Urn, before: readonly IRPropertyRef[], after: readonly IRPropertyRef[], uses: ReadonlySet<Use>) => {
     const target = (ref: IRPropertyRef) => ('field' in ref ? `ref ${ref.field}` : 'link' in ref ? `link ${ref.link}` : `ref ${ref.entity}`);
@@ -214,13 +220,17 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
         relate(urn, 'neither', `the property "${a.name}" (${target(a)}${a.many ? ', a list' : ''} → ${target(b)}${b.many ? ', a list' : ''})`, uses);
         continue;
       }
-      if (a.required !== b.required) relate(urn, b.required ? 'narrower' : 'wider', `the property "${a.name}" (${a.required ? 'required → optional' : 'optional → required'})`, uses);
+      if (a.required !== b.required) relate(urn, b.required ? 'narrower' : 'wider', `the property "${a.name}" (${a.required ? 'required → optional' : 'optional → required'})`, b.required ? withoutEmptyRows(b, uses) : uses);
       if (a.many && b.many) relate(urn, listRelation(a.many, b.many), `the list "${a.name}" (${changedKeys({ ...a.many }, { ...b.many })})`, uses);
     }
     for (const b of after) {
       if (before.some((p) => p.name === b.name)) continue;
       // An optional property is new to everyone; a required one narrows what callers may send.
-      if (b.required) relate(urn, 'narrower', `the new required property "${b.name}"`, uses);
+      if (b.required) {
+        const rest = withoutEmptyRows(b, uses);
+        if (rest.size === 0 && uses.size > 0) compatible(urn, `adds the required list "${b.name}", which rows already stored hold as an empty list`);
+        else relate(urn, 'narrower', `the new required property "${b.name}"`, rest);
+      }
       else compatible(urn, `adds the optional property "${b.name}"`);
     }
   };
