@@ -163,6 +163,7 @@ A rule names only the properties of its `on` entity. The rule language has no pa
 - A rule compares the value of a link. It does not read the linked object.
 - The invariants of an embedded entity apply inside each embedded object. To restrict a value in an embedded object, put an invariant on the embedded entity. In the insurance domain, `limit_is_positive` is on `coverage`, not on `policy`.
 - `x is present` on a required embedded entity causes `rule-type`, as on a required field.
+- A rule cannot compare a property of the entity with a property inside an embedded entity or a list item. For example, "each receipt date is at most 90 days before the claim date" names `claim_date` of the claim and `receipt_date` of each line. Put such a rule in the core, with a declared error. Gate 3 then asks for a scenario that expects the error, but not for the values at its edges, such as 90 and 91 days. Add those scenarios yourself.
 
 ## What pass 6 refuses
 

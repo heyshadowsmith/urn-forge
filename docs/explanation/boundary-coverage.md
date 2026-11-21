@@ -89,7 +89,7 @@ urn-forge thus reads a cell of `""` as the empty string for a `string` field. Th
 
 - Coverage is for the input of an operation. An entity that is only an output, or that the shell only stores, has no boundary cases to send. The schema and the generated SQL still enforce its constraints. To test them, make the entity the input of an operation, or test the shell.
 - Gate 3 shows that the cases are present. It does not show that they expect the correct result.
-- Every `Examples` header must be a field of the operation, or of an error or an event that a step of the outline expects, also a column that only the step text uses. Thus a Scenario Outline cannot have a column that names the field to reject. `self/` uses four scenarios for this reason.
+- Every `Examples` header must be a field of the operation, of an error or an event that a step of the outline expects, or a placeholder in a step text. Thus one outline can test the boundaries of more than one field, with a column for `Then the input is rejected on "<field>"`.
 - A `format` case accepts any valid value and any value that is not valid. One invalid `email` does not show all the ways that an `email` can be invalid.
 - A list cell cannot hold an item with a comma. Refer to [Gherkin steps](../reference/gherkin-steps).
 

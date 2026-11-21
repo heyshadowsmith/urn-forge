@@ -48,6 +48,10 @@ try {
   expect('urn-forge init', init.code === 0 && init.output.includes('next: npm run verify, then npm run test:features'));
   expect('package.json is an ES module package', JSON.parse(readFileSync(join(project, 'package.json'), 'utf8')).type === 'module');
 
+  // urn-forge/exact is exported to a core: exact decimals and days from the installed package, through tsx as the core runs.
+  const exact = run('npx', ['tsx', '-e', "import { addDecimal, daysBetween } from 'urn-forge/exact'; console.log(addDecimal('0.1', '0.2'), daysBetween('2028-02-28', '2028-03-01'));"], project);
+  expect('urn-forge/exact', exact.code === 0 && exact.output.includes('0.3 2'));
+
   const verify = run('npm', ['run', 'verify'], project);
   expect('verify passes with no warning', verify.code === 0 && verify.output.includes('verify passed (gates 1, 2, 3, 4;'));
 

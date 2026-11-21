@@ -147,6 +147,23 @@ diff passed: 0 breaking, 2 compatible, 1 lifecycle change(s)
 
 For the steps after the deprecation, refer to [Retire a URN](retire-a-urn).
 
+
+### Add a value to an enum
+
+A new value in `values` widens the field. If only callers that send the field use it, or only the database, the change is compatible. If a caller receives the field, the change is breaking: a caller that switches on the values does not know the new one. The insurance `peril` is in the output of `issue_policy`, so a new peril `hail` is breaking:
+
+```
+breaking    urn:acme:insurance:policy:field:peril  values ["fire","flood","theft"] → ["fire","flood","theft","hail"] widens a value that callers send and callers receive and the database stores, which breaks callers that receive it
+diff failed: 1 breaking, 0 compatible, 0 lifecycle change(s)
+```
+
+Select one of these:
+
+- **Tell the callers, and accept the break.** If you know each caller, ask each one to accept the new value first. Then make the change, and give the manifest a new major `version`. `diff` still reports the change as breaking: it does not know your callers.
+- **Declare a new field** with all the values, add it beside the old one, and deprecate the old one, as above. Use this if you cannot reach each caller.
+- **Use `stability: experimental`** while the manifest is new and its callers expect changes. Refer to step 6.
+
+urn-forge has no "open" enum that callers must read as "any value". A caller that can get any value needs a `string` field.
 ## 5. Run diff in CI
 
 The `compatibility` job of urn-forge runs `diff` for each domain of the repository on each pull request (highlighted):

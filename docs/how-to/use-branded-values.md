@@ -34,6 +34,18 @@ export function examples({ weight_grams, zone, express }: ParcelParcel) {
 
 In a handler, you do not write the input type. `satisfies DomainCoreImplementation` gives it.
 
+A `decimal` and a `date` are strings, so `+` joins them as text and `<` compares them as text. To calculate with them, import `urn-forge/exact`. It is exact, and it uses the rules of the schemas:
+
+```ts
+import { compareDecimal, daysBetween, sumDecimal } from 'urn-forge/exact';
+
+const total = sumDecimal(lines.map((line) => line.amount)); // an exact decimal string
+const overLimit = compareDecimal(total, approval_limit) > 0;
+const tooOld = daysBetween(receipt_date, claim_date) > 90;
+```
+
+Gate 2 allows this import in the core, because the functions return plain values. For each function, refer to [The package API](../reference/public-api#urn-forge-exact).
+
 ## 2. Use an `enum` value as an object key
 
 An `enum` field has a union type of its `values`, with a brand, for example `("domestic" | "international") & Brand<…>`. TypeScript does not let this type index an object. If you write `BASE_CENTS[zone]`, gate 1 fails:

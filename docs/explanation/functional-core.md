@@ -30,7 +30,7 @@ export const ParcelWeightGramsSchema = v.pipe(
 
 The output type of this schema is not `number`. It is `number & Brand<"urn:demo:shipping:parcel:field:weight_grams">`. A plain `number` cannot go where this type is necessary. The correct way to get a value of this type is to parse it with the schema. Thus, when a handler receives a `ParcelWeightGrams`, the type tells the handler that the value is a safe integer from 1 to 30000. The handler does not have to examine the value again.
 
-A `decimal`, a `date` and a `timestamp` are branded strings in the core. A `decimal` stays a string, so no binary float holds it. The core converts it with a decimal library if it does arithmetic. A list property is a list of branded values.
+A `decimal`, a `date` and a `timestamp` are branded strings in the core. A `decimal` stays a string, so no binary float holds it. For arithmetic, the core uses `urn-forge/exact`, which calculates with decimal strings and dates exactly, as the schemas and the rules do. Refer to [The package API](../reference/public-api#urn-forge-exact). A list property is a list of branded values.
 
 The brand holds the URN of the field, not only its primitive. Two fields with the same primitive have two different branded types. Thus a function in the core that takes a branded price does not accept a branded weight.
 

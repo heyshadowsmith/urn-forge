@@ -116,6 +116,19 @@ Without `reportOn`, the issue is on `party_size`, the first field of the rule. W
 - Use `reportOn` and not a new order of the rule. A guarded field must be on the left, so an order cannot always put the issue where you want it. A changed rule is also a breaking change in `urn-forge diff`, and a changed `reportOn` is compatible.
 - `Then the input is rejected on "deposit"` follows the issue, so it passes for this rule.
 
+### Read a field that an invariant makes present
+
+An invariant does not change the TypeScript types. If a rule makes sure that `reason` is present when the verdict is `reject`, the handler still gets `reason` as optional. TypeScript asks for a check:
+
+```ts
+if (verdict === 'reject' && reason === undefined) {
+  // The invariant refused this input at the boundary, so the handler never gets here.
+  throw new Error('rejection_needs_reason does not hold');
+}
+```
+
+`executeOperation` does not catch the exception. It goes to the shell as a fault. That is correct for a state that the contract makes impossible: if the invariant changes, the fault shows the mistake at once.
+
 The example is the fixture `tests/fixtures/report-on/` of the urn-forge repository, which `tests/report-on.test.ts` tests.
 ## 4. Fix the rule problems
 
