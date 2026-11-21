@@ -132,6 +132,7 @@ export default defineConfig({
           { text: 'Lifecycle plan', link: '/project/lifecycle-plan' },
           { text: 'Events plan', link: '/project/events-plan' },
           { text: 'Gate 2 plan', link: '/project/gate-2-plan' },
+          { text: 'Date arithmetic plan', link: '/project/date-arithmetic-plan' },
           { text: 'Spec v1.1', link: '/project/spec-v1-1' },
         ],
       },
