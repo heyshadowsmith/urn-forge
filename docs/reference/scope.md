@@ -1,27 +1,125 @@
-# MVP scope
+# Scope
 
-urn-forge is an MVP. It keeps the four links of the traceability chain: the manifest, the IR, the generated contracts and the Gherkin check. It does not have the parts that only make the product larger. [Specification v1.1](../project/spec-v1-1) contains each of these parts. Later versions will add them, without a change to the current parts.
+This page compares urn-forge 0.1.0 with [specification v1.1](../project/spec-v1-1). For each area of the specification, it gives the parts that urn-forge has and the parts that urn-forge does not have at this time. The section numbers are those of the specification. For the reasons, refer to [Departures from the specification](../explanation/departures-from-the-spec).
 
-| Area | Parts in the MVP | Parts not in the MVP at this time |
+## Summary
+
+urn-forge 0.1.0 has the full traceability chain for four kinds of atom: the manifest, the IR, the generated contracts, the Gherkin checks and the drift check. It does not have the kinds, primitives, plugins, gates and commands that only make the product larger.
+
+## URNs and versions (§3)
+
+| Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
 | --- | --- | --- |
-| Atom kinds | `field`, `entity`, `operation`, `error` | `invariant`, `event`, lifecycle data. `recordAs` on an error waits for `event` |
-| Primitives | `boolean`, `integer`, `float`, `string` | `decimal`, `timestamp`, `list`, `record`, `ref` |
-| Constraints | `mustBe`, `min`, `max`, `notEqual`, `minLength`, `maxLength`, `regex`, `oneOf` | `format`, `precision` |
-| Optional fields | `required` on each field reference | `nullable` |
-| Operation input and output | Entities | Fields |
-| Compiler passes | Meta-schema, expansion, uniqueness, references, constraint coherence | Cycles, rule types, lifecycle |
-| Deterministic output | Sorted output, no clock, fingerprint header, a CI run in a different locale and time zone | `referenceDate` |
-| Plugins | Valibot and FCIS. Handlers return a `Result`, with `ok(…)` or `fail(…)` | Events in the `Result`, Gherkin parameter types, Postgres |
-| Gates | 1 (completeness), 3 (tags, headers, declared errors and boundary coverage, with strict features, `boundaryCoverage` and waivers), 4 (drift) | 2 (lint profile), 5 (compatibility) |
-| CLI | `compile`, `verify`, a [configuration file](./config) | `init`, `diff`, `inspect`, `graph` |
-| Diagnostics | A stable code, `file:line:col`, the key or URN and a message. `--format json` | — |
-| Distribution | Run from a clone of the repository. Packages in the same workspace can import `urn-forge`, `urn-forge/config` and `urn-forge/cucumber` | An npm package with compiled JavaScript |
+| URN grammar | Six segments, the segment pattern `^[a-z][a-z0-9_]{0,62}$`, case-sensitive URNs | The kinds `invariant` and `event` in a URN |
+| Manifest scope | One YAML file with one `namespace` and one `domain`. Short keys that expand to URNs | — |
+| Brand identifiers | PascalCase of the context and the identifier. A collision is an error (`duplicate-brand`) | — |
+| Compatibility classes | — | `urn-forge diff` and the compatible, breaking and lifecycle classes |
+| Experimental stability | `stability: experimental` in the header. urn-forge writes it to the IR | A check that uses `stability` |
+| Lifecycle metadata | — | `status`, `supersededBy` and `sunsetDate` |
+
+## Manifest model (§4)
+
+| Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
+| --- | --- | --- |
+| Kinds | `field`, `entity`, `operation`, `error` | `invariant` (§4.3), `event` (§4.5) |
+| Primitives (§4.1) | `boolean`, `float`, `integer`, `string` | `decimal`, `timestamp`, `list`, `record`, `ref` |
+| Constraints (§4.1) | `mustBe`; `min`, `max`, `notEqual`; `minLength`, `maxLength`, `regex`, `oneOf` | `format`, `precision`, `after`, `before`, `of`, `minItems`, `maxItems`, `unique`, `keyType`, `valueType`, `to` |
+| Constraint values | Pass 1 examines the type of each constraint value against its primitive | — |
+| Entities (§4.2) | `description`, `fields`, and `required` on each field reference | `nullable`, `key`, `invariants` |
+| Operations (§4.4) | `description`, `input` and `output` (entities), `errors`. Synchronous handlers | A field as `input` or `output`. `emits` |
+| Errors (§4.6) | `description`, the five categories, `retryable`, `message` with placeholders, `fields`. The reserved property `kind` | `recordAs` |
+
+For the full schema, refer to [The manifest](./manifest).
+
+## Universal IR (§5)
+
+| Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
+| --- | --- | --- |
+| Form | Plain objects with URN keys in URN order, `meta` with `manifestHash` and `irSchemaVersion: 1` | — |
+| Nodes | `IRField`, `IREntity`, `IROperation`, `IRError` | `IRInvariant`, events, `Lifecycle` on each node |
+| Field references | `field`, `required`, and `name` (the property name). The specification does not have `name` | `nullable` |
+| Errors | The parsed message template | `recordAs` |
+
+## Compiler passes (§5)
+
+| Pass | Status in urn-forge 0.1.0 |
+| --- | --- |
+| 1. Meta-schema | Built |
+| 2. Expansion | Built |
+| 3. Uniqueness | Built. It also examines property names in an entity or an error, and the reserved property `kind` |
+| 4. Referential integrity | Built for `ref`, `input`, `output` and `errors`. urn-forge does not have `of`, `to`, `key`, `emits`, `recordAs`, `on` and `supersededBy` at this time |
+| 5. Cycle check | Not built |
+| 6. Rule and template typing | Built for error message templates. urn-forge does not have invariant rules and `recordAs` at this time |
+| 7. Constraint coherence | Built for `min` and `max`, `minLength` and `maxLength`, `notEqual`, and `oneOf` values against the length and `regex` constraints. Pass 1 examines that `oneOf` is not empty. urn-forge does not have `precision` at this time |
+| 8. Lifecycle | Not built |
+
+Refer to [Compiler passes](./compiler-passes).
+
+## Determinism (§6)
+
+| Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
+| --- | --- | --- |
+| Output rules | No clock, no random values, no environment in the plugins. Sorted output. `\n` line endings, one newline at the end, UTF-8 without BOM | — |
+| Generated file header | `// @generated by urn-forge 0.1.0 — do not edit` and `// fingerprint: sha256:<hex>` | — |
+| Fingerprint | The canonical IR, the plugin configurations, the urn-forge version, and the plugin names and versions | — |
+| Tests | Golden files in `tests/fixtures/*/expected`. A CI job that compiles and verifies again with the Turkish locale and the time zone `Pacific/Chatham` | — |
+| Reference date | — | `referenceDate` and `--reference-date` |
+
+## Plugins (§7)
+
+| Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
+| --- | --- | --- |
+| Plugin contract | `name`, `version`, `configSchema`, `emit`. Also `supports` and `requires`, which the specification does not have | — |
+| Valibot plugin (§7.1) | A `v.pipe(…)` with `v.brand` for each field, a `v.object` for each entity and error, `v.optional` for `required: false`, a `kind` literal on each error, input and output types | `v.uuid`, `v.email`, `v.isoDate` (`format`), `decimal`, `v.nullable`, invariants |
+| FCIS plugin (§7.2) | `Result`, `ok` and `fail`, a handler type for each operation, `DomainCoreImplementation`, `DispatchMap`, `executeOperation` with `UnknownOperation`, `InputRejected`, `DomainError` and `ContractViolation` | Events in `Result`, `EmittedEvent`, the `recordAs` event of an error |
+| Gherkin plugin (§7.3) | A generic step library in `urn-forge/cucumber`, in place of generated code | `domain.cucumber.generated.ts`, `defineParameterType` for each field, `urn-forge.lint.json` |
+| Postgres plugin (§7.4) | — | `schema.generated.sql` |
+| Config (§7.5) | `manifest`, `out`, `plugins`. Also `core`, `features`, `tsconfig` and `boundaryCoverage`. `defineConfig` from `urn-forge` and from `urn-forge/config` | `referenceDate`. `boundaryCoverage` is a top-level setting, not a setting of a `gherkin` plugin |
+
+For the generated code, refer to [The generated schemas](./generated-schemas) and [The generated runtime](./generated-runtime).
+
+## Verification gates (§8)
+
+| Gate | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
+| --- | --- | --- |
+| 1. Implementation completeness | `tsc` over the core entry, and a check for `satisfies DomainCoreImplementation` | — |
+| 2. Boundary discipline | — | The ESLint profile `urn-forge/eslint-config` and the rule `no-brand-construction` |
+| 3. Gherkin traceability | Tags, table headers, a column for each mandatory input field, declared errors in steps, error coverage, boundary coverage, `@urn-forge:strict`, `boundaryCoverage`, the `ratchet-ready` note, waivers, strict and non-strict counts | Coverage for `format` and `decimal`. A waiver as the tag `@urn-forge:waive(<field URN>, <reason>)`: urn-forge uses the comment `# urn-forge:waive <field URN> <reason>` |
+| 4. Drift | A byte comparison with a new compile, and generated files with no source (`generated-orphan`) | — |
+| 5. Compatibility | — | `urn-forge diff` against the manifest at the merge base |
+
+Refer to [Verification gates](./verification-gates).
+
+## CLI and repository (§9)
+
+| Part | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
+| --- | --- | --- |
+| Commands | `compile`, `verify` | `init`, `diff`, `inspect`, `graph` |
+| Options | `--config`, `--manifest`, `--out`, `--core`, `--features`, `--tsconfig`, `--format` | `--reference-date`, `--src`, `--base`, `--force` |
+| Diagnostics | `<file>:<line>:<column>  <severity>  <code>  <message>`, with the URN or the key at the start of the message. `--format json` | — |
+| Distribution | A clone of the repository. Packages in the same npm workspace can import `urn-forge`, `urn-forge/config` and `urn-forge/cucumber` as TypeScript source | An npm package with compiled JavaScript |
+| Repository layout | An npm-workspaces monorepo: `packages/urn-forge` and `docs` | `packages/eslint-config`, `src/rules/`, `src/diff/` |
+
+Refer to [The CLI](./cli) and [The package API](./public-api).
 
 ## Differences from specification v1.1
 
-The MVP plan found two conflicts in specification v1.1. The MVP uses the proposed correction for each conflict:
+urn-forge 0.1.0 changes these parts of the specification:
 
-1. **Handlers return output without a brand.** The specification gives handlers a branded output type. But the lint gate of the specification does not let the core make brands. As a result, a handler returns the plain output shape, and `executeOperation` adds the brand when it parses the output.
-2. **Feature tables can use output fields.** The specification accepts only input fields as table headers. This rule does not let a table have a column for an expected output, for example `quotient`. Gate 3 accepts fields from the input or the output of the operation.
+| Part | Specification v1.1 | urn-forge 0.1.0 |
+| --- | --- | --- |
+| Handler output | A handler returns its output with a brand | A handler returns the output without a brand. `executeOperation` adds the brand when it parses the output. The same applies to declared errors |
+| Feature table headers | Only fields of the input entity | Fields of the input or of the output of the operation |
+| `IRFieldRef` | `field`, `required`, `nullable` | `field`, `name`, `required` |
+| Waivers | The tag `@urn-forge:waive(<field URN>, <reason>)` | The comment `# urn-forge:waive <field URN> <reason>` |
+| `boundaryCoverage` | An option of the `gherkin` plugin | A top-level setting of the configuration file |
+| Text diagnostics | `file:line:col  severity  <URN>  message` | `file:line:col  severity  code  message`. The message starts with the URN or the key |
 
-For the full sequence of the build, refer to the [MVP plan](../project/mvp-plan).
+For the reasons, refer to [Departures from the specification](../explanation/departures-from-the-spec).
+
+## Related pages
+
+- [Specification v1.1](../project/spec-v1-1)
+- [MVP plan](../project/mvp-plan)
+- [Departures from the specification](../explanation/departures-from-the-spec)
+- [The manifest](./manifest)

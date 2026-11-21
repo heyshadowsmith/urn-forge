@@ -1,17 +1,25 @@
-# CLI
+# The CLI
 
 ```
 urn-forge <command> [options]
 ```
 
-| Command | Function |
-| --- | --- |
-| [`compile`](#compile) | Validates the manifest and writes the generated files |
-| [`verify`](#verify) | Runs gates 1, 3 and 4 |
-| `--help`, `-h`, `help` | Shows the usage text and stops with exit code `0` |
-| `--version` | Shows the urn-forge version and stops with exit code `0` |
+The `urn-forge` command is `bin/urn-forge.js` in `packages/urn-forge`. It runs the TypeScript source with tsx, so it does not need a build step. It needs Node.js 22 or later.
 
-If you do not give a command, urn-forge shows the usage text. Then it stops with exit code `2`. urn-forge resolves relative paths in options from the current directory. A [configuration file](./config) can give the settings instead of the options. An option overrides the configuration file.
+## Commands
+
+| Command | Function | Exit code |
+| --- | --- | --- |
+| [`compile`](#compile) | Examines the manifest and writes the generated files | `0`, `1` or `2` |
+| [`verify`](#verify) | Compiles the manifest in memory and runs gates 1, 3 and 4 | `0`, `1` or `2` |
+| `--help`, `-h`, `help` | Writes the usage text to stdout | `0` |
+| `--version` | Writes the version, `0.1.0`, to stdout | `0` |
+| No command | Writes the usage text to stdout | `2` |
+| A different word | Writes `unknown command "<word>"` and the usage text to stderr | `2` |
+
+`--help` and `--version` are commands. They are correct only as the first argument. After `compile` or `verify`, they are unknown options.
+
+urn-forge 0.1.0 does not have the `init`, `diff`, `inspect` and `graph` commands at this time. Refer to [Scope](./scope).
 
 ## `compile`
 
@@ -19,24 +27,26 @@ If you do not give a command, urn-forge shows the usage text. Then it stops with
 urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
 ```
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `--config <file>` | `urn-forge.config.ts`, if it exists | The [configuration file](./config) |
-| `--manifest <file>` | `domain.manifest.yaml` | The manifest to compile |
-| `--out <dir>` | `src/generated` | The directory for the generated files |
-| `--format <format>` | `text` | `text` or `json`. Refer to [Output formats](#output-formats) |
+| Option | Value | Default | Setting in the configuration file |
+| --- | --- | --- | --- |
+| `--config` | A file | `urn-forge.config.ts`, if it is in the current directory | None |
+| `--manifest` | A file | `domain.manifest.yaml` | `manifest` |
+| `--out` | A directory | `src/generated` | `out` |
+| `--format` | `text` or `json` | `text` | None |
 
-The `compile` command sends the manifest through the meta-schema, the IR builder and the two plugins. Then it writes `domain.schemas.generated.ts` and `domain.runtime.generated.ts` in the `--out` directory. If this directory does not exist, the command makes it.
+The `compile` command does these steps:
 
-- If a file has the same content as the new output, the command does not write it again. The modification time of the file does not change.
-- If there is an error diagnostic, the command writes no files.
-- The command does not delete old files that it does not make now. Gate 4 shows these files.
+1. It loads the configuration file, if there is one.
+2. It reads the manifest and runs the [compiler passes](./compiler-passes).
+3. It runs the plugins in the sequence of the `plugins` setting.
+4. It writes each generated file in the `--out` directory.
 
-```
-wrote      src/generated/domain.runtime.generated.ts
-unchanged  src/generated/domain.schemas.generated.ts
-fingerprint sha256:<64 hex digits>
-```
+The files that the default plugins make are `domain.schemas.generated.ts` and `domain.runtime.generated.ts`.
+
+- If the `--out` directory does not exist, `compile` makes it.
+- If a file has the same content as the new output, `compile` does not write it. The modification time of the file does not change.
+- If there is an error diagnostic, `compile` writes no files.
+- `compile` does not delete files that it does not make. Gate 4 reports a `*.generated.*` file in `--out` that the compile does not make as `generated-orphan`.
 
 ## `verify`
 
@@ -44,73 +54,167 @@ fingerprint sha256:<64 hex digits>
 urn-forge verify [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
 ```
 
-| Option | Default | Description |
+| Option | Value | Default | Setting in the configuration file | Used by |
+| --- | --- | --- | --- | --- |
+| `--config` | A file | `urn-forge.config.ts`, if it is in the current directory | None | All |
+| `--manifest` | A file | `domain.manifest.yaml` | `manifest` | All |
+| `--out` | A directory | `src/generated` | `out` | Gates 1 and 4 |
+| `--core` | A file | `src/core.ts` | `core` | Gate 1 |
+| `--features` | A directory | `features` | `features` | Gate 3. `verify` also reads its subdirectories |
+| `--tsconfig` | A file | `tsconfig.json` | `tsconfig` | Gate 1 |
+| `--format` | `text` or `json` | `text` | None | All |
+
+The `verify` command compiles the manifest in memory. It does not write files. If the manifest has an error diagnostic, no gate runs. Then it runs the gates in this sequence:
+
+| Gate | Name | Examines |
 | --- | --- | --- |
-| `--config <file>` | `urn-forge.config.ts`, if it exists | The [configuration file](./config) |
-| `--manifest <file>` | `domain.manifest.yaml` | The manifest to compile |
-| `--out <dir>` | `src/generated` | The directory of the generated files in the repository (gates 1 and 4) |
-| `--core <file>` | `src/core.ts` | The core entry. It must use `satisfies DomainCoreImplementation` (gate 1) |
-| `--features <dir>` | `features` | The directory that contains the `.feature` files. The command also reads its subdirectories (gate 3) |
-| `--tsconfig <file>` | `tsconfig.json` | The compiler options for the type check of gate 1 |
-| `--format <format>` | `text` | `text` or `json`. Refer to [Output formats](#output-formats) |
+| 1 | `completeness` | The core has a handler of the generated type for each operation |
+| 3 | `gherkin` | The tags, tables, declared errors and boundary cases of the feature files |
+| 4 | `drift` | The files in `--out` are the same as a new compile, byte for byte |
 
-The output has one line for each gate. Below each line, the output shows the problems of that gate with an indent. The last line gives the result. For more data, refer to [Verification gates](../guide/verify).
+A gate fails if one or more of its problems is an error. Warnings and notes do not make a gate fail. urn-forge does not have gates 2 and 5 at this time. For the checks of each gate, refer to [Verification gates](./verification-gates).
 
-## Output formats
+## Settings from options, the configuration file and defaults
 
-### Text
+Each path setting comes from the first of these sources that has a value:
 
-The default format is `text`. urn-forge writes the manifest diagnostics to stderr, one diagnostic on each line:
+| Sequence | Source | A relative path starts from |
+| --- | --- | --- |
+| 1 | The option on the command line | The current directory |
+| 2 | The setting in the configuration file | The directory of the configuration file |
+| 3 | The default | The current directory |
+
+The `boundaryCoverage` and `plugins` settings do not have an option. They come only from the configuration file, or from their defaults. For each setting, refer to [The configuration file](./configuration).
+
+Examples:
+
+| Command | Manifest that `compile` reads |
+| --- | --- |
+| `urn-forge compile` with no `urn-forge.config.ts` | `./domain.manifest.yaml` |
+| `urn-forge compile --config example/urn-forge.config.ts` | `example/../tests/fixtures/math/domain.manifest.yaml`, from the `manifest` setting |
+| `urn-forge compile --config example/urn-forge.config.ts --manifest other.yaml` | `./other.yaml`. The option overrides the setting |
+
+## Options
+
+- An option takes its value as the next argument (`--out gen`) or after `=` (`--out=gen`).
+- An option that the command does not have is a usage error. For example, `compile --core x` stops with `Unknown option '--core'` and exit code `2`.
+- A positional argument is a usage error. For example, `compile domain.manifest.yaml` stops with exit code `2`.
+- A `--format` value other than `text` or `json` is a usage error: `--format must be text or json, not "<value>"`.
+
+A usage error writes its message, an empty line and the usage text to stderr.
+
+## Text output
+
+The default format is `text`. All paths are relative to the current directory, with forward slashes. As a result, the output is the same on all computers.
+
+### Diagnostics
+
+urn-forge writes each diagnostic on one line, with two spaces between the parts:
 
 ```
 <file>:<line>:<column>  <severity>  <code>  <message>
-tests/fixtures/math/domain.manifest.yaml:6:42  error  unknown-primitive  geometry.field.radius.primitive: unknown primitive "decimal" (MVP primitives: boolean, float, integer, string)
 ```
 
-The `verify` command writes the problems of each gate to stdout, below the line of the gate, in the same format. Each message starts with its manifest key or its URN. urn-forge shows paths relative to the current directory, with forward slashes. As a result, the output is the same on all computers. For each code, refer to [Diagnostics](./diagnostics).
+If the diagnostic has no position, the line starts with `<file>` only. Each message starts with the manifest key or the URN of the problem. For each code, refer to [Diagnostics](./diagnostics).
 
-### JSON
+```
+tests/fixtures/broken-references/domain.manifest.yaml:39:10  error  wrong-ref-kind  urn:demo:broken:order:operation:place: input "order.field.quantity" must name an entity, but urn:demo:broken:order:field:quantity is a field
+```
 
-With `--format json`, urn-forge writes JSON lines to stdout. Each line is one JSON object, and its `type` property tells the kind of line. urn-forge writes nothing to stderr, but a usage error still writes text to stderr. The exit codes do not change.
+### Output of `compile`
 
-| `type` | Command | Properties |
+`compile` writes the diagnostics to stderr. If there is no error, it writes one line for each file to stdout, then the fingerprint:
+
+```
+unchanged  example/generated/domain.runtime.generated.ts
+unchanged  example/generated/domain.schemas.generated.ts
+fingerprint sha256:ca0114bbaf097afe8b265a9e579237fa1eb58942e5bafdd0962b9a09262d2458
+```
+
+This is the output of `urn-forge compile --config example/urn-forge.config.ts` when the files are current.
+
+| Line | Description |
+| --- | --- |
+| `wrote      <path>` | `compile` wrote the file, because it was not there or its content changed |
+| `unchanged  <path>` | The file had the same content. `compile` did not write it |
+| `fingerprint sha256:<hex>` | The fingerprint in the header of each generated file |
+
+If there is an error, `compile` writes only the diagnostics.
+
+### Output of `verify`
+
+`verify` writes the manifest and configuration diagnostics to stderr. Then it writes one line for each gate to stdout. Below the line of a gate, it writes each problem of the gate, with an indent of four spaces. Then it writes one result line. This is the output of `urn-forge verify --config tutorial/1-first-domain/urn-forge.config.ts`:
+
+```
+gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/1-first-domain/core.ts; `core` satisfies DomainCoreImplementation
+gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, strict: 0/1 features
+    tutorial/1-first-domain/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
+    tutorial/1-first-domain/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf
+gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/1-first-domain/generated
+verify passed with 2 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
+```
+
+The line of a gate has this form:
+
+```
+gate <number>  <name>  PASS|FAIL  <summary>
+```
+
+| Result line | Stream | Cause |
 | --- | --- | --- |
-| `diagnostic` | Both | `severity`, `code`, `file`, `line` and `column` (if the diagnostic has a position), `urn` (if the diagnostic has a URN), `message`. For a gate problem, also `gate` |
-| `file` | `compile` | `path`, and `changed` (`false` if the file had the same content) |
-| `gate` | `verify` | `gate`, `name`, `ok`, `summary` |
-| `result` | Both | `ok`. For `compile`, also `fingerprint` if the compile is correct. For `verify`, also `failedGates` and `warnings`, the number of warnings |
+| `verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)` | stdout | All gates pass, with no warnings |
+| `verify passed with <n> warning(s) (gates 1, 3, 4; …)` | stdout | All gates pass. `<n>` is the number of warnings. Notes are not in this number |
+| `verify failed: gate <numbers>` | stderr | One or more gates fail, for example `verify failed: gate 1, 4` |
+| `verify failed: the manifest does not compile` | stderr | The manifest has an error diagnostic. No gate ran |
+| `verify failed: the config is not valid` | stderr | The configuration file has an error. No gate ran |
 
-The lines come in this sequence: the diagnostics, then the files or the gates, then one `result` line.
+## JSON output
 
-```json
-{"type":"diagnostic","gate":4,"severity":"error","code":"generated-differs","file":"example/generated/domain.schemas.generated.ts","line":21,"column":1,"message":"differs from a fresh compile (hand-edited or stale); run `urn-forge compile`"}
-{"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over example/core.ts; `core` satisfies DomainCoreImplementation"}
-{"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"2 feature(s), 4 scenario(s), 2/2 operations tagged"}
-{"type":"gate","gate":4,"name":"drift","ok":false,"summary":"2 generated file(s) compared byte for byte against example/generated"}
-{"type":"result","ok":false,"failedGates":[4],"warnings":0}
-```
+With `--format json`, urn-forge writes JSON lines to stdout and nothing to stderr. A usage error still writes text to stderr. The exit codes do not change. For each type of line, refer to [JSON output](./json-output).
 
 ## Exit codes
 
-| Exit code | Description |
+| Exit code | Cause |
 | --- | --- |
-| `0` | The command is correct |
-| `1` | An error diagnostic, a manifest that urn-forge cannot read, or a gate that fails |
-| `2` | A usage error: an unknown command or an unknown option |
+| `0` | The command is correct. `verify` can have warnings and notes |
+| `1` | An error diagnostic: in the configuration file, in the manifest, from a plugin, or in a gate. Also a file that urn-forge cannot read |
+| `2` | A usage error: no command, an unknown command, an unknown option, a positional argument or an incorrect `--format` value |
 
 ## Scripts in this repository
 
-Run these scripts from the root of the repository:
+### From the root of the repository
 
 | Script | Function |
 | --- | --- |
-| `npm test` | Runs the Vitest tests of the CLI |
-| `npm run typecheck` | Runs `tsc --noEmit` on the CLI package |
-| `npm run verify:example` | Runs `urn-forge verify` on the math example |
-| `npm run test:features` | Runs `cucumber-js` on the math example |
-| `npm run verify:self` | Runs `urn-forge verify` on the domain of urn-forge (`packages/urn-forge/self`) |
-| `npm run test:features:self` | Runs `cucumber-js` on the domain of urn-forge |
+| `npm test` | Runs the Vitest tests of `packages/urn-forge` |
+| `npm run typecheck` | Runs `tsc --noEmit` on `packages/urn-forge` |
+| `npm run verify:example` | Runs `urn-forge verify` on the math example (`example/urn-forge.config.ts`) |
+| `npm run verify:self` | Runs `urn-forge verify` on the domain of urn-forge (`self/urn-forge.config.ts`) |
+| `npm run verify:tutorial` | Runs `urn-forge verify` on each of the three tutorial snapshots, in sequence. It stops at the first snapshot that fails |
+| `npm run test:features` | Runs `cucumber-js` on the features of the math example |
+| `npm run test:features:self` | Runs `cucumber-js --profile self` on the features of the domain of urn-forge |
+| `npm run test:features:tutorial` | Runs `cucumber-js` with the profiles `tutorial-1`, `tutorial-2` and `tutorial-3`, in sequence |
 | `npm run docs:dev` | Starts this documentation site, with live reload |
 | `npm run docs:build` | Builds this site as static files |
+| `npm run docs:preview` | Shows the static site that `docs:build` made |
 
-In `packages/urn-forge`, `npm run compile:example` makes the files in `example/generated/` again. `npm run compile:self` makes the files in `self/generated/` again.
+The root scripts other than the `docs:` scripts run the script with the same name in `packages/urn-forge`.
+
+### From `packages/urn-forge`
+
+`packages/urn-forge` has the same `test`, `typecheck`, `verify:` and `test:features` scripts. It also has these scripts:
+
+| Script | Function |
+| --- | --- |
+| `npm run compile:example` | Runs `urn-forge compile --config example/urn-forge.config.ts`. It makes the files in `example/generated/` again |
+| `npm run compile:self` | Runs `urn-forge compile --config self/urn-forge.config.ts`. It makes the files in `self/generated/` again |
+
+The tutorial snapshots are in `tutorial/1-first-domain`, `tutorial/2-declared-errors` and `tutorial/3-strict-coverage`. Each snapshot has its own `urn-forge.config.ts`. The Cucumber profiles are in `cucumber.json`.
+
+## Related pages
+
+- [The configuration file](./configuration)
+- [JSON output](./json-output)
+- [Diagnostics](./diagnostics)
+- [Run verify in CI](../how-to/run-verify-in-ci)
+- [Regenerate the code after a manifest change](../how-to/regenerate-code)
