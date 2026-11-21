@@ -217,7 +217,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         if (step.text === STEP_PHRASES.run) checkRequired(step.table, owner);
       }
       for (const examples of scenario.examples) {
-        if (examples.table) checkHeader(examples.table.header, ownerOf([...scenario.tags, ...examples.tags], examples.location));
+        if (examples.table) checkHeader(examples.table.header, withStepTables(ir, ownerOf([...scenario.tags, ...examples.tags], examples.location), scenario.steps));
       }
     }
   }
@@ -353,7 +353,9 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         if (!field) continue;
         const cases = [...boundaryCases(field.primitive, field.constraints).map((c) => ({ c, list: false })), ...(ref.many ? listBoundaries(ref.many).map((c) => ({ c, list: true })) : [])];
         if (cases.length > 0) constrained.add(`${operation.urn} ${field.urn}`);
-        gap(field.urn, at, cases.filter(({ c, list }) => !(list ? sent : items).some((value) => c.covers(value))).map(({ c }) => c));
+        // A link or an `as` names the column apart from the field: say which column.
+        const column = at || (ref.name === field.urn.split(':').at(-1) ? '' : ref.name);
+        gap(field.urn, column, cases.filter(({ c, list }) => !(list ? sent : items).some((value) => c.covers(value))).map(({ c }) => c));
       }
     };
     const sent = values.get(operation.urn);
@@ -442,6 +444,27 @@ function eventOwner(ir: UniversalIR, owner: Owner | undefined, eventUrn: string)
   if (!owner?.emits?.includes(eventUrn as Urn)) return undefined;
   const event = ir.events[eventUrn as Urn]!;
   return { urn: eventUrn, description: `the event ${eventUrn}`, keys: new Set(event.fields.map((f) => f.name)) };
+}
+
+/**
+ * An Examples column fills a placeholder in any step of its outline, so it may name a field of
+ * the owner, or of an error or event that a step of the outline expects.
+ */
+function withStepTables(ir: UniversalIR, owner: Owner | undefined, steps: readonly { readonly text: string }[]): Owner | undefined {
+  if (!owner) return undefined;
+  const extra = steps.flatMap((step) => {
+    const errorUrn = failsWithUrn(step.text);
+    if (errorUrn !== undefined && owner.errors?.includes(errorUrn as Urn)) return [{ kind: 'error', urn: errorUrn }];
+    const eventUrn = emitsUrn(step.text);
+    if (eventUrn !== undefined && owner.emits?.includes(eventUrn as Urn)) return [{ kind: 'event', urn: eventUrn }];
+    return [];
+  });
+  if (extra.length === 0) return owner;
+  return {
+    ...owner,
+    description: `${owner.description}, or of ${extra.map((e) => `the ${e.kind} ${e.urn}`).join(', ')}`,
+    keys: new Set([...owner.keys, ...extra.flatMap((e) => (e.kind === 'error' ? ir.errors[e.urn as Urn]! : ir.events[e.urn as Urn]!).fields.map((f) => f.name))]),
+  };
 }
 
 function entityOwner(ir: UniversalIR, urn: Urn): Owner {

@@ -123,3 +123,63 @@ describe('found while the docs were written', () => {
     ]);
   });
 });
+
+describe('found in the blind trial', () => {
+  it('allows an Examples column that only an error or event table uses', async () => {
+    const { checkGherkin } = await import('../src/verify/gherkin.js');
+    const { indexFeatureSource } = await import('../src/verify/feature-index.js');
+    const body =
+      'order.field.order_id: { primitive: integer }\norder.field.limit: { primitive: integer }\norder.field.reason: { primitive: string }\n' +
+      'order.entity.order:\n  description: d\n  fields:\n    - ref: order.field.order_id\n' +
+      'order.event.placed:\n  description: d\n  fields:\n    - ref: order.field.reason\n' +
+      'order.error.too_many:\n  description: d\n  category: precondition\n  retryable: false\n  message: m\n  fields:\n    - ref: order.field.limit\n' +
+      'order.operation.place:\n  description: d\n  input: order.entity.order\n  output: order.entity.order\n  errors: [order.error.too_many]\n  emits: [order.event.placed]\n';
+    const ir = run(body).ir!;
+    const outline = (then: string, column: string) =>
+      checkGherkin({
+        ir,
+        features: {
+          directory: 'features',
+          features: [
+            indexFeatureSource(
+              `@urn:demo:shop:order:operation:place\nFeature: x\n  Scenario Outline: y\n    When I run the operation with:\n      | order_id |\n      | 1 |\n    ${then}\n      | ${column} |\n      | <${column}> |\n    Examples:\n      | ${column} |\n      | 3 |\n`,
+              'f.feature',
+            )!,
+          ],
+          problems: [],
+        },
+      } as never).problems.filter((p) => p.code === 'unknown-header');
+    expect(outline('Then the operation fails with "urn:demo:shop:order:error:too_many":', 'limit')).toEqual([]);
+    expect(outline('Then the operation emits "urn:demo:shop:order:event:placed":', 'reason')).toEqual([]);
+    // An error field that no step of the outline expects is still unknown.
+    const stray = checkGherkin({
+      ir,
+      features: {
+        directory: 'features',
+        features: [indexFeatureSource('@urn:demo:shop:order:operation:place\nFeature: x\n  Scenario Outline: y\n    When I run the operation with:\n      | order_id |\n      | <limit> |\n    Examples:\n      | limit |\n      | 3 |\n', 'f.feature')!],
+        problems: [],
+      },
+    } as never).problems.filter((p) => p.code === 'unknown-header');
+    expect(stray.map((p) => p.message)).toEqual([expect.stringContaining('table header "limit" is not a field key of the input or output')]);
+  });
+
+  it('names the column of a link in a boundary gap', async () => {
+    const { checkGherkin } = await import('../src/verify/gherkin.js');
+    const { indexFeatureSource } = await import('../src/verify/feature-index.js');
+    const body =
+      'lib.field.member_id: { primitive: string, minLength: 3 }\nlib.field.days: { primitive: integer }\n' +
+      'lib.entity.member:\n  description: d\n  key: lib.field.member_id\n  fields:\n    - ref: lib.field.member_id\n' +
+      'lib.entity.loan:\n  description: d\n  fields:\n    - link: lib.entity.member\n      as: borrower\n    - ref: lib.field.days\n' +
+      'lib.operation.lend:\n  description: d\n  input: lib.entity.loan\n  output: lib.entity.loan\n';
+    const ir = run(body).ir!;
+    const gaps = checkGherkin({
+      ir,
+      features: {
+        directory: 'features',
+        features: [indexFeatureSource('@urn:demo:shop:lib:operation:lend\nFeature: x\n  Scenario: y\n    When I run the operation with:\n      | borrower | days |\n      | abc | 1 |\n', 'f.feature')!],
+        problems: [],
+      },
+    } as never).problems.filter((p) => p.code === 'uncovered-boundary');
+    expect(gaps.map((p) => p.message)).toEqual([expect.stringMatching(/^urn:demo:shop:lib:field:member_id at borrower in the input of /)]);
+  });
+});
