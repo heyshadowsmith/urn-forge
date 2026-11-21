@@ -177,6 +177,20 @@ A placeholder can also be in the text of a step. Gate 3 then reads the step once
 
 Gate 3 counts each invariant of the rows as broken, and reports a URN that is not an invariant of the operation once for the step. In the same way, `Then the input is rejected on "<field>"` with a column `field` tests the boundary of more than one field.
 
+### Write a long value as a formula
+
+Strict coverage asks for the value just past each limit: a text of 201 characters for `maxLength: 200`, a list of 21 items for `maxItems: 20`. Write such a value as a formula. A cell that starts with `=` is a formula:
+
+```gherkin
+    Examples:
+      | lines                                                          | reason            | field  |
+      | =repeat(21, { category: travel, amount: 10.00 })               | ok                | lines  |
+      | [{ category: travel, amount: 1.00, note: =repeat(201, "x") }]  | ok                | lines  |
+      | [{ category: travel, amount: 10.00 }]                          | =repeat(301, "x") | reason |
+```
+
+Gate 3 counts `=repeat(21, …)` as 21 items, and the note and the reason as texts of 201 and 301 characters. For each form, refer to [Formula cells](../reference/gherkin-steps#formula-cells). These rows come from the fixture `tests/fixtures/formula-cells/` of the urn-forge repository, which `tests/formula-cells.test.ts` tests.
+
 ## 5. Send an absent value or an empty string
 
 These two cases are different:

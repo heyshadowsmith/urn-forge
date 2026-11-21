@@ -146,12 +146,46 @@ A cell that starts with the correct bracket and is malformed makes the step fail
 
 Gherkin uses `|` to separate the cells. To put a `|` in a value, write `\|`.
 
+### Formula cells
+
+A cell that starts with `=` is a formula. It makes a long value that a scenario needs, for example for strict boundary coverage, without writing it out. A value in a list or an object cell can also be a formula.
+
+| Form | Makes | Example | Value |
+| --- | --- | --- | --- |
+| `repeat(n, "text")` | The text `n` times | `=repeat(3, "ab")` | `ababab` |
+| `repeat(n, value)`, for a list property | A list of `n` items | `=repeat(2, fire)`, `=repeat(21, { category: travel, amount: 10.00 })` | `[fire, fire]`, a list of 21 objects |
+| `a + b` | Text joined to text, or a list joined to a list | `="a@" + repeat(3, "b") + ".io"`, `=[fire] + repeat(2, flood)` | `a@bbb.io`, `[fire, flood, flood]` |
+| A quoted text, a list or an object | Itself | `="=x"` | `=x` |
+
+- The property decides what `repeat` makes: text for a single value, a list for a property with `many`, as for any cell.
+- A term of a formula is `repeat(…)`, a quoted text, a list or an object. Inside `repeat`, the value can also be bare: `repeat(2, fire)`. A formula cannot hold another formula.
+- A formula for a single value is read by the primitive of its field, as a plain cell is. Thus `="1" + repeat(2, "0")` for an `integer` is `100`.
+- `n` is from 0 to 10 000. A formula makes at most 1 000 000 characters or items.
+- A text length counts code points, as `maxLength` does. `=repeat(201, "é")` has 201 characters.
+- To write a text that starts with `=`, write a formula of one quoted text: `="=x"`. A cell such as `=x` is a malformed formula.
+- Gate 3 reads the same formulas. `=repeat(21, …)` counts as a list of 21 items for `maxItems`.
+
+| Problem | Message |
+| --- | --- |
+| A term that is not `repeat(…)`, a quoted text, a list or an object, for example `=x` | `a formula is repeat(n, value), a quoted text, a list or an object, joined with "+"; to write a text that starts with "=", write ="=…" (at column <n> of the cell)` |
+| A count that is not from 0 to 10 000 | `repeat needs a count from 0 to 10000 (at column <n> of the cell)` |
+| No `,` after the count | `expected "," after the count of repeat (at column <n> of the cell)` |
+| No `)` at the end | `expected ")" at the end of repeat (at column <n> of the cell)` |
+| A list or an object in a formula for a single value | `a formula for a single value joins texts; a list or an object is not text (at column <n> of the cell)` |
+| A text in a formula for a list | `a formula for a list joins lists and repeat(n, item) (at column <n> of the cell)` |
+| A formula for an embedded entity that is not one object | `a formula for an embedded entity is one object (at column <n> of the cell)` |
+| A formula inside a formula | `a formula cannot hold another formula (at column <n> of the cell)` |
+| More than 1 000 000 characters or items | `a formula makes at most 1000000 characters (at column <n> of the cell)` |
+
+A formula does not make a list of different items. A list with `unique` that must have 21 different items still needs 21 written values.
+
 ### Comparison of the output, the error fields and the event fields
 
 The steps `the output is:`, `the operation fails with "<error URN>":` and `the operation emits "<event URN>":` compare only the columns of the table:
 
 - A property that is not in the table is not compared.
 - An empty cell means that the property must be absent. If the property has a value, the step fails with `<name>: expected absent, got <value>`. To expect the empty string, write `""`.
+- A message shows a text of more than 60 characters shortened: its first 40 characters, `…` and its length, for example `xxxx…(151 characters)`. If two long texts differ, the message adds the first character where they differ: `(first difference at character 151)`. A list of more than 10 items shows its first 3 items and its length: `[fire, fire, fire, …(10000 items)]`.
 - The values must be equal by `===`. Also, `NaN` is equal to `NaN`. Thus `0` and `-0` are equal.
 - Two lists are equal if they have the same length, and each item is equal to the item at the same position. Thus `[1, 2]` is not equal to `[2, 1]`. A message shows a list as `[<item>, <item>]`.
 - Two embedded objects are equal if they have the same properties, and each property is equal. The actual object must not have a property that the expected object does not give. Thus an object cell must give each property that the output has. A message shows an object as `{ <name>: <value>, … }`.

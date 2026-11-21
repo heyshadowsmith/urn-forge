@@ -70,20 +70,26 @@ Step 0 adds the fixture and its feature, with the three formula cells. Until ste
 
 One PR (decision 13), one commit per step. Each step leaves the repository green and ends with a check.
 
-- [ ] **0. The target.** As above. *Check:* gate 3 reports the `maxItems` and `maxLength` cases of the fixture as uncovered.
-- [ ] **1. The cell reader.** The grammar, `repeat`, `+`, formulas inside structures, the limits, and `invalid-cell` for a malformed formula. *Check:* the fixture passes gate 3 strict and Cucumber; a case for each malformed form; no cell of the repository starts with `=` (decision 10).
-- [ ] **2. Messages.** Shortened long values in the failure messages of the steps. *Check:* a test of a 10 000-item list that fails.
-- [ ] **3. Ship.** The docs and the notes. *Check:* CI green; every sabotage below fails.
+- [x] **0. The target.** As above. *Check:* gate 3 reports the `maxItems` and `maxLength` cases of the fixture as uncovered.
+  - *Done.* The check was met: gate 3 reported `no list of 21 item(s) (above maxItems)`, `no value of length 201 (above maxLength)` for the note and `no value of length 301` for the reason. The feature is in `tests/formula-cells.test.ts`, next to the fixture `tests/fixtures/formula-cells/`. The target went in with step 1.
+- [x] **1. The cell reader.** The grammar, `repeat`, `+`, formulas inside structures, the limits, and `invalid-cell` for a malformed formula. *Check:* the fixture passes gate 3 strict and Cucumber; a case for each malformed form; no cell of the repository starts with `=` (decision 10).
+  - *Done.* The check was met, through the same cell reader that the steps use (`tableToObject`): each row of the target is refused on its field. A term of a formula is never bare, so `=x` is refused, not read as `x` (decision 10). A formula cannot hold another formula. A formula of a single value is read by its primitive, as a plain cell is.
+- [x] **2. Messages.** Shortened long values in the failure messages of the steps. *Check:* a test of a 10 000-item list that fails.
+  - *Done.* A text of more than 60 characters shows its first 40 and its length; a list of more than 10 items, its first 3 and its length. Two long texts that differ also give the first character where they differ (the risk below).
+- [x] **3. Ship.** The docs and the notes. *Check:* CI green; every sabotage below fails.
+  - *Done.* New section [Formula cells](../reference/gherkin-steps#formula-cells) in the steps reference, with each form and each message; a section in Write scenarios with the rows of the target; a line in Adopt strict coverage.
 
 ## Done
 
 | Sabotage | What catches it | Result |
 | --- | --- | --- |
-| `=repeat(20, …)` in place of `=repeat(21, …)` | Gate 3 strict: `uncovered-boundary` for `maxItems` | |
-| `=repeat(21, { … }` with no `)` | Gate 3, `invalid-cell`; the step fails with the column | |
-| `=repeat(20000000, "x")` | `invalid-cell`: `n` is more than 10 000 | |
-| `=x`, an old literal | `invalid-cell`, with the advice to write `="=x"` | |
-| A formula in an output table that differs from the output | The step fails, with the value shortened | |
+| `=repeat(20, …)` in place of `=repeat(21, …)` | Gate 3 strict: `uncovered-boundary` for `maxItems` | Caught: `no list of 21 item(s) (above maxItems)` |
+| `=repeat(21, { … }` with no `)` | Gate 3, `invalid-cell`; the step fails with the column | Caught: `expected ")" at the end of repeat`, with the column in the cell; gate 3 reports a malformed formula as `invalid-cell` |
+| `=repeat(20000000, "x")` | `invalid-cell`: `n` is more than 10 000 | Caught: `repeat needs a count from 0 to 10000` |
+| `=x`, an old literal | `invalid-cell`, with the advice to write `="=x"` | Caught |
+| A formula in an output table that differs from the output | The step fails, with the value shortened | Caught: `expected [fire, fire, fire, …(10000 items)], got [fire]` |
+
+**Met.**
 
 ## Risks
 

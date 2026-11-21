@@ -1,0 +1,46 @@
+# The formula cells plan: the long values of the third blind trial (expense claims). Strict
+# coverage asks for a list of 21 lines, a note of 201 characters inside a line, and a reason
+# of 301 characters; tests/formula-cells.test.ts writes them as formula cells.
+manifest:
+  namespace: demo
+  domain: expenses
+  version: 0.1.0
+
+claim.field.category:
+  primitive: enum
+  values: [travel, meals, other]
+  description: The kind of expense
+claim.field.amount:
+  primitive: decimal
+  scale: 2
+  description: The amount of one expense
+claim.field.note:
+  primitive: string
+  minLength: 1
+  maxLength: 200
+  description: Free text about one expense
+claim.field.reason:
+  primitive: string
+  minLength: 1
+  maxLength: 300
+  description: Why the claim is made
+
+claim.entity.line:
+  description: One expense of a claim
+  fields:
+    - ref: claim.field.category
+    - ref: claim.field.amount
+    - ref: claim.field.note
+      required: false
+claim.entity.claim:
+  description: A claim for expenses
+  fields:
+    - ref: claim.entity.line
+      as: lines
+      many: { minItems: 1, maxItems: 20 }
+    - ref: claim.field.reason
+
+claim.operation.submit:
+  description: Submit a claim
+  input: claim.entity.claim
+  output: claim.entity.claim
