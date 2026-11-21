@@ -70,6 +70,18 @@ describe('tableToObject', () => {
     expect(() => tableToObject([['constructor'], ['1']], input, 'input', URN)).toThrow('"constructor" is not a field');
   });
 
+  it('keeps an empty expected cell as "absent", so the assertion still compares it', () => {
+    const output: FieldsLike = { quotient: { urn: 'urn:demo:math:arithmetic:field:quotient', primitive: 'float', required: false } };
+    const expected = tableToObject([['quotient'], ['']], output, 'output', URN);
+    expect(Object.hasOwn(expected, 'quotient')).toBe(true);
+    expect(expected['quotient']).toBeUndefined();
+  });
+
+  it('names the error, not the operation, for a header that is not a field of the error', () => {
+    const ERR = 'urn:demo:shop:order:error:price_unavailable';
+    expect(() => tableToObject([['skew'], ['1']], strings, 'error', ERR)).toThrow(`"skew" is not a field of ${ERR} (fields: note)`);
+  });
+
   it('requires exactly one data row', () => {
     expect(() => tableToObject([['dividend']], input, 'input', URN)).toThrow('got 1 row(s)');
     expect(() => tableToObject([['dividend'], ['1'], ['2']], input, 'input', URN)).toThrow('got 3 row(s)');
@@ -84,8 +96,14 @@ describe('assertOutput', () => {
     expect(() => assertOutput(ok({ quotient: Number.NaN }), { quotient: Number.NaN }, URN)).not.toThrow();
   });
 
+  it('fails when an empty expected cell meets a value (no silent pass)', () => {
+    expect(() => assertOutput(ok({ quotient: 800 }), { quotient: undefined }, URN)).toThrow('quotient: expected absent, got 800');
+    expect(() => assertOutput(ok({}), { quotient: undefined }, URN)).not.toThrow();
+  });
+
   it('reports mismatches and failures', () => {
     expect(() => assertOutput(ok({ quotient: 5 }), { quotient: 6 }, URN)).toThrow('quotient: expected 6, got 5');
+    expect(() => assertOutput(ok({}), { quotient: 6 }, URN)).toThrow('quotient: expected 6, got absent');
     expect(() =>
       assertOutput({ ok: false, kind: 'InputRejected', issues: [{ path: 'divisor', message: 'bad' }] }, { quotient: 5 }, URN),
     ).toThrow(`${URN} did not succeed: InputRejected (divisor: bad)`);
@@ -135,5 +153,6 @@ describe('assertFailsWith', () => {
       `${URN} failed with ${ERR} (No price for ABC-1234); expected urn:demo:shop:order:error:pricing_offline`,
     );
     expect(() => assertFailsWith(refused, ERR, URN, { sku: 'XYZ-0000' })).toThrow(`${ERR} fields differ: sku: expected XYZ-0000, got ABC-1234`);
+    expect(() => assertFailsWith(refused, ERR, URN, { sku: undefined })).toThrow(`${ERR} fields differ: sku: expected absent, got ABC-1234`);
   });
 });
