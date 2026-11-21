@@ -103,6 +103,10 @@ manifest.namespace: must be lowercase snake_case, start with a letter and be at 
 | Code | Severity | Message | Cause | Correction |
 | --- | --- | --- | --- | --- |
 | `unknown-placeholder` | `error` | `<urn>: message placeholder {<name>} names no field of the error (required fields: <names>)`<br>`<urn>: message placeholder {<name>} names an optional field; placeholders must name required fields (required fields: <names>)`<br>`<urn>: message placeholder {<name>} names a list; placeholders must name single values (required fields: <names>)` | A `{placeholder}` in the `message` of an error is not a field of the error, it is a field with `required: false`, or it is a field with `many`. If the error has no mandatory fields, the list is `none` | Correct the name, make the field mandatory, or remove the placeholder of the list |
+| `rule-syntax` | `error` | `<urn>: rule: <problem> (at column <n> of the rule)` | The `rule` of an invariant is not valid in the rule language. Examples of the problem: `expected a field, a literal or "(", found the end of the rule`, `a comparison cannot follow another comparison; use and` | Correct the rule at the column. Refer to [The manifest](./manifest) |
+| `unknown-rule-field` | `error` | `<urn>: rule: "<name>" is not a field of the entity (fields: <names>) (at column <n> of the rule)` | The rule names a property that the `on` entity does not have | Use a property name from the list |
+| `rule-type` | `error` | `<urn>: rule: <problem> (at column <n> of the rule)` | The two sides of an operator have different primitives, a literal does not fit its primitive, an order or `+`/`-` is on a primitive that does not have it, a list is outside `is present`/`is absent`, or a required field is in `is present`/`is absent` | Correct the rule as the message says |
+| `unguarded-field` | `error` | `<urn>: rule: "<name>" is optional, so the rule must guard it: write "<name> is present and …" or "<name> is absent or …" (at column <n> of the rule)` | The rule uses an optional field where the rule does not make sure that the field is present | Add the guard that the message gives |
 
 ## Pass 7: constraint coherence
 

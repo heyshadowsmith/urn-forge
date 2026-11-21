@@ -136,6 +136,7 @@
       "urn": "urn:demo:warehouse:stock:field:warehouse"
     }
   },
+  "invariants": {},
   "meta": {
     "domain": "warehouse",
     "irSchemaVersion": 1,

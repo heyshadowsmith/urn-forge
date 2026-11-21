@@ -27,7 +27,7 @@ describe('manifest diagnostics', () => {
     expect(diagnose('Geometry.field.radius: { primitive: float }\n')).toEqual([
       expect.objectContaining({ code: 'invalid-key', location: { line: 5, column: 1 } }),
     ]);
-    expect(diagnose('policy.invariant.positive: {}\n')[0]).toMatchObject({ code: 'unsupported-kind' });
+    expect(diagnose('policy.event.placed: {}\n')[0]).toMatchObject({ code: 'unsupported-kind' });
     expect(diagnose('policy.widget.positive: {}\n')[0]).toMatchObject({ code: 'unknown-kind' });
   });
 

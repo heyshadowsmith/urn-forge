@@ -1,0 +1,51 @@
+# Each invariant breaks one rule of pass 4 or pass 6 (invariants plan, step 2).
+manifest:
+  namespace: acme
+  domain: rules
+  version: 0.1.0
+
+policy.field.effective_date: { primitive: date }
+policy.field.expiry_date:    { primitive: date }
+policy.field.premium:        { primitive: decimal }
+policy.field.deductible:     { primitive: decimal }
+policy.field.riders:         { primitive: string }
+
+policy.entity.policy:
+  description: A policy
+  fields:
+    - ref: policy.field.effective_date
+    - ref: policy.field.expiry_date
+    - ref: policy.field.premium
+    - { ref: policy.field.deductible, required: false }
+    - { ref: policy.field.riders, many: true }
+
+policy.invariant.incomplete:
+  description: The rule stops after the operator
+  on: policy.entity.policy
+  rule: expiry_date >
+  message: m
+policy.invariant.unknown_field:
+  description: The rule names a field the entity does not have
+  on: policy.entity.policy
+  rule: expiry > effective_date
+  message: m
+policy.invariant.mixed_types:
+  description: The rule compares a decimal with a date
+  on: policy.entity.policy
+  rule: premium > effective_date
+  message: m
+policy.invariant.unguarded:
+  description: The rule uses the optional deductible without a guard
+  on: policy.entity.policy
+  rule: deductible < premium
+  message: m
+policy.invariant.list_value:
+  description: The rule compares a list
+  on: policy.entity.policy
+  rule: riders = 'flood'
+  message: m
+policy.invariant.on_a_field:
+  description: The invariant is on a field, not an entity
+  on: policy.field.premium
+  rule: premium > 0
+  message: m

@@ -349,6 +349,7 @@
       "urn": "urn:demo:kinds:value:field:window"
     }
   },
+  "invariants": {},
   "meta": {
     "domain": "kinds",
     "irSchemaVersion": 1,

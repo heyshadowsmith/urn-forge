@@ -11,7 +11,7 @@ import type { ManifestPath } from '../diagnostics.js';
 import type { IRIssue, Urn } from '../ir/types.js';
 
 /** Every kind the compiler supports. The registry in index.ts must have one descriptor per name. */
-export type KindName = 'field' | 'entity' | 'operation' | 'error';
+export type KindName = 'field' | 'entity' | 'invariant' | 'operation' | 'error';
 
 /** An atom after expansion (pass 2). */
 export interface Atom {
@@ -39,6 +39,8 @@ export interface BuildContext<D> {
   ref(path: ManifestPath): Atom | undefined;
   /** Records a problem found while building, e.g. pass 7 or an entity's duplicate property. */
   report(issue: IRIssue): void;
+  /** A node already built, of a kind this kind builds `after`; undefined if it did not build. */
+  node(kind: KindName, urn: Urn): unknown;
 }
 
 export interface KindDescriptor<N extends KindName = KindName, D = unknown, Node = unknown, G extends string = string> {
@@ -51,6 +53,8 @@ export interface KindDescriptor<N extends KindName = KindName, D = unknown, Node
   readonly schema: v.GenericSchema<unknown, D>;
   /** Pass 4 resolves every reference these slots find, in this order. */
   readonly references: readonly ReferenceSlot[];
+  /** Kinds whose nodes `build` reads through `node`: they are built first. */
+  readonly after?: readonly KindName[];
   /** Builds the IR node, or returns undefined when a reference it needs did not resolve. */
   readonly build: (context: BuildContext<D>) => Node | undefined;
 }

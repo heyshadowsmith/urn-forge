@@ -29,6 +29,15 @@ const source = (path: string) => readFileSync(repo(path), 'utf8');
 const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 1.0.0\n';
 const manifest = (body: string) => compile(`${HEADER}${body}`).diagnostics;
 const math = source('tests/fixtures/math/domain.manifest.yaml');
+/** An invariant over a small policy entity, with this rule. */
+const invariant = (rule: string) =>
+  manifest(
+    'p.field.effective_date: { primitive: date }\np.field.expiry_date: { primitive: date }\n' +
+      'p.field.premium: { primitive: decimal }\np.field.deductible: { primitive: decimal }\n' +
+      'p.entity.policy:\n  description: d\n  fields:\n    - ref: p.field.effective_date\n    - ref: p.field.expiry_date\n' +
+      '    - ref: p.field.premium\n    - { ref: p.field.deductible, required: false }\n' +
+      `p.invariant.rule:\n  description: d\n  on: p.entity.policy\n  rule: ${rule}\n  message: m\n`,
+  );
 
 // Gate 3, over the tutorial's shipping domain (an operation, a declared error, constrained fields).
 const shipping = compile(source('tutorial/2-declared-errors/domain.manifest.yaml')).ir!;
@@ -114,7 +123,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'not-a-mapping': () => compile('- a\n').diagnostics,
   'missing-header': () => compile('a.field.b: { primitive: float }\n').diagnostics,
   'invalid-key': () => manifest('Bad Key: { primitive: float }\n'),
-  'unsupported-kind': () => manifest('a.invariant.b: {}\n'),
+  'unsupported-kind': () => manifest('a.event.b: {}\n'),
   'unknown-kind': () => manifest('a.widget.b: {}\n'),
   'unknown-primitive': () => manifest('a.field.b: { primitive: money }\n'),
   'constraint-not-allowed': () => manifest('a.field.b: { primitive: boolean, min: 1 }\n'),
@@ -132,6 +141,11 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'wrong-ref-kind': () => manifest('a.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\na.entity.f:\n  description: d\n  fields:\n    - ref: a.entity.e\n'),
   // Pass 6
   'unknown-placeholder': () => manifest('a.error.e:\n  description: d\n  category: precondition\n  retryable: false\n  message: no {thing}\n'),
+  // Pass 6: invariant rules
+  'rule-syntax': () => invariant('expiry_date >'),
+  'unknown-rule-field': () => invariant('expiry > effective_date'),
+  'rule-type': () => invariant('premium > effective_date'),
+  'unguarded-field': () => invariant('deductible < premium'),
   // Pass 7
   'conflicting-constraints': () => manifest('a.field.b: { primitive: float, min: 0, exclusiveMin: 0 }\n'),
   'incoherent-constraints': () => manifest('a.field.b: { primitive: integer, min: 5, max: 1 }\n'),

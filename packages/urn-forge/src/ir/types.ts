@@ -7,6 +7,7 @@
  */
 import type { DiagnosticCode, ManifestPath, SourceLocation } from '../diagnostics.js';
 import type { ConstraintValue, Primitive } from '../primitives/index.js';
+import type { RuleExpr } from '../rules/index.js';
 
 export type Urn = string & { readonly __urn: unique symbol };
 
@@ -23,8 +24,30 @@ export interface UniversalIR {
   };
   readonly fields: Readonly<Record<Urn, IRField>>;
   readonly entities: Readonly<Record<Urn, IREntity>>;
+  readonly invariants: Readonly<Record<Urn, IRInvariant>>;
   readonly operations: Readonly<Record<Urn, IROperation>>;
   readonly errors: Readonly<Record<Urn, IRError>>;
+}
+
+/**
+ * A named rule over the fields of one entity (spec §4.3). The entity does not list its
+ * invariants: `invariantsOf` finds them by `on`, so the link has one place.
+ */
+export interface IRInvariant {
+  readonly urn: Urn;
+  readonly brandIdentifier: string;
+  readonly description: string;
+  readonly on: Urn;
+  /** The parsed rule, without positions. */
+  readonly rule: RuleExpr;
+  /** The canonical text of the rule (`printRule`). */
+  readonly ruleText: string;
+  readonly message: string;
+}
+
+/** The invariants of an entity, in URN order. */
+export function invariantsOf(ir: UniversalIR, entity: Urn): IRInvariant[] {
+  return Object.values(ir.invariants ?? {}).filter((i) => i.on === entity);
 }
 
 export interface IRField {

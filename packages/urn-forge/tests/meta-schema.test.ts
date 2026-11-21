@@ -73,10 +73,10 @@ describe('meta-schema', () => {
   it('rejects a kind cut from the MVP, naming the key', () => {
     const result = validateManifest({
       manifest: header,
-      'policy.invariant.term_is_positive': { on: 'policy.entity.policy' },
+      'policy.event.placed': { fields: [] },
     });
     expect(messages(result)).toEqual([
-      expect.stringContaining('policy.invariant.term_is_positive'),
+      expect.stringContaining('policy.event.placed'),
     ]);
   });
 

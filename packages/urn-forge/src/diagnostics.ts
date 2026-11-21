@@ -42,6 +42,10 @@ export const DIAGNOSTIC_CODES = {
   'wrong-ref-kind': 'A reference names an atom of the wrong kind',
   // Pass 6: rule and template typing
   'unknown-placeholder': 'An error message placeholder does not name a required field of the error',
+  'rule-syntax': 'An invariant rule is not valid in the rule language',
+  'unknown-rule-field': 'An invariant rule names a field that its entity does not have',
+  'rule-type': 'An invariant rule mixes primitives, or uses an operator or a literal that does not fit them',
+  'unguarded-field': 'An invariant rule uses an optional field outside a guard such as x is present and …',
   // Pass 7: constraint coherence
   'conflicting-constraints': 'A field sets two constraints for one side of one aspect, such as min and exclusiveMin',
   'incoherent-constraints': 'The constraints of a field admit no value',
