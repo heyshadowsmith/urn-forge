@@ -9,7 +9,7 @@ import type { UniversalIR, Urn } from '../ir/types.js';
 import { toUrn } from '../naming.js';
 import { classify, type Change } from './classify.js';
 
-export type { Change, ChangeClass } from './classify.js';
+export type { Change, ChangeClass, ClassifyOptions } from './classify.js';
 export { classify, usesOf } from './classify.js';
 
 export interface DiffOptions {

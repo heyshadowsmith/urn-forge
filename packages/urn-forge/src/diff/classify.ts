@@ -93,13 +93,13 @@ function changedKeys(old: Readonly<Record<string, unknown>>, now: Readonly<Recor
 
 const STATUS_ORDER: Readonly<Record<Lifecycle['status'], number>> = { active: 0, deprecated: 1, sunset: 2 };
 
-export interface DiffOptions {
+export interface ClassifyOptions {
   /** The Postgres plugin's tables in the old manifest, by URN: their values have the Stored use. */
   readonly tables?: readonly Urn[];
 }
 
 /** Every change from `old` to `now`, in URN order. */
-export function classify(old: UniversalIR, now: UniversalIR, options: DiffOptions = {}): Change[] {
+export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOptions = {}): Change[] {
   const changes: Change[] = [];
   const manifest = `urn:${old.meta.namespace}:${old.meta.domain}`;
   if (old.meta.namespace !== now.meta.namespace || old.meta.domain !== now.meta.domain) {
