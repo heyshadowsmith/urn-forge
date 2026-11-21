@@ -9,7 +9,7 @@ order.field.unit_cost: { primitive: float, min: 0, description: Price of one uni
 order.field.note:      { primitive: string, minLength: 1, maxLength: 140 }
 order.field.total:     { primitive: float, min: 0 }
 order.field.gift_wrap: { primitive: boolean }
-order.field.delivery:  { primitive: string, oneOf: [standard, express, "click & collect"] }
+order.field.delivery:  { primitive: enum, values: [standard, express, "click & collect"] }
 order.field.sku:       { primitive: string, regex: '[A-Z]{3}-[0-9]{4}' }
 order.field.tracking_url: { primitive: string, regex: 'https://track\.example/[0-9]+' }
 order.field.terms_accepted: { primitive: boolean, mustBe: true, description: The buyer accepted the terms }

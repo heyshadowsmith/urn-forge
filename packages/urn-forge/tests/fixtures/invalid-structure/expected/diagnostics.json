@@ -32,7 +32,7 @@
       "column": 37,
       "line": 9
     },
-    "message": "order.field.weight.primitive: unknown primitive \"decimal\" (MVP primitives: boolean, float, integer, string)",
+    "message": "order.field.weight.primitive: unknown primitive \"decimal\" (MVP primitives: boolean, enum, float, integer, string)",
     "severity": "error"
   },
   {
@@ -41,7 +41,7 @@
       "column": 45,
       "line": 10
     },
-    "message": "order.field.note.min: \"min\" is not a constraint of primitive \"string\" (allowed: minLength, maxLength, regex, oneOf)",
+    "message": "order.field.note.min: \"min\" is not a constraint of primitive \"string\" (allowed: minLength, maxLength, regex)",
     "severity": "error"
   },
   {
@@ -56,19 +56,19 @@
   {
     "code": "invalid-value",
     "location": {
-      "column": 52,
+      "column": 51,
       "line": 12
     },
-    "message": "order.field.speed.oneOf: must list at least one value",
+    "message": "order.field.speed.values: must list at least one value",
     "severity": "error"
   },
   {
     "code": "invalid-value",
     "location": {
-      "column": 52,
+      "column": 51,
       "line": 13
     },
-    "message": "order.field.size.oneOf: must not list a value more than once",
+    "message": "order.field.size.values: must not list a value more than once",
     "severity": "error"
   },
   {

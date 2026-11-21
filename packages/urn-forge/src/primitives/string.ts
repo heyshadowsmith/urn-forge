@@ -1,5 +1,5 @@
 import * as v from 'valibot';
-import { definePrimitive, type BoundaryCase, type CoherenceProblem, type ConstraintSpec } from './types.js';
+import { definePrimitive, type BoundaryCase, type ConstraintSpec } from './types.js';
 
 const length: ConstraintSpec<number> = { schema: v.pipe(v.number(), v.safeInteger(), v.minValue(0)), aspect: 'size' };
 
@@ -33,39 +33,18 @@ const regex: ConstraintSpec<string> = {
   aspect: 'shape',
 };
 
-const oneOf: ConstraintSpec<string[]> = {
-  schema: v.pipe(
-    v.array(v.string()),
-    v.minLength(1, 'must list at least one value'),
-    v.check((values) => new Set(values).size === values.length, 'must not list a value more than once'),
-  ),
-  aspect: 'membership',
-};
 
-/** A JavaScript string. `regex` limits its form, and `oneOf` limits it to a fixed set of values. */
+/** Free text. `minLength` and `maxLength` limit its size, and `regex` its shape. A fixed set of values is an `enum`. */
 export const string = definePrimitive({
   name: 'string',
-  constraints: { minLength: length, maxLength: length, regex, oneOf },
-  coherence: ({ minLength, maxLength, regex: pattern, oneOf: values }) => {
-    if (minLength !== undefined && maxLength !== undefined && minLength > maxLength) {
-      return [{ constraint: 'maxLength', message: `minLength (${minLength}) is greater than maxLength (${maxLength}), so no value is valid` }];
-    }
-    // A listed value that the length constraints exclude can never be valid.
-    const problems: CoherenceProblem[] = [];
-    for (const value of values ?? []) {
-      if (minLength !== undefined && value.length < minLength) {
-        problems.push({ constraint: 'oneOf', message: `oneOf value "${value}" is shorter than minLength (${minLength}), so it is never valid` });
-      } else if (maxLength !== undefined && value.length > maxLength) {
-        problems.push({ constraint: 'oneOf', message: `oneOf value "${value}" is longer than maxLength (${maxLength}), so it is never valid` });
-      } else if (pattern !== undefined && !wholeValuePattern(pattern).test(value)) {
-        problems.push({ constraint: 'oneOf', message: `oneOf value "${value}" does not match regex ${pattern}, so it is never valid` });
-      }
-    }
-    return problems;
-  },
+  constraints: { minLength: length, maxLength: length, regex },
+  coherence: ({ minLength, maxLength }) =>
+    minLength !== undefined && maxLength !== undefined && minLength > maxLength
+      ? [{ constraint: 'maxLength', message: `minLength (${minLength}) is greater than maxLength (${maxLength}), so no value is valid` }]
+      : [],
   // `""` is the empty string: an empty cell means "absent", so it could not send one.
   parseCell: (cell) => (cell === '""' ? '' : cell),
-  boundaries: ({ minLength, maxLength, regex: pattern, oneOf: values }) => {
+  boundaries: ({ minLength, maxLength, regex: pattern }) => {
     const isString = (value: unknown): value is string => typeof value === 'string';
     const ofLength = (n: number) => (value: unknown) => isString(value) && value.length === n;
     const cases: BoundaryCase[] = [];
@@ -81,10 +60,6 @@ export const string = definePrimitive({
       const whole = wholeValuePattern(pattern);
       cases.push({ label: `valid value for regex ${pattern}`, covers: (value) => isString(value) && whole.test(value) });
       cases.push({ label: `invalid value for regex ${pattern}`, covers: (value) => isString(value) && !whole.test(value) });
-    }
-    if (values !== undefined) {
-      for (const listed of values) cases.push({ label: `value "${listed}" (oneOf)`, covers: (value) => value === listed });
-      cases.push({ label: 'value outside oneOf', covers: (value) => isString(value) && !values.includes(value) });
     }
     return cases;
   },

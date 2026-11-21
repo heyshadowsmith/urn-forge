@@ -5,13 +5,14 @@
  * `tsc` then names each place that does not handle the new primitive yet.
  */
 import { boolean } from './boolean.js';
+import { enumPrimitive } from './enum.js';
 import { float } from './float.js';
 import { integer } from './integer.js';
 import { string } from './string.js';
 import type { BoundaryCase, CoherenceProblem, ConstraintValue, ConstraintValues, PrimitiveDescriptor } from './types.js';
 
 /** In the order diagnostics list them. */
-export const PRIMITIVES = { boolean, float, integer, string } as const;
+export const PRIMITIVES = { boolean, enum: enumPrimitive, float, integer, string } as const;
 
 export type Primitive = keyof typeof PRIMITIVES;
 export const PRIMITIVE_NAMES = Object.keys(PRIMITIVES) as Primitive[];

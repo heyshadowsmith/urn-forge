@@ -40,8 +40,8 @@ naming.field.domain:
   regex: '[a-z][a-z0-9_]{0,62}'
   description: The domain segment of a URN, such as insurance
 naming.field.kind:
-  primitive: string
-  oneOf: [field, entity, operation, error]
+  primitive: enum
+  values: [field, entity, operation, error]
   description: The kind segment of a URN; the kinds the compiler supports
 naming.field.urn:
   primitive: string

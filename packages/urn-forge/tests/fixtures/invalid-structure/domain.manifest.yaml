@@ -9,8 +9,8 @@ order.event.placed:    { description: An order was placed }
 order.field.weight:    { primitive: decimal }
 order.field.note:      { primitive: string, min: 1 }
 order.field.count:     { primitive: integer, max: 1.5 }
-order.field.speed:     { primitive: string, oneOf: [] }
-order.field.size:      { primitive: string, oneOf: [s, m, s] }
+order.field.speed:     { primitive: enum, values: [] }
+order.field.size:      { primitive: enum, values: [s, m, s] }
 order.field.pattern:   { primitive: string, regex: '[a-' }
 order.entity.line:
   fields: []

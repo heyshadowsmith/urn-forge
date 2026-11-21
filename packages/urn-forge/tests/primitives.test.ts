@@ -17,21 +17,24 @@ const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 0.1.0\n
 
 describe('primitive registry', () => {
   it('lists the primitives and their constraints in a fixed order', () => {
-    expect(PRIMITIVE_NAMES).toEqual(['boolean', 'float', 'integer', 'string']);
+    expect(PRIMITIVE_NAMES).toEqual(['boolean', 'enum', 'float', 'integer', 'string']);
     expect(Object.fromEntries(PRIMITIVE_NAMES.map((p) => [p, constraintKeys(p)]))).toEqual({
       boolean: ['mustBe'],
+      enum: ['values'],
       float: ['min', 'max', 'notEqual'],
       integer: ['min', 'max', 'notEqual'],
-      string: ['minLength', 'maxLength', 'regex', 'oneOf'],
+      string: ['minLength', 'maxLength', 'regex'],
     });
   });
 
   it('drives the meta-schema: each primitive accepts its own constraints and no others', () => {
-    const sample: Record<string, unknown> = { mustBe: true, min: 1, max: 1, notEqual: 1, minLength: 1, maxLength: 1, regex: 'a', oneOf: ['a'] };
+    const sample: Record<string, unknown> = { mustBe: true, values: ['a'], min: 1, max: 1, notEqual: 1, minLength: 1, maxLength: 1, regex: 'a' };
     for (const primitive of PRIMITIVE_NAMES) {
+      // An enum must list its values, so each try starts from a valid enum.
+      const base = primitive === 'enum' ? { values: ['a'] } : {};
       for (const other of PRIMITIVE_NAMES) {
         for (const key of constraintKeys(other)) {
-          const result = validateManifest({ manifest: header, 'a.field.b': { primitive, [key]: sample[key] } });
+          const result = validateManifest({ manifest: header, 'a.field.b': { primitive, ...base, [key]: sample[key] } });
           expect(result.success, `${key} on ${primitive}`).toBe(constraintKeys(primitive).includes(key));
         }
       }
@@ -135,7 +138,7 @@ describe('boolean (the first primitive added through the registry)', () => {
   });
 });
 
-describe('oneOf (the first constraint that is not a number)', () => {
+describe('enum (a closed set of names)', () => {
   const line = { sku: 'ABC-1234', quantity: 2, unit_cost: 1.5, terms_accepted: true };
 
   it('accepts only the listed values, reporting the field', () => {
@@ -154,7 +157,7 @@ describe('oneOf (the first constraint that is not a number)', () => {
   it('keeps the list as a JSON value in the IR', () => {
     const ir = compile(readFileSync(new URL('./fixtures/shop/domain.manifest.yaml', import.meta.url), 'utf8')).ir!;
     expect(ir.fields['urn:demo:shop:order:field:delivery' as never]?.constraints).toEqual({
-      oneOf: ['standard', 'express', 'click & collect'],
+      values: ['standard', 'express', 'click & collect'],
     });
   });
 });
@@ -198,7 +201,7 @@ describe('boundary cases (boundary coverage plan, step 1)', () => {
     ]);
   });
 
-  it('string: lengths at and beyond each bound, regex matches and misses, and every oneOf value plus one outside', () => {
+  it('string: lengths at and beyond each bound, and regex matches and misses', () => {
     expect(covered('string', { minLength: 1, maxLength: 3 }, ['', 'a', 'abc', 'abcd', 5])).toEqual([
       ['value of length 1 (minLength)', ['a']],
       ['value of length 0 (below minLength)', ['']],
@@ -210,10 +213,13 @@ describe('boundary cases (boundary coverage plan, step 1)', () => {
       ['valid value for regex [a-z]+', ['abc']],
       ['invalid value for regex [a-z]+', ['Abc', 'abc1']],
     ]);
-    expect(covered('string', { oneOf: ['s', 'm'] }, ['s', 'm', 'xl'])).toEqual([
-      ['value "s" (oneOf)', ['s']],
-      ['value "m" (oneOf)', ['m']],
-      ['value outside oneOf', ['xl']],
+  });
+
+  it('enum: every listed value, and one value outside the list', () => {
+    expect(covered('enum', { values: ['s', 'm'] }, ['s', 'm', 'xl', 3])).toEqual([
+      ['value "s" (values)', ['s']],
+      ['value "m" (values)', ['m']],
+      ['value outside values', ['xl']],
     ]);
   });
 

@@ -100,12 +100,12 @@ describe('messages', () => {
 
   it('says that a field has no primitive', async () => {
     const manifest = await readFile(at('domain.manifest.yaml'), 'utf8');
-    const without = manifest.replace(/(parcel\.field\.zone:\n)\s+primitive: string\n/, '$1');
+    const without = manifest.replace(/(parcel\.field\.zone:\n)\s+primitive: enum\n/, '$1');
     expect(without).not.toBe(manifest);
     await writeFile(at('domain.manifest.yaml'), without);
     const { all } = await run('compile');
     expect(all).toContain(
-      'unknown-primitive  parcel.field.zone.primitive: a field must have a primitive (MVP primitives: boolean, float, integer, string)',
+      'unknown-primitive  parcel.field.zone.primitive: a field must have a primitive (MVP primitives: boolean, enum, float, integer, string)',
     );
   });
 });

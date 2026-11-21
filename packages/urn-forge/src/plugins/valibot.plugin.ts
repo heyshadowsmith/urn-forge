@@ -52,6 +52,8 @@ const NUMERIC_ACTIONS: ValibotTranslation<'float' | 'integer'>['constraints'] = 
 
 const TRANSLATIONS: ValibotTranslations = {
   boolean: { base: ['v.boolean()'], constraints: { mustBe: (b) => `v.value(${b})` } },
+  // `values` is required, so the picklist is always the base, and the type is the union of the names.
+  enum: { base: [], constraints: { values: (values) => `v.picklist([${values.map((value) => JSON.stringify(value)).join(', ')}])` } },
   float: { base: ['v.number()', 'v.finite()'], constraints: NUMERIC_ACTIONS },
   integer: { base: ['v.number()', 'v.safeInteger()'], constraints: NUMERIC_ACTIONS },
   string: {
@@ -61,8 +63,6 @@ const TRANSLATIONS: ValibotTranslations = {
       maxLength: (n) => `v.maxLength(${numberLiteral(n)})`,
       // The whole-value pattern as a regex literal; `.source` escapes any `/` in it.
       regex: (pattern) => `v.regex(/${wholeValuePattern(pattern).source}/u)`,
-      // A picklist schema in the pipe also narrows the type to the listed values.
-      oneOf: (values) => `v.picklist([${values.map((value) => JSON.stringify(value)).join(', ')}])`,
     },
   },
 };
