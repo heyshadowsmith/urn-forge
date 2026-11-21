@@ -73,7 +73,9 @@ jobs:
       - name: urn-forge verify (insurance)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         working-directory: packages/urn-forge
-        run: npm run verify:insurance
+        # Pass 8 compares sunset dates with the commit's date, never the clock, so a rerun of
+        # this commit later gives the same verdict (lifecycle plan, decision 5).
+        run: npm run verify:insurance -- --reference-date "$(git log -1 --format=%cs)"
 
       - name: cucumber-js (insurance)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}

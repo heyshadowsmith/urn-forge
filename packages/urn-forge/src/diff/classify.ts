@@ -179,13 +179,24 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     else relate(urn, constraintRelation(a.primitive, a.constraints, b!.constraints), changedKeys(a.constraints, b!.constraints), uses);
   }
 
+  /** The target of a property in the old manifest, if that target was deprecated there. */
+  const deprecatedTarget = (ref: IRPropertyRef): Urn | undefined => {
+    const urn = 'field' in ref ? ref.field : 'link' in ref ? ref.link : ref.entity;
+    const node = old.fields[urn] ?? old.entities[urn];
+    return node !== undefined && statusOf(node) === 'deprecated' ? urn : undefined;
+  };
+
   /** The properties of an entity or an error, compared by name. */
   const properties = (urn: Urn, before: readonly IRPropertyRef[], after: readonly IRPropertyRef[], uses: ReadonlySet<Use>) => {
     const target = (ref: IRPropertyRef) => ('field' in ref ? `ref ${ref.field}` : 'link' in ref ? `link ${ref.link}` : `ref ${ref.entity}`);
     for (const a of before) {
       const b = after.find((p) => p.name === a.name);
       if (!b) {
-        relate(urn, 'wider', `removing the ${a.required ? 'required' : 'optional'} property "${a.name}"`, uses);
+        // A property whose target was deprecated retires on its announced path: callers were
+        // warned (deprecated-ref, @deprecated) and had until the sunset date to move.
+        const retired = deprecatedTarget(a);
+        if (retired !== undefined) changes.push({ class: 'lifecycle', urn, message: `removes the property "${a.name}", whose target ${retired} was deprecated` });
+        else relate(urn, 'wider', `removing the ${a.required ? 'required' : 'optional'} property "${a.name}"`, uses);
         continue;
       }
       if (target(a) !== target(b) || (a.many === undefined) !== (b.many === undefined)) {
