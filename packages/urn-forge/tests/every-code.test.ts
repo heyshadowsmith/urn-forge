@@ -206,6 +206,9 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'undeclared-invariant': () =>
     gate3(scenario(`${ISSUE_RUN}    Then the input is rejected by "urn:acme:insurance:policy:invariant:cancellation_within_term"\n`, ISSUE), 'warn', insurance),
   'uncovered-invariant': () => gate3(scenario(ISSUE_RUN, ISSUE), 'warn', insurance),
+  'undeclared-event': () =>
+    gate3(scenario(`${ISSUE_RUN}    Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"\n`, ISSUE), 'warn', insurance),
+  'uncovered-event': () => gate3(scenario(ISSUE_RUN, ISSUE), 'warn', insurance),
   'uncovered-boundary': () => gate3(scenario(RUN)),
   'ratchet-ready': () => gate3(strictFeature, 'warn', strict),
   'waived-boundary': () => gate3(scenario(RUN, OPERATION, '# urn-forge:waive urn:demo:shipping:parcel:field:zone the sample has no bad zone\n')),

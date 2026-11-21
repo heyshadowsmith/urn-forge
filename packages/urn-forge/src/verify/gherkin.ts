@@ -36,7 +36,7 @@
  * operation carries `@urn-forge:strict`; then they are errors.
  */
 
-import { failsWithUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
+import { emitsUrn, failsWithUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
 import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
 import { valueField, type UniversalIR, type Urn } from '../ir/types.js';
 import { invariantsWithin, keyName } from './shapes.js';
@@ -73,6 +73,8 @@ interface Owner {
   readonly requiredInput?: readonly string[];
   /** For an operation: its declared errors. */
   readonly errors?: readonly Urn[];
+  /** For an operation: its events. */
+  readonly emits?: readonly Urn[];
   /** For an operation: the invariants of its input entity. */
   readonly invariants?: readonly Urn[];
 }
@@ -90,6 +92,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const covered = new Set<string>();
   /** `<operation URN> <error URN>` for each declared error some scenario expects. */
   const expectedErrors = new Set<string>();
+  /** `<operation URN> <event URN>` for each event some scenario expects. */
+  const expectedEvents = new Set<string>();
   /** `<operation URN> <invariant URN>` for each input invariant some scenario breaks. */
   const brokenInvariants = new Set<string>();
 
@@ -190,6 +194,24 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
           if (step.table) checkHeader(step.table.header, errorOwner(ir, owner, errorUrn));
           continue;
         }
+        // `the operation emits "<urn>"`, with or without a table of that event's fields.
+        const eventUrn = emitsUrn(step.text);
+        if (eventUrn !== undefined) {
+          if (owner?.emits) {
+            if (owner.emits.includes(eventUrn as Urn)) {
+              expectedEvents.add(`${owner.urn} ${eventUrn}`);
+            } else {
+              report(
+                'undeclared-event',
+                step.location,
+                `"${eventUrn}" is not an event of ${owner.urn} (emits: ${owner.emits.length > 0 ? owner.emits.join(', ') : 'none'})`,
+                owner.urn,
+              );
+            }
+          }
+          if (step.table) checkHeader(step.table.header, eventOwner(ir, owner, eventUrn));
+          continue;
+        }
         if (!step.table) continue;
         checkHeader(step.table.header, owner);
         if (step.text === STEP_PHRASES.run) checkRequired(step.table, owner);
@@ -227,6 +249,22 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         file: features.directory,
         urn: errorUrn,
         message: `error ${errorUrn} of ${operation.urn} has no scenario that expects it; add one with Then the operation fails with "${errorUrn}"`,
+      });
+    }
+  }
+
+  // Event coverage: each event of a tagged operation needs a scenario that expects it (events plan, decision 8).
+  let declaredEvents = 0;
+  for (const operation of Object.values(ir.operations)) {
+    for (const eventUrn of operation.emits) {
+      declaredEvents += 1;
+      if (!covered.has(operation.urn) || expectedEvents.has(`${operation.urn} ${eventUrn}`)) continue;
+      problems.push({
+        code: 'uncovered-event',
+        severity: coverageSeverity(operation.urn),
+        file: features.directory,
+        urn: eventUrn,
+        message: `event ${eventUrn} of ${operation.urn} has no scenario that expects it; add one with Then the operation emits "${eventUrn}"`,
       });
     }
   }
@@ -347,6 +385,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const scenarioCount = features.features.reduce((n, f) => n + f.scenarios.length, 0);
   const errorSummary =
     (declaredErrors > 0 ? `, ${expectedErrors.size}/${declaredErrors} errors expected` : '') +
+    (declaredEvents > 0 ? `, ${expectedEvents.size}/${declaredEvents} events expected` : '') +
     (inputInvariants > 0 ? `, ${brokenInvariants.size}/${inputInvariants} invariants broken` : '');
   const featureCount = features.features.length;
 
@@ -384,6 +423,7 @@ function operationOwner(ir: UniversalIR, urn: Urn): Owner {
     keys: new Set([...propertyNames(ir, op.input), ...propertyNames(ir, op.output)]),
     requiredInput: ir.entities[op.input]?.fields.filter((f) => f.required).map((f) => f.name) ?? [],
     errors: op.errors,
+    emits: op.emits,
     invariants: invariantsWithin(ir, op.input).map((i) => i.urn),
   };
 }
@@ -394,6 +434,14 @@ function errorOwner(ir: UniversalIR, owner: Owner | undefined, errorUrn: string)
   if (!owner?.errors?.includes(errorUrn as Urn)) return undefined;
   const error = ir.errors[errorUrn as Urn]!;
   return { urn: errorUrn, description: `the error ${errorUrn}`, keys: new Set(error.fields.map((f) => f.name)) };
+}
+
+/** The fields an event table may name: those of `eventUrn`, when the scenario's operation emits it. */
+function eventOwner(ir: UniversalIR, owner: Owner | undefined, eventUrn: string): Owner | undefined {
+  // An event the operation does not emit is reported on its own (gate 3, undeclared-event).
+  if (!owner?.emits?.includes(eventUrn as Urn)) return undefined;
+  const event = ir.events[eventUrn as Urn]!;
+  return { urn: eventUrn, description: `the event ${eventUrn}`, keys: new Set(event.fields.map((f) => f.name)) };
 }
 
 function entityOwner(ir: UniversalIR, urn: Urn): Owner {

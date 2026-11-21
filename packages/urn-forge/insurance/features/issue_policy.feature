@@ -9,6 +9,9 @@ Feature: Issue a policy
     Then the output is:
       | holder                               | premium   | deductible   | coverages   |
       | 9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d | <premium> | <deductible> | <coverages> |
+    And the operation emits "urn:acme:insurance:policy:event:policy_issued":
+      | policy_id                            | holder                               | premium   |
+      | 123e4567-e89b-12d3-a456-426614174000 | 9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d | <premium> |
 
     Examples:
       | premium | deductible | coverages                                                                                                    |

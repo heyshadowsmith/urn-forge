@@ -9,6 +9,9 @@ Feature: Cancel a policy
     Then the output is:
       | refund   |
       | <refund> |
+    And the operation emits "urn:acme:insurance:policy:event:policy_cancelled":
+      | cancellation_date   | refund   |
+      | <cancellation_date> | <refund> |
 
     Examples:
       | premium | cancellation_date | refund |
@@ -45,3 +48,4 @@ Feature: Cancel a policy
     Then the operation fails with "urn:acme:insurance:policy:error:refund_below_minimum":
       | refund |
       | 0.00   |
+    And the operation emits no event
