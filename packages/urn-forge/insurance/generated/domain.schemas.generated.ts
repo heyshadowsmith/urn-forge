@@ -111,7 +111,10 @@ export const PolicyLimitSchema = v.pipe(
 export type PolicyLimit = v.InferOutput<typeof PolicyLimitSchema>;
 export type PolicyLimitInput = v.InferInput<typeof PolicyLimitSchema>;
 
-/** urn:acme:insurance:policy:field:note — Free text about a coverage */
+/**
+ * urn:acme:insurance:policy:field:note — Free text about a coverage
+ * @deprecated Superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30.
+ */
 export const PolicyNoteSchema = v.pipe(
   v.string(),
   v.brand("urn:acme:insurance:policy:field:note"),

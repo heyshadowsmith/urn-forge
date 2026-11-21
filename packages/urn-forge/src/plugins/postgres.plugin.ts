@@ -14,13 +14,13 @@
  */
 import * as v from 'valibot';
 import type { DiagnosticCode } from '../diagnostics.js';
-import type { IREntity, IRField, UniversalIR, Urn } from '../ir/types.js';
+import type { IREntity, IRField, Lifecycle, UniversalIR, Urn } from '../ir/types.js';
 import { toUrn } from '../naming.js';
 import type { ConstraintsOf, Primitive } from '../primitives/index.js';
 import type { Format } from '../primitives/string.js';
 import { translateRegex } from './postgres-regex.js';
 import { tablesSql } from './postgres-tables.js';
-import { numberLiteral, valuesInUrnOrder, type CodegenPlugin, type PluginDiagnostic } from './plugin.interface.js';
+import { deprecationNote, numberLiteral, valuesInUrnOrder, type CodegenPlugin, type PluginDiagnostic } from './plugin.interface.js';
 
 export const POSTGRES_SCHEMA_FILE = 'schema.generated.sql';
 
@@ -243,7 +243,7 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof P
       for (const what of sql.unenforced) out.push(`-- Not enforced here: ${what}.`);
       out.push(`CREATE DOMAIN ${qualified(domainName(field.urn))} AS ${sql.type}${sql.conditions.length === 0 ? ';' : ''}`);
       if (sql.conditions.length > 0) out.push(`  CONSTRAINT ${ident(identifier)} CHECK (${sql.conditions.join(' AND ')});`);
-      out.push(`COMMENT ON DOMAIN ${qualified(domainName(field.urn))} IS ${literal(describe(field.urn, field.description))};`);
+      out.push(`COMMENT ON DOMAIN ${qualified(domainName(field.urn))} IS ${literal(describe(field.urn, field.description, field))};`);
     }
 
     out.push(
@@ -260,6 +260,7 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof P
 };
 
 /** The text of a comment: the URN, and the description when there is one. */
-function describe(urn: Urn, description: string | undefined): string {
-  return description === undefined ? urn : `${urn} — ${description}`;
+export function describe(urn: Urn, description: string | undefined, node: { readonly lifecycle?: Lifecycle } = {}): string {
+  const note = deprecationNote(node);
+  return `${description === undefined ? urn : `${urn} — ${description}`}${note ? ` (${note})` : ''}`;
 }

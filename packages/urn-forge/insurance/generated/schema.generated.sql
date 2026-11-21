@@ -29,7 +29,7 @@ CREATE DOMAIN "policy"."limit_value" AS NUMERIC
 COMMENT ON DOMAIN "policy"."limit_value" IS 'urn:acme:insurance:policy:field:limit — The most that a policy pays for one peril';
 
 CREATE DOMAIN "policy"."note_value" AS TEXT;
-COMMENT ON DOMAIN "policy"."note_value" IS 'urn:acme:insurance:policy:field:note — Free text about a coverage';
+COMMENT ON DOMAIN "policy"."note_value" IS 'urn:acme:insurance:policy:field:note — Free text about a coverage (deprecated: superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)';
 
 CREATE DOMAIN "policy"."peril_value" AS TEXT
   CONSTRAINT "peril" CHECK (VALUE IN ('fire', 'flood', 'theft'));

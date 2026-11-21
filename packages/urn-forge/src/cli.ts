@@ -2,8 +2,8 @@
  * urn-forge CLI (spec §9; the MVP ships `compile` and `verify`, plus `init` for a new project).
  *
  *   urn-forge init    [--namespace <name>] [--domain <name>]
- *   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
- *   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
+ *   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--reference-date <YYYY-MM-DD>] [--format text|json]
+ *   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--reference-date <YYYY-MM-DD>] [--format text|json]
  *
  * Each setting comes from its flag, else from the config file (`--config`, or
  * `urn-forge.config.ts` in the current directory when it exists), else its default.
@@ -16,6 +16,7 @@
 import { access, readFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { isCalendarDate } from './primitives/exact.js';
 import { diagnosticJson, formatDiagnostic, hasErrors, relativePaths, type Diagnostic } from './diagnostics.js';
 import { CONFIG_FILE, loadConfig, pluginEntries, type UrnForgeConfig } from './config.js';
 import { compile, type PluginEntry } from './engine.js';
@@ -41,8 +42,8 @@ const USAGE = `urn-forge ${GENERATOR_VERSION}
 
 Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
-  urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
-  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
+  urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--reference-date <YYYY-MM-DD>] [--format text|json]
+  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--reference-date <YYYY-MM-DD>] [--format text|json]
 
 Options:
   --namespace <name> init: the namespace of the starter manifest (default: app)
@@ -51,6 +52,8 @@ Options:
   --manifest <file>  Manifest YAML (default: domain.manifest.yaml)
   --out <dir>        Directory for generated files (default: src/generated)
   --format <format>  text (default) or json: JSON lines on stdout, for CI annotations
+  --reference-date <YYYY-MM-DD>
+                     The day that sunset dates are compared with (default: referenceDate in the config; never the clock)
   --core <file>      verify: core entry exporting \`satisfies DomainCoreImplementation\` (default: src/core.ts)
   --features <dir>   verify: directory searched for .feature files (default: features)
   --tsconfig <file>  verify: tsconfig whose options gate 1 type-checks with (default: tsconfig.json)`;
@@ -73,6 +76,7 @@ const PATH_OPTIONS = {
   config: { type: 'string' },
   manifest: { type: 'string' },
   out: { type: 'string' },
+  'reference-date': { type: 'string' },
 } as const;
 
 const DEFAULTS = {
@@ -91,6 +95,8 @@ interface Settings {
   readonly plugins: readonly PluginEntry[];
   /** Gate 3's coverage mode, from the config. */
   readonly boundaryCoverage: 'warn' | 'error';
+  /** Pass 8's reference date: the flag, else the config. */
+  readonly referenceDate?: string;
   /** Display path of the config file, when one was loaded. */
   readonly configLabel?: string;
 }
@@ -106,7 +112,7 @@ function attributePluginProblems(diagnostics: readonly Diagnostic[], configLabel
 /** Flag, else config (relative to the config file), else default (relative to cwd). */
 async function resolveSettings(
   io: CliIo,
-  flags: Partial<Record<PathSetting | 'config', string>>,
+  flags: Partial<Record<PathSetting | 'config' | 'reference-date', string>>,
 ): Promise<{ ok: true; settings: Settings } | { ok: false; diagnostics: readonly Diagnostic[] }> {
   let config: UrnForgeConfig = {};
   let configDir = io.cwd;
@@ -138,12 +144,16 @@ async function resolveSettings(
     return fromConfig !== undefined ? resolve(configDir, fromConfig) : resolve(io.cwd, DEFAULTS[key]);
   };
   const paths = Object.fromEntries((Object.keys(DEFAULTS) as PathSetting[]).map((key) => [key, path(key)]));
+  const flagDate = flags['reference-date'];
+  if (flagDate !== undefined && !isCalendarDate(flagDate)) throw new UsageError(`--reference-date must be a date YYYY-MM-DD, not "${flagDate}"`);
+  const referenceDate = flagDate ?? config.referenceDate;
   return {
     ok: true,
     settings: {
       paths: paths as Settings['paths'],
       plugins,
       boundaryCoverage: config.boundaryCoverage ?? 'warn',
+      ...(referenceDate === undefined ? {} : { referenceDate }),
       ...(configLabel === undefined ? {} : { configLabel }),
     },
   };
@@ -206,7 +216,7 @@ async function runCompile(args: string[], io: CliIo): Promise<number> {
     report(resolved.diagnostics);
     return finish(false);
   }
-  const { paths, plugins, configLabel } = resolved.settings;
+  const { paths, plugins, configLabel, referenceDate } = resolved.settings;
 
   let source: string;
   try {
@@ -216,7 +226,7 @@ async function runCompile(args: string[], io: CliIo): Promise<number> {
     return finish(false);
   }
 
-  const result = compile(source, plugins);
+  const result = compile(source, plugins, referenceDate === undefined ? {} : { referenceDate });
   report(attributePluginProblems(result.diagnostics, configLabel));
   if (hasErrors(result.diagnostics)) return finish(false);
 
@@ -267,6 +277,7 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
     tsconfigPath: paths.tsconfig,
     plugins,
     boundaryCoverage: resolved.settings.boundaryCoverage,
+    ...(resolved.settings.referenceDate === undefined ? {} : { referenceDate: resolved.settings.referenceDate }),
   });
 
   const manifestLabel = display(io, paths.manifest);
@@ -283,11 +294,12 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
     for (const { gate, name, ok, summary } of result.gates) {
       io.stdout(JSON.stringify({ type: 'gate', gate, name, ok, summary }));
     }
-    io.stdout(JSON.stringify({ type: 'result', ok: result.ok, failedGates: failed, warnings }));
+    io.stdout(JSON.stringify({ type: 'result', ok: result.ok, failedGates: failed, warnings, sunsetDatesChecked: result.sunsetDatesChecked }));
     return result.ok ? 0 : 1;
   }
 
   printDiagnostics(io, manifestLabel, diagnostics);
+  if (!result.sunsetDatesChecked) io.stdout('note: sunset dates are not checked: set --reference-date or referenceDate in the config');
   for (const gate of result.gates) {
     io.stdout(`gate ${gate.gate}  ${gate.name.padEnd(12)}  ${gate.ok ? 'PASS' : 'FAIL'}  ${gate.summary}`);
     for (const problem of gate.problems) {

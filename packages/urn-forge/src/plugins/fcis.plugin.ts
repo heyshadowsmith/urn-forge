@@ -20,7 +20,7 @@ import type { IREntity, IRError, IRPropertyRef, MessagePart, UniversalIR, Urn } 
 import { ERROR_CATEGORIES, invariantsOf, valueField } from '../ir/types.js';
 import { handlerName, ruleName, schemaNames } from '../naming.js';
 import { PRIMITIVE_NAMES } from '../primitives/index.js';
-import { valuesInUrnOrder, type CodegenPlugin } from './plugin.interface.js';
+import { docComment, valuesInUrnOrder, type CodegenPlugin } from './plugin.interface.js';
 import { VALIBOT_SCHEMAS_FILE } from './valibot.plugin.js';
 
 export const FCIS_RUNTIME_FILE = 'domain.runtime.generated.ts';
@@ -330,7 +330,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
     const handlers = operations.map((op) => {
       const errorTypes = op.errors.map((urn) => `s.${schemaNames(error(urn).brandIdentifier).input}`);
       return [
-        `/** ${op.urn} — ${op.description} */`,
+        docComment(`${op.urn} — ${op.description}`, op),
         `export type ${handlerName(op.brandIdentifier)} = (`,
         `  input: s.${schemaNames(entity(op.input).brandIdentifier).output},`,
         `) => Result<s.${schemaNames(entity(op.output).brandIdentifier).input}, ${errorTypes.length > 0 ? errorTypes.join(' | ') : 'never'}>;`,

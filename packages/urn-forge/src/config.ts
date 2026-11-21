@@ -14,6 +14,7 @@
 import { pathToFileURL } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import * as v from 'valibot';
+import { isCalendarDate } from './primitives/exact.js';
 import { relativePaths, type Diagnostic } from './diagnostics.js';
 import type { PluginEntry } from './engine.js';
 import { PLUGINS, PLUGIN_NAMES, isPluginName, type PluginConfigOf, type PluginName } from './plugins/index.js';
@@ -38,6 +39,11 @@ export interface UrnForgeConfig {
    * errors either way. Switch to `error` once every feature is strict (spec §8).
    */
   readonly boundaryCoverage?: 'warn' | 'error';
+  /**
+   * compile and verify: the day that pass 8 compares sunset dates with (YYYY-MM-DD), never
+   * the clock. `--reference-date` overrides it. Without either, sunset dates are not checked.
+   */
+  readonly referenceDate?: string;
   /** The plugins to run, in order. Default: Valibot and FCIS, each with an empty config. */
   readonly plugins?: readonly PluginSpec[];
 }
@@ -57,6 +63,7 @@ const ConfigSchema = v.strictObject({
   features: v.optional(Path),
   tsconfig: v.optional(Path),
   boundaryCoverage: v.optional(v.picklist(['warn', 'error'])),
+  referenceDate: v.optional(v.pipe(v.string(), v.check((value: string) => isCalendarDate(value), 'must be a date YYYY-MM-DD'))),
   // No plugin would write no file, and gate 1 would then fail on a missing runtime. An item
   // after the config of a tuple has no meaning, so it is refused, not ignored.
   plugins: v.optional(

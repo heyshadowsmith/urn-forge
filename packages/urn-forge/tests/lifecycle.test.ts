@@ -1,6 +1,7 @@
 /** The lifecycle of an atom (lifecycle plan): the keys, the IR, and pass 8. */
 import { describe, expect, it } from 'vitest';
 import { compile, type CompileOptions } from '../src/engine.js';
+import { PLUGINS } from '../src/plugins/index.js';
 
 const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 1.0.0\n';
 const run = (body: string, options: CompileOptions = {}) => compile(`${HEADER}${body}`, undefined, options);
@@ -66,5 +67,42 @@ describe('pass 8', () => {
     ]);
     // Without a reference date, the sunset date is not checked, however old it is.
     expect(report(used(', status: deprecated, sunsetDate: 2000-01-01')).map((d) => d.split(':')[0])).toEqual(['warning deprecated-ref']);
+  });
+});
+
+describe('the generated code (decisions 6 and 7)', () => {
+  const plugins = [
+    { plugin: PLUGINS.valibot, config: {} },
+    { plugin: PLUGINS.fcis, config: {} },
+    { plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } },
+  ];
+  const body =
+    'a.field.id: { primitive: integer }\n' +
+    'a.field.old: { primitive: string, status: deprecated, supersededBy: a.field.new, sunsetDate: 2027-06-30 }\n' +
+    'a.field.new: { primitive: string }\n' +
+    'a.field.gone: { primitive: string, status: sunset, supersededBy: a.field.new }\n' +
+    'a.entity.e:\n  description: d\n  key: a.field.id\n  fields:\n    - ref: a.field.id\n    - { ref: a.field.old, required: false }\n    - { ref: a.field.new, required: false }\n' +
+    'a.entity.was:\n  description: d\n  status: sunset\n  fields:\n    - ref: a.field.gone\n';
+  const result = compile(`${HEADER}${body}`, plugins);
+  const file = (name: string) => result.files.find((f) => f.relativePath === name)!.content;
+
+  it('marks a deprecated atom @deprecated in TypeScript, with its replacement and sunset date', () => {
+    expect(file('domain.schemas.generated.ts')).toContain(
+      '/**\n * urn:demo:math:a:field:old\n * @deprecated Superseded by urn:demo:math:a:field:new; sunset on 2027-06-30.\n */\nexport const AOldSchema',
+    );
+  });
+
+  it('puts the deprecation in the SQL comment', () => {
+    expect(file('schema.generated.sql')).toContain(
+      `COMMENT ON DOMAIN "a"."old_value" IS 'urn:demo:math:a:field:old (deprecated: superseded by urn:demo:math:a:field:new; sunset on 2027-06-30)';`,
+    );
+  });
+
+  it('generates nothing for a sunset atom, but keeps it in the IR', () => {
+    expect(result.diagnostics.map((d) => d.code)).toEqual(['deprecated-ref']);
+    for (const f of result.files) {
+      expect(f.content, f.relativePath).not.toMatch(/AGone|AWas|gone_value|"was"/u);
+    }
+    expect(Object.keys(result.ir!.fields)).toContain('urn:demo:math:a:field:gone');
   });
 });

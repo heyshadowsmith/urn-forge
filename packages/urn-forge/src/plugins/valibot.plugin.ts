@@ -26,6 +26,7 @@ import { HELPER_NEEDS, VALIBOT_HELPERS, type ValibotHelper } from './valibot-hel
 import {
   numberLiteral,
   valuesInUrnOrder,
+  docComment,
   type CodegenPlugin,
   type PluginDiagnostic,
 } from './plugin.interface.js';
@@ -162,7 +163,7 @@ function fieldDeclaration(field: IRField): string {
 
   const names = schemaNames(field.brandIdentifier);
   return [
-    `/** ${field.urn}${field.description ? ` — ${field.description}` : ''} */`,
+    docComment(`${field.urn}${field.description ? ` — ${field.description}` : ''}`, field),
     `export const ${names.schema} = v.pipe(`,
     ...steps.map((step) => `  ${step},`),
     `);`,
@@ -241,7 +242,7 @@ function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
   const invariants = invariantsOf(ir, entity.urn);
   if (invariants.length === 0) {
     return [
-      `/** ${entity.urn} — ${entity.description} */`,
+      docComment(`${entity.urn} — ${entity.description}`, entity),
       `export const ${names.schema} = v.object({`,
       ...propertyLines(entity.urn, entity.fields, ir),
       `});`,
@@ -258,12 +259,12 @@ function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
     `});`,
     ...invariants.map((invariant) =>
       [
-        `/** ${invariant.urn} — ${invariant.description}: ${invariant.ruleText} */`,
+        docComment(`${invariant.urn} — ${invariant.description}: ${invariant.ruleText}`, invariant),
         `export const ${ruleName(invariant.brandIdentifier)} = (p: v.InferOutput<typeof ${object}>): boolean =>`,
         `  ${emitRule(invariant.rule, primitiveOf).code};`,
       ].join('\n'),
     ),
-    `/** ${entity.urn} — ${entity.description} */`,
+    docComment(`${entity.urn} — ${entity.description}`, entity),
     `export const ${names.schema} = v.pipe(`,
     `  ${object},`,
     ...invariants.map(
@@ -281,7 +282,7 @@ function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
 function errorDeclaration(error: IRError, ir: UniversalIR): string {
   const names = schemaNames(error.brandIdentifier);
   return [
-    `/** ${error.urn} — ${error.description} */`,
+    docComment(`${error.urn} — ${error.description}`, error),
     `export const ${names.schema} = v.object({`,
     `  kind: v.literal(${JSON.stringify(error.urn)}),`,
     ...propertyLines(error.urn, error.fields, ir),

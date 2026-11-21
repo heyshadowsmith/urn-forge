@@ -5,6 +5,7 @@
 import { readFile } from 'node:fs/promises';
 import { hasErrors, relativePaths, type Diagnostic } from '../diagnostics.js';
 import { compile, type PluginEntry } from '../engine.js';
+import { hasSunsetDates, liveIr } from '../ir/lifecycle.js';
 import { completenessGate } from './completeness.js';
 import { driftGate } from './drift.js';
 import { indexFeatures } from './feature-index.js';
@@ -27,6 +28,8 @@ export interface VerifyOptions {
   readonly boundaryCoverage?: 'warn' | 'error';
   /** The gates to run. Default: `GATES`. */
   readonly gates?: readonly Gate[];
+  /** The day that pass 8 compares sunset dates with (YYYY-MM-DD). */
+  readonly referenceDate?: string;
 }
 
 export interface VerifyResult {
@@ -35,6 +38,8 @@ export interface VerifyResult {
   /** Manifest problems; when any is an error, no gate runs. */
   readonly diagnostics: readonly Diagnostic[];
   readonly gates: readonly GateResult[];
+  /** False when the manifest has a sunset date and no reference date was given, so pass 8 did not compare it. */
+  readonly sunsetDatesChecked: boolean;
 }
 
 export async function verify(options: VerifyOptions): Promise<VerifyResult> {
@@ -48,17 +53,20 @@ export async function verify(options: VerifyOptions): Promise<VerifyResult> {
         { code: 'manifest-unreadable', severity: 'error', message: `cannot read manifest: ${relativePaths((error as Error).message, options.cwd)}` },
       ],
       gates: [],
+      sunsetDatesChecked: true,
     };
   }
 
-  const compiled = compile(source, options.plugins);
+  const compiled = compile(source, options.plugins, options.referenceDate === undefined ? {} : { referenceDate: options.referenceDate });
+  const sunsetDatesChecked = options.referenceDate !== undefined || !compiled.ir || !hasSunsetDates(compiled.ir);
   if (!compiled.ir || hasErrors(compiled.diagnostics)) {
-    return { ok: false, diagnostics: compiled.diagnostics, gates: [] };
+    return { ok: false, diagnostics: compiled.diagnostics, gates: [], sunsetDatesChecked };
   }
 
   const context = {
     cwd: options.cwd,
-    ir: compiled.ir,
+    // The gates check the live IR: a sunset atom needs no handler and no scenario.
+    ir: liveIr(compiled.ir),
     files: compiled.files,
     outDir: options.outDir,
     corePath: options.corePath,
@@ -72,5 +80,5 @@ export async function verify(options: VerifyOptions): Promise<VerifyResult> {
     const outcome = await gate.run(context);
     gates.push({ gate: gate.number, name: gate.name, ok: !hasErrors(outcome.problems), ...outcome });
   }
-  return { ok: gates.every((g) => g.ok), diagnostics: compiled.diagnostics, gates };
+  return { ok: gates.every((g) => g.ok), diagnostics: compiled.diagnostics, gates, sunsetDatesChecked };
 }
