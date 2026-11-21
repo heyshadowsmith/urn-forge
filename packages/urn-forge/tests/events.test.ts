@@ -52,3 +52,65 @@ describe('the event kind', () => {
     ]);
   });
 });
+
+describe('events in the runtime (insurance)', async () => {
+  const { core } = await import('../insurance/core.js');
+  const { emit, executeOperation, ok } = await import('../insurance/generated/domain.runtime.generated.js');
+  type Core = import('../insurance/generated/domain.runtime.generated.js').DomainCoreImplementation;
+  const ISSUE = 'urn:acme:insurance:policy:operation:issue_policy';
+  const CANCEL = 'urn:acme:insurance:policy:operation:cancel_policy';
+  const ISSUED = 'urn:acme:insurance:policy:event:policy_issued';
+  const CANCELLED = 'urn:acme:insurance:policy:event:policy_cancelled';
+  const POLICY = {
+    policy_id: '123e4567-e89b-12d3-a456-426614174000',
+    holder: '9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d',
+    coverages: [{ peril: 'fire', limit: '1000.00' }],
+    effective_date: '2026-01-01',
+    expiry_date: '2026-12-31',
+    premium: '120.00',
+  };
+
+  it('returns the events of the operation, parsed, after its output', () => {
+    const result = executeOperation(ISSUE, POLICY, core);
+    expect(result.ok && result.events).toEqual([
+      { urn: ISSUED, fields: { kind: ISSUED, policy_id: POLICY.policy_id, holder: POLICY.holder, premium: '120.00' } },
+    ]);
+    const cancelled = executeOperation(CANCEL, { effective_date: '2026-01-01', expiry_date: '2026-12-31', premium: '365.00', cancellation_date: '2026-07-02' }, core);
+    expect(cancelled.ok && cancelled.events).toEqual([{ urn: CANCELLED, fields: { kind: CANCELLED, cancellation_date: '2026-07-02', refund: '182.00' } }]);
+  });
+
+  it('returns the recordAs event of a declared error, built from its fields', () => {
+    const result = executeOperation(CANCEL, { effective_date: '2026-01-01', expiry_date: '2026-12-31', premium: '365.00', cancellation_date: '2026-12-31' }, core);
+    expect(result).toMatchObject({
+      kind: 'DomainError',
+      error: {
+        urn: 'urn:acme:insurance:policy:error:refund_below_minimum',
+        record: { urn: 'urn:acme:insurance:policy:event:refund_refused', fields: { kind: 'urn:acme:insurance:policy:event:refund_refused', refund: '0.00' } },
+      },
+    });
+  });
+
+  it('calls an event that the operation does not emit, or one that does not parse, a ContractViolation', () => {
+    const undeclared = { ...core, [CANCEL]: () => ok({ refund: '1.00' }, [emit(ISSUED, { policy_id: POLICY.policy_id, holder: POLICY.holder, premium: '1.00' })]) };
+    expect(executeOperation(CANCEL, { effective_date: '2026-01-01', expiry_date: '2026-12-31', premium: '365.00', cancellation_date: '2026-07-02' }, undeclared as unknown as Core)).toMatchObject({
+      kind: 'ContractViolation',
+      issues: [{ message: `${CANCEL} emitted ${ISSUED}, which it does not emit` }],
+    });
+    const malformed = { ...core, [ISSUE]: () => ok(POLICY, [emit(ISSUED, { policy_id: POLICY.policy_id, holder: POLICY.holder, premium: '1.005' })]) };
+    expect(executeOperation(ISSUE, POLICY, malformed as unknown as Core)).toMatchObject({
+      kind: 'ContractViolation',
+      issues: [{ path: 'premium', fieldUrn: 'urn:acme:insurance:policy:field:premium' }],
+    });
+  });
+
+  it('types the events of a handler by its operation\'s emits (checked by tsc)', () => {
+    const handlers = {
+      ...core,
+      // @ts-expect-error cancel_policy does not emit policy_issued
+      [CANCEL]: () => ok({ refund: '1.00' }, [emit(ISSUED, { policy_id: POLICY.policy_id, holder: POLICY.holder, premium: '1.00' })]),
+    } satisfies Core;
+    // @ts-expect-error policy_issued needs premium
+    const partial = emit(ISSUED, { policy_id: POLICY.policy_id, holder: POLICY.holder });
+    expect([handlers, partial]).toBeDefined();
+  });
+});

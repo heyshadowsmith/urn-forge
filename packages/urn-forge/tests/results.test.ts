@@ -23,6 +23,7 @@ describe('executeOperation with declared errors', () => {
       ok: true,
       urn: PARSE,
       output: { context: 'geometry', kind: 'field', identifier: 'radius' },
+      events: [],
     });
   });
 

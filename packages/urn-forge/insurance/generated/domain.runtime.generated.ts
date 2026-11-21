@@ -11,9 +11,18 @@ export interface ErrorPayloads {
   readonly 'urn:acme:insurance:policy:error:refund_below_minimum': s.PolicyRefundBelowMinimumInput;
 }
 
-export interface Success<T> {
+/** Every event, by URN: its payload as a handler builds it with `emit` (plain, `kind` included). */
+export interface EventPayloads {
+  readonly 'urn:acme:insurance:policy:event:policy_cancelled': s.PolicyPolicyCancelledInput;
+  readonly 'urn:acme:insurance:policy:event:policy_issued': s.PolicyPolicyIssuedInput;
+  readonly 'urn:acme:insurance:policy:event:refund_refused': s.PolicyRefundRefusedInput;
+}
+
+export interface Success<T, V = never> {
   readonly ok: true;
   readonly value: T;
+  /** The events of the operation, in the order the handler gives them (events plan). */
+  readonly events: readonly V[];
 }
 
 export interface Failure<E> {
@@ -21,17 +30,30 @@ export interface Failure<E> {
   readonly error: E;
 }
 
-/** What every handler returns: its output, or one of its operation's declared errors. */
-export type Result<T, E> = Success<T> | Failure<E>;
+/** What every handler returns: its output and events, or one of its operation's declared errors. */
+export type Result<T, E, V = never> = Success<T, V> | Failure<E>;
 
 export type ErrorUrn = keyof ErrorPayloads;
 
 /** An error's fields, as a handler passes them to `fail`: its payload without `kind`. */
 export type ErrorFields<K extends ErrorUrn> = Omit<ErrorPayloads[K], 'kind'>;
 
-/** A successful result. */
-export function ok<T>(value: T): Success<T> {
-  return { ok: true, value };
+export type EventUrn = keyof EventPayloads;
+
+/** An event's fields, as a handler passes them to `emit`: its payload without `kind`. */
+export type EventFields<K extends EventUrn> = Omit<EventPayloads[K], 'kind'>;
+
+/** A successful result, with the events of the operation (none by default). */
+export function ok<T, V = never>(value: T, events: readonly V[] = []): Success<T, V> {
+  return { ok: true, value, events };
+}
+
+/** An event, by URN. The fields may be left out when the event has none. */
+export function emit<K extends EventUrn>(
+  kind: K,
+  ...fields: {} extends EventFields<K> ? [fields?: EventFields<K>] : [fields: EventFields<K>]
+): EventPayloads[K] {
+  return { ...fields[0], kind } as EventPayloads[K];
 }
 
 /** A declared error, by URN. The fields may be left out when the error has none. */
@@ -42,17 +64,17 @@ export function fail<K extends ErrorUrn>(
   return { ok: false, error: { ...fields[0], kind } as ErrorPayloads[K] };
 }
 
-// Handler contracts: branded input in; plain output or a plain declared error out (the shell brands both).
+// Handler contracts: branded input in; plain output and events, or a plain declared error, out (the shell brands them).
 
 /** urn:acme:insurance:policy:operation:cancel_policy — Stop a policy and calculate the refund for the days it does not cover */
 export type PolicyCancelPolicyHandler = (
   input: s.PolicyCancellation,
-) => Result<s.PolicyRefundQuoteInput, s.PolicyRefundBelowMinimumInput>;
+) => Result<s.PolicyRefundQuoteInput, s.PolicyRefundBelowMinimumInput, s.PolicyPolicyCancelledInput>;
 
 /** urn:acme:insurance:policy:operation:issue_policy — Issue a policy as requested */
 export type PolicyIssuePolicyHandler = (
   input: s.PolicyPolicy,
-) => Result<s.PolicyPolicyInput, never>;
+) => Result<s.PolicyPolicyInput, never, s.PolicyPolicyIssuedInput>;
 
 // Registry
 
@@ -107,6 +129,8 @@ export interface ErrorContract extends EntityContract {
   readonly category: ErrorCategory;
   readonly retryable: boolean;
   readonly message: readonly MessagePart[];
+  /** The event that records the error, when it names one. */
+  readonly recordAs?: EntityContract & { readonly urn: string };
 }
 
 export interface OperationContract {
@@ -114,6 +138,8 @@ export interface OperationContract {
   readonly output: EntityContract;
   /** Keyed by error URN. */
   readonly errors: Readonly<Record<string, ErrorContract>>;
+  /** Keyed by event URN: the events it may return on success. */
+  readonly events: Readonly<Record<string, EntityContract>>;
 }
 
 export const DispatchMap = {
@@ -143,6 +169,23 @@ export const DispatchMap = {
         retryable: false,
         message: [{ text: 'A refund of ' }, { field: 'refund' }, { text: ' is below the minimum of 1.00' }],
         fields: {
+          refund: { urn: 'urn:acme:insurance:policy:field:refund', primitive: 'decimal', required: true },
+        },
+        recordAs: {
+          urn: 'urn:acme:insurance:policy:event:refund_refused',
+          schema: s.PolicyRefundRefusedSchema,
+          fields: {
+            refund: { urn: 'urn:acme:insurance:policy:field:refund', primitive: 'decimal', required: true },
+            cancellation_date: { urn: 'urn:acme:insurance:policy:field:cancellation_date', primitive: 'date', required: false },
+          },
+        },
+      },
+    },
+    events: {
+      'urn:acme:insurance:policy:event:policy_cancelled': {
+        schema: s.PolicyPolicyCancelledSchema,
+        fields: {
+          cancellation_date: { urn: 'urn:acme:insurance:policy:field:cancellation_date', primitive: 'date', required: true },
           refund: { urn: 'urn:acme:insurance:policy:field:refund', primitive: 'decimal', required: true },
         },
       },
@@ -194,6 +237,16 @@ export const DispatchMap = {
       ],
     },
     errors: {},
+    events: {
+      'urn:acme:insurance:policy:event:policy_issued': {
+        schema: s.PolicyPolicyIssuedSchema,
+        fields: {
+          policy_id: { urn: 'urn:acme:insurance:policy:field:policy_id', primitive: 'string', required: true },
+          holder: { urn: 'urn:acme:insurance:customer:field:customer_id', primitive: 'string', required: true, link: 'urn:acme:insurance:customer:entity:customer' },
+          premium: { urn: 'urn:acme:insurance:policy:field:premium', primitive: 'decimal', required: true },
+        },
+      },
+    },
   },
 } as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;
 
@@ -212,6 +265,17 @@ export interface BoundaryIssue {
 }
 
 type DeclaredErrors<U extends OperationUrn> = (typeof DispatchMap)[U]['errors'];
+type DeclaredEvents<U extends OperationUrn> = (typeof DispatchMap)[U]['events'];
+
+/** An event of operation `U`, parsed and branded (its fields include `kind`). */
+export type EmittedEvent<U extends OperationUrn = OperationUrn> = U extends OperationUrn
+  ? {
+      readonly [K in keyof DeclaredEvents<U>]: {
+        readonly urn: K;
+        readonly fields: DeclaredEvents<U>[K] extends { readonly schema: infer S extends v.GenericSchema } ? v.InferOutput<S> : never;
+      };
+    }[keyof DeclaredEvents<U>]
+  : never;
 
 /** A declared error of operation `U`, parsed and branded, with its metadata and rendered message. */
 export type DomainError<U extends OperationUrn = OperationUrn> = U extends OperationUrn
@@ -224,6 +288,12 @@ export type DomainError<U extends OperationUrn = OperationUrn> = U extends Opera
         readonly fields: DeclaredErrors<U>[K] extends { readonly schema: infer S extends v.GenericSchema }
           ? v.InferOutput<S>
           : never;
+        /** The event that records the error, for an audit trail, when the error names one (recordAs). */
+        readonly record?: DeclaredErrors<U>[K] extends {
+          readonly recordAs: { readonly urn: infer R; readonly schema: infer S extends v.GenericSchema };
+        }
+          ? { readonly urn: R; readonly fields: v.InferOutput<S> }
+          : never;
       };
     }[keyof DeclaredErrors<U>]
   : never;
@@ -233,6 +303,8 @@ export type ExecuteResult<U extends OperationUrn = OperationUrn> =
       readonly ok: true;
       readonly urn: U;
       readonly output: v.InferOutput<(typeof DispatchMap)[U]['output']['schema']>;
+      /** The events of the operation, parsed and branded, in the order the handler gave them. */
+      readonly events: readonly EmittedEvent<U>[];
     }
   | {
       readonly ok: false;
@@ -339,6 +411,15 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
     if (!error.success) {
       return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(error.issues, declared) };
     }
+    // The recordAs event has the error's properties (pass 6), so the error's fields build it.
+    let record: { readonly urn: string; readonly fields: unknown } | undefined;
+    if (declared.recordAs) {
+      const recorded = v.safeParse(declared.recordAs.schema, { ...(error.output as object), kind: declared.recordAs.urn });
+      if (!recorded.success) {
+        return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(recorded.issues, declared.recordAs) };
+      }
+      record = { urn: declared.recordAs.urn, fields: recorded.output };
+    }
     return {
       ok: false,
       kind: 'DomainError',
@@ -349,6 +430,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
         retryable: declared.retryable,
         message: renderMessage(declared.message, error.output),
         fields: error.output,
+        ...(record ? { record } : {}),
       },
     } as ExecuteResult;
   }
@@ -357,5 +439,21 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
   if (!output.success) {
     return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(output.issues, contract.output) };
   }
-  return { ok: true, urn, output: output.output } as ExecuteResult;
+  // Each event must be one the operation emits, and must parse (spec §7.2, step 5).
+  const emitted: unknown = (result as { readonly events?: unknown }).events ?? [];
+  if (!Array.isArray(emitted)) return violation(`the handler for ${urn} returned events that are not a list`);
+  const events: { readonly urn: string; readonly fields: unknown }[] = [];
+  for (const candidate of emitted) {
+    const eventUrn = (candidate as { readonly kind?: unknown } | null | undefined)?.kind;
+    const declared = typeof eventUrn === 'string' && Object.hasOwn(contract.events, eventUrn) ? contract.events[eventUrn] : undefined;
+    if (typeof eventUrn !== 'string' || !declared) return violation(`${urn} emitted ${String(eventUrn)}, which it does not emit`);
+    const event = v.safeParse(declared.schema, candidate);
+    if (!event.success) {
+      return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(event.issues, declared) };
+    }
+    events.push({ urn: eventUrn, fields: event.output });
+  }
+  // The events were checked against the contract above; the cast goes through unknown, because a
+  // domain with no events types them as never.
+  return { ok: true, urn, output: output.output, events } as unknown as ExecuteResult;
 }

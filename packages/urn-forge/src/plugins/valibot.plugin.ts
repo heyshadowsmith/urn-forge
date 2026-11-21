@@ -10,7 +10,7 @@
  * group declarations follow URN order.
  */
 import * as v from 'valibot';
-import { invariantsOf, valueField, type IREntity, type IRError, type IRField, type IRPropertyRef, type ListRule, type UniversalIR, type Urn } from '../ir/types.js';
+import { invariantsOf, valueField, type IREntity, type IRError, type IREvent, type IRField, type IRPropertyRef, type ListRule, type UniversalIR, type Urn } from '../ir/types.js';
 import { ruleName, schemaNames } from '../naming.js';
 import { firstField } from '../rules/index.js';
 import { emitRule } from '../rules/emit.js';
@@ -279,7 +279,7 @@ function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
  * An error payload (spec §7.1): its fields, plus `kind`, a literal of the error URN, so
  * callers can switch on it exhaustively. The error kind reserves `kind` as a property name.
  */
-function errorDeclaration(error: IRError, ir: UniversalIR): string {
+function errorDeclaration(error: IRError | IREvent, ir: UniversalIR): string {
   const names = schemaNames(error.brandIdentifier);
   return [
     docComment(`${error.urn} — ${error.description}`, error),
@@ -319,7 +319,7 @@ function exportCollisions(ir: UniversalIR): PluginDiagnostic[] {
   const exported = (atom: { readonly urn: Urn; readonly brandIdentifier: string }, kind: 'schema' | 'rule') =>
     kind === 'rule' ? [ruleName(atom.brandIdentifier)] : Object.values(schemaNames(atom.brandIdentifier));
   const atoms = [
-    ...[...valuesInUrnOrder(ir.fields), ...valuesInUrnOrder(ir.entities), ...valuesInUrnOrder(ir.errors)].map((atom) => ({ atom, kind: 'schema' as const })),
+    ...[...valuesInUrnOrder(ir.fields), ...valuesInUrnOrder(ir.entities), ...valuesInUrnOrder(ir.events), ...valuesInUrnOrder(ir.errors)].map((atom) => ({ atom, kind: 'schema' as const })),
     ...valuesInUrnOrder(ir.invariants ?? {}).map((atom) => ({ atom, kind: 'rule' as const })),
   ];
   for (const { atom, kind } of atoms) {
@@ -356,6 +356,10 @@ export const valibotPlugin: CodegenPlugin<ValibotPluginConfig> = {
       ...valuesInUrnOrder(ir.fields).map(fieldDeclaration),
       `// Entities`,
       ...entitiesInDependencyOrder(ir).map((entity) => entityDeclaration(entity, ir)),
+      // An event payload has the shape of an error payload: kind, a literal of its URN, then its fields.
+      ...(Object.keys(ir.events).length > 0
+        ? [`// Events`, ...valuesInUrnOrder(ir.events).map((event) => errorDeclaration(event, ir))]
+        : []),
       ...(Object.keys(ir.errors).length > 0
         ? [`// Errors`, ...valuesInUrnOrder(ir.errors).map((error) => errorDeclaration(error, ir))]
         : []),

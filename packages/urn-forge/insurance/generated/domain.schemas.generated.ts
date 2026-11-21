@@ -245,6 +245,36 @@ export const PolicyRefundQuoteSchema = v.object({
 export type PolicyRefundQuote = v.InferOutput<typeof PolicyRefundQuoteSchema>;
 export type PolicyRefundQuoteInput = v.InferInput<typeof PolicyRefundQuoteSchema>;
 
+// Events
+
+/** urn:acme:insurance:policy:event:policy_cancelled — A policy stopped, with the refund for the days it does not cover */
+export const PolicyPolicyCancelledSchema = v.object({
+  kind: v.literal("urn:acme:insurance:policy:event:policy_cancelled"),
+  cancellation_date: PolicyCancellationDateSchema,
+  refund: PolicyRefundSchema,
+});
+export type PolicyPolicyCancelled = v.InferOutput<typeof PolicyPolicyCancelledSchema>;
+export type PolicyPolicyCancelledInput = v.InferInput<typeof PolicyPolicyCancelledSchema>;
+
+/** urn:acme:insurance:policy:event:policy_issued — A policy was issued */
+export const PolicyPolicyIssuedSchema = v.object({
+  kind: v.literal("urn:acme:insurance:policy:event:policy_issued"),
+  policy_id: PolicyPolicyIdSchema,
+  holder: CustomerCustomerIdSchema,
+  premium: PolicyPremiumSchema,
+});
+export type PolicyPolicyIssued = v.InferOutput<typeof PolicyPolicyIssuedSchema>;
+export type PolicyPolicyIssuedInput = v.InferInput<typeof PolicyPolicyIssuedSchema>;
+
+/** urn:acme:insurance:policy:event:refund_refused — A cancellation was refused because its refund was below the minimum, for an audit trail */
+export const PolicyRefundRefusedSchema = v.object({
+  kind: v.literal("urn:acme:insurance:policy:event:refund_refused"),
+  refund: PolicyRefundSchema,
+  cancellation_date: v.optional(PolicyCancellationDateSchema),
+});
+export type PolicyRefundRefused = v.InferOutput<typeof PolicyRefundRefusedSchema>;
+export type PolicyRefundRefusedInput = v.InferInput<typeof PolicyRefundRefusedSchema>;
+
 // Errors
 
 /** urn:acme:insurance:policy:error:refund_below_minimum — The refund is too small to pay out */

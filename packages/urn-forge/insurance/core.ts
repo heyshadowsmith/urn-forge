@@ -1,6 +1,6 @@
 // The insurance core. Dates are YYYY-MM-DD strings and amounts are decimal strings, so the
 // arithmetic converts them first: days from the epoch, and cents as integers.
-import { fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
+import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
 
 const MINIMUM_REFUND_CENTS = 100n;
 
@@ -19,7 +19,11 @@ function amount(cents: bigint): string {
 }
 
 export const core = {
-  'urn:acme:insurance:policy:operation:issue_policy': (policy) => ok({ ...policy }),
+  // A policy is issued as requested, and the event says so (events plan).
+  'urn:acme:insurance:policy:operation:issue_policy': (policy) =>
+    ok({ ...policy }, [
+      emit('urn:acme:insurance:policy:event:policy_issued', { policy_id: policy.policy_id, holder: policy.holder, premium: policy.premium }),
+    ]),
 
   'urn:acme:insurance:policy:operation:cancel_policy': ({ effective_date, expiry_date, premium, cancellation_date }) => {
     // The invariants make sure that effective_date < expiry_date and that the
@@ -30,6 +34,8 @@ export const core = {
     if (refund < MINIMUM_REFUND_CENTS) {
       return fail('urn:acme:insurance:policy:error:refund_below_minimum', { refund: amount(refund) });
     }
-    return ok({ refund: amount(refund) });
+    return ok({ refund: amount(refund) }, [
+      emit('urn:acme:insurance:policy:event:policy_cancelled', { cancellation_date, refund: amount(refund) }),
+    ]);
   },
 } satisfies DomainCoreImplementation;
