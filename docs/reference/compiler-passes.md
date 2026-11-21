@@ -8,12 +8,12 @@ The `compile` and `verify` commands send the manifest through a sequence of pass
 | --- | --- | --- | --- | --- |
 | Read | Read the file | The manifest file can be read | `manifest-unreadable` | Stop |
 | YAML | Parse the YAML | The file is valid YAML with no key two times in one mapping | `yaml-syntax`, `duplicate-key` | Stop after this step |
-| 1 | [Meta-schema](#pass-1-meta-schema) | The structure of the header and of each entry | `not-a-mapping`, `missing-header`, `invalid-key`, `unsupported-kind`, `unknown-kind`, `unknown-primitive`, `constraint-not-allowed`, `unknown-property`, `missing-property`, `invalid-value`, `invalid-lifecycle` | Stop after this step |
+| 1 | [Meta-schema](#pass-1-meta-schema) | The structure of the header and of each entry | `not-a-mapping`, `missing-header`, `invalid-key`, `unknown-kind`, `unknown-primitive`, `constraint-not-allowed`, `unknown-property`, `missing-property`, `invalid-value`, `invalid-lifecycle` | Stop after this step |
 | 2 | [Expansion](#pass-2-expansion) | None. It makes the URNs and the brand identifiers | None | — |
 | 3 | [Uniqueness](#pass-3-uniqueness) | Brand identifiers and property names are unique. The `key` of each entity is one of its own fields | `duplicate-brand`, `duplicate-property`, `duplicate-ref`, `invalid-entity-key`, `reserved-property` | Stop after pass 7 |
 | 4 | [References](#pass-4-references) | Each reference names an atom of the correct kind. `supersededBy` does not name the atom itself | `unresolved-ref`, `wrong-ref-kind`, `invalid-lifecycle` | Stop after pass 7 |
 | 5 | [Structure](#pass-5-structure) | Each linked entity has a `key`, and each entity in a unique list has a `key`. No entity embeds itself | `missing-key`, `embedding-cycle` | Stop |
-| 6 | [Rule and template typing](#pass-6-rule-and-template-typing) | Each invariant rule is valid and agrees with the types of its entity. Each placeholder in an error message names a mandatory field of the error | `rule-syntax`, `unknown-rule-field`, `rule-type`, `unguarded-field`, `unknown-placeholder` | Stop after pass 7 |
+| 6 | [Rule and template typing](#pass-6-rule-and-template-typing) | Each invariant rule is valid and agrees with the types of its entity. Each placeholder in an error message names a mandatory field of the error. The fields of each error can make its `recordAs` event | `rule-syntax`, `unknown-rule-field`, `rule-type`, `unguarded-field`, `unknown-placeholder`, `invalid-record-as` | Stop after pass 7 |
 | 7 | [Constraint coherence](#pass-7-constraint-coherence) | A field has one constraint for each side of each aspect. The constraints of each field accept one or more values. The `many` of each field reference accepts one or more lists | `conflicting-constraints`, `incoherent-constraints` | Stop after pass 7 |
 | 8 | [Lifecycle](#pass-8-lifecycle) | No active atom refers to a sunset atom or to an atom after its sunset date. A reference from an active atom to a deprecated atom is a warning | `deprecated-ref`, `sunset-ref` | Stop. A warning does not stop |
 | Plugins | [Plugin checks](#plugin-checks) | The plugins and their configurations agree with the IR | `plugin-config`, `missing-plugin`, `unsupported-construct`, `export-collision`, `output-conflict`. From `postgres`: `wrong-ref-kind`, `unresolved-ref`, `missing-key`, `plugin-config`, `invalid-sql-name`, `unenforced-in-sql` | No files |
@@ -30,7 +30,7 @@ Pass 1 examines the parsed YAML with Valibot schemas. It examines these items, i
 1. The top level is a mapping (`not-a-mapping`).
 2. The `manifest` header is there (`missing-header`) and agrees with its schema.
 3. Each other top-level key, in the sequence of the file:
-   1. The key is a short key (`invalid-key`) of a known kind (`unknown-kind`). The kind `event` causes `unsupported-kind`.
+   1. The key is a short key (`invalid-key`) of a known kind (`unknown-kind`). The known kinds are `field`, `entity`, `invariant`, `operation`, `event` and `error`.
    2. The entry agrees with the schema of its kind. For a field, the schema comes from its primitive.
    3. The lifecycle keys `status`, `supersededBy` and `sunsetDate` agree with their schema. Pass 1 examines them apart from the keys of the kind, because each kind accepts them.
 
@@ -58,11 +58,12 @@ Each URN is unique without a check. A URN comes from its short key with one rule
 | Check | Code | Where |
 | --- | --- | --- |
 | Two atoms have the same brand identifier | `duplicate-brand` | All atoms, also of different kinds |
-| One `fields` list has two properties with the same name, from two different targets | `duplicate-property` | Entities and errors |
-| One `fields` list refers to the same target two times with the same name | `duplicate-ref` | Entities and errors |
+| One `fields` list has two properties with the same name, from two different targets | `duplicate-property` | Entities, events and errors |
+| One `fields` list refers to the same target two times with the same name | `duplicate-ref` | Entities, events and errors |
 | One `errors` list refers to the same error two times | `duplicate-ref` | Operations |
+| One `emits` list refers to the same event two times | `duplicate-ref` | Operations |
 | The `key` of an entity is not a field of its `fields` list with `ref`, or the reference has `required: false` or `many` | `invalid-entity-key` | Entities |
-| A property of an error has the name `kind` | `reserved-property` | Errors |
+| A property of an error or an event has the name `kind` | `reserved-property` | Errors and events |
 
 The name of a property is its `as`, or the identifier of its target if there is no `as`. The messages of `duplicate-property` and `duplicate-ref` tell you to use `as`, for example `both become property "sku"; rename one with as`.
 
@@ -77,10 +78,14 @@ Pass 3 examines URNs and brand identifiers over all atoms first. The other check
 | `entity` | `key` | A field |
 | `error` | `fields[<i>].ref` | A field or an entity |
 | `error` | `fields[<i>].link` | An entity |
+| `error` | `recordAs` | An event |
+| `event` | `fields[<i>].ref` | A field or an entity |
+| `event` | `fields[<i>].link` | An entity |
 | `invariant` | `on` | An entity |
 | `operation` | `input` | An entity |
 | `operation` | `output` | An entity |
 | `operation` | `errors[<i>]` | An error |
+| `operation` | `emits[<i>]` | An event |
 | Each kind | `supersededBy` | An atom of the same kind that is not the atom itself |
 
 | Problem | Code |
@@ -89,7 +94,7 @@ Pass 3 examines URNs and brand identifiers over all atoms first. The other check
 | The atom is of a kind that the reference does not accept | `wrong-ref-kind` |
 | `supersededBy` names the atom itself | `invalid-lifecycle` |
 
-The message names the reference with its path, for example `fields[1].ref`, `errors[2]` or `on`. Example: `on "policy.field.premium" must name an entity, but urn:acme:rules:policy:field:premium is a field`.
+The message names the reference with its path, for example `fields[1].ref`, `errors[2]`, `emits[1]` or `on`. Example: `on "policy.field.premium" must name an entity, but urn:acme:rules:policy:field:premium is a field`.
 
 ## Pass 5: structure
 
@@ -112,7 +117,7 @@ insurance/domain.manifest.yaml:76:5  error  embedding-cycle  urn:acme:insurance:
 
 ## Pass 6: rule and template typing
 
-Pass 6 examines the text of invariant rules and error messages.
+Pass 6 examines the text of invariant rules and error messages, and the `recordAs` event of each error.
 
 ### Invariant rules
 
@@ -135,7 +140,17 @@ The position of each diagnostic is the `rule` value. The message gives the colum
 
 Pass 6 parses the `message` of each error into text and placeholders. Each placeholder must name a property of the error with `required: true` and no `many`. The property cannot be an embedded entity. If not, pass 6 reports `unknown-placeholder` at the `message`, one time for each placeholder. For the form of a placeholder, refer to [The manifest](./manifest).
 
-The specification also puts `recordAs` events in pass 6. urn-forge 0.1.0 does not have events at this time.
+### `recordAs` events
+
+`executeOperation` makes the `recordAs` event of an error from the fields of the error. Thus pass 6 compares the properties of the error and of its event by property name. The event must have each property of the error, with the same target, `required` and `many`. Each other property of the event must have `required: false`. If not, pass 6 reports `invalid-record-as` at `recordAs`, one time for each error. The message gives the first problem.
+
+From a copy of the insurance domain, with `required: false` removed from `cancellation_date` in `refund_refused`:
+
+```
+insurance/domain.manifest.yaml:162:13  error  invalid-record-as  urn:acme:insurance:policy:error:refund_below_minimum: recordAs urn:acme:insurance:policy:event:refund_refused has the required property "cancellation_date", which the error does not have; make it optional, so the error's fields can build the event
+```
+
+Pass 6 does not examine `recordAs` if pass 4 did not resolve it to an event.
 
 ## Pass 7: constraint coherence
 
@@ -144,7 +159,7 @@ Pass 7 examines the constraints of each field together, in two steps:
 1. Each constraint restricts one aspect of a value, for example the range or the shape. A field can set only one constraint for each side of an aspect. If a field sets `min` and `exclusiveMin`, `max` and `exclusiveMax`, or `regex` and `format`, pass 7 reports `conflicting-constraints` at the second key. Then it does not do step 2 for the field.
 2. The constraints together must accept one or more values. If they do not, pass 7 reports `incoherent-constraints` at the constraint to correct.
 
-Pass 7 also examines the `many` of each field reference in an entity or an error, also of a link and of an embedded entity. If `minItems` is greater than `maxItems`, pass 7 reports `incoherent-constraints` at `many`, with the URN of the entity or the error.
+Pass 7 also examines the `many` of each field reference in an entity, an event or an error, also of a link and of an embedded entity. If `minItems` is greater than `maxItems`, pass 7 reports `incoherent-constraints` at `many`, with the URN of the atom.
 
 Pass 1, not pass 7, examines that a `values` list is not empty and has no value two times. For the rules of each primitive, refer to [Primitives and constraints](./primitives). For the aspects, refer to [The MECE model of primitives](../explanation/primitives-model).
 
@@ -170,7 +185,7 @@ tests/fixtures/conflicting-constraints/domain.manifest.yaml:14:56  error  incohe
 
 ## Pass 8: lifecycle
 
-Pass 8 examines each reference that pass 4 resolved, also `key`, `on` and the `errors` of an operation. It does not examine `supersededBy`. For each reference, it compares the `status` of the atom that refers with the `status` and `sunsetDate` of the atom that it names:
+Pass 8 examines each reference that pass 4 resolved, also `key`, `on`, `recordAs`, and the `errors` and `emits` of an operation. It does not examine `supersededBy`. For each reference, it compares the `status` of the atom that refers with the `status` and `sunsetDate` of the atom that it names:
 
 | The atom that refers | The atom that it names | Code | Severity |
 | --- | --- | --- | --- |
@@ -209,12 +224,12 @@ With `status: sunset` on the note, the message is `… refers to urn:acme:insura
 
 ## Sequence of the diagnostics
 
-The IR builder builds the atoms in two stages. A kind that reads the nodes of other kinds builds after them. An invariant reads its entity and the fields of that entity, so the invariants build last.
+The IR builder builds the atoms in two stages. A kind that reads the nodes of other kinds builds after them. An invariant reads its entity and the fields of that entity. An error reads its `recordAs` event. Thus the invariants and the errors build last.
 
 | Stage | Kinds |
 | --- | --- |
-| 1 | `field`, `entity`, `operation`, `error` |
-| 2 | `invariant` |
+| 1 | `field`, `entity`, `operation`, `event` |
+| 2 | `invariant`, `error` |
 
 urn-forge reports the diagnostics of passes 3, 4, 6 and 7 in this sequence:
 
@@ -228,8 +243,9 @@ urn-forge reports the diagnostics of passes 3, 4, 6 and 7 in this sequence:
 | `field` | Pass 7: `conflicting-constraints`, then `incoherent-constraints` |
 | `entity` | `duplicate-property` and `duplicate-ref`, then the `many` check of pass 7, for each item of `fields`. Then `invalid-entity-key` |
 | `invariant` | Pass 6: `rule-syntax`. Then, if `on` resolves, `unknown-rule-field`, `rule-type` and `unguarded-field` in the sequence that the type check finds them |
-| `operation` | `duplicate-ref`, for each item of `errors` |
-| `error` | `duplicate-property` and `duplicate-ref`, then the `many` check of pass 7, for each item of `fields`. Then `reserved-property`, then pass 6 |
+| `operation` | `duplicate-ref`, for each item of `errors`, then for each item of `emits` |
+| `event` | `duplicate-property` and `duplicate-ref`, then the `many` check of pass 7, for each item of `fields`. Then `reserved-property` |
+| `error` | `duplicate-property` and `duplicate-ref`, then the `many` check of pass 7, for each item of `fields`. Then `reserved-property`, then pass 6: `unknown-placeholder`, then `invalid-record-as` |
 
 URN order compares the UTF-16 code units. It does not use the locale.
 
@@ -242,18 +258,19 @@ This fixture has problems from passes 3, 4, 6 and 7:
 ```
 tests/fixtures/broken-references/domain.manifest.yaml:7:1  error  duplicate-brand  urn:demo:broken:geo_metry:field:radius: brandIdentifier "GeoMetryRadius" is already used by urn:demo:broken:geo:field:metry_radius; rename one of them
 tests/fixtures/broken-references/domain.manifest.yaml:17:12  error  unresolved-ref  urn:demo:broken:order:entity:line: fields[1].ref "order.field.missing" does not resolve (no atom urn:demo:broken:order:field:missing in this manifest)
-tests/fixtures/broken-references/domain.manifest.yaml:18:12  error  wrong-ref-kind  urn:demo:broken:order:entity:line: fields[2].ref "order.entity.line" must name a field, but urn:demo:broken:order:entity:line is an entity
-tests/fixtures/broken-references/domain.manifest.yaml:32:12  error  unknown-placeholder  urn:demo:broken:order:error:limit: message placeholder {code} names an optional field; placeholders must name required fields (required fields: none)
-tests/fixtures/broken-references/domain.manifest.yaml:23:12  error  unknown-placeholder  urn:demo:broken:order:error:limit_exceeded: message placeholder {quantiy} names no field of the error (required fields: quantity)
-tests/fixtures/broken-references/domain.manifest.yaml:23:12  error  unknown-placeholder  urn:demo:broken:order:error:limit_exceeded: message placeholder {limit} names no field of the error (required fields: quantity)
-tests/fixtures/broken-references/domain.manifest.yaml:52:19  error  reserved-property  urn:demo:broken:order:error:wrong_kind: fields[0] becomes property "kind", which an error reserves for its URN; give it another name with as
 tests/fixtures/broken-references/domain.manifest.yaml:10:71  error  incoherent-constraints  urn:demo:broken:order:field:code: minLength (3) is greater than maxLength (2), so no value is valid
 tests/fixtures/broken-references/domain.manifest.yaml:9:61  error  incoherent-constraints  urn:demo:broken:order:field:quantity: min (10) is greater than max (1), so no value is valid
 tests/fixtures/broken-references/domain.manifest.yaml:11:70  error  incoherent-constraints  urn:demo:broken:order:field:size: notIn lists every value that min, max allow, so no value is valid
 tests/fixtures/broken-references/domain.manifest.yaml:39:10  error  wrong-ref-kind  urn:demo:broken:order:operation:place: input "order.field.quantity" must name an entity, but urn:demo:broken:order:field:quantity is a field
 tests/fixtures/broken-references/domain.manifest.yaml:45:40  error  wrong-ref-kind  urn:demo:broken:order:operation:reprice: errors[1] "order.entity.line" must name an error, but urn:demo:broken:order:entity:line is an entity
 tests/fixtures/broken-references/domain.manifest.yaml:45:59  error  duplicate-ref  urn:demo:broken:order:operation:reprice: errors[2] lists urn:demo:broken:order:error:limit_exceeded more than once
+tests/fixtures/broken-references/domain.manifest.yaml:32:12  error  unknown-placeholder  urn:demo:broken:order:error:limit: message placeholder {code} names an optional field; placeholders must name required fields (required fields: none)
+tests/fixtures/broken-references/domain.manifest.yaml:23:12  error  unknown-placeholder  urn:demo:broken:order:error:limit_exceeded: message placeholder {quantiy} names no field of the error (required fields: quantity)
+tests/fixtures/broken-references/domain.manifest.yaml:23:12  error  unknown-placeholder  urn:demo:broken:order:error:limit_exceeded: message placeholder {limit} names no field of the error (required fields: quantity)
+tests/fixtures/broken-references/domain.manifest.yaml:52:19  error  reserved-property  urn:demo:broken:order:error:wrong_kind: fields[0] becomes property "kind", which an error reserves for its URN; give it another name with as
 ```
+
+The errors are in stage 2, so their diagnostics come after those of the operations.
 
 ## The IR
 
@@ -262,11 +279,11 @@ If passes 1 to 7 find no error, urn-forge makes the IR. The IR has these parts:
 | Part | Contents |
 | --- | --- |
 | `meta` | `namespace`, `domain`, `manifestVersion` (the `version` of the header), `stability` (default `stable`), `manifestHash` (SHA-256 of the canonical JSON of the manifest) and `irSchemaVersion` (`1`) |
-| `fields`, `entities`, `invariants`, `operations`, `errors` | One node for each atom, with the URN as the key, in URN order. A group with no atoms is `{}`. Sunset atoms are in the IR too |
+| `fields`, `entities`, `invariants`, `operations`, `events`, `errors` | One node for each atom, with the URN as the key, in URN order. A group with no atoms is `{}`. Sunset atoms are in the IR too |
 
 A node has `lifecycle` only if its `status` is not `active`: `{ status, supersededBy?, sunsetDate? }`. `supersededBy` is the URN of the replacement. Thus the IR of a manifest with no lifecycle keys does not change.
 
-The `fields` of an `IREntity` and of an `IRError` is a list of `IRPropertyRef`. Each item has one of three forms. Each form has `name`, `required` and, for a list, `many`:
+The `fields` of an `IREntity`, an `IREvent` and an `IRError` is a list of `IRPropertyRef`. Each item has one of three forms. Each form has `name`, `required` and, for a list, `many`:
 
 | Form in the manifest | IR type | Target key |
 | --- | --- | --- |
@@ -275,6 +292,16 @@ The `fields` of an `IREntity` and of an `IRError` is a list of `IRPropertyRef`. 
 | `link: <entity>` | `IRLinkRef` | `link`: the URN of the linked entity |
 
 An `IREntity` has `key`, the URN of its key field, only if the manifest sets `key`. The function `valueField(ir, ref)` gives the field whose values a property holds: the field of an `IRFieldRef`, or the key field of the linked entity. For an `IREmbedRef`, it gives `undefined`.
+
+These nodes refer to events:
+
+| Node | Property | Contents |
+| --- | --- | --- |
+| `IREvent` | — | `urn`, `brandIdentifier`, `description` and `fields`. It has the shape of an `IREntity` without `key` |
+| `IROperation` | `emits` | The URNs of its events, in the sequence of the manifest. Each operation has `emits`, also with no events: then it is `[]` |
+| `IRError` | `recordAs` | The URN of its `recordAs` event. The property is there only if the manifest sets `recordAs` |
+
+Because each operation has `emits`, the IR and the fingerprint of each manifest changed one time when urn-forge added events.
 
 An `IREntity` does not list its invariants. The function `invariantsOf(ir, entityUrn)` finds them by their `on`, in URN order. An `IRInvariant` has `urn`, `brandIdentifier`, `description`, `on`, `rule` (the parsed rule), `ruleText` (the canonical text) and `message`. Refer to [The rule language](./rule-language).
 
@@ -289,7 +316,7 @@ After the passes, the engine examines the plugins in this sequence:
 3. Each plugin can use each kind, primitive and constraint in the live IR (`unsupported-construct`). A plugin declares these in its `supports` property.
 4. Each plugin makes its files. The Valibot plugin reports `export-collision`. The Postgres plugin reports the problems of its configuration and of its SQL. Two plugins that make a file with the same path cause `output-conflict`.
 
-If step 1 or step 2 finds an error, steps 3 and 4 do not run. If step 3 finds an error, step 4 does not run. The `valibot`, `fcis` and `postgres` plugins can use all the kinds, primitives and constraints of urn-forge 0.1.0. Thus the CLI cannot cause `unsupported-construct` and `output-conflict` at this time.
+If step 1 or step 2 finds an error, steps 3 and 4 do not run. If step 3 finds an error, step 4 does not run. The `valibot`, `fcis` and `postgres` plugins can use all the kinds, primitives and constraints of urn-forge 0.1.0. The `postgres` plugin writes nothing for an operation, an event or an error. Thus the CLI cannot cause `unsupported-construct` and `output-conflict` at this time.
 
 The Postgres plugin examines its configuration in step 4. Only the IR can tell if a short key in `tables` names an entity with a `key`. If it finds an error there, it writes no SQL. These checks are in sequence:
 

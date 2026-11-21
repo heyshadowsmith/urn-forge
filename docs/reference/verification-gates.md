@@ -21,7 +21,7 @@ The gates examine the live IR: the IR with no sunset atoms. A sunset operation t
 | --- | --- | --- | --- |
 | 1 | `completeness` | The core has a handler of the correct type for each operation | Built |
 | 2 | Lint profile | — | urn-forge does not have this gate at this time. Refer to [Scope](./scope) |
-| 3 | `gherkin` | The features use real URNs and real field names, and they cover the declared errors, the input invariants and the boundary values | Built |
+| 3 | `gherkin` | The features use real URNs and real field names, and they cover the declared errors, the events, the input invariants and the boundary values | Built |
 | 4 | `drift` | The generated files in the repository are the same as a new compile | Built |
 | 5 | Compatibility | No change breaks a consumer of a live URN | Built, as the separate command `urn-forge diff`. Refer to [Gate 5: compatibility](#gate-5-compatibility) |
 
@@ -110,7 +110,7 @@ The summary has one of these forms:
 
 ## Gate 3: Gherkin traceability
 
-**The features use real URNs and real field names, and they cover the declared errors, the input invariants and the boundary values.** The gate reads the syntax tree of each feature file. It does not run the scenarios. Cucumber runs them. Refer to [Gherkin steps](./gherkin-steps).
+**The features use real URNs and real field names, and they cover the declared errors, the events, the input invariants and the boundary values.** The gate reads the syntax tree of each feature file. It does not run the scenarios. Cucumber runs them. Refer to [Gherkin steps](./gherkin-steps).
 
 ### The tags of a scenario
 
@@ -126,15 +126,18 @@ The gate does these checks. The table gives them in the sequence of the output.
 | --- | --- | --- | --- |
 | Read the directory | The `--features` directory can be read | `features-unreadable` | `error` |
 | Parse the files | Each `.feature` file is valid Gherkin | `feature-parse-error` | `error` |
-| Tags resolve | Each tag that starts with `@urn:` is the URN of a field, an entity, an invariant, an operation or an error of the manifest. The gate examines each tag one time, where it is written | `unresolved-tag` | `error` |
+| Tags resolve | Each tag that starts with `@urn:` is the URN of a field, an entity, an invariant, an operation or an error of the manifest. The URN of an event is not a tag that resolves. The gate examines each tag one time, where it is written | `unresolved-tag` | `error` |
 | One owner | A scenario or an `Examples` block has one owner or no owner, not two or more | `ambiguous-tag` | `error` |
 | Headers | Each header of a step table and of an `Examples` table is a property of the owner. For an operation, this is a property of its input or output entity. For an entity, this is a property of the entity. A scenario with no owner, or with two or more owners, is not examined. The names in an object cell are not headers. The next check examines them | `unknown-header` | `error` |
 | Error headers | Each header of the table of `the operation fails with "<error URN>":` is a field of that error. The gate examines this only if the operation declares the error | `unknown-header` | `error` |
+| Event headers | Each header of the table of `the operation emits "<event URN>":` is a field of that event. The gate examines this only if the operation emits the event | `unknown-header` | `error` |
 | Required columns | The table of `I run the operation with:` has a column for each mandatory input field of the operation. Fields with `required: false` are not mandatory | `missing-column` | `error` |
 | Input invariants | The invariant URN in `the input is rejected by "<invariant URN>"` is an invariant of the input entity of the operation of the scenario, or of an entity that the input embeds, at any depth. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-invariant` | `error` |
 | Declared errors | The error URN in `the operation fails with "<error URN>"` is a declared error of the operation of the scenario. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-error` | `error` |
+| Events | The event URN in `the operation emits "<event URN>"` is in the `emits` of the operation of the scenario. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-event` | `error` |
 | Tagged operations | Each operation of the manifest has its URN in one or more tags, in any feature file | `untagged-operation` | `error` |
 | Error coverage | Each declared error of each tagged operation has one or more scenarios of that operation with `the operation fails with "<error URN>"`. An untagged operation already has `untagged-operation`, so the gate does not examine its errors | `uncovered-error` | Coverage mode |
+| Event coverage | Each event in the `emits` of each tagged operation has one or more scenarios of that operation with `the operation emits "<event URN>"`, with or without a table. `the operation emits no event` does not count | `uncovered-event` | Coverage mode |
 | Invariant coverage | Each invariant of the input entity of each tagged operation has one or more scenarios of that operation with `the input is rejected by "<invariant URN>"`. The invariants of the entities that the input embeds, at any depth, are input invariants too. An invariant of an output entity only needs no scenario | `uncovered-invariant` | Coverage mode |
 | Waiver form | Each comment that starts with `# urn-forge:waive` has a field URN and a reason | `invalid-waiver` | `error` |
 | Cells | Each list or object cell in the table of `I run the operation with:` has the correct syntax. Each name in an object cell is a property of its entity | `invalid-cell` | `error` |
@@ -142,7 +145,7 @@ The gate does these checks. The table gives them in the sequence of the output.
 | Waiver result | Each valid waiver names a constrained input field of an operation of its feature file. Then it removes a gap, or it removes nothing | `unknown-waiver`, `waived-boundary`, `unused-waiver` | `error`, `note`, `warning` |
 | Ratchet | If `boundaryCoverage` is `warn`, the directory has one or more features, each feature is strict, and the gate has no error, the gate gives a note | `ratchet-ready` | `note` |
 
-The gate finds the step texts as written in the feature file, without the keyword. The text `the operation fails with "<error URN>"` can use double or single quotes, as Cucumber accepts both. It can have a colon at the end or not. The text `the input is rejected by "<invariant URN>"` can also use double or single quotes. An invariant tag, for example `@urn:acme:insurance:policy:invariant:term_is_positive`, resolves, but it does not change the owner of a scenario. The gate does not run the rules. Cucumber runs them through the generated schemas.
+The gate finds the step texts as written in the feature file, without the keyword. The text `the operation fails with "<error URN>"` can use double or single quotes, as Cucumber accepts both. It can have a colon at the end or not. The text `the input is rejected by "<invariant URN>"` can also use double or single quotes. The same applies to `the operation emits "<event URN>"`, with a colon at the end or not. An invariant tag, for example `@urn:acme:insurance:policy:invariant:term_is_positive`, resolves, but it does not change the owner of a scenario. The gate does not run the rules. Cucumber runs them through the generated schemas.
 
 ### File and position of each problem
 
@@ -155,13 +158,13 @@ The gate finds the step texts as written in the feature file, without the keywor
 | `unknown-header` | The feature file | The header cell |
 | `invalid-cell` | The feature file | The header cell of the column in the table of `I run the operation with:` |
 | `missing-column` | The feature file | The table |
-| `undeclared-error`, `undeclared-invariant` | The feature file | The step |
-| `untagged-operation`, `uncovered-error`, `uncovered-invariant`, `uncovered-boundary`, `ratchet-ready` | The `--features` directory | None |
+| `undeclared-error`, `undeclared-event`, `undeclared-invariant` | The feature file | The step |
+| `untagged-operation`, `uncovered-error`, `uncovered-event`, `uncovered-invariant`, `uncovered-boundary`, `ratchet-ready` | The `--features` directory | None |
 | `invalid-waiver`, `unknown-waiver`, `waived-boundary`, `unused-waiver` | The feature file | The comment |
 
 ### The coverage mode
 
-The severity of `uncovered-error`, `uncovered-invariant` and `uncovered-boundary` depends on the coverage mode of the operation:
+The severity of `uncovered-error`, `uncovered-event`, `uncovered-invariant` and `uncovered-boundary` depends on the coverage mode of the operation:
 
 | Condition | Severity |
 | --- | --- |
@@ -183,8 +186,8 @@ The gate converts each cell with the primitive of the field, in the same way as 
 If a list or object cell is malformed, or names a property that its entity does not have, the gate reports `invalid-cell` and does not use the cell. A cell for a list that does not start with `[`, or a cell for an embedded entity that does not start with `{`, stays text. It is not an `invalid-cell`. The schema refuses it when Cucumber runs the scenario. These problems come from a real run of the insurance domain with two rows added to an `Examples` block of `coverages`:
 
 ```
-    insurance/features/issue_policy.feature:56:128  error  invalid-cell  coverages: "lmit" is not a property of urn:acme:insurance:policy:entity:coverage (properties: peril, limit, note, remark) (at column 17 of the cell): [{ peril: fire, lmit: 1 }]
-    insurance/features/issue_policy.feature:56:128  error  invalid-cell  coverages: expected "," or "]" (at column 27 of the cell): [{ peril: fire, limit: 1 }
+    insurance/features/issue_policy.feature:59:128  error  invalid-cell  coverages: "lmit" is not a property of urn:acme:insurance:policy:entity:coverage (properties: peril, limit, note, remark) (at column 17 of the cell): [{ peril: fire, lmit: 1 }]
+    insurance/features/issue_policy.feature:59:128  error  invalid-cell  coverages: expected "," or "]" (at column 27 of the cell): [{ peril: fire, limit: 1 }
 ```
 
 Each operation needs its own values. If two operations have the same field in their input, each operation needs scenarios with the values. An operation with no tag has no boundary check, because `untagged-operation` is already an error.
@@ -329,7 +332,7 @@ A comment that starts with `# urn-forge:waive` but does not have this form gets 
 The summary of gate 3 has this form. The parts in brackets occur only in some conditions:
 
 ```
-<F> feature(s), <S> scenario(s), <T>/<O> operations tagged[, <E>/<D> errors expected][, <B>/<N> invariants broken], strict: <K>/<F> features[ (boundaryCoverage: error)][, <W> waiver(s)]
+<F> feature(s), <S> scenario(s), <T>/<O> operations tagged[, <E>/<D> errors expected][, <V>/<M> events expected][, <B>/<N> invariants broken], strict: <K>/<F> features[ (boundaryCoverage: error)][, <W> waiver(s)]
 ```
 
 | Field | Description | Condition |
@@ -338,6 +341,7 @@ The summary of gate 3 has this form. The parts in brackets occur only in some co
 | `<S>` | The number of scenarios in the syntax tree. A Scenario Outline counts one time, so Cucumber can count more scenarios | Always |
 | `<T>/<O>` | The operations with a tag, and all the operations of the manifest | Always |
 | `<E>/<D>` | The pairs of operation and declared error that a scenario expects, and all such pairs | Only if one or more operations declare errors |
+| `<V>/<M>` | The pairs of operation and event that a scenario expects, and all such pairs | Only if one or more operations emit events |
 | `<B>/<N>` | The pairs of operation and input invariant that a scenario breaks, and all such pairs | Only if the input entity of one or more operations has invariants |
 | `<K>/<F>` | The strict features, and all the features | Always |
 | `(boundaryCoverage: error)` | The coverage mode of the configuration | Only if `boundaryCoverage` is `error` |
@@ -349,15 +353,30 @@ Examples from real runs:
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
 gate 3  gherkin       PASS  3 feature(s), 18 scenario(s), 3/3 operations tagged, 3/3 errors expected, strict: 3/3 features (boundaryCoverage: error)
 gate 3  gherkin       FAIL  2 feature(s), 4 scenario(s), 1/1 operations tagged, 0/1 errors expected, strict: 1/2 features, 1 waiver(s)
-gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 ```
 
 The last example is the insurance domain (`npm run verify:insurance`). Its 4 input invariants include `limit_is_positive`, the invariant of the embedded entity `coverage`. For the next run, the step that breaks `term_is_positive` named an invariant of a different entity:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
-    insurance/features/issue_policy.feature:79:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features/issue_policy.feature:82:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
+```
+
+For the next run, the scenario of `cancel_policy` that expects `policy_cancelled` lost its `emits` step:
+
+```
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 1/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features  error  uncovered-event  event urn:acme:insurance:policy:event:policy_cancelled of urn:acme:insurance:policy:operation:cancel_policy has no scenario that expects it; add one with Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"
+```
+
+For the next run, the first scenario of `issue_policy` got two more steps. One expects an event of a different operation. The other has a table header that is not a field of the event:
+
+```
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features/issue_policy.feature:15:5  error  undeclared-event  "urn:acme:insurance:policy:event:policy_cancelled" is not an event of urn:acme:insurance:policy:operation:issue_policy (emits: urn:acme:insurance:policy:event:policy_issued)
+    insurance/features/issue_policy.feature:17:9  error  unknown-header  table header "premum" is not a field key of the event urn:acme:insurance:policy:event:policy_issued (allowed: policy_id, holder, premium)
 ```
 
 ## Gate 4: drift
@@ -405,7 +424,7 @@ The class of most changes depends on how the URN is used. `diff` finds the uses 
 | Use | The atoms that have it | Message text |
 | --- | --- | --- |
 | In | The input entity of each operation. Each field and entity that it embeds, at any depth. The key field of each entity that it links | `callers send` |
-| Out | The output entity of each operation, with its embedded entities and the key fields of its links. Each declared error of each operation, with the same parts of its fields | `callers receive` |
+| Out | The output entity of each operation, with its embedded entities and the key fields of its links. Each declared error of each operation, each event in its `emits`, and the `recordAs` event of each declared error, with the same parts of their fields | `callers receive` |
 | Stored | Each entity in the `tables` of the `postgres` plugin of `--config`, with its embedded entities and the key fields of its links | `the database stores` |
 
 An invariant has the uses of its entity. An atom can have zero, one, two or three uses. If no operation and no table uses an atom, each change to it is compatible.
@@ -447,9 +466,9 @@ A change of `primitive` is "neither". For the same primitive, `diff` compares ea
 - If the aspects that change all have one relation, the field has that relation. If they have different relations, the field has "neither".
 - A changed `regex` or `format` is always "neither", also if the new pattern accepts more values. Thus `regex [A-Z]+ → [A-Z]*` is breaking for each use.
 
-### Changes to an entity or an error
+### Changes to an entity, an event or an error
 
-`diff` compares the properties of an entity or an error by property name. The relation applies to the uses of the entity or the error:
+`diff` compares the properties of an entity, an event or an error by property name. The relation applies to the uses of the atom:
 
 | Change | Relation | Message |
 | --- | --- | --- |
@@ -473,9 +492,12 @@ A new name with `as` is a removal and an addition. A removed property with a dep
 | A changed `rule` or `on` of an invariant | Neither |
 | A changed `message` of an invariant or an error | `compatible` |
 | A changed `category` or `retryable` of an error | Neither, on the uses of the error |
+| A changed `recordAs` of an error, also a new or a removed `recordAs` | Neither, on the uses of the error |
 | A changed `input` or `output` of an operation | `breaking` |
 | A new declared error in the `errors` of an operation | Wider, on Out: `breaking` |
 | A declared error that is not in the `errors` of an operation any more | Narrower, on Out: `compatible` |
+| A new event in the `emits` of an operation | Wider, on Out: `breaking` |
+| An event that is not in the `emits` of an operation any more | Narrower, on Out: `compatible` |
 | A changed `description` of an atom | `compatible` |
 
 ### Atoms, the lifecycle and the manifest
@@ -485,7 +507,7 @@ A new name with `as` is a removal and an addition. A removed property with a dep
 | A new atom, except an invariant | `compatible` | `is new` |
 | An atom that is not in the new manifest. Also a sunset atom | `breaking` | `is removed; deprecate it, and set status: sunset when no one uses it`, or for a sunset atom `is removed; keep a sunset atom in the manifest, so its URN is never used again` |
 | `status` moves forward: `active` to `deprecated`, `active` to `sunset`, or `deprecated` to `sunset` | `lifecycle` | `status <old> → <new>` |
-| An entity or an error that removes a property whose target was deprecated in the old manifest | `lifecycle` | `removes the property "<name>", whose target <urn> was deprecated` |
+| An entity, an event or an error that removes a property whose target was deprecated in the old manifest | `lifecycle` | `removes the property "<name>", whose target <urn> was deprecated` |
 | A changed `supersededBy` or `sunsetDate`, with the same `status` | `lifecycle` | `<key> <old> → <new>` |
 | `status` moves back, for example `sunset` to `active` | `breaking` | `status <old> → <new>: a status only moves forward; declare a new URN instead` |
 | Any change to an atom that is sunset in the two manifests | Not reported | — |
@@ -509,11 +531,20 @@ breaking    urn:demo:shop:order:field:pack  multipleOf 2 → 4 narrows a value t
 breaking    urn:demo:shop:order:error:out_of_stock  retryable true → false changes a value that callers receive, which breaks callers that receive it
 breaking    urn:demo:shop:order:field:spare  status sunset → active: a status only moves forward; declare a new URN instead
 lifecycle   urn:demo:shop:order:entity:receipt  removes the property "spare", whose target urn:demo:shop:order:field:spare was deprecated
+compatible  urn:demo:shop:order:event:placed  is new
+breaking    urn:demo:shop:order:operation:place  the new event urn:demo:shop:order:event:placed widens a value that callers receive, which breaks callers that receive it
+```
+
+The last two lines come from `tests/diff/event-added`. With the two manifests in the opposite sequence, the result is:
+
+```
+breaking    urn:demo:shop:order:event:placed  is removed; deprecate it, and set status: sunset when no one uses it
+compatible  urn:demo:shop:order:operation:place  removing the event urn:demo:shop:order:event:placed narrows a value that callers receive
 ```
 
 ### Gate 5 in CI
 
-The CI job `compatibility` runs `npm run diff:base -- HEAD^1` for each pull request. The script runs `urn-forge diff` for each domain of the repository, from its manifest on the base branch to the manifest of the pull request. For the steps in your own CI, refer to [Check compatibility in CI](../how-to/check-compatibility).
+The CI job `compatibility` runs `npm run diff:base -- HEAD^1 --report` for each pull request. The script runs `urn-forge diff` for each domain of the repository, from its manifest on the base branch to the manifest of the pull request. With `--report`, a breaking change shows, but the job does not fail: the domains of this repository are test domains, which change on purpose. For the steps in your own CI, refer to [Check compatibility in CI](../how-to/check-compatibility).
 
 ## Related pages
 

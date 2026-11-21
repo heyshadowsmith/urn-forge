@@ -1,6 +1,6 @@
 # Gherkin steps
 
-urn-forge has six generic Cucumber steps. They operate for all domains. They read the operation from the tags of the scenario, and the field names and primitives from the generated `DispatchMap`. The module is `urn-forge/cucumber` (`src/gherkin/steps.ts`). For examples of scenarios, refer to [Write scenarios](../how-to/write-scenarios).
+urn-forge has nine generic Cucumber steps. They operate for all domains. They read the operation from the tags of the scenario, and the field names and primitives from the generated `DispatchMap`. The module is `urn-forge/cucumber` (`src/gherkin/steps.ts`). For examples of scenarios, refer to [Write scenarios](../how-to/write-scenarios).
 
 ## The steps
 
@@ -14,11 +14,31 @@ The texts come from `src/gherkin/phrases.ts`. Gate 3 reads the same texts.
 | `the input is rejected by "<invariant URN>"` | `the input is rejected by {string}` | None | Makes sure that the invariant is on the input entity of the operation or on an entity that it embeds, and that the result is `InputRejected`, with an issue of the invariant |
 | `the operation fails with "<error URN>"` | `the operation fails with {string}` | None | Makes sure that the result is the declared error with this URN |
 | `the operation fails with "<error URN>":` | `the operation fails with {string}:` | Error fields | The same, and the fields of the error agree with the table |
+| `the operation emits "<event URN>"` | `the operation emits {string}` | None | Makes sure that the operation emits the event, and that the result is a success with one or more events with this URN |
+| `the operation emits "<event URN>":` | `the operation emits {string}:` | Event fields | The same, and one event with this URN has fields that agree with the table |
+| `the operation emits no event` | `the operation emits no event` | None | Makes sure that the result is a success with no events, or a `DomainError` |
 
 - The library registers the first step with `When` and the other steps with `Then`. Cucumber does not compare the keyword, so `Given`, `And` and `But` also match.
-- `{string}` accepts text in double quotes or in single quotes. Gate 3 reads both forms of `the operation fails with` and of `the input is rejected by`.
-- The `<field>` is a property name of the input entity, for example `weight_grams` or `coverages`. It cannot be a property of an embedded entity, for example `limit`. The `<error URN>` is the full URN of the error. The `<invariant URN>` is the full URN of the invariant, for example `urn:acme:insurance:policy:invariant:term_is_positive`.
+- `{string}` accepts text in double quotes or in single quotes. Gate 3 reads both forms of `the operation fails with`, of `the input is rejected by` and of `the operation emits`.
+- The `<field>` is a property name of the input entity, for example `weight_grams` or `coverages`. It cannot be a property of an embedded entity, for example `limit`. The `<error URN>` is the full URN of the error, and the `<event URN>` is the full URN of the event. The `<invariant URN>` is the full URN of the invariant, for example `urn:acme:insurance:policy:invariant:term_is_positive`.
 - An issue of an invariant is on the first field that its rule names. Thus `the input is rejected on "expiry_date"` also passes if `term_is_positive` refuses the input. Use `the input is rejected by` to name the rule.
+- `the operation emits` does not examine the count or the sequence of the events. If the operation emits two events with one URN, the step passes if one of them agrees with the table.
+- `the operation emits no event` passes after a `DomainError`, because a refusal never has events. It fails after `InputRejected`, `ContractViolation` and `UnknownOperation`. The `record` of a `DomainError` is not an emitted event.
+
+From the insurance domain:
+
+```gherkin
+    And the operation emits "urn:acme:insurance:policy:event:policy_cancelled":
+      | cancellation_date   | refund   |
+      | <cancellation_date> | <refund> |
+```
+
+```gherkin
+    Then the operation fails with "urn:acme:insurance:policy:error:refund_below_minimum":
+      | refund |
+      | 0.00   |
+    And the operation emits no event
+```
 
 ## The operation tag
 
@@ -50,6 +70,7 @@ A step table has exactly two rows: a header row and one data row.
 | `I run the operation with:` | A property name of the input entity of the operation |
 | `the output is:` | A property name of the output entity of the operation |
 | `the operation fails with "<error URN>":` | A field name of the error. The step makes sure that the operation declares the error before it reads the table |
+| `the operation emits "<event URN>":` | A field name of the event. The step makes sure that the operation emits the event before it reads the table |
 
 The step converts each cell with the primitive of its field, and puts the value in an object with the header as the key. A cell for a list or for an embedded entity has its own syntax. Refer to [List and object cells](#list-and-object-cells). A cell with no value puts no key in the object. A Scenario Outline operates as usual: Cucumber puts the `Examples` values in the `<placeholders>` before the step starts.
 
@@ -116,9 +137,9 @@ A cell that starts with the correct bracket and is malformed makes the step fail
 
 Gherkin uses `|` to separate the cells. To put a `|` in a value, write `\|`.
 
-### Comparison of the output and the error fields
+### Comparison of the output, the error fields and the event fields
 
-The steps `the output is:` and `the operation fails with "<error URN>":` compare only the columns of the table:
+The steps `the output is:`, `the operation fails with "<error URN>":` and `the operation emits "<event URN>":` compare only the columns of the table:
 
 - A property that is not in the table is not compared.
 - An empty cell means that the property must be absent. If the property has a value, the step fails with `<name>: expected absent, got <value>`. To expect the empty string, write `""`.
@@ -126,7 +147,7 @@ The steps `the output is:` and `the operation fails with "<error URN>":` compare
 - Two lists are equal if they have the same length, and each item is equal to the item at the same position. Thus `[1, 2]` is not equal to `[2, 1]`. A message shows a list as `[<item>, <item>]`.
 - Two embedded objects are equal if they have the same properties, and each property is equal. The actual object must not have a property that the expected object does not give. Thus an object cell must give each property that the output has. A message shows an object as `{ <name>: <value>, … }`.
 - A `decimal` value is text, so the comparison is a text comparison. Thus `12.5` is not equal to `12.50`.
-- The step compares the parsed output or the parsed error fields. These values are the result of the schema parse.
+- The step compares the parsed output, the parsed error fields or the parsed event fields. These values are the result of the schema parse.
 
 ## Failure messages
 
@@ -189,6 +210,26 @@ The invariants of an embedded entity are invariants of the input. Thus `the inpu
 | The result is a different declared error | `<operation URN> failed with <other error URN> (<message>); expected <error URN>` |
 | One or more fields are different (form with `:` only) | `<error URN> fields differ: <name>: expected <value>, got <value>; …` |
 
+### `the operation emits "<event URN>"` and `the operation emits "<event URN>":`
+
+| Condition | Message |
+| --- | --- |
+| No operation has run | `no operation has run yet; start with "When I run the operation with:"` |
+| The operation does not emit the event | `<event URN> is not an event of <operation URN> (emits: <event URNs>)`. If the operation emits no events, the list is `none` |
+| The table does not have two rows (form with `:` only) | `expected a header row and exactly one data row, got <n> row(s)` |
+| A header is not a field of the event (form with `:` only) | `"<header>" is not a field of <event URN> (fields: <names>)` |
+| The operation did not succeed | `<operation URN> did not succeed: <failure>; expected it to emit <event URN>` |
+| No event has the URN | `<operation URN> did not emit <event URN> (emitted: <event URNs>)`. If there are no events, the list is `nothing` |
+| No event with the URN has the fields of the table (form with `:` only) | `<event URN> fields differ: <name>: expected <value>, got <value>; …`. With two or more events of the URN, ` \| ` separates the differences of each event |
+
+### `the operation emits no event`
+
+| Condition | Message |
+| --- | --- |
+| No operation has run | `no operation has run yet; start with "When I run the operation with:"` |
+| The result is not a success and not a `DomainError` | `<operation URN> failed with <failure>; expected it to emit no event` |
+| The operation succeeded with one or more events | `<operation URN> emitted <event URNs>; expected no event` |
+
 ### The `<failure>` text
 
 | Result | `<failure>` |
@@ -240,6 +281,18 @@ a quoted value has no closing quote (at column 33 of the cell)
 urn:acme:insurance:policy:operation:issue_policy rejected the input, but not on "premium": InputRejected (coverages.0.peril: Invalid type: Expected ("fire" | "flood" | "theft") but received "hail")
 ```
 
+These messages come from a real Cucumber run on the insurance domain, with steps for events. The steps follow `I run the operation with:` for `issue_policy`, with a valid policy or with the `policy_id` `p`. The last message comes from `cancel_policy` with a refund below the minimum:
+
+```
+urn:acme:insurance:policy:event:policy_cancelled is not an event of urn:acme:insurance:policy:operation:issue_policy (emits: urn:acme:insurance:policy:event:policy_issued)
+urn:acme:insurance:policy:event:policy_issued fields differ: premium: expected 121.00, got 120.00
+"premum" is not a field of urn:acme:insurance:policy:event:policy_issued (fields: policy_id, holder, premium)
+urn:acme:insurance:policy:operation:issue_policy emitted urn:acme:insurance:policy:event:policy_issued; expected no event
+urn:acme:insurance:policy:operation:issue_policy did not succeed: InputRejected (policy_id: Invalid UUID: Received "p"); expected it to emit urn:acme:insurance:policy:event:policy_issued
+urn:acme:insurance:policy:operation:issue_policy failed with InputRejected (policy_id: Invalid UUID: Received "p"); expected it to emit no event
+urn:acme:insurance:policy:operation:cancel_policy did not succeed: DomainError urn:acme:insurance:policy:error:refund_below_minimum (A refund of 0.00 is below the minimum of 1.00); expected it to emit urn:acme:insurance:policy:event:policy_cancelled
+```
+
 This message comes from a real Cucumber run on a domain with a list in the output. The core sorts the list:
 
 ```
@@ -259,10 +312,10 @@ interface OperationStepsOptions {
 
 | Option | Type | Description |
 | --- | --- | --- |
-| `dispatch` | `Readonly<Record<string, OperationContractLike>>` | The generated `DispatchMap`. The steps read the input, output and error fields, and the input invariants, of each operation from it |
+| `dispatch` | `Readonly<Record<string, OperationContractLike>>` | The generated `DispatchMap`. The steps read the input, output, error and event fields, and the input invariants, of each operation from it |
 | `execute` | `(urn: string, payload: unknown) => ExecuteResultLike` | The function that runs an operation. Usually `executeOperation` of the generated runtime, with your core |
 
-The function registers one `Before` hook and the six steps. Call it one time, in a support file that Cucumber loads. If you call it two times, Cucumber finds two definitions for each step.
+The function registers one `Before` hook and the nine steps. Call it one time, in a support file that Cucumber loads. If you call it two times, Cucumber finds two definitions for each step.
 
 The support file of tutorial 2:
 
@@ -277,10 +330,11 @@ The types of the options are structural. The generated `DispatchMap` and `execut
 | `EmbeddedInfoLike` | `entity: string`, `required: boolean`, `many?: boolean`, `fields: Readonly<Record<string, PropertyInfoLike>>` |
 | `PropertyInfoLike` | `FieldInfoLike` or `EmbeddedInfoLike` |
 | `FieldsLike` | `Readonly<Record<string, PropertyInfoLike>>`, keyed by property name |
-| `OperationContractLike` | `input: { fields: FieldsLike; invariants?: readonly { urn: string }[] }`, `output: { fields: FieldsLike }`, `errors: Readonly<Record<string, { fields: FieldsLike }>>`, keyed by error URN |
+| `OperationContractLike` | `input: { fields: FieldsLike; invariants?: readonly { urn: string }[] }`, `output: { fields: FieldsLike }`, `errors: Readonly<Record<string, { fields: FieldsLike }>>`, keyed by error URN, `events?: Readonly<Record<string, { fields: FieldsLike }>>`, keyed by event URN |
 | `BoundaryIssueLike` | `path: string`, `fieldUrn?: string`, `invariantUrn?: string`, `message: string` |
 | `DomainErrorLike` | `urn: string`, `message: string`, `fields: unknown` |
-| `ExecuteResultLike` | `{ ok: true; output: unknown }`, or `{ ok: false; kind: 'DomainError'; error: DomainErrorLike }`, or `{ ok: false; kind: string; issues: readonly BoundaryIssueLike[] }` |
+| `EmittedEventLike` | `urn: string`, `fields: unknown` |
+| `ExecuteResultLike` | `{ ok: true; output: unknown; events?: readonly EmittedEventLike[] }`, or `{ ok: false; kind: 'DomainError'; error: DomainErrorLike }`, or `{ ok: false; kind: string; issues: readonly BoundaryIssueLike[] }` |
 
 ## The pure helpers
 
@@ -290,15 +344,18 @@ The module also exports the functions that the steps use. They do not need Cucum
 | --- | --- | --- |
 | `operationUrnFromTags` | `(tags: readonly string[]) => string` | Returns the one operation URN in the tags. Throws if there is no operation tag or more than one |
 | `coerceCell` | `(cell: string, field: PropertyInfoLike) => unknown` | Converts one cell with the primitive of the field. If `field.many` is `true`, it converts the cell as a list. For an embedded entity, it converts the cell as an object. Returns `undefined` for an empty cell. Throws if a list or object cell is malformed |
-| `tableToObject` | `(rows: readonly (readonly string[])[], fields: FieldsLike, side, urn: string) => Record<string, unknown>` | Converts a table of two rows to an object. Throws if the table does not have two rows, or if a header is not in `fields`. `side` is `'input'`, `'output'` or `'error'`. `side` and `urn` are for the message only |
+| `tableToObject` | `(rows: readonly (readonly string[])[], fields: FieldsLike, side, urn: string) => Record<string, unknown>` | Converts a table of two rows to an object. Throws if the table does not have two rows, or if a header is not in `fields`. `side` is `'input'`, `'output'`, `'error'` or `'event'`. `side` and `urn` are for the message only |
 | `assertOutput` | `(result: ExecuteResultLike, expected: Record<string, unknown>, urn: string) => void` | The check of `the output is:` |
 | `assertRejectedOn` | `(result: ExecuteResultLike, fieldName: string, fields: FieldsLike, urn: string) => void` | The check of `the input is rejected on "<field>"` |
 | `assertRejectedBy` | `(result: ExecuteResultLike, invariantUrn: string, urn: string) => void` | The check of `the input is rejected by "<invariant URN>"`. It does not examine whether the invariant is on the input entity |
 | `assertFailsWith` | `(result: ExecuteResultLike, errorUrn: string, urn: string, expected?: Record<string, unknown>) => void` | The check of `the operation fails with "<error URN>"`. With `expected`, it also compares the error fields. It does not examine whether the operation declares the error |
+| `assertEmits` | `(result: ExecuteResultLike, eventUrn: string, urn: string, expected?: Record<string, unknown>) => void` | The check of `the operation emits "<event URN>"`. With `expected`, one event with the URN must have these fields. It does not examine whether the operation emits the event. A result with no `events` key counts as no events |
+| `assertEmitsNone` | `(result: ExecuteResultLike, urn: string) => void` | The check of `the operation emits no event` |
 
 ## Related pages
 
 - [Write scenarios](../how-to/write-scenarios)
 - [The generated runtime](./generated-runtime)
 - [Verification gates](./verification-gates)
+- [Emit an event](../how-to/emit-an-event)
 - [The traceability chain](../explanation/traceability)
