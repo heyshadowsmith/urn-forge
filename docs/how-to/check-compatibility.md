@@ -59,7 +59,7 @@ Who can fail depends on how the manifest uses the URN. `diff` finds three uses:
 | --- | --- | --- |
 | In | The input of an operation: callers send it | A narrower set of values: a tighter constraint, a new required property, a new invariant |
 | Out | The output of an operation, or the payload of a declared error: callers receive it | A wider set of values: a looser constraint, a property that becomes optional, a new declared error |
-| Stored | A table of the `postgres` plugin: the database stores it | A narrower set of values. The rows that are already in the database must stay valid |
+| Stored | A table of the `postgres` plugin: the database stores it | A narrower set of values. The rows that are already in the database must stay valid. A new required list that can be empty does not break them: a row with no items holds the empty list |
 
 A URN that has two uses obeys the rules of both. The insurance coverage is in the input and the output of `issue_policy`, and in a table. Thus a tighter `maxLength` on `remark` breaks callers and rows:
 

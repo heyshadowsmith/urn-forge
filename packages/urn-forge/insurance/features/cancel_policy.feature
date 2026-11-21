@@ -49,3 +49,6 @@ Feature: Cancel a policy
       | refund |
       | 0.00   |
     And the operation emits no event
+    And the refusal is recorded as "urn:acme:insurance:policy:event:refund_refused":
+      | refund |
+      | 0.00   |

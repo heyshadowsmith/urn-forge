@@ -71,6 +71,7 @@ describe('public API', () => {
       'assertEmitsNone',
       'assertFailsWith',
       'assertOutput',
+      'assertRecordedAs',
       'assertRejectedBy',
       'assertRejectedOn',
       'coerceCell',

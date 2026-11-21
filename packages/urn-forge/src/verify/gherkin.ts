@@ -36,7 +36,7 @@
  * operation carries `@urn-forge:strict`; then they are errors.
  */
 
-import { emitsUrn, failsWithUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
+import { emitsUrn, failsWithUrn, recordedAsUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
 import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
 import { valueField, type UniversalIR, type Urn } from '../ir/types.js';
 import { invariantsWithin, keyName } from './shapes.js';
@@ -75,6 +75,8 @@ interface Owner {
   readonly errors?: readonly Urn[];
   /** For an operation: its events. */
   readonly emits?: readonly Urn[];
+  /** For an operation: the events that its declared errors record as (recordAs). */
+  readonly records?: readonly Urn[];
   /** For an operation: the invariants of its input entity. */
   readonly invariants?: readonly Urn[];
 }
@@ -94,6 +96,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const expectedErrors = new Set<string>();
   /** `<operation URN> <event URN>` for each event some scenario expects. */
   const expectedEvents = new Set<string>();
+  /** `<operation URN> <event URN>` for each record of a refusal some scenario expects. */
+  const expectedRecords = new Set<string>();
   /** `<operation URN> <invariant URN>` for each input invariant some scenario breaks. */
   const brokenInvariants = new Set<string>();
 
@@ -157,59 +161,81 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     for (const scenario of feature.scenarios) {
       const owner = ownerOf(scenario.tags, scenario.location);
       for (const step of scenario.steps) {
-        // `the input is rejected by "<invariant URN>"`: an invariant of the operation's input.
-        const invariantUrn = rejectedByUrn(step.text);
-        if (invariantUrn !== undefined) {
-          if (owner?.invariants) {
-            if (owner.invariants.includes(invariantUrn as Urn)) {
-              brokenInvariants.add(`${owner.urn} ${invariantUrn}`);
-            } else {
-              report(
+        // An outline's step text can hold placeholders; Cucumber runs it once for each Examples
+        // row, with the values of that row. Each distinct text is checked, and reported once.
+        const texts = stepTexts(scenario, step.text);
+        const reported = new Set<string>();
+        const reportOnce = (code: DiagnosticCode, message: string, urn: string) => {
+          if (reported.has(message)) return;
+          reported.add(message);
+          report(code, step.location, message, urn);
+        };
+        const headerOwners = new Map<string, Owner | undefined>();
+        let kind: 'invariant' | 'error' | 'event' | 'record' | undefined;
+        for (const text of texts) {
+          // `the input is rejected by "<invariant URN>"`: an invariant of the operation's input.
+          const invariantUrn = rejectedByUrn(text);
+          if (invariantUrn !== undefined) {
+            kind = 'invariant';
+            if (!owner?.invariants) continue;
+            if (owner.invariants.includes(invariantUrn as Urn)) brokenInvariants.add(`${owner.urn} ${invariantUrn}`);
+            else
+              reportOnce(
                 'undeclared-invariant',
-                step.location,
-                `"${invariantUrn}" is not an invariant of the input of ${owner.urn} ` +
-                  `(invariants: ${owner.invariants.length > 0 ? owner.invariants.join(', ') : 'none'})`,
+                `"${invariantUrn}" is not an invariant of the input of ${owner.urn} ` + `(invariants: ${owner.invariants.length > 0 ? owner.invariants.join(', ') : 'none'})`,
                 owner.urn,
               );
-            }
+            continue;
           }
-          continue;
+          // 4. `the operation fails with "<urn>"`, with or without a table of that error's fields.
+          const errorUrn = failsWithUrn(text);
+          if (errorUrn !== undefined) {
+            kind = 'error';
+            if (owner?.errors) {
+              if (owner.errors.includes(errorUrn as Urn)) expectedErrors.add(`${owner.urn} ${errorUrn}`);
+              else
+                reportOnce(
+                  'undeclared-error',
+                  `"${errorUrn}" is not a declared error of ${owner.urn} ` + `(errors: ${owner.errors.length > 0 ? owner.errors.join(', ') : 'none'})`,
+                  owner.urn,
+                );
+            }
+            headerOwners.set(errorUrn, errorOwner(ir, owner, errorUrn));
+            continue;
+          }
+          // `the refusal is recorded as "<urn>"`: the recordAs event of a declared error of the operation.
+          const recordUrn = recordedAsUrn(text);
+          if (recordUrn !== undefined) {
+            kind = 'record';
+            if (owner?.records) {
+              if (owner.records.includes(recordUrn as Urn)) expectedRecords.add(`${owner.urn} ${recordUrn}`);
+              else
+                reportOnce(
+                  'undeclared-record',
+                  `"${recordUrn}" records no declared error of ${owner.urn} (records: ${owner.records.length > 0 ? owner.records.join(', ') : 'none'})`,
+                  owner.urn,
+                );
+            }
+            headerOwners.set(recordUrn, owner?.records?.includes(recordUrn as Urn) ? eventFields(ir, recordUrn) : undefined);
+            continue;
+          }
+          // `the operation emits "<urn>"`, with or without a table of that event's fields.
+          const eventUrn = emitsUrn(text);
+          if (eventUrn !== undefined) {
+            kind = 'event';
+            if (owner?.emits) {
+              if (owner.emits.includes(eventUrn as Urn)) expectedEvents.add(`${owner.urn} ${eventUrn}`);
+              else reportOnce('undeclared-event', `"${eventUrn}" is not an event of ${owner.urn} (emits: ${owner.emits.length > 0 ? owner.emits.join(', ') : 'none'})`, owner.urn);
+            }
+            headerOwners.set(eventUrn, eventOwner(ir, owner, eventUrn));
+          }
         }
-        // 4. `the operation fails with "<urn>"`, with or without a table of that error's fields.
-        const errorUrn = failsWithUrn(step.text);
-        if (errorUrn !== undefined) {
-          if (owner?.errors) {
-            if (owner.errors.includes(errorUrn as Urn)) {
-              expectedErrors.add(`${owner.urn} ${errorUrn}`);
-            } else {
-              report(
-                'undeclared-error',
-                step.location,
-                `"${errorUrn}" is not a declared error of ${owner.urn} ` +
-                  `(errors: ${owner.errors.length > 0 ? owner.errors.join(', ') : 'none'})`,
-                owner.urn,
-              );
-            }
+        if (kind !== undefined) {
+          // The table of an error or an event: its headers are the fields of each URN that the step names.
+          if (step.table && headerOwners.size > 0) {
+            const owners = [...headerOwners.values()];
+            checkHeader(step.table.header, owners.includes(undefined) ? undefined : owners.length === 1 ? owners[0] : mergeOwners(owners as Owner[]));
           }
-          if (step.table) checkHeader(step.table.header, errorOwner(ir, owner, errorUrn));
-          continue;
-        }
-        // `the operation emits "<urn>"`, with or without a table of that event's fields.
-        const eventUrn = emitsUrn(step.text);
-        if (eventUrn !== undefined) {
-          if (owner?.emits) {
-            if (owner.emits.includes(eventUrn as Urn)) {
-              expectedEvents.add(`${owner.urn} ${eventUrn}`);
-            } else {
-              report(
-                'undeclared-event',
-                step.location,
-                `"${eventUrn}" is not an event of ${owner.urn} (emits: ${owner.emits.length > 0 ? owner.emits.join(', ') : 'none'})`,
-                owner.urn,
-              );
-            }
-          }
-          if (step.table) checkHeader(step.table.header, eventOwner(ir, owner, eventUrn));
           continue;
         }
         if (!step.table) continue;
@@ -217,7 +243,9 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         if (step.text === STEP_PHRASES.run) checkRequired(step.table, owner);
       }
       for (const examples of scenario.examples) {
-        if (examples.table) checkHeader(examples.table.header, withStepTables(ir, ownerOf([...scenario.tags, ...examples.tags], examples.location), scenario.steps));
+        if (!examples.table) continue;
+        const steps = scenario.steps.flatMap((step) => stepTexts(scenario, step.text).map((text) => ({ text })));
+        checkHeader(examples.table.header, withPlaceholders(withStepTables(ir, ownerOf([...scenario.tags, ...examples.tags], examples.location), steps), scenario.steps));
       }
     }
   }
@@ -265,6 +293,22 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         file: features.directory,
         urn: eventUrn,
         message: `event ${eventUrn} of ${operation.urn} has no scenario that expects it; add one with Then the operation emits "${eventUrn}"`,
+      });
+    }
+  }
+
+  // Record coverage: each event that a declared error of a tagged operation records as needs a scenario that expects it.
+  let declaredRecords = 0;
+  for (const operation of Object.values(ir.operations)) {
+    for (const recordUrn of operationOwner(ir, operation.urn).records ?? []) {
+      declaredRecords += 1;
+      if (!covered.has(operation.urn) || expectedRecords.has(`${operation.urn} ${recordUrn}`)) continue;
+      problems.push({
+        code: 'uncovered-record',
+        severity: coverageSeverity(operation.urn),
+        file: features.directory,
+        urn: recordUrn,
+        message: `the record ${recordUrn} of a refusal of ${operation.urn} has no scenario that expects it; add one with Then the refusal is recorded as "${recordUrn}"`,
       });
     }
   }
@@ -388,6 +432,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const errorSummary =
     (declaredErrors > 0 ? `, ${expectedErrors.size}/${declaredErrors} errors expected` : '') +
     (declaredEvents > 0 ? `, ${expectedEvents.size}/${declaredEvents} events expected` : '') +
+    (declaredRecords > 0 ? `, ${expectedRecords.size}/${declaredRecords} records expected` : '') +
     (inputInvariants > 0 ? `, ${brokenInvariants.size}/${inputInvariants} invariants broken` : '');
   const featureCount = features.features.length;
 
@@ -426,6 +471,7 @@ function operationOwner(ir: UniversalIR, urn: Urn): Owner {
     requiredInput: ir.entities[op.input]?.fields.filter((f) => f.required).map((f) => f.name) ?? [],
     errors: op.errors,
     emits: op.emits,
+    records: [...new Set(op.errors.flatMap((e) => (ir.errors[e]?.recordAs ? [ir.errors[e]!.recordAs!] : [])))],
     invariants: invariantsWithin(ir, op.input).map((i) => i.urn),
   };
 }
@@ -444,6 +490,37 @@ function eventOwner(ir: UniversalIR, owner: Owner | undefined, eventUrn: string)
   if (!owner?.emits?.includes(eventUrn as Urn)) return undefined;
   const event = ir.events[eventUrn as Urn]!;
   return { urn: eventUrn, description: `the event ${eventUrn}`, keys: new Set(event.fields.map((f) => f.name)) };
+}
+
+/** `<name>`: a placeholder of a Scenario Outline. */
+const PLACEHOLDER = /<([^<>]+)>/gu;
+
+/** The texts that Cucumber runs for a step: one for each Examples row of an outline, or the text itself. */
+function stepTexts(scenario: { readonly examples: readonly { readonly table?: IndexedTable }[] }, text: string): string[] {
+  if (!PLACEHOLDER.test(text)) return [text];
+  PLACEHOLDER.lastIndex = 0;
+  const texts = new Set<string>();
+  for (const examples of scenario.examples) {
+    if (!examples.table) continue;
+    const names = examples.table.header.map((cell) => cell.value);
+    for (const row of examples.table.rows) {
+      texts.add(text.replace(PLACEHOLDER, (whole, name: string) => (names.includes(name) ? row[names.indexOf(name)]! : whole)));
+    }
+  }
+  return texts.size > 0 ? [...texts] : [text];
+}
+
+/** An Examples column may also be a placeholder in the text of a step: Cucumber fills it, and it is no field. */
+function withPlaceholders(owner: Owner | undefined, steps: readonly { readonly text: string }[]): Owner | undefined {
+  if (!owner) return undefined;
+  const names = steps.flatMap((step) => [...step.text.matchAll(PLACEHOLDER)].map((m) => m[1]!));
+  if (names.length === 0) return owner;
+  return { ...owner, description: `${owner.description}, or a placeholder in a step text`, keys: new Set([...owner.keys, ...names]) };
+}
+
+/** The fields of several errors or events, for a table whose step names a different one in each Examples row. */
+function mergeOwners(owners: readonly Owner[]): Owner {
+  return { urn: owners[0]!.urn, description: owners.map((o) => o.description).join(' or '), keys: new Set(owners.flatMap((o) => [...o.keys])) };
 }
 
 /**
@@ -465,6 +542,11 @@ function withStepTables(ir: UniversalIR, owner: Owner | undefined, steps: readon
     description: `${owner.description}, or of ${extra.map((e) => `the ${e.kind} ${e.urn}`).join(', ')}`,
     keys: new Set([...owner.keys, ...extra.flatMap((e) => (e.kind === 'error' ? ir.errors[e.urn as Urn]! : ir.events[e.urn as Urn]!).fields.map((f) => f.name))]),
   };
+}
+
+/** The fields of an event, for the table of a step that names it. */
+function eventFields(ir: UniversalIR, eventUrn: string): Owner {
+  return { urn: eventUrn, description: `the event ${eventUrn}`, keys: new Set(ir.events[eventUrn as Urn]!.fields.map((f) => f.name)) };
 }
 
 function entityOwner(ir: UniversalIR, urn: Urn): Owner {

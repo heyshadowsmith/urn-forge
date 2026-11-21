@@ -59,8 +59,8 @@ export type FieldsLike = Readonly<Record<string, PropertyInfoLike>>;
 export interface OperationContractLike {
   readonly input: { readonly fields: FieldsLike; readonly invariants?: readonly { readonly urn: string }[] };
   readonly output: { readonly fields: FieldsLike };
-  /** The operation's declared errors, keyed by error URN. */
-  readonly errors: Readonly<Record<string, { readonly fields: FieldsLike }>>;
+  /** The operation's declared errors, keyed by error URN, each with the event it records as, if any. */
+  readonly errors: Readonly<Record<string, { readonly fields: FieldsLike; readonly recordAs?: { readonly urn: string; readonly fields: FieldsLike } }>>;
   /** The operation's events, keyed by event URN. */
   readonly events?: Readonly<Record<string, { readonly fields: FieldsLike }>>;
 }
@@ -81,6 +81,8 @@ export interface DomainErrorLike {
   readonly urn: string;
   readonly message: string;
   readonly fields: unknown;
+  /** The event that records the refusal, when the error has recordAs. */
+  readonly record?: EmittedEventLike;
 }
 
 export type ExecuteResultLike =
@@ -264,6 +266,23 @@ export function assertEmits(result: ExecuteResultLike, eventUrn: string, urn: st
 }
 
 /**
+ * Checks the operation refused with a declared error whose record is the event `eventUrn`; when
+ * `expected` is given, the record's fields must equal it (`undefined` means absent). Columns not
+ * in the table are not checked.
+ */
+export function assertRecordedAs(result: ExecuteResultLike, eventUrn: string, urn: string, expected?: Record<string, unknown>): void {
+  if (result.ok) throw new Error(`${urn} succeeded; expected a refusal recorded as ${eventUrn}`);
+  if (!('error' in result)) throw new Error(`${urn} failed with ${describeFailure(result)}; expected a declared error recorded as ${eventUrn}`);
+  const record = result.error.record;
+  if (record?.urn !== eventUrn) {
+    throw new Error(`${urn} failed with ${result.error.urn}, which ${record ? `is recorded as ${record.urn}` : 'has no record'}; expected it to be recorded as ${eventUrn}`);
+  }
+  if (!expected) return;
+  const mismatches = differences((record.fields ?? {}) as Record<string, unknown>, expected);
+  if (mismatches.length > 0) throw new Error(`${eventUrn} fields differ: ${mismatches.join('; ')}`);
+}
+
+/**
  * Checks the operation returned no event: it succeeded with none, or refused with a declared
  * error, which never has events (spec §4.5). Any other failure is not "no event".
  */
@@ -314,6 +333,15 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     if (!found) {
       const declared = Object.keys(events);
       throw new Error(`${eventUrn} is not an event of ${urn} (emits: ${declared.length > 0 ? declared.join(', ') : 'none'})`);
+    }
+    return found;
+  };
+  /** The fields of the event that a declared error of the operation records as. */
+  const recordedEvent = (urn: string, eventUrn: string): { readonly fields: FieldsLike } => {
+    const records = Object.values(contract(urn).errors).flatMap((error) => (error.recordAs ? [error.recordAs] : []));
+    const found = records.find((record) => record.urn === eventUrn);
+    if (!found) {
+      throw new Error(`${eventUrn} records no declared error of ${urn} (records: ${records.length > 0 ? [...new Set(records.map((r) => r.urn))].join(', ') : 'none'})`);
     }
     return found;
   };
@@ -378,6 +406,18 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     const { urn, result } = lastRun(this);
     const expected = tableToObject(table.raw(), declaredEvent(urn, eventUrn).fields, 'event', eventUrn);
     assertEmits(result, eventUrn, urn, expected);
+  });
+
+  Then(STEP_PHRASES.recordedAs, function (this: StepsWorld, eventUrn: string) {
+    const { urn, result } = lastRun(this);
+    recordedEvent(urn, eventUrn);
+    assertRecordedAs(result, eventUrn, urn);
+  });
+
+  Then(STEP_PHRASES.recordedAsWithFields, function (this: StepsWorld, eventUrn: string, table: DataTable) {
+    const { urn, result } = lastRun(this);
+    const expected = tableToObject(table.raw(), recordedEvent(urn, eventUrn).fields, 'event', eventUrn);
+    assertRecordedAs(result, eventUrn, urn, expected);
   });
 
   Then(STEP_PHRASES.emitsNone, function (this: StepsWorld) {

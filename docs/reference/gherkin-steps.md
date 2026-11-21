@@ -17,9 +17,11 @@ The texts come from `src/gherkin/phrases.ts`. Gate 3 reads the same texts.
 | `the operation emits "<event URN>"` | `the operation emits {string}` | None | Makes sure that the operation emits the event, and that the result is a success with one or more events with this URN |
 | `the operation emits "<event URN>":` | `the operation emits {string}:` | Event fields | The same, and one event with this URN has fields that agree with the table |
 | `the operation emits no event` | `the operation emits no event` | None | Makes sure that the result is a success with no events, or a `DomainError` |
+| `the refusal is recorded as "<event URN>"` | `the refusal is recorded as {string}` | None | Makes sure that the result is a `DomainError` whose `record` is this event: the `recordAs` of the error |
+| `the refusal is recorded as "<event URN>":` | `the refusal is recorded as {string}:` | Event fields | The same, and the fields of the record agree with the table |
 
 - The library registers the first step with `When` and the other steps with `Then`. Cucumber does not compare the keyword, so `Given`, `And` and `But` also match.
-- `{string}` accepts text in double quotes or in single quotes. Gate 3 reads both forms of `the operation fails with`, of `the input is rejected by` and of `the operation emits`.
+- `{string}` accepts text in double quotes or in single quotes. Gate 3 reads both forms of `the operation fails with`, of `the input is rejected by`, of `the operation emits` and of `the refusal is recorded as`.
 - The `<field>` is a property name of the input entity, for example `weight_grams` or `coverages`. It cannot be a property of an embedded entity, for example `limit`. The `<error URN>` is the full URN of the error, and the `<event URN>` is the full URN of the event. The `<invariant URN>` is the full URN of the invariant, for example `urn:acme:insurance:policy:invariant:term_is_positive`.
 - An issue of an invariant is on the first field that its rule names. Thus `the input is rejected on "expiry_date"` also passes if `term_is_positive` refuses the input. Use `the input is rejected by` to name the rule.
 - `the operation emits` does not examine the count or the sequence of the events. If the operation emits two events with one URN, the step passes if one of them agrees with the table.
@@ -38,7 +40,13 @@ From the insurance domain:
       | refund |
       | 0.00   |
     And the operation emits no event
+    And the refusal is recorded as "urn:acme:insurance:policy:event:refund_refused":
+      | refund |
+      | 0.00   |
 ```
+
+- `the refusal is recorded as` names an event that a declared error of the operation has as `recordAs`. Another URN fails the step: `urn:acme:insurance:policy:event:policy_issued records no declared error of urn:acme:insurance:policy:operation:cancel_policy (records: urn:acme:insurance:policy:event:refund_refused)`.
+- A field that differs fails the step: `urn:acme:insurance:policy:event:refund_refused fields differ: refund: expected 0.01, got 0.00`.
 
 ## The operation tag
 
@@ -71,6 +79,7 @@ A step table has exactly two rows: a header row and one data row.
 | `the output is:` | A property name of the output entity of the operation |
 | `the operation fails with "<error URN>":` | A field name of the error. The step makes sure that the operation declares the error before it reads the table |
 | `the operation emits "<event URN>":` | A field name of the event. The step makes sure that the operation emits the event before it reads the table |
+| `the refusal is recorded as "<event URN>":` | A field name of the event |
 
 The step converts each cell with the primitive of its field, and puts the value in an object with the header as the key. A cell for a list or for an embedded entity has its own syntax. Refer to [List and object cells](#list-and-object-cells). A cell with no value puts no key in the object. A Scenario Outline operates as usual: Cucumber puts the `Examples` values in the `<placeholders>` before the step starts.
 

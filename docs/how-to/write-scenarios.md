@@ -135,7 +135,7 @@ Error: expected ":" after "see" (at column 91 of the cell)
 Gate 3 reports the same problem as `invalid-cell`, at the header of the column. The message also shows the cell:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features/issue_policy.feature:7:145  error  invalid-cell  coverages: expected ":" after "see" (at column 91 of the cell): [{ peril: flood, limit: 500 }, { peril: theft, limit: 250.5, note: Basement excluded, see {clause 4} }]
 ```
 
@@ -159,6 +159,23 @@ To run one scenario with many inputs, write a Scenario Outline. Put `<name>` in 
 <<< @/../packages/urn-forge/tutorial/3-strict-coverage/features/quote_shipping.feature{gherkin}
 
 The headers of `Examples` must also be fields of the input or the output of the operation. A header can also be a field of an error or an event that a step of the outline expects, with `Then the operation fails with "<error URN>":` or `Then the operation emits "<event URN>":`. Then one column can fill the table of the error or the event.
+
+A placeholder can also be in the text of a step. Gate 3 then reads the step once for each row, as Cucumber runs it. The column that fills it does not have to be a field. This outline tests two invariants with one scenario:
+
+```gherkin
+  Scenario Outline: A request that breaks a rule is rejected
+    When I run the operation with:
+      | party   | deposit   |
+      | <party> | <deposit> |
+    Then the input is rejected by "<invariant>"
+
+    Examples:
+      | party | deposit | invariant                                    |
+      | 7     |         | urn:demo:resto:r:invariant:small_or_paid     |
+      | 11    | 50.00   | urn:demo:resto:r:invariant:not_huge          |
+```
+
+Gate 3 counts each invariant of the rows as broken, and reports a URN that is not an invariant of the operation once for the step. In the same way, `Then the input is rejected on "<field>"` with a column `field` tests the boundary of more than one field.
 
 ## 5. Send an absent value or an empty string
 

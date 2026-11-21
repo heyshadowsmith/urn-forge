@@ -211,7 +211,7 @@ npx urn-forge verify --config insurance/urn-forge.config.ts --format json
 {"type":"diagnostic","severity":"warning","code":"deprecated-ref","file":"insurance/domain.manifest.yaml","line":79,"column":12,"urn":"urn:acme:insurance:policy:entity:coverage","message":"urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)"}
 {"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation"}
 {"type":"gate","gate":2,"name":"boundary","ok":true,"summary":"1 core file(s), 0 shell file(s): 0 problem(s)"}
-{"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)"}
+{"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)"}
 {"type":"gate","gate":4,"name":"drift","ok":true,"summary":"3 generated file(s) compared byte for byte against insurance/generated"}
 {"type":"result","ok":true,"failedGates":[],"warnings":1,"sunsetDatesChecked":true}
 ```

@@ -129,6 +129,7 @@ A rule can count days between dates, and add days to a date. A day is a calendar
 - `d1 + d2` causes `rule-type`: `"+" cannot add two dates; "-" of two dates gives the days between them`. A field of a different primitive causes `"+" adds an integer of days to a date, not a decimal`.
 - The unit is the day only. The language has no months or years, because a month has no fixed number of days: `'2026-01-31'` plus one month has no single answer. For "one year", write `365` or `366`, and say which in the description of the invariant. `366` also accepts a term of 366 days in a year with no 29 February.
 - The language has no "today". A rule cannot read the clock. To compare with the date of today, the shell sends it as a `date` field of the input, for example `due_date <= today + 28`.
+- A rule cannot change a `timestamp` into a `date`, so it cannot make sure that a start time is on a given day. Put such a rule in the core, with a declared error.
 - A `timestamp` has no arithmetic: `at + 1` causes `"+" works on integer, decimal and date only, not on timestamp`.
 
 The arithmetic is exact. Each rule has the same result in the generated schemas and in the `CHECK` of the `postgres` plugin, on each day of the calendar. The only difference is far outside the range of the `date` primitive: in Postgres, a day after the year 5874897 is an error. A sum of days can reach it only with an `integer` field that has no `max`. Give an `integer` field that counts days a `max`.

@@ -216,6 +216,17 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'undeclared-event': () =>
     gate3(scenario(`${ISSUE_RUN}    Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"\n`, ISSUE), 'warn', insurance),
   'uncovered-event': () => gate3(scenario(ISSUE_RUN, ISSUE), 'warn', insurance),
+  'undeclared-record': () =>
+    gate3(scenario(`${ISSUE_RUN}    Then the refusal is recorded as "urn:acme:insurance:policy:event:refund_refused"\n`, ISSUE), 'warn', insurance),
+  'uncovered-record': () =>
+    gate3(
+      scenario(
+        '    When I run the operation with:\n      | effective_date | expiry_date | premium | cancellation_date |\n      | 2026-01-01 | 2026-12-31 | 365.00 | 2026-07-02 |\n',
+        '@urn:acme:insurance:policy:operation:cancel_policy',
+      ),
+      'warn',
+      insurance,
+    ),
   'uncovered-boundary': () => gate3(scenario(RUN)),
   'ratchet-ready': () => gate3(strictFeature, 'warn', strict),
   'waived-boundary': () => gate3(scenario(RUN, OPERATION, '# urn-forge:waive urn:demo:shipping:parcel:field:zone the sample has no bad zone\n')),
