@@ -84,6 +84,8 @@ interface Settings {
   /** Absolute path of each setting. */
   readonly paths: Readonly<Record<PathSetting, string>>;
   readonly plugins: readonly PluginEntry[];
+  /** Gate 3's coverage mode, from the config. */
+  readonly boundaryCoverage: 'warn' | 'error';
   /** Display path of the config file, when one was loaded. */
   readonly configLabel?: string;
 }
@@ -133,7 +135,12 @@ async function resolveSettings(
   const paths = Object.fromEntries((Object.keys(DEFAULTS) as PathSetting[]).map((key) => [key, path(key)]));
   return {
     ok: true,
-    settings: { paths: paths as Settings['paths'], plugins, ...(configLabel === undefined ? {} : { configLabel }) },
+    settings: {
+      paths: paths as Settings['paths'],
+      plugins,
+      boundaryCoverage: config.boundaryCoverage ?? 'warn',
+      ...(configLabel === undefined ? {} : { configLabel }),
+    },
   };
 }
 
@@ -225,6 +232,7 @@ async function runVerify(args: string[], io: CliIo): Promise<number> {
     featuresDir: paths.features,
     tsconfigPath: paths.tsconfig,
     plugins,
+    boundaryCoverage: resolved.settings.boundaryCoverage,
   });
 
   const manifestLabel = display(io, paths.manifest);

@@ -175,7 +175,7 @@ describe('gate 3: declared errors', () => {
   it('counts both forms of the step, and passes with no warning when every error is expected', () => {
     const { problems, summary } = outcome(`Then the operation fails with "${UNAVAILABLE}"`, `Then the operation fails with "${OFFLINE}":\n      | kind |\n      | ${OFFLINE} |`);
     expect(problems.filter((p) => p.code !== 'unknown-header')).toEqual([]);
-    expect(summary).toBe('1 feature(s), 2 scenario(s), 1/1 operations tagged, 2/2 errors expected');
+    expect(summary).toBe('1 feature(s), 2 scenario(s), 1/1 operations tagged, 2/2 errors expected, strict: 0/1 features');
   });
 
   it('warns for each declared error that no scenario expects', () => {
@@ -239,6 +239,68 @@ describe('gate 3: boundary coverage', () => {
     // quantity: integer, min 1, max 99, notEqual 13.
     expect(gaps(['0', '1', '99', '100', '13'].map((q) => `      | ${q} |\n`).join(''))).toEqual([]);
     expect(gaps(['1', '99', '13'].map((q) => `      | ${q} |\n`).join(''))[0]?.message).toMatch(/has no value at min − 1 \(0\), no value at max \+ 1 \(100\)$/);
+  });
+});
+
+describe('gate 3: strictness (warn, then ratchet)', () => {
+  const ir = compile(readFileSync(repo('self/domain.manifest.yaml'), 'utf8')).ir!;
+  /** self/'s features, with `@urn-forge:strict` added to those whose file name starts with one of `strict`. */
+  const run = async (strict: readonly string[], boundaryCoverage: 'warn' | 'error' = 'warn') => {
+    const real = await indexFeatures(repo('self/features'), repo(''));
+    const features = real.features.map((f) =>
+      strict.some((name) => f.file.includes(`/${name}`)) ? { ...f, tags: [...f.tags, { name: '@urn-forge:strict', location: { line: 1, column: 1 } }] } : f,
+    );
+    return checkGherkin({ ir, features: { ...real, features }, boundaryCoverage } as unknown as GateContext);
+  };
+  const severities = (result: Awaited<ReturnType<typeof run>>) =>
+    result.problems
+      .filter((p) => p.code === 'uncovered-boundary')
+      .map((p) => `${p.severity} ${p.message.match(/:operation:(\w+)/)![1]}.${p.urn!.split(':').at(-1)}`);
+
+  it('warns by default, and a strict feature turns only its operations\' gaps into errors', async () => {
+    expect(severities(await run([]))).toEqual([
+      'warning parse_short_key.short_key',
+      'warning to_brand_identifier.identifier',
+      'warning to_urn.namespace',
+      'warning to_urn.domain',
+      'warning to_urn.context',
+      'warning to_urn.identifier',
+    ]);
+    const strict = await run(['to_urn']);
+    expect(severities(strict)).toEqual([
+      'warning parse_short_key.short_key',
+      'warning to_brand_identifier.identifier',
+      'error to_urn.namespace',
+      'error to_urn.domain',
+      'error to_urn.context',
+      'error to_urn.identifier',
+    ]);
+    expect(strict.summary).toMatch(/strict: 1\/3 features$/);
+  });
+
+  it('makes every gap an error with boundaryCoverage: error', async () => {
+    const result = await run([], 'error');
+    expect(new Set(severities(result).map((s) => s.split(' ')[0]))).toEqual(new Set(['error']));
+    expect(result.summary).toMatch(/strict: 0\/3 features \(boundaryCoverage: error\)$/);
+  });
+
+  it('applies the same mode to uncovered errors', async () => {
+    const real = await indexFeatures(repo('self/features'), repo(''));
+    const withoutUnknownKind = real.features.map((f) => ({
+      ...f,
+      tags: f.file.includes('/parse_short_key') ? [...f.tags, { name: '@urn-forge:strict', location: { line: 1, column: 1 } }] : f.tags,
+      scenarios: f.scenarios.filter((sc) => sc.name !== 'A kind that is not a kind is refused'),
+    }));
+    const result = checkGherkin({ ir, features: { ...real, features: withoutUnknownKind }, boundaryCoverage: 'warn' } as unknown as GateContext);
+    expect(result.problems.filter((p) => p.code === 'uncovered-error').map((p) => p.severity)).toEqual(['error']);
+  });
+
+  it('adds a note when every feature is strict but the mode is still warn', async () => {
+    const all = ['parse_short_key', 'to_brand_identifier', 'to_urn'];
+    const notes = (result: Awaited<ReturnType<typeof run>>) => result.problems.filter((p) => p.severity === 'note').map((p) => p.code);
+    expect(notes(await run(all))).toEqual(['ratchet-ready']);
+    expect(notes(await run(all, 'error'))).toEqual([]);
+    expect(notes(await run(['to_urn']))).toEqual([]);
   });
 });
 

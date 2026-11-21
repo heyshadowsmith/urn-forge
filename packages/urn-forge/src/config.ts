@@ -31,6 +31,12 @@ export interface UrnForgeConfig {
   readonly features?: string;
   /** verify: the tsconfig for gate 1. Default: `tsconfig.json`. */
   readonly tsconfig?: string;
+  /**
+   * verify: whether gate 3's coverage gaps (boundaries and declared errors) are warnings or
+   * errors. Default: `warn`. A feature tagged `@urn-forge:strict` makes its operations' gaps
+   * errors either way. Switch to `error` once every feature is strict (spec §8).
+   */
+  readonly boundaryCoverage?: 'warn' | 'error';
   /** The plugins to run, in order. Default: every plugin with an empty config. */
   readonly plugins?: readonly PluginSpec[];
 }
@@ -49,6 +55,7 @@ const ConfigSchema = v.strictObject({
   core: v.optional(Path),
   features: v.optional(Path),
   tsconfig: v.optional(Path),
+  boundaryCoverage: v.optional(v.picklist(['warn', 'error'])),
   plugins: v.optional(v.array(v.union([v.string(), v.tuple([v.string(), v.unknown()])]))),
 });
 

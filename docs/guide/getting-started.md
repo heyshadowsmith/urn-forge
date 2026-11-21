@@ -118,7 +118,7 @@ The command shows this output:
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over example/core.ts; `core` satisfies DomainCoreImplementation
-gate 3  gherkin       PASS  2 feature(s), 4 scenario(s), 2/2 operations tagged
+gate 3  gherkin       PASS  2 feature(s), 4 scenario(s), 2/2 operations tagged, strict: 0/2 features
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against example/generated
 verify passed (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
 ```

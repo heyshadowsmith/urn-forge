@@ -24,6 +24,8 @@ export interface GateContext {
   readonly tsconfigPath: string;
   readonly featuresDir: string;
   readonly features: FeatureIndex;
+  /** Gate 3's coverage mode: whether coverage gaps outside strict features are warnings or errors. */
+  readonly boundaryCoverage: 'warn' | 'error';
 }
 
 export interface GateOutcome {

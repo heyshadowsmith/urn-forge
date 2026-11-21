@@ -65,6 +65,7 @@ export const DIAGNOSTIC_CODES = {
   'undeclared-error': 'A scenario expects an error that its operation does not declare',
   'uncovered-error': 'A declared error has no scenario that expects it (a warning)',
   'uncovered-boundary': 'The examples of an input field do not include every boundary case of its constraints (a warning)',
+  'ratchet-ready': 'Every feature is strict, so boundaryCoverage can be set to error (a note)',
   // Gate 4: drift
   'generated-missing': 'A generated file is not in the output directory',
   'generated-differs': 'A generated file differs from a fresh compile',
@@ -72,7 +73,8 @@ export const DIAGNOSTIC_CODES = {
 } as const;
 
 export type DiagnosticCode = keyof typeof DIAGNOSTIC_CODES;
-export type Severity = 'error' | 'warning';
+/** `error` fails; `warning` does not, and is counted; `note` does not, and is not counted (e.g. a waiver). */
+export type Severity = 'error' | 'warning' | 'note';
 
 /** 1-based line and column. */
 export interface SourceLocation {

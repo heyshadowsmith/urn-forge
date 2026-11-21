@@ -132,10 +132,11 @@ describe('config', () => {
       ok: false,
       diagnostics: [{ code: 'config-invalid', message: 'config: the file must `export default` the config' }],
     });
-    await write('bad.ts', "export default { output: 'gen', manifest: 3 };\n");
+    await write('bad.ts', "export default { output: 'gen', manifest: 3, boundaryCoverage: 'strict' };\n");
     const bad = await loadConfig(join(dir, 'bad.ts'), 'bad.ts');
     expect(bad.ok ? [] : bad.diagnostics.map((d) => d.message)).toEqual([
       expect.stringMatching(/^config\.manifest: /),
+      expect.stringMatching(/^config\.boundaryCoverage: Invalid type: Expected \("warn" \| "error"\)/),
       'config.output: unknown option "output"',
     ]);
   });
