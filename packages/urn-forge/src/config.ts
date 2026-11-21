@@ -57,7 +57,14 @@ const ConfigSchema = v.strictObject({
   features: v.optional(Path),
   tsconfig: v.optional(Path),
   boundaryCoverage: v.optional(v.picklist(['warn', 'error'])),
-  plugins: v.optional(v.array(v.union([v.string(), v.tuple([v.string(), v.unknown()])]))),
+  // No plugin would write no file, and gate 1 would then fail on a missing runtime. An item
+  // after the config of a tuple has no meaning, so it is refused, not ignored.
+  plugins: v.optional(
+    v.pipe(
+      v.array(v.union([v.string(), v.strictTuple([v.string(), v.unknown()])], 'must be a plugin name or [name, config]')),
+      v.minLength(1, 'must list one or more plugins'),
+    ),
+  ),
 });
 
 export type ConfigResult =
@@ -88,7 +95,8 @@ export async function loadConfig(path: string, file: string, cwd: string = proce
     return {
       ok: false,
       diagnostics: parsed.issues.map((issue) => {
-        const path = v.getDotPath(issue);
+        // `plugins[0]`, as pluginEntries writes it, not Valibot's `plugins.0`.
+        const path = v.getDotPath(issue)?.replace(/\.(\d+)(?=\.|$)/g, '[$1]') ?? null;
         const unknownKey = issue.type === 'strict_object' && issue.expected === 'never';
         return {
           code: 'config-invalid' as const,

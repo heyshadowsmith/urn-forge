@@ -132,6 +132,16 @@ describe('config', () => {
       ok: false,
       diagnostics: [{ code: 'config-invalid', message: 'config: the file must `export default` the config' }],
     });
+    await write('empty.ts', 'export default { plugins: [] };\n');
+    expect(await loadConfig(join(dir, 'empty.ts'), 'empty.ts')).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: 'config-invalid', message: 'config.plugins: must list one or more plugins' }],
+    });
+    await write('extra.ts', "export default { plugins: [['valibot', {}, 'extra'], 'fcis'] };\n");
+    expect(await loadConfig(join(dir, 'extra.ts'), 'extra.ts')).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: 'config-invalid', message: 'config.plugins[0]: must be a plugin name or [name, config]' }],
+    });
     await write('bad.ts', "export default { output: 'gen', manifest: 3, boundaryCoverage: 'strict' };\n");
     const bad = await loadConfig(join(dir, 'bad.ts'), 'bad.ts');
     expect(bad.ok ? [] : bad.diagnostics.map((d) => d.message)).toEqual([
