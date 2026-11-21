@@ -73,7 +73,9 @@ describe('insurance in Postgres', () => {
     ['a coverage with a limit of 0', { coverages: [{ peril: 'fire', limit: '0' }] }, '23514', 'limit_is_positive'],
     ['a repeated peril', { coverages: [{ peril: 'fire', limit: '1.00' }, { peril: 'fire', limit: '2.00' }] }, '23505', undefined],
     ['no coverages', { coverages: [] }, '23514', 'coverages_count'],
-    ['four coverages', { coverages: ['fire', 'flood', 'theft', 'fire'].map((peril, i) => ({ peril, limit: `${i + 1}.00` })) }, undefined, undefined],
+    // Three perils exist, so four coverages repeat one, and UNIQUE refuses them before the count trigger runs at commit.
+    ['four coverages', { coverages: ['fire', 'flood', 'theft', 'fire'].map((peril, i) => ({ peril, limit: `${i + 1}.00` })) }, '23505', 'policy__coverages_peril_key'],
+    ['a repeated peril, by its constraint', { coverages: [{ peril: 'fire', limit: '1.00' }, { peril: 'fire', limit: '2.00' }] }, '23505', 'policy__coverages_peril_key'],
     ['a premium with three decimals', { premium: '1.005' }, '23514', 'premium'],
     ['a peril that is not in the enum', { coverages: [{ peril: 'hail', limit: '1.00' }] }, '23514', 'peril'],
   ] as const)('refuses %s', async (_, options, code, constraint) => {
