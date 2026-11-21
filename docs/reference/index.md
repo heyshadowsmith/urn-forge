@@ -8,7 +8,8 @@ The reference pages give the facts about urn-forge 0.1.0: the commands, the file
 | --- | --- |
 | [The CLI](./cli) | The `compile` and `verify` commands, their options and defaults, the text output, the exit codes and the npm scripts of the repository |
 | [The configuration file](./configuration) | Each setting of `urn-forge.config.ts`, its type and its default, how urn-forge finds the file, and the plugin list |
-| [The manifest](./manifest) | The header and each property of the four kinds of atom, with types, defaults and rules. Lists on a field reference |
+| [The manifest](./manifest) | The header and each property of the five kinds of atom, with types, defaults and rules. Lists on a field reference |
+| [The rule language](./rule-language) | The grammar of an invariant rule, the types of each element, the checks of pass 6, the canonical text and the translation to TypeScript |
 | [Primitives and constraints](./primitives) | The eight primitives, their constraints and the aspect of each constraint, the Valibot code that each constraint makes, and the boundary cases |
 | [URNs and names](./naming) | The URN grammar, short keys, brand identifiers, the generated export names and the name collisions |
 

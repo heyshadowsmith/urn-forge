@@ -22,14 +22,15 @@ const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 0.1.0\n
 
 describe('kind registry', () => {
   it('lists each kind with the group it fills in the manifest and the IR', () => {
-    expect(KIND_NAMES).toEqual(['field', 'entity', 'operation', 'error']);
-    expect(KIND_NAMES.map((k) => KINDS[k].group)).toEqual(['fields', 'entities', 'operations', 'errors']);
+    expect(KIND_NAMES).toEqual(['field', 'entity', 'invariant', 'operation', 'error']);
+    expect(KIND_NAMES.map((k) => KINDS[k].group)).toEqual(['fields', 'entities', 'invariants', 'operations', 'errors']);
   });
 
   it('declares where each kind makes references, and what they may name', () => {
     expect(Object.fromEntries(KIND_NAMES.map((k) => [k, KINDS[k].references]))).toEqual({
       field: [],
       entity: [{ path: ['fields', '*', 'ref'], targets: ['field'] }],
+      invariant: [{ path: ['on'], targets: ['entity'] }],
       operation: [
         { path: ['input'], targets: ['entity'] },
         { path: ['output'], targets: ['entity'] },

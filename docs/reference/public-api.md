@@ -60,10 +60,14 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 
 | Export | Kind | Description |
 | --- | --- | --- |
-| `UniversalIR` | Type | The IR: `meta`, `fields`, `entities`, `operations` and `errors`. Each record has URNs as keys, in URN order |
+| `UniversalIR` | Type | The IR: `meta`, `fields`, `entities`, `invariants`, `operations` and `errors`. Each record has URNs as keys, in URN order |
 | `IRField` | Type | `{ urn; brandIdentifier; primitive; constraints; description? }` |
 | `IREntity` | Type | `{ urn; brandIdentifier; description; fields: readonly IRFieldRef[] }` |
-| `IRFieldRef` | Type | `{ field: Urn; name: string; required: boolean; many?: { minItems?: number; maxItems?: number; unique?: boolean } }`. `name` is the property name. `many` is present only for a list, and `many: true` in the manifest is `{}` |
+| `IRFieldRef` | Type | `{ field: Urn; name: string; required: boolean; many?: ListRule }`. `name` is the property name. `many` is present only for a list, and `many: true` in the manifest is `{}` |
+| `ListRule` | Type | `{ minItems?: number; maxItems?: number; unique?: boolean }`. The item count and uniqueness of a list |
+| `IRInvariant` | Type | `{ urn; brandIdentifier; description; on: Urn; rule: RuleExpr; ruleText: string; message: string }`. `on` is the URN of the entity. `ruleText` is the canonical text of the rule |
+| `RuleExpr` | Type | The parsed rule of an invariant: a tree of nodes with an `op`. Refer to [The rule language](./rule-language) |
+| `invariantsOf` | Function | `invariantsOf(ir: UniversalIR, entity: Urn): IRInvariant[]`. The invariants whose `on` is the entity, in URN order. An `IREntity` does not list its invariants |
 | `IROperation` | Type | `{ urn; brandIdentifier; description; input: Urn; output: Urn; errors: readonly Urn[] }` |
 | `IRError` | Type | `{ urn; brandIdentifier; description; category: ErrorCategory; retryable: boolean; message: readonly MessagePart[]; fields: readonly IRFieldRef[] }` |
 | `ErrorCategory` | Type | `'validation' \| 'conflict' \| 'not_found' \| 'forbidden' \| 'precondition'` |
@@ -89,8 +93,8 @@ For the steps to write a plugin, refer to [Contributor: add a plugin](../how-to/
 
 | Export | Kind | Signature or value | Description |
 | --- | --- | --- | --- |
-| `KIND_NAMES` | Constant | `['field', 'entity', 'operation', 'error']` | The kinds |
-| `KindName` | Type | `'field' \| 'entity' \| 'operation' \| 'error'` | A kind |
+| `KIND_NAMES` | Constant | `['field', 'entity', 'invariant', 'operation', 'error']` | The kinds |
+| `KindName` | Type | `'field' \| 'entity' \| 'invariant' \| 'operation' \| 'error'` | A kind |
 | `PRIMITIVE_NAMES` | Constant | `['boolean', 'date', 'decimal', 'enum', 'float', 'integer', 'string', 'timestamp']` | The primitives |
 | `Primitive` | Type | `'boolean' \| 'date' \| 'decimal' \| 'enum' \| 'float' \| 'integer' \| 'string' \| 'timestamp'` | A primitive |
 | `ConstraintValue` | Type | `number \| string \| boolean \| null \| readonly ConstraintValue[]` | The value of a constraint |
@@ -99,6 +103,7 @@ For the steps to write a plugin, refer to [Contributor: add a plugin](../how-to/
 | `toBrandIdentifier` | Function | `toBrandIdentifier(context: string, identifier: string): string` | The brand identifier. Refer to [URNs and names](./naming) |
 | `schemaNames` | Function | `schemaNames(brandIdentifier: string): { schema; output; input }` | `<Brand>Schema`, `<Brand>` and `<Brand>Input` |
 | `handlerName` | Function | `handlerName(brandIdentifier: string): string` | `<Brand>Handler` |
+| `ruleName` | Function | `ruleName(brandIdentifier: string): string` | `<Brand>Rule`, the rule function of an invariant |
 | `GENERATOR_VERSION` | Constant | `'0.1.0'` | The version of urn-forge. It is in the header of each generated file and in the fingerprint |
 
 ## `urn-forge/config`
@@ -124,12 +129,13 @@ This support file of the math example uses the entry point:
 
 | Export | Signature | Description |
 | --- | --- | --- |
-| `registerOperationSteps` | `registerOperationSteps(options: OperationStepsOptions): void` | Registers a `Before` hook and the five generic steps with Cucumber. Refer to [Gherkin steps](./gherkin-steps) |
+| `registerOperationSteps` | `registerOperationSteps(options: OperationStepsOptions): void` | Registers a `Before` hook and the six generic steps with Cucumber. Refer to [Gherkin steps](./gherkin-steps) |
 | `operationUrnFromTags` | `operationUrnFromTags(tags: readonly string[]): string` | The one operation URN in the tags. It throws an error if there is no operation tag or more than one |
 | `coerceCell` | `coerceCell(cell: string, field: FieldInfoLike): unknown` | Changes a table cell to a value with the primitive of the field. If `field.many` is `true`, the cell is a list. An empty cell gives `undefined`. Refer to [Primitives and constraints](./primitives) |
 | `tableToObject` | `tableToObject(rows: readonly (readonly string[])[], fields: FieldsLike, side: 'input' \| 'output' \| 'error', urn: string): Record<string, unknown>` | Changes a table of one header row and one data row to an object. It throws an error for a header that is not a field, or for a different number of rows. `urn` is the operation for `input` and `output`, and the error for `error`. An empty input cell adds no key. An empty output or error cell adds the key with the value `undefined`, which means "absent" |
 | `assertOutput` | `assertOutput(result: ExecuteResultLike, expected: Record<string, unknown>, urn: string): void` | Throws an error if the operation did not succeed, or if a property of `expected` is different in the output |
 | `assertRejectedOn` | `assertRejectedOn(result: ExecuteResultLike, fieldName: string, fields: FieldsLike, urn: string): void` | Throws an error if the result is not `InputRejected` with an issue on the field |
+| `assertRejectedBy` | `assertRejectedBy(result: ExecuteResultLike, invariantUrn: string, urn: string): void` | Throws an error if the result is not `InputRejected` with an issue whose `invariantUrn` is `invariantUrn` |
 | `assertFailsWith` | `assertFailsWith(result: ExecuteResultLike, errorUrn: string, urn: string, expected?: Record<string, unknown>): void` | Throws an error if the result is not a `DomainError` with this URN, or if a property of `expected` is different in the error fields |
 
 The assert functions compare values with `===`. They also accept `NaN` as equal to `NaN`. A property that is not in `expected` is not compared. A property of `expected` with the value `undefined` must be absent.
@@ -141,12 +147,12 @@ These types describe the generated runtime by its shape. Thus the step library d
 | Export | Shape |
 | --- | --- |
 | `OperationStepsOptions` | `{ dispatch: Readonly<Record<string, OperationContractLike>>; execute: (urn: string, payload: unknown) => ExecuteResultLike }` |
-| `OperationContractLike` | `{ input: { fields: FieldsLike }; output: { fields: FieldsLike }; errors: Readonly<Record<string, { fields: FieldsLike }>> }` |
+| `OperationContractLike` | `{ input: { fields: FieldsLike; invariants?: readonly { urn: string }[] }; output: { fields: FieldsLike }; errors: Readonly<Record<string, { fields: FieldsLike }>> }` |
 | `FieldsLike` | `Readonly<Record<string, FieldInfoLike>>` |
 | `FieldInfoLike` | `{ urn: string; primitive: Primitive; required: boolean; many?: boolean }` |
 | `ExecuteResultLike` | `{ ok: true; output: unknown } \| { ok: false; kind: 'DomainError'; error: DomainErrorLike } \| { ok: false; kind: string; issues: readonly BoundaryIssueLike[] }` |
 | `DomainErrorLike` | `{ urn: string; message: string; fields: unknown }` |
-| `BoundaryIssueLike` | `{ path: string; fieldUrn?: string; message: string }` |
+| `BoundaryIssueLike` | `{ path: string; fieldUrn?: string; invariantUrn?: string; message: string }` |
 | `Primitive` | `'boolean' \| 'date' \| 'decimal' \| 'enum' \| 'float' \| 'integer' \| 'string' \| 'timestamp'` |
 
 The generated `DispatchMap` and `executeOperation` agree with these types. Refer to [The generated runtime](./generated-runtime).

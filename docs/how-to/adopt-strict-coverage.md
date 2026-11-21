@@ -1,6 +1,6 @@
 # Adopt strict coverage
 
-Gate 3 finds coverage gaps: an input boundary that no scenario sends, and a declared error that no scenario expects. By default, a gap is a warning. This guide makes every gap an error, one feature at a time, and then for the full project. This is the warn-then-ratchet path.
+Gate 3 finds coverage gaps: an input boundary that no scenario sends, a declared error that no scenario expects, and an invariant that no scenario breaks. By default, a gap is a warning. This guide makes every gap an error, one feature at a time, and then for the full project. This is the warn-then-ratchet path.
 
 The output on this page comes from the domain of [tutorial 2](../tutorials/declared-errors), which has gaps, and [tutorial 3](../tutorials/strict-coverage), which has none.
 
@@ -28,7 +28,16 @@ The output on this page comes from the domain of [tutorial 2](../tutorials/decla
    ```
 
 2. Read the gate 3 summary. `strict: 0/1 features` shows that no feature is strict yet.
-3. Read each warning. There is one `uncovered-boundary` warning for each field and operation. The message lists each value that is not there. An `uncovered-error` warning names an error that no scenario expects.
+3. Read each warning. There is one `uncovered-boundary` warning for each field and operation. The message lists each value that is not there. An `uncovered-error` warning names an error that no scenario expects. An `uncovered-invariant` warning names an invariant of the input entity that no scenario breaks.
+
+   For example, take a copy of the insurance domain without `boundaryCoverage: 'error'`. Remove the strict tag of `issue_policy.feature` and the scenario that breaks `term_is_positive`. Gate 3 then shows this:
+
+   ```
+   gate 3  gherkin       PASS  2 feature(s), 9 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/3 invariants broken, strict: 1/2 features
+       insurance/features  warning  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
+   ```
+
+   `2/3 invariants broken` shows that a scenario breaks two invariants of three.
 
 [Primitives and constraints](../reference/primitives) lists the boundary cases of each constraint.
 
@@ -41,8 +50,9 @@ Do these steps for one feature at a time. Start with a feature whose operation h
    - A value outside the limits must fail at the boundary. Use `Then the input is rejected on "<field>"`.
    - To send the empty string to a `string` field, write `""` in the cell. An empty cell sends no value.
 2. For each `uncovered-error` message, add a scenario with `Then the operation fails with "<error URN>"`.
-3. Run Cucumber, and make sure that the new scenarios pass. Gate 3 shows only that the values are present. The test run shows that they give the correct result.
-4. If a scenario cannot test a boundary, [waive the boundary](waive-a-boundary) and give the reason.
+3. For each `uncovered-invariant` message, add a scenario that breaks the rule, with `Then the input is rejected by "<invariant URN>"`. Refer to [Add an invariant](add-an-invariant).
+4. Run Cucumber, and make sure that the new scenarios pass. Gate 3 shows only that the values are present. The test run shows that they give the correct result.
+5. If a scenario cannot test a boundary, [waive the boundary](waive-a-boundary) and give the reason.
 
 Tutorial 3 closes the four gaps of tutorial 2 with the three scenarios at the end of its feature file (highlighted). Line 1 is the strict tag of the next section:
 

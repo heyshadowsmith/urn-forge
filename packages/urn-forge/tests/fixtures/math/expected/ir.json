@@ -95,6 +95,7 @@
       "urn": "urn:demo:math:geometry:field:radius"
     }
   },
+  "invariants": {},
   "meta": {
     "domain": "math",
     "irSchemaVersion": 1,

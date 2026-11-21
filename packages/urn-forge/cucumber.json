@@ -63,5 +63,18 @@
       "progress"
     ],
     "strict": true
+  },
+  "insurance": {
+    "paths": [
+      "insurance/features/**/*.feature"
+    ],
+    "import": [
+      "src/gherkin/register-tsx.mjs",
+      "insurance/features/support/**/*.ts"
+    ],
+    "format": [
+      "progress"
+    ],
+    "strict": true
   }
 }

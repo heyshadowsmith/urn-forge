@@ -1,0 +1,62 @@
+[
+  {
+    "code": "rule-syntax",
+    "location": {
+      "column": 9,
+      "line": 25
+    },
+    "message": "urn:acme:rules:policy:invariant:incomplete: rule: expected a field, a literal or \"(\", found the end of the rule (at column 14 of the rule)",
+    "severity": "error",
+    "urn": "urn:acme:rules:policy:invariant:incomplete"
+  },
+  {
+    "code": "rule-type",
+    "location": {
+      "column": 9,
+      "line": 45
+    },
+    "message": "urn:acme:rules:policy:invariant:list_value: rule: \"riders\" is a list; a rule can use a list only in \"riders is present\" or \"riders is absent\" (at column 1 of the rule)",
+    "severity": "error",
+    "urn": "urn:acme:rules:policy:invariant:list_value"
+  },
+  {
+    "code": "rule-type",
+    "location": {
+      "column": 9,
+      "line": 35
+    },
+    "message": "urn:acme:rules:policy:invariant:mixed_types: rule: \">\" has a decimal on the left and a date on the right; both sides must have one primitive (at column 1 of the rule)",
+    "severity": "error",
+    "urn": "urn:acme:rules:policy:invariant:mixed_types"
+  },
+  {
+    "code": "wrong-ref-kind",
+    "location": {
+      "column": 7,
+      "line": 49
+    },
+    "message": "urn:acme:rules:policy:invariant:on_a_field: on \"policy.field.premium\" must name an entity, but urn:acme:rules:policy:field:premium is a field",
+    "severity": "error",
+    "urn": "urn:acme:rules:policy:invariant:on_a_field"
+  },
+  {
+    "code": "unguarded-field",
+    "location": {
+      "column": 9,
+      "line": 40
+    },
+    "message": "urn:acme:rules:policy:invariant:unguarded: rule: \"deductible\" is optional, so the rule must guard it: write \"deductible is present and …\" or \"deductible is absent or …\" (at column 1 of the rule)",
+    "severity": "error",
+    "urn": "urn:acme:rules:policy:invariant:unguarded"
+  },
+  {
+    "code": "unknown-rule-field",
+    "location": {
+      "column": 9,
+      "line": 30
+    },
+    "message": "urn:acme:rules:policy:invariant:unknown_field: rule: \"expiry\" is not a field of the entity (fields: effective_date, expiry_date, premium, deductible, riders) (at column 1 of the rule)",
+    "severity": "error",
+    "urn": "urn:acme:rules:policy:invariant:unknown_field"
+  }
+]

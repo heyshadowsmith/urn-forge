@@ -19,6 +19,7 @@ Feature: URNs
       | acme      | insurance | policy     | field     | deductible_amount | urn:acme:insurance:policy:field:deductible_amount     |
       | urn_forge | toolchain | naming     | entity    | atom_address      | urn:urn_forge:toolchain:naming:entity:atom_address    |
       | urn_forge | toolchain | naming     | error     | invalid_short_key | urn:urn_forge:toolchain:naming:error:invalid_short_key |
+      | acme      | insurance | policy     | invariant | term_is_positive  | urn:acme:insurance:policy:invariant:term_is_positive  |
 
   Scenario Outline: A kind the compiler does not support is rejected at the boundary
     When I run the operation with:

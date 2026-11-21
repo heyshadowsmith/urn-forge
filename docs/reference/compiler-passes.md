@@ -13,7 +13,7 @@ The `compile` and `verify` commands send the manifest through a sequence of pass
 | 3 | [Uniqueness](#pass-3-uniqueness) | Brand identifiers and property names are unique | `duplicate-brand`, `duplicate-property`, `duplicate-ref`, `reserved-property` | Stop after pass 7 |
 | 4 | [References](#pass-4-references) | Each reference names an atom of the correct kind | `unresolved-ref`, `wrong-ref-kind` | Stop after pass 7 |
 | 5 | Cycle check | Not built | — | — |
-| 6 | [Message templates](#pass-6-message-templates) | Each placeholder in an error message names a mandatory field of the error | `unknown-placeholder` | Stop after pass 7 |
+| 6 | [Rule and template typing](#pass-6-rule-and-template-typing) | Each invariant rule is valid and agrees with the types of its entity. Each placeholder in an error message names a mandatory field of the error | `rule-syntax`, `unknown-rule-field`, `rule-type`, `unguarded-field`, `unknown-placeholder` | Stop after pass 7 |
 | 7 | [Constraint coherence](#pass-7-constraint-coherence) | A field has one constraint for each side of each aspect. The constraints of each field accept one or more values. The `many` of each field reference accepts one or more lists | `conflicting-constraints`, `incoherent-constraints` | Stop after pass 7 |
 | 8 | Lifecycle | Not built | — | — |
 | Plugins | [Plugin checks](#plugin-checks) | The plugins and their configurations agree with the IR | `plugin-config`, `missing-plugin`, `unsupported-construct`, `export-collision`, `output-conflict` | No files |
@@ -30,7 +30,7 @@ Pass 1 examines the parsed YAML with Valibot schemas. It examines these items, i
 1. The top level is a mapping (`not-a-mapping`).
 2. The `manifest` header is there (`missing-header`) and agrees with its schema.
 3. Each other top-level key, in the sequence of the file:
-   1. The key is a short key (`invalid-key`) of a known kind (`unknown-kind`). The kinds `invariant` and `event` cause `unsupported-kind`.
+   1. The key is a short key (`invalid-key`) of a known kind (`unknown-kind`). The kind `event` causes `unsupported-kind`.
    2. The entry agrees with the schema of its kind. For a field, the schema comes from its primitive.
 
 | Problem in an entry | Code | Position |
@@ -67,6 +67,7 @@ Pass 3 examines URNs and brand identifiers over all atoms first. The other check
 | --- | --- | --- |
 | `entity` | `fields[<i>].ref` | A field |
 | `error` | `fields[<i>].ref` | A field |
+| `invariant` | `on` | An entity |
 | `operation` | `input` | An entity |
 | `operation` | `output` | An entity |
 | `operation` | `errors[<i>]` | An error |
@@ -76,13 +77,34 @@ Pass 3 examines URNs and brand identifiers over all atoms first. The other check
 | The manifest does not declare the atom | `unresolved-ref` |
 | The atom is of a kind that the reference does not accept | `wrong-ref-kind` |
 
-The message names the reference with its path, for example `fields[1].ref` or `errors[2]`.
+The message names the reference with its path, for example `fields[1].ref`, `errors[2]` or `on`. Example: `on "policy.field.premium" must name an entity, but urn:acme:rules:policy:field:premium is a field`.
 
-## Pass 6: message templates
+## Pass 6: rule and template typing
+
+Pass 6 examines the text of invariant rules and error messages.
+
+### Invariant rules
+
+For each invariant, pass 6 does these steps:
+
+1. It parses the `rule` with the grammar of the [rule language](./rule-language). If the parse fails, it reports `rule-syntax` and stops for this invariant.
+2. If `on` resolves to an entity, it examines the rule against the property names of the entity. It gives each property the primitive of its field, `required` and `many`.
+3. It reports each problem that it finds: `unknown-rule-field`, `rule-type` or `unguarded-field`.
+
+| Check | Code |
+| --- | --- |
+| The rule agrees with the grammar | `rule-syntax` |
+| Each field name is a property of the `on` entity | `unknown-rule-field` |
+| The two sides of each operator have one primitive. Each literal fits the primitive of the other side. An order operator is on an ordered primitive. `+` and `-` are on `integer` or `decimal`. `and`, `or`, `not` and the rule itself have conditions. A list is only in `is present` or `is absent`. `is present` and `is absent` are not on a required field | `rule-type` |
+| Each optional field is used only after a guard | `unguarded-field` |
+
+The position of each diagnostic is the `rule` value. The message gives the column in the rule, for example `(at column 14 of the rule)`. If pass 6 finds no problem, the IR keeps the parsed rule and its canonical text. For each check and its messages, refer to [The rule language](./rule-language).
+
+### Message templates
 
 Pass 6 parses the `message` of each error into text and placeholders. Each placeholder must name a field of the error with `required: true`. If not, pass 6 reports `unknown-placeholder` at the `message`, one time for each placeholder. For the form of a placeholder, refer to [The manifest](./manifest).
 
-The specification also puts invariant rules and `recordAs` events in pass 6. urn-forge 0.1.0 does not have invariants and events at this time.
+The specification also puts `recordAs` events in pass 6. urn-forge 0.1.0 does not have events at this time.
 
 ## Pass 7: constraint coherence
 
@@ -117,10 +139,17 @@ tests/fixtures/conflicting-constraints/domain.manifest.yaml:14:56  error  incohe
 
 ## Sequence of the diagnostics
 
+The IR builder builds the atoms in two stages. A kind that reads the nodes of other kinds builds after them. An invariant reads its entity and the fields of that entity, so the invariants build last.
+
+| Stage | Kinds |
+| --- | --- |
+| 1 | `field`, `entity`, `operation`, `error` |
+| 2 | `invariant` |
+
 urn-forge reports the diagnostics of passes 3 to 7 in this sequence:
 
 1. `duplicate-brand`, for all atoms in URN order.
-2. For each atom in URN order:
+2. For each atom of stage 1 in URN order, and then for each atom of stage 2 in URN order:
    1. Pass 4, for each reference in the sequence of the entry.
    2. The checks of the kind of the atom:
 
@@ -128,6 +157,7 @@ urn-forge reports the diagnostics of passes 3 to 7 in this sequence:
 | --- | --- |
 | `field` | Pass 7: `conflicting-constraints`, then `incoherent-constraints` |
 | `entity` | `duplicate-property` and `duplicate-ref`, then the `many` check of pass 7, for each item of `fields` |
+| `invariant` | Pass 6: `rule-syntax`. Then, if `on` resolves, `unknown-rule-field`, `rule-type` and `unguarded-field` in the sequence that the type check finds them |
 | `operation` | `duplicate-ref`, for each item of `errors` |
 | `error` | `duplicate-property` and `duplicate-ref`, then the `many` check of pass 7, for each item of `fields`. Then `reserved-property`, then pass 6 |
 
@@ -162,7 +192,9 @@ If passes 1 to 7 find no error, urn-forge makes the IR. The IR has these parts:
 | Part | Contents |
 | --- | --- |
 | `meta` | `namespace`, `domain`, `manifestVersion` (the `version` of the header), `stability` (default `stable`), `manifestHash` (SHA-256 of the canonical JSON of the manifest) and `irSchemaVersion` (`1`) |
-| `fields`, `entities`, `operations`, `errors` | One node for each atom, with the URN as the key, in URN order |
+| `fields`, `entities`, `invariants`, `operations`, `errors` | One node for each atom, with the URN as the key, in URN order. A group with no atoms is `{}` |
+
+An `IREntity` does not list its invariants. The function `invariantsOf(ir, entityUrn)` finds them by their `on`, in URN order. An `IRInvariant` has `urn`, `brandIdentifier`, `description`, `on`, `rule` (the parsed rule), `ruleText` (the canonical text) and `message`. Refer to [The rule language](./rule-language).
 
 The plugins read only the IR. The IR types are exports of the [package API](./public-api).
 

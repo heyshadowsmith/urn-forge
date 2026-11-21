@@ -68,6 +68,18 @@ jobs:
         working-directory: packages/urn-forge
         run: npx cucumber-js --profile self
 
+      # The insurance domain (invariants plan): dates, exact decimals, an optional field and
+      # invariants, strict from the start.
+      - name: urn-forge verify (insurance)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: packages/urn-forge
+        run: npm run verify:insurance
+
+      - name: cucumber-js (insurance)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: packages/urn-forge
+        run: npm run test:features:insurance
+
       # The tutorial's three snapshots (docs/tutorials), so the code the tutorials show is
       # code that compiles, verifies and passes.
       - name: urn-forge verify (tutorial)
@@ -102,11 +114,12 @@ jobs:
       - name: npm test
         run: npm test
 
-      - name: Recompile both domains; the committed files must not change
+      - name: Recompile each domain; the committed files must not change
         working-directory: packages/urn-forge
         run: |
           npm run compile:example
           npm run compile:self
+          npm run compile:insurance
           git diff --exit-code
 
       - name: urn-forge verify
@@ -114,6 +127,7 @@ jobs:
         run: |
           npm run verify:example
           npm run verify:self
+          npm run verify:insurance
 
   # The path a person takes outside this repository: pack urn-forge, install the tarball in a
   # new project, run urn-forge init, then verify and the scenarios (scripts/test-tarball.mjs).

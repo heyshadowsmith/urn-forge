@@ -1,0 +1,703 @@
+{
+  "entities": {
+    "urn:demo:rules:r:entity:sample": {
+      "brandIdentifier": "RSample",
+      "description": "One field of each primitive",
+      "fields": [
+        {
+          "field": "urn:demo:rules:r:field:i1",
+          "name": "i1",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:i2",
+          "name": "i2",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:f1",
+          "name": "f1",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:f2",
+          "name": "f2",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:d1",
+          "name": "d1",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:d2",
+          "name": "d2",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:dt1",
+          "name": "dt1",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:dt2",
+          "name": "dt2",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:t1",
+          "name": "t1",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:t2",
+          "name": "t2",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:s1",
+          "name": "s1",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:s2",
+          "name": "s2",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:b1",
+          "name": "b1",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:e1",
+          "name": "e1",
+          "required": true
+        },
+        {
+          "field": "urn:demo:rules:r:field:opt",
+          "name": "opt",
+          "required": false
+        }
+      ],
+      "urn": "urn:demo:rules:r:entity:sample"
+    }
+  },
+  "errors": {},
+  "fields": {
+    "urn:demo:rules:r:field:b1": {
+      "brandIdentifier": "RB1",
+      "constraints": {},
+      "primitive": "boolean",
+      "urn": "urn:demo:rules:r:field:b1"
+    },
+    "urn:demo:rules:r:field:d1": {
+      "brandIdentifier": "RD1",
+      "constraints": {},
+      "primitive": "decimal",
+      "urn": "urn:demo:rules:r:field:d1"
+    },
+    "urn:demo:rules:r:field:d2": {
+      "brandIdentifier": "RD2",
+      "constraints": {},
+      "primitive": "decimal",
+      "urn": "urn:demo:rules:r:field:d2"
+    },
+    "urn:demo:rules:r:field:dt1": {
+      "brandIdentifier": "RDt1",
+      "constraints": {},
+      "primitive": "date",
+      "urn": "urn:demo:rules:r:field:dt1"
+    },
+    "urn:demo:rules:r:field:dt2": {
+      "brandIdentifier": "RDt2",
+      "constraints": {},
+      "primitive": "date",
+      "urn": "urn:demo:rules:r:field:dt2"
+    },
+    "urn:demo:rules:r:field:e1": {
+      "brandIdentifier": "RE1",
+      "constraints": {
+        "values": [
+          "a",
+          "b"
+        ]
+      },
+      "primitive": "enum",
+      "urn": "urn:demo:rules:r:field:e1"
+    },
+    "urn:demo:rules:r:field:f1": {
+      "brandIdentifier": "RF1",
+      "constraints": {},
+      "primitive": "float",
+      "urn": "urn:demo:rules:r:field:f1"
+    },
+    "urn:demo:rules:r:field:f2": {
+      "brandIdentifier": "RF2",
+      "constraints": {},
+      "primitive": "float",
+      "urn": "urn:demo:rules:r:field:f2"
+    },
+    "urn:demo:rules:r:field:i1": {
+      "brandIdentifier": "RI1",
+      "constraints": {},
+      "primitive": "integer",
+      "urn": "urn:demo:rules:r:field:i1"
+    },
+    "urn:demo:rules:r:field:i2": {
+      "brandIdentifier": "RI2",
+      "constraints": {},
+      "primitive": "integer",
+      "urn": "urn:demo:rules:r:field:i2"
+    },
+    "urn:demo:rules:r:field:opt": {
+      "brandIdentifier": "ROpt",
+      "constraints": {},
+      "primitive": "decimal",
+      "urn": "urn:demo:rules:r:field:opt"
+    },
+    "urn:demo:rules:r:field:s1": {
+      "brandIdentifier": "RS1",
+      "constraints": {},
+      "primitive": "string",
+      "urn": "urn:demo:rules:r:field:s1"
+    },
+    "urn:demo:rules:r:field:s2": {
+      "brandIdentifier": "RS2",
+      "constraints": {},
+      "primitive": "string",
+      "urn": "urn:demo:rules:r:field:s2"
+    },
+    "urn:demo:rules:r:field:t1": {
+      "brandIdentifier": "RT1",
+      "constraints": {},
+      "primitive": "timestamp",
+      "urn": "urn:demo:rules:r:field:t1"
+    },
+    "urn:demo:rules:r:field:t2": {
+      "brandIdentifier": "RT2",
+      "constraints": {},
+      "primitive": "timestamp",
+      "urn": "urn:demo:rules:r:field:t2"
+    }
+  },
+  "invariants": {
+    "urn:demo:rules:r:invariant:bool_eq": {
+      "brandIdentifier": "RBoolEq",
+      "description": "bool_eq",
+      "message": "bool_eq does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "b1",
+          "op": "field"
+        },
+        "op": "=",
+        "right": {
+          "op": "boolean",
+          "value": true
+        }
+      },
+      "ruleText": "b1 = true",
+      "urn": "urn:demo:rules:r:invariant:bool_eq"
+    },
+    "urn:demo:rules:r:invariant:date_literal": {
+      "brandIdentifier": "RDateLiteral",
+      "description": "date_literal",
+      "message": "date_literal does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "dt1",
+          "op": "field"
+        },
+        "op": ">=",
+        "right": {
+          "op": "text",
+          "value": "2026-01-01"
+        }
+      },
+      "ruleText": "dt1 >= '2026-01-01'",
+      "urn": "urn:demo:rules:r:invariant:date_literal"
+    },
+    "urn:demo:rules:r:invariant:date_lt": {
+      "brandIdentifier": "RDateLt",
+      "description": "date_lt",
+      "message": "date_lt does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "dt1",
+          "op": "field"
+        },
+        "op": "<",
+        "right": {
+          "name": "dt2",
+          "op": "field"
+        }
+      },
+      "ruleText": "dt1 < dt2",
+      "urn": "urn:demo:rules:r:invariant:date_lt"
+    },
+    "urn:demo:rules:r:invariant:dec_eq": {
+      "brandIdentifier": "RDecEq",
+      "description": "dec_eq",
+      "message": "dec_eq does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "d1",
+          "op": "field"
+        },
+        "op": "=",
+        "right": {
+          "name": "d2",
+          "op": "field"
+        }
+      },
+      "ruleText": "d1 = d2",
+      "urn": "urn:demo:rules:r:invariant:dec_eq"
+    },
+    "urn:demo:rules:r:invariant:dec_lt": {
+      "brandIdentifier": "RDecLt",
+      "description": "dec_lt",
+      "message": "dec_lt does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "d1",
+          "op": "field"
+        },
+        "op": "<",
+        "right": {
+          "name": "d2",
+          "op": "field"
+        }
+      },
+      "ruleText": "d1 < d2",
+      "urn": "urn:demo:rules:r:invariant:dec_lt"
+    },
+    "urn:demo:rules:r:invariant:dec_minus": {
+      "brandIdentifier": "RDecMinus",
+      "description": "dec_minus",
+      "message": "dec_minus does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "left": {
+            "name": "d2",
+            "op": "field"
+          },
+          "op": "-",
+          "right": {
+            "name": "d1",
+            "op": "field"
+          }
+        },
+        "op": ">=",
+        "right": {
+          "op": "number",
+          "value": "1"
+        }
+      },
+      "ruleText": "d2 - d1 >= 1",
+      "urn": "urn:demo:rules:r:invariant:dec_minus"
+    },
+    "urn:demo:rules:r:invariant:dec_plus": {
+      "brandIdentifier": "RDecPlus",
+      "description": "dec_plus",
+      "message": "dec_plus does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "left": {
+            "name": "d1",
+            "op": "field"
+          },
+          "op": "+",
+          "right": {
+            "name": "d2",
+            "op": "field"
+          }
+        },
+        "op": "=",
+        "right": {
+          "op": "text",
+          "value": "3.30"
+        }
+      },
+      "ruleText": "d1 + d2 = '3.30'",
+      "urn": "urn:demo:rules:r:invariant:dec_plus"
+    },
+    "urn:demo:rules:r:invariant:enum_eq": {
+      "brandIdentifier": "REnumEq",
+      "description": "enum_eq",
+      "message": "enum_eq does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "e1",
+          "op": "field"
+        },
+        "op": "=",
+        "right": {
+          "op": "text",
+          "value": "a"
+        }
+      },
+      "ruleText": "e1 = 'a'",
+      "urn": "urn:demo:rules:r:invariant:enum_eq"
+    },
+    "urn:demo:rules:r:invariant:float_literal": {
+      "brandIdentifier": "RFloatLiteral",
+      "description": "float_literal",
+      "message": "float_literal does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "f1",
+          "op": "field"
+        },
+        "op": ">",
+        "right": {
+          "op": "number",
+          "value": "0.5"
+        }
+      },
+      "ruleText": "f1 > 0.5",
+      "urn": "urn:demo:rules:r:invariant:float_literal"
+    },
+    "urn:demo:rules:r:invariant:float_lt": {
+      "brandIdentifier": "RFloatLt",
+      "description": "float_lt",
+      "message": "float_lt does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "f1",
+          "op": "field"
+        },
+        "op": "<",
+        "right": {
+          "name": "f2",
+          "op": "field"
+        }
+      },
+      "ruleText": "f1 < f2",
+      "urn": "urn:demo:rules:r:invariant:float_lt"
+    },
+    "urn:demo:rules:r:invariant:int_eq": {
+      "brandIdentifier": "RIntEq",
+      "description": "int_eq",
+      "message": "int_eq does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "i1",
+          "op": "field"
+        },
+        "op": "=",
+        "right": {
+          "name": "i2",
+          "op": "field"
+        }
+      },
+      "ruleText": "i1 = i2",
+      "urn": "urn:demo:rules:r:invariant:int_eq"
+    },
+    "urn:demo:rules:r:invariant:int_ge": {
+      "brandIdentifier": "RIntGe",
+      "description": "int_ge",
+      "message": "int_ge does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "i1",
+          "op": "field"
+        },
+        "op": ">=",
+        "right": {
+          "name": "i2",
+          "op": "field"
+        }
+      },
+      "ruleText": "i1 >= i2",
+      "urn": "urn:demo:rules:r:invariant:int_ge"
+    },
+    "urn:demo:rules:r:invariant:int_gt": {
+      "brandIdentifier": "RIntGt",
+      "description": "int_gt",
+      "message": "int_gt does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "i1",
+          "op": "field"
+        },
+        "op": ">",
+        "right": {
+          "name": "i2",
+          "op": "field"
+        }
+      },
+      "ruleText": "i1 > i2",
+      "urn": "urn:demo:rules:r:invariant:int_gt"
+    },
+    "urn:demo:rules:r:invariant:int_le": {
+      "brandIdentifier": "RIntLe",
+      "description": "int_le",
+      "message": "int_le does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "i1",
+          "op": "field"
+        },
+        "op": "<=",
+        "right": {
+          "name": "i2",
+          "op": "field"
+        }
+      },
+      "ruleText": "i1 <= i2",
+      "urn": "urn:demo:rules:r:invariant:int_le"
+    },
+    "urn:demo:rules:r:invariant:int_lt": {
+      "brandIdentifier": "RIntLt",
+      "description": "int_lt",
+      "message": "int_lt does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "i1",
+          "op": "field"
+        },
+        "op": "<",
+        "right": {
+          "name": "i2",
+          "op": "field"
+        }
+      },
+      "ruleText": "i1 < i2",
+      "urn": "urn:demo:rules:r:invariant:int_lt"
+    },
+    "urn:demo:rules:r:invariant:int_minus": {
+      "brandIdentifier": "RIntMinus",
+      "description": "int_minus",
+      "message": "int_minus does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "left": {
+            "name": "i2",
+            "op": "field"
+          },
+          "op": "-",
+          "right": {
+            "name": "i1",
+            "op": "field"
+          }
+        },
+        "op": ">=",
+        "right": {
+          "op": "number",
+          "value": "2"
+        }
+      },
+      "ruleText": "i2 - i1 >= 2",
+      "urn": "urn:demo:rules:r:invariant:int_minus"
+    },
+    "urn:demo:rules:r:invariant:int_ne": {
+      "brandIdentifier": "RIntNe",
+      "description": "int_ne",
+      "message": "int_ne does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "i1",
+          "op": "field"
+        },
+        "op": "!=",
+        "right": {
+          "name": "i2",
+          "op": "field"
+        }
+      },
+      "ruleText": "i1 != i2",
+      "urn": "urn:demo:rules:r:invariant:int_ne"
+    },
+    "urn:demo:rules:r:invariant:int_plus": {
+      "brandIdentifier": "RIntPlus",
+      "description": "int_plus",
+      "message": "int_plus does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "left": {
+            "name": "i1",
+            "op": "field"
+          },
+          "op": "+",
+          "right": {
+            "op": "number",
+            "value": "1"
+          }
+        },
+        "op": "=",
+        "right": {
+          "name": "i2",
+          "op": "field"
+        }
+      },
+      "ruleText": "i1 + 1 = i2",
+      "urn": "urn:demo:rules:r:invariant:int_plus"
+    },
+    "urn:demo:rules:r:invariant:not_rule": {
+      "brandIdentifier": "RNotRule",
+      "description": "not_rule",
+      "message": "not_rule does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "op": "not",
+        "operand": {
+          "left": {
+            "name": "i1",
+            "op": "field"
+          },
+          "op": "=",
+          "right": {
+            "op": "number",
+            "value": "0"
+          }
+        }
+      },
+      "ruleText": "not i1 = 0",
+      "urn": "urn:demo:rules:r:invariant:not_rule"
+    },
+    "urn:demo:rules:r:invariant:opt_guard": {
+      "brandIdentifier": "ROptGuard",
+      "description": "opt_guard",
+      "message": "opt_guard does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "field": "opt",
+          "op": "absent"
+        },
+        "op": "or",
+        "right": {
+          "left": {
+            "name": "opt",
+            "op": "field"
+          },
+          "op": "<",
+          "right": {
+            "name": "d1",
+            "op": "field"
+          }
+        }
+      },
+      "ruleText": "opt is absent or opt < d1",
+      "urn": "urn:demo:rules:r:invariant:opt_guard"
+    },
+    "urn:demo:rules:r:invariant:or_rule": {
+      "brandIdentifier": "ROrRule",
+      "description": "or_rule",
+      "message": "or_rule does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "left": {
+            "name": "i1",
+            "op": "field"
+          },
+          "op": "=",
+          "right": {
+            "op": "number",
+            "value": "0"
+          }
+        },
+        "op": "or",
+        "right": {
+          "left": {
+            "name": "i2",
+            "op": "field"
+          },
+          "op": "=",
+          "right": {
+            "op": "number",
+            "value": "0"
+          }
+        }
+      },
+      "ruleText": "i1 = 0 or i2 = 0",
+      "urn": "urn:demo:rules:r:invariant:or_rule"
+    },
+    "urn:demo:rules:r:invariant:str_ne": {
+      "brandIdentifier": "RStrNe",
+      "description": "str_ne",
+      "message": "str_ne does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "s1",
+          "op": "field"
+        },
+        "op": "!=",
+        "right": {
+          "name": "s2",
+          "op": "field"
+        }
+      },
+      "ruleText": "s1 != s2",
+      "urn": "urn:demo:rules:r:invariant:str_ne"
+    },
+    "urn:demo:rules:r:invariant:ts_eq": {
+      "brandIdentifier": "RTsEq",
+      "description": "ts_eq",
+      "message": "ts_eq does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "t1",
+          "op": "field"
+        },
+        "op": "=",
+        "right": {
+          "name": "t2",
+          "op": "field"
+        }
+      },
+      "ruleText": "t1 = t2",
+      "urn": "urn:demo:rules:r:invariant:ts_eq"
+    },
+    "urn:demo:rules:r:invariant:ts_lt": {
+      "brandIdentifier": "RTsLt",
+      "description": "ts_lt",
+      "message": "ts_lt does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "name": "t1",
+          "op": "field"
+        },
+        "op": "<",
+        "right": {
+          "name": "t2",
+          "op": "field"
+        }
+      },
+      "ruleText": "t1 < t2",
+      "urn": "urn:demo:rules:r:invariant:ts_lt"
+    }
+  },
+  "meta": {
+    "domain": "rules",
+    "irSchemaVersion": 1,
+    "manifestHash": "fea215f893af42e632a204a0263544d5a5d4efae3474e611d664cf4ab30a4751",
+    "manifestVersion": "0.1.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {}
+}

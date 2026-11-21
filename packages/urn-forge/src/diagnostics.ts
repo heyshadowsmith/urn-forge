@@ -42,6 +42,10 @@ export const DIAGNOSTIC_CODES = {
   'wrong-ref-kind': 'A reference names an atom of the wrong kind',
   // Pass 6: rule and template typing
   'unknown-placeholder': 'An error message placeholder does not name a required field of the error',
+  'rule-syntax': 'An invariant rule is not valid in the rule language',
+  'unknown-rule-field': 'An invariant rule names a field that its entity does not have',
+  'rule-type': 'An invariant rule mixes primitives, or uses an operator or a literal that does not fit them',
+  'unguarded-field': 'An invariant rule uses an optional field outside a guard such as x is present and …',
   // Pass 7: constraint coherence
   'conflicting-constraints': 'A field sets two constraints for one side of one aspect, such as min and exclusiveMin',
   'incoherent-constraints': 'The constraints of a field admit no value',
@@ -66,6 +70,8 @@ export const DIAGNOSTIC_CODES = {
   'missing-column': 'The input table of an operation has no column for a required field',
   'undeclared-error': 'A scenario expects an error that its operation does not declare',
   'uncovered-error': 'A declared error has no scenario that expects it (a warning)',
+  'undeclared-invariant': 'A scenario expects an invariant that is not on the input entity of its operation',
+  'uncovered-invariant': 'An invariant of an operation\'s input has no scenario that breaks it (a warning)',
   'uncovered-boundary': 'The examples of an input field do not include every boundary case of its constraints (a warning)',
   'ratchet-ready': 'Every feature is strict, so boundaryCoverage can be set to error (a note)',
   'waived-boundary': 'A waiver removed the boundary gaps of a field, with its reason (a note)',

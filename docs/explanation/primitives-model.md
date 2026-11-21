@@ -18,9 +18,19 @@ The model gives each question to one layer:
 | --- | --- |
 | The field, with its primitive and constraints | What is one value, and which values are allowed? |
 | The field reference in an entity or an error | Is the value present, and how many values are there? |
-| Invariants, a later kind | Which combinations of fields are allowed? |
+| The invariant, with its rule over the fields of one entity | Which combinations of fields are allowed? |
 
 Thus a field never says how many values there are. A list is `many` on the field reference, not a `list` primitive. A list of integers is a list on one axis and an integer on the other axis, so a single primitive cannot be both. The same field can be one value in one entity and a list in another entity.
+
+## The third layer: invariants
+
+A rule such as "the expiry date is after the effective date" is about two fields. No constraint of one field can say it, and a field reference cannot either. Before the `invariant` kind, such a rule was code in a handler. The manifest, the schemas and the scenarios could not see it.
+
+An invariant gives the rule one place in the manifest. The schema of its entity then refuses each value that breaks the rule. Gate 3 asks for a scenario that breaks each invariant of an operation input. The layers stay separate. A constraint of one field does not go into a rule, and a rule does not say if a field is present. A guard such as `deductible is absent or …` reads the presence that the field reference sets.
+
+The [rule language](../reference/rule-language) is small on purpose. It has comparisons, `+` and `-`, `and`, `or`, `not` and presence. Each operator is a decision about the types of every primitive. Thus `<` follows the order that each primitive defines: `decimal` exactly, `date` as text and `timestamp` as instants. Function calls, rules across entities and rules over the items of a list would each need new decisions. urn-forge does not have them at this time. Refer to [Scope](../reference/scope).
+
+The rule language uses the same comparisons as the constraints. `min: "0.01"` on a `decimal` and `premium > 0` in a rule compare in the same way. A value means the same thing in both layers.
 
 ## Six aspects
 
@@ -82,7 +92,7 @@ Two changes broke manifests that worked before. `oneOf` on a `string` became an 
 ## Related pages
 
 - [Primitives and constraints](../reference/primitives)
-- [The manifest](../reference/manifest)
+- [The rule language](../reference/rule-language)
 - [Add a field](../how-to/add-a-field)
 - [Departures from the specification](./departures-from-the-spec)
 - [The primitives plan](../project/primitives-plan)

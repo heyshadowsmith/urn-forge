@@ -93,27 +93,36 @@ Two operations: `issue_policy` (input a policy, output the policy) and `cancel_p
 
 One PR (decision 11), one commit per step. Each step leaves the repository green and ends with a check.
 
-- [ ] **0. The target.** `insurance/` as above, not yet in CI. *Check:* `compile` reports `unsupported-kind` for each invariant and nothing else.
-- [ ] **1. The rule language.** A parser to an AST, a printer to canonical text, and a type checker over a map of property names to primitive, required and list. *Check:* unit tests for each element; `print(parse(text))` is stable; each type and guard error has its message and column.
-- [ ] **2. The kind.** `invariant` joins the kind registry: the meta-schema, `on` in pass 4, pass 6 with the type checker, the IR (`invariants`, and each entity's derived list), the fingerprint, the four codes. *Check:* the insurance manifest compiles to an IR; fixtures for each new diagnostic.
-- [ ] **3. Valibot.** Each entity with invariants becomes `v.pipe(v.object(…), v.forward(v.check(…), [field]), …)`. Comparisons use the primitive's rules, with the decimal helpers. A plugin that does not support the kind gets `unsupported-construct`. *Check:* the generated schema refuses each broken rule at its first field; tests through the `primitives`-style fixture.
-- [ ] **4. The runtime.** An issue from an invariant carries `invariantUrn`. A broken invariant on the output is `ContractViolation`. *Check:* a core that returns an output that breaks an invariant gets `ContractViolation` with the URN.
-- [ ] **5. Steps and gate 3.** `Then the input is rejected by "<invariant URN>"`; gate 3 resolves invariant tags and URNs in that step, refuses an invariant that is not on the operation's input entity, and reports `uncovered-invariant` in the coverage mode. *Check:* a scenario removed from the insurance features gives exactly one `uncovered-invariant`.
-- [ ] **6. Ship the target.** `insurance/` joins CI (verify and Cucumber), strict from the start. The docs gain the kind, the language, the step and the codes, and an explanation of the third layer. *Check:* CI green; every sabotage below fails.
+- [x] **0. The target.** `insurance/` as above, not yet in CI. *Check:* `compile` reports `unsupported-kind` for each invariant and nothing else.
+  - *Done*, with one change to the target. The core is stateless, so a cancellation carries the policy terms it needs, and "the cancellation date is inside the term" is a data rule: a third invariant, `cancellation_within_term`. The declared error became a computed rule instead: `refund_below_minimum`, when the refund for the unused days is below 1.00. The check was met: three `unsupported-kind`, nothing else.
+- [x] **1. The rule language.** A parser to an AST, a printer to canonical text, and a type checker over a map of property names to primitive, required and list. *Check:* unit tests for each element; `print(parse(text))` is stable; each type and guard error has its message and column.
+  - *Done* in `src/rules/`. Number literals keep their text, so a decimal literal stays exact. `x is present` on a required field is a `rule-type` error ("is always true"), so a guard cannot hide a mistake.
+- [x] **2. The kind.** `invariant` joins the kind registry: the meta-schema, `on` in pass 4, pass 6 with the type checker, the IR (`invariants`, and each entity's derived list), the fingerprint, the four codes. *Check:* the insurance manifest compiles to an IR; fixtures for each new diagnostic.
+  - *Done*, with decision 1 applied to the IR too: an entity does not list its invariants, and `invariantsOf(ir, entity)` finds them by `on`. A kind can now declare that it builds `after` other kinds and read their nodes, so pass 6 sees the entity's fields. The dogfood domain caught the new kind twice: `self/`'s kind `enum` had to list `invariant` (gate 1), and `to_urn` then needed an example of it (gate 3). Fixture: `invalid-rules`.
+- [x] **3. Valibot.** Each entity with invariants becomes `v.pipe(v.object(…), v.forward(v.check(…), [field]), …)`. Comparisons use the primitive's rules, with the decimal helpers. A plugin that does not support the kind gets `unsupported-construct`. *Check:* the generated schema refuses each broken rule at its first field; tests through the `primitives`-style fixture.
+  - *Done* (steps 3 and 4 are one commit). Each rule is an exported `<Brand>Rule` function. Gate 1 found that TypeScript does not compare two branded strings, such as two dates, so the generated rule widens each field to its plain type. Fixture `rules` has one invariant per operator on each primitive; the tests run each rule at its edges. One test caught a wrong hand calculation of mine, not a bug: `1.1 + 2.2` is exactly `3.30`.
+- [x] **4. The runtime.** An issue from an invariant carries `invariantUrn`. A broken invariant on the output is `ContractViolation`. *Check:* a core that returns an output that breaks an invariant gets `ContractViolation` with the URN.
+  - *Done.* The runtime knows the invariant of an issue by its `requirement`: Valibot keeps the function of a failed check on the issue, and the contract lists each rule function with its URN.
+- [x] **5. Steps and gate 3.** `Then the input is rejected by "<invariant URN>"`; gate 3 resolves invariant tags and URNs in that step, refuses an invariant that is not on the operation's input entity, and reports `uncovered-invariant` in the coverage mode. *Check:* a scenario removed from the insurance features gives exactly one `uncovered-invariant`.
+  - *Done*, with two more codes than decision 9 lists: `undeclared-invariant` (a step names an invariant that is not on the input entity) and `uncovered-invariant`. The summary adds `N/M invariants broken`. The insurance features passed 20 of 20 at the first run.
+- [x] **6. Ship the target.** `insurance/` joins CI (verify and Cucumber), strict from the start. The docs gain the kind, the language, the step and the codes, and an explanation of the third layer. *Check:* CI green; every sabotage below fails.
+  - *Done.* Both CI jobs run insurance. Each sabotage below was run on a copy of insurance, with the result in the table.
 
 ## Done
 
 Invariants are done when CI is green with `insurance/` strict, and each of these fails `compile` or `verify`:
 
-| Sabotage | What catches it |
-| --- | --- |
-| `rule: expiry_date > ` (incomplete) | Pass 6, `rule-syntax` at the column |
-| A rule that names `expiry` (no such field) | Pass 6, `unknown-rule-field` |
-| `premium > effective_date` | Pass 6, `rule-type` |
-| `deductible < premium` with an optional deductible | Pass 6, `unguarded-field` |
-| `on:` an operation | Pass 4, `wrong-ref-kind` |
-| The core issues a policy that ends before it starts | Cucumber: `ContractViolation` with the invariant URN |
-| The scenario that breaks `term_is_positive` removed | Gate 3, `uncovered-invariant` |
+| Sabotage | What catches it | Result |
+| --- | --- | --- |
+| `rule: expiry_date > ` (incomplete) | Pass 6, `rule-syntax` at the column | Caught: `expected a field, a literal or "(", found the end of the rule` |
+| A rule that names `expiry` (no such field) | Pass 6, `unknown-rule-field` | Caught |
+| `premium > effective_date` | Pass 6, `rule-type` | Caught: `">" has a decimal on the left and a date on the right` |
+| `deductible < premium` with an optional deductible | Pass 6, `unguarded-field` | Caught |
+| `on:` an operation | Pass 4, `wrong-ref-kind` | Caught |
+| The core issues a policy that ends on its first day | Cucumber: `ContractViolation` with the invariant URN | Caught: 3 scenarios fail with `ContractViolation (expiry_date: The expiry date must be after the effective date)` |
+| The scenario that breaks `term_is_positive` removed | Gate 3, `uncovered-invariant` | Caught |
+
+**Met.**
 
 ## Risks
 

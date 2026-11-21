@@ -29,6 +29,15 @@ const source = (path: string) => readFileSync(repo(path), 'utf8');
 const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 1.0.0\n';
 const manifest = (body: string) => compile(`${HEADER}${body}`).diagnostics;
 const math = source('tests/fixtures/math/domain.manifest.yaml');
+/** An invariant over a small policy entity, with this rule. */
+const invariant = (rule: string) =>
+  manifest(
+    'p.field.effective_date: { primitive: date }\np.field.expiry_date: { primitive: date }\n' +
+      'p.field.premium: { primitive: decimal }\np.field.deductible: { primitive: decimal }\n' +
+      'p.entity.policy:\n  description: d\n  fields:\n    - ref: p.field.effective_date\n    - ref: p.field.expiry_date\n' +
+      '    - ref: p.field.premium\n    - { ref: p.field.deductible, required: false }\n' +
+      `p.invariant.rule:\n  description: d\n  on: p.entity.policy\n  rule: ${rule}\n  message: m\n`,
+  );
 
 // Gate 3, over the tutorial's shipping domain (an operation, a declared error, constrained fields).
 const shipping = compile(source('tutorial/2-declared-errors/domain.manifest.yaml')).ir!;
@@ -42,6 +51,13 @@ const gate3 = (feature: string, boundaryCoverage: 'warn' | 'error' = 'warn', ir 
     boundaryCoverage,
   } as unknown as GateContext).problems;
 const scenario = (steps: string, tags = OPERATION, comments = '') => `${comments}${tags}\nFeature: f\n  Scenario: s\n${steps}`;
+
+// Invariants, over the insurance domain.
+const insurance = compile(source('insurance/domain.manifest.yaml')).ir!;
+const ISSUE = '@urn:acme:insurance:policy:operation:issue_policy';
+const ISSUE_RUN =
+  '    When I run the operation with:\n      | policy_id | effective_date | expiry_date | premium |\n' +
+  '      | 123e4567-e89b-12d3-a456-426614174000 | 2026-01-01 | 2026-12-31 | 1.00 |\n';
 
 // The tutorial's strict step 3 passes every check, so one change shows one code.
 const strict = compile(source('tutorial/3-strict-coverage/domain.manifest.yaml')).ir!;
@@ -114,7 +130,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'not-a-mapping': () => compile('- a\n').diagnostics,
   'missing-header': () => compile('a.field.b: { primitive: float }\n').diagnostics,
   'invalid-key': () => manifest('Bad Key: { primitive: float }\n'),
-  'unsupported-kind': () => manifest('a.invariant.b: {}\n'),
+  'unsupported-kind': () => manifest('a.event.b: {}\n'),
   'unknown-kind': () => manifest('a.widget.b: {}\n'),
   'unknown-primitive': () => manifest('a.field.b: { primitive: money }\n'),
   'constraint-not-allowed': () => manifest('a.field.b: { primitive: boolean, min: 1 }\n'),
@@ -132,6 +148,11 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'wrong-ref-kind': () => manifest('a.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\na.entity.f:\n  description: d\n  fields:\n    - ref: a.entity.e\n'),
   // Pass 6
   'unknown-placeholder': () => manifest('a.error.e:\n  description: d\n  category: precondition\n  retryable: false\n  message: no {thing}\n'),
+  // Pass 6: invariant rules
+  'rule-syntax': () => invariant('expiry_date >'),
+  'unknown-rule-field': () => invariant('expiry > effective_date'),
+  'rule-type': () => invariant('premium > effective_date'),
+  'unguarded-field': () => invariant('deductible < premium'),
   // Pass 7
   'conflicting-constraints': () => manifest('a.field.b: { primitive: float, min: 0, exclusiveMin: 0 }\n'),
   'incoherent-constraints': () => manifest('a.field.b: { primitive: integer, min: 5, max: 1 }\n'),
@@ -157,6 +178,9 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'missing-column': () => gate3(scenario('    When I run the operation with:\n      | weight_grams |\n      | 1 |\n')),
   'undeclared-error': () => gate3(scenario(`${RUN}    Then the operation fails with "urn:demo:shipping:quote:error:nope"\n`)),
   'uncovered-error': () => gate3(scenario(RUN)),
+  'undeclared-invariant': () =>
+    gate3(scenario(`${ISSUE_RUN}    Then the input is rejected by "urn:acme:insurance:policy:invariant:cancellation_within_term"\n`, ISSUE), 'warn', insurance),
+  'uncovered-invariant': () => gate3(scenario(ISSUE_RUN, ISSUE), 'warn', insurance),
   'uncovered-boundary': () => gate3(scenario(RUN)),
   'ratchet-ready': () => gate3(strictFeature, 'warn', strict),
   'waived-boundary': () => gate3(scenario(RUN, OPERATION, '# urn-forge:waive urn:demo:shipping:parcel:field:zone the sample has no bad zone\n')),

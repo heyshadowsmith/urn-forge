@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as direct from '../src/index.js';
-import type { ErrorCategory, IRError, MessagePart, UniversalIR, Urn } from '../src/index.js';
+import type { ErrorCategory, IRError, IRInvariant, MessagePart, RuleExpr, UniversalIR, Urn } from '../src/index.js';
 
 const packageJson = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as {
   exports: Record<string, string>;
@@ -15,7 +15,7 @@ const packageJson = JSON.parse(readFileSync(fileURLToPath(new URL('../package.js
 // Type exports have no runtime trace, so tsc checks these: every type that UniversalIR
 // contains can be named from the package.
 type ErrorOf<I extends UniversalIR> = I['errors'][Urn];
-const typesOfTheIr: [IRError, ErrorCategory, MessagePart] extends [ErrorOf<UniversalIR>, IRError['category'], IRError['message'][number]] ? true : never = true;
+const typesOfTheIr: [IRError, ErrorCategory, MessagePart, IRInvariant, RuleExpr] extends [ErrorOf<UniversalIR>, IRError['category'], IRError['message'][number], UniversalIR['invariants'][Urn], IRInvariant['rule']] ? true : never = true;
 
 describe('public API', () => {
   it('names every type of the IR, errors included (checked by tsc)', () => {
@@ -46,6 +46,8 @@ describe('public API', () => {
       'diagnosticJson',
       'formatDiagnostic',
       'handlerName',
+      'invariantsOf',
+      'ruleName',
       'schemaNames',
       'toBrandIdentifier',
       'toUrn',
@@ -61,6 +63,7 @@ describe('public API', () => {
     expect(Object.keys(cucumber).sort()).toEqual([
       'assertFailsWith',
       'assertOutput',
+      'assertRejectedBy',
       'assertRejectedOn',
       'coerceCell',
       'operationUrnFromTags',

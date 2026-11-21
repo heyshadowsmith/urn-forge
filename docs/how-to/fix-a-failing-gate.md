@@ -1,6 +1,6 @@
 # Fix a gate that fails
 
-`urn-forge verify` runs gates 1, 3 and 4. A gate fails when it reports one error or more. This guide gives the symptom and the fix for each code that a gate can report. The output on this page comes from the domain of [tutorial 3](../tutorials/strict-coverage), with one part broken on purpose for each example.
+`urn-forge verify` runs gates 1, 3 and 4. A gate fails when it reports one error or more. This guide gives the symptom and the fix for each code that a gate can report. The output on this page comes from the domain of [tutorial 3](../tutorials/strict-coverage), with one part broken on purpose for each example. The examples for invariants come from the insurance domain in `packages/urn-forge/insurance/`.
 
 ## Before you start
 
@@ -38,6 +38,27 @@ verify failed: the manifest does not compile
 ```
 
 Correct the manifest at the line and column that the problem gives. [Diagnostics](../reference/diagnostics) lists every manifest code.
+
+### If a rule of an invariant is not correct
+
+Pass 6 examines the `rule` of each invariant. A problem in a rule also stops `verify` before the gates:
+
+```
+insurance/domain.manifest.yaml:66:9  error  unguarded-field  urn:acme:insurance:policy:invariant:deductible_below_premium: rule: "deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …" (at column 1 of the rule)
+verify failed: the manifest does not compile
+```
+
+The line and column give the start of the rule. The message gives the column in the rule. Each code has one fix:
+
+| Code | Cause | Fix |
+| --- | --- | --- |
+| `rule-syntax` | The rule is not complete, or it has a word that the language does not know | Correct the rule at the column in the message |
+| `unknown-rule-field` | The rule names a field that the `on` entity does not have | Use a name from the `fields` list in the message |
+| `rule-type` | The two sides of a comparison have different primitives, or a literal is not a value of the other side | Compare values of one primitive |
+| `unguarded-field` | The rule uses an optional field without a guard | Start with `x is present and …` or `x is absent or …` |
+| `wrong-ref-kind` | `on` names an atom that is not an entity | Set `on` to an entity |
+
+[Add an invariant](add-an-invariant) shows the real message of each code.
 
 If urn-forge cannot read the manifest, the last line is `verify failed: the manifest cannot be read`. Make sure that `--manifest`, or `manifest` in the configuration, gives the correct file.
 
@@ -190,6 +211,21 @@ Do one of these:
 - If the URN in the step is incorrect, use a URN from the `errors` list in the message.
 - If the operation must refuse with a new error, add the error to `errors` of the operation in the manifest. Refer to [Declare an error](declare-an-error).
 
+### `undeclared-invariant`
+
+A scenario expects an invariant that is not on the input entity of its operation:
+
+```
+gate 3  gherkin       FAIL  2 feature(s), 10 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/3 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features/issue_policy.feature:51:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive)
+    insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
+```
+
+Do one of these:
+
+- If the URN in the step is incorrect, use a URN from the `invariants` list in the message. The `uncovered-invariant` problem goes away with it.
+- If the rule must apply to the input, set `on` of the invariant to the input entity of the operation. Refer to [Add an invariant](add-an-invariant).
+
 ### `features-unreadable`
 
 The `features` folder does not exist, or `verify` cannot read it:
@@ -217,7 +253,7 @@ gate 3  gherkin       FAIL  0 feature(s), 0 scenario(s), 0/1 operations tagged, 
 
 One error can cause more errors on the lines after it. Correct the first one, then run `verify` again. In this example, line 20 has `Scenari:` in place of `Scenario:`.
 
-### Coverage: `uncovered-boundary` and `uncovered-error`
+### Coverage: `uncovered-boundary`, `uncovered-error` and `uncovered-invariant`
 
 A coverage gap is an error when the feature has the tag `@urn-forge:strict`, or when the config sets `boundaryCoverage: 'error'`. Otherwise it is a warning, and the gate passes.
 
@@ -235,7 +271,20 @@ gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, 
     tutorial/2-declared-errors/features  warning  uncovered-error  error urn:demo:shipping:quote:error:too_heavy_for_express of urn:demo:shipping:quote:operation:quote_shipping has no scenario that expects it; add one with Then the operation fails with "urn:demo:shipping:quote:error:too_heavy_for_express"
 ```
 
-To fix a gap, add a scenario that sends each value that the message names, or that expects the error. Refer to [Adopt strict coverage](adopt-strict-coverage). If a scenario cannot test a boundary, [waive the boundary](waive-a-boundary).
+An invariant of the input entity has no scenario that breaks it. The insurance features are strict, so it is an error:
+
+```
+gate 3  gherkin       FAIL  2 feature(s), 9 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/3 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
+```
+
+To fix a gap, add a scenario for it:
+
+- For a boundary, send each value that the message names.
+- For an error, expect it with `Then the operation fails with "<error URN>"`.
+- For an invariant, break it and expect `Then the input is rejected by "<invariant URN>"`.
+
+Refer to [Adopt strict coverage](adopt-strict-coverage). If a scenario cannot test a boundary, [waive the boundary](waive-a-boundary).
 
 ### Waivers: `invalid-waiver`, `unknown-waiver` and `unused-waiver`
 

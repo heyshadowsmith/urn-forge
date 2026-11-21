@@ -180,6 +180,7 @@
       "urn": "urn:demo:shop:order:field:unit_cost"
     }
   },
+  "invariants": {},
   "meta": {
     "domain": "shop",
     "irSchemaVersion": 1,

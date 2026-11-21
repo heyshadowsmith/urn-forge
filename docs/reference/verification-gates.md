@@ -18,7 +18,7 @@ A gate fails if one or more of its problems has the severity `error`. A warning 
 | --- | --- | --- | --- |
 | 1 | `completeness` | The core has a handler of the correct type for each operation | Built |
 | 2 | Lint profile | — | urn-forge does not have this gate at this time. Refer to [Scope](./scope) |
-| 3 | `gherkin` | The features use real URNs and real field names, and they cover the declared errors and the boundary values | Built |
+| 3 | `gherkin` | The features use real URNs and real field names, and they cover the declared errors, the input invariants and the boundary values | Built |
 | 4 | `drift` | The generated files in the repository are the same as a new compile | Built |
 | 5 | Compatibility | — | urn-forge does not have this gate at this time. Refer to [Scope](./scope) |
 
@@ -107,7 +107,7 @@ The summary has one of these forms:
 
 ## Gate 3: Gherkin traceability
 
-**The features use real URNs and real field names, and they cover the declared errors and the boundary values.** The gate reads the syntax tree of each feature file. It does not run the scenarios. Cucumber runs them. Refer to [Gherkin steps](./gherkin-steps).
+**The features use real URNs and real field names, and they cover the declared errors, the input invariants and the boundary values.** The gate reads the syntax tree of each feature file. It does not run the scenarios. Cucumber runs them. Refer to [Gherkin steps](./gherkin-steps).
 
 ### The tags of a scenario
 
@@ -123,20 +123,22 @@ The gate does these checks. The table gives them in the sequence of the output.
 | --- | --- | --- | --- |
 | Read the directory | The `--features` directory can be read | `features-unreadable` | `error` |
 | Parse the files | Each `.feature` file is valid Gherkin | `feature-parse-error` | `error` |
-| Tags resolve | Each tag that starts with `@urn:` is the URN of a field, an entity, an operation or an error of the manifest. The gate examines each tag one time, where it is written | `unresolved-tag` | `error` |
+| Tags resolve | Each tag that starts with `@urn:` is the URN of a field, an entity, an invariant, an operation or an error of the manifest. The gate examines each tag one time, where it is written | `unresolved-tag` | `error` |
 | One owner | A scenario or an `Examples` block has one owner or no owner, not two or more | `ambiguous-tag` | `error` |
 | Headers | Each header of a step table and of an `Examples` table is a property of the owner. For an operation, this is a property of its input or output entity. For an entity, this is a property of the entity. A scenario with no owner, or with two or more owners, is not examined | `unknown-header` | `error` |
 | Error headers | Each header of the table of `the operation fails with "<error URN>":` is a field of that error. The gate examines this only if the operation declares the error | `unknown-header` | `error` |
 | Required columns | The table of `I run the operation with:` has a column for each mandatory input field of the operation. Fields with `required: false` are not mandatory | `missing-column` | `error` |
+| Input invariants | The invariant URN in `the input is rejected by "<invariant URN>"` is an invariant of the input entity of the operation of the scenario. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-invariant` | `error` |
 | Declared errors | The error URN in `the operation fails with "<error URN>"` is a declared error of the operation of the scenario. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-error` | `error` |
 | Tagged operations | Each operation of the manifest has its URN in one or more tags, in any feature file | `untagged-operation` | `error` |
 | Error coverage | Each declared error of each tagged operation has one or more scenarios of that operation with `the operation fails with "<error URN>"`. An untagged operation already has `untagged-operation`, so the gate does not examine its errors | `uncovered-error` | Coverage mode |
+| Invariant coverage | Each invariant of the input entity of each tagged operation has one or more scenarios of that operation with `the input is rejected by "<invariant URN>"`. An invariant of an output entity only needs no scenario | `uncovered-invariant` | Coverage mode |
 | Waiver form | Each comment that starts with `# urn-forge:waive` has a field URN and a reason | `invalid-waiver` | `error` |
 | Boundary coverage | For each tagged operation and each input field with constraints, the values that the scenarios send include each boundary case | `uncovered-boundary` | Coverage mode |
 | Waiver result | Each valid waiver names a constrained input field of an operation of its feature file. Then it removes a gap, or it removes nothing | `unknown-waiver`, `waived-boundary`, `unused-waiver` | `error`, `note`, `warning` |
 | Ratchet | If `boundaryCoverage` is `warn`, the directory has one or more features, each feature is strict, and the gate has no error, the gate gives a note | `ratchet-ready` | `note` |
 
-The gate finds the step texts as written in the feature file, without the keyword. The text `the operation fails with "<error URN>"` can use double or single quotes, as Cucumber accepts both. It can have a colon at the end or not.
+The gate finds the step texts as written in the feature file, without the keyword. The text `the operation fails with "<error URN>"` can use double or single quotes, as Cucumber accepts both. It can have a colon at the end or not. The text `the input is rejected by "<invariant URN>"` can also use double or single quotes. An invariant tag, for example `@urn:acme:insurance:policy:invariant:term_is_positive`, resolves, but it does not change the owner of a scenario. The gate does not run the rules. Cucumber runs them through the generated schemas.
 
 ### File and position of each problem
 
@@ -148,13 +150,13 @@ The gate finds the step texts as written in the feature file, without the keywor
 | `ambiguous-tag` | The feature file | The scenario or the `Examples` block |
 | `unknown-header` | The feature file | The header cell |
 | `missing-column` | The feature file | The table |
-| `undeclared-error` | The feature file | The step |
-| `untagged-operation`, `uncovered-error`, `uncovered-boundary`, `ratchet-ready` | The `--features` directory | None |
+| `undeclared-error`, `undeclared-invariant` | The feature file | The step |
+| `untagged-operation`, `uncovered-error`, `uncovered-invariant`, `uncovered-boundary`, `ratchet-ready` | The `--features` directory | None |
 | `invalid-waiver`, `unknown-waiver`, `waived-boundary`, `unused-waiver` | The feature file | The comment |
 
 ### The coverage mode
 
-The severity of `uncovered-error` and `uncovered-boundary` depends on the coverage mode of the operation:
+The severity of `uncovered-error`, `uncovered-invariant` and `uncovered-boundary` depends on the coverage mode of the operation:
 
 | Condition | Severity |
 | --- | --- |
@@ -294,7 +296,7 @@ A comment that starts with `# urn-forge:waive` but does not have this form gets 
 The summary of gate 3 has this form. The parts in brackets occur only in some conditions:
 
 ```
-<F> feature(s), <S> scenario(s), <T>/<O> operations tagged[, <E>/<D> errors expected], strict: <K>/<F> features[ (boundaryCoverage: error)][, <W> waiver(s)]
+<F> feature(s), <S> scenario(s), <T>/<O> operations tagged[, <E>/<D> errors expected][, <B>/<N> invariants broken], strict: <K>/<F> features[ (boundaryCoverage: error)][, <W> waiver(s)]
 ```
 
 | Field | Description | Condition |
@@ -303,6 +305,7 @@ The summary of gate 3 has this form. The parts in brackets occur only in some co
 | `<S>` | The number of scenarios in the syntax tree. A Scenario Outline counts one time, so Cucumber can count more scenarios | Always |
 | `<T>/<O>` | The operations with a tag, and all the operations of the manifest | Always |
 | `<E>/<D>` | The pairs of operation and declared error that a scenario expects, and all such pairs | Only if one or more operations declare errors |
+| `<B>/<N>` | The pairs of operation and input invariant that a scenario breaks, and all such pairs | Only if the input entity of one or more operations has invariants |
 | `<K>/<F>` | The strict features, and all the features | Always |
 | `(boundaryCoverage: error)` | The coverage mode of the configuration | Only if `boundaryCoverage` is `error` |
 | `<W>` | The number of valid waivers | Only if there is one or more |
@@ -313,6 +316,15 @@ Examples from real runs:
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
 gate 3  gherkin       PASS  3 feature(s), 18 scenario(s), 3/3 operations tagged, 3/3 errors expected, strict: 3/3 features (boundaryCoverage: error)
 gate 3  gherkin       FAIL  2 feature(s), 4 scenario(s), 1/1 operations tagged, 0/1 errors expected, strict: 1/2 features, 1 waiver(s)
+gate 3  gherkin       PASS  2 feature(s), 10 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/3 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+```
+
+The last example is the insurance domain (`npm run verify:insurance`). For this run, its features had two changes. The scenario that breaks `term_is_positive` was replaced by a scenario that names an invariant of a different entity:
+
+```
+gate 3  gherkin       FAIL  2 feature(s), 10 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/3 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features/issue_policy.feature:51:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive)
+    insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
 ```
 
 ## Gate 4: drift

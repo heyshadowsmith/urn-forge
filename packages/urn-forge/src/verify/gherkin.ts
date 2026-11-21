@@ -36,9 +36,9 @@
  * operation carries `@urn-forge:strict`; then they are errors.
  */
 
-import { failsWithUrn, STEP_PHRASES } from '../gherkin/phrases.js';
+import { failsWithUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
 import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
-import type { UniversalIR, Urn } from '../ir/types.js';
+import { invariantsOf, type UniversalIR, type Urn } from '../ir/types.js';
 import { listBoundaries } from '../kinds/field-refs.js';
 import { boundaryCases } from '../primitives/index.js';
 import { inputValues } from './input-values.js';
@@ -72,6 +72,8 @@ interface Owner {
   readonly requiredInput?: readonly string[];
   /** For an operation: its declared errors. */
   readonly errors?: readonly Urn[];
+  /** For an operation: the invariants of its input entity. */
+  readonly invariants?: readonly Urn[];
 }
 
 export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): GateOutcome {
@@ -87,6 +89,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const covered = new Set<string>();
   /** `<operation URN> <error URN>` for each declared error some scenario expects. */
   const expectedErrors = new Set<string>();
+  /** `<operation URN> <invariant URN>` for each input invariant some scenario breaks. */
+  const brokenInvariants = new Set<string>();
 
   for (const feature of features.features) {
     const report = (code: DiagnosticCode, location: SourceLocation, message: string, urn?: string, severity: Severity = 'error') =>
@@ -96,7 +100,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     for (const tag of feature.declaredTags) {
       if (!tag.name.startsWith('@urn:')) continue;
       const urn = tag.name.slice(1);
-      if (!(urn in ir.fields || urn in ir.entities || urn in ir.operations || urn in ir.errors)) {
+      if (!(urn in ir.fields || urn in ir.entities || urn in ir.operations || urn in ir.errors || urn in (ir.invariants ?? {}))) {
         report('unresolved-tag', tag.location, `tag ${tag.name} does not resolve to a URN in the manifest`);
       }
       if (urn in ir.operations) covered.add(urn);
@@ -148,6 +152,24 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     for (const scenario of feature.scenarios) {
       const owner = ownerOf(scenario.tags, scenario.location);
       for (const step of scenario.steps) {
+        // `the input is rejected by "<invariant URN>"`: an invariant of the operation's input.
+        const invariantUrn = rejectedByUrn(step.text);
+        if (invariantUrn !== undefined) {
+          if (owner?.invariants) {
+            if (owner.invariants.includes(invariantUrn as Urn)) {
+              brokenInvariants.add(`${owner.urn} ${invariantUrn}`);
+            } else {
+              report(
+                'undeclared-invariant',
+                step.location,
+                `"${invariantUrn}" is not an invariant of the input of ${owner.urn} ` +
+                  `(invariants: ${owner.invariants.length > 0 ? owner.invariants.join(', ') : 'none'})`,
+                owner.urn,
+              );
+            }
+          }
+          continue;
+        }
         // 4. `the operation fails with "<urn>"`, with or without a table of that error's fields.
         const errorUrn = failsWithUrn(step.text);
         if (errorUrn !== undefined) {
@@ -204,6 +226,22 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         file: features.directory,
         urn: errorUrn,
         message: `error ${errorUrn} of ${operation.urn} has no scenario that expects it; add one with Then the operation fails with "${errorUrn}"`,
+      });
+    }
+  }
+
+  // Invariant coverage: each invariant of a tagged operation's input needs a scenario that breaks it.
+  let inputInvariants = 0;
+  for (const operation of Object.values(ir.operations)) {
+    for (const invariant of invariantsOf(ir, operation.input)) {
+      inputInvariants += 1;
+      if (!covered.has(operation.urn) || brokenInvariants.has(`${operation.urn} ${invariant.urn}`)) continue;
+      problems.push({
+        code: 'uncovered-invariant',
+        severity: coverageSeverity(operation.urn),
+        file: features.directory,
+        urn: invariant.urn,
+        message: `invariant ${invariant.urn} on the input of ${operation.urn} has no scenario that breaks it; add one with Then the input is rejected by "${invariant.urn}"`,
       });
     }
   }
@@ -291,7 +329,9 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   }
 
   const scenarioCount = features.features.reduce((n, f) => n + f.scenarios.length, 0);
-  const errorSummary = declaredErrors > 0 ? `, ${expectedErrors.size}/${declaredErrors} errors expected` : '';
+  const errorSummary =
+    (declaredErrors > 0 ? `, ${expectedErrors.size}/${declaredErrors} errors expected` : '') +
+    (inputInvariants > 0 ? `, ${brokenInvariants.size}/${inputInvariants} invariants broken` : '');
   const featureCount = features.features.length;
 
   // The ratchet trigger (spec §8): once every feature is strict and the gate passes, the
@@ -328,6 +368,7 @@ function operationOwner(ir: UniversalIR, urn: Urn): Owner {
     keys: new Set([...propertyNames(ir, op.input), ...propertyNames(ir, op.output)]),
     requiredInput: ir.entities[op.input]?.fields.filter((f) => f.required).map((f) => f.name) ?? [],
     errors: op.errors,
+    invariants: invariantsOf(ir, op.input).map((i) => i.urn),
   };
 }
 

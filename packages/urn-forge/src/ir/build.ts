@@ -76,7 +76,9 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
 
   const nodes = new Map<KindName, Map<Urn, unknown>>(KIND_NAMES.map((name) => [name, new Map()]));
 
-  for (const atom of atoms) {
+  // A kind that reads other nodes (`after`) builds once those kinds have built.
+  const stage = (atom: Atom) => (kind(atom.kind).after ? 1 : 0);
+  for (const atom of [...atoms].sort((a, b) => stage(a) - stage(b))) {
     if (byUrn.get(atom.urn) !== atom) continue; // duplicate, already reported
     const descriptor = kind(atom.kind);
     const shortKey = `${atom.context}.${atom.kind}.${atom.identifier}`;
@@ -114,6 +116,7 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
       decl,
       ref: (path) => resolved.get(JSON.stringify(path)),
       report: (issue) => issues.push(issue),
+      node: (name, urn) => nodes.get(name)!.get(urn),
     });
     if (node !== undefined) nodes.get(atom.kind)!.set(atom.urn, node);
   }

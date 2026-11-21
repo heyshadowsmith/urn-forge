@@ -33,6 +33,25 @@ function compareDecimal(a: string, b: string): number {
   const y = decimalScaled(b, scale);
   return x < y ? -1 : x > y ? 1 : 0;
 }`,
+  decimalArithmetic: `/** The integer n divided by 10^scale, written with exactly \`scale\` digits after the point. */
+function unscaledDecimal(n: bigint, scale: number): string {
+  const negative = n < 0n;
+  const digits = (negative ? -n : n).toString().padStart(scale + 1, '0');
+  const text = scale === 0 ? digits : \`\${digits.slice(0, -scale)}.\${digits.slice(-scale)}\`;
+  return negative ? \`-\${text}\` : text;
+}
+
+/** a + b, exactly, with the digits after the point of the longer one. */
+function addDecimal(a: string, b: string): string {
+  const scale = Math.max(decimalFraction(a), decimalFraction(b));
+  return unscaledDecimal(decimalScaled(a, scale) + decimalScaled(b, scale), scale);
+}
+
+/** a − b, exactly. */
+function subtractDecimal(a: string, b: string): string {
+  const scale = Math.max(decimalFraction(a), decimalFraction(b));
+  return unscaledDecimal(decimalScaled(a, scale) - decimalScaled(b, scale), scale);
+}`,
   date: `/** YYYY-MM-DD that names a real day of the proleptic Gregorian calendar. */
 function isCalendarDate(value: string): boolean {
   const match = /^(\\d{4})-(\\d{2})-(\\d{2})$/u.exec(value);
@@ -54,6 +73,7 @@ export type ValibotHelper = keyof typeof VALIBOT_HELPERS;
 /** Each helper with the helpers it calls, in emission order. */
 export const HELPER_NEEDS: { readonly [H in ValibotHelper]: readonly ValibotHelper[] } = {
   decimal: ['decimal'],
+  decimalArithmetic: ['decimal', 'decimalArithmetic'],
   date: ['date'],
   timestamp: ['date', 'timestamp'],
 };

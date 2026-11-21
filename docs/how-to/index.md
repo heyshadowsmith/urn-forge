@@ -13,10 +13,11 @@ A how-to guide helps you do one task. Each guide starts from a project that alre
 - [Add an entity](add-an-entity): group fields into an input, an output or an error payload.
 - [Add an operation](add-an-operation): declare an operation, write its handler and tag a feature with it.
 - [Declare an error](declare-an-error): give an operation a named rejection.
+- [Add an invariant](add-an-invariant): declare a rule over the fields of one entity, and break it in a scenario.
 
 ## Scenarios
 
-- [Write scenarios](write-scenarios): use the five steps, tables and Scenario Outlines.
+- [Write scenarios](write-scenarios): use the six steps, tables and Scenario Outlines.
 - [Waive a boundary](waive-a-boundary): remove the coverage gaps of one field, with a reason.
 
 ## The core and the shell
