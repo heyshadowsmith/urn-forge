@@ -100,7 +100,6 @@ urn-forge reports these name collisions. Each one is an error.
 | Code | Pass | Collision | Example |
 | --- | --- | --- | --- |
 | `duplicate-key` | YAML | A top-level key occurs two times | `order.field.quantity` two times |
-| `duplicate-urn` | 3 | Two entries expand to the same URN | A YAML file cannot cause this at this time, because a short key that occurs two times is a `duplicate-key` error first |
 | `duplicate-brand` | 3 | Two atoms have the same brand identifier | `geo_metry.field.radius` and `geo.field.metry_radius` |
 | `duplicate-property` | 3 | Two fields in one entity or error have the same identifier | `a.field.size` and `b.field.size` in one entity |
 | `duplicate-ref` | 3 | One list refers to the same atom two times | The same field two times in `fields`, or the same error two times in `errors` |

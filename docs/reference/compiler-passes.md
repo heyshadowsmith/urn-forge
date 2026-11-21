@@ -10,7 +10,7 @@ The `compile` and `verify` commands send the manifest through a sequence of pass
 | YAML | Parse the YAML | The file is valid YAML with no key two times in one mapping | `yaml-syntax`, `duplicate-key` | Stop after this step |
 | 1 | [Meta-schema](#pass-1-meta-schema) | The structure of the header and of each entry | `not-a-mapping`, `missing-header`, `invalid-key`, `unsupported-kind`, `unknown-kind`, `unknown-primitive`, `constraint-not-allowed`, `unknown-property`, `invalid-value` | Stop after this step |
 | 2 | [Expansion](#pass-2-expansion) | None. It makes the URNs and the brand identifiers | None | — |
-| 3 | [Uniqueness](#pass-3-uniqueness) | URNs, brand identifiers and property names are unique | `duplicate-urn`, `duplicate-brand`, `duplicate-property`, `duplicate-ref`, `reserved-property` | Stop after pass 7 |
+| 3 | [Uniqueness](#pass-3-uniqueness) | Brand identifiers and property names are unique | `duplicate-brand`, `duplicate-property`, `duplicate-ref`, `reserved-property` | Stop after pass 7 |
 | 4 | [References](#pass-4-references) | Each reference names an atom of the correct kind | `unresolved-ref`, `wrong-ref-kind` | Stop after pass 7 |
 | 5 | Cycle check | Not built | — | — |
 | 6 | [Message templates](#pass-6-message-templates) | Each placeholder in an error message names a mandatory field of the error | `unknown-placeholder` | Stop after pass 7 |
@@ -48,9 +48,10 @@ Pass 2 changes each short key to a URN with the `namespace` and `domain` of the 
 
 ## Pass 3: uniqueness
 
+Each URN is unique without a check. A URN comes from its short key with one rule, and a YAML mapping cannot have the same key two times (`duplicate-key`).
+
 | Check | Code | Where |
 | --- | --- | --- |
-| Two entries expand to the same URN | `duplicate-urn` | All atoms |
 | Two atoms have the same brand identifier | `duplicate-brand` | All atoms, also of different kinds |
 | One `fields` list has two fields with the same identifier | `duplicate-property` | Entities and errors |
 | One `fields` list refers to the same field two times | `duplicate-ref` | Entities and errors |
@@ -92,7 +93,7 @@ Pass 1, not pass 7, examines that a `oneOf` list is not empty and has no value t
 
 urn-forge reports the diagnostics of passes 3 to 7 in this sequence:
 
-1. `duplicate-urn` and `duplicate-brand`, for all atoms in URN order.
+1. `duplicate-brand`, for all atoms in URN order.
 2. For each atom in URN order:
    1. Pass 4, for each reference in the sequence of the entry.
    2. The checks of the kind of the atom:

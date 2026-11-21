@@ -32,7 +32,6 @@ export const DIAGNOSTIC_CODES = {
   'unknown-property': 'An entry has a property it does not accept',
   'invalid-value': 'A property has a value of the wrong type or form',
   // Pass 3: uniqueness
-  'duplicate-urn': 'Two entries expand to the same URN',
   'duplicate-brand': 'Two atoms derive the same brand identifier',
   'duplicate-property': 'Two fields of one entity become the same property',
   'duplicate-ref': 'An entity lists the same field more than once',
