@@ -554,6 +554,34 @@ export function hasDateArithmetic(e: RuleExpr, primitiveOf: (field: string) => P
   return valueType(e.left, primitiveOf) === 'date' || valueType(e.right, primitiveOf) === 'date' || hasDateArithmetic(e.left, primitiveOf) || hasDateArithmetic(e.right, primitiveOf);
 }
 
+/** Every property that a rule names, once each, in text order: as a value or in a presence condition. */
+export function namesIn(expr: RuleExpr): string[] {
+  const names: string[] = [];
+  const visit = (e: RuleExpr): void => {
+    switch (e.op) {
+      case 'field':
+        names.push(e.name);
+        return;
+      case 'present':
+      case 'absent':
+        names.push(e.field);
+        return;
+      case 'not':
+        visit(e.operand);
+        return;
+      case 'number':
+      case 'text':
+      case 'boolean':
+        return;
+      default:
+        visit(e.left);
+        visit(e.right);
+    }
+  };
+  visit(expr);
+  return [...new Set(names)];
+}
+
 /** The first field a rule names, in text order: where a broken invariant points (invariants plan, decision 5). */
 export function firstField(expr: RuleExpr): string | undefined {
   switch (expr.op) {

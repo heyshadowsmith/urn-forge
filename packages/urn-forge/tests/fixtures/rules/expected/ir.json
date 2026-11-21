@@ -764,6 +764,33 @@
       "ruleText": "i1 = 0 or i2 = 0",
       "urn": "urn:demo:rules:r:invariant:or_rule"
     },
+    "urn:demo:rules:r:invariant:report_on_guarded": {
+      "brandIdentifier": "RReportOnGuarded",
+      "description": "report_on_guarded",
+      "message": "report_on_guarded does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "reportOn": "d1",
+      "rule": {
+        "left": {
+          "field": "opt",
+          "op": "absent"
+        },
+        "op": "or",
+        "right": {
+          "left": {
+            "name": "d1",
+            "op": "field"
+          },
+          "op": "<",
+          "right": {
+            "name": "opt",
+            "op": "field"
+          }
+        }
+      },
+      "ruleText": "opt is absent or d1 < opt",
+      "urn": "urn:demo:rules:r:invariant:report_on_guarded"
+    },
     "urn:demo:rules:r:invariant:str_ne": {
       "brandIdentifier": "RStrNe",
       "description": "str_ne",
@@ -825,7 +852,7 @@
   "meta": {
     "domain": "rules",
     "irSchemaVersion": 1,
-    "manifestHash": "d6cb3985dc4b58645e83aa32689377494009b5c09ff29dee163268f6c0c9192d",
+    "manifestHash": "2634b37e19956b4447ac134fba1dc59323144850249aaff5fa8443f7fd2450e5",
     "manifestVersion": "0.1.0",
     "namespace": "demo",
     "stability": "stable"

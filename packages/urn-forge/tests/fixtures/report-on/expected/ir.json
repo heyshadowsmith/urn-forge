@@ -1,0 +1,107 @@
+{
+  "entities": {
+    "urn:demo:resto:booking:entity:request": {
+      "brandIdentifier": "BookingRequest",
+      "description": "A request for a table",
+      "fields": [
+        {
+          "field": "urn:demo:resto:booking:field:party_size",
+          "name": "party_size",
+          "required": true
+        },
+        {
+          "field": "urn:demo:resto:booking:field:deposit",
+          "name": "deposit",
+          "required": false
+        },
+        {
+          "field": "urn:demo:resto:booking:field:notes",
+          "name": "guest_notes",
+          "required": false
+        }
+      ],
+      "urn": "urn:demo:resto:booking:entity:request"
+    }
+  },
+  "errors": {},
+  "events": {},
+  "fields": {
+    "urn:demo:resto:booking:field:deposit": {
+      "brandIdentifier": "BookingDeposit",
+      "constraints": {
+        "min": "0.01",
+        "scale": 2
+      },
+      "description": "The deposit that the guest pays",
+      "primitive": "decimal",
+      "urn": "urn:demo:resto:booking:field:deposit"
+    },
+    "urn:demo:resto:booking:field:notes": {
+      "brandIdentifier": "BookingNotes",
+      "constraints": {
+        "maxLength": 200
+      },
+      "description": "Free text for the restaurant",
+      "primitive": "string",
+      "urn": "urn:demo:resto:booking:field:notes"
+    },
+    "urn:demo:resto:booking:field:party_size": {
+      "brandIdentifier": "BookingPartySize",
+      "constraints": {
+        "max": 12,
+        "min": 1
+      },
+      "description": "The number of guests",
+      "primitive": "integer",
+      "urn": "urn:demo:resto:booking:field:party_size"
+    }
+  },
+  "invariants": {
+    "urn:demo:resto:booking:invariant:large_party_has_deposit": {
+      "brandIdentifier": "BookingLargePartyHasDeposit",
+      "description": "A party of 7 or more pays a deposit",
+      "message": "A party of 7 or more must pay a deposit",
+      "on": "urn:demo:resto:booking:entity:request",
+      "reportOn": "deposit",
+      "rule": {
+        "left": {
+          "left": {
+            "name": "party_size",
+            "op": "field"
+          },
+          "op": "<=",
+          "right": {
+            "op": "number",
+            "value": "6"
+          }
+        },
+        "op": "or",
+        "right": {
+          "field": "deposit",
+          "op": "present"
+        }
+      },
+      "ruleText": "party_size <= 6 or deposit is present",
+      "urn": "urn:demo:resto:booking:invariant:large_party_has_deposit"
+    }
+  },
+  "meta": {
+    "domain": "resto",
+    "irSchemaVersion": 1,
+    "manifestHash": "cf12a86cd44d0d852ec5d3b897134a85f5a4c76c32d43c880e9bae424725b5ae",
+    "manifestVersion": "0.1.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {
+    "urn:demo:resto:booking:operation:book": {
+      "brandIdentifier": "BookingBook",
+      "description": "Book a table",
+      "emits": [],
+      "errors": [],
+      "input": "urn:demo:resto:booking:entity:request",
+      "output": "urn:demo:resto:booking:entity:request",
+      "urn": "urn:demo:resto:booking:operation:book"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { Description, ShortKeyRef } from '../grammar.js';
 import type { IREntity, IRField, IRInvariant, Urn } from '../ir/types.js';
-import { checkRule, parseRule, printRule, stripColumns, type RuleField } from '../rules/index.js';
+import { checkRule, namesIn, parseRule, printRule, stripColumns, type RuleField } from '../rules/index.js';
 import { defineKind } from './types.js';
 
 const InvariantSchema = v.strictObject({
@@ -11,6 +11,8 @@ const InvariantSchema = v.strictObject({
   rule: v.pipe(v.string(), v.minLength(1, 'must not be empty')),
   /** The issue message when the rule does not hold. */
   message: Description,
+  /** The property that the issue goes on (reportOn plan); by default, the first one that the rule names. */
+  reportOn: v.optional(v.pipe(v.string(), v.minLength(1, 'must not be empty'))),
 });
 export type InvariantDecl = v.InferOutput<typeof InvariantSchema>;
 
@@ -58,6 +60,20 @@ export const invariant = defineKind<InvariantDecl, IRInvariant>()({
     }
     if (problems.length > 0) return undefined;
     const rule = stripColumns(parsed.expr);
+    // reportOn: a property that the rule names, so the issue sends the caller to a field that can fix it.
+    if (decl.reportOn !== undefined) {
+      const named = namesIn(rule);
+      if (!named.includes(decl.reportOn)) {
+        const what = Object.hasOwn(fields, decl.reportOn) || entity.fields.some((f) => f.name === decl.reportOn) ? 'is a property that the rule does not name' : 'is not a property of the entity';
+        report({
+          code: 'invalid-report-on',
+          urn: atom.urn,
+          message: `${atom.urn}: reportOn "${decl.reportOn}" ${what}; name one of the properties in the rule (${named.join(', ')})`,
+          path: [shortKey, 'reportOn'],
+        });
+        return undefined;
+      }
+    }
     return {
       urn: atom.urn,
       brandIdentifier: atom.brandIdentifier,
@@ -66,6 +82,7 @@ export const invariant = defineKind<InvariantDecl, IRInvariant>()({
       rule,
       ruleText: printRule(rule),
       message: decl.message,
+      ...(decl.reportOn === undefined ? {} : { reportOn: decl.reportOn }),
     };
   },
 });

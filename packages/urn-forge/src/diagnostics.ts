@@ -51,6 +51,7 @@ export const DIAGNOSTIC_CODES = {
   'unknown-rule-field': 'An invariant rule names a field that its entity does not have',
   'rule-type': 'An invariant rule mixes primitives, or uses an operator or a literal that does not fit them',
   'unguarded-field': 'An invariant rule uses an optional field outside a guard such as x is present and …',
+  'invalid-report-on': 'The reportOn of an invariant is not a property that its rule names',
   // Pass 8: lifecycle
   'deprecated-ref': 'An active atom refers to a deprecated atom (a warning)',
   'sunset-ref': 'An atom refers to a sunset atom, or to an atom whose sunset date is on or before the reference date',

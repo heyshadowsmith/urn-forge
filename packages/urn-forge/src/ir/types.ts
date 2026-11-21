@@ -44,6 +44,8 @@ export interface IRInvariant {
   /** The canonical text of the rule (`printRule`). */
   readonly ruleText: string;
   readonly message: string;
+  /** The property that the issue goes on, when the manifest sets it (reportOn plan). Else the first that the rule names. */
+  readonly reportOn?: string;
   readonly lifecycle?: Lifecycle;
 }
 
