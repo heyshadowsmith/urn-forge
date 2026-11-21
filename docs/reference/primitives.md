@@ -2,7 +2,7 @@
 
 Each field has one primitive. A primitive sets the kind of value and the constraints that the field can have. urn-forge 0.1.0 has eight primitives: `boolean`, `date`, `decimal`, `enum`, `float`, `integer`, `string` and `timestamp`.
 
-The set is MECE: each kind of value has one primitive, and each constraint restricts one aspect of a value. For the reasons, refer to [The MECE model of primitives](../explanation/primitives-model).
+The set is MECE: each kind of value has one primitive, and each constraint restricts one aspect of a value. For the reasons, refer to [The MECE model of primitives](../explanation/primitives-model). For the SQL type of each primitive and the SQL check of each constraint, refer to [The Postgres schema](./postgres-schema).
 
 ## Primitives
 
@@ -71,8 +71,8 @@ A field can set at most one constraint for one side of one aspect. These pairs c
 | `max` | `integer` | Range | number | A safe integer | `v.maxValue(<value>)` |
 | `multipleOf` | `integer` | Step | number | A safe integer, `1` or more | `v.multipleOf(<value>)` |
 | `notIn` | `integer` | Exclusion | list of numbers | One or more safe integers. No value two times | `v.notValues([<values>])` |
-| `minLength` | `string` | Size | number | A safe integer, `0` or more | `v.minLength(<value>)` |
-| `maxLength` | `string` | Size | number | A safe integer, `0` or more | `v.maxLength(<value>)` |
+| `minLength` | `string` | Size | number | A safe integer, `0` or more | `v.check(…)` that counts code points |
+| `maxLength` | `string` | Size | number | A safe integer, `0` or more | `v.check(…)` that counts code points |
 | `regex` | `string` | Shape | string | Not empty. A valid JavaScript regular expression with the `u` flag | `v.regex(/^(?:<value>)$/u)` |
 | `format` | `string` | Shape | string | `uuid`, `email` or `uri` | `v.uuid()`, `v.email()` or `v.url()` |
 | `min` | `timestamp` | Range | string | A timestamp in quotes | `v.check(… Date.parse(value) >= Date.parse("<value>") …)` |
@@ -100,12 +100,12 @@ A field can set at most one constraint for one side of one aspect. These pairs c
 | `multipleOf` | It divides by the constraint value with no remainder |
 | `scale` | It has the constraint value or fewer digits after the point |
 | `notIn` | It is equal to none of the listed values |
-| `minLength` | Its `length` is equal to or more than the constraint value |
-| `maxLength` | Its `length` is equal to or less than the constraint value |
+| `minLength` | Its length is equal to or more than the constraint value |
+| `maxLength` | Its length is equal to or less than the constraint value |
 | `regex` | The pattern matches the full value |
 | `format` | It is a valid UUID, email address or URI |
 
-- The `length` of a string is the JavaScript `length`: the number of UTF-16 code units. Thus one emoji can count as 2.
+- The length of a string is its number of Unicode code points, as in Postgres `char_length`. Thus one emoji counts as 1, although its JavaScript `length` is 2.
 - `decimal` values compare as exact numbers. `"1.10"` is equal to `"1.1"`, and `"-0"` is equal to `"0"`. Thus `notIn: ["13.00"]` also refuses `"13"`.
 - `date` values compare as text. In the form `YYYY-MM-DD`, the text order is the date order.
 - `timestamp` values compare as instants. `"2026-01-01T00:00:00Z"` is equal to `"2026-01-01T00:00:00.000Z"`.

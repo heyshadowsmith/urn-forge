@@ -246,6 +246,25 @@ describe('regex', () => {
   });
 });
 
+describe('string length (Postgres plan, decision 5)', () => {
+  // One emoji is one code point and two UTF-16 units.
+  it('counts Unicode code points in the generated schema, as Postgres char_length does', () => {
+    expect(v.safeParse(kinds.ValueCodeSchema, '😀😀😀😀').success).toBe(true);
+    expect(v.safeParse(kinds.ValueCodeSchema, '😀').issues?.map((i) => i.message)).toEqual(['Invalid length: Expected >=2 but received 1']);
+    expect(v.safeParse(kinds.ValueCodeSchema, '😀😀😀😀😀').issues?.map((i) => i.message)).toEqual(['Invalid length: Expected <=4 but received 5']);
+  });
+
+  it('counts Unicode code points in the boundary cases of gate 3', () => {
+    const samples = ['😀', '😀😀', 'a😀😀a', 'a😀😀a😀'];
+    expect(boundaryCases('string', { minLength: 2, maxLength: 4 }).map((c) => [c.label, samples.filter((s) => c.covers(s))])).toEqual([
+      ['value of length 2 (minLength)', ['😀😀']],
+      ['value of length 1 (below minLength)', ['😀']],
+      ['value of length 4 (maxLength)', ['a😀😀a']],
+      ['value of length 5 (above maxLength)', ['a😀😀a😀']],
+    ]);
+  });
+});
+
 describe('boundary cases (boundary coverage plan, step 1)', () => {
   /** Each case's label, with the sample values that cover it. */
   const covered = (primitive: Primitive, constraints: Record<string, unknown>, samples: readonly unknown[]) =>

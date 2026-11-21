@@ -27,7 +27,7 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 | `PluginEntry` | Type | `{ plugin: CodegenPlugin<any>; config: unknown }` | One plugin and its configuration, in run order |
 | `unsupportedConstructs` | Function | `unsupportedConstructs(ir: UniversalIR, plugin: CodegenPlugin<unknown>): PluginDiagnostic[]` | The `unsupported-construct` diagnostics for each kind, primitive and constraint of the IR that the plugin does not declare in `supports` |
 | `verify` | Function | `verify(options: VerifyOptions): Promise<VerifyResult>` | Reads the manifest, compiles it in memory and runs the gates |
-| `VerifyOptions` | Type | `{ cwd; manifestPath; outDir; corePath; featuresDir; tsconfigPath: string; plugins?; boundaryCoverage?; gates? }` | The input of `verify`. The paths are absolute. The defaults are all plugins, `'warn'` and `GATES` |
+| `VerifyOptions` | Type | `{ cwd; manifestPath; outDir; corePath; featuresDir; tsconfigPath: string; plugins?; boundaryCoverage?; gates? }` | The input of `verify`. The paths are absolute. The defaults are `DEFAULT_PLUGINS`, `'warn'` and `GATES` |
 | `VerifyResult` | Type | `{ ok: boolean; diagnostics: readonly Diagnostic[]; gates: readonly GateResult[] }` | `ok` is `true` if there is no error. If `diagnostics` has an error, `gates` is empty |
 | `GATES` | Constant | `readonly Gate[]` | The gates that `verify` runs, in sequence: `completeness` (1), `gherkin` (3), `drift` (4) |
 | `Gate` | Type | `{ number: GateNumber; name: string; run(context: GateContext): GateOutcome \| Promise<GateOutcome> }` | One gate |
@@ -42,7 +42,7 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 | --- | --- | --- | --- |
 | `defineConfig` | Function | `defineConfig(config: UrnForgeConfig): UrnForgeConfig` | Returns the object without a change. It gives the type only. The same function as in `urn-forge/config` |
 | `UrnForgeConfig` | Type | `{ manifest?; out?; core?; features?; tsconfig?: string; boundaryCoverage?: 'warn' \| 'error'; plugins?: readonly PluginSpec[] }` | The configuration object. Refer to [The configuration file](./configuration) |
-| `PluginSpec` | Type | `'valibot' \| 'fcis' \| readonly ['valibot', {}] \| readonly ['fcis', {}]` | One entry of the `plugins` setting |
+| `PluginSpec` | Type | `'valibot' \| 'fcis' \| 'postgres' \| readonly ['valibot', {}] \| readonly ['fcis', {}] \| readonly ['postgres', { tables?: string[]; unenforced?: 'warn' \| 'error' }]` | One entry of the `plugins` setting. The configuration type of each plugin is the input type of its `configSchema`, so an option with a default is optional. `src/plugins/index.ts` derives it with the type `PluginConfigOf<N>`, which is not an export |
 
 ### Diagnostics
 
@@ -82,13 +82,13 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 
 | Export | Kind | Description |
 | --- | --- | --- |
-| `PLUGINS` | Constant | `{ valibot, fcis }`: each plugin, by name |
-| `PluginName` | Type | `'valibot' \| 'fcis'` |
-| `DEFAULT_PLUGINS` | Constant | `readonly PluginEntry[]`: `valibot` and then `fcis`, each with `{}` |
-| `CodegenPlugin<C>` | Type | `{ name; version; configSchema; supports: PluginSupport; requires?: readonly string[]; emit(ir, config: C): PluginOutput }` |
+| `PLUGINS` | Constant | `{ valibot, fcis, postgres }`: each plugin, by name |
+| `PluginName` | Type | `'valibot' \| 'fcis' \| 'postgres'` |
+| `DEFAULT_PLUGINS` | Constant | `readonly PluginEntry[]`: `valibot` and then `fcis`, each with `{}`. It does not have `postgres` |
+| `CodegenPlugin<C, I>` | Type | `{ name; version; configSchema: v.GenericSchema<I, C>; supports: PluginSupport; requires?: readonly string[]; emit(ir, config: C): PluginOutput }`. `C` is the configuration that `emit` gets, after the defaults. `I` is the configuration that a person writes. The default of `I` is `C` |
 | `PluginSupport` | Type | `{ kinds: readonly KindName[]; constraints?: { [P in Primitive]?: readonly string[] } }`: what a plugin can use |
 | `PluginOutput` | Type | `{ artifacts: readonly GeneratedArtifact[]; diagnostics: readonly PluginDiagnostic[] }` |
-| `GeneratedArtifact` | Type | `{ relativePath: string; content: string }`. `relativePath` is a POSIX path relative to the output directory |
+| `GeneratedArtifact` | Type | `{ relativePath: string; content: string }`. `relativePath` is a POSIX path relative to the output directory. The engine adds the header with `--` for a path that ends in `.sql`, and with `//` for other paths |
 | `PluginDiagnostic` | Type | `{ code: DiagnosticCode; severity: 'error' \| 'warning'; urn?: Urn; message: string }` |
 
 For the steps to write a plugin, refer to [Contributor: add a plugin](../how-to/add-a-plugin).

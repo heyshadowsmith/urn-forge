@@ -60,6 +60,7 @@ All four types use STE. These are the rules that this site applies.
 | `how-to/write-scenarios.md` | Write scenarios |
 | `how-to/use-branded-values.md` | Use branded values in the core |
 | `how-to/call-an-operation.md` | Call an operation from the shell |
+| `how-to/store-in-postgres.md` | Store entities in Postgres |
 | `how-to/regenerate-code.md` | Regenerate the code after a manifest change |
 | `how-to/fix-a-failing-gate.md` | Fix a gate that fails |
 | `how-to/adopt-strict-coverage.md` | Adopt strict coverage |
@@ -80,6 +81,7 @@ All four types use STE. These are the rules that this site applies.
 | `reference/compiler-passes.md` | Compiler passes |
 | `reference/generated-schemas.md` | The generated schemas |
 | `reference/generated-runtime.md` | The generated runtime |
+| `reference/postgres-schema.md` | The Postgres schema |
 | `reference/gherkin-steps.md` | Gherkin steps |
 | `reference/verification-gates.md` | Verification gates |
 | `reference/diagnostics.md` | Diagnostics |

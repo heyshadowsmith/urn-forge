@@ -95,8 +95,13 @@ Example: the configuration file `example/urn-forge.config.ts` has `out: './gener
 | --- | --- | --- | --- | --- |
 | `valibot` | `0.1.0` | `domain.schemas.generated.ts`. Refer to [The generated schemas](./generated-schemas) | None | `{}` only |
 | `fcis` | `0.2.0` | `domain.runtime.generated.ts`. Refer to [The generated runtime](./generated-runtime) | `valibot`, because the runtime imports the schemas | `{}` only |
+| `postgres` | `0.1.0` | `schema.generated.sql`. Refer to [The Postgres schema](./postgres-schema) | None | `tables`: the short keys of the entities that become tables. Default `[]`. `unenforced`: `'warn'` (the default) or `'error'` |
 
-urn-forge 0.1.0 does not have the `gherkin` and `postgres` plugins of the specification. Refer to [Scope](./scope).
+urn-forge 0.1.0 does not have the `gherkin` plugin of the specification. Refer to [Scope](./scope).
+
+The configuration file of the insurance domain adds `postgres` after the two default plugins:
+
+<<< @/../packages/urn-forge/insurance/urn-forge.config.ts
 
 ### The forms of an entry
 
@@ -114,14 +119,16 @@ plugins: ['valibot', 'fcis']
 plugins: [['valibot', {}], ['fcis', {}]]
 ```
 
+A plugin with options needs the pair form, for example `['postgres', { tables: ['policy.entity.policy'] }]`. `defineConfig` types the configuration of each plugin. Options that have a default are optional.
+
 ### Rules
 
-- Each name must be `valibot` or `fcis`.
+- Each name must be `valibot`, `fcis` or `postgres`.
 - A name can occur only one time.
 - If a plugin needs a different plugin (its `requires` list), that plugin must also be in the array. The position in the array is not important.
-- The configuration of each plugin must agree with the schema of the plugin. The two plugins accept only `{}`.
-- If the `plugins` setting is not there, urn-forge runs `valibot` and then `fcis`, each with `{}`.
-- If the array is empty, `compile` runs no plugin and writes no file.
+- The configuration of each plugin must agree with the schema of the plugin. `valibot` and `fcis` accept only `{}`. `postgres` accepts `tables` and `unenforced`.
+- If the `plugins` setting is not there, urn-forge runs `valibot` and then `fcis`, each with `{}`. It does not run `postgres` unless the list names it.
+- The array cannot be empty (`config-invalid`).
 
 ### Plugins and the fingerprint
 
@@ -139,18 +146,20 @@ urn-forge reports these errors against the configuration file. Each error stops 
 | An unknown setting | `config-invalid` | `config.foo: unknown option "foo"` |
 | A path setting that is an empty string | `config-invalid` | `config.core: must not be empty` |
 | A value of the incorrect type | `config-invalid` | `config.boundaryCoverage: Invalid type: Expected ("warn" \| "error") but received "strict"` |
-| An unknown plugin | `config-invalid` | `config.plugins[1]: unknown plugin "postgres" (plugins: valibot, fcis)` |
+| An unknown plugin | `config-invalid` | `config.plugins[1]: unknown plugin "mysql" (plugins: valibot, fcis, postgres)` |
 | A plugin that occurs two times | `config-invalid` | `config.plugins[2]: plugin "valibot" is listed more than once` |
 | An empty `plugins` list | `config-invalid` | `config.plugins: must list one or more plugins` |
 | A plugin entry with more than two items, for example `['valibot', {}, 'extra']` | `config-invalid` | `config.plugins[0]: must be a plugin name or [name, config]` |
-| A plugin configuration that is not `{}` | `plugin-config` | `plugin valibot config: unknown option "strict"` |
+| A plugin configuration that does not agree with the schema of the plugin | `plugin-config` | `plugin valibot config: unknown option "strict"`<br>`plugin postgres config: unenforced: Invalid type: Expected ("warn" \| "error") but received "strict"` |
+| A `tables` item of `postgres` that is not an entity with a `key` in the manifest | `wrong-ref-kind`, `unresolved-ref` or `missing-key` | `urn:demo:store:shop:entity:plain: is a table in the postgres config, so it needs a key: one of its own required, single-valued fields` |
 | A plugin needs a plugin that is not in the array | `missing-plugin` | `plugin fcis requires plugin valibot, which is not enabled` |
 
-urn-forge reports all the `config-invalid` errors of the file together. For each code, refer to [Diagnostics](./diagnostics).
+The `wrong-ref-kind`, `unresolved-ref` and `missing-key` errors of `postgres` have the manifest as their file. urn-forge reports all the `config-invalid` errors of the file together. For each code, refer to [Diagnostics](./diagnostics).
 
 ## Related pages
 
 - [The CLI](./cli)
 - [Set up a project](../how-to/set-up-a-project)
 - [Adopt strict coverage](../how-to/adopt-strict-coverage)
+- [The Postgres schema](./postgres-schema)
 - [Boundary coverage and the ratchet](../explanation/boundary-coverage)

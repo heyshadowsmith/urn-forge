@@ -70,7 +70,7 @@ export type NamingNamespaceInput = v.InferInput<typeof NamingNamespaceSchema>;
 /** urn:urn_forge:toolchain:naming:field:short_key — A manifest key as written, such as policy.field.deductible_amount */
 export const NamingShortKeySchema = v.pipe(
   v.string(),
-  v.minLength(1),
+  v.check((value) => [...value].length >= 1, (issue) => `Invalid length: Expected >=1 but received ${[...issue.input].length}`),
   v.brand("urn:urn_forge:toolchain:naming:field:short_key"),
 );
 export type NamingShortKey = v.InferOutput<typeof NamingShortKeySchema>;

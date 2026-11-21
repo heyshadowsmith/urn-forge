@@ -82,6 +82,8 @@ export function handle(urn: string, body: unknown): HttpResponse {
 - **`message`** is the template of the error, with the field values in the placeholders. You can show it to a person.
 - **`ContractViolation`** is a bug in the core, not an error of the caller. Write it to the log, and do not show the issues to the caller.
 
+If the shell keeps the output in Postgres, write it after `ok` is `true`. Refer to [Store entities in Postgres](store-in-postgres).
+
 ## 4. Connect the function to a server
 
 This example uses `node:http`. The path of the request is the URN of the operation:
@@ -162,3 +164,4 @@ The response headers above do not show `date`, `connection`, `keep-alive` and `c
 - [Results and declared errors](../explanation/results-and-errors)
 - [The functional core and brands](../explanation/functional-core)
 - [Declare an error](declare-an-error)
+- [Store entities in Postgres](store-in-postgres)

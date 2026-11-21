@@ -38,7 +38,7 @@ export interface UrnForgeConfig {
    * errors either way. Switch to `error` once every feature is strict (spec §8).
    */
   readonly boundaryCoverage?: 'warn' | 'error';
-  /** The plugins to run, in order. Default: every plugin with an empty config. */
+  /** The plugins to run, in order. Default: Valibot and FCIS, each with an empty config. */
   readonly plugins?: readonly PluginSpec[];
 }
 

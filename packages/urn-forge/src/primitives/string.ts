@@ -78,7 +78,8 @@ export const string = definePrimitive({
   parseCell: (cell) => (cell === '""' ? '' : cell),
   boundaries: ({ minLength, maxLength, regex: pattern, format: shape }) => {
     const isString = (value: unknown): value is string => typeof value === 'string';
-    const ofLength = (n: number) => (value: unknown) => isString(value) && value.length === n;
+    // A length counts Unicode code points (Postgres plan, decision 5).
+    const ofLength = (n: number) => (value: unknown) => isString(value) && [...value].length === n;
     const cases: BoundaryCase[] = [];
     if (minLength !== undefined) {
       cases.push({ label: `value of length ${minLength} (minLength)`, covers: ofLength(minLength) });

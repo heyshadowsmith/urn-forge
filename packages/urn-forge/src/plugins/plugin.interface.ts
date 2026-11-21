@@ -46,11 +46,12 @@ export interface PluginSupport {
   readonly constraints?: { readonly [P in Primitive]?: readonly string[] };
 }
 
-export interface CodegenPlugin<C = unknown> {
+/** `C` is the config `emit` receives; `I` is the config a user writes, before defaults (the schema's input). */
+export interface CodegenPlugin<C = unknown, I = C> {
   readonly name: string;
   /** Feeds the fingerprint, so a generator change shows up as drift. */
   readonly version: string;
-  readonly configSchema: v.GenericSchema<C>;
+  readonly configSchema: v.GenericSchema<I, C>;
   readonly supports: PluginSupport;
   /** Plugins whose output this plugin's output imports. Compile fails if one is not enabled. */
   readonly requires?: readonly string[];

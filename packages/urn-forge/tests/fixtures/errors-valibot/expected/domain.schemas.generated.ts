@@ -37,7 +37,7 @@ export type StockSkuInput = v.InferInput<typeof StockSkuSchema>;
 /** urn:demo:warehouse:stock:field:warehouse */
 export const StockWarehouseSchema = v.pipe(
   v.string(),
-  v.minLength(1),
+  v.check((value) => [...value].length >= 1, (issue) => `Invalid length: Expected >=1 but received ${[...issue.input].length}`),
   v.brand("urn:demo:warehouse:stock:field:warehouse"),
 );
 export type StockWarehouse = v.InferOutput<typeof StockWarehouseSchema>;

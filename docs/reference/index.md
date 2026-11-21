@@ -28,6 +28,7 @@ The reference pages give the facts about urn-forge 0.1.0: the commands, the file
 | --- | --- |
 | [The generated schemas](./generated-schemas) | The contents of `domain.schemas.generated.ts` |
 | [The generated runtime](./generated-runtime) | The contents of `domain.runtime.generated.ts`: `Result`, the handler types, `DispatchMap` and `executeOperation` |
+| [The Postgres schema](./postgres-schema) | The contents of `schema.generated.sql`: the configuration of the `postgres` plugin, the names, the types, the tables and the rules that the SQL does not enforce |
 | [Gherkin steps](./gherkin-steps) | The generic Cucumber steps, their tables and how a cell becomes a value |
 | [The package API](./public-api) | Each export of `urn-forge`, `urn-forge/config` and `urn-forge/cucumber` |
 

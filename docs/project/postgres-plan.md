@@ -104,25 +104,35 @@ Step 0 changes `insurance/`. The policy gets `key: policy.field.policy_id`, and 
 
 One PR (decision 15), one commit per step. Each step leaves the repository green and ends with a check.
 
-- [ ] **0. The target.** As above. *Check:* `compile` refuses exactly the unknown plugin.
-- [ ] **1. Length in code points.** Valibot `minLength` and `maxLength` count code points; gate 3 boundary values and the docs follow. *Check:* a string with an emoji is at the edge by code points, in a unit test and in the `primitives` fixture.
-- [ ] **2. The plugin, names and domains.** The config schema, the name rules, one domain per field with each constraint, the comments, the header. *Check:* a `postgres` fixture with every primitive and constraint applies in PGlite, and for every boundary case Postgres and Valibot give the same answer; fixtures for `invalid-sql-name` and `unenforced-in-sql`.
-- [ ] **3. Tables.** Columns, `NOT NULL`, primary keys, links as foreign keys, child tables for lists and embedded entities, `UNIQUE`, count triggers. *Check:* insurance's SQL applies, and the target test passes for every write except the invariant ones.
-- [ ] **4. Invariants.** Each rule as a named `CHECK`, on a table or a child table; the cases of decision 8 as warnings. *Check:* the `rules` fixture's edge tests give the same answer in Postgres and in Valibot; the whole target test passes.
-- [ ] **5. Ship.** Insurance's SQL tested in CI; reference pages for the plugin and the SQL names; a how-to for the shell; the model in the explanation pages. *Check:* CI green; every sabotage below fails.
+- [x] **0. The target.** As above. *Check:* `compile` refuses exactly the unknown plugin.
+  - *Done.* The check was met: `config.plugins[2]: unknown plugin "postgres" (plugins: valibot, fcis)`, and nothing else. The target test was off until step 4 switched it on.
+- [x] **1. Length in code points.** Valibot `minLength` and `maxLength` count code points; gate 3 boundary values and the docs follow. *Check:* a string with an emoji is at the edge by code points, in a unit test and in the `primitives` fixture.
+  - *Done.* Valibot has no action that counts code points, so the schema has a `v.check` with the message of `v.minLength`. Messages, tests and scenarios did not change.
+- [x] **2. The plugin, names and domains.** The config schema, the name rules, one domain per field with each constraint, the comments, the header. *Check:* a `postgres` fixture with every primitive and constraint applies in PGlite, and for every boundary case Postgres and Valibot give the same answer; fixtures for `invalid-sql-name` and `unenforced-in-sql`.
+  - *Done.* A domain has one `CHECK`, named after the field, with all its constraints, so a Postgres error names the field. Only the fields that a stored entity uses get a domain. The generated header uses `--` in a SQL file. The two new codes are tested in `tests/postgres.test.ts` and `tests/every-code.test.ts`, not in fixtures, because a passing fixture must have no diagnostics. The samples of the boundary test include the cases where the dialects differ: `é` and `٣` for `\w` and `\d`, `\n` and U+2028 for `.`, U+0085 for `\s`, an upper-case uuid. Postgres and Valibot agreed on every sample at the first run.
+- [x] **3. Tables.** Columns, `NOT NULL`, primary keys, links as foreign keys, child tables for lists and embedded entities, `UNIQUE`, count triggers. *Check:* insurance's SQL applies, and the target test passes for every write except the invariant ones.
+  - *Done.* The check was met: 7 of 8 target writes passed, and the limit of 0 failed. The foreign keys of links come after every table (`ALTER TABLE`), so links can form cycles. A grandchild table names its parent's `position` after the parent's property (`lines_position`). A plugin's config type is now the schema's input (`CodegenPlugin<C, I>`), so `defineConfig` does not ask for an option that has a default.
+- [x] **4. Invariants.** Each rule as a named `CHECK`, on a table or a child table; the cases of decision 8 as warnings. *Check:* the `rules` fixture's edge tests give the same answer in Postgres and in Valibot; the whole target test passes.
+  - *Done.* The edge values moved to `tests/rule-cases.ts`, so both evaluators answer for one list. All 24 rules agree. The whole target test passes.
+- [x] **5. Ship.** Insurance's SQL tested in CI; reference pages for the plugin and the SQL names; a how-to for the shell; the model in the explanation pages. *Check:* CI green; every sabotage below fails.
+  - *Done.* CI's `npm test` runs the PGlite tests, and `verify:insurance` checks the SQL file for drift. New pages: [The Postgres schema](../reference/postgres-schema) and [Store entities in Postgres](../how-to/store-in-postgres). The writers of those pages found two bugs, both fixed with a test: an optional list with `minItems` refused a parent with no rows, which Valibot accepts as an absent list; and a property named `position`, or named as a parent key column, in a child table compiled to SQL that Postgres refuses (now `invalid-sql-name`).
 
 ## Done
 
-| Sabotage | What catches it |
-| --- | --- |
-| A table in `tables` with no `key` | `missing-key` |
-| A table name over 63 bytes, or two names that are the same | `invalid-sql-name` |
-| A `regex` with a lookahead | `unenforced-in-sql` (an error with `unenforced: 'error'`) |
-| `exclusiveMin` translated as `>=` | The boundary test: Postgres and Valibot disagree at the edge |
-| A policy with four coverages, committed | The count trigger |
-| A coverage with a limit of 0 | `CHECK` `limit_is_positive` |
-| A holder that is not a customer row | The foreign key |
-| A string of 10 emoji with `maxLength: 10` | Valibot and Postgres both accept it (decision 5) |
+| Sabotage | What catches it | Result |
+| --- | --- | --- |
+| A table in `tables` with no `key` | `missing-key` | Caught (`tests/postgres.test.ts`, the config) |
+| A table name over 63 bytes, or two names that are the same | `invalid-sql-name` | Caught: a 66-byte domain name, and an entity `order__lines` beside the child table of `order.lines` |
+| A `regex` with a lookahead | `unenforced-in-sql` (an error with `unenforced: 'error'`) | Caught, as a warning and as an error |
+| `exclusiveMin` translated as `>=` | The boundary test: Postgres and Valibot disagree at the edge | Caught at `rate` 0 and `weight` 0 |
+| A policy with four coverages, committed | The count trigger | Caught, but by `UNIQUE` first: insurance has three perils, so four coverages repeat one. The shop test proves the `maxItems` trigger (`tags_count`) |
+| A coverage with a limit of 0 | `CHECK` `limit_is_positive` | Caught |
+| A holder that is not a customer row | The foreign key | Caught: `policy_holder_fkey` |
+| A string of 10 emoji with `maxLength: 10` | Valibot and Postgres both accept it (decision 5) | Met, with `maxLength: 4` in the fixture |
+
+**Met.**
+
+Limits that the tests found, which the reference page records: Postgres refuses the year 0000, which Valibot accepts as a date; Postgres `TEXT` cannot hold U+0000; and a domain sees a value, not its text, so Postgres also accepts forms such as `1e3` or `2026-1-1` that Valibot refuses.
 
 ## Risks
 

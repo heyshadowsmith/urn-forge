@@ -167,6 +167,14 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'export-collision': () => compile(`${math}geometry.field.radius_input: { primitive: float }\n`).diagnostics,
   'output-conflict': () => compile(math, [DEFAULT_PLUGINS[0]!, { plugin: { ...PLUGINS.valibot, name: 'copy' }, config: {} }]).diagnostics,
   'missing-plugin': () => compile(math, [{ plugin: PLUGINS.fcis, config: {} }]).diagnostics,
+  'unenforced-in-sql': () =>
+    compile(`${HEADER}a.field.site: { primitive: string, format: uri }\na.entity.e:\n  description: d\n  key: a.field.site\n  fields:\n    - ref: a.field.site\n`, [
+      { plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } },
+    ]).diagnostics,
+  'invalid-sql-name': () =>
+    compile(`${HEADER}a.field.${'x'.repeat(60)}: { primitive: string }\na.entity.e:\n  description: d\n  key: a.field.${'x'.repeat(60)}\n  fields:\n    - ref: a.field.${'x'.repeat(60)}\n`, [
+      { plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } },
+    ]).diagnostics,
   // Gate 1
   'tsconfig-unreadable': () => project({ tsconfigPath: at('nope.json') }),
   'core-not-found': () => project({ corePath: at('nope.ts') }),

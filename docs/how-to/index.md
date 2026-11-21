@@ -24,6 +24,7 @@ A how-to guide helps you do one task. Each guide starts from a project that alre
 
 - [Use branded values in the core](use-branded-values): read and compare the branded input of a handler.
 - [Call an operation from the shell](call-an-operation): call `executeOperation` and handle each result.
+- [Store entities in Postgres](store-in-postgres): make tables from the manifest, write rows, and map a Postgres error to a URN.
 - [Regenerate the code after a manifest change](regenerate-code): compile, commit, and fix drift.
 
 ## Verify and CI

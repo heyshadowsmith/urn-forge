@@ -50,6 +50,12 @@ export interface ValibotTranslation<P extends Primitive> {
 export type ValibotTranslations = { readonly [P in Primitive]: ValibotTranslation<P> };
 
 /** The Valibot action of each named format; `matchesFormat` in src/primitives/string.ts uses the same ones. */
+/** A check of a string's length in code points, with Valibot's own length message. */
+function codePointLength(op: '>=' | '<=', n: number): string {
+  const limit = numberLiteral(n);
+  return `v.check((value) => [...value].length ${op} ${limit}, (issue) => \`Invalid length: Expected ${op}${limit} but received \${[...issue.input].length}\`)`;
+}
+
 const FORMAT_ACTIONS: { readonly [F in Format]: string } = { uuid: 'v.uuid()', email: 'v.email()', uri: 'v.url()' };
 
 const numbers = (values: readonly number[]) => `[${values.map(numberLiteral).join(', ')}]`;
@@ -110,8 +116,10 @@ const TRANSLATIONS: ValibotTranslations = {
   string: {
     base: ['v.string()'],
     constraints: {
-      minLength: (n) => `v.minLength(${numberLiteral(n)})`,
-      maxLength: (n) => `v.maxLength(${numberLiteral(n)})`,
+      // A length counts Unicode code points, as Postgres does (Postgres plan, decision 5), not
+      // UTF-16 units as v.minLength does. The message is the one v.minLength gives.
+      minLength: (n) => codePointLength('>=', n),
+      maxLength: (n) => codePointLength('<=', n),
       // The whole-value pattern as a regex literal; `.source` escapes any `/` in it.
       regex: (pattern) => `v.regex(/${wholeValuePattern(pattern).source}/u)`,
       format: (name) => FORMAT_ACTIONS[name],
