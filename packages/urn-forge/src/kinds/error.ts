@@ -55,14 +55,17 @@ export const error = defineKind<ErrorDecl, IRError>()({
     const message = parseMessage(decl.message);
 
     // The payload carries `kind: '<error URN>'` (spec §7.1), so no field may become `kind`.
-    decl.fields.forEach((_, index) => {
-      const target = context.ref(['fields', index, 'ref']);
-      if (target?.identifier !== RESERVED_PROPERTY) return;
+    // The property name is `as`, or the identifier of what the reference names.
+    decl.fields.forEach((fieldRef, index) => {
+      const slot = fieldRef.link !== undefined ? 'link' : 'ref';
+      const name = fieldRef.as ?? context.ref(['fields', index, slot])?.identifier;
+      if (name !== RESERVED_PROPERTY) return;
+      const by = fieldRef.as !== undefined ? 'as' : slot;
       report({
         code: 'reserved-property',
         urn: atom.urn,
-        message: `${atom.urn}: fields[${index}].ref ${target.urn} becomes property "${RESERVED_PROPERTY}", which an error reserves for its URN; rename the field`,
-        path: [shortKey, 'fields', index, 'ref'],
+        message: `${atom.urn}: fields[${index}] becomes property "${RESERVED_PROPERTY}", which an error reserves for its URN; ${by === 'as' ? 'choose another name with as' : 'give it another name with as'}`,
+        path: [shortKey, 'fields', index, by],
       });
     });
 

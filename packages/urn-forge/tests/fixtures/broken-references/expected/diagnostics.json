@@ -55,7 +55,7 @@
       "column": 19,
       "line": 52
     },
-    "message": "urn:demo:broken:order:error:wrong_kind: fields[0].ref urn:demo:broken:order:field:kind becomes property \"kind\", which an error reserves for its URN; rename the field",
+    "message": "urn:demo:broken:order:error:wrong_kind: fields[0] becomes property \"kind\", which an error reserves for its URN; give it another name with as",
     "severity": "error",
     "urn": "urn:demo:broken:order:error:wrong_kind"
   },

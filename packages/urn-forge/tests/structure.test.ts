@@ -39,6 +39,17 @@ describe('the reference forms', () => {
     expect(messages('    - { ref: a.field.x, link: a.entity.e }\n')).toEqual(['a.entity.e.fields.0: must have either ref or link']);
     expect(messages('    - { as: x }\n')).toEqual(['a.entity.e.fields.0: must have either ref or link']);
   });
+
+  it('reserve the property name kind in an error, whether it comes from as or from the identifier', () => {
+    const codes = (refs: string) =>
+      compile(
+        `${HEADER}a.field.kind: { primitive: string }\na.field.sku: { primitive: string }\n` +
+          `a.error.e:\n  description: d\n  category: precondition\n  retryable: false\n  message: m\n  fields:\n${refs}`,
+      ).diagnostics.map((d) => d.code);
+    expect(codes('    - { ref: a.field.sku, as: kind }\n')).toEqual(['reserved-property']);
+    expect(codes('    - { ref: a.field.kind }\n')).toEqual(['reserved-property']);
+    expect(codes('    - { ref: a.field.kind, as: item_kind }\n')).toEqual([]);
+  });
 });
 
 describe('the cell reader', () => {
