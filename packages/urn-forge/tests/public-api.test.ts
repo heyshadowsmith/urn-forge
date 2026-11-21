@@ -17,6 +17,7 @@ describe('public API', () => {
       '.': './src/index.ts',
       './config': './src/config.ts',
       './cucumber': './src/gherkin/steps.ts',
+      './register-tsx': './src/gherkin/register-tsx.mjs',
     });
   });
 

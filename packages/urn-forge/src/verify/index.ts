@@ -3,7 +3,7 @@
  * runs each registered gate. Gates 2 (lint profile) and 5 (compatibility) are not built yet.
  */
 import { readFile } from 'node:fs/promises';
-import { hasErrors, type Diagnostic } from '../diagnostics.js';
+import { hasErrors, relativePaths, type Diagnostic } from '../diagnostics.js';
 import { compile, type PluginEntry } from '../engine.js';
 import { completenessGate } from './completeness.js';
 import { driftGate } from './drift.js';
@@ -45,7 +45,7 @@ export async function verify(options: VerifyOptions): Promise<VerifyResult> {
     return {
       ok: false,
       diagnostics: [
-        { code: 'manifest-unreadable', severity: 'error', message: `cannot read manifest: ${(error as Error).message}` },
+        { code: 'manifest-unreadable', severity: 'error', message: `cannot read manifest: ${relativePaths((error as Error).message, options.cwd)}` },
       ],
       gates: [],
     };

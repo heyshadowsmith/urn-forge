@@ -12,8 +12,9 @@
  * Each plugin's own config is checked against its `configSchema` by the engine.
  */
 import { pathToFileURL } from 'node:url';
+import { stripVTControlCharacters } from 'node:util';
 import * as v from 'valibot';
-import type { Diagnostic } from './diagnostics.js';
+import { relativePaths, type Diagnostic } from './diagnostics.js';
 import type { PluginEntry } from './engine.js';
 import { PLUGINS, PLUGIN_NAMES, isPluginName, type PluginConfigOf, type PluginName } from './plugins/index.js';
 
@@ -63,8 +64,11 @@ export type ConfigResult =
   | { readonly ok: true; readonly config: UrnForgeConfig }
   | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
 
-/** Imports the config module (TypeScript, through tsx) and validates its default export. `file` labels diagnostics. */
-export async function loadConfig(path: string, file: string): Promise<ConfigResult> {
+/**
+ * Imports the config module (TypeScript, through tsx) and validates its default export.
+ * `file` labels diagnostics; paths in a load error are made relative to `cwd`.
+ */
+export async function loadConfig(path: string, file: string, cwd: string = process.cwd()): Promise<ConfigResult> {
   const fail = (code: 'config-unreadable' | 'config-invalid', message: string): ConfigResult => ({
     ok: false,
     diagnostics: [{ code, severity: 'error', file, message }],
@@ -74,7 +78,8 @@ export async function loadConfig(path: string, file: string): Promise<ConfigResu
   try {
     module = (await import(pathToFileURL(path).href)) as { default?: unknown };
   } catch (error) {
-    return fail('config-unreadable', `cannot load config: ${(error as Error).message.split('\n')[0]}`);
+    // The whole message: its first line alone ("Transform failed with 1 error:") does not say what is wrong.
+    return fail('config-unreadable', `cannot load config: ${relativePaths(stripVTControlCharacters((error as Error).message).trimEnd(), cwd)}`);
   }
   if (module.default === undefined) return fail('config-invalid', 'config: the file must `export default` the config');
 

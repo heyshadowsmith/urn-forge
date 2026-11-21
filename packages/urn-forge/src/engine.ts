@@ -103,7 +103,10 @@ export function compile(manifestSource: string, plugins: readonly PluginEntry[] 
     const parsed = v.safeParse(plugin.configSchema, config);
     if (!parsed.success) {
       for (const issue of parsed.issues) {
-        diagnostics.push({ code: 'plugin-config', severity: 'error', message: `plugin ${plugin.name} config: ${issue.message}` });
+        const path = v.getDotPath(issue);
+        const unknownKey = issue.type === 'strict_object' && issue.expected === 'never';
+        const message = unknownKey ? `unknown option "${path}"` : `${path ? `${path}: ` : ''}${issue.message}`;
+        diagnostics.push({ code: 'plugin-config', severity: 'error', message: `plugin ${plugin.name} config: ${message}` });
       }
     }
     configs.push(parsed.success ? parsed.output : config);

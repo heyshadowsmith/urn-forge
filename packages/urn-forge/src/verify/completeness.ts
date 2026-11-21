@@ -14,7 +14,7 @@ import { dirname, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import { FCIS_RUNTIME_FILE } from '../plugins/fcis.plugin.js';
 import { generatedPath } from '../write.js';
-import type { Diagnostic } from '../diagnostics.js';
+import { relativePaths, type Diagnostic } from '../diagnostics.js';
 import { displayPath, type Gate, type GateOutcome } from './types.js';
 
 export interface CompletenessOptions {
@@ -94,7 +94,7 @@ export function checkCompleteness(options: CompletenessOptions): GateOutcome {
         code: 'tsconfig-unreadable',
         severity: 'error',
         file: show(options.tsconfigPath),
-        message: ts.flattenDiagnosticMessageText(config.error.messageText, '\n'),
+        message: relativePaths(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'), options.cwd),
       },
       'tsconfig unreadable',
     );

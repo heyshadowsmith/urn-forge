@@ -136,10 +136,8 @@ function describeIssue(key: string, entry: unknown, issue: v.BaseIssue<unknown>,
   });
 
   if (issue.type === 'variant' && dotPath === 'primitive') {
-    return at(
-      'unknown-primitive',
-      `${prefix}: unknown primitive ${issue.received} (MVP primitives: ${PRIMITIVE_NAMES.join(', ')})`,
-    );
+    const what = issue.input === undefined ? 'a field must have a primitive' : `unknown primitive ${issue.received}`;
+    return at('unknown-primitive', `${prefix}: ${what} (MVP primitives: ${PRIMITIVE_NAMES.join(', ')})`);
   }
   if (unknownKey && typeof primitive === 'string' && isPrimitive(primitive)) {
     const allowed = constraintKeys(primitive);
