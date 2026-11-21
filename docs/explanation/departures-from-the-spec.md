@@ -2,7 +2,7 @@
 
 urn-forge follows [specification v1.1](../project/spec-v1-1), with some differences. Some rules of the specification could not work together, some could not work with the tools, and some left a question open. This page lists each place where urn-forge 0.1.0 differs, and why. The plans in the Project section record each decision when it was made.
 
-This page does not list the parts of the specification that urn-forge does not have at this time. Examples are gate 2, gate 5, invariants and the Postgres plugin. [Scope](../reference/scope) lists them. It does list the places where a part that is not built changes a part that is.
+This page does not list the parts of the specification that urn-forge does not have at this time. Examples are gate 2, gate 5, events and the Postgres plugin. [Scope](../reference/scope) lists them. It does list the places where a part that is not built changes a part that is.
 
 ## Handlers and results
 
@@ -38,6 +38,23 @@ The [primitives plan](../project/primitives-plan) made the set of primitives and
 
 Sources: the [primitives plan](../project/primitives-plan), "The problem", "The model" and decisions 1 to 3, 5 and 7.
 
+## Invariants
+
+| Specification v1.1 | urn-forge | Why |
+| --- | --- | --- |
+| The link between an entity and an invariant is in two places: `on` in the invariant and `invariants:` on the entity (§4.2, §4.3) | The link is only `on`. An `invariants` key on an entity gives `unknown-property` | Two places can disagree, and one place cannot. This is the MECE rule applied to the manifest itself |
+| `IREntity` has `invariants`, a list of URNs (§5) | `IREntity` has no such list. The function `invariantsOf(ir, entityUrn)` finds the invariants by `on` | The IR has the same single link as the manifest |
+| The example invariant has no `description` (§4.3) | `description` is necessary, as on every other atom | Each atom explains itself in the manifest and in the comments of the generated code |
+| The rule language has `is present` (§4.3) | It also has `is absent` | A rule for an optional field usually starts with `x is absent or …`: if there is no value, the rule holds |
+| The specification does not say what a rule does with an absent field | A rule can use an optional field only after a guard on the left: `x is present and …` or `x is absent or …`. If not, pass 6 gives `unguarded-field` | Without a guard, `deductible > 0` on an absent deductible has no clear answer. The guard puts the answer in the rule, where a reader sees it |
+| The specification does not say if a rule can use a list | A list only in `is present` and `is absent` | The language has no functions, so it cannot count or loop. Rules over the items of a list need their own decision |
+| `IRInvariant` keeps the parsed rule (§5) | It also keeps `ruleText`, the canonical text, and a `brandIdentifier` | Messages, comments and docs show one form of each rule. The brand identifier names the rule function |
+| An issue points at a field path and carries the invariant URN (§7.1) | The path is the first field that the rule names. The issue has `invariantUrn` | The first field is predictable and needs no new key in the manifest |
+| The specification does not say how a scenario expects a broken invariant | The step `Then the input is rejected by "<invariant URN>"` | The step names the rule that refused the input, as `fails with` names the error |
+| The specification does not ask for a scenario for each invariant (§8) | Gate 3 asks for a scenario that breaks each invariant of an operation input, with `uncovered-invariant` in the coverage mode | A rule that no scenario breaks is a rule that nobody has seen work. This follows the error coverage |
+
+Sources: the [invariants plan](../project/invariants-plan), "The rule language" and decisions 1 to 10.
+
 ## Errors and messages
 
 | Specification v1.1 | urn-forge | Why |
@@ -55,7 +72,7 @@ Sources: the [error kind plan](../project/error-kind-plan), decision 7 and steps
 | A table header must be a field of the input entity (§8) | A table header can be a field of the input or of the output | The rule of the specification forbids a column for an expected output, such as `quotient` |
 | The specification does not cover tables of expected errors | The table of `Then the operation fails with "<urn>":` must use fields of that error | The fields of an error are not fields of the input or the output |
 | A table with no column for a required field fails (§8: "missing required fields fail") | The table of `When I run the operation with:` must have a column for each required input field. An empty cell sends the payload without that key | A scenario can still test a field that is not there. It keeps the column and leaves the cell empty |
-| A Gherkin plugin writes parameter types and `urn-forge.lint.json`, and `verify` reads that file (§7.3) | Five generic steps convert each cell with the primitive of its field. Gate 3 reads the IR directly | The MVP plan cut the Gherkin plugin. The generic steps do not depend on a domain, so they ship with urn-forge |
+| A Gherkin plugin writes parameter types and `urn-forge.lint.json`, and `verify` reads that file (§7.3) | Six generic steps convert each cell with the primitive of its field. Gate 3 reads the IR directly | The MVP plan cut the Gherkin plugin. The generic steps do not depend on a domain, so they ship with urn-forge |
 
 Sources: the [MVP plan](../project/mvp-plan), spec gap 2 and build step 8; the [foundations plan](../project/foundations-plan), phase 5; the [error kind plan](../project/error-kind-plan), step 4; `src/verify/gherkin.ts`.
 

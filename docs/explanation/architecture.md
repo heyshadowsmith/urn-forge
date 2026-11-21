@@ -11,7 +11,8 @@ domain.manifest.yaml
    │
    ▼  pass 1: meta-schema          src/meta-schema.ts, the schema of each kind
    │
-   ▼  passes 2–4, 6, 7: IR builder  src/ir/build.ts, the build of each kind
+   ▼  passes 2–4, 6, 7: IR builder  src/ir/build.ts, the build of each kind,
+   │                                src/rules/ for invariant rules
    │
 UniversalIR (canonical, sorted by URN)
    │
@@ -29,7 +30,7 @@ generated files ──▶ compile writes them      (src/cli.ts, src/write.ts)
 The stages have these jobs:
 
 1. **The meta-schema** (pass 1) validates the structure of the manifest with Valibot. It builds its schema from the descriptor of each kind and each primitive.
-2. **The IR builder** expands the short keys (pass 2), checks that URNs and brand identifiers are unique (pass 3) and resolves each reference (pass 4). Then each kind builds its IR node. The build runs the checks that belong to one kind: message placeholders for an error (pass 6), and constraint conflicts and coherence for a field (pass 7). An entity or an error also examines the `many` of each field reference.
+2. **The IR builder** expands the short keys (pass 2), checks that URNs and brand identifiers are unique (pass 3) and resolves each reference (pass 4). Then each kind builds its IR node. The build runs the checks that belong to one kind: the rule of an invariant and the message placeholders of an error (pass 6), and constraint conflicts and coherence for a field (pass 7). An entity or an error also examines the `many` of each field reference.
 3. **The support check** compares the IR with what each plugin says that it supports. It runs before any plugin writes output.
 4. **The plugins** each turn the IR into file contents. They do not read the YAML, and they do not read the output of a different plugin.
 5. **The engine** adds the `@generated` header with the fingerprint, sets the line endings and sorts the files by path.
@@ -51,7 +52,19 @@ The plan put each kind of knowledge in a registry:
 | Plugins | `src/plugins/index.ts` | A plugin, by name | The configuration file, the engine |
 | Gates | `src/verify/index.ts` | A gate, by number | `verify` |
 
-A reference slot is a path in an entry and the kinds that it can name, such as `{ path: ['fields', '*', 'ref'], targets: ['field'] }`. Pass 4 is one loop over the slots of every kind. A new kind brings its slots, and it gets reference checks, with positions, with no new pass code.
+A reference slot is a path in an entry and the kinds that it can name, such as `{ path: ['fields', '*', 'ref'], targets: ['field'] }`. Pass 4 is one loop over the slots of every kind. A new kind brings its slots, and it gets reference checks, with positions, with no new pass code. The `invariant` kind got the check of its `on` in this way.
+
+### The build stages
+
+Most kinds build their node from their own entry and the atoms that their references name. An invariant needs more: to type its rule, it reads the built nodes of its entity and of the fields of that entity. A descriptor can thus declare `after`, the kinds whose nodes it reads. The builder builds such a kind in a second stage, after all other atoms. The build function reads a node with `node(kind, urn)` of its build context.
+
+There are only two stages, not an order computed from the `after` lists. One kind uses `after` at this time, so a general sort would be code with no use. The stage also sets the sequence of the diagnostics: the problems of the invariants come after the problems of the other atoms.
+
+### The rule language
+
+The rule language is in `src/rules/`, apart from the kinds and the plugins. `src/rules/index.ts` has the parser, the printer of the canonical text and the type checker of pass 6. The type checker does not read the IR. It gets a map from each property name to its primitive, `required` and `many`. `src/rules/emit.ts` translates a rule to TypeScript for the Valibot plugin. The parser and the type checker do not depend on a plugin.
+
+Gate 3 does not run the rules. Only the generated code runs them. If the type checker and the translation disagree, a rule can compile and mean something else at run time. The rules test fixture thus has one invariant for each operator on each primitive, and a test runs each generated rule at its edges.
 
 ### How `tsc` keeps the registries complete
 
@@ -90,7 +103,7 @@ Gate 3 needs the features in a form that it can compare with the IR. `src/verify
 - The comments.
 
 
-Gate 3 reads the index for tags, headers, declared errors and waivers. `inputValues` reads the same index to collect the values that each operation receives, for boundary coverage. It converts each cell with the primitive of its field, as the steps do.
+Gate 3 reads the index for tags, headers, declared errors, broken invariants and waivers. `inputValues` reads the same index to collect the values that each operation receives, for boundary coverage. It converts each cell with the primitive of its field, as the steps do.
 
 The texts of the generic steps are in `src/gherkin/phrases.ts`. The step library registers these texts, and gate 3 reads them to find the input table of a scenario. Thus the step library and gate 3 cannot disagree about which table is the input.
 
@@ -111,7 +124,7 @@ The registries do not hold speculative properties. A property goes into a descri
 
 - urn-forge has no API for plugins from other packages. The plugins are part of the repository, and their names are typed by the registry.
 - Pass 5 (cycles) and pass 8 (lifecycle) are not in urn-forge at this time. With the current kinds, no entity can contain an entity, so no cycle is possible.
-- A new kind is still more work than a new primitive. Each plugin must decide what to write for it. The `error` kind changed both plugins, the step library and gate 3.
+- A new kind is still more work than a new primitive. Each plugin must decide what to write for it. The `error` kind changed both plugins, the step library and gate 3. The `invariant` kind changed the same parts, and it added the build stages and `src/rules/`.
 
 ## Related pages
 

@@ -24,7 +24,7 @@ The file has five sections. Each section starts with a comment. Some parts are t
 | | | `Success`, `Failure`, `Result`, `ErrorUrn`, `ErrorFields`, `ok`, `fail` | Fixed |
 | Handler contracts | `// Handler contracts: branded input in; plain output or a plain declared error out (the shell brands both).` | One `<Brand>Handler` type for each operation | Generated |
 | Registry | `// Registry` | `DomainCoreImplementation` | Generated |
-| Dispatch | `// Dispatch` | `FieldInfo`, `EntityContract`, `ErrorCategory`, `MessagePart`, `ErrorContract`, `OperationContract` | Fixed |
+| Dispatch | `// Dispatch` | `FieldInfo`, `InvariantInfo`, `EntityContract`, `ErrorCategory`, `MessagePart`, `ErrorContract`, `OperationContract` | Fixed |
 | | | `DispatchMap` | Generated |
 | Shell gatekeeper | `// Shell gatekeeper` | `OperationUrn`, `BoundaryIssue`, `DomainError`, `ExecuteResult`, `executeOperation` | Fixed |
 
@@ -157,12 +157,27 @@ A `FieldInfo` of a list, from a compile of a manifest with `many: { minItems: 1,
 sku: { urn: 'urn:demo:shop:order:field:sku', primitive: 'string', required: true, many: true },
 ```
 
+### `InvariantInfo`
+
+```ts
+export interface InvariantInfo {
+  readonly urn: string;
+  readonly rule: unknown;
+}
+```
+
+| Property | Description |
+| --- | --- |
+| `urn` | The URN of the invariant |
+| `rule` | The rule function of the invariant, `s.<Invariant brand>Rule`, from the schema file. `executeOperation` uses it to find the invariant of an issue |
+
 ### `EntityContract`
 
 ```ts
 export interface EntityContract {
   readonly schema: v.GenericSchema;
   readonly fields: Readonly<Record<string, FieldInfo>>;
+  readonly invariants?: readonly InvariantInfo[];
 }
 ```
 
@@ -170,6 +185,7 @@ export interface EntityContract {
 | --- | --- |
 | `schema` | The schema of the entity, from the schema file |
 | `fields` | One `FieldInfo` for each property, keyed by property name, in the sequence of the manifest |
+| `invariants` | One `InvariantInfo` for each invariant whose `on` is the entity, in URN order. The property is there only if the entity has one or more invariants |
 
 ### `ErrorCategory`
 
@@ -199,6 +215,7 @@ export interface ErrorContract extends EntityContract {
 | --- | --- |
 | `schema` | The schema of the error, from the schema file |
 | `fields` | One `FieldInfo` for each field of the error. The `kind` property is not in this list |
+| `invariants` | Never present. An invariant is on an entity, not on an error |
 | `category` | The `category` of the error in the manifest |
 | `retryable` | The `retryable` value of the error in the manifest |
 | `message` | The `message` of the error in the manifest, as a list of parts |
@@ -220,14 +237,14 @@ export interface OperationContract {
 ```ts
 export const DispatchMap = {
   '<operation URN>': {
-    input: { schema: s.<…>Schema, fields: { … } },
-    output: { schema: s.<…>Schema, fields: { … } },
+    input: { schema: s.<…>Schema, fields: { … }, invariants: [ … ] },
+    output: { schema: s.<…>Schema, fields: { … }, invariants: [ … ] },
     errors: { '<error URN>': { schema, category, retryable, message, fields }, … },
   },
 } as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;
 ```
 
-One entry for each operation, keyed by operation URN. If an operation declares no errors, its `errors` is `{}`. Because of `as const`, each value has its literal type. Example from tutorial 2:
+One entry for each operation, keyed by operation URN. If an operation declares no errors, its `errors` is `{}`. The `invariants` of an input or an output are there only if the entity has invariants. Because of `as const`, each value has its literal type. Example from tutorial 2:
 
 ```ts
 export const DispatchMap = {
@@ -261,7 +278,26 @@ export const DispatchMap = {
 } as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;
 ```
 
-The [Gherkin steps](./gherkin-steps) read `DispatchMap` to find the fields and primitives of each operation.
+The input of `issue_policy` in the insurance domain has two invariants:
+
+```ts
+    input: {
+      schema: s.PolicyPolicySchema,
+      fields: {
+        policy_id: { urn: 'urn:acme:insurance:policy:field:policy_id', primitive: 'string', required: true },
+        effective_date: { urn: 'urn:acme:insurance:policy:field:effective_date', primitive: 'date', required: true },
+        expiry_date: { urn: 'urn:acme:insurance:policy:field:expiry_date', primitive: 'date', required: true },
+        premium: { urn: 'urn:acme:insurance:policy:field:premium', primitive: 'decimal', required: true },
+        deductible: { urn: 'urn:acme:insurance:policy:field:deductible', primitive: 'decimal', required: false },
+      },
+      invariants: [
+        { urn: 'urn:acme:insurance:policy:invariant:deductible_below_premium', rule: s.PolicyDeductibleBelowPremiumRule },
+        { urn: 'urn:acme:insurance:policy:invariant:term_is_positive', rule: s.PolicyTermIsPositiveRule },
+      ],
+    },
+```
+
+The [Gherkin steps](./gherkin-steps) read `DispatchMap` to find the fields, the primitives and the input invariants of each operation.
 
 ## Shell gatekeeper
 
@@ -279,6 +315,7 @@ The union of all operation URNs of the manifest.
 export interface BoundaryIssue {
   readonly path: string;
   readonly fieldUrn?: string;
+  readonly invariantUrn?: string;
   readonly message: string;
 }
 ```
@@ -287,7 +324,10 @@ export interface BoundaryIssue {
 | --- | --- |
 | `path` | The dot path of the issue in the payload, for example `weight_grams`. For an item of a list, the path has the index of the item, for example `sku.1`. An empty string means the payload as a whole |
 | `fieldUrn` | The URN of the field, if the first segment of the path is a property of the contract that was parsed. If not, the property is absent |
-| `message` | The Valibot message, or a message of `executeOperation` |
+| `invariantUrn` | The URN of the invariant, if the issue comes from the rule of an invariant of the contract that was parsed. If not, the property is absent |
+| `message` | The Valibot message, the `message` of the invariant, or a message of `executeOperation` |
+
+An issue of an invariant has the path of the first field that the rule names. Thus it has a `fieldUrn` and an `invariantUrn`. To find the invariant, `executeOperation` compares the `requirement` of the Valibot issue with the `rule` of each `InvariantInfo`.
 
 ### `DomainError`
 
@@ -334,8 +374,8 @@ The generated file writes each member on more than one line. The members are the
 | `true` | None | `urn`, `output` | The operation succeeded. `output` is the parsed, branded output entity |
 | `false` | `'DomainError'` | `urn`, `error` | The handler refused with a declared error. This is a correct result |
 | `false` | `'UnknownOperation'` | `urn`, `issues` | The URN is not an operation of this domain |
-| `false` | `'InputRejected'` | `urn`, `issues` | The caller sent a payload that the input schema refuses |
-| `false` | `'ContractViolation'` | `urn`, `issues` | The core did not obey its contract. This shows a bug in the core |
+| `false` | `'InputRejected'` | `urn`, `issues` | The caller sent a payload that the input schema refuses. This includes a payload that breaks an invariant of the input entity |
+| `false` | `'ContractViolation'` | `urn`, `issues` | The core did not obey its contract. This includes an output that breaks an invariant of the output entity. This shows a bug in the core |
 
 ### `executeOperation`
 
@@ -366,7 +406,7 @@ With a literal operation URN, the first signature applies, and the result type i
 
 - A parse removes the keys that are not properties of the entity. Refer to [The generated schemas](./generated-schemas).
 - The issues of steps 1, 3, 4 and 5a have an empty `path` and no `fieldUrn`.
-- In steps 2, 5b and 6a, `fieldUrn` comes from the fields of the input, the error or the output.
+- In steps 2, 5b and 6a, `fieldUrn` comes from the fields of the input, the error or the output. In steps 2 and 6a, `invariantUrn` comes from the invariants of the input or the output.
 - `executeOperation` does not catch an exception that the handler throws.
 
 Results from a real run with the core of tutorial 2:
@@ -407,6 +447,16 @@ executeOperation(U, { weight_grams: 6000, zone: 'domestic', express: true }, cor
 // {"ok":false,"kind":"ContractViolation","urn":"urn:demo:shipping:quote:operation:quote_shipping","issues":[{"path":"price_cents","fieldUrn":"urn:demo:shipping:quote:field:price_cents","message":"Invalid safe integer: Received 1.5"}]}
 ```
 
+Results from a real run with the core of the insurance domain, where `I` is `'urn:acme:insurance:policy:operation:issue_policy'`. The input breaks an invariant, and then a changed handler returns an output that breaks it:
+
+```ts
+executeOperation(I, { policy_id: '123e4567-e89b-12d3-a456-426614174000', effective_date: '2026-06-01', expiry_date: '2026-05-31', premium: '120.00' }, core)
+// {"ok":false,"kind":"InputRejected","urn":"urn:acme:insurance:policy:operation:issue_policy","issues":[{"path":"expiry_date","fieldUrn":"urn:acme:insurance:policy:field:expiry_date","invariantUrn":"urn:acme:insurance:policy:invariant:term_is_positive","message":"The expiry date must be after the effective date"}]}
+
+// The handler returns ok({ ...policy, expiry_date: '2026-01-01' }) for a policy that starts on 2026-06-01.
+// {"ok":false,"kind":"ContractViolation","urn":"urn:acme:insurance:policy:operation:issue_policy","issues":[{"path":"expiry_date","fieldUrn":"urn:acme:insurance:policy:field:expiry_date","invariantUrn":"urn:acme:insurance:policy:invariant:term_is_positive","message":"The expiry date must be after the effective date"}]}
+```
+
 ## Declarations that are not exported
 
 The file also declares these items. Other modules cannot import them.
@@ -414,7 +464,7 @@ The file also declares these items. Other modules cannot import them.
 | Name | Description |
 | --- | --- |
 | `DeclaredErrors<U>` | `(typeof DispatchMap)[U]['errors']` |
-| `boundaryIssues(issues, fields)` | Changes Valibot issues to `BoundaryIssue` objects |
+| `boundaryIssues(issues, contract)` | Changes Valibot issues to `BoundaryIssue` objects, with the fields and the invariants of the `EntityContract` |
 | `isOperationUrn(urn)` | Returns `true` if the URN is a key of `DispatchMap` |
 | `isResult(value)` | Returns `true` if the value has the form of a `Result` |
 | `renderMessage(parts, fields)` | Puts the field values in the message template |

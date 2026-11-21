@@ -1,6 +1,6 @@
 # Gherkin steps
 
-urn-forge has five generic Cucumber steps. They operate for all domains. They read the operation from the tags of the scenario, and the field names and primitives from the generated `DispatchMap`. The module is `urn-forge/cucumber` (`src/gherkin/steps.ts`). For examples of scenarios, refer to [Write scenarios](../how-to/write-scenarios).
+urn-forge has six generic Cucumber steps. They operate for all domains. They read the operation from the tags of the scenario, and the field names and primitives from the generated `DispatchMap`. The module is `urn-forge/cucumber` (`src/gherkin/steps.ts`). For examples of scenarios, refer to [Write scenarios](../how-to/write-scenarios).
 
 ## The steps
 
@@ -11,12 +11,14 @@ The texts come from `src/gherkin/phrases.ts`. Gate 3 reads the same texts.
 | `I run the operation with:` | `I run the operation with:` | Input fields | Makes a payload from the table and calls `execute`. It keeps the result for the steps after it |
 | `the output is:` | `the output is:` | Output fields | Makes sure that the operation succeeded, and that the output agrees with the table |
 | `the input is rejected on "<field>"` | `the input is rejected on {string}` | None | Makes sure that the result is `InputRejected`, with an issue on the field |
+| `the input is rejected by "<invariant URN>"` | `the input is rejected by {string}` | None | Makes sure that the invariant is on the input entity of the operation, and that the result is `InputRejected`, with an issue of the invariant |
 | `the operation fails with "<error URN>"` | `the operation fails with {string}` | None | Makes sure that the result is the declared error with this URN |
 | `the operation fails with "<error URN>":` | `the operation fails with {string}:` | Error fields | The same, and the fields of the error agree with the table |
 
 - The library registers the first step with `When` and the other steps with `Then`. Cucumber does not compare the keyword, so `Given`, `And` and `But` also match.
-- `{string}` accepts text in double quotes or in single quotes. Gate 3 reads both forms of `the operation fails with`.
-- The `<field>` is a property name of the input entity, for example `weight_grams`. The `<error URN>` is the full URN of the error.
+- `{string}` accepts text in double quotes or in single quotes. Gate 3 reads both forms of `the operation fails with` and of `the input is rejected by`.
+- The `<field>` is a property name of the input entity, for example `weight_grams`. The `<error URN>` is the full URN of the error. The `<invariant URN>` is the full URN of the invariant, for example `urn:acme:insurance:policy:invariant:term_is_positive`.
+- An issue of an invariant is on the first field that its rule names. Thus `the input is rejected on "expiry_date"` also passes if `term_is_positive` refuses the input. Use `the input is rejected by` to name the rule.
 
 ## The operation tag
 
@@ -127,6 +129,18 @@ Each step fails with one of these messages. The messages are in the sequence in 
 | The result is not `InputRejected` | `<operation URN> failed with <failure>; expected InputRejected on "<field>"` |
 | No issue has the URN of the field as its `fieldUrn` | `<operation URN> rejected the input, but not on "<field>": <failure>` |
 
+### `the input is rejected by "<invariant URN>"`
+
+| Condition | Message |
+| --- | --- |
+| No operation has run | `no operation has run yet; start with "When I run the operation with:"` |
+| The invariant is not on the input entity of the operation | `<invariant URN> is not an invariant of the input of <operation URN> (invariants: <invariant URNs>)`. If the input has no invariants, the list is `none` |
+| The operation succeeded | `<operation URN> accepted the input; expected it to be rejected by <invariant URN>` |
+| The result is not `InputRejected` | `<operation URN> failed with <failure>; expected InputRejected by <invariant URN>` |
+| No issue has the URN of the invariant as its `invariantUrn` | `<operation URN> rejected the input, but not by <invariant URN>: <failure>` |
+
+The checks of the invariants run only if each input field is valid. Thus an input with an incorrect field value gets the last message, also if it breaks the invariant. Refer to [The generated schemas](./generated-schemas).
+
 ### `the operation fails with "<error URN>"` and `the operation fails with "<error URN>":`
 
 | Condition | Message |
@@ -171,6 +185,16 @@ more than one operation tag on this scenario: urn:demo:shipping:quote:operation:
 urn:demo:shipping:quote:operation:other is not an operation of this domain
 ```
 
+These messages come from a real Cucumber run on the insurance domain:
+
+```
+urn:acme:insurance:policy:invariant:cancellation_within_term is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive)
+urn:acme:insurance:policy:operation:issue_policy accepted the input; expected it to be rejected by urn:acme:insurance:policy:invariant:term_is_positive
+urn:acme:insurance:policy:operation:issue_policy rejected the input, but not by urn:acme:insurance:policy:invariant:term_is_positive: InputRejected (deductible: The deductible must be less than the premium)
+urn:acme:insurance:policy:operation:issue_policy rejected the input, but not by urn:acme:insurance:policy:invariant:term_is_positive: InputRejected (policy_id: Invalid UUID: Received "policy-1")
+urn:acme:insurance:policy:operation:cancel_policy failed with DomainError urn:acme:insurance:policy:error:refund_below_minimum (A refund of 0.00 is below the minimum of 1.00); expected InputRejected by urn:acme:insurance:policy:invariant:cancellation_within_term
+```
+
 This message comes from a real Cucumber run on a domain with a list in the output. The core sorts the list:
 
 ```
@@ -190,10 +214,10 @@ interface OperationStepsOptions {
 
 | Option | Type | Description |
 | --- | --- | --- |
-| `dispatch` | `Readonly<Record<string, OperationContractLike>>` | The generated `DispatchMap`. The steps read the input, output and error fields of each operation from it |
+| `dispatch` | `Readonly<Record<string, OperationContractLike>>` | The generated `DispatchMap`. The steps read the input, output and error fields, and the input invariants, of each operation from it |
 | `execute` | `(urn: string, payload: unknown) => ExecuteResultLike` | The function that runs an operation. Usually `executeOperation` of the generated runtime, with your core |
 
-The function registers one `Before` hook and the five steps. Call it one time, in a support file that Cucumber loads. If you call it two times, Cucumber finds two definitions for each step.
+The function registers one `Before` hook and the six steps. Call it one time, in a support file that Cucumber loads. If you call it two times, Cucumber finds two definitions for each step.
 
 The support file of tutorial 2:
 
@@ -206,8 +230,8 @@ The types of the options are structural. The generated `DispatchMap` and `execut
 | `Primitive` | `'boolean'`, `'date'`, `'decimal'`, `'enum'`, `'float'`, `'integer'`, `'string'` or `'timestamp'` |
 | `FieldInfoLike` | `urn: string`, `primitive: Primitive`, `required: boolean`, `many?: boolean` |
 | `FieldsLike` | `Readonly<Record<string, FieldInfoLike>>`, keyed by property name |
-| `OperationContractLike` | `input: { fields: FieldsLike }`, `output: { fields: FieldsLike }`, `errors: Readonly<Record<string, { fields: FieldsLike }>>`, keyed by error URN |
-| `BoundaryIssueLike` | `path: string`, `fieldUrn?: string`, `message: string` |
+| `OperationContractLike` | `input: { fields: FieldsLike; invariants?: readonly { urn: string }[] }`, `output: { fields: FieldsLike }`, `errors: Readonly<Record<string, { fields: FieldsLike }>>`, keyed by error URN |
+| `BoundaryIssueLike` | `path: string`, `fieldUrn?: string`, `invariantUrn?: string`, `message: string` |
 | `DomainErrorLike` | `urn: string`, `message: string`, `fields: unknown` |
 | `ExecuteResultLike` | `{ ok: true; output: unknown }`, or `{ ok: false; kind: 'DomainError'; error: DomainErrorLike }`, or `{ ok: false; kind: string; issues: readonly BoundaryIssueLike[] }` |
 
@@ -222,6 +246,7 @@ The module also exports the functions that the steps use. They do not need Cucum
 | `tableToObject` | `(rows: readonly (readonly string[])[], fields: FieldsLike, side, urn: string) => Record<string, unknown>` | Converts a table of two rows to an object. Throws if the table does not have two rows, or if a header is not in `fields`. `side` is `'input'`, `'output'` or `'error'`. `side` and `urn` are for the message only |
 | `assertOutput` | `(result: ExecuteResultLike, expected: Record<string, unknown>, urn: string) => void` | The check of `the output is:` |
 | `assertRejectedOn` | `(result: ExecuteResultLike, fieldName: string, fields: FieldsLike, urn: string) => void` | The check of `the input is rejected on "<field>"` |
+| `assertRejectedBy` | `(result: ExecuteResultLike, invariantUrn: string, urn: string) => void` | The check of `the input is rejected by "<invariant URN>"`. It does not examine whether the invariant is on the input entity |
 | `assertFailsWith` | `(result: ExecuteResultLike, errorUrn: string, urn: string, expected?: Record<string, unknown>) => void` | The check of `the operation fails with "<error URN>"`. With `expected`, it also compares the error fields. It does not examine whether the operation declares the error |
 
 ## Related pages

@@ -56,6 +56,7 @@ All four types use STE. These are the rules that this site applies.
 | `how-to/add-an-entity.md` | Add an entity |
 | `how-to/add-an-operation.md` | Add an operation |
 | `how-to/declare-an-error.md` | Declare an error |
+| `how-to/add-an-invariant.md` | Add an invariant |
 | `how-to/write-scenarios.md` | Write scenarios |
 | `how-to/use-branded-values.md` | Use branded values in the core |
 | `how-to/call-an-operation.md` | Call an operation from the shell |
@@ -73,6 +74,7 @@ All four types use STE. These are the rules that this site applies.
 | `reference/cli.md` | The CLI |
 | `reference/configuration.md` | The configuration file |
 | `reference/manifest.md` | The manifest |
+| `reference/rule-language.md` | The rule language |
 | `reference/primitives.md` | Primitives and constraints |
 | `reference/naming.md` | URNs and names |
 | `reference/compiler-passes.md` | Compiler passes |

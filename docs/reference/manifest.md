@@ -2,9 +2,13 @@
 
 The manifest is one YAML file that declares one domain. The default name is `domain.manifest.yaml`. Pass 1 of the compiler examines the structure that this page gives. For the passes, refer to [Compiler passes](./compiler-passes).
 
-This manifest uses each kind, an optional field reference and a declared error:
+This manifest uses each kind except `invariant`, an optional field reference and a declared error:
 
 <<< @/../packages/urn-forge/tests/fixtures/shop/domain.manifest.yaml
+
+The insurance domain uses invariants, dates, exact decimals and an optional field:
+
+<<< @/../packages/urn-forge/insurance/domain.manifest.yaml{yaml}
 
 The primitives test fixture, `tests/fixtures/primitives/domain.manifest.yaml`, uses each primitive, each constraint and each form of `many`.
 
@@ -50,6 +54,7 @@ Each atom has a short key of the form `<context>.<kind>.<identifier>`, for examp
 | --- | --- | --- |
 | `field` | One value, with a primitive and constraints | [Field](#field) |
 | `entity` | A named group of field references | [Entity](#entity) |
+| `invariant` | A named rule over the fields of one entity | [Invariant](#invariant) |
 | `operation` | A handler contract: an input entity, an output entity and the declared errors | [Operation](#operation) |
 | `error` | A declared error: a named refusal of an operation | [Error](#error) |
 
@@ -121,6 +126,35 @@ order.entity.line_total:
 | `description` | string | Yes | — | Not empty |
 | `fields` | A list of [field references](#field-reference) | Yes | — | One or more items |
 
+An entity does not list its invariants. Each invariant names its entity with `on`. An `invariants` key on an entity causes `unknown-property`.
+
+## Invariant
+
+```yaml
+policy.invariant.deductible_below_premium:
+  description: A deductible, when there is one, is less than the premium
+  on: policy.entity.policy
+  rule: deductible is absent or deductible < premium
+  message: The deductible must be less than the premium
+```
+
+| Property | Type | Necessary | Default | Rule |
+| --- | --- | --- | --- | --- |
+| `description` | string | Yes | — | Not empty |
+| `on` | string | Yes | — | A short key of an entity in this manifest (pass 4). A different kind causes `wrong-ref-kind` |
+| `rule` | string | Yes | — | Not empty. A condition in the [rule language](./rule-language) over the property names of the `on` entity (pass 6) |
+| `message` | string | Yes | — | Not empty. The message of the issue if the rule does not hold. It has no placeholders |
+
+- An invariant holds for each value of its entity: the input of an operation, its output, or both.
+- A rule can name only fields of the `on` entity. It cannot name a different entity.
+- A rule can use an optional field only after a guard, for example `deductible is absent or …`. If not, the result is `unguarded-field`.
+- A rule can use a list only in `is present` and `is absent`.
+- An entity can have more than one invariant. An invariant has one entity.
+- The generated schema of the entity examines each invariant. Refer to [The generated schemas](./generated-schemas).
+- Gate 3 needs a scenario that breaks each invariant of the input entity of an operation. Refer to [Verification gates](./verification-gates).
+
+For the grammar, the types and the messages of the rule, refer to [The rule language](./rule-language).
+
 ## Operation
 
 ```yaml
@@ -182,7 +216,7 @@ Specification v1.1 has these properties and kinds. urn-forge 0.1.0 does not acce
 
 | Item | Where in the specification | Diagnostic in urn-forge 0.1.0 |
 | --- | --- | --- |
-| The kinds `invariant` and `event` | A short key | `unsupported-kind` |
+| The kind `event` | A short key | `unsupported-kind` |
 | The primitives `list`, `record` and `ref` | `primitive` of a field | `unknown-primitive`. For a list, use `many` on the field reference |
 | The constraint `oneOf` | A `string` field | `unknown-property`, with the hint `for a fixed set of values, use primitive: enum with values: [ … ]` |
 | The constraint `notEqual` | A number field | `unknown-property`, with the hint `to exclude values, use notIn: [ … ]` |
@@ -190,7 +224,7 @@ Specification v1.1 has these properties and kinds. urn-forge 0.1.0 does not acce
 | The constraint `precision` | A field | `unknown-property`. For a `decimal`, use `scale` and the range |
 | The constraints `after` and `before` | A field | `unknown-property`. For a `date` or a `timestamp`, use `min` and `max` |
 | `nullable` | A field reference | `unknown-property` |
-| `key` and `invariants` | An entity | `unknown-property` |
+| `key` and `invariants` | An entity | `unknown-property`. An invariant names its entity with `on` |
 | `emits` | An operation | `unknown-property` |
 | `recordAs` | An error | `invalid-value`: `needs the event kind, which urn-forge does not support yet` |
 | `status`, `supersededBy` and `sunsetDate` | Each atom | `unknown-property` |

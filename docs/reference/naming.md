@@ -15,13 +15,13 @@ urn:demo:shop:order:field:unit_cost
 | `namespace` | `manifest.namespace` in the header | `^[a-z][a-z0-9_]{0,62}$` | `demo` |
 | `domain` | `manifest.domain` in the header | `^[a-z][a-z0-9_]{0,62}$` | `shop` |
 | `context` | The first segment of the short key | `^[a-z][a-z0-9_]{0,62}$` | `order` |
-| `kind` | The second segment of the short key | `field`, `entity`, `operation` or `error` | `field` |
+| `kind` | The second segment of the short key | `field`, `entity`, `invariant`, `operation` or `error` | `field` |
 | `identifier` | The third segment of the short key | `^[a-z][a-z0-9_]{0,62}$` | `unit_cost` |
 
 - A segment other than `kind` is lowercase snake_case. It starts with a letter, contains only `a` to `z`, `0` to `9` and `_`, and has a maximum of 63 characters.
 - The `_` character can occur at the end of a segment and two times in sequence, for example `x_` or `a__b`.
 - A URN is case-sensitive.
-- The specification also has the kinds `invariant` and `event`. urn-forge 0.1.0 does not accept them at this time (`unsupported-kind`). Refer to [Scope](./scope).
+- The specification also has the kind `event`. urn-forge 0.1.0 does not accept it at this time (`unsupported-kind`). Refer to [Scope](./scope).
 
 ## Short keys
 
@@ -38,17 +38,17 @@ order.field.unit_cost
 | Expansion (pass 2) | `urn:<namespace>:<domain>:` and the three segments, with `:` in place of `.` |
 | Example | `order.field.unit_cost` becomes `urn:demo:shop:order:field:unit_cost` |
 
-A key that does not agree with the pattern causes `invalid-key`. A key that agrees with the pattern but has an unknown `kind` segment causes `unknown-kind`, or `unsupported-kind` for `invariant` and `event`.
+A key that does not agree with the pattern causes `invalid-key`. A key that agrees with the pattern but has an unknown `kind` segment causes `unknown-kind`, or `unsupported-kind` for `event`.
 
 ### Where each form occurs
 
 | Location | Form |
 | --- | --- |
 | A top-level key of the manifest | Short key |
-| `ref` of a field reference, `input`, `output` and the items of `errors` | Short key |
+| `ref` of a field reference, `input`, `output`, the items of `errors` and `on` of an invariant | Short key |
 | The tags of a feature file, for example `@urn:demo:shop:order:operation:price_line` | URN |
-| The steps `Then the operation fails with "<error URN>"` | URN |
-| The generated code: `v.brand(…)`, the keys of `DomainCoreImplementation`, `DispatchMap` and `ErrorPayloads`, the `kind` of an error payload | URN |
+| The steps `Then the operation fails with "<error URN>"` and `Then the input is rejected by "<invariant URN>"` | URN |
+| The generated code: `v.brand(…)`, the keys of `DomainCoreImplementation`, `DispatchMap` and `ErrorPayloads`, the `kind` of an error payload, the `urn` of an `InvariantInfo` | URN |
 | The messages of diagnostics | The short key in pass 1, else the URN |
 
 ## Brand identifiers
@@ -72,11 +72,11 @@ urn-forge makes it with these steps (`toBrandIdentifier`):
 | `v2` | `x_1` | `V2X1` |
 | `a` | `b__c` | `ABC` |
 
-Each atom has a brand identifier, also an operation and an error. Two atoms cannot have the same brand identifier, also if their kinds are different (`duplicate-brand`). For example, `order.field.size` and `order.entity.size` both have the brand identifier `OrderSize`.
+Each atom has a brand identifier, also an invariant, an operation and an error. Two atoms cannot have the same brand identifier, also if their kinds are different (`duplicate-brand`). For example, `order.field.size` and `order.entity.size` both have the brand identifier `OrderSize`.
 
 ## Property names
 
-In an entity or an error, the property name of a field is the identifier of the field, with no change. `order.field.unit_cost` is the property `unit_cost`. The property names are the table headers in the feature files.
+In an entity or an error, the property name of a field is the identifier of the field, with no change. `order.field.unit_cost` is the property `unit_cost`. The property names are the table headers in the feature files and the field names in an invariant rule.
 
 ## Generated export names
 
@@ -86,8 +86,10 @@ In an entity or an error, the property name of a field is the identifier of the 
 | `field`, `entity`, `error` | `domain.schemas.generated.ts` | The output type, with the brand (`v.InferOutput`) | `<Brand>` | `OrderQuantity` |
 | `field`, `entity`, `error` | `domain.schemas.generated.ts` | The input type, without the brand (`v.InferInput`) | `<Brand>Input` | `OrderQuantityInput` |
 | `operation` | `domain.runtime.generated.ts` | The handler type | `<Brand>Handler` | `OrderPriceLineHandler` |
+| `invariant` | `domain.schemas.generated.ts` | The rule function | `<Brand>Rule` | `PolicyTermIsPositiveRule` for `policy.invariant.term_is_positive` |
+| `entity` with invariants | `domain.schemas.generated.ts` | The object without the checks. Not exported | `<Brand>Fields` | `PolicyPolicyFields` for `policy.entity.policy` |
 
-`<Brand>` is the brand identifier. The functions `schemaNames` and `handlerName` of the [package API](./public-api) give these names. An operation has no schema of its own. The runtime file imports the schemas file as the namespace `s`. Thus a handler name cannot be the same as a schema export. The runtime file also has fixed exports, for example `Result`, `DispatchMap` and `executeOperation`. Refer to [The generated runtime](./generated-runtime).
+`<Brand>` is the brand identifier. The functions `schemaNames`, `handlerName` and `ruleName` of the [package API](./public-api) give these names. An operation has no schema of its own. The runtime file imports the schemas file as the namespace `s`. Thus a handler name cannot be the same as a schema export. The runtime file also has fixed exports, for example `Result`, `DispatchMap` and `executeOperation`. Refer to [The generated runtime](./generated-runtime).
 
 ## The reserved property `kind`
 
@@ -104,7 +106,7 @@ urn-forge reports these name collisions. Each one is an error.
 | `duplicate-property` | 3 | Two fields in one entity or error have the same identifier | `a.field.size` and `b.field.size` in one entity |
 | `duplicate-ref` | 3 | One list refers to the same atom two times | The same field two times in `fields`, or the same error two times in `errors` |
 | `reserved-property` | 3 | A field of an error has the identifier `kind` | `order.field.kind` in the `fields` of an error |
-| `export-collision` | Valibot plugin | A generated export name of one atom is the same as an export name of a different atom | `geometry.field.radius_input` exports `GeometryRadiusInput`, which is also the input type of `geometry.field.radius` |
+| `export-collision` | Valibot plugin | A generated export name of one atom is the same as an export name of a different atom. The `<Brand>Rule` of an invariant is part of this check | `geometry.field.radius_input` exports `GeometryRadiusInput`, which is also the input type of `geometry.field.radius`. `p.invariant.term` exports `PTermRule`, which is also the output type of `p.field.term_rule` |
 
 For `duplicate-brand`, urn-forge reports the atom that is second in URN order. For the messages, refer to [Diagnostics](./diagnostics).
 
