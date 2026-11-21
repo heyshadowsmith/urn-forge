@@ -118,6 +118,7 @@ export default defineConfig({
           { text: 'Error kind plan', link: '/project/error-kind-plan' },
           { text: 'Boundary coverage plan', link: '/project/boundary-coverage-plan' },
           { text: 'Primitives plan', link: '/project/primitives-plan' },
+          { text: 'Invariants plan', link: '/project/invariants-plan' },
           { text: 'Spec v1.1', link: '/project/spec-v1-1' },
         ],
       },
