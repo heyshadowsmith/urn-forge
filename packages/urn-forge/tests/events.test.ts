@@ -114,3 +114,12 @@ describe('events in the runtime (insurance)', async () => {
     expect([handlers, partial]).toBeDefined();
   });
 });
+
+describe('found while the docs were written', () => {
+  it('checks the links of an event in pass 5, as an entity\'s', () => {
+    const body = SHOP.replace('order.event.placed:\n  description: An order was placed\n  fields:\n', 'order.event.placed:\n  description: An order was placed\n  fields:\n    - link: order.entity.order\n');
+    expect(report(body)).toEqual([
+      'missing-key: urn:demo:shop:order:event:placed: fields[0].link urn:demo:shop:order:entity:order has no key, so a link to it holds nothing; set key on it',
+    ]);
+  });
+});

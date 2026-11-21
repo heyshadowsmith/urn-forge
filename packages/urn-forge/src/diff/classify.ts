@@ -250,7 +250,10 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     if (a.category !== b!.category) relate(urn, 'neither', `category ${a.category} → ${b!.category}`, uses);
     if (a.retryable !== b!.retryable) relate(urn, 'neither', `retryable ${a.retryable} → ${b!.retryable}`, uses);
     if (JSON.stringify(a.message) !== JSON.stringify(b!.message)) compatible(urn, 'message changed');
-    if (a.recordAs !== b!.recordAs) relate(urn, 'neither', `recordAs ${show(a.recordAs)} → ${show(b!.recordAs)}`, uses);
+    // A record is extra information on a refusal: a new one is compatible; removing or changing one breaks its audit consumers.
+    if (a.recordAs === undefined && b!.recordAs !== undefined) compatible(urn, `adds the record ${b!.recordAs}`);
+    else if (a.recordAs !== undefined && b!.recordAs === undefined) relate(urn, 'wider', `removing the record ${a.recordAs}`, uses);
+    else if (a.recordAs !== b!.recordAs) relate(urn, 'neither', `recordAs ${show(a.recordAs)} → ${show(b!.recordAs)}`, uses);
     properties(urn, a.fields, b!.fields, uses);
   }
 

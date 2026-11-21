@@ -161,6 +161,7 @@ export function buildIr(manifest: ValidManifest, options: BuildOptions = {}): IR
   // Pass 5: structure across entities, once every node exists.
   const structure = checkStructure({
     entities: Object.fromEntries(nodes.get('entity')!) as UniversalIR['entities'],
+    events: Object.fromEntries(nodes.get('event')!) as UniversalIR['events'],
     errors: Object.fromEntries(nodes.get('error')!) as UniversalIR['errors'],
   });
   if (structure.length > 0) return { success: false, issues: structure };

@@ -105,7 +105,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     for (const tag of feature.declaredTags) {
       if (!tag.name.startsWith('@urn:')) continue;
       const urn = tag.name.slice(1);
-      if (!(urn in ir.fields || urn in ir.entities || urn in ir.operations || urn in ir.errors || urn in (ir.invariants ?? {}))) {
+      if (!(urn in ir.fields || urn in ir.entities || urn in ir.operations || urn in ir.events || urn in ir.errors || urn in (ir.invariants ?? {}))) {
         report('unresolved-tag', tag.location, `tag ${tag.name} does not resolve to a URN in the manifest`);
       }
       if (urn in ir.operations) covered.add(urn);
