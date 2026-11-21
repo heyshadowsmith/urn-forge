@@ -9,7 +9,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import type { GeneratedArtifact } from '../plugins/plugin.interface.js';
-import { GENERATED_MARK, generatedPath, listGeneratedFiles, writeGeneratedFiles } from '../write.js';
+import { isGenerated, generatedPath, listGeneratedFiles, writeGeneratedFiles } from '../write.js';
 import type { Diagnostic } from '../diagnostics.js';
 import { displayPath, type Gate, type GateOutcome } from './types.js';
 
@@ -64,7 +64,7 @@ export async function checkDrift(options: DriftOptions): Promise<GateOutcome> {
   for (const orphan of (await listGeneratedFiles(options.outDir)).filter((p) => !produced.has(p))) {
     const path = generatedPath(options.outDir, orphan);
     // compile removes an orphan only if urn-forge wrote it (removeOrphanFiles in src/write.ts).
-    const ours = (await readFile(path, 'utf8').catch(() => '')).startsWith(GENERATED_MARK);
+    const ours = isGenerated(await readFile(path, 'utf8').catch(() => ''));
     problems.push({
       code: 'generated-orphan',
       severity: 'error',

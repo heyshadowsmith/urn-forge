@@ -1,0 +1,369 @@
+{
+  "entities": {
+    "urn:demo:stored:value:entity:sample": {
+      "brandIdentifier": "ValueSample",
+      "description": "One value of each field",
+      "fields": [
+        {
+          "field": "urn:demo:stored:value:field:sample_id",
+          "name": "sample_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:stored:value:field:word",
+          "name": "word",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:line",
+          "name": "line",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:hex",
+          "name": "hex",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:flag",
+          "name": "flag",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:accepted",
+          "name": "accepted",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:size",
+          "name": "size",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:text",
+          "name": "text",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:code",
+          "name": "code",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:sku",
+          "name": "sku",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:id",
+          "name": "id",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:email",
+          "name": "email",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:count",
+          "name": "count",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:quantity",
+          "name": "quantity",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:pack",
+          "name": "pack",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:ratio",
+          "name": "ratio",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:share",
+          "name": "share",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:weight",
+          "name": "weight",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:divisor",
+          "name": "divisor",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:amount",
+          "name": "amount",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:price",
+          "name": "price",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:rate",
+          "name": "rate",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:day",
+          "name": "day",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:term_day",
+          "name": "term_day",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:at",
+          "name": "at",
+          "required": false
+        },
+        {
+          "field": "urn:demo:stored:value:field:window",
+          "name": "window",
+          "required": false
+        }
+      ],
+      "key": "urn:demo:stored:value:field:sample_id",
+      "urn": "urn:demo:stored:value:entity:sample"
+    }
+  },
+  "errors": {},
+  "fields": {
+    "urn:demo:stored:value:field:accepted": {
+      "brandIdentifier": "ValueAccepted",
+      "constraints": {
+        "mustBe": true
+      },
+      "primitive": "boolean",
+      "urn": "urn:demo:stored:value:field:accepted"
+    },
+    "urn:demo:stored:value:field:amount": {
+      "brandIdentifier": "ValueAmount",
+      "constraints": {},
+      "primitive": "decimal",
+      "urn": "urn:demo:stored:value:field:amount"
+    },
+    "urn:demo:stored:value:field:at": {
+      "brandIdentifier": "ValueAt",
+      "constraints": {},
+      "primitive": "timestamp",
+      "urn": "urn:demo:stored:value:field:at"
+    },
+    "urn:demo:stored:value:field:code": {
+      "brandIdentifier": "ValueCode",
+      "constraints": {
+        "maxLength": 4,
+        "minLength": 2
+      },
+      "primitive": "string",
+      "urn": "urn:demo:stored:value:field:code"
+    },
+    "urn:demo:stored:value:field:count": {
+      "brandIdentifier": "ValueCount",
+      "constraints": {},
+      "primitive": "integer",
+      "urn": "urn:demo:stored:value:field:count"
+    },
+    "urn:demo:stored:value:field:day": {
+      "brandIdentifier": "ValueDay",
+      "constraints": {},
+      "primitive": "date",
+      "urn": "urn:demo:stored:value:field:day"
+    },
+    "urn:demo:stored:value:field:divisor": {
+      "brandIdentifier": "ValueDivisor",
+      "constraints": {
+        "notIn": [
+          0
+        ]
+      },
+      "primitive": "float",
+      "urn": "urn:demo:stored:value:field:divisor"
+    },
+    "urn:demo:stored:value:field:email": {
+      "brandIdentifier": "ValueEmail",
+      "constraints": {
+        "format": "email"
+      },
+      "primitive": "string",
+      "urn": "urn:demo:stored:value:field:email"
+    },
+    "urn:demo:stored:value:field:flag": {
+      "brandIdentifier": "ValueFlag",
+      "constraints": {},
+      "primitive": "boolean",
+      "urn": "urn:demo:stored:value:field:flag"
+    },
+    "urn:demo:stored:value:field:hex": {
+      "brandIdentifier": "ValueHex",
+      "constraints": {
+        "regex": "(?:0x)?[\\da-fA-F]{2,4}"
+      },
+      "primitive": "string",
+      "urn": "urn:demo:stored:value:field:hex"
+    },
+    "urn:demo:stored:value:field:id": {
+      "brandIdentifier": "ValueId",
+      "constraints": {
+        "format": "uuid"
+      },
+      "primitive": "string",
+      "urn": "urn:demo:stored:value:field:id"
+    },
+    "urn:demo:stored:value:field:line": {
+      "brandIdentifier": "ValueLine",
+      "constraints": {
+        "regex": "a.b|[^x]\\s"
+      },
+      "primitive": "string",
+      "urn": "urn:demo:stored:value:field:line"
+    },
+    "urn:demo:stored:value:field:pack": {
+      "brandIdentifier": "ValuePack",
+      "constraints": {
+        "min": 0,
+        "multipleOf": 6
+      },
+      "primitive": "integer",
+      "urn": "urn:demo:stored:value:field:pack"
+    },
+    "urn:demo:stored:value:field:price": {
+      "brandIdentifier": "ValuePrice",
+      "constraints": {
+        "max": "9999.99",
+        "min": "0.01",
+        "notIn": [
+          "13.00"
+        ],
+        "scale": 2
+      },
+      "primitive": "decimal",
+      "urn": "urn:demo:stored:value:field:price"
+    },
+    "urn:demo:stored:value:field:quantity": {
+      "brandIdentifier": "ValueQuantity",
+      "constraints": {
+        "max": 99,
+        "min": 1,
+        "notIn": [
+          13
+        ]
+      },
+      "primitive": "integer",
+      "urn": "urn:demo:stored:value:field:quantity"
+    },
+    "urn:demo:stored:value:field:rate": {
+      "brandIdentifier": "ValueRate",
+      "constraints": {
+        "exclusiveMax": "1",
+        "exclusiveMin": "0"
+      },
+      "primitive": "decimal",
+      "urn": "urn:demo:stored:value:field:rate"
+    },
+    "urn:demo:stored:value:field:ratio": {
+      "brandIdentifier": "ValueRatio",
+      "constraints": {},
+      "primitive": "float",
+      "urn": "urn:demo:stored:value:field:ratio"
+    },
+    "urn:demo:stored:value:field:sample_id": {
+      "brandIdentifier": "ValueSampleId",
+      "constraints": {},
+      "primitive": "integer",
+      "urn": "urn:demo:stored:value:field:sample_id"
+    },
+    "urn:demo:stored:value:field:share": {
+      "brandIdentifier": "ValueShare",
+      "constraints": {
+        "max": 1,
+        "min": 0
+      },
+      "primitive": "float",
+      "urn": "urn:demo:stored:value:field:share"
+    },
+    "urn:demo:stored:value:field:size": {
+      "brandIdentifier": "ValueSize",
+      "constraints": {
+        "values": [
+          "s",
+          "m",
+          "l"
+        ]
+      },
+      "primitive": "enum",
+      "urn": "urn:demo:stored:value:field:size"
+    },
+    "urn:demo:stored:value:field:sku": {
+      "brandIdentifier": "ValueSku",
+      "constraints": {
+        "regex": "[A-Z]{3}-[0-9]{4}"
+      },
+      "primitive": "string",
+      "urn": "urn:demo:stored:value:field:sku"
+    },
+    "urn:demo:stored:value:field:term_day": {
+      "brandIdentifier": "ValueTermDay",
+      "constraints": {
+        "max": "2026-12-31",
+        "min": "2026-01-01"
+      },
+      "primitive": "date",
+      "urn": "urn:demo:stored:value:field:term_day"
+    },
+    "urn:demo:stored:value:field:text": {
+      "brandIdentifier": "ValueText",
+      "constraints": {},
+      "primitive": "string",
+      "urn": "urn:demo:stored:value:field:text"
+    },
+    "urn:demo:stored:value:field:weight": {
+      "brandIdentifier": "ValueWeight",
+      "constraints": {
+        "exclusiveMax": 1000,
+        "exclusiveMin": 0
+      },
+      "primitive": "float",
+      "urn": "urn:demo:stored:value:field:weight"
+    },
+    "urn:demo:stored:value:field:window": {
+      "brandIdentifier": "ValueWindow",
+      "constraints": {
+        "exclusiveMax": "2027-01-01T00:00:00Z",
+        "min": "2026-01-01T00:00:00Z"
+      },
+      "primitive": "timestamp",
+      "urn": "urn:demo:stored:value:field:window"
+    },
+    "urn:demo:stored:value:field:word": {
+      "brandIdentifier": "ValueWord",
+      "constraints": {
+        "regex": "\\w+\\.\\d+"
+      },
+      "primitive": "string",
+      "urn": "urn:demo:stored:value:field:word"
+    }
+  },
+  "invariants": {},
+  "meta": {
+    "domain": "stored",
+    "irSchemaVersion": 1,
+    "manifestHash": "d772ba413396614fb835b01ec565fcc923b64235e75184273e696ad92307885b",
+    "manifestVersion": "0.1.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {}
+}

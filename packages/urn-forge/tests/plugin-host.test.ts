@@ -159,9 +159,9 @@ describe('config', () => {
         { plugin: PLUGINS.fcis, config: {} },
       ],
     });
-    const bad = pluginEntries(['valibot', 'postgres' as never, 'valibot'], 'c.ts');
+    const bad = pluginEntries(['valibot', 'mysql' as never, 'valibot'], 'c.ts');
     expect(bad.ok ? [] : bad.diagnostics.map((d) => d.message)).toEqual([
-      'config.plugins[1]: unknown plugin "postgres" (plugins: valibot, fcis)',
+      'config.plugins[1]: unknown plugin "mysql" (plugins: valibot, fcis, postgres)',
       'config.plugins[2]: plugin "valibot" is listed more than once',
     ]);
   });
@@ -194,8 +194,8 @@ describe('config', () => {
   });
 
   it('defineConfig types plugin names (checked by tsc)', () => {
-    // @ts-expect-error postgres is not a plugin of this version
-    const unknown = defineConfig({ plugins: ['postgres'] });
+    // @ts-expect-error mysql is not a plugin of this version
+    const unknown = defineConfig({ plugins: ['mysql'] });
     expect(unknown).toBeDefined();
   });
 });

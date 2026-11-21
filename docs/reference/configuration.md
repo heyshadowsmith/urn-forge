@@ -95,6 +95,7 @@ Example: the configuration file `example/urn-forge.config.ts` has `out: './gener
 | --- | --- | --- | --- | --- |
 | `valibot` | `0.1.0` | `domain.schemas.generated.ts`. Refer to [The generated schemas](./generated-schemas) | None | `{}` only |
 | `fcis` | `0.2.0` | `domain.runtime.generated.ts`. Refer to [The generated runtime](./generated-runtime) | `valibot`, because the runtime imports the schemas | `{}` only |
+| `postgres` | `0.1.0` | `schema.generated.sql`. Refer to the [Postgres plan](../project/postgres-plan) | None | `tables`: the short keys of the entities that become tables. Default `[]`. `unenforced`: `'warn'` (the default) or `'error'` |
 
 urn-forge 0.1.0 does not have the `gherkin` and `postgres` plugins of the specification. Refer to [Scope](./scope).
 
@@ -116,11 +117,11 @@ plugins: [['valibot', {}], ['fcis', {}]]
 
 ### Rules
 
-- Each name must be `valibot` or `fcis`.
+- Each name must be `valibot`, `fcis` or `postgres`.
 - A name can occur only one time.
 - If a plugin needs a different plugin (its `requires` list), that plugin must also be in the array. The position in the array is not important.
 - The configuration of each plugin must agree with the schema of the plugin. The two plugins accept only `{}`.
-- If the `plugins` setting is not there, urn-forge runs `valibot` and then `fcis`, each with `{}`.
+- If the `plugins` setting is not there, urn-forge runs `valibot` and then `fcis`, each with `{}`. It does not run `postgres` unless the list names it.
 - If the array is empty, `compile` runs no plugin and writes no file.
 
 ### Plugins and the fingerprint
@@ -139,7 +140,7 @@ urn-forge reports these errors against the configuration file. Each error stops 
 | An unknown setting | `config-invalid` | `config.foo: unknown option "foo"` |
 | A path setting that is an empty string | `config-invalid` | `config.core: must not be empty` |
 | A value of the incorrect type | `config-invalid` | `config.boundaryCoverage: Invalid type: Expected ("warn" \| "error") but received "strict"` |
-| An unknown plugin | `config-invalid` | `config.plugins[1]: unknown plugin "postgres" (plugins: valibot, fcis)` |
+| An unknown plugin | `config-invalid` | `config.plugins[1]: unknown plugin "mysql" (plugins: valibot, fcis, postgres)` |
 | A plugin that occurs two times | `config-invalid` | `config.plugins[2]: plugin "valibot" is listed more than once` |
 | An empty `plugins` list | `config-invalid` | `config.plugins: must list one or more plugins` |
 | A plugin entry with more than two items, for example `['valibot', {}, 'extra']` | `config-invalid` | `config.plugins[0]: must be a plugin name or [name, config]` |
