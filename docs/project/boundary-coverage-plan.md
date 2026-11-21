@@ -91,10 +91,11 @@ Each step leaves the repository green and ends with a check you can run.
   - The summary shows `strict: N/M features`, and a note appears when it is time to ratchet.
   - *Check:* a strict feature turns its operations' gaps into errors; `boundaryCoverage: 'error'` turns all of them.
   - *Done.* The `note` severity arrived here rather than in step 5, because the ratchet note needs it: notes never fail a gate and are not counted as warnings. `@urn-forge:strict` counts on the feature itself (its own tags), and makes strict every operation the feature tags anywhere in it. On `self/`, tagging `to_urn.feature` strict turned exactly `to_urn`'s four gaps into errors and failed gate 3, while the other two stayed warnings.
-- [ ] **5. Waivers.**
+- [x] **5. Waivers.**
   - `# urn-forge:waive <field URN> <reason…>`, and the `note` severity in text and JSON output.
   - A waiver that names no constrained input field of the feature's operations is an error, so a stale waiver cannot linger.
   - *Check:* a waiver removes its field's gaps and appears as a note with its reason.
+  - *Done.* The feature index keeps comments with their lines. Four outcomes, all tried on `self/` through the CLI: an applied waiver is a `waived-boundary` note with its reason; a waiver without a reason is `invalid-waiver`; one for a field the feature's operations do not constrain is `unknown-waiver` (errors); and one whose field has no gap is `unused-waiver`, a warning, so it is removed rather than left to hide a future gap. The summary counts waivers. A waiver waives the whole field, not single cases.
 - [ ] **6. Close the gaps, then ratchet.**
   - `self/` gains scenarios for the six gaps. They should all pass already, since the handlers and schemas exist; a failure is a real bug.
   - Every feature in both domains gets `@urn-forge:strict`, then both configs set `boundaryCoverage: 'error'`.

@@ -19,6 +19,12 @@ export interface IndexedTag {
   readonly location: SourceLocation;
 }
 
+export interface IndexedComment {
+  /** The whole line as written, `#` included. */
+  readonly text: string;
+  readonly location: SourceLocation;
+}
+
 export interface IndexedCell {
   readonly value: string;
   readonly location: SourceLocation;
@@ -66,6 +72,8 @@ export interface IndexedFeature {
   readonly name: string;
   /** The feature's own tags, such as `@urn-forge:strict`. */
   readonly tags: readonly IndexedTag[];
+  /** Every comment line in the file, such as `# urn-forge:waive …`. */
+  readonly comments: readonly IndexedComment[];
   /** Every tag written in the file (feature, rules, scenarios, examples), each once. */
   readonly declaredTags: readonly IndexedTag[];
   readonly scenarios: readonly IndexedScenario[];
@@ -119,7 +127,8 @@ function scenario(s: Scenario, scope: readonly Tag[], background: readonly Step[
 /** Parses one feature file's source. */
 export function indexFeatureSource(source: string, file: string): IndexedFeature | undefined {
   const parser = new Parser(new AstBuilder(IdGenerator.incrementing()), new GherkinClassicTokenMatcher());
-  const feature = parser.parse(source).feature;
+  const document = parser.parse(source);
+  const feature = document.feature;
   if (!feature) return undefined;
 
   const declared: Tag[] = [...feature.tags];
@@ -143,7 +152,14 @@ export function indexFeatureSource(source: string, file: string): IndexedFeature
       }
     }
   }
-  return { file, name: feature.name, tags: feature.tags.map(tag), declaredTags: declared.map(tag), scenarios };
+  return {
+    file,
+    name: feature.name,
+    tags: feature.tags.map(tag),
+    comments: document.comments.map((c) => ({ text: c.text.trim(), location: at(c.location) })),
+    declaredTags: declared.map(tag),
+    scenarios,
+  };
 }
 
 /** Every `.feature` file under `dir` (recursively), in path order. */

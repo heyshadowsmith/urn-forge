@@ -63,6 +63,22 @@ The coverage checks (`uncovered-error` and `uncovered-boundary`) give warnings a
 
 The summary of gate 3 gives the number of strict features, for example `strict: 1/3 features`. When all the features are strict and `boundaryCoverage` is still `warn`, the gate gives the note `ratchet-ready`. Then set `boundaryCoverage: 'error'`, so that each new feature is strict too.
 
+### Waivers
+
+Sometimes a boundary case is not applicable, or a different test examines it. Then you can waive the boundary coverage of a field. Write a comment in the feature file:
+
+```gherkin
+# urn-forge:waive urn:urn_forge:toolchain:naming:field:short_key A one-letter key is examined by the grammar tests
+@urn:urn_forge:toolchain:naming:operation:parse_short_key
+Feature: Short keys
+```
+
+- The waiver removes all the boundary gaps of the field for the operations that the feature tags.
+- The reason is mandatory. Gate 3 shows each waiver as a note with its reason (`waived-boundary`). Thus each review shows the waivers.
+- If no operation of the feature has the field in its input with constraints, the gate fails (`unknown-waiver`). If the field has no gap, the gate gives a warning (`unused-waiver`).
+
+The waiver is a comment, not a tag, because a tag cannot contain spaces. Thus a tag cannot contain a reason.
+
 ## Gate 4: drift
 
 **The generated files in the repository are the same as a new compile.** The gate compiles the manifest into a temporary directory. It uses the same writer as `compile`. Then it compares each file, byte for byte, with the file in `--out`.

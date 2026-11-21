@@ -21,6 +21,15 @@
  *    field and operation lists the missing cases. It shows the cases are present; the test
  *    run shows whether they pass.
  *
+ * A boundary can be waived per field with a comment in a feature file (spec §8's escape
+ * hatch; a tag cannot hold a reason, because tags cannot contain whitespace):
+ *
+ *   # urn-forge:waive <field URN> <reason…>
+ *
+ * It removes that field's boundary gaps for the operations the feature tags, and is listed
+ * as a note with its reason. A waiver for a field none of those operations constrain is an
+ * error; one whose field has no gap is a warning.
+ *
  * Checks 4's coverage half and 5 follow the coverage mode (spec §8, warn then ratchet): their
  * gaps are warnings, unless `boundaryCoverage` is `error` or a feature tagged with the
  * operation carries `@urn-forge:strict`; then they are errors.
@@ -36,6 +45,20 @@ import type { Gate, GateContext, GateOutcome } from './types.js';
 
 /** The feature tag that makes the coverage gaps of a feature's operations errors. */
 export const STRICT_TAG = '@urn-forge:strict';
+
+const WAIVER_PREFIX = /^#\s*urn-forge:waive\b/;
+const WAIVER = /^#\s*urn-forge:waive\s+(urn:\S+)\s+(\S.*)$/;
+
+interface Waiver {
+  readonly file: string;
+  readonly location: SourceLocation;
+  readonly field: string;
+  readonly reason: string;
+  /** The operations of the waiver's feature. */
+  readonly operations: readonly Urn[];
+  /** Set when the waiver removed a gap. */
+  used: boolean;
+}
 
 /** What a scope's URN tags allow in its tables. */
 interface Owner {
@@ -182,6 +205,36 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     }
   }
 
+  // Waivers: `# urn-forge:waive <field URN> <reason…>` comments.
+  const waivers: Waiver[] = [];
+  for (const feature of features.features) {
+    const operations = [...new Set(feature.declaredTags.map((t) => t.name.slice(1)))].filter((u) => u in ir.operations) as Urn[];
+    for (const comment of feature.comments) {
+      if (!WAIVER_PREFIX.test(comment.text)) continue;
+      const match = WAIVER.exec(comment.text);
+      if (!match) {
+        problems.push({
+          code: 'invalid-waiver',
+          severity: 'error',
+          file: feature.file,
+          location: comment.location,
+          message: `a waiver must read "# urn-forge:waive <field URN> <reason>": ${comment.text}`,
+        });
+        continue;
+      }
+      waivers.push({ file: feature.file, location: comment.location, field: match[1]!, reason: match[2]!.trim(), operations, used: false });
+    }
+  }
+  /** Whether a field of an operation has boundary cases, so a waiver for it can mean something. */
+  const constrains = (operation: Urn, fieldUrn: string) => {
+    const op = ir.operations[operation];
+    const ref = op && ir.entities[op.input]?.fields.find((f) => f.field === fieldUrn);
+    const field = ref && ir.fields[ref.field];
+    return field !== undefined && boundaryCases(field.primitive, field.constraints).length > 0;
+  };
+  const waiverFor = (operation: Urn, fieldUrn: string) =>
+    waivers.find((w) => w.field === fieldUrn && w.operations.includes(operation));
+
   // Boundary coverage, for the operations that have scenarios (an untagged one is already an error).
   const values = inputValues(ir, features);
   for (const operation of Object.values(ir.operations)) {
@@ -192,12 +245,39 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
       const sent = values.get(operation.urn)?.get(ref.name) ?? [];
       const missing = boundaryCases(field.primitive, field.constraints).filter((c) => !sent.some((value) => c.covers(value)));
       if (missing.length === 0) continue;
+      const waiver = waiverFor(operation.urn, field.urn);
+      if (waiver) {
+        waiver.used = true;
+        continue;
+      }
       problems.push({
         code: 'uncovered-boundary',
         severity: coverageSeverity(operation.urn),
         file: features.directory,
         urn: field.urn,
         message: `${field.urn} in the input of ${operation.urn} has no ${missing.map((c) => c.label).join(', no ')}`,
+      });
+    }
+  }
+
+  // Every waiver stays visible: a note when it removed a gap, otherwise a problem.
+  for (const waiver of waivers) {
+    const at = { file: waiver.file, location: waiver.location, urn: waiver.field };
+    if (!waiver.operations.some((op) => constrains(op, waiver.field))) {
+      problems.push({
+        ...at,
+        code: 'unknown-waiver',
+        severity: 'error',
+        message: `waiver for ${waiver.field}, which is not a constrained input field of ${waiver.operations.length > 0 ? waiver.operations.join(', ') : 'any operation of this feature'}`,
+      });
+    } else if (waiver.used) {
+      problems.push({ ...at, code: 'waived-boundary', severity: 'note', message: `boundary coverage of ${waiver.field} is waived: ${waiver.reason}` });
+    } else {
+      problems.push({
+        ...at,
+        code: 'unused-waiver',
+        severity: 'warning',
+        message: `waiver for ${waiver.field} waives nothing: the field has no boundary gap; remove the waiver`,
       });
     }
   }
@@ -220,7 +300,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     summary:
       `${featureCount} feature(s), ${scenarioCount} scenario(s), ` +
       `${operations.filter((u) => covered.has(u)).length}/${operations.length} operations tagged${errorSummary}, ` +
-      `strict: ${strictFeatures.length}/${featureCount} features${boundaryCoverage === 'error' ? ' (boundaryCoverage: error)' : ''}`,
+      `strict: ${strictFeatures.length}/${featureCount} features${boundaryCoverage === 'error' ? ' (boundaryCoverage: error)' : ''}` +
+      (waivers.length > 0 ? `, ${waivers.length} waiver(s)` : ''),
     problems,
   };
 }

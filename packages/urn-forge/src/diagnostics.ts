@@ -66,6 +66,10 @@ export const DIAGNOSTIC_CODES = {
   'uncovered-error': 'A declared error has no scenario that expects it (a warning)',
   'uncovered-boundary': 'The examples of an input field do not include every boundary case of its constraints (a warning)',
   'ratchet-ready': 'Every feature is strict, so boundaryCoverage can be set to error (a note)',
+  'waived-boundary': 'A waiver removed the boundary gaps of a field, with its reason (a note)',
+  'invalid-waiver': 'A urn-forge:waive comment does not have the form # urn-forge:waive <field URN> <reason>',
+  'unknown-waiver': 'A waiver names a field that is not a constrained input field of the feature\'s operations',
+  'unused-waiver': 'A waiver names a field that has no boundary gap, so it waives nothing (a warning)',
   // Gate 4: drift
   'generated-missing': 'A generated file is not in the output directory',
   'generated-differs': 'A generated file differs from a fresh compile',
