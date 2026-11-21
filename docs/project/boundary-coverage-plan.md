@@ -82,9 +82,10 @@ Each step leaves the repository green and ends with a check you can run.
   - The feature index, or a function over it, gives each operation's input values per field, with Outline placeholders resolved and cells converted.
   - *Check:* the values match the table above for `self/` and the math example.
   - *Done* as `inputValues(ir, features)` in `src/verify/input-values.ts`. Placeholders are substituted anywhere in a cell, as Cucumber does, once per `Examples` row, and an `Examples` block's own tags can choose the operation. On the real features it returns exactly the values the target was computed from (`tests/input-values.test.ts`); writing that test also corrected a hand count, without changing which values exist, so the six gaps stand.
-- [ ] **3. The check.**
+- [x] **3. The check.**
   - Gate 3 reports `uncovered-boundary` as a warning, one per field and operation.
   - *Check:* exactly the six gaps of the target table, and none for the math example; `verify:self` passes with 6 warnings.
+  - *Done*, met on the first run: `verify:self` prints the six gaps and `verify passed with 6 warning(s)`; `verify:example` prints none. `tests/gates.test.ts` pins both lists. An operation without scenarios is skipped, because `untagged-operation` already fails it.
 - [ ] **4. Strictness.**
   - `boundaryCoverage` in the config; `@urn-forge:strict`; `uncovered-error` follows the same mode.
   - The summary shows `strict: N/M features`, and a note appears when it is time to ratchet.

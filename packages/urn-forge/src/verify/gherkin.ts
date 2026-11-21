@@ -15,10 +15,17 @@
  *    scenario's operation declares (`undeclared-error`), and the table of its `:` form must
  *    name fields of that error. Every declared error should have a scenario that expects it
  *    (spec §8 error coverage): `uncovered-error` is a warning until coverage is ratcheted.
+ * 5. Boundary coverage (spec §8 check 3). For each constrained input field of each tagged
+ *    operation, the values its scenarios send must include every boundary case of the
+ *    field's primitive (`boundaries` in src/primitives/). One `uncovered-boundary` warning per
+ *    field and operation lists the missing cases. It shows the cases are present; the test
+ *    run shows whether they pass.
  */
 import { FAILS_WITH_TEXT, STEP_PHRASES } from '../gherkin/phrases.js';
 import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
 import type { UniversalIR, Urn } from '../ir/types.js';
+import { boundaryCases } from '../primitives/index.js';
+import { inputValues } from './input-values.js';
 import type { IndexedCell, IndexedTag, IndexedTable } from './feature-index.js';
 import type { Gate, GateContext, GateOutcome } from './types.js';
 
@@ -155,6 +162,26 @@ export function checkGherkin({ ir, features }: GateContext): GateOutcome {
         file: features.directory,
         urn: errorUrn,
         message: `error ${errorUrn} of ${operation.urn} has no scenario that expects it; add one with Then the operation fails with "${errorUrn}"`,
+      });
+    }
+  }
+
+  // Boundary coverage, for the operations that have scenarios (an untagged one is already an error).
+  const values = inputValues(ir, features);
+  for (const operation of Object.values(ir.operations)) {
+    if (!covered.has(operation.urn)) continue;
+    for (const ref of ir.entities[operation.input]?.fields ?? []) {
+      const field = ir.fields[ref.field];
+      if (!field) continue;
+      const sent = values.get(operation.urn)?.get(ref.name) ?? [];
+      const missing = boundaryCases(field.primitive, field.constraints).filter((c) => !sent.some((value) => c.covers(value)));
+      if (missing.length === 0) continue;
+      problems.push({
+        code: 'uncovered-boundary',
+        severity: 'warning',
+        file: features.directory,
+        urn: field.urn,
+        message: `${field.urn} in the input of ${operation.urn} has no ${missing.map((c) => c.label).join(', no ')}`,
       });
     }
   }
