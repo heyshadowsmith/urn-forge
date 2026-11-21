@@ -1,0 +1,2 @@
+compatible urn:demo:shop:order:event:placed
+breaking urn:demo:shop:order:operation:place
