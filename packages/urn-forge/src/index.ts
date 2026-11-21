@@ -29,8 +29,8 @@ export {
 } from './diagnostics.js';
 
 // The IR
-export { invariantsOf } from './ir/types.js';
-export type { ErrorCategory, IREntity, IRError, IRField, IRFieldRef, IRInvariant, IROperation, ListRule, MessagePart, UniversalIR, Urn } from './ir/types.js';
+export { invariantsOf, valueField } from './ir/types.js';
+export type { ErrorCategory, IREmbedRef, IREntity, IRError, IRField, IRFieldRef, IRInvariant, IRLinkRef, IROperation, IRPropertyRef, ListRule, MessagePart, UniversalIR, Urn } from './ir/types.js';
 export type { RuleExpr } from './rules/index.js';
 
 // Plugins
