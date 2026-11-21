@@ -9,7 +9,8 @@
  *   belong to one kind: an entity's duplicate properties, and pass 7 (constraint coherence)
  *   for fields.
  *
- * Passes 5, 6 and 8 (cycles, rule typing, lifecycle) are not built yet.
+ * Pass 6 (message templates) runs in the error kind's `build` (src/kinds/error.ts). Passes 5
+ * and 8 (cycles, lifecycle) and pass 6's invariant rules are not built yet.
  */
 import type { ManifestLocator, ManifestPath } from '../diagnostics.js';
 import { KINDS, KIND_NAMES, kind, namedKinds, referenceOccurrences, type Atom, type KindName } from '../kinds/index.js';

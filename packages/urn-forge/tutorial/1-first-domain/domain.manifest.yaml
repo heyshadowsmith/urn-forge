@@ -1,0 +1,38 @@
+manifest:
+  namespace: demo
+  domain: shipping
+  version: 0.1.0
+
+parcel.field.weight_grams:
+  primitive: integer
+  min: 1
+  max: 30000
+  description: The weight of the parcel in grams
+parcel.field.zone:
+  primitive: string
+  oneOf: [domestic, international]
+  description: Where the parcel goes
+parcel.field.express:
+  primitive: boolean
+  description: Whether the parcel goes by express delivery
+quote.field.price_cents:
+  primitive: integer
+  min: 0
+  description: The price of the delivery in cents
+
+parcel.entity.parcel:
+  description: A parcel to send
+  fields:
+    - ref: parcel.field.weight_grams
+    - ref: parcel.field.zone
+    - ref: parcel.field.express
+      required: false
+quote.entity.quote:
+  description: The price to send a parcel
+  fields:
+    - ref: quote.field.price_cents
+
+quote.operation.quote_shipping:
+  description: Calculate the price to send a parcel
+  input: parcel.entity.parcel
+  output: quote.entity.quote

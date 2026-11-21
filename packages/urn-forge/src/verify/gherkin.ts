@@ -1,5 +1,5 @@
 /**
- * Gate 3: Gherkin traceability (spec §8 checks 1–2; boundary coverage is not built yet).
+ * Gate 3: Gherkin traceability (spec §8: tags, headers, declared errors and boundary coverage).
  * Reads the feature index; it does not run the features.
  *
  * 1. Tags. Every `@urn:…` tag resolves to a URN in the IR, and every operation has at

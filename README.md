@@ -27,4 +27,4 @@ npm run docs:dev              # the docs site with live reload, on http://localh
 npm run docs:build            # a static build of the docs site
 ```
 
-Start with the docs' [Getting started](docs/guide/getting-started.md) guide.
+Start with the docs' [first tutorial](docs/tutorials/first-domain.md). The docs follow [Diátaxis](https://diataxis.fr/): tutorials, how-to guides, reference and explanation.

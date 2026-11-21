@@ -7,14 +7,14 @@ hero:
   tagline: Write your domain in a YAML file. urn-forge makes typed contracts, a runtime gatekeeper and Gherkin checks. CI fails if a link in the chain breaks.
   actions:
     - theme: brand
-      text: Start here
-      link: /guide/getting-started
+      text: Start the tutorial
+      link: /tutorials/first-domain
     - theme: alt
       text: What is urn-forge?
-      link: /guide/what-is-urn-forge
+      link: /explanation/traceability
     - theme: alt
-      text: CLI reference
-      link: /reference/cli
+      text: Reference
+      link: /reference/
   image:
     src: /hero-trace.svg
     alt: A URN traced from the manifest through the IR, the generated contracts and core.ts to a feature that passes
@@ -41,3 +41,16 @@ features:
     title: A gate for each link
     details: The urn-forge verify command makes CI fail for three errors. A handler is not there, a table header is not a field, or a person edits a generated file.
 ---
+
+## How these pages are organized
+
+The documentation has four parts. Each part has a different function.
+
+| Part | Use it when | Start with |
+| --- | --- | --- |
+| [Tutorials](/tutorials/) | You are new to urn-forge. You make a small domain, step by step, from an empty folder to a check that passes | [Your first domain](/tutorials/first-domain) |
+| [How-to guides](/how-to/) | You know urn-forge, and you have a task to do. For example, you must declare an error or fix a gate that fails | [How-to guides](/how-to/) |
+| [Reference](/reference/) | You must find a fact: an option, a property of the manifest, a diagnostic code or a generated type | [Reference](/reference/) |
+| [Explanation](/explanation/) | You want to know why urn-forge operates as it does | [The traceability chain](/explanation/traceability) |
+
+The [Project](/project/mvp-plan) part contains the plans and the specification. These documents record the decisions, and they do not change after a phase is complete.

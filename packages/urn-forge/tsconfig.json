@@ -20,5 +20,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src", "tests", "example", "self", "vitest.config.ts"]
+  "include": ["src", "tests", "example", "self", "tutorial", "vitest.config.ts"]
 }

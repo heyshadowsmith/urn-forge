@@ -14,8 +14,10 @@
     "typecheck": "npm run typecheck --workspace urn-forge",
     "verify:example": "npm run verify:example --workspace urn-forge",
     "verify:self": "npm run verify:self --workspace urn-forge",
+    "verify:tutorial": "npm run verify:tutorial --workspace urn-forge",
     "test:features": "npm run test:features --workspace urn-forge",
     "test:features:self": "npm run test:features:self --workspace urn-forge",
+    "test:features:tutorial": "npm run test:features:tutorial --workspace urn-forge",
     "docs:dev": "npm run dev --workspace urn-forge-docs",
     "docs:build": "npm run build --workspace urn-forge-docs",
     "docs:preview": "npm run preview --workspace urn-forge-docs"
