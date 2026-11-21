@@ -189,12 +189,14 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     }
   }
 
-  // Error coverage: a warning for each declared error that no scenario of its operation expects.
+  // Error coverage: a warning for each declared error that no scenario of its operation
+  // expects. An untagged operation is already an error, so its errors add nothing (as with
+  // boundary coverage); they still count in the summary.
   let declaredErrors = 0;
   for (const operation of Object.values(ir.operations)) {
     for (const errorUrn of operation.errors) {
       declaredErrors += 1;
-      if (expectedErrors.has(`${operation.urn} ${errorUrn}`)) continue;
+      if (!covered.has(operation.urn) || expectedErrors.has(`${operation.urn} ${errorUrn}`)) continue;
       problems.push({
         code: 'uncovered-error',
         severity: coverageSeverity(operation.urn),

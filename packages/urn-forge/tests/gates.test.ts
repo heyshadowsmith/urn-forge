@@ -221,6 +221,15 @@ describe('gate 3: declared errors', () => {
     expect(outcome(`Then the operation fails with 'urn:demo:shop:order:error:sold_out'`).problems.map((p) => p.code)).toContain('undeclared-error');
   });
 
+  it('reports only untagged-operation for an operation with no scenarios, not each of its errors', () => {
+    const untagged = checkGherkin({
+      ir,
+      features: { directory: 'features', features: [indexFeatureSource('@wip\nFeature: x\n  Scenario: y\n    Given nothing\n', 'f.feature')!], problems: [] },
+    } as unknown as GateContext);
+    expect(untagged.problems.map((p) => p.code)).toEqual(['untagged-operation']);
+    expect(untagged.summary).toContain('0/2 errors expected');
+  });
+
   it('resolves a tag that names an error URN', () => {
     const tagged = checkGherkin({
       ir,
