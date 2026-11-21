@@ -1,0 +1,46 @@
+# The domain of this project. Each top-level key is <context>.<kind>.<identifier>.
+# After a change, run `npx urn-forge compile`, then `npx urn-forge verify`.
+manifest:
+  namespace: {{namespace}}
+  domain: {{domain}}
+  version: 0.1.0
+
+bill.field.total_cents:
+  primitive: integer
+  min: 0
+  description: The total of the bill in cents
+bill.field.people:
+  primitive: integer
+  min: 1
+  max: 100
+  description: The number of people who share the bill
+bill.field.share_cents:
+  primitive: integer
+  min: 0
+  description: The amount that each person pays in cents
+
+bill.entity.split_request:
+  description: A bill to split between people
+  fields:
+    - ref: bill.field.total_cents
+    - ref: bill.field.people
+bill.entity.share:
+  description: The amount that each person pays
+  fields:
+    - ref: bill.field.share_cents
+
+bill.error.uneven_split:
+  description: The total cannot be split into equal shares of whole cents
+  category: precondition
+  retryable: false
+  message: A total of {total_cents} cents cannot be split evenly between {people} people
+  fields:
+    - ref: bill.field.total_cents
+    - ref: bill.field.people
+
+bill.operation.split:
+  description: Split a bill into equal shares
+  input: bill.entity.split_request
+  output: bill.entity.share
+  errors:
+    - bill.error.uneven_split
