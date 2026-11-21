@@ -12,37 +12,13 @@ Do the tutorials in this sequence. Each tutorial starts where the tutorial befor
 
 ## Before you start
 
-You must have:
+You must have **Node.js 22** or a later version, and **npm**.
 
-- **Node.js 22** or a later version.
-- **Git** and **npm**.
-
-urn-forge is not on npm at this time. Thus, you use it from a clone of the repository. Do these steps one time:
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/heyshadowsmith/urn-forge.git
-   ```
-
-2. Go into the clone and install the packages:
-
-   ```bash
-   cd urn-forge
-   npm ci
-   ```
-
-3. Go into the package of the tool:
-
-   ```bash
-   cd packages/urn-forge
-   ```
-
-All the commands in the tutorials run from `packages/urn-forge`.
+urn-forge is not on npm at this time. Thus, you install it from a tarball. To make the tarball, do the steps in [Install urn-forge](../how-to/install#make-the-tarball). Then you have the file `urn-forge-0.1.0.tgz`. In [tutorial 1](./first-domain), you install it in a new project.
 
 ## The files of the tutorials
 
-You write your files in a new folder, `packages/urn-forge/my-shipping/`. The repository also contains the end state of each tutorial, in `packages/urn-forge/tutorial/`. CI tests these three folders. Thus, if your result is different, compare your files with them:
+You write your files in a new project folder, `my-shipping/`. The repository of urn-forge contains the end state of each tutorial, in [`packages/urn-forge/tutorial/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/). CI tests these three folders, and it runs the end state of tutorial 3 in a project made from the tarball. Thus, if your result is different, compare your files with them:
 
 | Tutorial | Folder with its end state |
 | --- | --- |
@@ -50,7 +26,7 @@ You write your files in a new folder, `packages/urn-forge/my-shipping/`. The rep
 | 2 | `tutorial/2-declared-errors/` |
 | 3 | `tutorial/3-strict-coverage/` |
 
-Do not edit the files in `tutorial/`. CI examines them.
+Each folder has the files that you change: `urn-forge.config.ts`, `domain.manifest.yaml`, `src/core.ts`, the feature, and the generated files. It also has a copy of the `tsconfig.json` and the `features/support/steps.ts` that `init` writes.
 
 ## Related pages
 

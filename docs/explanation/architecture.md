@@ -1,6 +1,6 @@
 # How urn-forge is built
 
-This page is for people who want to change urn-forge. It tells how a manifest becomes generated files and a verdict. It also tells how the registries hold the knowledge about each primitive and kind, and how `tsc` keeps the registries complete. The code is in `packages/urn-forge/src`.
+This page is for people who want to change urn-forge. It tells how a manifest becomes generated files and a verdict. It also tells how the registries hold the knowledge about each primitive and kind, and how `tsc` keeps the registries complete. The code is in [`packages/urn-forge/src`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/src).
 
 ## The pipeline
 

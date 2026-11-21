@@ -4,7 +4,7 @@ urn-forge uses itself. Its own pure functions are a urn-forge domain, and the tu
 
 ## `self/`: urn-forge's own domain
 
-The folder `packages/urn-forge/self/` holds a manifest with the namespace `urn_forge` and the domain `toolchain`. It declares three operations of the toolchain:
+The folder [`packages/urn-forge/self/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/self/) holds a manifest with the namespace `urn_forge` and the domain `toolchain`. It declares three operations of the toolchain:
 
 - `naming.operation.to_brand_identifier` makes the brand identifier of an atom.
 - `naming.operation.to_urn` expands an atom address to its URN.
@@ -34,7 +34,7 @@ All errors of `self/` are in the category `validation`. The other categories, an
 
 ## The tutorial snapshots
 
-The three tutorials build a shipping domain in three stages. Each stage is a snapshot in `packages/urn-forge/tutorial/`, with its own configuration, generated files, core and features. CI runs `verify` and Cucumber on each snapshot. The tutorial pages import their code from the snapshots, so the code in a tutorial is code that compiles, verifies and passes.
+The three tutorials build a shipping domain in three stages. Each stage is a snapshot in [`packages/urn-forge/tutorial/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/), with its own configuration, generated files, core and features. CI runs `verify` and Cucumber on each snapshot. The tutorial pages import their code from the snapshots, so the code in a tutorial is code that compiles, verifies and passes.
 
 The snapshots found a problem in the use of brands. In the shipping core, `BASE_CENTS[zone]` failed with `TS7053`: a branded value cannot index an object. The field `zone` was a `string` with `oneOf` then, and it is an `enum` now. The problem and the fix are the same. [The functional core and brands](./functional-core) tells why, and the tutorial core shows the fix.
 

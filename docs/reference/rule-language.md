@@ -10,7 +10,7 @@ The insurance domain has three invariants. Each rule is valid:
 | `policy.invariant.deductible_below_premium` | `policy.entity.policy` | `deductible is absent or deductible < premium` |
 | `policy.invariant.cancellation_within_term` | `policy.entity.cancellation` | `cancellation_date >= effective_date and cancellation_date <= expiry_date` |
 
-The full manifest is `packages/urn-forge/insurance/domain.manifest.yaml`. CI compiles and verifies it.
+The full manifest is [`packages/urn-forge/insurance/domain.manifest.yaml`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/domain.manifest.yaml). CI compiles and verifies it.
 
 ## Grammar
 

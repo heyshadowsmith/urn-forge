@@ -64,7 +64,7 @@ The starter splits a bill into equal shares between a list of people. It has thr
 
 ## Set up the files by hand
 
-Do these steps to add urn-forge to a project that you have. The examples come from `packages/urn-forge/tutorial/1-first-domain/`, which CI tests.
+Do these steps to add urn-forge to a project that you have. The examples come from [`packages/urn-forge/tutorial/1-first-domain/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/1-first-domain/), which CI tests.
 
 A project has these files:
 
@@ -74,8 +74,8 @@ A project has these files:
 | `domain.manifest.yaml` | The manifest: the fields, entities, errors and operations |
 | `urn-forge.config.ts` | Where the manifest, the generated files, the core and the features are |
 | `tsconfig.json` | The compiler options that gate 1 uses |
-| `generated/` | The files that `compile` writes. Do not edit them |
-| `core.ts` | The handlers, with `satisfies DomainCoreImplementation` |
+| `src/generated/` | The files that `compile` writes. Do not edit them |
+| `src/core.ts` | The handlers, with `satisfies DomainCoreImplementation` |
 | `features/*.feature` | The scenarios |
 | `features/support/steps.ts` | The Cucumber support file |
 | `register-tsx.mjs` | Registers `tsx` for Cucumber |
@@ -108,7 +108,7 @@ Make `urn-forge.config.ts`:
 <<< @/../packages/urn-forge/tutorial/1-first-domain/urn-forge.config.ts
 
 - The paths are relative to the configuration file.
-- The tutorial uses `../../tsconfig.json`, the tsconfig of the package. In your project, point `tsconfig` to your own file.
+- The file sets no path. Thus each path has its default: `domain.manifest.yaml`, `src/generated`, `src/core.ts`, `features` and `tsconfig.json`, from the folder of the configuration file. Set a path only if your project puts the file somewhere else.
 - A flag on the command line overrides the value in the file.
 - If you leave out a key, the CLI uses its default. For example, the default of `out` is `src/generated`.
 - If the project has a shell, add `shell` with its files or folders, for example `shell: ['./shell.ts']`. Gate 2 then examines the shell. Refer to [Call an operation from the shell](call-an-operation).
@@ -119,26 +119,14 @@ For each key and its default, refer to [The configuration file](../reference/con
 
 Gate 1 of `verify` type-checks the core with the `compilerOptions` of this file. It starts from the core file and follows its imports. It does not use `include`.
 
-This tsconfig is sufficient:
+This tsconfig is sufficient. It is the file that `init` writes:
 
-```json
-{
-  "compilerOptions": {
-    "target": "ES2023",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "strict": true,
-    "noEmit": true,
-    "skipLibCheck": true
-  },
-  "include": ["core.ts", "generated", "features"]
-}
-```
+<<< @/../packages/urn-forge/tutorial/1-first-domain/tsconfig.json
 
 Two options are important for gate 1:
 
 - **`strict: true`** is recommended. With it, TypeScript examines the core more carefully, for example for `undefined` values. The generated runtime type-checks with or without it.
-- **The module resolution** must find the import in `core.ts`. With `Bundler`, the import `./generated/domain.runtime.generated` has no extension. With `NodeNext`, write `./generated/domain.runtime.generated.js`. If you do not, gate 1 fails with `TS2307: Cannot find module`.
+- **The module resolution** must find the import in `src/core.ts`. With `Bundler`, the import `./generated/domain.runtime.generated` has no extension. With `NodeNext`, write `./generated/domain.runtime.generated.js`. If you do not, gate 1 fails with `TS2307: Cannot find module`.
 
 The generated files use `.js` in their own imports, so they work with both settings.
 
@@ -153,16 +141,16 @@ npx urn-forge compile
 `compile` writes the generated files:
 
 ```
-wrote      generated/domain.runtime.generated.ts
-wrote      generated/domain.schemas.generated.ts
+wrote      src/generated/domain.runtime.generated.ts
+wrote      src/generated/domain.schemas.generated.ts
 fingerprint sha256:40bd31f60e13cbb2b5a8223690a04d4856b7e8b3c82fb1a732a2af1dbe8f8d92
 ```
 
-Commit the files in `generated/`. Gate 4 compares them with a fresh compile. Refer to [Regenerate the code after a manifest change](regenerate-code).
+Commit the files in `src/generated/`. Gate 4 compares them with a fresh compile. Refer to [Regenerate the code after a manifest change](regenerate-code).
 
 ### 6. Write the core
 
-Make `core.ts`. Export one object that has a handler for each operation, and end it with `satisfies DomainCoreImplementation`:
+Make `src/core.ts`. Export one object that has a handler for each operation, and end it with `satisfies DomainCoreImplementation`:
 
 <<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts
 
@@ -173,7 +161,7 @@ The `satisfies` clause is necessary:
 - Gate 1 looks for it. If no export uses it, gate 1 fails:
 
 ```
-core.ts  error  missing-satisfies  no export uses `satisfies DomainCoreImplementation` from generated/domain.runtime.generated.ts; declare the core as `export const core = { … } satisfies DomainCoreImplementation;`
+src/core.ts  error  missing-satisfies  no export uses `satisfies DomainCoreImplementation` from src/generated/domain.runtime.generated.ts; declare the core as `export const core = { … } satisfies DomainCoreImplementation;`
 ```
 
 The core does not import urn-forge. For the rules of the core, refer to [Use branded values in the core](use-branded-values).
@@ -184,7 +172,7 @@ Make `features/support/steps.ts`. It connects the generic steps of urn-forge to 
 
 <<< @/../packages/urn-forge/tutorial/1-first-domain/features/support/steps.ts
 
-Write the same file in each project. Only the import paths change.
+Write the same file in each project. If your core or your generated files are not in the default folders, change the import paths.
 
 ### 8. Configure Cucumber
 

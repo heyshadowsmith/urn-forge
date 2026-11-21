@@ -4,6 +4,8 @@ Gate 3 finds coverage gaps: an input boundary that no scenario sends, a declared
 
 The output on this page comes from the domain of [tutorial 2](../tutorials/declared-errors), which has gaps, and [tutorial 3](../tutorials/strict-coverage), which has none.
 
+The commands on this page ran in a clone of the urn-forge repository, from `packages/urn-forge`. In your project, run them from the folder of `urn-forge.config.ts`, and leave out `--config`.
+
 ## Before you start
 
 - `urn-forge verify` passes on your project, possibly with warnings.

@@ -158,7 +158,7 @@ To run one scenario with many inputs, write a Scenario Outline. Put `<name>` in 
 
 <<< @/../packages/urn-forge/tutorial/3-strict-coverage/features/quote_shipping.feature{gherkin}
 
-The headers of `Examples` must also be fields of the input or the output of the operation.
+The headers of `Examples` must also be fields of the input or the output of the operation. A header can also be a field of an error or an event that a step of the outline expects, with `Then the operation fails with "<error URN>":` or `Then the operation emits "<event URN>":`. Then one column can fill the table of the error or the event.
 
 ## 5. Send an absent value or an empty string
 
@@ -211,7 +211,7 @@ For a field with constraints, test each boundary value. Gate 3 shows the values 
 
 ## 8. Check a broken invariant
 
-Use `Then the input is rejected by "<invariant URN>"` for an input that breaks an invariant of the input entity. For example, `packages/urn-forge/insurance/features/issue_policy.feature` sends a policy that ends before it starts, and expects `Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"`.
+Use `Then the input is rejected by "<invariant URN>"` for an input that breaks an invariant of the input entity. For example, [`packages/urn-forge/insurance/features/issue_policy.feature`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/features/issue_policy.feature) sends a policy that ends before it starts, and expects `Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"`.
 
 - The step passes only if the result is `InputRejected` with an issue that carries this invariant URN.
 - The invariant must be on the input entity of the operation, or on an entity that the input embeds. If not, gate 3 fails with `undeclared-invariant`.
@@ -226,7 +226,7 @@ Use `Then the operation fails with "<error URN>"`. To check the fields too, end 
 
 ## 10. Check an event
 
-Use `Then the operation emits "<event URN>"` after the output step. To check the fields too, end the step with a colon and add a table. After a declared error, use `Then the operation emits no event`. For example, `packages/urn-forge/insurance/features/cancel_policy.feature` expects the event `policy_cancelled` with the refund of each example:
+Use `Then the operation emits "<event URN>"` after the output step. To check the fields too, end the step with a colon and add a table. After a declared error, use `Then the operation emits no event`. For example, [`packages/urn-forge/insurance/features/cancel_policy.feature`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/features/cancel_policy.feature) expects the event `policy_cancelled` with the refund of each example:
 
 ```gherkin
     And the operation emits "urn:acme:insurance:policy:event:policy_cancelled":
@@ -248,10 +248,10 @@ Refer to [Emit an event](emit-an-event).
 
 ## Result
 
-1. Run the scenarios. For the feature in step 4, the urn-forge package has the profile `tutorial-3`:
+1. Run the scenarios. In a project that `urn-forge init` made, run `npx cucumber-js`. This output is for the feature in step 4, in the project of [tutorial 3](../tutorials/strict-coverage):
 
    ```bash
-   npx cucumber-js --profile tutorial-3
+   npx cucumber-js
    ```
 
    ```

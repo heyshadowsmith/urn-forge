@@ -1,6 +1,6 @@
 # The package API
 
-The package `urn-forge` has three entry points. `packages/urn-forge/package.json` declares them in `exports`:
+The package `urn-forge` has three entry points. [`packages/urn-forge/package.json`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/package.json) declares them in `exports`:
 
 | Entry point | Module | Contents |
 | --- | --- | --- |

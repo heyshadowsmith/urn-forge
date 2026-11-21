@@ -2,7 +2,9 @@
 
 This guide makes `urn-forge verify` a step of a GitHub Actions job, next to the tests and the scenarios. It also turns the problems into annotations on the pull request. A second job makes sure that the output does not depend on the time zone or the locale. To add gate 5, `urn-forge diff`, refer to [Check compatibility in CI](check-compatibility).
 
-The example is the workflow of the urn-forge repository, `.github/workflows/ci.yml`.
+The example is the workflow of the urn-forge repository, [`.github/workflows/ci.yml`](https://github.com/heyshadowsmith/urn-forge/tree/main/.github/workflows/ci.yml).
+
+The commands on this page ran in a clone of the urn-forge repository, from `packages/urn-forge`. In your project, run them from the folder of `urn-forge.config.ts`, and leave out `--config`.
 
 ## Before you start
 

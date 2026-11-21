@@ -2,7 +2,7 @@
 
 An entity is a named group of properties. A property holds the values of a field, an embedded entity, or a link to an entity. An operation uses one entity as its input and one as its output. This guide adds an entity to the manifest.
 
-The examples in steps 4 to 6 come from `packages/urn-forge/insurance/`, which CI tests. A policy links to its customer and embeds a list of coverages.
+The examples in steps 4 to 6 come from [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/), which CI tests. A policy links to its customer and embeds a list of coverages.
 
 ## Before you start
 

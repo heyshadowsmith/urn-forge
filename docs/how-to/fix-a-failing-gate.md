@@ -1,6 +1,6 @@
 # Fix a gate that fails
 
-`urn-forge verify` runs gates 1, 2, 3 and 4. A gate fails when it reports one error or more. This guide gives the symptom and the fix for each code that a gate can report. The output on this page comes from the domain of [tutorial 3](../tutorials/strict-coverage), with one part broken on purpose for each example. The examples for invariants, embedded entities, links, events and gate 2 come from the insurance domain in `packages/urn-forge/insurance/`.
+`urn-forge verify` runs gates 1, 2, 3 and 4. A gate fails when it reports one error or more. This guide gives the symptom and the fix for each code that a gate can report. The output on this page comes from the domain of [tutorial 3](../tutorials/strict-coverage), with one part broken on purpose for each example. The examples for invariants, embedded entities, links, events and gate 2 come from the insurance domain in [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/).
 
 ## Before you start
 
@@ -359,7 +359,7 @@ gate 3  gherkin       FAIL  1 feature(s), 6 scenario(s), 1/1 operations tagged, 
     tutorial/3-strict-coverage/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 ```
 
-To fix it, use a key from the `allowed` list. The two other problems go away with it. Every `Examples` header must also be a field key, even a column that only the step text uses.
+To fix it, use a key from the `allowed` list. The two other problems go away with it. Every `Examples` header must also be a field key, even a column that only the step text uses. A field of an error or an event that a step of the outline expects is also a field key.
 
 ### `missing-column`
 

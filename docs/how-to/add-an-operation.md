@@ -2,7 +2,7 @@
 
 An operation takes an input entity and gives an output entity and its events, or one of its declared errors. This guide adds an operation to the manifest, writes its handler in the core, and tags a feature with its URN.
 
-The examples come from the math example: `packages/urn-forge/tests/fixtures/math/domain.manifest.yaml`, `packages/urn-forge/example/core.ts` and `packages/urn-forge/example/features/`.
+The examples come from the math example: [`packages/urn-forge/tests/fixtures/math/domain.manifest.yaml`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tests/fixtures/math/domain.manifest.yaml), [`packages/urn-forge/example/core.ts`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/example/core.ts) and [`packages/urn-forge/example/features/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/example/features/).
 
 ## Before you start
 

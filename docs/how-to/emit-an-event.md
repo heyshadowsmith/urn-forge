@@ -2,7 +2,9 @@
 
 An event records a fact: the operation happened, and other systems can learn of it. This guide declares an event, lists it on an operation, emits it from the handler and tests it with a scenario. It also publishes the event from the shell, and records a refusal as an event with `recordAs`.
 
-The examples come from `packages/urn-forge/insurance/`, which CI tests. `issue_policy` emits `policy_issued`. `cancel_policy` emits `policy_cancelled`. The error `refund_below_minimum` records as `refund_refused`.
+The examples come from [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/), which CI tests. `issue_policy` emits `policy_issued`. `cancel_policy` emits `policy_cancelled`. The error `refund_below_minimum` records as `refund_refused`.
+
+The commands on this page ran in a clone of the urn-forge repository, from `packages/urn-forge`. In your project, run them from the folder of `urn-forge.config.ts`, and leave out `--config`.
 
 ## Before you start
 
@@ -110,7 +112,7 @@ For a valid policy, `result.events` has one event:
 urn:acme:insurance:policy:event:policy_issued {"kind":"urn:acme:insurance:policy:event:policy_issued","policy_id":"123e4567-e89b-12d3-a456-426614174000","holder":"9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d","premium":"120.00"}
 ```
 
-If the handler returns an event that its operation does not list, or an event that does not match its schema, the result is `ContractViolation`. The shell gets no output and no event. To handle each result, refer to [Call an operation from the shell](call-an-operation).
+If the handler returns an event that its operation does not list, or an event that does not match its schema, the result is `ContractViolation`. Each value of an event must pass all the constraints of its field, as a value of an error must. The shell gets no output and no event. To handle each result, refer to [Call an operation from the shell](call-an-operation).
 
 ## 7. Expect the event in a scenario
 
