@@ -24,7 +24,7 @@ The file has five sections. Each section starts with a comment. Some parts are t
 | | | `Success`, `Failure`, `Result`, `ErrorUrn`, `ErrorFields`, `ok`, `fail` | Fixed |
 | Handler contracts | `// Handler contracts: branded input in; plain output or a plain declared error out (the shell brands both).` | One `<Brand>Handler` type for each operation | Generated |
 | Registry | `// Registry` | `DomainCoreImplementation` | Generated |
-| Dispatch | `// Dispatch` | `FieldInfo`, `InvariantInfo`, `EntityContract`, `ErrorCategory`, `MessagePart`, `ErrorContract`, `OperationContract` | Fixed |
+| Dispatch | `// Dispatch` | `FieldInfo`, `EmbeddedInfo`, `PropertyInfo`, `InvariantInfo`, `EntityContract`, `ErrorCategory`, `MessagePart`, `ErrorContract`, `OperationContract` | Fixed |
 | | | `DispatchMap` | Generated |
 | Shell gatekeeper | `// Shell gatekeeper` | `OperationUrn`, `BoundaryIssue`, `DomainError`, `ExecuteResult`, `executeOperation` | Fixed |
 
@@ -136,26 +136,66 @@ One property for each operation of the manifest. The key is the URN of the opera
 
 ```ts
 export interface FieldInfo {
+  /** The field whose values the property holds; for a link, the linked entity's key field. */
   readonly urn: string;
   readonly primitive: 'boolean' | 'date' | 'decimal' | 'enum' | 'float' | 'integer' | 'string' | 'timestamp';
   readonly required: boolean;
   /** The property holds a list of the field's values. */
   readonly many?: true;
+  /** The entity that a link points at, by its key. */
+  readonly link?: string;
 }
 ```
 
+A `FieldInfo` describes a property with `ref` to a field, or with `link` to an entity.
+
 | Property | Description |
 | --- | --- |
-| `urn` | The URN of the field |
+| `urn` | The URN of the field. For a link, the URN of the `key` field of the linked entity |
 | `primitive` | The primitive of the field. The union has each primitive that urn-forge knows |
 | `required` | `false` if the reference has `required: false` in the manifest. If not, `true` |
 | `many` | `true` if the reference has `many` in the manifest. If not, the property is absent. The item count and `unique` are not in `FieldInfo`. They are in the schema |
+| `link` | The URN of the linked entity, if the reference is a `link`. If not, the property is absent |
 
 A `FieldInfo` of a list, from a compile of a manifest with `many: { minItems: 1, maxItems: 3, unique: true }`:
 
 ```ts
 sku: { urn: 'urn:demo:shop:order:field:sku', primitive: 'string', required: true, many: true },
 ```
+
+The `FieldInfo` of the link `holder` in the insurance domain:
+
+```ts
+holder: { urn: 'urn:acme:insurance:customer:field:customer_id', primitive: 'string', required: true, link: 'urn:acme:insurance:customer:entity:customer' },
+```
+
+### `EmbeddedInfo`
+
+```ts
+export interface EmbeddedInfo {
+  readonly entity: string;
+  readonly required: boolean;
+  readonly many?: true;
+  readonly fields: Readonly<Record<string, PropertyInfo>>;
+}
+```
+
+An `EmbeddedInfo` describes a property with `ref` to an entity. The property holds an embedded object of that entity.
+
+| Property | Description |
+| --- | --- |
+| `entity` | The URN of the embedded entity |
+| `required` | `false` if the reference has `required: false` in the manifest. If not, `true` |
+| `many` | `true` if the reference has `many` in the manifest. If not, the property is absent |
+| `fields` | One `PropertyInfo` for each property of the embedded entity, keyed by property name, in the sequence of the manifest. An entity that the embedded entity embeds has its own `EmbeddedInfo` here, at each depth |
+
+### `PropertyInfo`
+
+```ts
+export type PropertyInfo = FieldInfo | EmbeddedInfo;
+```
+
+Only an `EmbeddedInfo` has the key `entity`. Examine this key to know the form of a `PropertyInfo`.
 
 ### `InvariantInfo`
 
@@ -176,7 +216,7 @@ export interface InvariantInfo {
 ```ts
 export interface EntityContract {
   readonly schema: v.GenericSchema;
-  readonly fields: Readonly<Record<string, FieldInfo>>;
+  readonly fields: Readonly<Record<string, PropertyInfo>>;
   readonly invariants?: readonly InvariantInfo[];
 }
 ```
@@ -184,8 +224,8 @@ export interface EntityContract {
 | Property | Description |
 | --- | --- |
 | `schema` | The schema of the entity, from the schema file |
-| `fields` | One `FieldInfo` for each property, keyed by property name, in the sequence of the manifest |
-| `invariants` | One `InvariantInfo` for each invariant whose `on` is the entity, in URN order. The property is there only if the entity has one or more invariants |
+| `fields` | One `PropertyInfo` for each property, keyed by property name, in the sequence of the manifest |
+| `invariants` | One `InvariantInfo` for each invariant whose `on` is the entity, in URN order. Then the invariants of each entity that it embeds, at each depth, in the sequence of its properties. Each invariant occurs one time. The property is there only if the list is not empty |
 
 ### `ErrorCategory`
 
@@ -214,7 +254,7 @@ export interface ErrorContract extends EntityContract {
 | Property | Description |
 | --- | --- |
 | `schema` | The schema of the error, from the schema file |
-| `fields` | One `FieldInfo` for each field of the error. The `kind` property is not in this list |
+| `fields` | One `PropertyInfo` for each property of the error. The `kind` property is not in this list |
 | `invariants` | Never present. An invariant is on an entity, not on an error |
 | `category` | The `category` of the error in the manifest |
 | `retryable` | The `retryable` value of the error in the manifest |
@@ -278,13 +318,19 @@ export const DispatchMap = {
 } as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;
 ```
 
-The input of `issue_policy` in the insurance domain has two invariants:
+The input of `issue_policy` in the insurance domain has a link, `holder`, and a list of embedded entities, `coverages`. It has the two invariants of `policy` and the invariant of the embedded `coverage`:
 
 ```ts
     input: {
       schema: s.PolicyPolicySchema,
       fields: {
         policy_id: { urn: 'urn:acme:insurance:policy:field:policy_id', primitive: 'string', required: true },
+        holder: { urn: 'urn:acme:insurance:customer:field:customer_id', primitive: 'string', required: true, link: 'urn:acme:insurance:customer:entity:customer' },
+        coverages: { entity: 'urn:acme:insurance:policy:entity:coverage', required: true, many: true, fields: {
+          peril: { urn: 'urn:acme:insurance:policy:field:peril', primitive: 'enum', required: true },
+          limit: { urn: 'urn:acme:insurance:policy:field:limit', primitive: 'decimal', required: true },
+          note: { urn: 'urn:acme:insurance:policy:field:note', primitive: 'string', required: false },
+        } },
         effective_date: { urn: 'urn:acme:insurance:policy:field:effective_date', primitive: 'date', required: true },
         expiry_date: { urn: 'urn:acme:insurance:policy:field:expiry_date', primitive: 'date', required: true },
         premium: { urn: 'urn:acme:insurance:policy:field:premium', primitive: 'decimal', required: true },
@@ -293,6 +339,7 @@ The input of `issue_policy` in the insurance domain has two invariants:
       invariants: [
         { urn: 'urn:acme:insurance:policy:invariant:deductible_below_premium', rule: s.PolicyDeductibleBelowPremiumRule },
         { urn: 'urn:acme:insurance:policy:invariant:term_is_positive', rule: s.PolicyTermIsPositiveRule },
+        { urn: 'urn:acme:insurance:policy:invariant:limit_is_positive', rule: s.PolicyLimitIsPositiveRule },
       ],
     },
 ```
@@ -322,12 +369,14 @@ export interface BoundaryIssue {
 
 | Property | Description |
 | --- | --- |
-| `path` | The dot path of the issue in the payload, for example `weight_grams`. For an item of a list, the path has the index of the item, for example `sku.1`. An empty string means the payload as a whole |
-| `fieldUrn` | The URN of the field, if the first segment of the path is a property of the contract that was parsed. If not, the property is absent |
+| `path` | The dot path of the issue in the payload, for example `weight_grams`. For an item of a list, the path has the index of the item, for example `sku.1`. For a property of an embedded entity, the path continues into the object, for example `coverages.1.limit`. An empty string means the payload as a whole |
+| `fieldUrn` | The URN of the deepest field on the path. For a link, the URN of the key field. If the path names no field, the property is absent. For example, an issue on the list `coverages` as a whole has no `fieldUrn` |
 | `invariantUrn` | The URN of the invariant, if the issue comes from the rule of an invariant of the contract that was parsed. If not, the property is absent |
 | `message` | The Valibot message, the `message` of the invariant, or a message of `executeOperation` |
 
-An issue of an invariant has the path of the first field that the rule names. Thus it has a `fieldUrn` and an `invariantUrn`. To find the invariant, `executeOperation` compares the `requirement` of the Valibot issue with the `rule` of each `InvariantInfo`.
+To find `fieldUrn`, `executeOperation` follows the path through the `fields` of the contract and of each `EmbeddedInfo`. It ignores the list indexes.
+
+An issue of an invariant has the path of the first field that the rule names. Thus it has a `fieldUrn` and an `invariantUrn`. The issue of an invariant of an embedded entity has the nested path, for example `coverages.1.limit`. To find the invariant, `executeOperation` compares the `requirement` of the Valibot issue with the `rule` of each `InvariantInfo`.
 
 ### `DomainError`
 
@@ -406,7 +455,8 @@ With a literal operation URN, the first signature applies, and the result type i
 
 - A parse removes the keys that are not properties of the entity. Refer to [The generated schemas](./generated-schemas).
 - The issues of steps 1, 3, 4 and 5a have an empty `path` and no `fieldUrn`.
-- In steps 2, 5b and 6a, `fieldUrn` comes from the fields of the input, the error or the output. In steps 2 and 6a, `invariantUrn` comes from the invariants of the input or the output.
+- In steps 2, 5b and 6a, `fieldUrn` comes from the properties of the input, the error or the output, at each depth. In steps 2 and 6a, `invariantUrn` comes from the invariants of the input or the output. These include the invariants of the embedded entities.
+- `executeOperation` does not make sure that a link points at an object that exists. The shell does that, with its store.
 - `executeOperation` does not catch an exception that the handler throws.
 
 Results from a real run with the core of tutorial 2:
@@ -447,11 +497,44 @@ executeOperation(U, { weight_grams: 6000, zone: 'domestic', express: true }, cor
 // {"ok":false,"kind":"ContractViolation","urn":"urn:demo:shipping:quote:operation:quote_shipping","issues":[{"path":"price_cents","fieldUrn":"urn:demo:shipping:quote:field:price_cents","message":"Invalid safe integer: Received 1.5"}]}
 ```
 
-Results from a real run with the core of the insurance domain, where `I` is `'urn:acme:insurance:policy:operation:issue_policy'`. The input breaks an invariant, and then a changed handler returns an output that breaks it:
+Results from a real run with the core of the insurance domain, where `I` is `'urn:acme:insurance:policy:operation:issue_policy'`. `P` is a valid policy:
 
 ```ts
-executeOperation(I, { policy_id: '123e4567-e89b-12d3-a456-426614174000', effective_date: '2026-06-01', expiry_date: '2026-05-31', premium: '120.00' }, core)
+const P = {
+  policy_id: '123e4567-e89b-12d3-a456-426614174000',
+  holder: '9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d',
+  effective_date: '2026-06-01',
+  expiry_date: '2026-12-31',
+  premium: '120.00',
+  coverages: [{ peril: 'fire', limit: '1000.00' }],
+};
+```
+
+The inputs that follow break these rules, in this sequence:
+
+1. An invariant of `policy`.
+2. The invariant of the embedded `coverage`.
+3. The `unique` rule of `coverages`.
+4. A field of a coverage.
+5. The key field of the link `holder`.
+
+Then a changed handler returns an output that breaks an invariant:
+
+```ts
+executeOperation(I, { ...P, expiry_date: '2026-05-31' }, core)
 // {"ok":false,"kind":"InputRejected","urn":"urn:acme:insurance:policy:operation:issue_policy","issues":[{"path":"expiry_date","fieldUrn":"urn:acme:insurance:policy:field:expiry_date","invariantUrn":"urn:acme:insurance:policy:invariant:term_is_positive","message":"The expiry date must be after the effective date"}]}
+
+executeOperation(I, { ...P, coverages: [{ peril: 'fire', limit: '1' }, { peril: 'flood', limit: '0' }] }, core)
+// {"ok":false,"kind":"InputRejected","urn":"urn:acme:insurance:policy:operation:issue_policy","issues":[{"path":"coverages.1.limit","fieldUrn":"urn:acme:insurance:policy:field:limit","invariantUrn":"urn:acme:insurance:policy:invariant:limit_is_positive","message":"The limit of a coverage must be more than 0"}]}
+
+executeOperation(I, { ...P, coverages: [{ peril: 'fire', limit: '1' }, { peril: 'fire', limit: '2' }] }, core)
+// {"ok":false,"kind":"InputRejected","urn":"urn:acme:insurance:policy:operation:issue_policy","issues":[{"path":"coverages","message":"Invalid items: Expected no peril more than once"}]}
+
+executeOperation(I, { ...P, coverages: [{ peril: 'hail', limit: '1' }] }, core)
+// {"ok":false,"kind":"InputRejected","urn":"urn:acme:insurance:policy:operation:issue_policy","issues":[{"path":"coverages.0.peril","fieldUrn":"urn:acme:insurance:policy:field:peril","message":"Invalid type: Expected (\"fire\" | \"flood\" | \"theft\") but received \"hail\""}]}
+
+executeOperation(I, { ...P, holder: 'customer-1' }, core)
+// {"ok":false,"kind":"InputRejected","urn":"urn:acme:insurance:policy:operation:issue_policy","issues":[{"path":"holder","fieldUrn":"urn:acme:insurance:customer:field:customer_id","message":"Invalid UUID: Received \"customer-1\""}]}
 
 // The handler returns ok({ ...policy, expiry_date: '2026-01-01' }) for a policy that starts on 2026-06-01.
 // {"ok":false,"kind":"ContractViolation","urn":"urn:acme:insurance:policy:operation:issue_policy","issues":[{"path":"expiry_date","fieldUrn":"urn:acme:insurance:policy:field:expiry_date","invariantUrn":"urn:acme:insurance:policy:invariant:term_is_positive","message":"The expiry date must be after the effective date"}]}
@@ -464,7 +547,7 @@ The file also declares these items. Other modules cannot import them.
 | Name | Description |
 | --- | --- |
 | `DeclaredErrors<U>` | `(typeof DispatchMap)[U]['errors']` |
-| `boundaryIssues(issues, contract)` | Changes Valibot issues to `BoundaryIssue` objects, with the fields and the invariants of the `EntityContract` |
+| `boundaryIssues(issues, contract)` | Changes Valibot issues to `BoundaryIssue` objects, with the properties and the invariants of the `EntityContract` |
 | `isOperationUrn(urn)` | Returns `true` if the URN is a key of `DispatchMap` |
 | `isResult(value)` | Returns `true` if the value has the form of a `Result` |
 | `renderMessage(parts, fields)` | Puts the field values in the message template |
@@ -486,5 +569,5 @@ The runtime file of urn-forge's own domain is `self/generated/domain.runtime.gen
 - [The generated schemas](./generated-schemas)
 - [Gherkin steps](./gherkin-steps)
 - [Call an operation from the shell](../how-to/call-an-operation)
-- [Results and declared errors](../explanation/results-and-errors)
 - [The functional core and brands](../explanation/functional-core)
+- [Results and declared errors](../explanation/results-and-errors)

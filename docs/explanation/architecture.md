@@ -14,6 +14,8 @@ domain.manifest.yaml
    ▼  passes 2–4, 6, 7: IR builder  src/ir/build.ts, the build of each kind,
    │                                src/rules/ for invariant rules
    │
+   ▼  pass 5: structure            src/ir/structure.ts, keys and cycles
+   │
 UniversalIR (canonical, sorted by URN)
    │
    ▼  support check                src/engine.ts, the `supports` of each plugin
@@ -30,10 +32,11 @@ generated files ──▶ compile writes them      (src/cli.ts, src/write.ts)
 The stages have these jobs:
 
 1. **The meta-schema** (pass 1) validates the structure of the manifest with Valibot. It builds its schema from the descriptor of each kind and each primitive.
-2. **The IR builder** expands the short keys (pass 2), checks that URNs and brand identifiers are unique (pass 3) and resolves each reference (pass 4). Then each kind builds its IR node. The build runs the checks that belong to one kind: the rule of an invariant and the message placeholders of an error (pass 6), and constraint conflicts and coherence for a field (pass 7). An entity or an error also examines the `many` of each field reference.
-3. **The support check** compares the IR with what each plugin says that it supports. It runs before any plugin writes output.
-4. **The plugins** each turn the IR into file contents. They do not read the YAML, and they do not read the output of a different plugin.
-5. **The engine** adds the `@generated` header with the fingerprint, sets the line endings and sorts the files by path.
+2. **The IR builder** expands the short keys (pass 2), checks that URNs and brand identifiers are unique (pass 3) and resolves each reference (pass 4). Then each kind builds its IR node. The build runs the checks that belong to one kind: the rule of an invariant and the message placeholders of an error (pass 6), and constraint conflicts and coherence for a field (pass 7). An entity or an error also examines the name and the `many` of each field reference, and an entity examines its `key`.
+3. **The structure check** (pass 5) runs after each node is built, because each of its checks reads a different entity. A link and a unique list of an embedded entity need a target with a `key` (`missing-key`). No entity can embed itself (`embedding-cycle`). The pass runs only if the builder found no error.
+4. **The support check** compares the IR with what each plugin says that it supports. It runs before any plugin writes output.
+5. **The plugins** each turn the IR into file contents. They do not read the YAML, and they do not read the output of a different plugin.
+6. **The engine** adds the `@generated` header with the fingerprint, sets the line endings and sorts the files by path.
 
 The engine has no access to the file system, the clock or the environment. The CLI writes what the engine returns. This keeps the engine deterministic. Refer to [Determinism and the fingerprint](./determinism).
 
@@ -47,12 +50,12 @@ The plan put each kind of knowledge in a registry:
 
 | Registry | Where | One entry holds | Consumers |
 | --- | --- | --- | --- |
-| Primitives | `src/primitives/` | The constraints, with the schema and the aspect of each constraint value, the groups of constraints that exclude each other, coherence (pass 7), the parse of a table cell, the boundary cases | The meta-schema, the IR, the plugins, the step library, gate 3 |
+| Primitives | `src/primitives/` | The constraints, with the schema and the aspect of each constraint value, the groups of constraints that exclude each other, coherence (pass 7), the parse of one value of a table cell, the boundary cases | The meta-schema, the IR, the plugins, the step library, gate 3 |
 | Kinds | `src/kinds/` | The schema of an entry, the reference slots, the build of the IR node | The meta-schema, the IR builder |
 | Plugins | `src/plugins/index.ts` | A plugin, by name | The configuration file, the engine |
 | Gates | `src/verify/index.ts` | A gate, by number | `verify` |
 
-A reference slot is a path in an entry and the kinds that it can name, such as `{ path: ['fields', '*', 'ref'], targets: ['field'] }`. Pass 4 is one loop over the slots of every kind. A new kind brings its slots, and it gets reference checks, with positions, with no new pass code. The `invariant` kind got the check of its `on` in this way.
+A reference slot is a path in an entry and the kinds that it can name, such as `{ path: ['fields', '*', 'ref'], targets: ['field', 'entity'] }`. Pass 4 is one loop over the slots of every kind. A new kind brings its slots, and it gets reference checks, with positions, with no new pass code. The `invariant` kind got the check of its `on` in this way.
 
 ### The build stages
 
@@ -105,6 +108,8 @@ Gate 3 needs the features in a form that it can compare with the IR. `src/verify
 
 Gate 3 reads the index for tags, headers, declared errors, broken invariants and waivers. `inputValues` reads the same index to collect the values that each operation receives, for boundary coverage. It converts each cell with the primitive of its field, as the steps do.
 
+The steps and gate 3 use one cell reader, `src/gherkin/cells.ts`, for list and object cells. The reader parses the brackets, the braces and the quoted values. Then it reads each value with the primitive of its field. Thus a malformed cell fails in Cucumber and in gate 3 (`invalid-cell`) with the same message.
+
 The texts of the generic steps are in `src/gherkin/phrases.ts`. The step library registers these texts, and gate 3 reads them to find the input table of a scenario. Thus the step library and gate 3 cannot disagree about which table is the input.
 
 ## Why a new primitive or kind is one place
@@ -118,12 +123,30 @@ The registries make breadth additive. The first additions after the foundations 
 
 A list is not a primitive, so it is not one place. `many` on a field reference changed the IR, both plugins, the step library and gate 3. The list belongs to the reference, not to the value, so the primitive registry does not hold it.
 
+## Three forms of a reference
+
+The [structure plan](../project/structure-plan) added embedded entities and links on the same axis as lists. A field reference in the IR is thus one of three forms, `IRPropertyRef`:
+
+| Form | Manifest | Target key |
+| --- | --- | --- |
+| `IRFieldRef` | `ref: <field>` | `field` |
+| `IREmbedRef` | `ref: <entity>` | `entity` |
+| `IRLinkRef` | `link: <entity>` | `link` |
+
+Each form has `name`, `required` and `many`. The target key tells the forms apart, so a consumer examines `'entity' in ref` or `'link' in ref`.
+
+`IRFieldRef` kept the shape that it had before, `{ field, name, required, many? }`. Code that reads only field values did not change, and the IR of a manifest with no structure did not change either. A tagged union with a new `kind` property would have changed each reference in each IR and each fingerprint, for no new information. The target key is already a tag.
+
+Most consumers want the field whose values a property holds. For a link, that is the key field of the linked entity. The function `valueField(ir, ref)` gives it, so each plugin and gate does not derive it again. An embedded entity has no value field. Each consumer that reads it walks into the entity: the Valibot plugin uses the entity schema, the FCIS plugin writes an `EmbeddedInfo`, and gate 3 counts the nested values.
+
+The change touched every layer: the kinds, the rules, both plugins, the steps and gate 3. No layer could take the new forms alone, so the build was one commit. The three forms in one place in the IR kept the change small in each layer.
+
 The registries do not hold speculative properties. A property goes into a descriptor when a part of urn-forge that is not a plugin needs it. Boundary cases came with gate 3, and not before. Plugin details stay in the plugins.
 
 ## The limits
 
 - urn-forge has no API for plugins from other packages. The plugins are part of the repository, and their names are typed by the registry.
-- Pass 5 (cycles) and pass 8 (lifecycle) are not in urn-forge at this time. With the current kinds, no entity can contain an entity, so no cycle is possible.
+- Pass 8 (lifecycle) is not in urn-forge at this time. Pass 5 finds only cycles of embedded entities. A cycle of links is correct, and no other kind can make a cycle.
 - A new kind is still more work than a new primitive. Each plugin must decide what to write for it. The `error` kind changed both plugins, the step library and gate 3. The `invariant` kind changed the same parts, and it added the build stages and `src/rules/`.
 
 ## Related pages

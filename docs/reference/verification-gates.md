@@ -125,16 +125,17 @@ The gate does these checks. The table gives them in the sequence of the output.
 | Parse the files | Each `.feature` file is valid Gherkin | `feature-parse-error` | `error` |
 | Tags resolve | Each tag that starts with `@urn:` is the URN of a field, an entity, an invariant, an operation or an error of the manifest. The gate examines each tag one time, where it is written | `unresolved-tag` | `error` |
 | One owner | A scenario or an `Examples` block has one owner or no owner, not two or more | `ambiguous-tag` | `error` |
-| Headers | Each header of a step table and of an `Examples` table is a property of the owner. For an operation, this is a property of its input or output entity. For an entity, this is a property of the entity. A scenario with no owner, or with two or more owners, is not examined | `unknown-header` | `error` |
+| Headers | Each header of a step table and of an `Examples` table is a property of the owner. For an operation, this is a property of its input or output entity. For an entity, this is a property of the entity. A scenario with no owner, or with two or more owners, is not examined. The names in an object cell are not headers. The next check examines them | `unknown-header` | `error` |
 | Error headers | Each header of the table of `the operation fails with "<error URN>":` is a field of that error. The gate examines this only if the operation declares the error | `unknown-header` | `error` |
 | Required columns | The table of `I run the operation with:` has a column for each mandatory input field of the operation. Fields with `required: false` are not mandatory | `missing-column` | `error` |
-| Input invariants | The invariant URN in `the input is rejected by "<invariant URN>"` is an invariant of the input entity of the operation of the scenario. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-invariant` | `error` |
+| Input invariants | The invariant URN in `the input is rejected by "<invariant URN>"` is an invariant of the input entity of the operation of the scenario, or of an entity that the input embeds, at any depth. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-invariant` | `error` |
 | Declared errors | The error URN in `the operation fails with "<error URN>"` is a declared error of the operation of the scenario. The URN can be in double or single quotes. The gate examines this only if the owner is an operation | `undeclared-error` | `error` |
 | Tagged operations | Each operation of the manifest has its URN in one or more tags, in any feature file | `untagged-operation` | `error` |
 | Error coverage | Each declared error of each tagged operation has one or more scenarios of that operation with `the operation fails with "<error URN>"`. An untagged operation already has `untagged-operation`, so the gate does not examine its errors | `uncovered-error` | Coverage mode |
-| Invariant coverage | Each invariant of the input entity of each tagged operation has one or more scenarios of that operation with `the input is rejected by "<invariant URN>"`. An invariant of an output entity only needs no scenario | `uncovered-invariant` | Coverage mode |
+| Invariant coverage | Each invariant of the input entity of each tagged operation has one or more scenarios of that operation with `the input is rejected by "<invariant URN>"`. The invariants of the entities that the input embeds, at any depth, are input invariants too. An invariant of an output entity only needs no scenario | `uncovered-invariant` | Coverage mode |
 | Waiver form | Each comment that starts with `# urn-forge:waive` has a field URN and a reason | `invalid-waiver` | `error` |
-| Boundary coverage | For each tagged operation and each input field with constraints, the values that the scenarios send include each boundary case | `uncovered-boundary` | Coverage mode |
+| Cells | Each list or object cell in the table of `I run the operation with:` has the correct syntax. Each name in an object cell is a property of its entity | `invalid-cell` | `error` |
+| Boundary coverage | For each tagged operation and each input property with boundary cases, at any depth, the values that the scenarios send include each boundary case | `uncovered-boundary` | Coverage mode |
 | Waiver result | Each valid waiver names a constrained input field of an operation of its feature file. Then it removes a gap, or it removes nothing | `unknown-waiver`, `waived-boundary`, `unused-waiver` | `error`, `note`, `warning` |
 | Ratchet | If `boundaryCoverage` is `warn`, the directory has one or more features, each feature is strict, and the gate has no error, the gate gives a note | `ratchet-ready` | `note` |
 
@@ -149,6 +150,7 @@ The gate finds the step texts as written in the feature file, without the keywor
 | `unresolved-tag` | The feature file | The tag |
 | `ambiguous-tag` | The feature file | The scenario or the `Examples` block |
 | `unknown-header` | The feature file | The header cell |
+| `invalid-cell` | The feature file | The header cell of the column in the table of `I run the operation with:` |
 | `missing-column` | The feature file | The table |
 | `undeclared-error`, `undeclared-invariant` | The feature file | The step |
 | `untagged-operation`, `uncovered-error`, `uncovered-invariant`, `uncovered-boundary`, `ratchet-ready` | The `--features` directory | None |
@@ -173,7 +175,14 @@ Boundary coverage reads the values of each input field from these places:
 - The tables of the step `I run the operation with:`, in scenarios with exactly one operation tag. A scenario with two or more operation tags sends no values.
 - In a Scenario Outline, each `<placeholder>` in a cell gets the value of its column in each row of each `Examples` block. This is the same as the substitution of Cucumber. The tags of the `Examples` block are added to find the operation.
 
-The gate converts each cell with the primitive of the field, in the same way as the steps. An empty cell is not a value. The text `""` is the empty string for a `string` or an `enum` field. For a field reference with `many`, the cell is a list, for example `[1, 2, 3]`. A column that is not an input field is not read. Refer to [Gherkin steps](./gherkin-steps).
+The gate converts each cell with the primitive of the field, in the same way as the steps. An empty cell is not a value. The text `""` is the empty string for a `string` or an `enum` field. For a field reference with `many`, the cell is a list, for example `[1, 2, 3]`. For an embedded entity, the cell is an object, for example `{ peril: fire, limit: 1000.00 }`. A link is a plain cell with the value of the key. A column that is not an input property is not read. Refer to [Gherkin steps](./gherkin-steps).
+
+If a list or object cell is malformed, or names a property that its entity does not have, the gate reports `invalid-cell` and does not use the cell. A cell for a list that does not start with `[`, or a cell for an embedded entity that does not start with `{`, stays text. It is not an `invalid-cell`. The schema refuses it when Cucumber runs the scenario. These problems come from a real run of the insurance domain with two rows added to an `Examples` block of `coverages`:
+
+```
+    insurance/features/issue_policy.feature:55:128  error  invalid-cell  coverages: "lmit" is not a property of urn:acme:insurance:policy:entity:coverage (properties: peril, limit, note) (at column 17 of the cell): [{ peril: fire, lmit: 1 }]
+    insurance/features/issue_policy.feature:55:128  error  invalid-cell  coverages: expected "," or "]" (at column 27 of the cell): [{ peril: fire, limit: 1 }
+```
 
 Each operation needs its own values. If two operations have the same field in their input, each operation needs scenarios with the values. An operation with no tag has no boundary check, because `untagged-operation` is already an error.
 
@@ -247,6 +256,20 @@ Examples of labels from the tests: `value one step below min (0.00)` for `min: "
 
 A field with no constraints has no boundary cases. The gate examines only that the values are there. Cucumber examines that the scenarios pass.
 
+### Boundary cases of a link and of an embedded entity
+
+A link counts as a value of the key field of the linked entity. Thus the boundary cases of a link are the cases of the key field, and the message has the URN of the key field.
+
+The values of an embedded entity count for its properties, at any depth. Each value of the property `limit` in each object of `coverages` is a value of the field `limit`. The message then gives the path of the property, with no list indexes, after `at`:
+
+```
+urn:acme:insurance:policy:field:limit at coverages.limit in the input of urn:acme:insurance:policy:operation:issue_policy has no value with 3 digits after the point (above scale)
+```
+
+This message comes from the insurance domain with the row `[{ peril: fire, limit: 1.005 }]` removed. A field at the top level of the input has no `at` part.
+
+The gate examines each path one time for each operation. If one field is at two paths in the input of one operation, each path needs its own values.
+
 ### Boundary cases of a list
 
 If the field reference has `many`, each item of each list counts as a value of the field for the cases of its constraints. The lists themselves need the values in this table:
@@ -258,6 +281,13 @@ If the field reference has `many`, each item of each list counts as a value of t
 | `maxItems` | A list with `maxItems` items | `list of <n> item(s) (maxItems)` |
 | `maxItems` | A list with `maxItems + 1` items | `list of <n + 1> item(s) (above maxItems)` |
 | `unique: true` | A list in which a value occurs two or more times | `list with a repeated value (unique)` |
+| `unique: true` on a list of an embedded entity | A list in which a key value occurs in two or more objects | `list with a repeated <key> (unique)` |
+
+The list cases of a list of an embedded entity have the URN of the entity in the message, and the path of the property after `at`. This message comes from the insurance domain with the row that repeats the peril `fire` removed:
+
+```
+urn:acme:insurance:policy:entity:coverage at coverages in the input of urn:acme:insurance:policy:operation:issue_policy has no list with a repeated peril (unique)
+```
 
 `many: true` has no list cases. If the field also has no constraints, the field has no boundary cases. The list cases come after the cases of the constraints in the message.
 
@@ -286,7 +316,7 @@ A waiver is a comment line in a feature file:
 | Form | `#`, optional spaces, `urn-forge:waive`, one or more spaces, a URN that starts with `urn:`, one or more spaces, and a reason that is not empty |
 | Position | Any comment line in the feature file |
 | Scope | The operations whose URN is in any tag of the same feature file |
-| Effect | The waiver removes all the boundary gaps of the field for the operations of its scope. It has no effect on `uncovered-error` |
+| Effect | The waiver removes all the boundary gaps of the field for the operations of its scope, at each path. A waiver with the URN of an embedded entity removes the list cases of a list of that entity. A waiver has no effect on `uncovered-error` |
 | Result | `waived-boundary` (a note with the reason) if it removed a gap. `unused-waiver` (a warning) if the field had no gap. `unknown-waiver` (an error) if no operation of its scope has the field in its input with boundary cases |
 
 A comment that starts with `# urn-forge:waive` but does not have this form gets `invalid-waiver`. The summary counts only the valid waivers.
@@ -316,14 +346,14 @@ Examples from real runs:
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
 gate 3  gherkin       PASS  3 feature(s), 18 scenario(s), 3/3 operations tagged, 3/3 errors expected, strict: 3/3 features (boundaryCoverage: error)
 gate 3  gherkin       FAIL  2 feature(s), 4 scenario(s), 1/1 operations tagged, 0/1 errors expected, strict: 1/2 features, 1 waiver(s)
-gate 3  gherkin       PASS  2 feature(s), 10 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/3 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 ```
 
-The last example is the insurance domain (`npm run verify:insurance`). For this run, its features had two changes. The scenario that breaks `term_is_positive` was replaced by a scenario that names an invariant of a different entity:
+The last example is the insurance domain (`npm run verify:insurance`). Its 4 input invariants include `limit_is_positive`, the invariant of the embedded entity `coverage`. For the next run, the step that breaks `term_is_positive` named an invariant of a different entity:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 10 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/3 invariants broken, strict: 2/2 features (boundaryCoverage: error)
-    insurance/features/issue_policy.feature:51:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive)
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+    insurance/features/issue_policy.feature:77:5  error  undeclared-invariant  "urn:acme:insurance:policy:invariant:cancellation_within_term" is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
 ```
 

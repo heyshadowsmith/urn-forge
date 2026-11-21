@@ -10,14 +10,14 @@ The texts come from `src/gherkin/phrases.ts`. Gate 3 reads the same texts.
 | --- | --- | --- | --- |
 | `I run the operation with:` | `I run the operation with:` | Input fields | Makes a payload from the table and calls `execute`. It keeps the result for the steps after it |
 | `the output is:` | `the output is:` | Output fields | Makes sure that the operation succeeded, and that the output agrees with the table |
-| `the input is rejected on "<field>"` | `the input is rejected on {string}` | None | Makes sure that the result is `InputRejected`, with an issue on the field |
-| `the input is rejected by "<invariant URN>"` | `the input is rejected by {string}` | None | Makes sure that the invariant is on the input entity of the operation, and that the result is `InputRejected`, with an issue of the invariant |
+| `the input is rejected on "<field>"` | `the input is rejected on {string}` | None | Makes sure that the result is `InputRejected`, with an issue on the property or inside it |
+| `the input is rejected by "<invariant URN>"` | `the input is rejected by {string}` | None | Makes sure that the invariant is on the input entity of the operation or on an entity that it embeds, and that the result is `InputRejected`, with an issue of the invariant |
 | `the operation fails with "<error URN>"` | `the operation fails with {string}` | None | Makes sure that the result is the declared error with this URN |
 | `the operation fails with "<error URN>":` | `the operation fails with {string}:` | Error fields | The same, and the fields of the error agree with the table |
 
 - The library registers the first step with `When` and the other steps with `Then`. Cucumber does not compare the keyword, so `Given`, `And` and `But` also match.
 - `{string}` accepts text in double quotes or in single quotes. Gate 3 reads both forms of `the operation fails with` and of `the input is rejected by`.
-- The `<field>` is a property name of the input entity, for example `weight_grams`. The `<error URN>` is the full URN of the error. The `<invariant URN>` is the full URN of the invariant, for example `urn:acme:insurance:policy:invariant:term_is_positive`.
+- The `<field>` is a property name of the input entity, for example `weight_grams` or `coverages`. It cannot be a property of an embedded entity, for example `limit`. The `<error URN>` is the full URN of the error. The `<invariant URN>` is the full URN of the invariant, for example `urn:acme:insurance:policy:invariant:term_is_positive`.
 - An issue of an invariant is on the first field that its rule names. Thus `the input is rejected on "expiry_date"` also passes if `term_is_positive` refuses the input. Use `the input is rejected by` to name the rule.
 
 ## The operation tag
@@ -51,7 +51,7 @@ A step table has exactly two rows: a header row and one data row.
 | `the output is:` | A property name of the output entity of the operation |
 | `the operation fails with "<error URN>":` | A field name of the error. The step makes sure that the operation declares the error before it reads the table |
 
-The step converts each cell with the primitive of its field, and puts the value in an object with the header as the key. A cell with no value puts no key in the object. A Scenario Outline operates as usual: Cucumber puts the `Examples` values in the `<placeholders>` before the step starts.
+The step converts each cell with the primitive of its field, and puts the value in an object with the header as the key. A cell for a list or for an embedded entity has its own syntax. Refer to [List and object cells](#list-and-object-cells). A cell with no value puts no key in the object. A Scenario Outline operates as usual: Cucumber puts the `Examples` values in the `<placeholders>` before the step starts.
 
 ### Cell conversion
 
@@ -71,18 +71,50 @@ The step converts each cell with the primitive of its field, and puts the value 
 
 You cannot send the text `""` itself to a `string` or an `enum` field. Thus a `decimal`, `date` or `timestamp` field cannot get the empty string from a cell. Gate 3 converts the cells in the same way when it reads the values for boundary coverage.
 
-### List cells
+A link is a plain cell. Its value is the value of the key field of the linked entity, and the step converts it with the primitive of the key field. For example, the cell of `holder` in the insurance domain is a customer identifier.
 
-If the field reference has `many`, the cell is a list:
+### List and object cells
 
-| Cell | Value |
+A cell for a property with `many` is a list. A cell for an embedded entity is an object. A list of an embedded entity is a list of objects. The syntax:
+
+| Form | Syntax | Example |
+| --- | --- | --- |
+| List | `[` and `]` around zero or more values, with a comma between two values | `[fire, flood]`, `[]` |
+| Object | `{` and `}` around zero or more pairs, with a comma between two pairs. A pair is a property name, `:` and a value | `{ peril: fire, limit: 1000.00 }` |
+| List of objects | A list whose values are objects | `[{ peril: fire, limit: 1 }, { peril: flood, limit: 2 }]` |
+| Bare value | Text up to the next `,`, `]` or `}`. The step removes the spaces at its start and end. It cannot contain a comma, a bracket, a brace or a double quote | `fire`, `1000.00`, `Smith Ada` |
+| Quoted value | A JSON string literal: double quotes, with the escapes of JSON | `"Smith, Ada"`, `"x{y}"`, `"a \"quoted\" word"`, `""` |
+
+- The step converts each value with the primitive of its field, in the same way as a plain cell. A quoted value is also converted. Thus a quoted `"3"` for an `integer` field is the number `3`. For a `string` or an `enum` field, a quoted value is its text, without the quotes.
+- An empty bare value is the empty text, for example the middle value of `[a, , b]`. For a `string` field, it is the empty string. For an `integer` field, it stays text, and the schema refuses it.
+- An object can leave out a property. The key is then absent from the object. An object cannot give one property two times.
+- A value in an object can be a list or an object, as deep as the entity goes. The syntax of a value follows its property.
+- Spaces between the parts are permitted.
+
+These cells come from the insurance domain:
+
+```gherkin
+| [{ peril: fire, limit: 1000.00 }]                                                                         |
+| [{ peril: flood, limit: 500 }, { peril: theft, limit: 250.5, note: "Basement excluded, see {clause 4}" }] |
+```
+
+A cell that does not start with the correct bracket stays text, without a change. The schema then refuses it. For example, the cell `{ peril: fire, limit: 1 }` for the list `coverages` gives `coverages: Invalid type: Expected Array but received "{ peril: fire, limit: 1 }"`.
+
+A cell that starts with the correct bracket and is malformed makes the step fail. The message gives the column in the cell. A name in an object that is not a property of the entity also makes the step fail. The message names the entity and its properties. Gate 3 finds the same problems without a test run, as `invalid-cell`.
+
+| Problem | Message |
 | --- | --- |
-| Empty | No value. The key is absent |
-| `[]` | The empty list |
-| `[<item>, <item>, …]` | A list. The step splits the text between the brackets at each comma, removes the spaces at the start and the end of each item, and converts each item with the primitive of the field. For example, `[1, 2, 3]` is `[1, 2, 3]` for an `integer` field, and `[ a , "" ]` is `["a", ""]` for a `string` field |
-| Text without the brackets, for example `1, 2` | The text, without a change. The schema refuses it |
+| A list has no `,` or `]` after a value | `expected "," or "]" (at column <n> of the cell)` |
+| An object has no `,` or `}` after a pair | `expected "," or "}" (at column <n> of the cell)` |
+| An object has no property name where one must be | `expected a property name (at column <n> of the cell)` |
+| A property name has no `:` after it | `expected ":" after "<name>" (at column <n> of the cell)` |
+| An object gives a property two times | `property "<name>" occurs more than once (at column <n> of the cell)` |
+| A quoted value has no quote at its end | `a quoted value has no closing quote (at column <n> of the cell)` |
+| A quoted value is not a valid JSON string, for example `"\q"` | `a quoted value is not a valid JSON string (at column <n> of the cell)` |
+| Text after the end of the list or the object | `unexpected "<character>" (at column <n> of the cell)` |
+| A name that is not a property of the entity | `"<name>" is not a property of <entity URN> (properties: <names>) (at column <n> of the cell)` |
 
-An item cannot contain a comma. In `[a, , b]`, the middle item is the empty text. For a `string` field, it is the empty string. For an `integer` field, it stays text, and the schema refuses it.
+Gherkin uses `|` to separate the cells. To put a `|` in a value, write `\|`.
 
 ### Comparison of the output and the error fields
 
@@ -92,6 +124,7 @@ The steps `the output is:` and `the operation fails with "<error URN>":` compare
 - An empty cell means that the property must be absent. If the property has a value, the step fails with `<name>: expected absent, got <value>`. To expect the empty string, write `""`.
 - The values must be equal by `===`. Also, `NaN` is equal to `NaN`. Thus `0` and `-0` are equal.
 - Two lists are equal if they have the same length, and each item is equal to the item at the same position. Thus `[1, 2]` is not equal to `[2, 1]`. A message shows a list as `[<item>, <item>]`.
+- Two embedded objects are equal if they have the same properties, and each property is equal. The actual object must not have a property that the expected object does not give. Thus an object cell must give each property that the output has. A message shows an object as `{ <name>: <value>, … }`.
 - A `decimal` value is text, so the comparison is a text comparison. Thus `12.5` is not equal to `12.50`.
 - The step compares the parsed output or the parsed error fields. These values are the result of the schema parse.
 
@@ -117,7 +150,7 @@ Each step fails with one of these messages. The messages are in the sequence in 
 | The table does not have two rows | `expected a header row and exactly one data row, got <n> row(s)` |
 | A header is not an output property | `"<header>" is not a field of the output of <operation URN> (fields: <names>)` |
 | The operation did not succeed | `<operation URN> did not succeed: <failure>` |
-| One or more values are different | `<operation URN> output differs: <name>: expected <value>, got <value>; …`. An absent value shows as `absent`. A list shows as `[<item>, <item>]` |
+| One or more values are different | `<operation URN> output differs: <name>: expected <value>, got <value>; …`. An absent value shows as `absent`. A list shows as `[<item>, <item>]`. An object shows as `{ <name>: <value>, … }` |
 
 ### `the input is rejected on "<field>"`
 
@@ -127,7 +160,9 @@ Each step fails with one of these messages. The messages are in the sequence in 
 | The field is not an input property | `"<field>" is not a field of the input of <operation URN> (fields: <names>)` |
 | The operation succeeded | `<operation URN> accepted the input; expected it to be rejected on "<field>"` |
 | The result is not `InputRejected` | `<operation URN> failed with <failure>; expected InputRejected on "<field>"` |
-| No issue has the URN of the field as its `fieldUrn` | `<operation URN> rejected the input, but not on "<field>": <failure>` |
+| No issue has a path whose first segment is the property name | `<operation URN> rejected the input, but not on "<field>": <failure>` |
+
+An issue inside the property counts. Thus `the input is rejected on "coverages"` passes for an issue at `coverages.0.peril` or at `coverages.1.limit`.
 
 ### `the input is rejected by "<invariant URN>"`
 
@@ -139,7 +174,7 @@ Each step fails with one of these messages. The messages are in the sequence in 
 | The result is not `InputRejected` | `<operation URN> failed with <failure>; expected InputRejected by <invariant URN>` |
 | No issue has the URN of the invariant as its `invariantUrn` | `<operation URN> rejected the input, but not by <invariant URN>: <failure>` |
 
-The checks of the invariants run only if each input field is valid. Thus an input with an incorrect field value gets the last message, also if it breaks the invariant. Refer to [The generated schemas](./generated-schemas).
+The invariants of an embedded entity are invariants of the input. Thus `the input is rejected by "urn:acme:insurance:policy:invariant:limit_is_positive"` is correct for `issue_policy`. The checks of the invariants run only if each input field is valid. Thus an input with an incorrect field value gets the last message, also if it breaks the invariant. Refer to [The generated schemas](./generated-schemas).
 
 ### `the operation fails with "<error URN>"` and `the operation fails with "<error URN>":`
 
@@ -188,11 +223,21 @@ urn:demo:shipping:quote:operation:other is not an operation of this domain
 These messages come from a real Cucumber run on the insurance domain:
 
 ```
-urn:acme:insurance:policy:invariant:cancellation_within_term is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive)
+urn:acme:insurance:policy:invariant:cancellation_within_term is not an invariant of the input of urn:acme:insurance:policy:operation:issue_policy (invariants: urn:acme:insurance:policy:invariant:deductible_below_premium, urn:acme:insurance:policy:invariant:term_is_positive, urn:acme:insurance:policy:invariant:limit_is_positive)
 urn:acme:insurance:policy:operation:issue_policy accepted the input; expected it to be rejected by urn:acme:insurance:policy:invariant:term_is_positive
 urn:acme:insurance:policy:operation:issue_policy rejected the input, but not by urn:acme:insurance:policy:invariant:term_is_positive: InputRejected (deductible: The deductible must be less than the premium)
 urn:acme:insurance:policy:operation:issue_policy rejected the input, but not by urn:acme:insurance:policy:invariant:term_is_positive: InputRejected (policy_id: Invalid UUID: Received "policy-1")
 urn:acme:insurance:policy:operation:cancel_policy failed with DomainError urn:acme:insurance:policy:error:refund_below_minimum (A refund of 0.00 is below the minimum of 1.00); expected InputRejected by urn:acme:insurance:policy:invariant:cancellation_within_term
+```
+
+These messages come from a real Cucumber run on the insurance domain, with nested values. The first scenario sends a coverage with a `note`, and its output table leaves out the `note`:
+
+```
+urn:acme:insurance:policy:operation:issue_policy output differs: coverages: expected [{ peril: fire, limit: 1000.00 }], got [{ peril: fire, limit: 1000.00, note: a, b }]
+"lmit" is not a property of urn:acme:insurance:policy:entity:coverage (properties: peril, limit, note) (at column 17 of the cell)
+expected "," or "]" (at column 33 of the cell)
+a quoted value has no closing quote (at column 33 of the cell)
+urn:acme:insurance:policy:operation:issue_policy rejected the input, but not on "premium": InputRejected (coverages.0.peril: Invalid type: Expected ("fire" | "flood" | "theft") but received "hail")
 ```
 
 This message comes from a real Cucumber run on a domain with a list in the output. The core sorts the list:
@@ -228,8 +273,10 @@ The types of the options are structural. The generated `DispatchMap` and `execut
 | Type | Properties |
 | --- | --- |
 | `Primitive` | `'boolean'`, `'date'`, `'decimal'`, `'enum'`, `'float'`, `'integer'`, `'string'` or `'timestamp'` |
-| `FieldInfoLike` | `urn: string`, `primitive: Primitive`, `required: boolean`, `many?: boolean` |
-| `FieldsLike` | `Readonly<Record<string, FieldInfoLike>>`, keyed by property name |
+| `FieldInfoLike` | `urn: string`, `primitive: Primitive`, `required: boolean`, `many?: boolean`, `link?: string` |
+| `EmbeddedInfoLike` | `entity: string`, `required: boolean`, `many?: boolean`, `fields: Readonly<Record<string, PropertyInfoLike>>` |
+| `PropertyInfoLike` | `FieldInfoLike` or `EmbeddedInfoLike` |
+| `FieldsLike` | `Readonly<Record<string, PropertyInfoLike>>`, keyed by property name |
 | `OperationContractLike` | `input: { fields: FieldsLike; invariants?: readonly { urn: string }[] }`, `output: { fields: FieldsLike }`, `errors: Readonly<Record<string, { fields: FieldsLike }>>`, keyed by error URN |
 | `BoundaryIssueLike` | `path: string`, `fieldUrn?: string`, `invariantUrn?: string`, `message: string` |
 | `DomainErrorLike` | `urn: string`, `message: string`, `fields: unknown` |
@@ -242,7 +289,7 @@ The module also exports the functions that the steps use. They do not need Cucum
 | Function | Signature | Description |
 | --- | --- | --- |
 | `operationUrnFromTags` | `(tags: readonly string[]) => string` | Returns the one operation URN in the tags. Throws if there is no operation tag or more than one |
-| `coerceCell` | `(cell: string, field: FieldInfoLike) => unknown` | Converts one cell with the primitive of the field. If `field.many` is `true`, it converts the cell as a list. Returns `undefined` for an empty cell |
+| `coerceCell` | `(cell: string, field: PropertyInfoLike) => unknown` | Converts one cell with the primitive of the field. If `field.many` is `true`, it converts the cell as a list. For an embedded entity, it converts the cell as an object. Returns `undefined` for an empty cell. Throws if a list or object cell is malformed |
 | `tableToObject` | `(rows: readonly (readonly string[])[], fields: FieldsLike, side, urn: string) => Record<string, unknown>` | Converts a table of two rows to an object. Throws if the table does not have two rows, or if a header is not in `fields`. `side` is `'input'`, `'output'` or `'error'`. `side` and `urn` are for the message only |
 | `assertOutput` | `(result: ExecuteResultLike, expected: Record<string, unknown>, urn: string) => void` | The check of `the output is:` |
 | `assertRejectedOn` | `(result: ExecuteResultLike, fieldName: string, fields: FieldsLike, urn: string) => void` | The check of `the input is rejected on "<field>"` |

@@ -6,7 +6,7 @@ This manifest uses each kind except `invariant`, an optional field reference and
 
 <<< @/../packages/urn-forge/tests/fixtures/shop/domain.manifest.yaml
 
-The insurance domain uses invariants, dates, exact decimals and an optional field:
+The insurance domain uses invariants, dates, exact decimals, an optional field, a link, an embedded entity and entity keys:
 
 <<< @/../packages/urn-forge/insurance/domain.manifest.yaml{yaml}
 
@@ -53,7 +53,7 @@ Each atom has a short key of the form `<context>.<kind>.<identifier>`, for examp
 | Kind | Declares | Section |
 | --- | --- | --- |
 | `field` | One value, with a primitive and constraints | [Field](#field) |
-| `entity` | A named group of field references | [Entity](#entity) |
+| `entity` | A named group of properties. Each property refers to a field or to a different entity | [Entity](#entity) |
 | `invariant` | A named rule over the fields of one entity | [Invariant](#invariant) |
 | `operation` | A handler contract: an input entity, an output entity and the declared errors | [Operation](#operation) |
 | `error` | A declared error: a named refusal of an operation | [Error](#error) |
@@ -81,7 +81,13 @@ order.field.delivery: { primitive: enum, values: [standard, express, "click & co
 
 ## Field reference
 
-A field reference is an item of the `fields` list of an entity or an error.
+A field reference is an item of the `fields` list of an entity or an error. Each field reference makes one property of the payload. It has one of three forms:
+
+| Form | The property holds | The parsed type of the property |
+| --- | --- | --- |
+| `ref: <field>` | A value of the field | The branded type of the field |
+| `ref: <entity>` | An embedded object of the entity, with its invariants | The parsed type of the entity |
+| `link: <entity>` | The value of the `key` of the entity | The branded type of the key field |
 
 ```yaml
 fields:
@@ -91,11 +97,29 @@ fields:
     many: { minItems: 1, maxItems: 50, unique: true }
 ```
 
+From the insurance domain:
+
+```yaml
+fields:
+  - ref: policy.field.policy_id
+  # The customer who holds the policy: the policy holds the customer's key.
+  - link: customer.entity.customer
+    as: holder
+  # Each peril at most once: a list of coverage objects, unique by their key.
+  - ref: policy.entity.coverage
+    as: coverages
+    many: { minItems: 1, maxItems: 3, unique: true }
+```
+
 | Property | Type | Necessary | Default | Rule |
 | --- | --- | --- | --- | --- |
-| `ref` | string | Yes | — | A short key of a field in this manifest. The pattern is `^[a-z][a-z0-9_]{0,62}\.[a-z]+\.[a-z][a-z0-9_]{0,62}$` |
+| `ref` | string | `ref` or `link` | — | A short key of a field or an entity in this manifest. The pattern is `^[a-z][a-z0-9_]{0,62}\.[a-z]+\.[a-z][a-z0-9_]{0,62}$`. A different kind causes `wrong-ref-kind` |
+| `link` | string | `ref` or `link` | — | A short key of an entity in this manifest, with a `key`. A different kind causes `wrong-ref-kind`. An entity with no `key` causes `missing-key` |
+| `as` | string | No | The identifier of the target | The property name. A URN segment: `^[a-z][a-z0-9_]{0,62}$`. Other values cause `invalid-value` |
 | `required` | boolean | No | `true` | `false` lets the key be absent from the payload |
-| `many` | `true`, or a mapping with `minItems`, `maxItems` and `unique` | No | None | The property holds a list of values of the field. Other values cause `invalid-value`: `must be true or { minItems, maxItems, unique }` |
+| `many` | `true`, or a mapping with `minItems`, `maxItems` and `unique` | No | None | The property holds a list of values. Other values cause `invalid-value`: `must be true or { minItems, maxItems, unique }` |
+
+A field reference has exactly one of `ref` and `link`. If not, the result is `invalid-value`: `must have either ref or link`.
 
 The mapping of `many` has these properties. Each one is optional:
 
@@ -103,15 +127,17 @@ The mapping of `many` has these properties. Each one is optional:
 | --- | --- | --- |
 | `minItems` | integer, 0 or more | The list has this number of items or more. `minItems: 0` lets the list be empty, as does no `minItems` |
 | `maxItems` | integer, 0 or more | The list has this number of items or fewer. If `minItems` is greater than `maxItems`, the result is `incoherent-constraints` |
-| `unique` | boolean | `true`: no value occurs two times in the list |
+| `unique` | boolean | `true`: no value occurs two times in the list. In a list of an embedded entity, no key occurs two times. The entity must then have a `key` (`missing-key`) |
 
 - `many: true` is a list of any length.
 - `required: false` lets the list be absent. An empty list is a different value: it is present, with no items.
 
-- The property name of the field in the payload is its identifier. `order.field.unit_cost` becomes the property `unit_cost`.
-- One list cannot refer to the same field two times (`duplicate-ref`).
-- One list cannot have two fields with the same identifier, for example `a.field.size` and `b.field.size` (`duplicate-property`).
-- The generated code keeps the fields in the sequence of the list.
+- The property name is the value of `as`. If there is no `as`, the property name is the identifier of the target. `order.field.unit_cost` becomes the property `unit_cost`.
+- One list cannot refer to the same target two times with the same name (`duplicate-ref`). Give one of them a different name with `as`.
+- One list cannot have two properties with the same name, for example `a.field.size` and `b.field.size` (`duplicate-property`). Change one name with `as`.
+- An embedded entity cannot embed, at any depth, the entity that embeds it (`embedding-cycle`). Links can make a cycle.
+- A link holds only the key value. urn-forge does not make sure that the linked object exists. The shell does that, with its store.
+- The generated code keeps the properties in the sequence of the list.
 
 ## Entity
 
@@ -121,10 +147,22 @@ order.entity.line_total:
   fields: [{ ref: order.field.total }]
 ```
 
+```yaml
+customer.entity.customer:
+  description: A person who holds policies
+  key: customer.field.customer_id
+  fields:
+    - ref: customer.field.customer_id
+    - ref: customer.field.name
+```
+
 | Property | Type | Necessary | Default | Rule |
 | --- | --- | --- | --- | --- |
 | `description` | string | Yes | — | Not empty |
+| `key` | string | No | None | A short key of a field. The entity must refer to this field with `ref`, with `required: true` and no `many` (pass 3, `invalid-entity-key`). A different kind causes `wrong-ref-kind` |
 | `fields` | A list of [field references](#field-reference) | Yes | — | One or more items |
+
+An entity needs a `key` only if a `link` names it, or if a list with `unique: true` embeds it. The key is the value that a link holds, and the value that `unique` compares.
 
 An entity does not list its invariants. Each invariant names its entity with `on`. An `invariants` key on an entity causes `unknown-property`.
 
@@ -146,9 +184,10 @@ policy.invariant.deductible_below_premium:
 | `message` | string | Yes | — | Not empty. The message of the issue if the rule does not hold. It has no placeholders |
 
 - An invariant holds for each value of its entity: the input of an operation, its output, or both.
-- A rule can name only fields of the `on` entity. It cannot name a different entity.
+- A rule can name only properties of the `on` entity. It cannot name a property of an embedded entity. The invariants of the embedded entity apply inside it.
 - A rule can use an optional field only after a guard, for example `deductible is absent or …`. If not, the result is `unguarded-field`.
-- A rule can use a list only in `is present` and `is absent`.
+- A rule can use a list or an embedded entity only in `is present` and `is absent`.
+- A rule compares a link as a value of the key field of the linked entity.
 - An entity can have more than one invariant. An invariant has one entity.
 - The generated schema of the entity examines each invariant. Refer to [The generated schemas](./generated-schemas).
 - Gate 3 needs a scenario that breaks each invariant of the input entity of an operation. Refer to [Verification gates](./verification-gates).
@@ -194,7 +233,7 @@ order.error.price_unavailable:
 | `message` | string | Yes | — | Not empty. A [message template](#message-template) |
 | `fields` | A list of [field references](#field-reference) | No | `[]` | Can be empty |
 
-- No field of an error can have the identifier `kind` (`reserved-property`). The payload of each error has the property `kind`, which contains the URN of the error.
+- No property of an error can have the name `kind` (`reserved-property`), from the identifier of its target or from `as`. The payload of each error has the property `kind`, which contains the URN of the error.
 - An error that no operation declares is correct.
 
 ### Message template
@@ -208,7 +247,7 @@ The `message` of an error is a template. A placeholder is `{` and `}` around one
 | `{ sku }` | No. The text stays as it is |
 | `{}` | No. The text stays as it is |
 
-Each placeholder must name a field of the error with `required: true` and no `many` (pass 6, `unknown-placeholder`). The generated runtime puts the value of the field in place of the placeholder.
+Each placeholder must name a property of the error with `required: true` and no `many` (pass 6, `unknown-placeholder`). The property can be a field or a link. It cannot be an embedded entity. The generated runtime puts the value of the field in place of the placeholder.
 
 ## Properties and kinds that urn-forge does not accept
 
@@ -217,14 +256,14 @@ Specification v1.1 has these properties and kinds. urn-forge 0.1.0 does not acce
 | Item | Where in the specification | Diagnostic in urn-forge 0.1.0 |
 | --- | --- | --- |
 | The kind `event` | A short key | `unsupported-kind` |
-| The primitives `list`, `record` and `ref` | `primitive` of a field | `unknown-primitive`. For a list, use `many` on the field reference |
+| The primitives `list`, `record` and `ref` | `primitive` of a field | `unknown-primitive`. For a list, use `many` on the field reference. For a different entity, use `ref` or `link` on the field reference. urn-forge does not have a `record` at this time |
 | The constraint `oneOf` | A `string` field | `unknown-property`, with the hint `for a fixed set of values, use primitive: enum with values: [ … ]` |
 | The constraint `notEqual` | A number field | `unknown-property`, with the hint `to exclude values, use notIn: [ … ]` |
 | The format `iso-date` | `format` of a `string` field | `invalid-value`: `must be one of uuid, email, uri`. Use the `date` primitive |
 | The constraint `precision` | A field | `unknown-property`. For a `decimal`, use `scale` and the range |
 | The constraints `after` and `before` | A field | `unknown-property`. For a `date` or a `timestamp`, use `min` and `max` |
 | `nullable` | A field reference | `unknown-property` |
-| `key` and `invariants` | An entity | `unknown-property`. An invariant names its entity with `on` |
+| `invariants` | An entity | `unknown-property`. An invariant names its entity with `on`. urn-forge accepts `key`, with a different use. Refer to [Entity](#entity) |
 | `emits` | An operation | `unknown-property` |
 | `recordAs` | An error | `invalid-value`: `needs the event kind, which urn-forge does not support yet` |
 | `status`, `supersededBy` and `sunsetDate` | Each atom | `unknown-property` |

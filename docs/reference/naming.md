@@ -76,7 +76,18 @@ Each atom has a brand identifier, also an invariant, an operation and an error. 
 
 ## Property names
 
-In an entity or an error, the property name of a field is the identifier of the field, with no change. `order.field.unit_cost` is the property `unit_cost`. The property names are the table headers in the feature files and the field names in an invariant rule.
+In an entity or an error, each field reference makes one property. The property name is the value of `as` on the field reference. If there is no `as`, the property name is the identifier of the target, with no change:
+
+| Field reference | Property name |
+| --- | --- |
+| `ref: order.field.unit_cost` | `unit_cost` |
+| `ref: policy.entity.coverage` | `coverage` |
+| `ref: policy.entity.coverage`, `as: coverages` | `coverages` |
+| `link: customer.entity.customer`, `as: holder` | `holder` |
+
+- `as` has the form of an identifier: `^[a-z][a-z0-9_]{0,62}$`. If not, the result is `invalid-value`.
+- Use `as` if two references would make the same name, for example two links to one entity. Use it also if a different name is clearer, for example `coverages` for a list.
+- The property names are the table headers in the feature files and the field names in an invariant rule. They are also the names in an object cell.
 
 ## Generated export names
 
@@ -93,7 +104,7 @@ In an entity or an error, the property name of a field is the identifier of the 
 
 ## The reserved property `kind`
 
-The payload of each error has the property `kind`. Its value is the URN of the error, for example `kind: "urn:demo:shop:order:error:price_unavailable"`. As a result, no field of an error can have the identifier `kind` (`reserved-property`). A field with the identifier `kind` is correct in an entity.
+The payload of each error has the property `kind`. Its value is the URN of the error, for example `kind: "urn:demo:shop:order:error:price_unavailable"`. As a result, no property of an error can have the name `kind` (`reserved-property`), from the identifier of its target or from `as`. A field with the identifier `kind` is correct in an entity, and in an error if `as` gives it another name.
 
 ## Collisions
 
@@ -103,9 +114,9 @@ urn-forge reports these name collisions. Each one is an error.
 | --- | --- | --- | --- |
 | `duplicate-key` | YAML | A top-level key occurs two times | `order.field.quantity` two times |
 | `duplicate-brand` | 3 | Two atoms have the same brand identifier | `geo_metry.field.radius` and `geo.field.metry_radius` |
-| `duplicate-property` | 3 | Two fields in one entity or error have the same identifier | `a.field.size` and `b.field.size` in one entity |
-| `duplicate-ref` | 3 | One list refers to the same atom two times | The same field two times in `fields`, or the same error two times in `errors` |
-| `reserved-property` | 3 | A field of an error has the identifier `kind` | `order.field.kind` in the `fields` of an error |
+| `duplicate-property` | 3 | Two properties of one entity or error from two different targets have the same name | `a.field.size` and `b.field.size` in one entity, with no `as` |
+| `duplicate-ref` | 3 | One list refers to the same atom two times with the same name | The same field two times in `fields`, two links to one entity with no `as`, or the same error two times in `errors` |
+| `reserved-property` | 3 | A property of an error has the name `kind` | `order.field.kind` in the `fields` of an error without `as`, or `as: kind` |
 | `export-collision` | Valibot plugin | A generated export name of one atom is the same as an export name of a different atom. The `<Brand>Rule` of an invariant is part of this check | `geometry.field.radius_input` exports `GeometryRadiusInput`, which is also the input type of `geometry.field.radius`. `p.invariant.term` exports `PTermRule`, which is also the output type of `p.field.term_rule` |
 
 For `duplicate-brand`, urn-forge reports the atom that is second in URN order. For the messages, refer to [Diagnostics](./diagnostics).

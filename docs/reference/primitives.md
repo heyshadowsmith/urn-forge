@@ -25,7 +25,7 @@ The set is MECE: each kind of value has one primitive, and each constraint restr
 - The output type of each field schema is the TypeScript type with a brand: `v.InferOutput` of the schema. The input type has no brand. Refer to [The generated schemas](./generated-schemas).
 - A list of values is not a primitive. A field reference with `many` makes a list. Refer to [The manifest](./manifest).
 
-urn-forge 0.1.0 does not have the primitives `record` and `ref` at this time. Refer to [Scope](./scope).
+urn-forge 0.1.0 does not have the primitives `record` and `ref`. A field reference with `ref` to an entity embeds the entity, and a field reference with `link` points at an entity by its key. urn-forge does not have a `record` at this time. Refer to [Scope](./scope).
 
 ## Aspects
 
@@ -215,7 +215,8 @@ The [Gherkin steps](./gherkin-steps) and gate 3 change each cell of a table to a
 - A cell that does not become the type of the primitive stays a string. The schema of the field then rejects it. As a result, a scenario can send an incorrect value, for example `abc` to a `float` field.
 - A `decimal` cell stays text, so it keeps each digit. The output step compares it as text: `"250.00"` is not equal to `"250"`.
 - To send an empty string to a `string` field, write `""`. An empty cell sends no value.
-- A cell for a list is `[a, b, c]`. Each item is a cell of the field's primitive, and `[]` is the empty list. A cell without the brackets stays text, so the schema rejects it. An item cannot contain a comma.
+- A cell for a list is `[a, b, c]`, and `[]` is the empty list. A cell for an embedded entity is an object, for example `{ peril: fire, limit: 1000.00 }`. The steps convert each value in a list or an object with the primitive of its field, as this table shows. To put a comma, a bracket, a brace or a double quote in a value, write the value as a JSON string literal, for example `"Smith, Ada"`. A cell without the brackets stays text, so the schema rejects it. For the full syntax, refer to [Gherkin steps](./gherkin-steps).
+- A cell for a link has the value of the key field of the linked entity, with the primitive of the key field.
 
 ## Boundary cases
 

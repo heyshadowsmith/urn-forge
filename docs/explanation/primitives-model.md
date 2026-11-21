@@ -17,10 +17,28 @@ The model gives each question to one layer:
 | Layer | Question |
 | --- | --- |
 | The field, with its primitive and constraints | What is one value, and which values are allowed? |
-| The field reference in an entity or an error | Is the value present, and how many values are there? |
+| The field reference in an entity or an error | What does the property hold, is it present, and how many values are there? |
 | The invariant, with its rule over the fields of one entity | Which combinations of fields are allowed? |
 
 Thus a field never says how many values there are. A list is `many` on the field reference, not a `list` primitive. A list of integers is a list on one axis and an integer on the other axis, so a single primitive cannot be both. The same field can be one value in one entity and a list in another entity.
+
+## Structure on the field reference
+
+A real domain also needs a property that holds a different entity, and a property that points at a different entity. An order holds its lines, and it names its customer. This is structure, so it goes on the same axis as `many`: the field reference. A primitive still says what one value is. The field reference says what a property holds:
+
+| Field reference | The property holds |
+| --- | --- |
+| `ref: <field>` | A value of the field |
+| `ref: <entity>` | An embedded object of the entity |
+| `link: <entity>` | The value of the `key` of the entity |
+
+`required`, `many` and `as` apply to each form in the same way. Thus a list of coverages is `many` on `ref: policy.entity.coverage`, and no new rule is necessary for it.
+
+The specification had `list`, `record` and `ref` as primitives. A `ref` primitive would put a second axis into the primitive layer. A field would then say what one value is and also what it points at. Two spellings would follow: a `ref` field in an entity, and a field reference to an entity. The model keeps one spelling.
+
+A link is a value. It has the type and the brand of the key field, so a rule compares it as that primitive, and coverage counts it as that field. An embedded object is not a value. A rule can only ask whether it is there. The invariants of the embedded entity say what it allows, and they run inside each object.
+
+A link can make a cycle, because a cycle of values is data. An embedding cannot make a cycle, because the type of the object would never end. Pass 5 refuses it (`embedding-cycle`).
 
 ## The third layer: invariants
 
@@ -83,7 +101,7 @@ Collectively exhaustive means exhaustive for single values that a domain sends a
 | An integer larger than 2⁵³ | A `string` with a `regex` |
 | Binary data | Not covered |
 
-Nested entities, `ref` to another entity and `record` are structure, like lists. They need their own decisions. Refer to [Scope](../reference/scope).
+A map from keys to values (`record` in the specification) is structure too. urn-forge does not have it at this time. A list of entities with a `key` covers the cases that the domains of this repository have. Refer to [Scope](../reference/scope).
 
 ## The cost
 

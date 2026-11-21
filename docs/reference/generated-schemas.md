@@ -49,7 +49,7 @@ For the reasons for the fingerprint, refer to [Determinism and the fingerprint](
 | 5 | `// Entities`, then one declaration for each entity. The rule functions of the invariants of an entity are part of its declaration | Always. The comment is there also if the manifest has no entities |
 | 6 | `// Errors`, then one declaration for each error | Only if the manifest has one or more errors |
 
-In the groups of fields, entities and errors, the declarations are in URN sequence. The sort compares UTF-16 code units, not the rules of a locale. An empty line comes between two declarations. The properties of an entity or an error are in the sequence of its `fields` list in the manifest.
+In the groups of fields, entities and errors, the declarations are in URN sequence. The sort compares UTF-16 code units, not the rules of a locale. There is one exception: an entity comes after each entity that it embeds, because its schema uses their schemas. In the insurance domain, `coverage` thus comes before `policy`. An empty line comes between two declarations. The properties of an entity or an error are in the sequence of its `fields` list in the manifest.
 
 ## Helpers
 
@@ -169,8 +169,8 @@ export const <Brand>Schema = v.object({
 
 | Item | Rule |
 | --- | --- |
-| Property name | The identifier of the field, which is the last segment of its URN. For example, `urn:demo:shop:order:field:unit_cost` becomes `unit_cost` |
-| Property value | The schema of the field |
+| Property name | The `as` of the reference. If there is no `as`, the identifier of the target, which is the last segment of its URN. For example, `urn:demo:shop:order:field:unit_cost` becomes `unit_cost` |
+| Property value | The schema of the target. Refer to the table that follows |
 | `required: false` | The plugin puts the field schema in `v.optional(…)`. The key can then be absent, or its value can be `undefined` |
 | `many` | The property holds a list. Refer to [List properties](#list-properties) |
 | Sequence | The sequence of the `fields` list of the entity in the manifest |
@@ -182,6 +182,23 @@ export const OrderLineTotalSchema = v.object({
   total: OrderTotalSchema,
 });
 ```
+
+The property value comes from the form of the reference:
+
+| Reference | Property value | Parsed type of the property |
+| --- | --- | --- |
+| `ref: <field>` | `<Field brand>Schema`, the schema of the field | The branded type of the field |
+| `ref: <entity>` | `<Entity brand>Schema`, the schema of the embedded entity, with its invariants | The parsed type of the entity |
+| `link: <entity>` | `<Key field brand>Schema`, the schema of the `key` field of the linked entity | The branded type of the key field |
+
+In the insurance domain, `holder` is a link to `customer`, whose key is `customer_id`. `coverages` is a list of the embedded entity `coverage`:
+
+```ts
+  holder: CustomerCustomerIdSchema,
+  coverages: v.pipe(v.array(PolicyCoverageSchema), v.minLength(1), v.maxLength(3), v.check((list) => new Set(list.map((item) => item.peril)).size === list.length, 'Invalid items: Expected no peril more than once')),
+```
+
+A link has the brand of the key field. Thus `tsc` accepts a `customer_id` of a customer as the value of `holder`, and refuses an identifier of a different entity. The schema does not make sure that the customer exists.
 
 ### Entities with invariants
 
@@ -212,11 +229,15 @@ export const <Brand>Schema = v.pipe(
 
 The checks of the invariants run only if each property of the object is valid. If a field schema refuses a value, the payload gets only the issues of the fields. If the fields are valid, each invariant runs, and each rule that does not hold gives one issue.
 
+An embedded entity keeps its invariants, because its property value is its schema. They run inside each embedded object, and the issue has the nested path, for example `coverages.1.limit`.
+
 The `policy` entity of the insurance domain has two invariants:
 
 ```ts
 const PolicyPolicyFields = v.object({
   policy_id: PolicyPolicyIdSchema,
+  holder: CustomerCustomerIdSchema,
+  coverages: v.pipe(v.array(PolicyCoverageSchema), v.minLength(1), v.maxLength(3), v.check((list) => new Set(list.map((item) => item.peril)).size === list.length, 'Invalid items: Expected no peril more than once')),
   effective_date: PolicyEffectiveDateSchema,
   expiry_date: PolicyExpiryDateSchema,
   premium: PolicyPremiumSchema,
@@ -236,7 +257,7 @@ export const PolicyPolicySchema = v.pipe(
 );
 ```
 
-These issues come from a real parse with `PolicyPolicySchema`. Each payload has a valid `policy_id`, `effective_date: '2026-06-01'` and `premium: '120.00'`:
+These issues come from a real parse with `PolicyPolicySchema`. Each payload has a valid `policy_id`, `holder` and `coverages`, `effective_date: '2026-06-01'` and `premium: '120.00'`:
 
 | `expiry_date` | `deductible` | Issues, as path and message |
 | --- | --- | --- |
@@ -246,9 +267,19 @@ These issues come from a real parse with `PolicyPolicySchema`. Each payload has 
 
 With `premium: '0'` and `expiry_date: '2026-05-31'`, the only issue is `premium`: `Invalid value: Expected >0`. The field schema refused the premium, so the invariants did not run.
 
+These issues come from a real parse with different `coverages`. Each payload is otherwise valid, with `effective_date: '2026-01-01'` and `expiry_date: '2026-12-31'`:
+
+| `coverages` | Issues, as path and message |
+| --- | --- |
+| `[{ peril: 'fire', limit: '0' }]` | `coverages.0.limit`: `The limit of a coverage must be more than 0` |
+| `[{ peril: 'fire', limit: '1' }, { peril: 'flood', limit: '0' }]` | `coverages.1.limit`: `The limit of a coverage must be more than 0` |
+| `[{ peril: 'fire', limit: '1' }, { peril: 'fire', limit: '2' }]` | `coverages`: `Invalid items: Expected no peril more than once` |
+| `[{ peril: 'hail', limit: '1' }]` | `coverages.0.peril`: `Invalid type: Expected ("fire" \| "flood" \| "theft") but received "hail"` |
+| `[]` | `coverages`: `Invalid length: Expected >=1 but received 0` |
+
 ### List properties
 
-If the field reference has `many`, the property value is a `v.array` of the field schema. `v.optional(…)` goes around the list, not around each item.
+If the reference has `many`, the property value is a `v.array` of the schema of one value: the field schema, the key field schema of a link, or the schema of an embedded entity. `v.optional(…)` goes around the list, not around each item.
 
 | `many` | Property value |
 | --- | --- |
@@ -256,8 +287,9 @@ If the field reference has `many`, the property value is a `v.array` of the fiel
 | `{ minItems: <n> }` | `v.pipe(v.array(<Field brand>Schema), v.minLength(<n>))` |
 | `{ maxItems: <n> }` | `v.pipe(v.array(<Field brand>Schema), v.maxLength(<n>))` |
 | `{ unique: true }` | `v.pipe(v.array(<Field brand>Schema), v.check((list) => new Set(list).size === list.length, 'Invalid items: Expected no value more than once'))` |
+| `{ unique: true }` on a list of an embedded entity | `v.pipe(v.array(<Entity brand>Schema), v.check((list) => new Set(list.map((item) => item.<key>)).size === list.length, 'Invalid items: Expected no <key> more than once'))`. `<key>` is the property name of the `key` field of the entity |
 
-If `many` has more than one key, the actions are in the sequence `minItems`, `maxItems`, `unique`. `unique` compares the values with `===`, as they come in. Thus the `decimal` values `"1.10"` and `"1.1"` are two different values.
+If `many` has more than one key, the actions are in the sequence `minItems`, `maxItems`, `unique`. `unique` compares the values with `===`, as they come in. Thus the `decimal` values `"1.10"` and `"1.1"` are two different values. On a list of embedded objects, `unique` compares only the key of each object.
 
 ```ts
 /** urn:demo:kinds:value:entity:lists — Lists of field values */
@@ -270,7 +302,7 @@ export const ValueListsSchema = v.object({
 
 ## Error schemas
 
-Each error becomes one `v.object`. Its first property is `kind`. Then the fields of the error follow, with the same rules as for an entity:
+Each error becomes one `v.object`. Its first property is `kind`. Then the properties of the error follow, with the same rules as for an entity. An error property can also be a link or an embedded entity:
 
 ```ts
 /** <error URN> — <description> */
@@ -282,7 +314,7 @@ export const <Brand>Schema = v.object({
 
 - The type of `kind` is the URN of the error as a string literal, not `string`.
 - An error with no fields has only the `kind` property.
-- No field of an error can have the identifier `kind`. Pass 3 gives `reserved-property`. Refer to [Diagnostics](./diagnostics).
+- No property of an error can have the name `kind`. Pass 3 gives `reserved-property`. Refer to [Diagnostics](./diagnostics).
 - The `category`, `retryable` and `message` of the error are not in this file. They are in `DispatchMap` in the runtime file.
 
 ```ts
