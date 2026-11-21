@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { Description } from '../grammar.js';
 import { ERROR_CATEGORIES, type IRError, type MessagePart } from '../ir/types.js';
-import { FIELDS_SLOT, FieldRef, buildFieldRefs } from './field-refs.js';
+import { FIELDS_SLOT, FieldRef, LINKS_SLOT, buildFieldRefs } from './field-refs.js';
 import { defineKind } from './types.js';
 
 const ErrorSchema = v.strictObject({
@@ -48,7 +48,7 @@ export const error = defineKind<ErrorDecl, IRError>()({
   group: 'errors',
   article: 'an',
   schema: ErrorSchema,
-  references: [FIELDS_SLOT],
+  references: [FIELDS_SLOT, LINKS_SLOT],
   build(context) {
     const { atom, shortKey, decl, report } = context;
     const fields = buildFieldRefs(context as never, decl.fields);
@@ -71,7 +71,7 @@ export const error = defineKind<ErrorDecl, IRError>()({
     for (const part of message) {
       if (!('field' in part)) continue;
       const field = fields.find((f) => f.name === part.field);
-      if (!field || !field.required || field.many) {
+      if (!field || !field.required || field.many || 'entity' in field) {
         report({
           code: 'unknown-placeholder',
           urn: atom.urn,
@@ -81,6 +81,8 @@ export const error = defineKind<ErrorDecl, IRError>()({
               ? 'names no field of the error'
               : field.many
                 ? 'names a list; placeholders must name single values'
+                : 'entity' in field
+                  ? 'names an embedded entity; placeholders must name single values'
                 : 'names an optional field; placeholders must name required fields') +
             ` (required fields: ${required.length > 0 ? required.join(', ') : 'none'})`,
           path: [shortKey, 'message'],

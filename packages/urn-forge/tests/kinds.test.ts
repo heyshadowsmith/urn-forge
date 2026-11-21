@@ -29,14 +29,21 @@ describe('kind registry', () => {
   it('declares where each kind makes references, and what they may name', () => {
     expect(Object.fromEntries(KIND_NAMES.map((k) => [k, KINDS[k].references]))).toEqual({
       field: [],
-      entity: [{ path: ['fields', '*', 'ref'], targets: ['field'] }],
+      entity: [
+        { path: ['fields', '*', 'ref'], targets: ['field', 'entity'] },
+        { path: ['fields', '*', 'link'], targets: ['entity'] },
+        { path: ['key'], targets: ['field'] },
+      ],
       invariant: [{ path: ['on'], targets: ['entity'] }],
       operation: [
         { path: ['input'], targets: ['entity'] },
         { path: ['output'], targets: ['entity'] },
         { path: ['errors', '*'], targets: ['error'] },
       ],
-      error: [{ path: ['fields', '*', 'ref'], targets: ['field'] }],
+      error: [
+        { path: ['fields', '*', 'ref'], targets: ['field', 'entity'] },
+        { path: ['fields', '*', 'link'], targets: ['entity'] },
+      ],
     });
   });
 
@@ -72,8 +79,8 @@ describe('referenceOccurrences', () => {
   it('expands list wildcards into concrete paths and labels', () => {
     const decl = { description: 'x', fields: [{ ref: 'a.field.b', required: true }, { ref: 'a.field.c', required: false }] };
     expect(referenceOccurrences(slots, decl)).toEqual([
-      { path: ['fields', 0, 'ref'], label: 'fields[0].ref', shortKey: 'a.field.b', targets: ['field'] },
-      { path: ['fields', 1, 'ref'], label: 'fields[1].ref', shortKey: 'a.field.c', targets: ['field'] },
+      { path: ['fields', 0, 'ref'], label: 'fields[0].ref', shortKey: 'a.field.b', targets: ['field', 'entity'] },
+      { path: ['fields', 1, 'ref'], label: 'fields[1].ref', shortKey: 'a.field.c', targets: ['field', 'entity'] },
     ]);
   });
 
@@ -97,7 +104,7 @@ describe('generic passes', () => {
       'a.field.b: { primitive: float }\n' +
       'a.entity.c:\n' +
       '  description: C\n' +
-      '  fields: [{ ref: a.field.missing }, { ref: a.entity.c }]\n' +
+      '  fields: [{ ref: a.field.missing }, { link: a.field.b }]\n' +
       'a.operation.d:\n' +
       '  description: D\n' +
       '  input: a.field.b\n' +

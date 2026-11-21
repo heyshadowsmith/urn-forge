@@ -39,7 +39,14 @@ export const invariant = defineKind<InvariantDecl, IRInvariant>()({
     if (!entity) return undefined; // pass 4 reported the reference
     const fields: Record<string, RuleField> = {};
     for (const ref of entity.fields) {
-      const field = node('field', ref.field) as IRField | undefined;
+      if ('entity' in ref) {
+        // An embedded object has no value to compare; a rule can only ask whether it is there.
+        fields[ref.name] = { primitive: 'string', required: ref.required, many: ref.many !== undefined, embedded: true };
+        continue;
+      }
+      // A link compares as its target's key.
+      const fieldUrn = 'field' in ref ? ref.field : (node('entity', ref.link) as IREntity | undefined)?.key;
+      const field = fieldUrn && (node('field', fieldUrn) as IRField | undefined);
       if (!field) continue;
       const values = field.primitive === 'enum' ? (field.constraints['values'] as readonly string[] | undefined) : undefined;
       fields[ref.name] = { primitive: field.primitive, required: ref.required, many: ref.many !== undefined, ...(values ? { values } : {}) };

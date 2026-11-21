@@ -15,7 +15,7 @@
       "column": 9,
       "line": 45
     },
-    "message": "urn:acme:rules:policy:invariant:list_value: rule: \"riders\" is a list; a rule can use a list only in \"riders is present\" or \"riders is absent\" (at column 1 of the rule)",
+    "message": "urn:acme:rules:policy:invariant:list_value: rule: \"riders\" is a list; a rule can use it only in \"riders is present\" or \"riders is absent\" (at column 1 of the rule)",
     "severity": "error",
     "urn": "urn:acme:rules:policy:invariant:list_value"
   },

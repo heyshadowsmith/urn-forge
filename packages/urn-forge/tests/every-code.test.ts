@@ -145,7 +145,11 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'reserved-property': () => manifest('a.field.kind: { primitive: string }\na.error.e:\n  description: d\n  category: precondition\n  retryable: false\n  message: m\n  fields:\n    - ref: a.field.kind\n'),
   // Pass 4
   'unresolved-ref': () => manifest('a.entity.e:\n  description: d\n  fields:\n    - ref: a.field.nope\n'),
-  'wrong-ref-kind': () => manifest('a.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\na.entity.f:\n  description: d\n  fields:\n    - ref: a.entity.e\n'),
+  'wrong-ref-kind': () => manifest('a.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - link: a.field.x\n'),
+  'invalid-entity-key': () => manifest('a.field.x: { primitive: float }\na.field.y: { primitive: float }\na.entity.e:\n  description: d\n  key: a.field.y\n  fields:\n    - ref: a.field.x\n'),
+  'missing-key': () => manifest('a.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\na.entity.f:\n  description: d\n  fields:\n    - link: a.entity.e\n'),
+  'embedding-cycle': () => manifest('a.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n    - ref: a.entity.f\na.entity.f:\n  description: d\n  fields:\n    - ref: a.entity.e\n'),
+  'invalid-cell': () => gate3(scenario('    When I run the operation with:\n      | policy_id | holder | effective_date | expiry_date | premium | coverages |\n      | 123e4567-e89b-12d3-a456-426614174000 | 9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d | 2026-01-01 | 2026-12-31 | 1.00 | [{ peril: fire, limit: 1 } |\n', ISSUE), 'warn', insurance),
   // Pass 6
   'unknown-placeholder': () => manifest('a.error.e:\n  description: d\n  category: precondition\n  retryable: false\n  message: no {thing}\n'),
   // Pass 6: invariant rules

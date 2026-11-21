@@ -10,7 +10,7 @@
  * group declarations follow URN order.
  */
 import * as v from 'valibot';
-import { invariantsOf, type IREntity, type IRError, type IRField, type IRFieldRef, type ListRule, type UniversalIR, type Urn } from '../ir/types.js';
+import { invariantsOf, valueField, type IREntity, type IRError, type IRField, type IRPropertyRef, type ListRule, type UniversalIR, type Urn } from '../ir/types.js';
 import { ruleName, schemaNames } from '../naming.js';
 import { firstField } from '../rules/index.js';
 import { emitRule } from '../rules/emit.js';
@@ -162,26 +162,70 @@ function fieldDeclaration(field: IRField): string {
   ].join('\n');
 }
 
-/** One `  name: <FieldSchema>,` line per field reference; `required: false` wraps it in `v.optional`. */
-function propertyLines(owner: Urn, refs: readonly IRFieldRef[], fields: Readonly<Record<Urn, IRField>>): string[] {
+/**
+ * One `  name: <schema>,` line per property: a field's schema, the linked entity's key field
+ * schema, or the embedded entity's schema. `required: false` wraps it in `v.optional`.
+ */
+function propertyLines(owner: Urn, refs: readonly IRPropertyRef[], ir: UniversalIR): string[] {
   return refs.map((ref) => {
-    const field = fields[ref.field];
-    if (!field) throw new Error(`IR is not resolved: ${owner} references missing ${ref.field}`);
-    const item = schemaNames(field.brandIdentifier).schema;
-    const schema = ref.many ? listSchema(item, ref.many) : item;
+    const item = itemSchema(owner, ref, ir);
+    const schema = ref.many ? listSchema(item, ref.many, uniqueKey(ref, ir)) : item;
     return `  ${ref.name}: ${ref.required ? schema : `v.optional(${schema})`},`;
   });
 }
 
-/** A list of a field's values: `v.array`, with its item count and uniqueness. */
-function listSchema(item: string, rule: ListRule): string {
+/** The schema of one value of a property. */
+function itemSchema(owner: Urn, ref: IRPropertyRef, ir: UniversalIR): string {
+  if ('entity' in ref) {
+    const entity = ir.entities[ref.entity];
+    if (!entity) throw new Error(`IR is not resolved: ${owner} embeds missing ${ref.entity}`);
+    return schemaNames(entity.brandIdentifier).schema;
+  }
+  const fieldUrn = valueField(ir, ref);
+  const field = fieldUrn && ir.fields[fieldUrn];
+  if (!field) throw new Error(`IR is not resolved: ${owner} has no field for property ${ref.name}`);
+  return schemaNames(field.brandIdentifier).schema;
+}
+
+/** For a unique list of an embedded entity: the property name of its key, which uniqueness compares. */
+function uniqueKey(ref: IRPropertyRef, ir: UniversalIR): string | undefined {
+  if (!('entity' in ref) || !ref.many?.unique) return undefined;
+  const entity = ir.entities[ref.entity]!;
+  return entity.fields.find((f) => 'field' in f && f.field === entity.key)!.name;
+}
+
+/** A list: `v.array`, with its item count and uniqueness (of the values, or of each object's key). */
+function listSchema(item: string, rule: ListRule, key?: string): string {
+  const unique =
+    key === undefined
+      ? // Values are compared as they cross the boundary (===), so "1.10" and "1.1" are two values.
+        "v.check((list) => new Set(list).size === list.length, 'Invalid items: Expected no value more than once')"
+      : `v.check((list) => new Set(list.map((item) => item.${key})).size === list.length, 'Invalid items: Expected no ${key} more than once')`;
   const actions = [
     ...(rule.minItems === undefined ? [] : [`v.minLength(${numberLiteral(rule.minItems)})`]),
     ...(rule.maxItems === undefined ? [] : [`v.maxLength(${numberLiteral(rule.maxItems)})`]),
-    // Values are compared as they cross the boundary (===), so "1.10" and "1.1" are two values.
-    ...(rule.unique ? ["v.check((list) => new Set(list).size === list.length, 'Invalid items: Expected no value more than once')"] : []),
+    ...(rule.unique ? [unique] : []),
   ];
   return actions.length === 0 ? `v.array(${item})` : `v.pipe(v.array(${item}), ${actions.join(', ')})`;
+}
+
+/** The primitive of a property that a rule names: its field's, or its linked key's. */
+function primitiveIn(entity: IREntity, ir: UniversalIR) {
+  return (name: string) => ir.fields[valueField(ir, entity.fields.find((f) => f.name === name)!)!]!.primitive;
+}
+
+/** Entities in URN order, except that an entity comes after each entity it embeds. */
+function entitiesInDependencyOrder(ir: UniversalIR): IREntity[] {
+  const ordered: IREntity[] = [];
+  const placed = new Set<Urn>();
+  const place = (entity: IREntity) => {
+    if (placed.has(entity.urn)) return;
+    placed.add(entity.urn);
+    for (const ref of entity.fields) if ('entity' in ref && ir.entities[ref.entity]) place(ir.entities[ref.entity]!);
+    ordered.push(entity);
+  };
+  for (const entity of valuesInUrnOrder(ir.entities)) place(entity);
+  return ordered;
 }
 
 function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
@@ -191,7 +235,7 @@ function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
     return [
       `/** ${entity.urn} — ${entity.description} */`,
       `export const ${names.schema} = v.object({`,
-      ...propertyLines(entity.urn, entity.fields, ir.fields),
+      ...propertyLines(entity.urn, entity.fields, ir),
       `});`,
       ...typeExports(entity.brandIdentifier),
     ].join('\n');
@@ -199,10 +243,10 @@ function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
   // With invariants (spec §7.1): the object, then one exported rule for each invariant, then
   // the schema, whose checks point at the first field each rule names (v.forward).
   const object = `${entity.brandIdentifier}Fields`;
-  const primitiveOf = (name: string) => ir.fields[entity.fields.find((f) => f.name === name)!.field]!.primitive;
+  const primitiveOf = primitiveIn(entity, ir);
   return [
     `const ${object} = v.object({`,
-    ...propertyLines(entity.urn, entity.fields, ir.fields),
+    ...propertyLines(entity.urn, entity.fields, ir),
     `});`,
     ...invariants.map((invariant) =>
       [
@@ -226,13 +270,13 @@ function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
  * An error payload (spec §7.1): its fields, plus `kind`, a literal of the error URN, so
  * callers can switch on it exhaustively. The error kind reserves `kind` as a property name.
  */
-function errorDeclaration(error: IRError, fields: Readonly<Record<Urn, IRField>>): string {
+function errorDeclaration(error: IRError, ir: UniversalIR): string {
   const names = schemaNames(error.brandIdentifier);
   return [
     `/** ${error.urn} — ${error.description} */`,
     `export const ${names.schema} = v.object({`,
     `  kind: v.literal(${JSON.stringify(error.urn)}),`,
-    ...propertyLines(error.urn, error.fields, fields),
+    ...propertyLines(error.urn, error.fields, ir),
     `});`,
     ...typeExports(error.brandIdentifier),
   ].join('\n');
@@ -245,8 +289,7 @@ function helpersFor(ir: UniversalIR): ValibotHelper[] {
     for (const helper of TRANSLATIONS[field.primitive].helpers ?? []) for (const need of HELPER_NEEDS[helper]) needed.add(need);
   }
   for (const invariant of Object.values(ir.invariants ?? {})) {
-    const entity = ir.entities[invariant.on]!;
-    const primitiveOf = (name: string) => ir.fields[entity.fields.find((f) => f.name === name)!.field]!.primitive;
+    const primitiveOf = primitiveIn(ir.entities[invariant.on]!, ir);
     for (const helper of emitRule(invariant.rule, primitiveOf).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
   }
   return (Object.keys(VALIBOT_HELPERS) as ValibotHelper[]).filter((name) => needed.has(name));
@@ -303,9 +346,9 @@ export const valibotPlugin: CodegenPlugin<ValibotPluginConfig> = {
       `// Fields`,
       ...valuesInUrnOrder(ir.fields).map(fieldDeclaration),
       `// Entities`,
-      ...valuesInUrnOrder(ir.entities).map((entity) => entityDeclaration(entity, ir)),
+      ...entitiesInDependencyOrder(ir).map((entity) => entityDeclaration(entity, ir)),
       ...(Object.keys(ir.errors).length > 0
-        ? [`// Errors`, ...valuesInUrnOrder(ir.errors).map((error) => errorDeclaration(error, ir.fields))]
+        ? [`// Errors`, ...valuesInUrnOrder(ir.errors).map((error) => errorDeclaration(error, ir))]
         : []),
     ];
     if (diagnostics.length > 0) return { artifacts: [], diagnostics };

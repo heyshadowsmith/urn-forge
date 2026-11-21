@@ -58,12 +58,25 @@ export interface DomainCoreImplementation {
 // Dispatch
 
 export interface FieldInfo {
+  /** The field whose values the property holds; for a link, the linked entity's key field. */
   readonly urn: string;
   readonly primitive: 'boolean' | 'date' | 'decimal' | 'enum' | 'float' | 'integer' | 'string' | 'timestamp';
   readonly required: boolean;
   /** The property holds a list of the field's values. */
   readonly many?: true;
+  /** The entity that a link points at, by its key. */
+  readonly link?: string;
 }
+
+/** A property that holds an embedded entity: its properties, nested. */
+export interface EmbeddedInfo {
+  readonly entity: string;
+  readonly required: boolean;
+  readonly many?: true;
+  readonly fields: Readonly<Record<string, PropertyInfo>>;
+}
+
+export type PropertyInfo = FieldInfo | EmbeddedInfo;
 
 export interface InvariantInfo {
   readonly urn: string;
@@ -74,7 +87,7 @@ export interface InvariantInfo {
 export interface EntityContract {
   readonly schema: v.GenericSchema;
   /** Keyed by property name, in declaration order. */
-  readonly fields: Readonly<Record<string, FieldInfo>>;
+  readonly fields: Readonly<Record<string, PropertyInfo>>;
   /** The invariants of the entity, when it has any. */
   readonly invariants?: readonly InvariantInfo[];
 }
@@ -132,9 +145,9 @@ export const DispatchMap = {
 export type OperationUrn = keyof DomainCoreImplementation;
 
 export interface BoundaryIssue {
-  /** Dot path into the payload, e.g. `divisor`; empty for the payload as a whole. */
+  /** Dot path into the payload, e.g. `divisor` or `coverages.1.limit`; empty for the payload as a whole. */
   readonly path: string;
-  /** URN of the field the issue is about, when the path starts at a declared field. */
+  /** URN of the field the issue is about: the deepest declared field on the path, if any. */
   readonly fieldUrn?: string;
   /** URN of the invariant that does not hold, when the issue comes from one. */
   readonly invariantUrn?: string;
@@ -189,8 +202,20 @@ export type ExecuteResult<U extends OperationUrn = OperationUrn> =
 function boundaryIssues(issues: readonly v.BaseIssue<unknown>[], contract: EntityContract): BoundaryIssue[] {
   return issues.map((issue) => {
     const path = v.getDotPath(issue) ?? '';
-    const head = path.split('.')[0] ?? '';
-    const field = Object.hasOwn(contract.fields, head) ? contract.fields[head] : undefined;
+    // Walk the path through embedded entities to the deepest field it names; list indexes do not name one.
+    let properties: Readonly<Record<string, PropertyInfo>> | undefined = contract.fields;
+    let field: FieldInfo | undefined;
+    for (const segment of path.split('.')) {
+      if (/^[0-9]+$/.test(segment) || !properties) continue;
+      const info: PropertyInfo | undefined = Object.hasOwn(properties, segment) ? properties[segment] : undefined;
+      if (!info) break;
+      if ('entity' in info) {
+        properties = info.fields;
+      } else {
+        field = info;
+        break;
+      }
+    }
     // A check issue keeps the function that failed; an invariant's rule is one such function.
     const requirement = (issue as { readonly requirement?: unknown }).requirement;
     const invariant = contract.invariants?.find((candidate) => candidate.rule === requirement);

@@ -38,7 +38,8 @@
 
 import { failsWithUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
 import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
-import { invariantsOf, type UniversalIR, type Urn } from '../ir/types.js';
+import { valueField, type UniversalIR, type Urn } from '../ir/types.js';
+import { invariantsWithin, keyName } from './shapes.js';
 import { listBoundaries } from '../kinds/field-refs.js';
 import { boundaryCases } from '../primitives/index.js';
 import { inputValues } from './input-values.js';
@@ -233,7 +234,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   // Invariant coverage: each invariant of a tagged operation's input needs a scenario that breaks it.
   let inputInvariants = 0;
   for (const operation of Object.values(ir.operations)) {
-    for (const invariant of invariantsOf(ir, operation.input)) {
+    for (const invariant of invariantsWithin(ir, operation.input)) {
       inputInvariants += 1;
       if (!covered.has(operation.urn) || brokenInvariants.has(`${operation.urn} ${invariant.urn}`)) continue;
       problems.push({
@@ -266,44 +267,59 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
       waivers.push({ file: feature.file, location: comment.location, field: match[1]!, reason: match[2]!.trim(), operations, used: false });
     }
   }
-  /** Whether a field of an operation has boundary cases, so a waiver for it can mean something. */
-  const constrains = (operation: Urn, fieldUrn: string) => {
-    const op = ir.operations[operation];
-    const ref = op && ir.entities[op.input]?.fields.find((f) => f.field === fieldUrn);
-    const field = ref && ir.fields[ref.field];
-    return field !== undefined && (boundaryCases(field.primitive, field.constraints).length > 0 || (ref?.many !== undefined && listBoundaries(ref.many).length > 0));
-  };
-  const waiverFor = (operation: Urn, fieldUrn: string) =>
-    waivers.find((w) => w.field === fieldUrn && w.operations.includes(operation));
+  const waiverFor = (operation: Urn, urn: string) => waivers.find((w) => w.field === urn && w.operations.includes(operation));
+  /** `<operation URN> <field or entity URN>` for each property, at any depth, that has boundary cases. */
+  const constrained = new Set<string>();
+  const constrains = (operation: Urn, urn: string) => constrained.has(`${operation} ${urn}`);
 
   // Boundary coverage, for the operations that have scenarios (an untagged one is already an error).
-  const values = inputValues(ir, features);
+  // A malformed list or object cell is an error where it is written.
+  const values = inputValues(ir, features, (problem) =>
+    problems.push({ code: 'invalid-cell', severity: 'error', file: problem.file, location: problem.location, message: problem.message }),
+  );
+  const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
   for (const operation of Object.values(ir.operations)) {
     if (!covered.has(operation.urn)) continue;
-    for (const ref of ir.entities[operation.input]?.fields ?? []) {
-      const field = ir.fields[ref.field];
-      if (!field) continue;
-      const sent = values.get(operation.urn)?.get(ref.name) ?? [];
-      // A list's items are the field's values; the lists themselves have the count cases.
-      const items = ref.many ? sent.flatMap((value) => (Array.isArray(value) ? value : [])) : sent;
-      const missing = [
-        ...boundaryCases(field.primitive, field.constraints).filter((c) => !items.some((value) => c.covers(value))),
-        ...(ref.many ? listBoundaries(ref.many).filter((c) => !sent.some((value) => c.covers(value))) : []),
-      ];
-      if (missing.length === 0) continue;
-      const waiver = waiverFor(operation.urn, field.urn);
+    const gap = (urn: string, at: string, missing: readonly { readonly label: string }[]) => {
+      if (missing.length === 0) return;
+      const waiver = waiverFor(operation.urn, urn);
       if (waiver) {
         waiver.used = true;
-        continue;
+        return;
       }
       problems.push({
         code: 'uncovered-boundary',
         severity: coverageSeverity(operation.urn),
         file: features.directory,
-        urn: field.urn,
-        message: `${field.urn} in the input of ${operation.urn} has no ${missing.map((c) => c.label).join(', no ')}`,
+        urn,
+        message: `${urn}${at ? ` at ${at}` : ''} in the input of ${operation.urn} has no ${missing.map((c) => c.label).join(', no ')}`,
       });
-    }
+    };
+    /** The cases of each property, at any depth: an embedded entity's values are the objects that the scenarios send. */
+    const cover = (entityUrn: Urn, valuesOf: (name: string) => readonly unknown[], via: string) => {
+      for (const ref of ir.entities[entityUrn]?.fields ?? []) {
+        const sent = valuesOf(ref.name);
+        // A list's items are the property's values; the lists themselves have the count cases.
+        const items = ref.many ? sent.flatMap((value) => (Array.isArray(value) ? value : [])) : sent;
+        const at = via ? `${via}${ref.name}` : '';
+        if ('entity' in ref) {
+          const listCases = ref.many ? listBoundaries(ref.many, keyName(ir.entities[ref.entity])) : [];
+          if (listCases.length > 0) constrained.add(`${operation.urn} ${ref.entity}`);
+          gap(ref.entity, `${via}${ref.name}`, listCases.filter((c) => !sent.some((value) => c.covers(value))));
+          const objects = items.filter(isObject);
+          cover(ref.entity, (name) => objects.flatMap((o) => (o[name] === undefined ? [] : [o[name]])), `${via}${ref.name}.`);
+          continue;
+        }
+        const fieldUrn = valueField(ir, ref);
+        const field = fieldUrn && ir.fields[fieldUrn];
+        if (!field) continue;
+        const cases = [...boundaryCases(field.primitive, field.constraints).map((c) => ({ c, list: false })), ...(ref.many ? listBoundaries(ref.many).map((c) => ({ c, list: true })) : [])];
+        if (cases.length > 0) constrained.add(`${operation.urn} ${field.urn}`);
+        gap(field.urn, at, cases.filter(({ c, list }) => !(list ? sent : items).some((value) => c.covers(value))).map(({ c }) => c));
+      }
+    };
+    const sent = values.get(operation.urn);
+    cover(operation.input, (name) => sent?.get(name) ?? [], '');
   }
 
   // Every waiver stays visible: a note when it removed a gap, otherwise a problem.
@@ -368,7 +384,7 @@ function operationOwner(ir: UniversalIR, urn: Urn): Owner {
     keys: new Set([...propertyNames(ir, op.input), ...propertyNames(ir, op.output)]),
     requiredInput: ir.entities[op.input]?.fields.filter((f) => f.required).map((f) => f.name) ?? [],
     errors: op.errors,
-    invariants: invariantsOf(ir, op.input).map((i) => i.urn),
+    invariants: invariantsWithin(ir, op.input).map((i) => i.urn),
   };
 }
 

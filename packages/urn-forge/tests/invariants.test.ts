@@ -19,6 +19,7 @@ describe('the invariant kind', () => {
     expect(Object.values(ir.invariants).map((i) => [i.urn.split(':').at(-1), i.on.split(':').at(-1), i.ruleText])).toEqual([
       ['cancellation_within_term', 'cancellation', 'cancellation_date >= effective_date and cancellation_date <= expiry_date'],
       ['deductible_below_premium', 'policy', 'deductible is absent or deductible < premium'],
+      ['limit_is_positive', 'coverage', 'limit > 0'],
       ['term_is_positive', 'policy', 'expiry_date > effective_date'],
     ]);
     expect(ir.invariants['urn:acme:insurance:policy:invariant:term_is_positive' as Urn]).toMatchObject({
@@ -92,7 +93,13 @@ describe('the generated rule of each operator on each primitive (fixture: rules)
 });
 
 describe('the runtime and invariants (insurance)', () => {
-  const POLICY = { policy_id: '123e4567-e89b-12d3-a456-426614174000', effective_date: '2026-06-01', premium: '120.00' };
+  const POLICY = {
+    policy_id: '123e4567-e89b-12d3-a456-426614174000',
+    holder: '9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d',
+    coverages: [{ peril: 'fire', limit: '1000.00' }],
+    effective_date: '2026-06-01',
+    premium: '120.00',
+  };
   const ISSUE = 'urn:acme:insurance:policy:operation:issue_policy' as const;
   const TERM = 'urn:acme:insurance:policy:invariant:term_is_positive';
 

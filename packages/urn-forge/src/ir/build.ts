@@ -17,6 +17,7 @@ import { KINDS, KIND_NAMES, kind, namedKinds, referenceOccurrences, type Atom, t
 import { parseManifest, parseShortKey, type ValidManifest } from '../meta-schema.js';
 import { toBrandIdentifier, toUrn } from '../naming.js';
 import { canonicalJson, compareCodeUnits, sha256Hex } from './canonical.js';
+import { checkStructure } from './structure.js';
 import type { IRBuildResult, IRIssue, UniversalIR, Urn } from './types.js';
 
 function sortedByUrn<T>(record: Map<Urn, T>): Record<Urn, T> {
@@ -122,6 +123,13 @@ export function buildIr(manifest: ValidManifest): IRBuildResult {
   }
 
   if (issues.length > 0) return { success: false, issues };
+
+  // Pass 5: structure across entities, once every node exists.
+  const structure = checkStructure({
+    entities: Object.fromEntries(nodes.get('entity')!) as UniversalIR['entities'],
+    errors: Object.fromEntries(nodes.get('error')!) as UniversalIR['errors'],
+  });
+  if (structure.length > 0) return { success: false, issues: structure };
 
   const ir = {
     meta: {

@@ -20,16 +20,6 @@
     "urn": "urn:demo:broken:order:entity:line"
   },
   {
-    "code": "wrong-ref-kind",
-    "location": {
-      "column": 12,
-      "line": 18
-    },
-    "message": "urn:demo:broken:order:entity:line: fields[2].ref \"order.entity.line\" must name a field, but urn:demo:broken:order:entity:line is an entity",
-    "severity": "error",
-    "urn": "urn:demo:broken:order:entity:line"
-  },
-  {
     "code": "unknown-placeholder",
     "location": {
       "column": 12,

@@ -23,7 +23,8 @@
  *   });
  */
 import { Before, Then, When, type DataTable } from '@cucumber/cucumber';
-import { parseCell, parseListCell, type Primitive } from '../primitives/index.js';
+import { type Primitive } from '../primitives/index.js';
+import { readCell } from './cells.js';
 import { STEP_PHRASES } from './phrases.js';
 
 // Structural views of the generated runtime, so this library does not depend on any one domain.
@@ -36,9 +37,21 @@ export interface FieldInfoLike {
   readonly required: boolean;
   /** A list: the cell is `[a, b, c]`. */
   readonly many?: boolean;
+  /** A link: the entity whose key the value is. */
+  readonly link?: string;
 }
 
-export type FieldsLike = Readonly<Record<string, FieldInfoLike>>;
+/** A property that holds an embedded entity: the cell is `{ name: value, … }`. */
+export interface EmbeddedInfoLike {
+  readonly entity: string;
+  readonly required: boolean;
+  readonly many?: boolean;
+  readonly fields: Readonly<Record<string, PropertyInfoLike>>;
+}
+
+export type PropertyInfoLike = FieldInfoLike | EmbeddedInfoLike;
+
+export type FieldsLike = Readonly<Record<string, PropertyInfoLike>>;
 
 export interface OperationContractLike {
   readonly input: { readonly fields: FieldsLike; readonly invariants?: readonly { readonly urn: string }[] };
@@ -91,9 +104,9 @@ export function operationUrnFromTags(tags: readonly string[]): string {
  * Converts a table cell to the JS value the field's schema expects, using the field's
  * primitive descriptor; `undefined` means absent.
  */
-export function coerceCell(cell: string, field: FieldInfoLike): unknown {
+export function coerceCell(cell: string, field: PropertyInfoLike): unknown {
   if (cell === '') return undefined;
-  return field.many ? parseListCell(field.primitive, cell) : parseCell(field.primitive, cell);
+  return readCell(cell, field);
 }
 
 /**
@@ -128,15 +141,23 @@ export function tableToObject(
   return object;
 }
 
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+
 function sameValue(actual: unknown, expected: unknown): boolean {
   if (Array.isArray(actual) && Array.isArray(expected)) {
     return actual.length === expected.length && actual.every((item, i) => sameValue(item, expected[i]));
+  }
+  if (isObject(actual) && isObject(expected)) {
+    // An embedded object: the properties the table gives, and no other property.
+    const keys = new Set([...Object.keys(actual), ...Object.keys(expected)]);
+    return [...keys].every((key) => sameValue(actual[key], expected[key]));
   }
   return actual === expected || (Number.isNaN(actual) && Number.isNaN(expected));
 }
 
 function show(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(show).join(', ')}]`;
+  if (isObject(value)) return `{ ${Object.entries(value).map(([k, v]) => `${k}: ${show(v)}`).join(', ')} }`;
   return value === undefined ? 'absent' : String(value);
 }
 
@@ -173,7 +194,8 @@ export function assertRejectedOn(result: ExecuteResultLike, fieldName: string, f
   if (result.kind !== 'InputRejected') {
     throw new Error(`${urn} failed with ${describeFailure(result)}; expected InputRejected on "${fieldName}"`);
   }
-  if (!result.issues.some((issue) => issue.fieldUrn === field.urn)) {
+  // The property is the head of the issue's path, also when the issue is inside it (`coverages.1.limit`).
+  if (!result.issues.some((issue) => issue.path.split('.')[0] === fieldName)) {
     throw new Error(`${urn} rejected the input, but not on "${fieldName}": ${describeFailure(result)}`);
   }
 }

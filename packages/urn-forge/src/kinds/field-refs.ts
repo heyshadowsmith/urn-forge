@@ -1,7 +1,10 @@
-/** Field references, shared by every kind with an entity-shaped payload (entities and errors). */
+/**
+ * Property references, shared by every kind with an entity-shaped payload (entities and
+ * errors): `ref` to a field or an entity (embedded), or `link` to an entity (its key's value).
+ */
 import * as v from 'valibot';
-import { ShortKeyRef } from '../grammar.js';
-import type { IRFieldRef, ListRule, Urn } from '../ir/types.js';
+import { Segment, ShortKeyRef } from '../grammar.js';
+import type { IRPropertyRef, ListRule, Urn } from '../ir/types.js';
 import type { BoundaryCase } from '../primitives/index.js';
 import type { BuildContext, ReferenceSlot } from './types.js';
 
@@ -13,11 +16,19 @@ const Many = v.union(
   'must be true or { minItems, maxItems, unique }',
 );
 
-export const FieldRef = v.strictObject({
-  ref: ShortKeyRef,
-  required: v.optional(v.boolean(), true),
-  many: v.optional(Many),
-});
+export const FieldRef = v.pipe(
+  v.strictObject({
+    /** A field (one value) or an entity (an embedded object). */
+    ref: v.optional(ShortKeyRef),
+    /** An entity, by the value of its key. */
+    link: v.optional(ShortKeyRef),
+    /** The property name, when it is not the target's identifier. */
+    as: v.optional(Segment),
+    required: v.optional(v.boolean(), true),
+    many: v.optional(Many),
+  }),
+  v.check((decl) => (decl.ref === undefined) !== (decl.link === undefined), 'must have either ref or link'),
+);
 export type FieldRefDecl = v.InferOutput<typeof FieldRef>;
 
 /** The IR form of `many`: `true` is `{}`, and absent keys stay absent. */
@@ -31,38 +42,41 @@ function listRule(many: FieldRefDecl['many']): ListRule | undefined {
   };
 }
 
-/** The reference slot for a `fields` list. */
-export const FIELDS_SLOT: ReferenceSlot = { path: ['fields', '*', 'ref'], targets: ['field'] };
+/** The reference slots of a `fields` list: `ref` names a field or an entity, `link` an entity. */
+export const FIELDS_SLOT: ReferenceSlot = { path: ['fields', '*', 'ref'], targets: ['field', 'entity'] };
+export const LINKS_SLOT: ReferenceSlot = { path: ['fields', '*', 'link'], targets: ['entity'] };
 
 /**
  * The resolved field references of `fields`, in declaration order. Reports a field listed
  * twice (`duplicate-ref`) and two fields that become the same property (`duplicate-property`).
  */
-export function buildFieldRefs(context: BuildContext<unknown>, fields: readonly FieldRefDecl[]): IRFieldRef[] {
+export function buildFieldRefs(context: BuildContext<unknown>, fields: readonly FieldRefDecl[]): IRPropertyRef[] {
   const { atom, shortKey, ref, report } = context;
-  const refs: IRFieldRef[] = [];
+  const refs: IRPropertyRef[] = [];
   const seenNames = new Map<string, Urn>();
   fields.forEach((fieldRef, index) => {
-    const target = ref(['fields', index, 'ref']);
+    const slot = fieldRef.link === undefined ? 'ref' : 'link';
+    const target = ref(['fields', index, slot]);
     if (!target) return;
-    const path = [shortKey, 'fields', index, 'ref'];
-    const clash = seenNames.get(target.identifier);
+    const path = [shortKey, 'fields', index, slot];
+    const name = fieldRef.as ?? target.identifier;
+    const clash = seenNames.get(name);
     if (clash === target.urn) {
       report({
         code: 'duplicate-ref',
         urn: atom.urn,
-        message: `${atom.urn}: fields[${index}].ref lists ${target.urn} more than once`,
+        message: `${atom.urn}: fields[${index}].${slot} lists ${target.urn} more than once; give one of them another name with as`,
         path,
       });
     } else if (clash) {
       report({
         code: 'duplicate-property',
         urn: atom.urn,
-        message: `${atom.urn}: fields[${index}].ref ${target.urn} and ${clash} both become property "${target.identifier}"`,
+        message: `${atom.urn}: fields[${index}].${slot} ${target.urn} and ${clash} both become property "${name}"; rename one with as`,
         path,
       });
     } else {
-      seenNames.set(target.identifier, target.urn);
+      seenNames.set(name, target.urn);
       const many = listRule(fieldRef.many);
       // Pass 7 for a list: an item count that no list can have.
       if (many?.minItems !== undefined && many.maxItems !== undefined && many.minItems > many.maxItems) {
@@ -73,7 +87,8 @@ export function buildFieldRefs(context: BuildContext<unknown>, fields: readonly 
           path: [shortKey, 'fields', index, 'many'],
         });
       }
-      refs.push({ field: target.urn, name: target.identifier, required: fieldRef.required, ...(many === undefined ? {} : { many }) });
+      const base = { name, required: fieldRef.required, ...(many === undefined ? {} : { many }) };
+      refs.push(slot === 'link' ? { link: target.urn, ...base } : target.kind === 'entity' ? { entity: target.urn, ...base } : { field: target.urn, ...base });
     }
   });
   return refs;
@@ -84,7 +99,7 @@ export function buildFieldRefs(context: BuildContext<unknown>, fields: readonly 
  * outside `minItems` and `maxItems`, and a repeated value for `unique`. The items count as
  * values of the field for its own cases.
  */
-export function listBoundaries(rule: ListRule): BoundaryCase[] {
+export function listBoundaries(rule: ListRule, key?: string): BoundaryCase[] {
   const isList = (value: unknown): value is readonly unknown[] => Array.isArray(value);
   const ofLength = (n: number) => (value: unknown) => isList(value) && value.length === n;
   const cases: BoundaryCase[] = [];
@@ -97,7 +112,12 @@ export function listBoundaries(rule: ListRule): BoundaryCase[] {
     cases.push({ label: `list of ${rule.maxItems + 1} item(s) (above maxItems)`, covers: ofLength(rule.maxItems + 1) });
   }
   if (rule.unique) {
-    cases.push({ label: 'list with a repeated value (unique)', covers: (value) => isList(value) && new Set(value).size < value.length });
+    // A list of objects repeats when two of them have one key.
+    const values = (list: readonly unknown[]) => (key === undefined ? list : list.map((item) => (item as Record<string, unknown> | null)?.[key]));
+    cases.push({
+      label: key === undefined ? 'list with a repeated value (unique)' : `list with a repeated ${key} (unique)`,
+      covers: (value) => isList(value) && new Set(values(value)).size < value.length,
+    });
   }
   return cases;
 }
