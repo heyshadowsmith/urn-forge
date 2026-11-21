@@ -61,17 +61,22 @@ These diagnostics have the configuration file as their file, and no position.
 | `invalid-key` | `error` | `invalid key "<key>": expected <context>.<kind>.<identifier>, where context and identifier are lowercase snake_case starting with a letter (max 63 characters)` | A top-level key is not a valid short key | Change the key, for example to `geometry.field.radius` |
 | `unsupported-kind` | `error` | `invalid key "<key>": kind "<kind>" is not supported yet (MVP kinds: field, entity, operation, error)` | The kind is `invariant` or `event`. The specification has these kinds, but urn-forge does not have them at this time | Remove the entry. Refer to [Scope](./scope) |
 | `unknown-kind` | `error` | `invalid key "<key>": unknown kind "<kind>" (MVP kinds: field, entity, operation, error)` | The middle segment of the key is not a known kind | Use `field`, `entity`, `operation` or `error` |
-| `unknown-primitive` | `error` | `<key>.primitive: unknown primitive "<name>" (MVP primitives: boolean, float, integer, string)`<br>`<key>.primitive: a field must have a primitive (MVP primitives: boolean, float, integer, string)` | The `primitive` of a field is not a known primitive, or the field has no `primitive` | Use `boolean`, `float`, `integer` or `string` |
-| `constraint-not-allowed` | `error` | `<key>.<property>: "<property>" is not a constraint of primitive "<primitive>" (allowed: <constraints>)` | A field has a constraint of a different primitive, for example `minLength` on a `float`. A key that is a constraint of no primitive gets `unknown-property` | Use a constraint from the list in the message |
-| `unknown-property` | `error` | `<key>.<property>: unknown property "<property>"` | An atom or the header has a key that it does not accept. On a field, this is a key that is a constraint of no primitive, for example `colour` | Remove the key, or correct its name |
-| `missing-property` | `error` | `<key>.<property>: missing property "<property>"` | An entry does not have a property that it must have, for example the `description` of an entity | Add the property |
-| `invalid-value` | `error` | `<key>.<property>: <message>` | A value has the wrong type or form, or a necessary property is not there. Refer to the examples after this table | Correct the value. The message gives the necessary type or form |
+| `unknown-primitive` | `error` | `<key>.primitive: unknown primitive "<name>" (MVP primitives: boolean, date, decimal, enum, float, integer, string, timestamp)`<br>`<key>.primitive: a field must have a primitive (MVP primitives: boolean, date, decimal, enum, float, integer, string, timestamp)` | The `primitive` of a field is not a known primitive, or the field has no `primitive`. The specification primitives `list`, `record` and `ref` also cause this code | Use a primitive from the list in the message. For a list, use `many` on the field reference. Refer to [The manifest](./manifest) |
+| `constraint-not-allowed` | `error` | `<key>.<property>: "<property>" is not a constraint of primitive "<primitive>" (allowed: <constraints>)` | A field has a constraint of a different primitive, for example `minLength` on a `float`, or `exclusiveMin` on an `integer` or a `date`. A key that is a constraint of no primitive gets `unknown-property` | Use a constraint from the list in the message. On an `integer` or a `date`, use `min: <bound + 1>` in place of `exclusiveMin: <bound>` |
+| `unknown-property` | `error` | `<key>.<property>: unknown property "<property>"`<br>`<key>.oneOf: unknown property "oneOf"; for a fixed set of values, use primitive: enum with values: [ … ]`<br>`<key>.notEqual: unknown property "notEqual"; to exclude values, use notIn: [ … ]` | An atom or the header has a key that it does not accept. On a field, this is a key that is a constraint of no primitive, for example `colour`. `oneOf` and `notEqual` were constraints in earlier versions, so on a field their message has a hint | Remove the key, or correct its name. For `oneOf`, use the `enum` primitive. For `notEqual`, use `notIn` |
+| `missing-property` | `error` | `<key>.<property>: missing property "<property>"` | An entry does not have a property that it must have, for example the `description` of an entity, the `message` of an error or the `values` of an `enum` field | Add the property |
+| `invalid-value` | `error` | `<key>.<property>: <message>` | A value has the wrong type or form. Refer to the examples after this table | Correct the value. The message gives the necessary type or form |
 
 Examples of `invalid-value` messages:
 
 ```
 geometry.field.t.min: Invalid type: Expected number but received "abc"
 geometry.field.u.regex: must be a valid regular expression: Invalid regular expression: /[a-/u: Unterminated character class
+value.field.no_values.values: must list at least one value
+value.field.twice.values: must not list a value more than once
+value.field.unquoted.min: must be a decimal in quotes, such as "0.01": a YAML number is not exact
+value.field.offset.min: must be ISO 8601 in UTC: YYYY-MM-DDTHH:MM:SSZ, with an optional fraction of up to 3 digits
+a.field.p1.format: must be one of uuid, email, uri
 geometry.entity.c.fields: must list at least one field
 geometry.error.e.recordAs: needs the event kind, which urn-forge does not support yet
 manifest.namespace: must be lowercase snake_case, start with a letter and be at most 63 characters
@@ -97,14 +102,34 @@ manifest.namespace: must be lowercase snake_case, start with a letter and be at 
 
 | Code | Severity | Message | Cause | Correction |
 | --- | --- | --- | --- | --- |
-| `unknown-placeholder` | `error` | `<urn>: message placeholder {<name>} names no field of the error (required fields: <names>)`<br>`<urn>: message placeholder {<name>} names an optional field; placeholders must name required fields (required fields: <names>)` | A `{placeholder}` in the `message` of an error is not a field of the error, or it is a field with `required: false`. If the error has no mandatory fields, the list is `none` | Correct the name, or make the field mandatory |
+| `unknown-placeholder` | `error` | `<urn>: message placeholder {<name>} names no field of the error (required fields: <names>)`<br>`<urn>: message placeholder {<name>} names an optional field; placeholders must name required fields (required fields: <names>)`<br>`<urn>: message placeholder {<name>} names a list; placeholders must name single values (required fields: <names>)` | A `{placeholder}` in the `message` of an error is not a field of the error, it is a field with `required: false`, or it is a field with `many`. If the error has no mandatory fields, the list is `none` | Correct the name, make the field mandatory, or remove the placeholder of the list |
 
 ## Pass 7: constraint coherence
 
 | Code | Severity | Message | Cause | Correction |
 | --- | --- | --- | --- | --- |
 | `conflicting-constraints` | `error` | `<urn>: <constraint> and <constraint> both set <a lower bound \| an upper bound \| the shape>; keep one` | A field sets two constraints for one side of one aspect: `min` and `exclusiveMin`, `max` and `exclusiveMax`, or `regex` and `format`. Pass 7 then does not examine the field | Remove one of the two constraints |
-| `incoherent-constraints` | `error` | `<urn>: min (<n>) is greater than max (<n>), so no value is valid`<br>`<urn>: min and max are both <n> and notEqual is <n>, so no value is valid`<br>`<urn>: minLength (<n>) is greater than maxLength (<n>), so no value is valid`<br>`<urn>: oneOf value "<value>" is shorter than minLength (<n>), so it is never valid`<br>`<urn>: oneOf value "<value>" is longer than maxLength (<n>), so it is never valid`<br>`<urn>: oneOf value "<value>" does not match regex <pattern>, so it is never valid` | The constraints of a field accept no value, or a value in its `oneOf` list can never be valid. The position is the constraint to examine | Correct the constraints |
+| `incoherent-constraints` | `error` | Refer to the list after this table | The constraints of a field accept no value, or the `many` of a field reference accepts no list. The position is the constraint to examine | Correct the constraints |
+
+The messages of `incoherent-constraints`, for each primitive. `<lower>` is `min` or `exclusiveMin`, and `<upper>` is `max` or `exclusiveMax`:
+
+| Primitive | Message |
+| --- | --- |
+| `integer`, `float`, `decimal` | `<urn>: <lower> (<n>) is greater than <upper> (<n>), so no value is valid` |
+| `float`, `decimal` | `<urn>: <lower> and <upper> are both <n>, and one of them excludes it, so no value is valid` |
+| `float`, `decimal` | `<urn>: min and max are both <n> and notIn lists it, so no value is valid` |
+| `integer` | `<urn>: no multiple of <n> is between min (<n>) and max (<n>), so no value is valid` |
+| `integer` | `<urn>: notIn lists every value that min, max allow, so no value is valid`<br>`<urn>: notIn lists every value that min, max and multipleOf allow, so no value is valid` |
+| `decimal` | `<urn>: no value with at most <n> digit(s) after the point is between <lower> (<n>) and <upper> (<n>), so no value is valid` |
+| `decimal` | `<urn>: notIn lists every value that the bounds and scale allow, so no value is valid` |
+| `string` | `<urn>: minLength (<n>) is greater than maxLength (<n>), so no value is valid` |
+| `string` | `<urn>: a uuid has 36 characters, which the length constraints exclude, so no value is valid` |
+| `date` | `<urn>: min (<day>) is after max (<day>), so no value is valid` |
+| `timestamp` | `<urn>: <lower> (<instant>) is after <upper> (<instant>), so no value is valid` |
+| `timestamp` | `<urn>: <lower> and <upper> are the same instant, and one of them excludes it, so no value is valid` |
+| A list | `<urn>: fields[<i>] minItems (<n>) is greater than maxItems (<n>), so no list is valid`. The URN is the URN of the entity or the error |
+
+`boolean` and `enum` have no `incoherent-constraints` message. urn-forge examines `notIn` against the bounds only if the field has a lower and an upper bound. On a `decimal`, the field must also have `scale`. If 100,000 or more allowed values are between the bounds, urn-forge does not examine `notIn`.
 
 ## Plugins
 

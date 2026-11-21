@@ -63,7 +63,7 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 | `UniversalIR` | Type | The IR: `meta`, `fields`, `entities`, `operations` and `errors`. Each record has URNs as keys, in URN order |
 | `IRField` | Type | `{ urn; brandIdentifier; primitive; constraints; description? }` |
 | `IREntity` | Type | `{ urn; brandIdentifier; description; fields: readonly IRFieldRef[] }` |
-| `IRFieldRef` | Type | `{ field: Urn; name: string; required: boolean }`. `name` is the property name |
+| `IRFieldRef` | Type | `{ field: Urn; name: string; required: boolean; many?: { minItems?: number; maxItems?: number; unique?: boolean } }`. `name` is the property name. `many` is present only for a list, and `many: true` in the manifest is `{}` |
 | `IROperation` | Type | `{ urn; brandIdentifier; description; input: Urn; output: Urn; errors: readonly Urn[] }` |
 | `IRError` | Type | `{ urn; brandIdentifier; description; category: ErrorCategory; retryable: boolean; message: readonly MessagePart[]; fields: readonly IRFieldRef[] }` |
 | `ErrorCategory` | Type | `'validation' \| 'conflict' \| 'not_found' \| 'forbidden' \| 'precondition'` |
@@ -91,8 +91,8 @@ For the steps to write a plugin, refer to [Contributor: add a plugin](../how-to/
 | --- | --- | --- | --- |
 | `KIND_NAMES` | Constant | `['field', 'entity', 'operation', 'error']` | The kinds |
 | `KindName` | Type | `'field' \| 'entity' \| 'operation' \| 'error'` | A kind |
-| `PRIMITIVE_NAMES` | Constant | `['boolean', 'float', 'integer', 'string']` | The primitives |
-| `Primitive` | Type | `'boolean' \| 'float' \| 'integer' \| 'string'` | A primitive |
+| `PRIMITIVE_NAMES` | Constant | `['boolean', 'date', 'decimal', 'enum', 'float', 'integer', 'string', 'timestamp']` | The primitives |
+| `Primitive` | Type | `'boolean' \| 'date' \| 'decimal' \| 'enum' \| 'float' \| 'integer' \| 'string' \| 'timestamp'` | A primitive |
 | `ConstraintValue` | Type | `number \| string \| boolean \| null \| readonly ConstraintValue[]` | The value of a constraint |
 | `toUrn` | Function | `toUrn(parts: UrnParts): string` | `urn:<namespace>:<domain>:<context>:<kind>:<identifier>` |
 | `UrnParts` | Type | `{ namespace; domain; context; kind; identifier: string }` | The segments of a URN |
@@ -126,7 +126,7 @@ This support file of the math example uses the entry point:
 | --- | --- | --- |
 | `registerOperationSteps` | `registerOperationSteps(options: OperationStepsOptions): void` | Registers a `Before` hook and the five generic steps with Cucumber. Refer to [Gherkin steps](./gherkin-steps) |
 | `operationUrnFromTags` | `operationUrnFromTags(tags: readonly string[]): string` | The one operation URN in the tags. It throws an error if there is no operation tag or more than one |
-| `coerceCell` | `coerceCell(cell: string, field: FieldInfoLike): unknown` | Changes a table cell to a value with the primitive of the field. An empty cell gives `undefined`. Refer to [Primitives and constraints](./primitives) |
+| `coerceCell` | `coerceCell(cell: string, field: FieldInfoLike): unknown` | Changes a table cell to a value with the primitive of the field. If `field.many` is `true`, the cell is a list. An empty cell gives `undefined`. Refer to [Primitives and constraints](./primitives) |
 | `tableToObject` | `tableToObject(rows: readonly (readonly string[])[], fields: FieldsLike, side: 'input' \| 'output' \| 'error', urn: string): Record<string, unknown>` | Changes a table of one header row and one data row to an object. It throws an error for a header that is not a field, or for a different number of rows. `urn` is the operation for `input` and `output`, and the error for `error`. An empty input cell adds no key. An empty output or error cell adds the key with the value `undefined`, which means "absent" |
 | `assertOutput` | `assertOutput(result: ExecuteResultLike, expected: Record<string, unknown>, urn: string): void` | Throws an error if the operation did not succeed, or if a property of `expected` is different in the output |
 | `assertRejectedOn` | `assertRejectedOn(result: ExecuteResultLike, fieldName: string, fields: FieldsLike, urn: string): void` | Throws an error if the result is not `InputRejected` with an issue on the field |
@@ -143,11 +143,11 @@ These types describe the generated runtime by its shape. Thus the step library d
 | `OperationStepsOptions` | `{ dispatch: Readonly<Record<string, OperationContractLike>>; execute: (urn: string, payload: unknown) => ExecuteResultLike }` |
 | `OperationContractLike` | `{ input: { fields: FieldsLike }; output: { fields: FieldsLike }; errors: Readonly<Record<string, { fields: FieldsLike }>> }` |
 | `FieldsLike` | `Readonly<Record<string, FieldInfoLike>>` |
-| `FieldInfoLike` | `{ urn: string; primitive: Primitive; required: boolean }` |
+| `FieldInfoLike` | `{ urn: string; primitive: Primitive; required: boolean; many?: boolean }` |
 | `ExecuteResultLike` | `{ ok: true; output: unknown } \| { ok: false; kind: 'DomainError'; error: DomainErrorLike } \| { ok: false; kind: string; issues: readonly BoundaryIssueLike[] }` |
 | `DomainErrorLike` | `{ urn: string; message: string; fields: unknown }` |
 | `BoundaryIssueLike` | `{ path: string; fieldUrn?: string; message: string }` |
-| `Primitive` | `'boolean' \| 'float' \| 'integer' \| 'string'` |
+| `Primitive` | `'boolean' \| 'date' \| 'decimal' \| 'enum' \| 'float' \| 'integer' \| 'string' \| 'timestamp'` |
 
 The generated `DispatchMap` and `executeOperation` agree with these types. Refer to [The generated runtime](./generated-runtime).
 

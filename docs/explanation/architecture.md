@@ -29,7 +29,7 @@ generated files ──▶ compile writes them      (src/cli.ts, src/write.ts)
 The stages have these jobs:
 
 1. **The meta-schema** (pass 1) validates the structure of the manifest with Valibot. It builds its schema from the descriptor of each kind and each primitive.
-2. **The IR builder** expands the short keys (pass 2), checks that URNs and brand identifiers are unique (pass 3) and resolves each reference (pass 4). Then each kind builds its IR node. The build runs the checks that belong to one kind: message placeholders for an error (pass 6) and constraint coherence for a field (pass 7).
+2. **The IR builder** expands the short keys (pass 2), checks that URNs and brand identifiers are unique (pass 3) and resolves each reference (pass 4). Then each kind builds its IR node. The build runs the checks that belong to one kind: message placeholders for an error (pass 6), and constraint conflicts and coherence for a field (pass 7). An entity or an error also examines the `many` of each field reference.
 3. **The support check** compares the IR with what each plugin says that it supports. It runs before any plugin writes output.
 4. **The plugins** each turn the IR into file contents. They do not read the YAML, and they do not read the output of a different plugin.
 5. **The engine** adds the `@generated` header with the fingerprint, sets the line endings and sorts the files by path.
@@ -46,7 +46,7 @@ The plan put each kind of knowledge in a registry:
 
 | Registry | Where | One entry holds | Consumers |
 | --- | --- | --- | --- |
-| Primitives | `src/primitives/` | The constraints and the schema of each constraint value, coherence (pass 7), the parse of a table cell, the boundary cases | The meta-schema, the IR, the plugins, the step library, gate 3 |
+| Primitives | `src/primitives/` | The constraints, with the schema and the aspect of each constraint value, the groups of constraints that exclude each other, coherence (pass 7), the parse of a table cell, the boundary cases | The meta-schema, the IR, the plugins, the step library, gate 3 |
 | Kinds | `src/kinds/` | The schema of an entry, the reference slots, the build of the IR node | The meta-schema, the IR builder |
 | Plugins | `src/plugins/index.ts` | A plugin, by name | The configuration file, the engine |
 | Gates | `src/verify/index.ts` | A gate, by number | `verify` |
@@ -61,7 +61,9 @@ The foundations plan used the idea of urn-forge on urn-forge itself. Gate 1 uses
 - The kind registry uses `satisfies { readonly [K in KindName]: KindDescriptor<K, any, unknown> }`. A new name in `KindName` makes `tsc` fail until the registry has a descriptor.
 - A type-level check compares the groups of the kind registry with the records of `UniversalIR`. If the two disagree, `tsc` fails.
 - The list of kinds in the specification that urn-forge does not support has a type that excludes the supported kinds. A kind cannot be on the list and in the registry at the same time.
-- Each member of a descriptor is necessary. When `boundaries` became a member of the primitive descriptor, `tsc` named all four primitives until each had its rules.
+- Each member of a descriptor is necessary. When `boundaries` became a member of the primitive descriptor, `tsc` named all four primitives of that time until each had its rules.
+
+Some rules are not types, so tests keep them. Each constraint declares its aspect, for example `range` or `shape`. A test makes sure that one constraint name has the same aspect on each primitive, and that the constraints of one exclusive group share one aspect. A second test compares the constraint table of [Primitives and constraints](../reference/primitives) with the registry, row for row. For the model behind the aspects, refer to [The MECE model of primitives](./primitives-model).
 
 CI runs `npm run typecheck`, so these checks fail the build, and not only the editor.
 
@@ -97,8 +99,11 @@ The texts of the generic steps are in `src/gherkin/phrases.ts`. The step library
 The registries make breadth additive. The first additions after the foundations work show this:
 
 - **`boolean` with `mustBe`.** It took one module in `src/primitives/`, one line in the registry and one entry in the Valibot translations. `tsc` named that table and nothing else. The meta-schema, `FieldInfo`, the cell parse and the support check took it with no change.
-- **`oneOf` on `string`.** It was the first constraint whose value is not a number. It took the constraint in the `string` descriptor and one Valibot entry. `tsc` typed the value as `string[]` in that entry.
+- **`oneOf` on `string`.** It was the first constraint whose value is not a number. It took the constraint in the `string` descriptor and one Valibot entry. `tsc` typed the value as `string[]` in that entry. Later, the `enum` primitive replaced it, also as one module and one Valibot entry.
+- **`decimal`, `date` and `timestamp`.** Each took one module, one registry line and one Valibot translation. Their schemas call helper functions, so the Valibot translation also names the helpers that each primitive needs. The plugin writes a helper only if a field uses it.
 - **A trial `event` kind.** `tsc` asked for a descriptor, a registry entry and an IR group. The kind then got reference checks with no new pass code. The trial was then removed.
+
+A list is not a primitive, so it is not one place. `many` on a field reference changed the IR, both plugins, the step library and gate 3. The list belongs to the reference, not to the value, so the primitive registry does not hold it.
 
 The registries do not hold speculative properties. A property goes into a descriptor when a part of urn-forge that is not a plugin needs it. Boundary cases came with gate 3, and not before. Plugin details stay in the plugins.
 

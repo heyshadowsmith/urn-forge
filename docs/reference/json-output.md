@@ -107,14 +107,14 @@ A correct compile in a project where the files did not change:
 ```json
 {"type":"file","path":"generated/domain.runtime.generated.ts","changed":false}
 {"type":"file","path":"generated/domain.schemas.generated.ts","changed":false}
-{"type":"result","ok":true,"fingerprint":"sha256:6c451e521ca60fdcbfbb38f9a7cc41e23de3a9ee6e62323bc7aa67033f70bf4e"}
+{"type":"result","ok":true,"fingerprint":"sha256:b48297b4537c103460a0d8c21ae9ae155f0bd5b185c94813eb2a78c92b66c4bf"}
 ```
 
 A manifest with an error. The exit code is `1`:
 
 ```json
-{"type":"diagnostic","severity":"error","code":"unknown-primitive","file":"domain.manifest.yaml","line":7,"column":14,"urn":"urn:demo:shipping:parcel:field:weight_grams","message":"parcel.field.weight_grams.primitive: unknown primitive \"decimal\" (MVP primitives: boolean, float, integer, string)"}
-{"type":"diagnostic","severity":"error","code":"unknown-primitive","file":"domain.manifest.yaml","line":19,"column":14,"urn":"urn:demo:shipping:quote:field:price_cents","message":"quote.field.price_cents.primitive: unknown primitive \"decimal\" (MVP primitives: boolean, float, integer, string)"}
+{"type":"diagnostic","severity":"error","code":"unknown-primitive","file":"domain.manifest.yaml","line":7,"column":14,"urn":"urn:demo:shipping:parcel:field:weight_grams","message":"parcel.field.weight_grams.primitive: unknown primitive \"money\" (MVP primitives: boolean, date, decimal, enum, float, integer, string, timestamp)"}
+{"type":"diagnostic","severity":"error","code":"unknown-primitive","file":"domain.manifest.yaml","line":19,"column":14,"urn":"urn:demo:shipping:quote:field:price_cents","message":"quote.field.price_cents.primitive: unknown primitive \"money\" (MVP primitives: boolean, date, decimal, enum, float, integer, string, timestamp)"}
 {"type":"result","ok":false}
 ```
 
@@ -128,7 +128,7 @@ npx urn-forge verify --config tutorial/2-declared-errors/urn-forge.config.ts --f
 
 ```json
 {"type":"diagnostic","gate":3,"severity":"warning","code":"uncovered-boundary","file":"tutorial/2-declared-errors/features","urn":"urn:demo:shipping:parcel:field:weight_grams","message":"urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)"}
-{"type":"diagnostic","gate":3,"severity":"warning","code":"uncovered-boundary","file":"tutorial/2-declared-errors/features","urn":"urn:demo:shipping:parcel:field:zone","message":"urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf"}
+{"type":"diagnostic","gate":3,"severity":"warning","code":"uncovered-boundary","file":"tutorial/2-declared-errors/features","urn":"urn:demo:shipping:parcel:field:zone","message":"urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values"}
 {"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over tutorial/2-declared-errors/core.ts; `core` satisfies DomainCoreImplementation"}
 {"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features"}
 {"type":"gate","gate":4,"name":"drift","ok":true,"summary":"2 generated file(s) compared byte for byte against tutorial/2-declared-errors/generated"}
@@ -145,7 +145,7 @@ A project with a problem at each gate: a handler with an incorrect URN, a column
 {"type":"diagnostic","gate":3,"severity":"error","code":"unknown-header","file":"features/quote_shipping.feature","line":21,"column":9,"urn":"urn:demo:shipping:quote:operation:quote_shipping","message":"table header \"weight\" is not a field key of the input or output of urn:demo:shipping:quote:operation:quote_shipping (allowed: weight_grams, zone, express, price_cents)"}
 {"type":"diagnostic","gate":3,"severity":"error","code":"missing-column","file":"features/quote_shipping.feature","line":21,"column":7,"urn":"urn:demo:shipping:quote:operation:quote_shipping","message":"the table of \"I run the operation with:\" has no column for required input field(s) \"weight_grams\" of urn:demo:shipping:quote:operation:quote_shipping; to test a missing value, keep the column and leave the cell empty"}
 {"type":"diagnostic","gate":3,"severity":"warning","code":"uncovered-boundary","file":"features","urn":"urn:demo:shipping:parcel:field:weight_grams","message":"urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at min − 1 (0), no value at max 30000, no value at max + 1 (30001)"}
-{"type":"diagnostic","gate":3,"severity":"warning","code":"uncovered-boundary","file":"features","urn":"urn:demo:shipping:parcel:field:zone","message":"urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf"}
+{"type":"diagnostic","gate":3,"severity":"warning","code":"uncovered-boundary","file":"features","urn":"urn:demo:shipping:parcel:field:zone","message":"urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values"}
 {"type":"diagnostic","gate":4,"severity":"error","code":"generated-differs","file":"generated/domain.schemas.generated.ts","line":21,"column":1,"message":"differs from a fresh compile (hand-edited or stale); run `urn-forge compile`"}
 {"type":"gate","gate":1,"name":"completeness","ok":false,"summary":"tsc: 4 error(s) over core.ts; `core` satisfies DomainCoreImplementation"}
 {"type":"gate","gate":3,"name":"gherkin","ok":false,"summary":"1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features"}
@@ -162,8 +162,8 @@ A message with more than one line. The line break is `\n` in the JSON string:
 A manifest with an error. No gate runs:
 
 ```json
-{"type":"diagnostic","severity":"error","code":"unknown-primitive","file":"domain.manifest.yaml","line":7,"column":14,"urn":"urn:demo:shipping:parcel:field:weight_grams","message":"parcel.field.weight_grams.primitive: unknown primitive \"decimal\" (MVP primitives: boolean, float, integer, string)"}
-{"type":"diagnostic","severity":"error","code":"unknown-primitive","file":"domain.manifest.yaml","line":19,"column":14,"urn":"urn:demo:shipping:quote:field:price_cents","message":"quote.field.price_cents.primitive: unknown primitive \"decimal\" (MVP primitives: boolean, float, integer, string)"}
+{"type":"diagnostic","severity":"error","code":"unknown-primitive","file":"domain.manifest.yaml","line":7,"column":14,"urn":"urn:demo:shipping:parcel:field:weight_grams","message":"parcel.field.weight_grams.primitive: unknown primitive \"money\" (MVP primitives: boolean, date, decimal, enum, float, integer, string, timestamp)"}
+{"type":"diagnostic","severity":"error","code":"unknown-primitive","file":"domain.manifest.yaml","line":19,"column":14,"urn":"urn:demo:shipping:quote:field:price_cents","message":"quote.field.price_cents.primitive: unknown primitive \"money\" (MVP primitives: boolean, date, decimal, enum, float, integer, string, timestamp)"}
 {"type":"result","ok":false,"failedGates":[],"warnings":0}
 ```
 

@@ -137,8 +137,10 @@ One property for each operation of the manifest. The key is the URN of the opera
 ```ts
 export interface FieldInfo {
   readonly urn: string;
-  readonly primitive: 'boolean' | 'float' | 'integer' | 'string';
+  readonly primitive: 'boolean' | 'date' | 'decimal' | 'enum' | 'float' | 'integer' | 'string' | 'timestamp';
   readonly required: boolean;
+  /** The property holds a list of the field's values. */
+  readonly many?: true;
 }
 ```
 
@@ -147,6 +149,13 @@ export interface FieldInfo {
 | `urn` | The URN of the field |
 | `primitive` | The primitive of the field. The union has each primitive that urn-forge knows |
 | `required` | `false` if the reference has `required: false` in the manifest. If not, `true` |
+| `many` | `true` if the reference has `many` in the manifest. If not, the property is absent. The item count and `unique` are not in `FieldInfo`. They are in the schema |
+
+A `FieldInfo` of a list, from a compile of a manifest with `many: { minItems: 1, maxItems: 3, unique: true }`:
+
+```ts
+sku: { urn: 'urn:demo:shop:order:field:sku', primitive: 'string', required: true, many: true },
+```
 
 ### `EntityContract`
 
@@ -227,7 +236,7 @@ export const DispatchMap = {
       schema: s.ParcelParcelSchema,
       fields: {
         weight_grams: { urn: 'urn:demo:shipping:parcel:field:weight_grams', primitive: 'integer', required: true },
-        zone: { urn: 'urn:demo:shipping:parcel:field:zone', primitive: 'string', required: true },
+        zone: { urn: 'urn:demo:shipping:parcel:field:zone', primitive: 'enum', required: true },
         express: { urn: 'urn:demo:shipping:parcel:field:express', primitive: 'boolean', required: false },
       },
     },
@@ -276,7 +285,7 @@ export interface BoundaryIssue {
 
 | Property | Description |
 | --- | --- |
-| `path` | The dot path of the issue in the payload, for example `weight_grams`. An empty string means the payload as a whole |
+| `path` | The dot path of the issue in the payload, for example `weight_grams`. For an item of a list, the path has the index of the item, for example `sku.1`. An empty string means the payload as a whole |
 | `fieldUrn` | The URN of the field, if the first segment of the path is a property of the contract that was parsed. If not, the property is absent |
 | `message` | The Valibot message, or a message of `executeOperation` |
 

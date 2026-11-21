@@ -59,12 +59,28 @@ The step converts each cell with the primitive of its field, and puts the value 
 | `integer`, `float` | A number literal: an optional `+` or `-`, digits with an optional decimal part or a decimal part only, and an optional exponent. Examples: `10`, `-9`, `0.5`, `.5`, `+3`, `1e3`, `-0` | The number |
 | `integer`, `float` | `Infinity`, `+Infinity`, `-Infinity` or `NaN` | The number |
 | `integer`, `float` | Other text, for example `abc`, `1,000` or `0x10` | The text, without a change. The schema refuses it |
-| `string` | `""` (two double quotes) | The empty string |
-| `string` | Other text | The text, without a change. For example, `"a"` stays `"a"`, with the quotes |
+| `string`, `enum` | `""` (two double quotes) | The empty string. No `enum` lists it, so the schema of an `enum` refuses it |
+| `string`, `enum` | Other text | The text, without a change. For example, `"a"` stays `"a"`, with the quotes |
+| `decimal` | All text | The text, without a change. A decimal stays a string, so its digits stay exact. For example, `12.50` stays `"12.50"` |
+| `date` | All text | The text, without a change, for example `2026-01-31` |
+| `timestamp` | All text | The text, without a change, for example `2026-01-31T09:30:00Z` |
 | `boolean` | `true` or `false` | The boolean |
 | `boolean` | Other text, for example `yes` or `True` | The text, without a change. The schema refuses it |
 
-You cannot send the text `""` itself to a `string` field. Gate 3 converts the cells in the same way when it reads the values for boundary coverage.
+You cannot send the text `""` itself to a `string` or an `enum` field. Thus a `decimal`, `date` or `timestamp` field cannot get the empty string from a cell. Gate 3 converts the cells in the same way when it reads the values for boundary coverage.
+
+### List cells
+
+If the field reference has `many`, the cell is a list:
+
+| Cell | Value |
+| --- | --- |
+| Empty | No value. The key is absent |
+| `[]` | The empty list |
+| `[<item>, <item>, …]` | A list. The step splits the text between the brackets at each comma, removes the spaces at the start and the end of each item, and converts each item with the primitive of the field. For example, `[1, 2, 3]` is `[1, 2, 3]` for an `integer` field, and `[ a , "" ]` is `["a", ""]` for a `string` field |
+| Text without the brackets, for example `1, 2` | The text, without a change. The schema refuses it |
+
+An item cannot contain a comma. In `[a, , b]`, the middle item is the empty text. For a `string` field, it is the empty string. For an `integer` field, it stays text, and the schema refuses it.
 
 ### Comparison of the output and the error fields
 
@@ -73,6 +89,8 @@ The steps `the output is:` and `the operation fails with "<error URN>":` compare
 - A property that is not in the table is not compared.
 - An empty cell means that the property must be absent. If the property has a value, the step fails with `<name>: expected absent, got <value>`. To expect the empty string, write `""`.
 - The values must be equal by `===`. Also, `NaN` is equal to `NaN`. Thus `0` and `-0` are equal.
+- Two lists are equal if they have the same length, and each item is equal to the item at the same position. Thus `[1, 2]` is not equal to `[2, 1]`. A message shows a list as `[<item>, <item>]`.
+- A `decimal` value is text, so the comparison is a text comparison. Thus `12.5` is not equal to `12.50`.
 - The step compares the parsed output or the parsed error fields. These values are the result of the schema parse.
 
 ## Failure messages
@@ -97,7 +115,7 @@ Each step fails with one of these messages. The messages are in the sequence in 
 | The table does not have two rows | `expected a header row and exactly one data row, got <n> row(s)` |
 | A header is not an output property | `"<header>" is not a field of the output of <operation URN> (fields: <names>)` |
 | The operation did not succeed | `<operation URN> did not succeed: <failure>` |
-| One or more values are different | `<operation URN> output differs: <name>: expected <value>, got <value>; …`. An absent value shows as `absent` |
+| One or more values are different | `<operation URN> output differs: <name>: expected <value>, got <value>; …`. An absent value shows as `absent`. A list shows as `[<item>, <item>]` |
 
 ### `the input is rejected on "<field>"`
 
@@ -153,6 +171,12 @@ more than one operation tag on this scenario: urn:demo:shipping:quote:operation:
 urn:demo:shipping:quote:operation:other is not an operation of this domain
 ```
 
+This message comes from a real Cucumber run on a domain with a list in the output. The core sorts the list:
+
+```
+urn:demo:shop:order:operation:sort_items output differs: sku: expected [ABC-0002, ABC-0001], got [ABC-0001, ABC-0002]
+```
+
 ## `registerOperationSteps`
 
 ```ts
@@ -179,8 +203,8 @@ The types of the options are structural. The generated `DispatchMap` and `execut
 
 | Type | Properties |
 | --- | --- |
-| `Primitive` | `'boolean'`, `'float'`, `'integer'` or `'string'` |
-| `FieldInfoLike` | `urn: string`, `primitive: Primitive`, `required: boolean` |
+| `Primitive` | `'boolean'`, `'date'`, `'decimal'`, `'enum'`, `'float'`, `'integer'`, `'string'` or `'timestamp'` |
+| `FieldInfoLike` | `urn: string`, `primitive: Primitive`, `required: boolean`, `many?: boolean` |
 | `FieldsLike` | `Readonly<Record<string, FieldInfoLike>>`, keyed by property name |
 | `OperationContractLike` | `input: { fields: FieldsLike }`, `output: { fields: FieldsLike }`, `errors: Readonly<Record<string, { fields: FieldsLike }>>`, keyed by error URN |
 | `BoundaryIssueLike` | `path: string`, `fieldUrn?: string`, `message: string` |
@@ -194,7 +218,7 @@ The module also exports the functions that the steps use. They do not need Cucum
 | Function | Signature | Description |
 | --- | --- | --- |
 | `operationUrnFromTags` | `(tags: readonly string[]) => string` | Returns the one operation URN in the tags. Throws if there is no operation tag or more than one |
-| `coerceCell` | `(cell: string, field: FieldInfoLike) => unknown` | Converts one cell with the primitive of the field. Returns `undefined` for an empty cell |
+| `coerceCell` | `(cell: string, field: FieldInfoLike) => unknown` | Converts one cell with the primitive of the field. If `field.many` is `true`, it converts the cell as a list. Returns `undefined` for an empty cell |
 | `tableToObject` | `(rows: readonly (readonly string[])[], fields: FieldsLike, side, urn: string) => Record<string, unknown>` | Converts a table of two rows to an object. Throws if the table does not have two rows, or if a header is not in `fields`. `side` is `'input'`, `'output'` or `'error'`. `side` and `urn` are for the message only |
 | `assertOutput` | `(result: ExecuteResultLike, expected: Record<string, unknown>, urn: string) => void` | The check of `the output is:` |
 | `assertRejectedOn` | `(result: ExecuteResultLike, fieldName: string, fields: FieldsLike, urn: string) => void` | The check of `the input is rejected on "<field>"` |

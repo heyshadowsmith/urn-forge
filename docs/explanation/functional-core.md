@@ -30,6 +30,8 @@ export const ParcelWeightGramsSchema = v.pipe(
 
 The output type of this schema is not `number`. It is `number & Brand<"urn:demo:shipping:parcel:field:weight_grams">`. A plain `number` cannot go where this type is necessary. The usual way to get a value of this type is to parse it with the schema. Thus, when a handler receives a `ParcelWeightGrams`, the type tells the handler that the value is a safe integer from 1 to 30000. The handler does not have to examine the value again.
 
+A `decimal`, a `date` and a `timestamp` are branded strings in the core. A `decimal` stays a string, so no binary float holds it. The core converts it with a decimal library if it does arithmetic. A list property is a list of branded values.
+
 The brand holds the URN of the field, not only its primitive. Two fields with the same primitive have two different branded types. Thus a function in the core that takes a branded price does not accept a branded weight.
 
 ### The limit of a brand
@@ -86,7 +88,13 @@ If an operation needs data from a database, the shell loads the data before the 
 
 The design has costs, and a project pays them every day:
 
-- **A branded value cannot always act as its plain type.** For example, a branded `oneOf` value cannot index an object. `BASE_CENTS[zone]` fails with `TS7053`, because the brand intersection is not a key type. The fix is to assign the value to its plain type first. The tutorial core shows this:
+- **A branded value cannot always act as its plain type.** For example, a branded `enum` value cannot index an object. `BASE_CENTS[zone]` fails with `TS7053`, because the brand intersection is not a key type:
+
+  ```
+  TS7053: Element implicitly has an 'any' type because expression of type '("domestic" | "international") & Brand<"urn:demo:shipping:parcel:field:zone">' can't be used to index type '{ readonly domestic: 500; readonly international: 1500; }'.
+  ```
+
+  The fix is to assign the value to its plain type first. The tutorial core shows this:
 
   <<< @/../packages/urn-forge/tutorial/1-first-domain/core.ts{8-9}
 

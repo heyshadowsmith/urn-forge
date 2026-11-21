@@ -55,7 +55,7 @@ npx urn-forge verify --config tutorial/2-declared-errors/urn-forge.config.ts
 gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/2-declared-errors/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
     tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-    tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside oneOf
+    tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/2-declared-errors/generated
 verify passed with 2 warning(s) (gates 1, 3, 4; gates 2 and 5 are not in the MVP)
 ```
@@ -171,7 +171,7 @@ Boundary coverage reads the values of each input field from these places:
 - The tables of the step `I run the operation with:`, in scenarios with exactly one operation tag. A scenario with two or more operation tags sends no values.
 - In a Scenario Outline, each `<placeholder>` in a cell gets the value of its column in each row of each `Examples` block. This is the same as the substitution of Cucumber. The tags of the `Examples` block are added to find the operation.
 
-The gate converts each cell with the primitive of the field, in the same way as the steps. An empty cell is not a value. The text `""` is the empty string for a `string` field. A column that is not an input field is not read. Refer to [Gherkin steps](./gherkin-steps).
+The gate converts each cell with the primitive of the field, in the same way as the steps. An empty cell is not a value. The text `""` is the empty string for a `string` or an `enum` field. For a field reference with `many`, the cell is a list, for example `[1, 2, 3]`. A column that is not an input field is not read. Refer to [Gherkin steps](./gherkin-steps).
 
 Each operation needs its own values. If two operations have the same field in their input, each operation needs scenarios with the values. An operation with no tag has no boundary check, because `untagged-operation` is already an error.
 
@@ -181,28 +181,89 @@ Each constraint of an input field needs the values in this table. The label is t
 
 | Primitive | Constraint | Necessary value | Label |
 | --- | --- | --- | --- |
+| `boolean` | `mustBe` | The value of `mustBe` | `value <mustBe> (mustBe)` |
+| `boolean` | `mustBe` | The other boolean value | `value <not mustBe> (not mustBe)` |
+| `date` | `min` | The day `min` | `value at min <min>` |
+| `date` | `min` | The day before `min` | `day before min (<day>)` |
+| `date` | `max` | The day `max` | `value at max <max>` |
+| `date` | `max` | The day after `max` | `day after max (<day>)` |
+| `decimal` | `min` | The value `min` | `value at min <min>` |
+| `decimal` | `min` | With `scale`: the value one step of the scale below `min`. Without `scale`, or if `min` has more digits after the point than `scale`: a value smaller than `min` | `value one step below min (<value>)`, or `value below min <min>` |
+| `decimal` | `exclusiveMin` | The value `exclusiveMin` | `value at exclusiveMin <bound>` |
+| `decimal` | `exclusiveMin` | A value larger than `exclusiveMin` | `value above exclusiveMin <bound>` |
+| `decimal` | `max` | The value `max` | `value at max <max>` |
+| `decimal` | `max` | With `scale`: the value one step of the scale above `max`. Without `scale`, or if `max` has more digits after the point than `scale`: a value larger than `max` | `value one step above max (<value>)`, or `value above max <max>` |
+| `decimal` | `exclusiveMax` | The value `exclusiveMax` | `value at exclusiveMax <bound>` |
+| `decimal` | `exclusiveMax` | A value smaller than `exclusiveMax` | `value below exclusiveMax <bound>` |
+| `decimal` | `scale` | A value with `scale` digits after the point | `value with <scale> digit(s) after the point (scale)` |
+| `decimal` | `scale` | A value with `scale + 1` digits after the point | `value with <scale + 1> digits after the point (above scale)` |
+| `decimal` | `notIn` | Each value of the list | `value <value> (notIn)` |
+| `enum` | `values` | Each value of the list | `value "<value>" (values)` |
+| `enum` | `values` | A text that is not in the list | `value outside values` |
+| `float` | `min` | The value `min` | `value at min <min>` |
+| `float` | `min` | A number smaller than `min` | `value below min <min>` |
+| `float` | `exclusiveMin` | The value `exclusiveMin` | `value at exclusiveMin <bound>` |
+| `float` | `exclusiveMin` | A number larger than `exclusiveMin` | `value above exclusiveMin <bound>` |
+| `float` | `max` | The value `max` | `value at max <max>` |
+| `float` | `max` | A number larger than `max` | `value above max <max>` |
+| `float` | `exclusiveMax` | The value `exclusiveMax` | `value at exclusiveMax <bound>` |
+| `float` | `exclusiveMax` | A number smaller than `exclusiveMax` | `value below exclusiveMax <bound>` |
+| `float` | `notIn` | Each value of the list | `value <value> (notIn)` |
 | `integer` | `min` | The value `min` | `value at min <min>` |
 | `integer` | `min` | The value `min − 1` | `value at min − 1 (<min − 1>)` |
 | `integer` | `max` | The value `max` | `value at max <max>` |
 | `integer` | `max` | The value `max + 1` | `value at max + 1 (<max + 1>)` |
-| `integer` | `notEqual` | The value `notEqual` | `value equal to notEqual <value>` |
-| `float` | `min` | The value `min` | `value at min <min>` |
-| `float` | `min` | A number smaller than `min` | `value below min <min>` |
-| `float` | `max` | The value `max` | `value at max <max>` |
-| `float` | `max` | A number larger than `max` | `value above max <max>` |
-| `float` | `notEqual` | The value `notEqual` | `value equal to notEqual <value>` |
+| `integer` | `multipleOf` | An integer that is a multiple of `multipleOf` | `multiple of <n> (multipleOf)` |
+| `integer` | `multipleOf` | An integer that is not a multiple of `multipleOf` | `value that is not a multiple of <n>` |
+| `integer` | `notIn` | Each value of the list | `value <value> (notIn)` |
 | `string` | `minLength` | A text with the length `minLength` | `value of length <n> (minLength)` |
 | `string` | `minLength` | A text with the length `minLength − 1`. Only if `minLength` is more than 0 | `value of length <n − 1> (below minLength)` |
 | `string` | `maxLength` | A text with the length `maxLength` | `value of length <n> (maxLength)` |
 | `string` | `maxLength` | A text with the length `maxLength + 1` | `value of length <n + 1> (above maxLength)` |
 | `string` | `regex` | A text that matches the whole pattern | `valid value for regex <pattern>` |
 | `string` | `regex` | A text that does not match the whole pattern | `invalid value for regex <pattern>` |
-| `string` | `oneOf` | Each value of the list | `value "<value>" (oneOf)` |
-| `string` | `oneOf` | A text that is not in the list | `value outside oneOf` |
-| `boolean` | `mustBe` | The value of `mustBe` | `value <mustBe> (mustBe)` |
-| `boolean` | `mustBe` | The other boolean value | `value <not mustBe> (not mustBe)` |
+| `string` | `format` | A text of the format | `valid <format> (format)` |
+| `string` | `format` | A text that is not of the format | `value that is not a valid <format>` |
+| `timestamp` | `min` | The instant `min` | `value at min <min>` |
+| `timestamp` | `min` | An instant before `min` | `value before min <min>` |
+| `timestamp` | `exclusiveMin` | The instant `exclusiveMin` | `value at exclusiveMin <bound>` |
+| `timestamp` | `exclusiveMin` | An instant after `exclusiveMin` | `value after exclusiveMin <bound>` |
+| `timestamp` | `max` | The instant `max` | `value at max <max>` |
+| `timestamp` | `max` | An instant after `max` | `value after max <max>` |
+| `timestamp` | `exclusiveMax` | The instant `exclusiveMax` | `value at exclusiveMax <bound>` |
+| `timestamp` | `exclusiveMax` | An instant before `exclusiveMax` | `value before exclusiveMax <bound>` |
 
-The numeric comparison uses `===`. Thus `0` and `-0` both cover a bound of `0`. The length of a text is its number of UTF-16 code units. A field with no constraints has no boundary cases. The gate examines only that the values are there. Cucumber examines that the scenarios pass.
+The comparisons of the values:
+
+- `integer` and `float` values compare with `===`. Thus `0` and `-0` both cover a bound of `0`.
+- `decimal` values compare exactly, as numbers. Thus `"0.010"` covers `value at min 0.01`. A value that is not a decimal covers no case.
+- `date` values compare as text. Thus a `date` value must have the form `YYYY-MM-DD`.
+- `timestamp` values compare as instants. Thus `2026-01-01T00:00:00.000Z` covers `value at min 2026-01-01T00:00:00Z`.
+- The length of a text is its number of UTF-16 code units.
+
+Examples of labels from the tests: `value one step below min (0.00)` for `min: "0.01", scale: 2`, and `day before min (2024-02-29)` for `min: 2024-03-01`.
+
+A field with no constraints has no boundary cases. The gate examines only that the values are there. Cucumber examines that the scenarios pass.
+
+### Boundary cases of a list
+
+If the field reference has `many`, each item of each list counts as a value of the field for the cases of its constraints. The lists themselves need the values in this table:
+
+| Property of `many` | Necessary value | Label |
+| --- | --- | --- |
+| `minItems` | A list with `minItems` items | `list of <n> item(s) (minItems)` |
+| `minItems` | A list with `minItems − 1` items. Only if `minItems` is more than 0 | `list of <n − 1> item(s) (below minItems)` |
+| `maxItems` | A list with `maxItems` items | `list of <n> item(s) (maxItems)` |
+| `maxItems` | A list with `maxItems + 1` items | `list of <n + 1> item(s) (above maxItems)` |
+| `unique: true` | A list in which a value occurs two or more times | `list with a repeated value (unique)` |
+
+`many: true` has no list cases. If the field also has no constraints, the field has no boundary cases. The list cases come after the cases of the constraints in the message.
+
+An example from a real run, for `sku` with `regex` and `many: { minItems: 1, maxItems: 3, unique: true }`, and one scenario that sends `[ABC-0001, ABC-0002]`:
+
+```
+urn:demo:shop:order:field:sku in the input of urn:demo:shop:order:operation:count_items has no invalid value for regex [A-Z]{3}-[0-9]{4}, no list of 1 item(s) (minItems), no list of 0 item(s) (below minItems), no list of 3 item(s) (maxItems), no list of 4 item(s) (above maxItems), no list with a repeated value (unique)
+```
 
 The message of `uncovered-boundary` gives all the cases that are not there, in the sequence of the table:
 

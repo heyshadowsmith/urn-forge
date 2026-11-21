@@ -19,11 +19,30 @@ This page does not list the parts of the specification that urn-forge does not h
 
 Sources: the [MVP plan](../project/mvp-plan), spec gap 1; the [error kind plan](../project/error-kind-plan), decisions 1 to 6 and 10.
 
+## Primitives and constraints
+
+The [primitives plan](../project/primitives-plan) made the set of primitives and constraints MECE: one primitive for each kind of value, and one constraint for each aspect of a value. Some primitives and constraints of §4.1 do not agree with that rule, so urn-forge changes them. For the model, refer to [The MECE model of primitives](./primitives-model).
+
+| Specification v1.1 | urn-forge | Why |
+| --- | --- | --- |
+| A closed set of names is a `string` with `oneOf` (§4.1) | The `enum` primitive with `values`. `oneOf` on a field gives `unknown-property`, with a hint | `oneOf` overlapped `minLength`, `maxLength` and `regex` on one field. Pass 7 had to examine each listed value against them. As its own primitive, a closed set cannot meet a length or shape constraint |
+| `notEqual` excludes one value (§4.1) | `notIn: [ … ]` excludes a list of values, on `integer`, `float` and `decimal`. `notEqual` gives `unknown-property`, with a hint | One value is a list of one. "Not 0 and not 13" could not be written. Two constraints for one aspect would not be mutually exclusive |
+| `decimal` has `precision: [p, s]` (§4.1) | `decimal` has `scale` only. The range limits the size | `precision` mixes the size of a value with its step. `scale` is the step. A SQL plugin can derive `NUMERIC(p, s)` from the scale and the range |
+| `timestamp` has `after` and `before` (§4.1) | `date` and `timestamp` use `min` and `max`, as every ordered primitive does | One name for one aspect. `min` is an inclusive lower bound on each primitive that has a range |
+| `min` and `max` are the only bounds (§4.1) | `float`, `decimal` and `timestamp` also have `exclusiveMin` and `exclusiveMax`. `integer` and `date` do not | "A price above 0" could not be written. On a discrete primitive, an exclusive bound is always an inclusive bound one step further, so it would be a second form of the same bound |
+| The specification does not say if a field can set two constraints for one side of a value | A field can set one constraint for each side of an aspect. `min` with `exclusiveMin`, or `regex` with `format`, gives `conflicting-constraints` | Two constraints for one side of one aspect say the same thing two times, or disagree |
+| `string` has `format: iso-date`, and there is a `timestamp` primitive (§4.1) | A `date` primitive for a calendar day. `format` has `uuid`, `email` and `uri` only | One kind of value would have two forms. `format` holds only shapes that a `regex` cannot express clearly |
+| `list` is a primitive with `of`, `minItems`, `maxItems` and `unique` (§4.1) | A list is `many: { minItems, maxItems, unique }` on a field reference. There is no `list` primitive | A primitive tells what one value is. A list tells how many values there are, which is a property of the reference, as `required` is. A list of integers would otherwise be both `list` and `integer` |
+| `record` and `ref` are primitives (§4.1) | urn-forge does not have `record`, `ref` or a list of entities at this time | Each needs its own decisions. The primitives plan stops at lists of fields. Refer to [Scope](../reference/scope) |
+| A changed primitive needs a new URN (§3) | `oneOf` and `notEqual` changed in place. Each field kept its URN | No consumer of urn-forge exists before version 1.0. A new URN for each field would only add noise |
+
+Sources: the [primitives plan](../project/primitives-plan), "The problem", "The model" and decisions 1 to 3, 5 and 7.
+
 ## Errors and messages
 
 | Specification v1.1 | urn-forge | Why |
 | --- | --- | --- |
-| A message placeholder names a field of the error (§4.6) | A placeholder must name a field with `required: true` | An optional field can be absent. Then the message would not be complete |
+| A message placeholder names a field of the error (§4.6) | A placeholder must name a field with `required: true` and no `many` | An optional field can be absent. Then the message would not be complete. A list has no one value to put in the message |
 | The specification does not define the form of a placeholder | A placeholder is `{…}` with no space and no brace inside | Text such as `{ and }` stays text, but a typo such as `{Quantity}` is still checked |
 | An error schema has a literal `kind` with the error URN (§7.1) | The same. Also, no field of an error can have the identifier `kind` (`reserved-property`) | A field with that name would collide with the URN in the payload |
 
@@ -46,14 +65,17 @@ Sources: the [MVP plan](../project/mvp-plan), spec gap 2 and build step 8; the [
 | --- | --- | --- |
 | A waiver is the tag `@urn-forge:waive(<field URN>, <reason>)` (§8) | A waiver is the comment `# urn-forge:waive <field URN> <reason…>` | A Gherkin tag cannot contain a space. A tag with a real reason makes the parser refuse the file |
 | Waivers are listed in the output of `verify` (§8) | Each applied waiver is a `note`, a third severity. A waiver for a field that is not constrained is an error. A waiver that removes no gap is a warning | A note stays visible but does not count as a warning. A stale waiver cannot hide a future gap |
-| The specification has no way to send the empty string from a table | A cell of `""` sends the empty string to a `string` field | Without it, `minLength: 1` could never be covered |
+| The specification has no way to send the empty string from a table | A cell of `""` sends the empty string to a `string` or an `enum` field | Without it, `minLength: 1` could never be covered |
+| The specification does not say how a table cell holds a list | A list cell is `[a, b, c]`, and `[]` is the empty list. Each item is a cell of the primitive of the field | It reads like the YAML flow list in the manifest |
 | `boundaryCoverage` is in the configuration of the `gherkin` plugin (§7.5) | `boundaryCoverage` is at the top level of `urn-forge.config.ts` | urn-forge has no `gherkin` plugin, and gate 3 is not a plugin |
 | `@urn-forge:strict` makes a feature strict (§8) | It makes strict every operation that the feature tags. An operation is strict if any of its features is strict | Coverage is counted for each operation across all features. The tag must reach the gaps that it is there to fail |
-| The rules do not name `notEqual` or `mustBe` (§8) | `notEqual` needs the excluded value. `mustBe` needs both `true` and `false` | The excluded value is the one case that the constraint exists for |
-| The rules give `integer` and `decimal` bounds (§8) | A `float` bound needs the value at the bound and any value past it | A `float` has no step |
+| The rules do not name `notEqual` or `mustBe` (§8) | `notIn` needs each excluded value. `mustBe` needs both `true` and `false` | An excluded value is the case that the constraint exists for |
+| The rules do not name exclusive bounds, `multipleOf`, `date` or `timestamp` (§8) | Each has its cases. Refer to [Verification gates](../reference/verification-gates) | Each constraint brings its own boundary cases |
+| The rules give `minItems` and `maxItems` no cases (§8) | The items of a list count as values of the field. The list needs the counts at and past `minItems` and `maxItems`, and a repeated value for `unique` | The rules of the field apply to each item, and the rules of the list to the list |
+| The rules give `integer` and `decimal` bounds (§8) | A `float` bound, and a `decimal` bound with no `scale`, needs the value at the bound and any value past it | A `float` has no step. A `decimal` with no `scale` has no step either |
 | Coverage reads "all its scenarios' example values" (§8) | Coverage reads only the input tables of `When I run the operation with:` | A boundary is about what the operation accepts. An output value is a result, not a case |
 
-Sources: the [boundary coverage plan](../project/boundary-coverage-plan), the rules table and decisions 1, 3, 4, 6, 7, 9 and 10.
+Sources: the [boundary coverage plan](../project/boundary-coverage-plan), the rules table and decisions 1, 3, 4, 6, 7, 9 and 10; the [primitives plan](../project/primitives-plan), decisions 9 and 10.
 
 ## The compiler and determinism
 
@@ -62,7 +84,7 @@ Sources: the [boundary coverage plan](../project/boundary-coverage-plan), the ru
 | The fingerprint covers the IR, the resolved configuration, the version and the plugins (§6) | It also covers the registries: the constraint keys of each primitive, and the names of the kinds | A new primitive changed the bytes of the generated runtime, but not the fingerprint |
 | The fingerprint covers "the resolved config" (§6) | It covers the configuration of each plugin, not the paths or `boundaryCoverage` | These settings do not change the generated files |
 | `manifestHash` is the hash of the canonical manifest (§5) | The hash leaves out the kind groups that are empty | A new kind in urn-forge does not change the hash of a manifest that does not use it |
-| A field reference in the IR has `field`, `required` and `nullable` (§5) | It also has `name`, the property name of the field | Every plugin and gate reads the same name from the IR, and none of them derives it again |
+| A field reference in the IR has `field`, `required` and `nullable` (§5) | It also has `name`, the property name of the field, and `many` for a list | Every plugin and gate reads the same name from the IR, and none of them derives it again |
 | The input and output of an operation are an entity or a field (§5) | The input and output are entities | The MVP kept its scope small. No plan records a further reason |
 | A brand collision is a compile error (§3) | The same. Also, two atoms whose generated exports have the same name give `export-collision` | Brand identifiers can be unique, while `<A>Input` of one atom is still `<B>` of a different atom |
 
