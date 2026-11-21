@@ -6,7 +6,7 @@ The `urn-forge verify` command does a static check of each link in the chain. It
 2. The command runs three gates and shows the result of each gate.
 3. If one or more gates fail, the command stops with exit code `1`.
 
-A gate fails if it finds one or more errors. A warning does not make a gate fail. If there are warnings, the last line gives their number, for example `verify passed with 2 warning(s)`. The MVP gates do not make warnings at this time.
+A gate fails if it finds one or more errors. A warning does not make a gate fail. If there are warnings, the last line gives their number, for example `verify passed with 2 warning(s)`. At this time, only `uncovered-error` of gate 3 is a warning.
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over example/core.ts; `core` satisfies DomainCoreImplementation
@@ -39,6 +39,7 @@ gate 1  completeness  FAIL  tsc: 1 error(s) over example/core.ts; `core` satisfi
 1. **Tags.** Each `@urn:…` tag must agree with a URN in the manifest. Each operation must have a tag on one or more features or scenarios.
 2. **Headers.** These rules apply to a scenario with an operation tag. Each header in its tables must be a property of the input or output entity of the operation. The table of `Then the operation fails with "<error URN>":` is different: each header must be a field of that error. This applies to step tables and to `Examples` blocks. If the tag is an entity tag, each header must be a property of that entity. A scenario receives the tags of its feature, of its `Rule` block and of its `Examples` blocks.
 3. **Required columns.** The table of the step `When I run the operation with:` must have a column for each mandatory field of the input of the operation. Fields with `required: false` are not mandatory. To make a test with a missing value, keep the column and leave the cell empty. Then the step sends the payload without that key.
+4. **Declared errors.** The step `Then the operation fails with "<error URN>"` must give an error that the operation of the scenario declares. If not, the gate fails (`undeclared-error`). Each declared error must have one or more scenarios that expect it. If an error has no scenario, the gate gives a warning (`uncovered-error`), but it does not fail. A later version can make this check an error.
 
 A scenario with two or more operation or entity tags fails, because the steps must have one tag only.
 
