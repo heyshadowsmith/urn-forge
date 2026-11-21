@@ -292,6 +292,11 @@ export function printRule(expr: RuleExpr): string {
 // Type checker (pass 6)
 // ---------------------------------------------------------------------------
 
+/** `an integer`, `a date`: the word with its indefinite article. */
+function article(word: string): string {
+  return `${/^[aeiou]/u.test(word) ? 'an' : 'a'} ${word}`;
+}
+
 /** What a rule may know about a property of the invariant's entity. */
 export interface RuleField {
   readonly primitive: Primitive;
@@ -361,7 +366,7 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
     }
     if (left.kind === 'value' && right.kind === 'value') {
       if (left.primitive !== right.primitive) {
-        problem('rule-type', at, `${op} has a ${left.primitive} on the left and a ${right.primitive} on the right; both sides must have one primitive`);
+        problem('rule-type', at, `${op} has ${article(left.primitive)} on the left and ${article(right.primitive)} on the right; both sides must have one primitive`);
         return undefined;
       }
       return left.primitive;
@@ -370,7 +375,7 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
     const literal = (left.kind === 'literal' ? left : right) as Extract<ValueType, { kind: 'literal' }>;
     const why = literalProblem(literal, value.primitive, fieldsOf(value)?.values);
     if (why) {
-      problem('rule-type', at, `${why}, so it cannot meet a ${value.primitive} in ${op}`);
+      problem('rule-type', at, `${why}, so it cannot meet ${article(value.primitive)} in ${op}`);
       return undefined;
     }
     return value.primitive;
@@ -454,7 +459,7 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
   const condition = (e: LocatedExpr, present: ReadonlySet<string>, where: string) => {
     const result = check(e, present);
     if (result && result.kind !== 'condition') {
-      problem('rule-type', e.at, `${where} needs a condition, such as a comparison, not a ${result.kind === 'value' ? result.primitive : `${result.literal} literal`}`);
+      problem('rule-type', e.at, `${where} needs a condition, such as a comparison, not ${article(result.kind === 'value' ? result.primitive : `${result.literal} literal`)}`);
     }
   };
   const value = (e: LocatedExpr, present: ReadonlySet<string>, where: string): ValueType | undefined => {

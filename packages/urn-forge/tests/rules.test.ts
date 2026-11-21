@@ -99,9 +99,9 @@ describe('checkRule (pass 6)', () => {
 
   it('refuses sides of two primitives, and literals that do not fit', () => {
     expect(problems('premium > effective_date')).toEqual([['rule-type', 1, '">" has a decimal on the left and a date on the right; both sides must have one primitive']]);
-    expect(problems('count > 1.5')).toEqual([['rule-type', 1, '1.5 is not an integer, so it cannot meet a integer in ">"']]);
+    expect(problems('count > 1.5')).toEqual([['rule-type', 1, '1.5 is not an integer, so it cannot meet an integer in ">"']]);
     expect(problems('expiry_date > 2026')).toEqual([['rule-type', 1, "2026 is not a date in quotes, such as '2026-01-31', so it cannot meet a date in \">\""]]);
-    expect(problems("tier = 'bronze'")).toEqual([['rule-type', 1, "'bronze' is not one of the values (gold, silver), so it cannot meet a enum in \"=\""]]);
+    expect(problems("tier = 'bronze'")).toEqual([['rule-type', 1, "'bronze' is not one of the values (gold, silver), so it cannot meet an enum in \"=\""]]);
     expect(problems('1 < 2')).toEqual([['rule-type', 1, '"<" compares two literals; one side must be a field']]);
   });
 
@@ -111,7 +111,7 @@ describe('checkRule (pass 6)', () => {
   });
 
   it('needs conditions where logic is, and values where comparisons are', () => {
-    expect(problems('count')).toEqual([['rule-type', 1, 'a rule needs a condition, such as a comparison, not a integer']]);
+    expect(problems('count')).toEqual([['rule-type', 1, 'a rule needs a condition, such as a comparison, not an integer']]);
     expect(problems('flag and count > 1')).toEqual([['rule-type', 1, 'and needs a condition, such as a comparison, not a boolean']]);
     expect(problems('(count > 1) > 2')).toEqual([['rule-type', 2, '">" needs a value on each side, not a condition']]);
   });
