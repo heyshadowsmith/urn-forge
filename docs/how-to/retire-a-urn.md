@@ -83,7 +83,7 @@ policy.entity.coverage:
 
 The output of `issue_policy` holds the coverages. If you remove `note` now, each caller that reads `note` breaks. With both properties, a caller can move to `remark` at any time before the sunset date.
 
-Compare the manifest with the version on `main`:
+Compare the manifest with the version on `main`. Here `main` has the manifest before steps 1 and 2: `note` has `status: active`, and there is no `remark`:
 
 ```bash
 git show origin/main:./insurance/domain.manifest.yaml > old.manifest.yaml
