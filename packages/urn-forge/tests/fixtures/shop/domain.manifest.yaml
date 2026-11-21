@@ -4,7 +4,7 @@ manifest:
   domain: shop
   version: 0.1.0
 
-order.field.quantity:  { primitive: integer, min: 1, max: 99, notEqual: 13 }
+order.field.quantity:  { primitive: integer, min: 1, max: 99, notIn: [13] }
 order.field.unit_cost: { primitive: float, min: 0, description: Price of one unit }
 order.field.note:      { primitive: string, minLength: 1, maxLength: 140 }
 order.field.total:     { primitive: float, min: 0 }

@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';
 import * as shop from './fixtures/shop/expected/domain.schemas.generated.js';
+import * as kinds from './fixtures/primitives/expected/domain.schemas.generated.js';
 import { compile } from '../src/engine.js';
 import { coerceCell } from '../src/gherkin/steps.js';
 import { validateManifest } from '../src/meta-schema.js';
@@ -21,14 +22,14 @@ describe('primitive registry', () => {
     expect(Object.fromEntries(PRIMITIVE_NAMES.map((p) => [p, constraintKeys(p)]))).toEqual({
       boolean: ['mustBe'],
       enum: ['values'],
-      float: ['min', 'max', 'notEqual'],
-      integer: ['min', 'max', 'notEqual'],
-      string: ['minLength', 'maxLength', 'regex'],
+      float: ['min', 'max', 'exclusiveMin', 'exclusiveMax', 'notIn'],
+      integer: ['min', 'max', 'multipleOf', 'notIn'],
+      string: ['minLength', 'maxLength', 'regex', 'format'],
     });
   });
 
   it('drives the meta-schema: each primitive accepts its own constraints and no others', () => {
-    const sample: Record<string, unknown> = { mustBe: true, values: ['a'], min: 1, max: 1, notEqual: 1, minLength: 1, maxLength: 1, regex: 'a' };
+    const sample: Record<string, unknown> = { mustBe: true, values: ['a'], min: 1, max: 1, exclusiveMin: 0, exclusiveMax: 2, multipleOf: 1, notIn: [5], minLength: 1, maxLength: 1, regex: 'a', format: 'uuid' };
     for (const primitive of PRIMITIVE_NAMES) {
       // An enum must list its values, so each try starts from a valid enum.
       const base = primitive === 'enum' ? { values: ['a'] } : {};
@@ -72,12 +73,57 @@ describe('constraint coherence (pass 7)', () => {
     }
   });
 
-  it('rejects a range of one value that notEqual excludes', () => {
-    expect(diagnose('a.field.b: { primitive: integer, min: 3, max: 3, notEqual: 3 }\n')).toEqual([
+  it('rejects notIn that excludes every value the range and step allow', () => {
+    expect(diagnose('a.field.b: { primitive: integer, min: 3, max: 3, notIn: [3] }\n')).toEqual([
       expect.objectContaining({
         code: 'incoherent-constraints',
-        message: 'urn:demo:math:a:field:b: min and max are both 3 and notEqual is 3, so no value is valid',
+        message: 'urn:demo:math:a:field:b: notIn lists every value that min, max allow, so no value is valid',
       }),
+    ]);
+    expect(diagnose('a.field.b: { primitive: integer, min: 1, max: 20, multipleOf: 10, notIn: [10, 20] }\n')).toEqual([
+      expect.objectContaining({ message: 'urn:demo:math:a:field:b: notIn lists every value that min, max and multipleOf allow, so no value is valid' }),
+    ]);
+    expect(diagnose('a.field.b: { primitive: float, min: 2, max: 2, notIn: [2] }\n')).toEqual([
+      expect.objectContaining({ message: 'urn:demo:math:a:field:b: min and max are both 2 and notIn lists it, so no value is valid' }),
+    ]);
+  });
+
+  it('rejects a multipleOf with no multiple in the range', () => {
+    expect(diagnose('a.field.b: { primitive: integer, min: 1, max: 4, multipleOf: 5 }\n')).toEqual([
+      expect.objectContaining({ message: 'urn:demo:math:a:field:b: no multiple of 5 is between min (1) and max (4), so no value is valid' }),
+    ]);
+  });
+
+  it('rejects exclusive bounds that leave no value', () => {
+    expect(diagnose('a.field.b: { primitive: float, exclusiveMin: 1, max: 1 }\n')).toEqual([
+      expect.objectContaining({ message: 'urn:demo:math:a:field:b: exclusiveMin and max are both 1, and one of them excludes it, so no value is valid' }),
+    ]);
+    expect(diagnose('a.field.b: { primitive: float, exclusiveMin: 2, exclusiveMax: 1 }\n')).toEqual([
+      expect.objectContaining({ message: 'urn:demo:math:a:field:b: exclusiveMin (2) is greater than exclusiveMax (1), so no value is valid' }),
+    ]);
+  });
+
+  it('rejects two constraints for one side, and checks no coherence then', () => {
+    expect(diagnose('a.field.b: { primitive: float, min: 5, exclusiveMin: 0, max: 1 }\n')).toEqual([
+      expect.objectContaining({ code: 'conflicting-constraints', message: 'urn:demo:math:a:field:b: min and exclusiveMin both set a lower bound; keep one' }),
+    ]);
+    expect(diagnose("a.field.b: { primitive: string, regex: '[a-z]+', format: email }\n")).toEqual([
+      expect.objectContaining({ code: 'conflicting-constraints', message: 'urn:demo:math:a:field:b: regex and format both set the shape; keep one' }),
+    ]);
+  });
+
+  it('rejects a uuid that the length constraints exclude', () => {
+    expect(diagnose('a.field.b: { primitive: string, format: uuid, maxLength: 10 }\n')).toEqual([
+      expect.objectContaining({ message: 'urn:demo:math:a:field:b: a uuid has 36 characters, which the length constraints exclude, so no value is valid' }),
+    ]);
+  });
+
+  it('names what replaced a constraint, and refuses an exclusive bound on an integer', () => {
+    expect(diagnose('a.field.b: { primitive: integer, notEqual: 3 }\n')).toEqual([
+      expect.objectContaining({ code: 'unknown-property', message: 'a.field.b.notEqual: unknown property "notEqual"; to exclude values, use notIn: [ … ]' }),
+    ]);
+    expect(diagnose('a.field.b: { primitive: integer, exclusiveMin: 0 }\n')).toEqual([
+      expect.objectContaining({ code: 'constraint-not-allowed', message: expect.stringContaining('"exclusiveMin" is not a constraint of primitive "integer" (allowed: min, max, multipleOf, notIn)') }),
     ]);
   });
 
@@ -89,7 +135,9 @@ describe('constraint coherence (pass 7)', () => {
 
   it('accepts ranges that admit a value', () => {
     expect(diagnose('a.field.b: { primitive: integer, min: 3, max: 3 }\n')).toEqual([]);
-    expect(diagnose('a.field.b: { primitive: integer, min: 3, max: 4, notEqual: 3 }\n')).toEqual([]);
+    expect(diagnose('a.field.b: { primitive: integer, min: 3, max: 4, notIn: [3] }\n')).toEqual([]);
+    expect(diagnose('a.field.b: { primitive: float, exclusiveMin: 0, exclusiveMax: 0.001 }\n')).toEqual([]);
+    expect(diagnose('a.field.b: { primitive: integer, min: 1, max: 10, multipleOf: 5 }\n')).toEqual([]);
     expect(diagnose('a.field.b: { primitive: string, minLength: 2, maxLength: 2 }\n')).toEqual([]);
   });
 });
@@ -98,7 +146,7 @@ describe('ValibotTranslations (type level, checked by tsc)', () => {
   it('requires every primitive and every constraint', () => {
     const numeric: ValibotTranslation<'float'> = {
       base: [],
-      // @ts-expect-error notEqual is missing
+      // @ts-expect-error notIn, exclusiveMin and exclusiveMax are missing
       constraints: { min: String, max: String },
     };
     const wrongValue: ValibotTranslation<'string'> = {
@@ -108,8 +156,8 @@ describe('ValibotTranslations (type level, checked by tsc)', () => {
     };
     // @ts-expect-error the string primitive is missing
     const partial: ValibotTranslations = {
-      float: { base: [], constraints: { min: String, max: String, notEqual: String } },
-      integer: { base: [], constraints: { min: String, max: String, notEqual: String } },
+      float: { base: [], constraints: { min: String, max: String, exclusiveMin: String, exclusiveMax: String, notIn: String } },
+      integer: { base: [], constraints: { min: String, max: String, multipleOf: String, notIn: String } },
     };
     expect([numeric, wrongValue, partial]).toBeDefined();
   });
@@ -183,12 +231,33 @@ describe('boundary cases (boundary coverage plan, step 1)', () => {
     boundaryCases(primitive, constraints as never).map((c) => [c.label, samples.filter((s) => c.covers(s))]);
 
   it('integer: the value at each bound and one step beyond, and the excluded value', () => {
-    expect(covered('integer', { min: 1, max: 99, notEqual: 13 }, [0, 1, 2, 99, 100, 13, '0'])).toEqual([
+    expect(covered('integer', { min: 1, max: 99, notIn: [13, 50] }, [0, 1, 2, 99, 100, 13, 50, '0'])).toEqual([
       ['value at min 1', [1]],
       ['value at min − 1 (0)', [0]],
       ['value at max 99', [99]],
       ['value at max + 1 (100)', [100]],
-      ['value equal to notEqual 13', [13]],
+      ['value 13 (notIn)', [13]],
+      ['value 50 (notIn)', [50]],
+    ]);
+    expect(covered('integer', { multipleOf: 5 }, [10, -5, 7, 2.5])).toEqual([
+      ['multiple of 5 (multipleOf)', [10, -5]],
+      ['value that is not a multiple of 5', [7]],
+    ]);
+  });
+
+  it('float: an exclusive bound needs the bound itself and a value inside it', () => {
+    expect(covered('float', { exclusiveMin: 0, exclusiveMax: 1 }, [0, 0.5, 1, 2])).toEqual([
+      ['value at exclusiveMin 0', [0]],
+      ['value above exclusiveMin 0', [0.5, 1, 2]],
+      ['value at exclusiveMax 1', [1]],
+      ['value below exclusiveMax 1', [0, 0.5]],
+    ]);
+  });
+
+  it('string: a valid and an invalid value of a format', () => {
+    expect(covered('string', { format: 'uuid' }, ['123e4567-e89b-12d3-a456-426614174000', 'nope', 7])).toEqual([
+      ['valid uuid (format)', ['123e4567-e89b-12d3-a456-426614174000']],
+      ['value that is not a valid uuid', ['nope']],
     ]);
   });
 
@@ -261,5 +330,33 @@ describe('the MECE model (primitives plan)', () => {
         expect(groupAspects.size, `${p}: ${group.keys.join(', ')}`).toBe(1);
       }
     }
+  });
+});
+
+describe('the generated schema of each constraint (fixture: primitives)', () => {
+  /** [schema, values it accepts, values it refuses] */
+  const cases: readonly [string, v.GenericSchema, readonly unknown[], readonly unknown[]][] = [
+    ['flag', kinds.ValueFlagSchema, [true, false], ['true', 1]],
+    ['accepted (mustBe)', kinds.ValueAcceptedSchema, [true], [false]],
+    ['size (enum values)', kinds.ValueSizeSchema, ['s', 'm', 'l'], ['xl', '', 'S']],
+    ['code (minLength, maxLength)', kinds.ValueCodeSchema, ['ab', 'abcd'], ['a', 'abcde']],
+    ['sku (regex)', kinds.ValueSkuSchema, ['ABC-1234'], ['abc-1234', 'ABC-12345']],
+    ['id (format uuid)', kinds.ValueIdSchema, ['123e4567-e89b-12d3-a456-426614174000'], ['123e4567', '']],
+    ['email (format email)', kinds.ValueEmailSchema, ['ada@example.com'], ['ada', 'ada@']],
+    ['link (format uri)', kinds.ValueLinkSchema, ['https://example.com/a'], ['example.com', 'not a uri']],
+    ['quantity (min, max, notIn)', kinds.ValueQuantitySchema, [1, 12, 14, 99], [0, 13, 100, 1.5]],
+    ['pack (min, multipleOf)', kinds.ValuePackSchema, [0, 6, 12], [-6, 5, 7]],
+    ['share (min, max)', kinds.ValueShareSchema, [0, 0.5, 1], [-0.1, 1.1]],
+    ['weight (exclusiveMin, exclusiveMax)', kinds.ValueWeightSchema, [0.001, 999.9], [0, 1000, -1]],
+    ['divisor (notIn)', kinds.ValueDivisorSchema, [1, -2.5], [0, -0]],
+  ];
+  it.each(cases)('%s', (_name, schema, accepted, refused) => {
+    for (const value of accepted) expect(v.is(schema, value), `accepts ${String(value)}`).toBe(true);
+    for (const value of refused) expect(v.is(schema, value), `refuses ${String(value)}`).toBe(false);
+  });
+
+  it('types an enum as the union of its values (checked by tsc)', () => {
+    const size: 's' | 'm' | 'l' = v.parse(kinds.ValueSizeSchema, 'm');
+    expect(size).toBe('m');
   });
 });

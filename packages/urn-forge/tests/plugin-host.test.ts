@@ -67,7 +67,7 @@ describe('plugin support', () => {
     );
     const floats = stub({ kinds: ['field', 'entity', 'operation'], constraints: { float: ['min'] } });
     expect(unsupportedConstructs(mathIr(), floats).map((d) => d.message)).toEqual([
-      'urn:demo:math:arithmetic:field:divisor: the stub plugin cannot translate constraint "notEqual"',
+      'urn:demo:math:arithmetic:field:divisor: the stub plugin cannot translate constraint "notIn"',
     ]);
   });
 

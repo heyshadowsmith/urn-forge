@@ -296,7 +296,7 @@ describe('gate 3: boundary coverage', () => {
           problems: [],
         },
       } as unknown as GateContext).problems.filter((p) => p.code === 'uncovered-boundary' && p.urn!.endsWith(':quantity'));
-    // quantity: integer, min 1, max 99, notEqual 13.
+    // quantity: integer, min 1, max 99, notIn [13].
     expect(gaps(['0', '1', '99', '100', '13'].map((q) => `      | ${q} |\n`).join(''))).toEqual([]);
     expect(gaps(['1', '99', '13'].map((q) => `      | ${q} |\n`).join(''))[0]?.message).toMatch(/has no value at min − 1 \(0\), no value at max \+ 1 \(100\)$/);
   });

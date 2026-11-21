@@ -1,0 +1,62 @@
+[
+  {
+    "code": "constraint-not-allowed",
+    "location": {
+      "column": 50,
+      "line": 8
+    },
+    "message": "value.field.open_integer.exclusiveMin: \"exclusiveMin\" is not a constraint of primitive \"integer\" (allowed: min, max, multipleOf, notIn)",
+    "severity": "error",
+    "urn": "urn:demo:replaced:value:field:open_integer"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 55,
+      "line": 9
+    },
+    "message": "value.field.no_values.values: must list at least one value",
+    "severity": "error",
+    "urn": "urn:demo:replaced:value:field:no_values"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 55,
+      "line": 10
+    },
+    "message": "value.field.twice.values: must not list a value more than once",
+    "severity": "error",
+    "urn": "urn:demo:replaced:value:field:twice"
+  },
+  {
+    "code": "missing-property",
+    "location": {
+      "column": 1,
+      "line": 11
+    },
+    "message": "value.field.missing.values: missing property \"values\"",
+    "severity": "error",
+    "urn": "urn:demo:replaced:value:field:missing"
+  },
+  {
+    "code": "unknown-property",
+    "location": {
+      "column": 49,
+      "line": 12
+    },
+    "message": "value.field.old_one_of.oneOf: unknown property \"oneOf\"; for a fixed set of values, use primitive: enum with values: [ … ]",
+    "severity": "error",
+    "urn": "urn:demo:replaced:value:field:old_one_of"
+  },
+  {
+    "code": "unknown-property",
+    "location": {
+      "column": 50,
+      "line": 13
+    },
+    "message": "value.field.old_not_equal.notEqual: unknown property \"notEqual\"; to exclude values, use notIn: [ … ]",
+    "severity": "error",
+    "urn": "urn:demo:replaced:value:field:old_not_equal"
+  }
+]

@@ -1,0 +1,48 @@
+# One field for each primitive and each constraint of the MECE model (primitives plan).
+# tests/primitives.test.ts parses values through the generated schemas.
+manifest:
+  namespace: demo
+  domain: kinds
+  version: 0.1.0
+
+# boolean: membership
+value.field.flag:          { primitive: boolean }
+value.field.accepted:      { primitive: boolean, mustBe: true }
+# enum: membership
+value.field.size:          { primitive: enum, values: [s, m, l] }
+# string: size, and shape (regex or format)
+value.field.text:          { primitive: string }
+value.field.code:          { primitive: string, minLength: 2, maxLength: 4 }
+value.field.sku:           { primitive: string, regex: '[A-Z]{3}-[0-9]{4}' }
+value.field.id:            { primitive: string, format: uuid }
+value.field.email:         { primitive: string, format: email }
+value.field.link:          { primitive: string, format: uri }
+# integer: range (inclusive), step, exclusion
+value.field.count:         { primitive: integer }
+value.field.quantity:      { primitive: integer, min: 1, max: 99, notIn: [13] }
+value.field.pack:          { primitive: integer, min: 0, multipleOf: 6 }
+# float: range (inclusive or exclusive), exclusion
+value.field.ratio:         { primitive: float }
+value.field.share:         { primitive: float, min: 0, max: 1 }
+value.field.weight:        { primitive: float, exclusiveMin: 0, exclusiveMax: 1000 }
+value.field.divisor:       { primitive: float, notIn: [0] }
+
+value.entity.sample:
+  description: One value of each field
+  fields:
+    - { ref: value.field.flag, required: false }
+    - { ref: value.field.accepted, required: false }
+    - { ref: value.field.size, required: false }
+    - { ref: value.field.text, required: false }
+    - { ref: value.field.code, required: false }
+    - { ref: value.field.sku, required: false }
+    - { ref: value.field.id, required: false }
+    - { ref: value.field.email, required: false }
+    - { ref: value.field.link, required: false }
+    - { ref: value.field.count, required: false }
+    - { ref: value.field.quantity, required: false }
+    - { ref: value.field.pack, required: false }
+    - { ref: value.field.ratio, required: false }
+    - { ref: value.field.share, required: false }
+    - { ref: value.field.weight, required: false }
+    - { ref: value.field.divisor, required: false }

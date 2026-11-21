@@ -41,7 +41,7 @@
       "column": 45,
       "line": 10
     },
-    "message": "order.field.note.min: \"min\" is not a constraint of primitive \"string\" (allowed: minLength, maxLength, regex)",
+    "message": "order.field.note.min: \"min\" is not a constraint of primitive \"string\" (allowed: minLength, maxLength, regex, format)",
     "severity": "error"
   },
   {

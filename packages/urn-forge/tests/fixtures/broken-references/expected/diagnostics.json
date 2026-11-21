@@ -92,10 +92,10 @@
   {
     "code": "incoherent-constraints",
     "location": {
-      "column": 73,
+      "column": 70,
       "line": 11
     },
-    "message": "urn:demo:broken:order:field:size: min and max are both 1 and notEqual is 1, so no value is valid",
+    "message": "urn:demo:broken:order:field:size: notIn lists every value that min, max allow, so no value is valid",
     "severity": "error",
     "urn": "urn:demo:broken:order:field:size"
   },

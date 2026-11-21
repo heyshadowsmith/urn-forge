@@ -65,7 +65,9 @@
     "urn:demo:math:arithmetic:field:divisor": {
       "brandIdentifier": "ArithmeticDivisor",
       "constraints": {
-        "notEqual": 0
+        "notIn": [
+          0
+        ]
       },
       "primitive": "float",
       "urn": "urn:demo:math:arithmetic:field:divisor"
@@ -96,7 +98,7 @@
   "meta": {
     "domain": "math",
     "irSchemaVersion": 1,
-    "manifestHash": "e7596627f2dbbe2e3180b0b9a3a1947d1016ebc1dacaa5d22c9f68616841af7a",
+    "manifestHash": "f478a14beff035d8934b2e024c1d972d89a8c4202e49c1a84f751444404f207e",
     "manifestVersion": "0.1.0",
     "namespace": "demo",
     "stability": "stable"

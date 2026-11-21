@@ -1,0 +1,237 @@
+{
+  "entities": {
+    "urn:demo:kinds:value:entity:sample": {
+      "brandIdentifier": "ValueSample",
+      "description": "One value of each field",
+      "fields": [
+        {
+          "field": "urn:demo:kinds:value:field:flag",
+          "name": "flag",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:accepted",
+          "name": "accepted",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:size",
+          "name": "size",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:text",
+          "name": "text",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:code",
+          "name": "code",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:sku",
+          "name": "sku",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:id",
+          "name": "id",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:email",
+          "name": "email",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:link",
+          "name": "link",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:count",
+          "name": "count",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:quantity",
+          "name": "quantity",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:pack",
+          "name": "pack",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:ratio",
+          "name": "ratio",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:share",
+          "name": "share",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:weight",
+          "name": "weight",
+          "required": false
+        },
+        {
+          "field": "urn:demo:kinds:value:field:divisor",
+          "name": "divisor",
+          "required": false
+        }
+      ],
+      "urn": "urn:demo:kinds:value:entity:sample"
+    }
+  },
+  "errors": {},
+  "fields": {
+    "urn:demo:kinds:value:field:accepted": {
+      "brandIdentifier": "ValueAccepted",
+      "constraints": {
+        "mustBe": true
+      },
+      "primitive": "boolean",
+      "urn": "urn:demo:kinds:value:field:accepted"
+    },
+    "urn:demo:kinds:value:field:code": {
+      "brandIdentifier": "ValueCode",
+      "constraints": {
+        "maxLength": 4,
+        "minLength": 2
+      },
+      "primitive": "string",
+      "urn": "urn:demo:kinds:value:field:code"
+    },
+    "urn:demo:kinds:value:field:count": {
+      "brandIdentifier": "ValueCount",
+      "constraints": {},
+      "primitive": "integer",
+      "urn": "urn:demo:kinds:value:field:count"
+    },
+    "urn:demo:kinds:value:field:divisor": {
+      "brandIdentifier": "ValueDivisor",
+      "constraints": {
+        "notIn": [
+          0
+        ]
+      },
+      "primitive": "float",
+      "urn": "urn:demo:kinds:value:field:divisor"
+    },
+    "urn:demo:kinds:value:field:email": {
+      "brandIdentifier": "ValueEmail",
+      "constraints": {
+        "format": "email"
+      },
+      "primitive": "string",
+      "urn": "urn:demo:kinds:value:field:email"
+    },
+    "urn:demo:kinds:value:field:flag": {
+      "brandIdentifier": "ValueFlag",
+      "constraints": {},
+      "primitive": "boolean",
+      "urn": "urn:demo:kinds:value:field:flag"
+    },
+    "urn:demo:kinds:value:field:id": {
+      "brandIdentifier": "ValueId",
+      "constraints": {
+        "format": "uuid"
+      },
+      "primitive": "string",
+      "urn": "urn:demo:kinds:value:field:id"
+    },
+    "urn:demo:kinds:value:field:link": {
+      "brandIdentifier": "ValueLink",
+      "constraints": {
+        "format": "uri"
+      },
+      "primitive": "string",
+      "urn": "urn:demo:kinds:value:field:link"
+    },
+    "urn:demo:kinds:value:field:pack": {
+      "brandIdentifier": "ValuePack",
+      "constraints": {
+        "min": 0,
+        "multipleOf": 6
+      },
+      "primitive": "integer",
+      "urn": "urn:demo:kinds:value:field:pack"
+    },
+    "urn:demo:kinds:value:field:quantity": {
+      "brandIdentifier": "ValueQuantity",
+      "constraints": {
+        "max": 99,
+        "min": 1,
+        "notIn": [
+          13
+        ]
+      },
+      "primitive": "integer",
+      "urn": "urn:demo:kinds:value:field:quantity"
+    },
+    "urn:demo:kinds:value:field:ratio": {
+      "brandIdentifier": "ValueRatio",
+      "constraints": {},
+      "primitive": "float",
+      "urn": "urn:demo:kinds:value:field:ratio"
+    },
+    "urn:demo:kinds:value:field:share": {
+      "brandIdentifier": "ValueShare",
+      "constraints": {
+        "max": 1,
+        "min": 0
+      },
+      "primitive": "float",
+      "urn": "urn:demo:kinds:value:field:share"
+    },
+    "urn:demo:kinds:value:field:size": {
+      "brandIdentifier": "ValueSize",
+      "constraints": {
+        "values": [
+          "s",
+          "m",
+          "l"
+        ]
+      },
+      "primitive": "enum",
+      "urn": "urn:demo:kinds:value:field:size"
+    },
+    "urn:demo:kinds:value:field:sku": {
+      "brandIdentifier": "ValueSku",
+      "constraints": {
+        "regex": "[A-Z]{3}-[0-9]{4}"
+      },
+      "primitive": "string",
+      "urn": "urn:demo:kinds:value:field:sku"
+    },
+    "urn:demo:kinds:value:field:text": {
+      "brandIdentifier": "ValueText",
+      "constraints": {},
+      "primitive": "string",
+      "urn": "urn:demo:kinds:value:field:text"
+    },
+    "urn:demo:kinds:value:field:weight": {
+      "brandIdentifier": "ValueWeight",
+      "constraints": {
+        "exclusiveMax": 1000,
+        "exclusiveMin": 0
+      },
+      "primitive": "float",
+      "urn": "urn:demo:kinds:value:field:weight"
+    }
+  },
+  "meta": {
+    "domain": "kinds",
+    "irSchemaVersion": 1,
+    "manifestHash": "75d2791c135104e9df1d7f27741f468c9128a891a612f4880ca9e32b4f456908",
+    "manifestVersion": "0.1.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {}
+}

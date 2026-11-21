@@ -103,6 +103,7 @@ manifest.namespace: must be lowercase snake_case, start with a letter and be at 
 
 | Code | Severity | Message | Cause | Correction |
 | --- | --- | --- | --- | --- |
+| `conflicting-constraints` | `error` | `<urn>: <constraint> and <constraint> both set <a lower bound \| an upper bound \| the shape>; keep one` | A field sets two constraints for one side of one aspect: `min` and `exclusiveMin`, `max` and `exclusiveMax`, or `regex` and `format`. Pass 7 then does not examine the field | Remove one of the two constraints |
 | `incoherent-constraints` | `error` | `<urn>: min (<n>) is greater than max (<n>), so no value is valid`<br>`<urn>: min and max are both <n> and notEqual is <n>, so no value is valid`<br>`<urn>: minLength (<n>) is greater than maxLength (<n>), so no value is valid`<br>`<urn>: oneOf value "<value>" is shorter than minLength (<n>), so it is never valid`<br>`<urn>: oneOf value "<value>" is longer than maxLength (<n>), so it is never valid`<br>`<urn>: oneOf value "<value>" does not match regex <pattern>, so it is never valid` | The constraints of a field accept no value, or a value in its `oneOf` list can never be valid. The position is the constraint to examine | Correct the constraints |
 
 ## Plugins

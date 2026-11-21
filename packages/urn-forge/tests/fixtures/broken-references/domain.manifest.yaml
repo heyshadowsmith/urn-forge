@@ -8,7 +8,7 @@ geo_metry.field.radius: { primitive: float }
 geo.field.metry_radius: { primitive: float }
 order.field.quantity:   { primitive: integer, min: 10, max: 1 }
 order.field.code:       { primitive: string, minLength: 3, maxLength: 2 }
-order.field.size:       { primitive: integer, min: 1, max: 1, notEqual: 1 }
+order.field.size:       { primitive: integer, min: 1, max: 1, notIn: [1] }
 
 order.entity.line:
   description: One line

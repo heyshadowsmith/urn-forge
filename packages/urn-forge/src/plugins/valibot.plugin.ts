@@ -19,7 +19,7 @@ import {
   type ConstraintValue,
   type Primitive,
 } from '../primitives/index.js';
-import { wholeValuePattern } from '../primitives/string.js';
+import { wholeValuePattern, type Format } from '../primitives/string.js';
 import {
   numberLiteral,
   valuesInUrnOrder,
@@ -44,18 +44,34 @@ export interface ValibotTranslation<P extends Primitive> {
  */
 export type ValibotTranslations = { readonly [P in Primitive]: ValibotTranslation<P> };
 
-const NUMERIC_ACTIONS: ValibotTranslation<'float' | 'integer'>['constraints'] = {
-  min: (n) => `v.minValue(${numberLiteral(n)})`,
-  max: (n) => `v.maxValue(${numberLiteral(n)})`,
-  notEqual: (n) => `v.notValue(${numberLiteral(n)})`,
-};
+/** The Valibot action of each named format; `matchesFormat` in src/primitives/string.ts uses the same ones. */
+const FORMAT_ACTIONS: { readonly [F in Format]: string } = { uuid: 'v.uuid()', email: 'v.email()', uri: 'v.url()' };
+
+const numbers = (values: readonly number[]) => `[${values.map(numberLiteral).join(', ')}]`;
 
 const TRANSLATIONS: ValibotTranslations = {
   boolean: { base: ['v.boolean()'], constraints: { mustBe: (b) => `v.value(${b})` } },
   // `values` is required, so the picklist is always the base, and the type is the union of the names.
   enum: { base: [], constraints: { values: (values) => `v.picklist([${values.map((value) => JSON.stringify(value)).join(', ')}])` } },
-  float: { base: ['v.number()', 'v.finite()'], constraints: NUMERIC_ACTIONS },
-  integer: { base: ['v.number()', 'v.safeInteger()'], constraints: NUMERIC_ACTIONS },
+  float: {
+    base: ['v.number()', 'v.finite()'],
+    constraints: {
+      min: (n) => `v.minValue(${numberLiteral(n)})`,
+      max: (n) => `v.maxValue(${numberLiteral(n)})`,
+      exclusiveMin: (n) => `v.gtValue(${numberLiteral(n)})`,
+      exclusiveMax: (n) => `v.ltValue(${numberLiteral(n)})`,
+      notIn: (values) => `v.notValues(${numbers(values)})`,
+    },
+  },
+  integer: {
+    base: ['v.number()', 'v.safeInteger()'],
+    constraints: {
+      min: (n) => `v.minValue(${numberLiteral(n)})`,
+      max: (n) => `v.maxValue(${numberLiteral(n)})`,
+      multipleOf: (n) => `v.multipleOf(${numberLiteral(n)})`,
+      notIn: (values) => `v.notValues(${numbers(values)})`,
+    },
+  },
   string: {
     base: ['v.string()'],
     constraints: {
@@ -63,6 +79,7 @@ const TRANSLATIONS: ValibotTranslations = {
       maxLength: (n) => `v.maxLength(${numberLiteral(n)})`,
       // The whole-value pattern as a regex literal; `.source` escapes any `/` in it.
       regex: (pattern) => `v.regex(/${wholeValuePattern(pattern).source}/u)`,
+      format: (name) => FORMAT_ACTIONS[name],
     },
   },
 };

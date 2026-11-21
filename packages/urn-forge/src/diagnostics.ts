@@ -43,6 +43,7 @@ export const DIAGNOSTIC_CODES = {
   // Pass 6: rule and template typing
   'unknown-placeholder': 'An error message placeholder does not name a required field of the error',
   // Pass 7: constraint coherence
+  'conflicting-constraints': 'A field sets two constraints for one side of one aspect, such as min and exclusiveMin',
   'incoherent-constraints': 'The constraints of a field admit no value',
   // Plugins
   'plugin-config': 'A plugin configuration is not valid',

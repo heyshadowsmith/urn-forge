@@ -130,7 +130,9 @@
       "constraints": {
         "max": 99,
         "min": 1,
-        "notEqual": 13
+        "notIn": [
+          13
+        ]
       },
       "primitive": "integer",
       "urn": "urn:demo:shop:order:field:quantity"
@@ -181,7 +183,7 @@
   "meta": {
     "domain": "shop",
     "irSchemaVersion": 1,
-    "manifestHash": "e4c1351e7609def2da03953f9dd5e70979f2970599e13eb4f3969915a4d3fa68",
+    "manifestHash": "d4c169dd42a434843570fb0ffea7ddc6e99909b5f8af60941bc73c8091b8730e",
     "manifestVersion": "0.1.0",
     "namespace": "demo",
     "stability": "stable"

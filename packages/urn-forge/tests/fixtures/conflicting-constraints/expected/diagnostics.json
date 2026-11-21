@@ -1,0 +1,72 @@
+[
+  {
+    "code": "incoherent-constraints",
+    "location": {
+      "column": 72,
+      "line": 11
+    },
+    "message": "urn:demo:conflicts:value:field:all_excluded: notIn lists every value that min, max allow, so no value is valid",
+    "severity": "error",
+    "urn": "urn:demo:conflicts:value:field:all_excluded"
+  },
+  {
+    "code": "conflicting-constraints",
+    "location": {
+      "column": 69,
+      "line": 8
+    },
+    "message": "urn:demo:conflicts:value:field:both_lower: min and exclusiveMin both set a lower bound; keep one",
+    "severity": "error",
+    "urn": "urn:demo:conflicts:value:field:both_lower"
+  },
+  {
+    "code": "conflicting-constraints",
+    "location": {
+      "column": 73,
+      "line": 10
+    },
+    "message": "urn:demo:conflicts:value:field:both_shapes: regex and format both set the shape; keep one",
+    "severity": "error",
+    "urn": "urn:demo:conflicts:value:field:both_shapes"
+  },
+  {
+    "code": "conflicting-constraints",
+    "location": {
+      "column": 69,
+      "line": 9
+    },
+    "message": "urn:demo:conflicts:value:field:both_upper: max and exclusiveMax both set an upper bound; keep one",
+    "severity": "error",
+    "urn": "urn:demo:conflicts:value:field:both_upper"
+  },
+  {
+    "code": "incoherent-constraints",
+    "location": {
+      "column": 69,
+      "line": 13
+    },
+    "message": "urn:demo:conflicts:value:field:empty_open: exclusiveMin and max are both 1, and one of them excludes it, so no value is valid",
+    "severity": "error",
+    "urn": "urn:demo:conflicts:value:field:empty_open"
+  },
+  {
+    "code": "incoherent-constraints",
+    "location": {
+      "column": 77,
+      "line": 12
+    },
+    "message": "urn:demo:conflicts:value:field:no_multiple: no multiple of 5 is between min (1) and max (4), so no value is valid",
+    "severity": "error",
+    "urn": "urn:demo:conflicts:value:field:no_multiple"
+  },
+  {
+    "code": "incoherent-constraints",
+    "location": {
+      "column": 56,
+      "line": 14
+    },
+    "message": "urn:demo:conflicts:value:field:short_uuid: a uuid has 36 characters, which the length constraints exclude, so no value is valid",
+    "severity": "error",
+    "urn": "urn:demo:conflicts:value:field:short_uuid"
+  }
+]

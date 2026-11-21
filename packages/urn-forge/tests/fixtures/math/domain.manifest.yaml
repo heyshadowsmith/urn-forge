@@ -6,7 +6,7 @@ manifest:
 geometry.field.radius:      { primitive: float, min: 0 }
 geometry.field.area:        { primitive: float, min: 0 }
 arithmetic.field.dividend:  { primitive: float }
-arithmetic.field.divisor:   { primitive: float, notEqual: 0 }
+arithmetic.field.divisor:   { primitive: float, notIn: [0] }
 arithmetic.field.quotient:  { primitive: float }
 
 geometry.entity.circle:

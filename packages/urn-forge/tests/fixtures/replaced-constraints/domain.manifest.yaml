@@ -1,0 +1,13 @@
+# Constraints that the MECE model refuses at pass 1 (primitives plan): replaced ones, an
+# exclusive bound on a discrete kind, and enum values that are empty or repeated.
+manifest:
+  namespace: demo
+  domain: replaced
+  version: 0.1.0
+
+value.field.open_integer:  { primitive: integer, exclusiveMin: 0 }
+value.field.no_values:     { primitive: enum, values: [] }
+value.field.twice:         { primitive: enum, values: [a, a] }
+value.field.missing:       { primitive: enum }
+value.field.old_one_of:    { primitive: string, oneOf: [a, b] }
+value.field.old_not_equal: { primitive: integer, notEqual: 0 }

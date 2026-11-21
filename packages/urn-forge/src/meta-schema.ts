@@ -124,6 +124,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 /** Constraints that the MECE model replaced (primitives plan), with what to write now. */
 const REPLACED_CONSTRAINTS: Readonly<Record<string, string>> = {
   oneOf: 'for a fixed set of values, use primitive: enum with values: [ … ]',
+  notEqual: 'to exclude values, use notIn: [ … ]',
 };
 
 function describeIssue(key: string, entry: unknown, issue: v.BaseIssue<unknown>, urn: string | undefined): ManifestIssue {

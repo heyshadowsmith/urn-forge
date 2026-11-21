@@ -133,6 +133,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   // Pass 6
   'unknown-placeholder': () => manifest('a.error.e:\n  description: d\n  category: precondition\n  retryable: false\n  message: no {thing}\n'),
   // Pass 7
+  'conflicting-constraints': () => manifest('a.field.b: { primitive: float, min: 0, exclusiveMin: 0 }\n'),
   'incoherent-constraints': () => manifest('a.field.b: { primitive: integer, min: 5, max: 1 }\n'),
   // Plugins
   'plugin-config': () => compile(math, [{ ...DEFAULT_PLUGINS[0]!, config: { bogus: 1 } }, DEFAULT_PLUGINS[1]!]).diagnostics,
