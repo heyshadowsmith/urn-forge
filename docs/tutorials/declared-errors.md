@@ -37,7 +37,7 @@ The command shows this output:
 ```
 wrote      my-shipping/generated/domain.runtime.generated.ts
 wrote      my-shipping/generated/domain.schemas.generated.ts
-fingerprint sha256:b48297b4537c103460a0d8c21ae9ae155f0bd5b185c94813eb2a78c92b66c4bf
+fingerprint sha256:492eef5cf4429536322062da365f080ff6cc4091bb6ae5563c713a73570b3b10
 ```
 
 The manifest changed. Thus, the fingerprint changed too.

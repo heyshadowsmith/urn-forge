@@ -28,12 +28,12 @@ The output on this page comes from the domain of [tutorial 2](../tutorials/decla
    ```
 
 2. Read the gate 3 summary. `strict: 0/1 features` shows that no feature is strict yet.
-3. Read each warning. There is one `uncovered-boundary` warning for each field and operation. The message lists each value that is not there. An `uncovered-error` warning names an error that no scenario expects. An `uncovered-invariant` warning names an invariant of the input entity that no scenario breaks.
+3. Read each warning. There is one `uncovered-boundary` warning for each field and operation. The message lists each value that is not there. An `uncovered-error` warning names an error that no scenario expects. An `uncovered-event` warning names an event that no scenario expects. An `uncovered-invariant` warning names an invariant of the input entity that no scenario breaks.
 
    For example, take a copy of the insurance domain without `boundaryCoverage: 'error'`. Remove the strict tag of `issue_policy.feature` and the scenario that breaks `term_is_positive`. Gate 3 then shows this:
 
    ```
-   gate 3  gherkin       PASS  2 feature(s), 12 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/4 invariants broken, strict: 1/2 features
+   gate 3  gherkin       PASS  2 feature(s), 12 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 3/4 invariants broken, strict: 1/2 features
        insurance/features  warning  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:term_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"
    ```
 
@@ -59,9 +59,10 @@ Do these steps for one feature at a time. Start with a feature whose operation h
    - To send the empty string to a `string` field, write `""` in the cell. An empty cell sends no value.
    - For a path such as `coverages.limit`, send the value inside an object, for example `[{ peril: fire, limit: 1.005 }]`. For a repeated key, send two objects with one key, for example `[{ peril: fire, limit: 1 }, { peril: fire, limit: 2 }]`. Refer to [Write scenarios](write-scenarios).
 2. For each `uncovered-error` message, add a scenario with `Then the operation fails with "<error URN>"`.
-3. For each `uncovered-invariant` message, add a scenario that breaks the rule, with `Then the input is rejected by "<invariant URN>"`. Refer to [Add an invariant](add-an-invariant).
-4. Run Cucumber, and make sure that the new scenarios pass. Gate 3 shows only that the values are present. The test run shows that they give the correct result.
-5. If a scenario cannot test a boundary, [waive the boundary](waive-a-boundary) and give the reason.
+3. For each `uncovered-event` message, add `Then the operation emits "<event URN>"` to a scenario that succeeds. Refer to [Emit an event](emit-an-event).
+4. For each `uncovered-invariant` message, add a scenario that breaks the rule, with `Then the input is rejected by "<invariant URN>"`. Refer to [Add an invariant](add-an-invariant).
+5. Run Cucumber, and make sure that the new scenarios pass. Gate 3 shows only that the values are present. The test run shows that they give the correct result.
+6. If a scenario cannot test a boundary, [waive the boundary](waive-a-boundary) and give the reason.
 
 Tutorial 3 closes the four gaps of tutorial 2 with the three scenarios at the end of its feature file (highlighted). Line 1 is the strict tag of the next section:
 

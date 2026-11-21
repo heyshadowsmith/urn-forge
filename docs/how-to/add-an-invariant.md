@@ -79,7 +79,7 @@ insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insuranc
 wrote      insurance/generated/domain.runtime.generated.ts
 wrote      insurance/generated/domain.schemas.generated.ts
 wrote      insurance/generated/schema.generated.sql
-fingerprint sha256:957beb20d7d7f9f6d395ce04f1fcb67c71fa406c51f82bf94bdc7a06871ba427
+fingerprint sha256:f72f538c562a7bf23f518078548823cbd2d25d9125377d8c83bf9a42eebe1128
 ```
 
 The `deprecated-ref` warning is about the field `note`, which the insurance domain retires. It does not stop `compile`. Refer to [Retire a URN](retire-a-urn).
@@ -146,12 +146,12 @@ To fix it, set `on` to the entity that the operation uses as its input.
 
 Add a scenario that sends an input that breaks the rule. End it with `Then the input is rejected by "<invariant URN>"`. The last three scenarios of the feature break the invariant of the coverage and the two invariants of the policy (highlighted):
 
-<<< @/../packages/urn-forge/insurance/features/issue_policy.feature{69-95 gherkin}
+<<< @/../packages/urn-forge/insurance/features/issue_policy.feature{72-98 gherkin}
 
 - Send every other field with a correct value. Then only the invariant refuses the input.
 - Send the edge of the rule too. `2026-06-01` makes the expiry date equal to the effective date, which `>` refuses.
 - The step must name an invariant of the input entity of the operation, or of an entity that the input embeds. If not, gate 3 fails with `undeclared-invariant`.
-- To break an invariant of an embedded entity, send one object that breaks it. Lines 69 to 73 send `[{ peril: fire, limit: 0 }]` for `limit_is_positive`.
+- To break an invariant of an embedded entity, send one object that breaks it. Lines 72 to 76 send `[{ peril: fire, limit: 0 }]` for `limit_is_positive`.
 - `Then the input is rejected on "expiry_date"` also passes, but it does not name the rule. Gate 3 counts only the `rejected by` step.
 
 Run the scenarios:
@@ -174,7 +174,7 @@ In your project, run `npx cucumber-js`. If a different rule refuses the input, t
 Error: urn:acme:insurance:policy:operation:issue_policy rejected the input, but not by urn:acme:insurance:policy:invariant:deductible_below_premium: InputRejected (expiry_date: The expiry date must be after the effective date)
 ```
 
-An issue of an embedded entity shows its nested path. Here the scenario of lines 69 to 73 names `term_is_positive`:
+An issue of an embedded entity shows its nested path. Here the scenario of lines 72 to 76 names `term_is_positive`:
 
 ```
 Error: urn:acme:insurance:policy:operation:issue_policy rejected the input, but not by urn:acme:insurance:policy:invariant:term_is_positive: InputRejected (coverages.0.limit: The limit of a coverage must be more than 0)
@@ -191,13 +191,13 @@ npx urn-forge verify --config insurance/urn-forge.config.ts
 The gate 3 summary counts the invariants that a scenario breaks:
 
 ```
-gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 ```
 
-Each invariant on the input entity of a tagged operation needs a scenario that breaks it. An invariant of an entity that the input embeds counts as an invariant of the input. If no scenario breaks one, gate 3 reports `uncovered-invariant`. The insurance features are strict, so it is an error. Here the scenario of lines 69 to 73 is not there:
+Each invariant on the input entity of a tagged operation needs a scenario that breaks it. An invariant of an entity that the input embeds counts as an invariant of the input. If no scenario breaks one, gate 3 reports `uncovered-invariant`. The insurance features are strict, so it is an error. Here the scenario of lines 72 to 76 is not there:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 12 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 12 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features  error  uncovered-invariant  invariant urn:acme:insurance:policy:invariant:limit_is_positive on the input of urn:acme:insurance:policy:operation:issue_policy has no scenario that breaks it; add one with Then the input is rejected by "urn:acme:insurance:policy:invariant:limit_is_positive"
 ```
 
@@ -242,7 +242,7 @@ To fix it, correct the handler. Do not remove the invariant to make the scenario
 ```
 insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
 gate 1  completeness  PASS  tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
-gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 gate 4  drift         PASS  3 generated file(s) compared byte for byte against insurance/generated
 verify passed with 1 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```

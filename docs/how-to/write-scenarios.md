@@ -1,6 +1,6 @@
 # Write scenarios
 
-A scenario runs one operation with one input and checks the result. urn-forge gives six generic steps, so you do not write step code. This guide writes scenarios for outputs, rejections, broken invariants and declared errors.
+A scenario runs one operation with one input and checks the result. urn-forge gives nine generic steps, so you do not write step code. This guide writes scenarios for outputs, rejections, broken invariants, declared errors and events.
 
 ## Before you start
 
@@ -20,7 +20,7 @@ Feature: Shipping quotes
 - A scenario must have exactly one operation tag, from the feature or from itself.
 - Each `@urn:…` tag must name an atom of the manifest. Gate 3 checks this.
 
-## 2. Use the six steps
+## 2. Use the nine steps
 
 | Step | Use |
 | --- | --- |
@@ -30,16 +30,19 @@ Feature: Shipping quotes
 | `Then the input is rejected by "<invariant URN>"` | Checks that the shell rejected the input because this invariant of the input entity does not hold |
 | `Then the operation fails with "<error URN>"` | Checks that the handler returned this declared error |
 | `Then the operation fails with "<error URN>":` | The same, and a table gives the expected fields of the error |
+| `Then the operation emits "<event URN>"` | Checks that the operation succeeded and returned this event |
+| `Then the operation emits "<event URN>":` | The same, and a table gives the expected fields of the event |
+| `Then the operation emits no event` | Checks that the operation returned no event: a success with no event, or a declared error |
 
-Start each scenario with `When I run the operation with:`, then add one `Then` step. For the exact text and the failure messages, refer to [Gherkin steps](../reference/gherkin-steps).
+Start each scenario with `When I run the operation with:`, then add one `Then` step. After the output step or the error step, you can add an `emits` step with `And`. For the exact text and the failure messages, refer to [Gherkin steps](../reference/gherkin-steps).
 
 ## 3. Write the tables
 
 Each table has two rows: a header row and one data row.
 
-- The header row has property names: properties of the input, the output or the error.
+- The header row has property names: properties of the input, the output, the error or the event.
 - The input table must have a column for each required input property. If not, gate 3 fails with `missing-column`.
-- In the output table and the error table, list only the values that you want to check. Other values are not checked. An empty cell in these tables means that the value must be absent.
+- In the output table, the error table and the event table, list only the values that you want to check. Other values are not checked. An empty cell in these tables means that the value must be absent.
 
 The step converts each cell with the primitive of its field:
 
@@ -101,9 +104,9 @@ If the property holds an embedded entity, write the object in braces. Give each 
 - Leave out an optional property to send no value.
 - In the output table and the error table, the step compares the objects property by property. A property that the cell leaves out must be absent.
 
-The insurance feature sends lists of coverages (highlighted). Lines 13 to 18 also expect each list in the output:
+The insurance feature sends lists of coverages (highlighted). The examples of lines 16 to 21 also expect each list in the output:
 
-<<< @/../packages/urn-forge/insurance/features/issue_policy.feature{13-18,60-67 gherkin}
+<<< @/../packages/urn-forge/insurance/features/issue_policy.feature{16-21,63-70 gherkin}
 
 ### Quote a value
 
@@ -119,11 +122,11 @@ Inside `[ … ]` and `{ … }`, a bare value ends at the next comma, bracket or 
 - A plain cell outside brackets does not change. Do not quote a value there.
 - A `|` must be `\|` in each cell, as Gherkin requires.
 
-Line 16 of the insurance feature sends a note that holds a comma and braces: `note: "Basement excluded, see {clause 4}"`.
+Line 19 of the insurance feature sends a note that holds a comma and braces: `note: "Basement excluded, see {clause 4}"`.
 
 ### Fix a malformed cell
 
-If the step cannot read a list or an object, the step fails and gives the column in the cell. Here the note of line 16 has no quotes:
+If the step cannot read a list or an object, the step fails and gives the column in the cell. Here the note of line 19 has no quotes:
 
 ```
 Error: expected ":" after "see" (at column 91 of the cell)
@@ -132,14 +135,14 @@ Error: expected ":" after "see" (at column 91 of the cell)
 Gate 3 reports the same problem as `invalid-cell`, at the header of the column. The message also shows the cell:
 
 ```
-gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
+gate 3  gherkin       FAIL  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
     insurance/features/issue_policy.feature:7:145  error  invalid-cell  coverages: expected ":" after "see" (at column 91 of the cell): [{ peril: flood, limit: 500 }, { peril: theft, limit: 250.5, note: Basement excluded, see {clause 4} }]
 ```
 
 A name that is not a property of the embedded entity also gives `invalid-cell`. The message lists the correct names:
 
 ```
-    insurance/features/issue_policy.feature:71:128  error  invalid-cell  coverages: "limits" is not a property of urn:acme:insurance:policy:entity:coverage (properties: peril, limit, note, remark) (at column 17 of the cell): [{ peril: fire, limits: 0 }]
+    insurance/features/issue_policy.feature:74:128  error  invalid-cell  coverages: "limits" is not a property of urn:acme:insurance:policy:entity:coverage (properties: peril, limit, note, remark) (at column 17 of the cell): [{ peril: fire, limits: 0 }]
 ```
 
 To fix the cell, do these steps:
@@ -220,6 +223,28 @@ Use `Then the input is rejected by "<invariant URN>"` for an input that breaks a
 ## 9. Check a declared error
 
 Use `Then the operation fails with "<error URN>"`. To check the fields too, end the step with a colon and add a table. The error must be one that the operation lists. Refer to [Declare an error](declare-an-error).
+
+## 10. Check an event
+
+Use `Then the operation emits "<event URN>"` after the output step. To check the fields too, end the step with a colon and add a table. After a declared error, use `Then the operation emits no event`. For example, `packages/urn-forge/insurance/features/cancel_policy.feature` expects the event `policy_cancelled` with the refund of each example:
+
+```gherkin
+    And the operation emits "urn:acme:insurance:policy:event:policy_cancelled":
+      | cancellation_date   | refund   |
+      | <cancellation_date> | <refund> |
+```
+
+- The event must be one that the operation lists under `emits`. If not, gate 3 fails with `undeclared-event`.
+- One event with this URN must match the table. The step does not check the count or the order of the events.
+- Each event of the operation needs a scenario that expects it. If not, gate 3 reports `uncovered-event`.
+
+When the step fails, it gives the difference:
+
+```
+Error: urn:acme:insurance:policy:event:policy_cancelled fields differ: cancellation_date: expected 2026-07-02, got 2026-01-01
+```
+
+Refer to [Emit an event](emit-an-event).
 
 ## Result
 

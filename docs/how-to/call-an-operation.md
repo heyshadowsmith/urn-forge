@@ -1,6 +1,6 @@
 # Call an operation from the shell
 
-The shell is the code that calls the core, for example an HTTP handler. It calls `executeOperation` from the generated runtime. `executeOperation` parses the input, calls the handler, and parses the output or the declared error. This guide calls an operation and turns each result into an HTTP response.
+The shell is the code that calls the core, for example an HTTP handler. It calls `executeOperation` from the generated runtime. `executeOperation` parses the input, calls the handler, and parses the output and the events, or the declared error. This guide calls an operation and turns each result into an HTTP response.
 
 The examples use the shipping domain of `packages/urn-forge/tutorial/2-declared-errors/`.
 
@@ -29,11 +29,11 @@ The result has one of five forms:
 
 | `ok` | `kind` | Meaning | Data |
 | --- | --- | --- | --- |
-| `true` | | The handler returned `ok(…)`, and the output is valid | `output`, parsed and branded |
+| `true` | | The handler returned `ok(…)`, and the output and the events are valid | `output`, parsed and branded. `events`, each with `urn` and `fields` |
 | `false` | `UnknownOperation` | The URN names no operation of the domain | `issues` |
 | `false` | `InputRejected` | The payload does not match the input schema. The handler did not run | `issues`, each with `path`, `fieldUrn` and `message` |
-| `false` | `DomainError` | The handler returned a declared error | `error` |
-| `false` | `ContractViolation` | The core has a bug: no handler, no `Result`, an undeclared error, or an output that does not match its schema | `issues` |
+| `false` | `DomainError` | The handler returned a declared error | `error`. If the error has `recordAs`, `error.record` has the event |
+| `false` | `ContractViolation` | The core has a bug: no handler, no `Result`, an undeclared error or event, or an output or event that does not match its schema | `issues` |
 
 First check `ok`. Then switch on `kind`. TypeScript narrows the type in each `case`.
 
@@ -84,7 +84,37 @@ export function handle(urn: string, body: unknown): HttpResponse {
 
 If the shell keeps the output in Postgres, write it after `ok` is `true`. Refer to [Store entities in Postgres](store-in-postgres).
 
-## 4. Connect the function to a server
+## 4. Publish the events and the records
+
+If the operation lists events under `emits`, publish `result.events` after a success. If a declared error has `recordAs`, publish `result.error.record` after the refusal. The shipping domain has no events, so this example uses the insurance domain of `packages/urn-forge/insurance/`:
+
+```ts
+import { core } from './core';
+import { executeOperation } from './generated/domain.runtime.generated';
+
+/** Your publisher, for example a message queue or an outbox table. */
+declare function publish(urn: string, fields: unknown): void;
+
+export function cancel(body: unknown): unknown {
+  const result = executeOperation('urn:acme:insurance:policy:operation:cancel_policy', body, core);
+  if (result.ok) {
+    for (const event of result.events) publish(event.urn, event.fields);
+    return result.output;
+  }
+  if (result.kind === 'DomainError' && result.error.record) {
+    publish(result.error.record.urn, result.error.record.fields);
+  }
+  return result;
+}
+```
+
+- **`events`** has the events in the order that the handler gave them. Each event is parsed and branded, and its `fields` include `kind`.
+- **`record`** is there only if the error has `recordAs`. It is not an event of the operation. Keep it apart, for example in an audit trail.
+- If an event is not correct, the result is `ContractViolation`, and the shell gets no output and no event.
+
+[Emit an event](emit-an-event) shows the real values of `events` and `record`.
+
+## 5. Connect the function to a server
 
 This example uses `node:http`. The path of the request is the URN of the operation:
 

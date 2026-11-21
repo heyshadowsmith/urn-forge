@@ -1,6 +1,6 @@
 # Add an operation
 
-An operation takes an input entity and gives an output entity, or one of its declared errors. This guide adds an operation to the manifest, writes its handler in the core, and tags a feature with its URN.
+An operation takes an input entity and gives an output entity and its events, or one of its declared errors. This guide adds an operation to the manifest, writes its handler in the core, and tags a feature with its URN.
 
 The examples come from the math example: `packages/urn-forge/tests/fixtures/math/domain.manifest.yaml`, `packages/urn-forge/example/core.ts` and `packages/urn-forge/example/features/`.
 
@@ -18,6 +18,7 @@ Add the entry to the manifest. Give a `description`, an `input` and an `output`:
 - `input` and `output` are short keys of entities.
 - One entity can be the input or the output of more than one operation.
 - To add declared errors, refer to [Declare an error](declare-an-error).
+- To add events, list them under `emits`. Refer to [Emit an event](emit-an-event).
 
 For the full rules, refer to [The manifest](../reference/manifest).
 
@@ -48,7 +49,7 @@ Add a handler to the core object. Its key is the URN of the operation:
 The handler rules:
 
 - The handler gets the input entity, parsed and branded. Refer to [Use branded values in the core](use-branded-values).
-- The handler returns `ok(…)` with a plain output object, or `fail(…)` with a declared error.
+- The handler returns `ok(…)` with a plain output object, or `fail(…)` with a declared error. If the operation has `emits`, give `ok` a list of events as its second argument.
 - The handler is synchronous. Do the I/O in the shell, not in the handler.
 
 For the handler types, refer to [The generated runtime](../reference/generated-runtime).

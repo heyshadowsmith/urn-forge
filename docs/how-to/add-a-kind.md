@@ -1,10 +1,12 @@
 # Add a kind
 
-This guide is for contributors who change urn-forge itself. A kind is a type of atom: `field`, `entity`, `invariant`, `operation` or `error`. Each kind is one descriptor module in `src/kinds/`. The descriptor gives the schema of an entry, its references and its IR node. The reference pass (pass 4) needs no new code: it reads the reference slots of each descriptor.
+This guide is for contributors who change urn-forge itself. A kind is a type of atom: `field`, `entity`, `invariant`, `operation`, `event` or `error`. Each kind is one descriptor module in `src/kinds/`. The descriptor gives the schema of an entry, its references and its IR node. The reference pass (pass 4) needs no new code: it reads the reference slots of each descriptor.
 
 The real example is the `error` kind. The [error kind plan](../project/error-kind-plan) added it in six steps. Step 1 (commit `fcfa0f3`, "Add the error kind to the compiler") is the part that this guide covers in full. The later steps made each plugin, the steps and gate 3 handle it.
 
 The second real example is the `invariant` kind, from the [invariants plan](../project/invariants-plan). Its step 2 (commit `195b88d`, "Invariants step 2: the invariant kind in the compiler") shows a kind that reads the nodes of other kinds.
+
+The third real example is the `event` kind, from the [events plan](../project/events-plan). Its commit `c5ec094` ("Events steps 0 and 1: the target, and the event kind") added the kind, a reference slot on `operation` and a reference slot on `error`.
 
 ## Before you start
 
@@ -18,19 +20,17 @@ Commands run from `packages/urn-forge`, except where a step says the root folder
 ## Add the name
 
 1. Add the name to `KindName` in `src/kinds/types.ts`.
-2. If the specification names the kind, remove it from the list `NOT_YET_SUPPORTED_KINDS` in `src/kinds/index.ts`.
-3. Run `npm run typecheck` from the root folder. `tsc` fails until the registry has a descriptor for the name.
+2. Run `npm run typecheck` from the root folder. `tsc` fails until the registry has a descriptor for the name.
 
-   For example, with `'event'` added to `KindName`, the first two errors in `src/kinds/index.ts` are these:
+   For example, with `'widget'` added to `KindName`, the first error in `src/kinds/index.ts` is this:
 
    ```
-   src/kinds/index.ts(17,78): error TS1360: Type '{ readonly field: KindDescriptor<"field", FieldDecl, IRField, "fields">; readonly entity: KindDescriptor<"entity", { description: string; fields: { ref: string; required: boolean; many?: true | ... 1 more ... | undefined; }[]; }, IREntity, "entities">; readonly invariant: KindDescriptor<...>; readonly operation: Kin...' does not satisfy the expected type '{ readonly error: KindDescriptor<"error", any, unknown, string>; readonly field: KindDescriptor<"field", any, unknown, string>; readonly entity: KindDescriptor<"entity", any, unknown, string>; readonly invariant: KindDescriptor<...>; readonly operation: KindDescriptor<...>; readonly event: KindDescriptor<...>; }'.
-   src/kinds/index.ts(26,41): error TS2322: Type '"event"' is not assignable to type 'never'.
+   src/kinds/index.ts(18,85): error TS1360: Type '{ readonly field: KindDescriptor<"field", FieldDecl, IRField, "fields">; readonly entity: KindDescriptor<"entity", { description: string; key?: string | undefined; fields: { ...; }[]; }, IREntity, "entities">; readonly invariant: KindDescriptor<...>; readonly operation: KindDescriptor<...>; readonly event: KindDescr...' does not satisfy the expected type '{ readonly error: KindDescriptor<"error", any, unknown, string>; readonly field: KindDescriptor<"field", any, unknown, string>; readonly entity: KindDescriptor<"entity", any, unknown, string>; readonly invariant: KindDescriptor<...>; readonly operation: KindDescriptor<...>; readonly event: KindDescriptor<...>; reado...'.
    ```
 
-   The first error says that `KINDS` has no `event`. The second error says that `event` is still in `NOT_YET_SUPPORTED_KINDS`. The other errors of the run come from the first one.
+   The error says that `KINDS` has no `widget`. The other errors of the run come from it.
 
-`event` is only an example. urn-forge does not have an `event` kind at this time. Refer to [Scope](../reference/scope).
+`widget` is only an example. urn-forge has each kind of the specification at this time. Refer to [Scope](../reference/scope).
 
 ## Write the descriptor
 
@@ -61,6 +61,8 @@ The `error` kind also added a slot to `operation`, so that `errors` can name onl
 { path: ['errors', '*'], targets: ['error'] },
 ```
 
+In the same way, the `event` kind added `{ path: ['emits', '*'], targets: ['event'] }` to `operation`, and `{ path: ['recordAs'], targets: ['event'] }` to `error`.
+
 ### Read the nodes of other kinds
 
 `ref(path)` gives only the atom that a reference names. If `build` needs the IR node of that atom, do these steps:
@@ -74,11 +76,11 @@ The `invariant` kind uses both. It reads the entity that `on` names and the fiel
 
 ## Add it to the registry and the IR
 
-1. Import the descriptor in `src/kinds/index.ts` and add it to `KINDS`. Add it at the end. The order is the order in which messages list the kinds.
+1. Import the descriptor in `src/kinds/index.ts` and add it to `KINDS`. The order of `KINDS` is the order in which messages list the kinds. For example, `event` is before `error`.
 2. Run `npm run typecheck`. `tsc` fails until `UniversalIR` has a record for the group:
 
    ```
-   src/kinds/index.ts(39,7): error TS2322: Type 'true' is not assignable to type 'false'.
+   src/kinds/index.ts(30,7): error TS2322: Type 'true' is not assignable to type 'false'.
    ```
 
    This line is the check that the groups of the registry are the same as the records of `UniversalIR`.
@@ -93,11 +95,15 @@ The `invariant` kind uses both. It reads the entity that `on` names and the fiel
 
 ## Decide what each plugin does
 
-A plugin declares the kinds that it handles in `supports.kinds`. Until a plugin declares the new kind, a manifest that uses the kind fails at each atom of that kind:
+A plugin declares the kinds that it handles in `supports.kinds`. Until a plugin declares the new kind, a manifest that uses the kind fails at each atom of that kind. Here the `valibot` and `fcis` plugins do not declare `event`, and the insurance manifest has three events:
 
 ```
-domain.manifest.yaml:50:1  error  unsupported-construct  urn:demo:shipping:quote:event:quoted: the valibot plugin does not handle kind "event"
-domain.manifest.yaml:50:1  error  unsupported-construct  urn:demo:shipping:quote:event:quoted: the fcis plugin does not handle kind "event"
+insurance/domain.manifest.yaml:143:1  error  unsupported-construct  urn:acme:insurance:policy:event:policy_cancelled: the valibot plugin does not handle kind "event"
+insurance/domain.manifest.yaml:136:1  error  unsupported-construct  urn:acme:insurance:policy:event:policy_issued: the valibot plugin does not handle kind "event"
+insurance/domain.manifest.yaml:148:1  error  unsupported-construct  urn:acme:insurance:policy:event:refund_refused: the valibot plugin does not handle kind "event"
+insurance/domain.manifest.yaml:143:1  error  unsupported-construct  urn:acme:insurance:policy:event:policy_cancelled: the fcis plugin does not handle kind "event"
+insurance/domain.manifest.yaml:136:1  error  unsupported-construct  urn:acme:insurance:policy:event:policy_issued: the fcis plugin does not handle kind "event"
+insurance/domain.manifest.yaml:148:1  error  unsupported-construct  urn:acme:insurance:policy:event:refund_refused: the fcis plugin does not handle kind "event"
 ```
 
 This is correct. The compiler knows the kind, and no plugin makes code for it yet.
@@ -114,8 +120,7 @@ If the kind changes what a handler returns or what a scenario can expect, the ge
 2. Add the new kind to the `values` list of `naming.field.kind` in `self/domain.manifest.yaml`. This field is an `enum`. A test keeps its list equal to `KIND_NAMES`.
 3. Add entries with problems to the `invalid-structure` and `broken-references` fixtures, for each new code. If the kind has many new codes, make a fixture of its own. The `invariant` kind added `invalid-rules`.
 4. Add a producer for each new code to `PRODUCERS` in `tests/every-code.test.ts`. `tsc` and the test fail until each code in `DIAGNOSTIC_CODES` has one.
-5. If a test uses the kind as an example of `unsupported-kind`, change it to a kind that is still in `NOT_YET_SUPPORTED_KINDS`. The `invariant` kind changed `tests/diagnostics.test.ts` to use `event`.
-6. Write the expected files again, then run the harness a second time:
+5. Write the expected files again, then run the harness a second time:
 
    ```bash
    npx vitest run tests/fixtures.test.ts -u

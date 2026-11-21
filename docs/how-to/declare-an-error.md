@@ -31,8 +31,9 @@ quote.error.too_heavy_for_express:
 | `retryable` | Necessary. `true` if the same call can succeed later |
 | `message` | Necessary. A template. Each `{placeholder}` names a field of the error |
 | `fields` | Optional. Field references, as in an entity. The default is no fields |
+| `recordAs` | Optional. The short key of an event. The runtime makes this event from the fields of the error, so the shell can keep the refusal in an audit trail |
 
-For the full rules, refer to [The manifest](../reference/manifest).
+For the full rules, refer to [The manifest](../reference/manifest). For `recordAs`, refer to [Emit an event](emit-an-event).
 
 ## 2. Obey the placeholder and `kind` rules
 
@@ -104,7 +105,7 @@ In a strict feature, this warning is an error. Refer to [Adopt strict coverage](
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
 ```
 
-To show the error to a caller, refer to [Call an operation from the shell](call-an-operation).
+To show the error to a caller, refer to [Call an operation from the shell](call-an-operation). An operation that returns a declared error emits no event. To expect this in a scenario, add `Then the operation emits no event`. Refer to [Emit an event](emit-an-event).
 
 ## Related pages
 

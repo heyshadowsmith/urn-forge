@@ -91,7 +91,7 @@ One PR (decision 13), one commit per step. Each step leaves the repository green
 - [x] **3. Steps and gate 3.** The two steps; `undeclared-event` and `uncovered-event`. *Check:* the insurance scenarios expect each event and pass; a removed scenario gives exactly one `uncovered-event`.
   - *Done.* The check was met: 29 scenarios pass, and removing the expectation of `policy_cancelled` gives exactly one `uncovered-event`. `Then the operation emits no event` also passes after a declared refusal, which has no events by definition (spec §4.5), so a scenario can say so after `fails with`; it fails after `InputRejected` or `ContractViolation`.
 - [x] **4. Ship.** The docs: the kind, the steps, the runtime, the codes, a how-to to emit an event, the model in the explanation pages. *Check:* CI green; every sabotage below fails.
-  - *Done.* A new diff case, `event-added`, shows a new event in `emits` as breaking. New page: "Emit an event" (how-to).
+  - *Done.* A new diff case, `event-added`, shows a new event in `emits` as breaking. New page: [Emit an event](../how-to/emit-an-event).
 
 ## Done
 

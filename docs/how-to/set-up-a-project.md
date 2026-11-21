@@ -29,7 +29,7 @@ This guide makes a project in which `urn-forge compile`, `urn-forge verify` and 
    updated    package.json
    wrote      src/generated/domain.runtime.generated.ts
    wrote      src/generated/domain.schemas.generated.ts
-   fingerprint sha256:7e99af3b34de3a7fe30c17fe40ea2eebd4c85a999ded0d08fae9aaa9bf517845
+   fingerprint sha256:1ec93ba0f7bf6c19c0ef98157bdaa97679a8ad1b52a5d7124381b3c4b2da2722
    next: npm run verify, then npm run test:features
    ```
 
@@ -153,7 +153,7 @@ npx urn-forge compile
 ```
 wrote      generated/domain.runtime.generated.ts
 wrote      generated/domain.schemas.generated.ts
-fingerprint sha256:aded2f13d2ed2e8accfdf2cd9f56fc86cf8b0742bb5522ea91c99da97a64edd6
+fingerprint sha256:40bd31f60e13cbb2b5a8223690a04d4856b7e8b3c82fb1a732a2af1dbe8f8d92
 ```
 
 Commit the files in `generated/`. Gate 4 compares them with a fresh compile. Refer to [Regenerate the code after a manifest change](regenerate-code).
