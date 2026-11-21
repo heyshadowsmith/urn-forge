@@ -9,7 +9,7 @@ import * as shop from './fixtures/shop/expected/domain.schemas.generated.js';
 import { compile } from '../src/engine.js';
 import { coerceCell } from '../src/gherkin/steps.js';
 import { validateManifest } from '../src/meta-schema.js';
-import { PRIMITIVES, PRIMITIVE_NAMES, constraintKeys, type Primitive } from '../src/primitives/index.js';
+import { PRIMITIVES, PRIMITIVE_NAMES, boundaryCases, constraintKeys, type Primitive } from '../src/primitives/index.js';
 import type { ValibotTranslation, ValibotTranslations } from '../src/plugins/valibot.plugin.js';
 
 const header = { namespace: 'demo', domain: 'math', version: '0.1.0' };
@@ -171,5 +171,65 @@ describe('regex', () => {
   it('keeps a slash, a dot and a backslash in the pattern', () => {
     expect(v.safeParse(shop.OrderTrackingUrlSchema, 'https://track.example/42').success).toBe(true);
     expect(v.safeParse(shop.OrderTrackingUrlSchema, 'https://trackXexample/42').success).toBe(false);
+  });
+});
+
+describe('boundary cases (boundary coverage plan, step 1)', () => {
+  /** Each case's label, with the sample values that cover it. */
+  const covered = (primitive: Primitive, constraints: Record<string, unknown>, samples: readonly unknown[]) =>
+    boundaryCases(primitive, constraints as never).map((c) => [c.label, samples.filter((s) => c.covers(s))]);
+
+  it('integer: the value at each bound and one step beyond, and the excluded value', () => {
+    expect(covered('integer', { min: 1, max: 99, notEqual: 13 }, [0, 1, 2, 99, 100, 13, '0'])).toEqual([
+      ['value at min 1', [1]],
+      ['value at min − 1 (0)', [0]],
+      ['value at max 99', [99]],
+      ['value at max + 1 (100)', [100]],
+      ['value equal to notEqual 13', [13]],
+    ]);
+  });
+
+  it('float: the value at each bound and any value beyond it; -0 counts as 0', () => {
+    expect(covered('float', { min: 0, max: 1.5 }, [0, -0, -0.001, -Infinity, 1.5, 7, 'abc'])).toEqual([
+      ['value at min 0', [0, -0]],
+      ['value below min 0', [-0.001, -Infinity]],
+      ['value at max 1.5', [1.5]],
+      ['value above max 1.5', [7]],
+    ]);
+  });
+
+  it('string: lengths at and beyond each bound, regex matches and misses, and every oneOf value plus one outside', () => {
+    expect(covered('string', { minLength: 1, maxLength: 3 }, ['', 'a', 'abc', 'abcd', 5])).toEqual([
+      ['value of length 1 (minLength)', ['a']],
+      ['value of length 0 (below minLength)', ['']],
+      ['value of length 3 (maxLength)', ['abc']],
+      ['value of length 4 (above maxLength)', ['abcd']],
+    ]);
+    expect(covered('string', { minLength: 0 }, [''])).toEqual([['value of length 0 (minLength)', ['']]]);
+    expect(covered('string', { regex: '[a-z]+' }, ['abc', 'Abc', 'abc1', 7])).toEqual([
+      ['valid value for regex [a-z]+', ['abc']],
+      ['invalid value for regex [a-z]+', ['Abc', 'abc1']],
+    ]);
+    expect(covered('string', { oneOf: ['s', 'm'] }, ['s', 'm', 'xl'])).toEqual([
+      ['value "s" (oneOf)', ['s']],
+      ['value "m" (oneOf)', ['m']],
+      ['value outside oneOf', ['xl']],
+    ]);
+  });
+
+  it('boolean: the mustBe value and the other one; no constraint, no case', () => {
+    expect(covered('boolean', { mustBe: true }, [true, false, 'true'])).toEqual([
+      ['value true (mustBe)', [true]],
+      ['value false (not mustBe)', [false]],
+    ]);
+    expect(covered('boolean', {}, [true])).toEqual([]);
+  });
+
+  it('a "" cell sends the empty string to a string field, so length 0 can be covered', () => {
+    const field = (primitive: Primitive) => ({ urn: 'urn:demo:shop:order:field:note', primitive, required: true });
+    expect(coerceCell('""', field('string'))).toBe('');
+    expect(coerceCell('', field('string'))).toBeUndefined();
+    expect(coerceCell('""', field('integer'))).toBe('""');
+    expect(v.safeParse(shop.OrderSkuSchema, coerceCell('""', field('string'))).issues?.[0]?.message).toContain('received ""');
   });
 });

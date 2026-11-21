@@ -8,7 +8,7 @@ import { boolean } from './boolean.js';
 import { float } from './float.js';
 import { integer } from './integer.js';
 import { string } from './string.js';
-import type { CoherenceProblem, ConstraintValue, ConstraintValues, PrimitiveDescriptor } from './types.js';
+import type { BoundaryCase, CoherenceProblem, ConstraintValue, ConstraintValues, PrimitiveDescriptor } from './types.js';
 
 /** In the order diagnostics list them. */
 export const PRIMITIVES = { boolean, float, integer, string } as const;
@@ -38,6 +38,15 @@ export function checkCoherence(
 ): readonly CoherenceProblem[] {
   const descriptor: PrimitiveDescriptor = PRIMITIVES[primitive] as PrimitiveDescriptor;
   return descriptor.coherence(constraints);
+}
+
+/** Boundary coverage's required cases for one field, dispatched to its primitive's descriptor. */
+export function boundaryCases(
+  primitive: Primitive,
+  constraints: Readonly<Record<string, ConstraintValue>>,
+): readonly BoundaryCase[] {
+  const descriptor: PrimitiveDescriptor = PRIMITIVES[primitive] as PrimitiveDescriptor;
+  return descriptor.boundaries(constraints);
 }
 
 /** A non-empty Gherkin table cell as the value a field of `primitive` parses. */
