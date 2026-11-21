@@ -383,6 +383,55 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
     return value.primitive;
   };
 
+  /**
+   * Days (date arithmetic plan): `date ± integer` is a date, `date - date` is an integer of days.
+   * The date is on the left; a date text literal can stand for a date. 'not dates' when no side is a date.
+   */
+  const dateArithmetic = (op: '+' | '-', left: ValueType, right: ValueType, at: number): Checked | undefined | 'not dates' => {
+    const isDate = (t: ValueType) => t.kind === 'value' && t.primitive === 'date';
+    if (!isDate(left) && !isDate(right)) return 'not dates';
+    if (isDate(left) && isDate(right)) {
+      if (op === '-') return { kind: 'value', primitive: 'integer' };
+      problem('rule-type', at, `"+" cannot add two dates; "-" of two dates gives the days between them`);
+      return undefined;
+    }
+    if (!isDate(left)) {
+      // A date text on the left of "-": the days from the field to that day.
+      if (op === '-' && left.kind === 'literal') {
+        const why = literalProblem(left, 'date');
+        if (why) {
+          problem('rule-type', at, `${why}, so it cannot meet a date in "-"`);
+          return undefined;
+        }
+        return { kind: 'value', primitive: 'integer' };
+      }
+      problem('rule-type', at, `"${op}" needs the date on the left and an integer of days on the right`);
+      return undefined;
+    }
+    // The date is on the left; the right is the days, or for "-" a date text.
+    if (right.kind === 'literal') {
+      if (op === '-' && right.literal === 'text') {
+        const why = literalProblem(right, 'date');
+        if (why) {
+          problem('rule-type', at, `${why}, so it cannot meet a date in "-"`);
+          return undefined;
+        }
+        return { kind: 'value', primitive: 'integer' };
+      }
+      const why = literalProblem(right, 'integer');
+      if (why) {
+        problem('rule-type', at, `${why}, so it cannot be the days in "${op}"`);
+        return undefined;
+      }
+      return { kind: 'value', primitive: 'date' };
+    }
+    if (right.primitive !== 'integer') {
+      problem('rule-type', at, `"${op}" ${op === '+' ? 'adds' : 'takes'} an integer of days ${op === '+' ? 'to' : 'from'} a date, not ${article(right.primitive)}`);
+      return undefined;
+    }
+    return { kind: 'value', primitive: 'date' };
+  };
+
   // The field behind a value, for enum values; only a bare field has one.
   const enumFields = new Map<ValueType, RuleField>();
 
@@ -439,10 +488,18 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
         const left = value(e.left, present, e.op);
         const right = value(e.right, present, e.op);
         if (!left || !right) return undefined;
+        const days = dateArithmetic(e.op, left, right, e.at);
+        if (days !== 'not dates') return days;
+        // Name the primitive that has no arithmetic before the literal that does not fit it.
+        const valued = [left, right].find((t) => t.kind === 'value' && !ARITHMETIC.has(t.primitive));
+        if (valued?.kind === 'value' && (left.kind === 'literal' || right.kind === 'literal' || left.primitive === right.primitive)) {
+          problem('rule-type', e.at, `"${e.op}" works on integer, decimal and date only, not on ${valued.primitive}`);
+          return undefined;
+        }
         const primitive = unify(left, right, e.at, `"${e.op}"`, (v) => enumFields.get(v));
         if (primitive === undefined) return undefined;
         if (!ARITHMETIC.has(primitive)) {
-          problem('rule-type', e.at, `"${e.op}" works on integer and decimal only, not on ${primitive}`);
+          problem('rule-type', e.at, `"${e.op}" works on integer, decimal and date only, not on ${primitive}`);
           return undefined;
         }
         return { kind: 'value', primitive };
@@ -476,6 +533,25 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
 
   condition(expr, new Set(), 'a rule');
   return problems;
+}
+
+/**
+ * The primitive of a value of a rule that passed pass 6: a field's, the result of `+` or `-`
+ * (with days: `date ± integer` is a date, `date - date` an integer), or undefined for a literal.
+ */
+export function valueType(e: RuleExpr, primitiveOf: (field: string) => Primitive): Primitive | undefined {
+  if (e.op === 'field') return primitiveOf(e.name);
+  if (e.op !== '+' && e.op !== '-') return undefined;
+  const [left, right] = [valueType(e.left, primitiveOf), valueType(e.right, primitiveOf)];
+  if (left === 'date') return right === 'date' || (e.op === '-' && e.right.op === 'text') ? 'integer' : 'date';
+  if (right === 'date') return 'integer'; // a date text minus a date (pass 6 allows nothing else)
+  return left ?? right;
+}
+
+/** Whether a value counts days: a `+` or `-` with a date in it. */
+export function hasDateArithmetic(e: RuleExpr, primitiveOf: (field: string) => Primitive): boolean {
+  if (e.op !== '+' && e.op !== '-') return false;
+  return valueType(e.left, primitiveOf) === 'date' || valueType(e.right, primitiveOf) === 'date' || hasDateArithmetic(e.left, primitiveOf) || hasDateArithmetic(e.right, primitiveOf);
 }
 
 /** The first field a rule names, in text order: where a broken invariant points (invariants plan, decision 5). */
