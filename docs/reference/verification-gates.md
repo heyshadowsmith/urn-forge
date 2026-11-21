@@ -55,12 +55,12 @@ npx urn-forge verify --config tutorial/2-declared-errors/urn-forge.config.ts
 ```
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/2-declared-errors/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/2-declared-errors/src/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
     tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
     tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/2-declared-errors/generated
+gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/2-declared-errors/src/generated
 verify passed with 2 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 
@@ -246,7 +246,7 @@ The gate does these checks. The table gives them in the sequence of the output.
 | Parse the files | Each `.feature` file is valid Gherkin | `feature-parse-error` | `error` |
 | Tags resolve | Each tag that starts with `@urn:` is the URN of a field, an entity, an invariant, an operation, an event or an error of the manifest. The gate examines each tag one time, where it is written | `unresolved-tag` | `error` |
 | One owner | A scenario or an `Examples` block has one owner or no owner, not two or more | `ambiguous-tag` | `error` |
-| Headers | Each header of a step table and of an `Examples` table is a property of the owner. For an operation, this is a property of its input or output entity. For an entity, this is a property of the entity. A scenario with no owner, or with two or more owners, is not examined. The names in an object cell are not headers. The next check examines them | `unknown-header` | `error` |
+| Headers | Each header of a step table and of an `Examples` table is a property of the owner. For an operation, this is a property of its input or output entity. A header of an `Examples` table can also be a property of an error or an event that a step of the outline expects. For an entity, this is a property of the entity. A scenario with no owner, or with two or more owners, is not examined. The names in an object cell are not headers. The next check examines them | `unknown-header` | `error` |
 | Error headers | Each header of the table of `the operation fails with "<error URN>":` is a field of that error. The gate examines this only if the operation declares the error | `unknown-header` | `error` |
 | Event headers | Each header of the table of `the operation emits "<event URN>":` is a field of that event. The gate examines this only if the operation emits the event | `unknown-header` | `error` |
 | Required columns | The table of `I run the operation with:` has a column for each mandatory input field of the operation. Fields with `required: false` are not mandatory | `missing-column` | `error` |

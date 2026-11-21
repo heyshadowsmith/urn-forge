@@ -252,6 +252,7 @@ policy.event.policy_issued:
 
 - The field references of an event have the same forms and rules as those of an entity: `ref` to a field or an entity, `link`, `as`, `required` and `many`.
 - No property of an event can have the name `kind` (`reserved-property`), from the identifier of its target or from `as`. The payload of each event has the property `kind`, which contains the URN of the event.
+- The value of each property must pass the schema of its field, as in an error. A value that the field refuses gives `ContractViolation`.
 - An event has no `key`. A `key` on an event causes `unknown-property`.
 - An invariant cannot be on an event. An `on` that names an event causes `wrong-ref-kind`. To give an event a rule, embed an entity that has the invariant.
 - An event that no operation emits, and that no error names in `recordAs`, is correct.
@@ -277,6 +278,7 @@ order.error.price_unavailable:
 | `recordAs` | string | No | None | A short key of an event in this manifest. A different kind causes `wrong-ref-kind`. The event must agree with the error (pass 6, `invalid-record-as`) |
 
 - No property of an error can have the name `kind` (`reserved-property`), from the identifier of its target or from `as`. The payload of each error has the property `kind`, which contains the URN of the error.
+- The value of each property must pass the schema of its field, with all the constraints of the field. The runtime parses the error with these schemas. A value that the field refuses gives `ContractViolation`, not the error. Thus, if an error must carry a value outside the limits of a field, declare a different field for it. Refer to [Declare an error](../how-to/declare-an-error#_1-write-the-error-entry).
 - An error that no operation declares is correct.
 
 ### `recordAs`

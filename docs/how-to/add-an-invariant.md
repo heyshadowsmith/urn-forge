@@ -2,7 +2,9 @@
 
 An invariant is a named rule over the fields of one entity, for example "the expiry date is after the effective date". The schema of the entity enforces the rule, and a scenario shows that the rule refuses a bad input. This guide declares an invariant, compiles it, adds the scenario that breaks it and verifies the result.
 
-The examples come from `packages/urn-forge/insurance/`, which CI tests. The invariant `term_is_positive` refuses a policy that does not end after it starts. The invariant `limit_is_positive` refuses a coverage that pays nothing, inside each policy that embeds it.
+The examples come from [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/), which CI tests. The invariant `term_is_positive` refuses a policy that does not end after it starts. The invariant `limit_is_positive` refuses a coverage that pays nothing, inside each policy that embeds it.
+
+The commands on this page ran in a clone of the urn-forge repository, from `packages/urn-forge`. In your project, run them from the folder of `urn-forge.config.ts`, and leave out `--config`.
 
 ## Before you start
 

@@ -2,7 +2,9 @@
 
 The `postgres` plugin writes `schema.generated.sql`: `CREATE` statements for Postgres 14 or later. Each field becomes a domain, each configured entity becomes a table, and each invariant becomes a named `CHECK`. This guide enables the plugin, applies the SQL, writes rows from the shell, and maps a Postgres error back to a URN.
 
-The examples come from `packages/urn-forge/insurance/`, which CI tests. The customer and the policy are tables. The coverages of a policy are a child table.
+The examples come from [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/), which CI tests. The customer and the policy are tables. The coverages of a policy are a child table.
+
+The commands on this page ran in a clone of the urn-forge repository, from `packages/urn-forge`. In your project, run them from the folder of `urn-forge.config.ts`, and leave out `--config`.
 
 ## Before you start
 
@@ -165,7 +167,7 @@ export async function savePolicy(db: Sql, policy: PolicyPolicy): Promise<void> {
 - Quote each name. `limit` is a column of the coverages, and it is also a reserved word of SQL.
 - With node-postgres, get one client with `pool.connect()` for the transaction. A pool can send each query on a different connection.
 
-This code ran with PGlite, on the output of `issue_policy`. The tests in `packages/urn-forge/tests/postgres-insurance.test.ts` write a policy in the same way.
+This code ran with PGlite, on the output of `issue_policy`. The tests in [`packages/urn-forge/tests/postgres-insurance.test.ts`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tests/postgres-insurance.test.ts) write a policy in the same way.
 
 ## 7. Convert the values that the driver reads
 

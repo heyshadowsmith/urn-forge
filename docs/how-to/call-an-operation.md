@@ -2,7 +2,7 @@
 
 The shell is the code that calls the core, for example an HTTP handler. It calls `executeOperation` from the generated runtime. `executeOperation` parses the input, calls the handler, and parses the output and the events, or the declared error. This guide calls an operation and turns each result into an HTTP response. It also parses a single value, and lets gate 2 examine the shell.
 
-The examples use the shipping domain of `packages/urn-forge/tutorial/2-declared-errors/`.
+The examples use the shipping domain of [`packages/urn-forge/tutorial/2-declared-errors/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/2-declared-errors/).
 
 ## Before you start
 
@@ -39,7 +39,7 @@ First check `ok`. Then switch on `kind`. TypeScript narrows the type in each `ca
 
 ## 3. Map each result to a response
 
-This function turns each result into an HTTP status and a body:
+Make the file `src/shell.ts`, next to the core. This function turns each result into an HTTP status and a body:
 
 ```ts
 import { core } from './core';
@@ -86,7 +86,7 @@ If the shell keeps the output in Postgres, write it after `ok` is `true`. Refer 
 
 ## 4. Publish the events and the records
 
-If the operation lists events under `emits`, publish `result.events` after a success. If a declared error has `recordAs`, publish `result.error.record` after the refusal. The shipping domain has no events, so this example uses the insurance domain of `packages/urn-forge/insurance/`:
+If the operation lists events under `emits`, publish `result.events` after a success. If a declared error has `recordAs`, publish `result.error.record` after the refusal. The shipping domain has no events, so this example uses the insurance domain of [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/):
 
 ```ts
 import { core } from './core';
@@ -116,7 +116,7 @@ export function cancel(body: unknown): unknown {
 
 ## 5. Parse a value outside an operation
 
-The shell can read a value that is not the input of an operation, for example a weight from a query string. Parse the value with its generated schema. The schema gives the branded value. Add this function to `shell.ts`, the file of step 3:
+The shell can read a value that is not the input of an operation, for example a weight from a query string. Parse the value with its generated schema. The schema gives the branded value. Add this function at the end of `src/shell.ts`, the file of step 3:
 
 ```ts
 import * as v from 'valibot';
@@ -135,7 +135,7 @@ export function weightFrom(text: string) {
 
 ## 6. Connect the function to a server
 
-This example uses `node:http`. The path of the request is the URN of the operation:
+Make the file `src/server.ts`. This example uses `node:http`. The path of the request is the URN of the operation:
 
 ```ts
 import { createServer } from 'node:http';
@@ -159,7 +159,7 @@ createServer((request, response) => {
 }).listen(3000);
 ```
 
-Start it with `npx tsx server.ts`.
+Start it with `npx tsx src/server.ts`.
 
 ## 7. Let gate 2 examine the shell
 
@@ -169,30 +169,25 @@ Gate 2 makes sure that no code makes a branded value without a parse. By default
 import { defineConfig } from 'urn-forge/config';
 
 export default defineConfig({
-  manifest: './domain.manifest.yaml',
-  out: './generated',
-  core: './core.ts',
-  features: './features',
-  tsconfig: '../../tsconfig.json',
-  shell: ['./shell.ts', './server.ts'],
+  shell: ['./src/shell.ts', './src/server.ts'],
 });
 ```
 
 A folder adds each TypeScript file in it, at all depths. Gate 2 does not examine the generated files.
 
-Run `verify`. The output that follows comes from a copy of `tutorial/2-declared-errors/` with `shell.ts`, `server.ts` and this config. The gate 2 summary counts the shell files:
+Run `verify`. The output that follows comes from a project with the files of [tutorial 2](../tutorials/declared-errors), `src/shell.ts`, `src/server.ts` and this config. The gate 2 summary counts the shell files:
 
 ```bash
-npx urn-forge verify --config tutorial/2-declared-errors/urn-forge.config.ts
+npx urn-forge verify
 ```
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/2-declared-errors/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 2 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
-    tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-    tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/2-declared-errors/generated
+    features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
+    features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
+gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
 verify passed with 2 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 
@@ -200,7 +195,7 @@ If `weightFrom` returns `Number(text) as ParcelWeightGrams`, gate 2 fails:
 
 ```
 gate 2  boundary      FAIL  1 core file(s), 2 shell file(s): 1 problem(s)
-    tutorial/2-declared-errors/shell.ts:39:10  error  brand-assertion  Number(text) as ParcelWeightGrams asserts the branded type ParcelWeightGrams; only a generated parser makes a branded value
+    src/shell.ts:41:10  error  brand-assertion  Number(text) as ParcelWeightGrams asserts the branded type ParcelWeightGrams; only a generated parser makes a branded value
 ```
 
 In the shell, gate 2 refuses a type assertion to a branded type, an `any` where a branded type belongs, and a comment that turns off a type check. For each code, refer to [Fix a gate that fails](fix-a-failing-gate).

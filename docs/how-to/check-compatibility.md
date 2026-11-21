@@ -2,7 +2,9 @@
 
 `urn-forge diff` compares two versions of a manifest. It classifies each change to a URN as compatible, breaking or lifecycle. This guide runs `diff` on your computer and in CI, reads the result, and fixes a breaking change. `diff` is gate 5. It is a separate command, not a part of `verify`.
 
-The examples come from `packages/urn-forge/insurance/`, which CI tests, and from the `compatibility` job of `.github/workflows/ci.yml`.
+The examples come from [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/), which CI tests, and from the `compatibility` job of [`.github/workflows/ci.yml`](https://github.com/heyshadowsmith/urn-forge/tree/main/.github/workflows/ci.yml).
+
+The commands on this page ran in a clone of the urn-forge repository, from `packages/urn-forge`. In your project, run them from the folder of `urn-forge.config.ts`, and leave out `--config`.
 
 ## Before you start
 

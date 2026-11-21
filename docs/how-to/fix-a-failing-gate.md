@@ -1,6 +1,6 @@
 # Fix a gate that fails
 
-`urn-forge verify` runs gates 1, 2, 3 and 4. A gate fails when it reports one error or more. This guide gives the symptom and the fix for each code that a gate can report. The output on this page comes from the domain of [tutorial 3](../tutorials/strict-coverage), with one part broken on purpose for each example. The examples for invariants, embedded entities, links, events and gate 2 come from the insurance domain in `packages/urn-forge/insurance/`.
+`urn-forge verify` runs gates 1, 2, 3 and 4. A gate fails when it reports one error or more. This guide gives the symptom and the fix for each code that a gate can report. The output on this page comes from the domain of [tutorial 3](../tutorials/strict-coverage), with one part broken on purpose for each example. The examples for invariants, embedded entities, links, events and gate 2 come from the insurance domain in [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/).
 
 ## Before you start
 
@@ -121,8 +121,8 @@ Gate 1 type-checks the core with `tsc`. It also makes sure that the core has an 
 A handler is not there. The core has no key for an operation of the manifest:
 
 ```
-gate 1  completeness  FAIL  tsc: 1 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
-    tutorial/3-strict-coverage/core.ts:7:24  error  type-error  TS1360: Type '{}' does not satisfy the expected type 'DomainCoreImplementation'.
+gate 1  completeness  FAIL  tsc: 1 error(s) over tutorial/3-strict-coverage/src/core.ts; `core` satisfies DomainCoreImplementation
+    tutorial/3-strict-coverage/src/core.ts:7:24  error  type-error  TS1360: Type '{}' does not satisfy the expected type 'DomainCoreImplementation'.
       Property ''urn:demo:shipping:quote:operation:quote_shipping'' is missing in type '{}' but required in type 'DomainCoreImplementation'.
 ```
 
@@ -131,11 +131,11 @@ To fix it, add a handler for the URN that the message names. Refer to [Add an op
 A key in the core has an incorrect URN:
 
 ```
-gate 1  completeness  FAIL  tsc: 4 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
-    tutorial/3-strict-coverage/core.ts:8:3  error  type-error  TS2353: Object literal may only specify known properties, and ''urn:demo:shipping:quote:operation:quote_shiping'' does not exist in type 'DomainCoreImplementation'.
-    tutorial/3-strict-coverage/core.ts:8:57  error  type-error  TS7031: Binding element 'weight_grams' implicitly has an 'any' type.
-    tutorial/3-strict-coverage/core.ts:8:71  error  type-error  TS7031: Binding element 'zone' implicitly has an 'any' type.
-    tutorial/3-strict-coverage/core.ts:8:77  error  type-error  TS7031: Binding element 'express' implicitly has an 'any' type.
+gate 1  completeness  FAIL  tsc: 4 error(s) over tutorial/3-strict-coverage/src/core.ts; `core` satisfies DomainCoreImplementation
+    tutorial/3-strict-coverage/src/core.ts:8:3  error  type-error  TS2353: Object literal may only specify known properties, and ''urn:demo:shipping:quote:operation:quote_shiping'' does not exist in type 'DomainCoreImplementation'.
+    tutorial/3-strict-coverage/src/core.ts:8:57  error  type-error  TS7031: Binding element 'weight_grams' implicitly has an 'any' type.
+    tutorial/3-strict-coverage/src/core.ts:8:71  error  type-error  TS7031: Binding element 'zone' implicitly has an 'any' type.
+    tutorial/3-strict-coverage/src/core.ts:8:77  error  type-error  TS7031: Binding element 'express' implicitly has an 'any' type.
 ```
 
 To fix it, copy the operation URN from the manifest or from the generated runtime. The `TS7031` errors go away with the first one.
@@ -143,8 +143,8 @@ To fix it, copy the operation URN from the manifest or from the generated runtim
 A handler returns a plain object, not a `Result`:
 
 ```
-gate 1  completeness  FAIL  tsc: 1 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
-    tutorial/3-strict-coverage/core.ts:8:3  error  type-error  TS2322: Type '({ weight_grams, zone, express }: { weight_grams: number & Brand<"urn:demo:shipping:parcel:field:weight_grams">; zone: ("domestic" | "international") & Brand<"urn:demo:shipping:parcel:field:zone">; express?: (boolean & Brand<...>) | undefined; }) => Failure<...> | { ...; }' is not assignable to type 'QuoteQuoteShippingHandler'.
+gate 1  completeness  FAIL  tsc: 1 error(s) over tutorial/3-strict-coverage/src/core.ts; `core` satisfies DomainCoreImplementation
+    tutorial/3-strict-coverage/src/core.ts:8:3  error  type-error  TS2322: Type '({ weight_grams, zone, express }: { weight_grams: number & Brand<"urn:demo:shipping:parcel:field:weight_grams">; zone: ("domestic" | "international") & Brand<"urn:demo:shipping:parcel:field:zone">; express?: (boolean & Brand<...>) | undefined; }) => Failure<...> | { ...; }' is not assignable to type 'QuoteQuoteShippingHandler'.
       Type 'Failure<{ kind: "urn:demo:shipping:quote:error:too_heavy_for_express"; weight_grams: number; }> | { price_cents: number; }' is not assignable to type 'Result<{ price_cents: number; }, { kind: "urn:demo:shipping:quote:error:too_heavy_for_express"; weight_grams: number; }, never>'.
         Type '{ price_cents: number; }' is not assignable to type 'Result<{ price_cents: number; }, { kind: "urn:demo:shipping:quote:error:too_heavy_for_express"; weight_grams: number; }, never>'.
 ```
@@ -160,11 +160,11 @@ If the error is in a generated file, a generated file is possibly not there. Fix
 No export of the core uses `satisfies DomainCoreImplementation`:
 
 ```
-gate 1  completeness  FAIL  tsc: 3 error(s) over tutorial/3-strict-coverage/core.ts; no `satisfies DomainCoreImplementation`
-    tutorial/3-strict-coverage/core.ts:8:58  error  type-error  TS7031: Binding element 'weight_grams' implicitly has an 'any' type.
-    tutorial/3-strict-coverage/core.ts:8:72  error  type-error  TS7031: Binding element 'zone' implicitly has an 'any' type.
-    tutorial/3-strict-coverage/core.ts:8:78  error  type-error  TS7031: Binding element 'express' implicitly has an 'any' type.
-    tutorial/3-strict-coverage/core.ts  error  missing-satisfies  no export uses `satisfies DomainCoreImplementation` from tutorial/3-strict-coverage/generated/domain.runtime.generated.ts; declare the core as `export const core = { … } satisfies DomainCoreImplementation;`
+gate 1  completeness  FAIL  tsc: 3 error(s) over tutorial/3-strict-coverage/src/core.ts; no `satisfies DomainCoreImplementation`
+    tutorial/3-strict-coverage/src/core.ts:8:58  error  type-error  TS7031: Binding element 'weight_grams' implicitly has an 'any' type.
+    tutorial/3-strict-coverage/src/core.ts:8:72  error  type-error  TS7031: Binding element 'zone' implicitly has an 'any' type.
+    tutorial/3-strict-coverage/src/core.ts:8:78  error  type-error  TS7031: Binding element 'express' implicitly has an 'any' type.
+    tutorial/3-strict-coverage/src/core.ts  error  missing-satisfies  no export uses `satisfies DomainCoreImplementation` from tutorial/3-strict-coverage/src/generated/domain.runtime.generated.ts; declare the core as `export const core = { … } satisfies DomainCoreImplementation;`
 ```
 
 To fix it, declare the core as the message shows. Import `DomainCoreImplementation` from the generated runtime, not from a different file.
@@ -359,7 +359,7 @@ gate 3  gherkin       FAIL  1 feature(s), 6 scenario(s), 1/1 operations tagged, 
     tutorial/3-strict-coverage/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
 ```
 
-To fix it, use a key from the `allowed` list. The two other problems go away with it. Every `Examples` header must also be a field key, even a column that only the step text uses.
+To fix it, use a key from the `allowed` list. The two other problems go away with it. Every `Examples` header must also be a field key, even a column that only the step text uses. A field of an error or an event that a step of the outline expects is also a field key.
 
 ### `missing-column`
 
@@ -544,8 +544,8 @@ Gate 4 compiles the manifest again in a temporary folder. It then compares each 
 Somebody edited a generated file:
 
 ```
-gate 4  drift         FAIL  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
-    tutorial/3-strict-coverage/generated/domain.schemas.generated.ts:21:1  error  generated-differs  differs from a fresh compile (hand-edited or stale); run `urn-forge compile`
+gate 4  drift         FAIL  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/src/generated
+    tutorial/3-strict-coverage/src/generated/domain.schemas.generated.ts:21:1  error  generated-differs  differs from a fresh compile (hand-edited or stale); run `urn-forge compile`
 ```
 
 The line number is the first line that is different. To fix it, run `compile`:
@@ -555,8 +555,8 @@ npx urn-forge compile --config tutorial/3-strict-coverage/urn-forge.config.ts
 ```
 
 ```
-unchanged  tutorial/3-strict-coverage/generated/domain.runtime.generated.ts
-wrote      tutorial/3-strict-coverage/generated/domain.schemas.generated.ts
+unchanged  tutorial/3-strict-coverage/src/generated/domain.runtime.generated.ts
+wrote      tutorial/3-strict-coverage/src/generated/domain.schemas.generated.ts
 fingerprint sha256:492eef5cf4429536322062da365f080ff6cc4091bb6ae5563c713a73570b3b10
 ```
 
@@ -569,9 +569,9 @@ The manifest changed, but nobody ran `compile`. Line 2 is the fingerprint line:
 ```
 gate 3  gherkin       FAIL  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
     tutorial/3-strict-coverage/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at max 50000, no value at max + 1 (50001)
-gate 4  drift         FAIL  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
-    tutorial/3-strict-coverage/generated/domain.runtime.generated.ts:2:1  error  generated-differs  differs from a fresh compile (hand-edited or stale); run `urn-forge compile`
-    tutorial/3-strict-coverage/generated/domain.schemas.generated.ts:2:1  error  generated-differs  differs from a fresh compile (hand-edited or stale); run `urn-forge compile`
+gate 4  drift         FAIL  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/src/generated
+    tutorial/3-strict-coverage/src/generated/domain.runtime.generated.ts:2:1  error  generated-differs  differs from a fresh compile (hand-edited or stale); run `urn-forge compile`
+    tutorial/3-strict-coverage/src/generated/domain.schemas.generated.ts:2:1  error  generated-differs  differs from a fresh compile (hand-edited or stale); run `urn-forge compile`
 ```
 
 To fix it, run `compile` and commit the generated files with the manifest. Gate 3 reads the manifest, not the generated files, so it shows the new `max` at once. Refer to [Regenerate the code after a manifest change](regenerate-code).
@@ -581,12 +581,12 @@ To fix it, run `compile` and commit the generated files with the manifest. Gate 
 A generated file is not in the output folder:
 
 ```
-gate 1  completeness  FAIL  tsc: 1 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
-    tutorial/3-strict-coverage/generated/domain.runtime.generated.ts:5:20  error  type-error  TS2307: Cannot find module './domain.schemas.generated.js' or its corresponding type declarations.
+gate 1  completeness  FAIL  tsc: 1 error(s) over tutorial/3-strict-coverage/src/core.ts; `core` satisfies DomainCoreImplementation
+    tutorial/3-strict-coverage/src/generated/domain.runtime.generated.ts:5:20  error  type-error  TS2307: Cannot find module './domain.schemas.generated.js' or its corresponding type declarations.
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
-gate 4  drift         FAIL  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
-    tutorial/3-strict-coverage/generated/domain.schemas.generated.ts  error  generated-missing  missing; run `urn-forge compile`
+gate 4  drift         FAIL  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/src/generated
+    tutorial/3-strict-coverage/src/generated/domain.schemas.generated.ts  error  generated-missing  missing; run `urn-forge compile`
 verify failed: gate 1, 4
 ```
 
@@ -597,16 +597,16 @@ To fix it, run `compile`. The gate 1 error goes away with it. If the file is in 
 The output folder has a `*.generated.*` file that the compile does not make:
 
 ```
-gate 4  drift         FAIL  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
-    tutorial/3-strict-coverage/generated/old.schemas.generated.ts  error  generated-orphan  generated file has no source in the current compile; run `urn-forge compile`, which removes it
+gate 4  drift         FAIL  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/src/generated
+    tutorial/3-strict-coverage/src/generated/old.schemas.generated.ts  error  generated-orphan  generated file has no source in the current compile; run `urn-forge compile`, which removes it
 ```
 
 To fix it, run `compile`. It removes each generated file that it no longer makes:
 
 ```
-unchanged  tutorial/3-strict-coverage/generated/domain.runtime.generated.ts
-unchanged  tutorial/3-strict-coverage/generated/domain.schemas.generated.ts
-removed    tutorial/3-strict-coverage/generated/old.schemas.generated.ts
+unchanged  tutorial/3-strict-coverage/src/generated/domain.runtime.generated.ts
+unchanged  tutorial/3-strict-coverage/src/generated/domain.schemas.generated.ts
+removed    tutorial/3-strict-coverage/src/generated/old.schemas.generated.ts
 ```
 
 If urn-forge did not write the file, the message tells you to rename or delete it. `compile` does not remove a file without the urn-forge header.
@@ -616,10 +616,10 @@ If urn-forge did not write the file, the message tells you to rename or delete i
 `verify` shows `PASS` for each gate, and the last line starts with `verify passed`:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/3-strict-coverage/src/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
+gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/src/generated
 verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 

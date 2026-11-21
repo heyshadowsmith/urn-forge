@@ -2,6 +2,8 @@
 
 A waiver removes the boundary gaps of one input field from gate 3, and records why. Use it when a scenario cannot test a boundary. The output on this page comes from the domains of [tutorial 2](../tutorials/declared-errors) and [tutorial 3](../tutorials/strict-coverage).
 
+The commands on this page ran in a clone of the urn-forge repository, from `packages/urn-forge`. In your project, run them from the folder of `urn-forge.config.ts`, and leave out `--config`.
+
 ## Before you start
 
 - Gate 3 reports an `uncovered-boundary` problem for the field. Refer to [Adopt strict coverage](adopt-strict-coverage).

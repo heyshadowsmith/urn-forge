@@ -4,6 +4,8 @@ Gate 3 finds coverage gaps: an input boundary that no scenario sends, a declared
 
 The output on this page comes from the domain of [tutorial 2](../tutorials/declared-errors), which has gaps, and [tutorial 3](../tutorials/strict-coverage), which has none.
 
+The commands on this page ran in a clone of the urn-forge repository, from `packages/urn-forge`. In your project, run them from the folder of `urn-forge.config.ts`, and leave out `--config`.
+
 ## Before you start
 
 - `urn-forge verify` passes on your project, possibly with warnings.
@@ -19,12 +21,12 @@ The output on this page comes from the domain of [tutorial 2](../tutorials/decla
    ```
 
    ```
-   gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/2-declared-errors/core.ts; `core` satisfies DomainCoreImplementation
+   gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/2-declared-errors/src/core.ts; `core` satisfies DomainCoreImplementation
    gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
    gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
        tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
        tutorial/2-declared-errors/features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
-   gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/2-declared-errors/generated
+   gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/2-declared-errors/src/generated
    verify passed with 2 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
    ```
 
@@ -112,10 +114,10 @@ An operation is strict when one or more of the features that it tags is strict. 
 The summary shows `(boundaryCoverage: error)`, and `verify` passes with no warnings:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/3-strict-coverage/src/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
+gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/src/generated
 verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 

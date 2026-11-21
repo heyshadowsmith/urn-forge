@@ -75,7 +75,6 @@ const nodeModules = (() => {
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'urn-forge-every-code-'));
   await cp(repo('tutorial/2-declared-errors'), dir, { recursive: true });
-  await cp(repo('tsconfig.json'), at('tsconfig.json'));
   await symlink(nodeModules, at('node_modules'), 'dir');
 });
 afterAll(async () => {
@@ -88,8 +87,8 @@ async function project(options: Partial<VerifyOptions>, prepare?: () => Promise<
     const result = await verify({
       cwd: dir,
       manifestPath: at('domain.manifest.yaml'),
-      outDir: at('generated'),
-      corePath: at('core.ts'),
+      outDir: at('src/generated'),
+      corePath: at('src/core.ts'),
       featuresDir: at('features'),
       tsconfigPath: at('tsconfig.json'),
       ...options,
@@ -101,8 +100,8 @@ async function project(options: Partial<VerifyOptions>, prepare?: () => Promise<
 }
 /** Verify with one shell file of this source (gate 2). */
 const shell = (text: string) => project({ shellPaths: [at('shell.ts')] }, () => writeFile(at('shell.ts'), text), () => rm(at('shell.ts')));
-const RUNTIME = 'generated/domain.runtime.generated.ts';
-const runtime = () => source('tutorial/2-declared-errors/generated/domain.runtime.generated.ts');
+const RUNTIME = 'src/generated/domain.runtime.generated.ts';
+const runtime = () => source('tutorial/2-declared-errors/src/generated/domain.runtime.generated.ts');
 
 const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<readonly Diagnostic[]>> = {
   // Reading the config
@@ -196,11 +195,11 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'type-error': () => project({ corePath: at('broken.ts') }, () => writeFile(at('broken.ts'), "const n: number = 'one';\nexport { n };\n")),
   'missing-satisfies': () => project({ corePath: at('broken.ts') }, () => writeFile(at('broken.ts'), 'export const core = {};\n')),
   // Gate 2
-  'brand-assertion': () => shell("import type { ParcelWeightGrams } from './generated/domain.schemas.generated';\nexport const w = 1 as ParcelWeightGrams;\n"),
-  'brand-from-any': () => shell("import type { ParcelWeightGrams } from './generated/domain.schemas.generated';\nexport const w: ParcelWeightGrams = JSON.parse('1');\n"),
+  'brand-assertion': () => shell("import type { ParcelWeightGrams } from './src/generated/domain.schemas.generated';\nexport const w = 1 as ParcelWeightGrams;\n"),
+  'brand-from-any': () => shell("import type { ParcelWeightGrams } from './src/generated/domain.schemas.generated';\nexport const w: ParcelWeightGrams = JSON.parse('1');\n"),
   'suppressed-check': () => shell('// @ts-ignore\nexport const n: number = 1;\n'),
   'core-parser-import': () =>
-    project({ corePath: at('parser.ts') }, () => writeFile(at('parser.ts'), "import { ParcelWeightGramsSchema } from './generated/domain.schemas.generated';\nexport const s = ParcelWeightGramsSchema;\n"), () => rm(at('parser.ts'))),
+    project({ corePath: at('parser.ts') }, () => writeFile(at('parser.ts'), "import { ParcelWeightGramsSchema } from './src/generated/domain.schemas.generated';\nexport const s = ParcelWeightGramsSchema;\n"), () => rm(at('parser.ts'))),
   // Gate 3
   'features-unreadable': () => project({ featuresDir: at('nope') }),
   'feature-parse-error': () => project({}, () => writeFile(at('features/bad.feature'), 'Feature: x\n  Scenario: y\n    Given a\n      | a |\n      | b | c |\n'), () => rm(at('features/bad.feature'))),
@@ -226,7 +225,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   // Gate 4
   'generated-missing': () => project({}, () => rm(at(RUNTIME)), () => writeFile(at(RUNTIME), runtime())),
   'generated-differs': () => project({}, () => appendFile(at(RUNTIME), '// edited\n'), () => writeFile(at(RUNTIME), runtime())),
-  'generated-orphan': () => project({}, () => writeFile(at('generated/old.generated.ts'), '\n'), () => rm(at('generated/old.generated.ts'))),
+  'generated-orphan': () => project({}, () => writeFile(at('src/generated/old.generated.ts'), '\n'), () => rm(at('src/generated/old.generated.ts'))),
 };
 
 describe('every diagnostic code', () => {

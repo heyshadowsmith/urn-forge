@@ -6,7 +6,7 @@
 //
 // Run with `npm run test:tarball`. It needs the npm registry for urn-forge's dependencies.
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,6 +65,24 @@ try {
   writeFileSync(runtime, `${readFileSync(runtime, 'utf8')}// edited\n`);
   const drift = run('npm', ['run', 'verify'], project);
   expect('a hand-edited generated file fails gate 4', drift.code !== 0 && drift.output.includes('generated-differs'));
+
+  // The tutorials (docs/tutorials) start from init and change four files. Their end state
+  // must pass in a project made from the tarball, with the files init wrote.
+  const shipping = join(work, 'my-shipping');
+  execFileSync('mkdir', [shipping]);
+  run('npm', ['init', '-y'], shipping);
+  run('npm', ['install', '--no-audit', '--no-fund', tarball], shipping);
+  expect('tutorial: urn-forge init', run('npx', ['urn-forge', 'init', '--namespace', 'demo', '--domain', 'shipping'], shipping).code === 0);
+  rmSync(join(shipping, 'features/split.feature'));
+  const tutorial = join(packageDir, 'tutorial/3-strict-coverage');
+  for (const file of ['domain.manifest.yaml', 'urn-forge.config.ts', 'src/core.ts', 'features/quote_shipping.feature']) {
+    cpSync(join(tutorial, file), join(shipping, file));
+  }
+  expect('tutorial: compile', run('npx', ['urn-forge', 'compile'], shipping).code === 0);
+  const tutorialVerify = run('npx', ['urn-forge', 'verify'], shipping);
+  expect('tutorial: verify passes with no warning', tutorialVerify.code === 0 && tutorialVerify.output.includes('verify passed (gates 1, 2, 3, 4;'));
+  const tutorialFeatures = run('npx', ['cucumber-js'], shipping);
+  expect('tutorial: every scenario passes', tutorialFeatures.code === 0 && tutorialFeatures.output.includes('10 scenarios (10 passed)'));
 } finally {
   rmSync(work, { recursive: true, force: true });
 }

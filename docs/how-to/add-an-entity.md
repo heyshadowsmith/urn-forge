@@ -2,7 +2,7 @@
 
 An entity is a named group of properties. A property holds the values of a field, an embedded entity, or a link to an entity. An operation uses one entity as its input and one as its output. This guide adds an entity to the manifest.
 
-The examples in steps 4 to 6 come from `packages/urn-forge/insurance/`, which CI tests. A policy links to its customer and embeds a list of coverages.
+The examples in steps 4 to 6 come from [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/), which CI tests. A policy links to its customer and embeds a list of coverages.
 
 ## Before you start
 
@@ -45,7 +45,7 @@ The `required` key belongs to the reference, not to the field. Thus, one field c
 
 In the generated types, an optional field is an optional property. In the core, read it as a value that can be `undefined`:
 
-<<< @/../packages/urn-forge/tutorial/1-first-domain/core.ts{7,12}
+<<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts{7,12}
 
 ## 3. Make a field a list
 

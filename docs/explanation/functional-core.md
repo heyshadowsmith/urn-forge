@@ -119,7 +119,7 @@ The design has costs, and a project pays them every day:
 
   The fix is to assign the value to its plain type first. The tutorial core shows this:
 
-  <<< @/../packages/urn-forge/tutorial/1-first-domain/core.ts{8-9}
+  <<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts{8-9}
 
   [Use branded values in the core](../how-to/use-branded-values) gives the other cases.
 - **Type messages are long.** A brand includes the full URN, so a type error that names a branded type is long.

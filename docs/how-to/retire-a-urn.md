@@ -2,7 +2,9 @@
 
 A URN never changes its meaning. To change the meaning of an atom, declare a new atom with a new URN, and retire the old one. This guide deprecates an atom, gives callers time to move to its replacement, and then sets it to `sunset`.
 
-The examples come from `packages/urn-forge/insurance/`, which CI tests. The free text `policy.field.note` has no length limit. The insurance domain retires it for `policy.field.remark`, which has at most 40 characters.
+The examples come from [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/), which CI tests. The free text `policy.field.note` has no length limit. The insurance domain retires it for `policy.field.remark`, which has at most 40 characters.
+
+The commands on this page ran in a clone of the urn-forge repository, from `packages/urn-forge`. In your project, run them from the folder of `urn-forge.config.ts`, and leave out `--config`.
 
 ## Before you start
 

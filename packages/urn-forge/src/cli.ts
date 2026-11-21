@@ -114,7 +114,7 @@ function attributePluginProblems(diagnostics: readonly Diagnostic[], configLabel
   );
 }
 
-/** Flag, else config (relative to the config file), else default (relative to cwd). */
+/** Flag (relative to cwd), else config, else default (both relative to the config file's directory, or cwd with no config). */
 async function resolveSettings(
   io: CliIo,
   flags: Partial<Record<PathSetting | 'config' | 'reference-date', string>>,
@@ -146,7 +146,8 @@ async function resolveSettings(
     const flag = flags[key];
     if (flag !== undefined) return resolve(io.cwd, flag);
     const fromConfig = config[key];
-    return fromConfig !== undefined ? resolve(configDir, fromConfig) : resolve(io.cwd, DEFAULTS[key]);
+    // A config describes the project in its own directory, so its defaults start there too.
+    return resolve(configDir, fromConfig ?? DEFAULTS[key]);
   };
   const paths = Object.fromEntries((Object.keys(DEFAULTS) as PathSetting[]).map((key) => [key, path(key)]));
   const flagDate = flags['reference-date'];

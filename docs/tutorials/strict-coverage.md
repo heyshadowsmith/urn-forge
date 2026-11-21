@@ -2,11 +2,11 @@
 
 In this tutorial, you close the boundary gaps of the shipping domain. First, you tag the feature as strict, so that the gaps become errors. Then you add the scenarios that send the edge values. At the end, you set `boundaryCoverage: 'error'`, and `verify passed` shows with no warnings.
 
-Before you start, do [tutorial 2](./declared-errors). You continue in the same folder, `my-shipping/`. All the commands run from `packages/urn-forge`.
+Before you start, do [tutorial 2](./declared-errors). You continue in the same project, `my-shipping/`. All the commands run from this folder.
 
 ## 1. Tag the feature as strict
 
-Open `my-shipping/features/quote_shipping.feature`. Add the tag `@urn-forge:strict` on a new first line:
+Open `features/quote_shipping.feature`. Add the tag `@urn-forge:strict` on a new first line:
 
 ```gherkin
 @urn-forge:strict
@@ -19,18 +19,18 @@ Feature: Shipping quotes
 Run this command:
 
 ```bash
-npx urn-forge verify --config my-shipping/urn-forge.config.ts
+npx urn-forge verify
 ```
 
 The command shows this output:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       FAIL  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features
-    my-shipping/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-    my-shipping/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
+    features  error  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
+    features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
+gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
 verify failed: gate 3
 ```
 
@@ -69,17 +69,17 @@ The Scenario Outline sends `1` and `30000`, and the operation accepts them. The 
 Run `verify` again:
 
 ```bash
-npx urn-forge verify --config my-shipping/urn-forge.config.ts
+npx urn-forge verify
 ```
 
 The command shows this output:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       FAIL  1 feature(s), 5 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features
-    my-shipping/features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
+    features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
+gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
 verify failed: gate 3
 ```
 
@@ -106,7 +106,7 @@ Make sure that your feature is the same as this file. The highlighted lines are 
 Gate 3 examines only that the scenarios send the values. Cucumber examines that the scenarios pass. Run this command:
 
 ```bash
-npx cucumber-js --profile my-shipping
+npx cucumber-js
 ```
 
 The command shows this output:
@@ -124,17 +124,17 @@ The command shows this output:
 Run this command:
 
 ```bash
-npx urn-forge verify --config my-shipping/urn-forge.config.ts
+npx urn-forge verify
 ```
 
 The command shows this output:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features
-    my-shipping/features  note  ratchet-ready  every feature is @urn-forge:strict; set boundaryCoverage: 'error' in the config so new features are strict too
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
+    features  note  ratchet-ready  every feature is @urn-forge:strict; set boundaryCoverage: 'error' in the config so new features are strict too
+gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
 verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 
@@ -144,49 +144,37 @@ All the gaps are closed, and gate 3 passes. Thus gate 3 now shows the note `ratc
 
 The tag makes only this feature strict. A new feature without the tag can have gaps again, and `verify` gives only warnings. To make each gap an error, change the configuration.
 
-Open `my-shipping/urn-forge.config.ts`. Add the line `boundaryCoverage: 'error',` after the `tsconfig` line:
+Replace the content of `urn-forge.config.ts` with this content:
 
-```ts
-import { defineConfig } from 'urn-forge/config';
+<<< @/../packages/urn-forge/tutorial/3-strict-coverage/urn-forge.config.ts
 
-export default defineConfig({
-  manifest: './domain.manifest.yaml',
-  out: './generated',
-  core: './core.ts',
-  features: './features',
-  tsconfig: '../tsconfig.json',
-  boundaryCoverage: 'error',
-});
-```
+This is the configuration file that `init` wrote in tutorial 1.
 
 ## 8. Run verify
 
 Run this command:
 
 ```bash
-npx urn-forge verify --config my-shipping/urn-forge.config.ts
+npx urn-forge verify
 ```
 
 The command shows this output:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over my-shipping/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against my-shipping/generated
+gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
 verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 
 The note `ratchet-ready` is gone, and the summary of gate 3 shows `(boundaryCoverage: error)`. Your domain now has no warnings. Each new gap makes `verify` fail.
 
-Your files are now the same as the files in `tutorial/3-strict-coverage/`. The only difference is the `tsconfig` path in the configuration file, because your folder is at a different level.
+Your files are now the same as the files in `tutorial/3-strict-coverage/` of the urn-forge repository.
 
 ## 9. Remove your work
 
-If you do not want to keep your domain, do these steps:
-
-1. Delete the folder `my-shipping/`.
-2. Remove the `my-shipping` profile from `cucumber.json`.
+If you do not want to keep your domain, delete the folder `my-shipping/`. The project has all its files in this folder.
 
 ## What you learned
 

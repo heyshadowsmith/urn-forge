@@ -66,6 +66,27 @@ A declared error is part of the contract. An exception is not. [Specification v1
 
 The category `validation` can look like `InputRejected`, but the two are different. `InputRejected` means that the payload is not correct in form: a field is absent, or a value breaks a constraint in the manifest. The core never sees such a payload. `validation` means that the core examined a correct payload and found that it breaks a domain rule, such as a coverage limit. Specification v1.1 keeps this line: "Malformed input never reaches the core."
 
+### An invariant or a declared error
+
+An invariant and a declared error can both refuse a request that is correct in each field. Choose with one question: can the rule be decided from the input entity alone, with the [rule language](../reference/rule-language)?
+
+| The rule | Use | Result |
+| --- | --- | --- |
+| Compares fields of one entity, for example "the expiry date is after the effective date" | An invariant | `InputRejected`, before the core runs. The schema, the generated SQL and gate 3 know the rule |
+| Needs data that the entity does not hold, a calculation that the rule language does not have, or a decision of the business, for example "a member can have at most five loans" | A declared error | `DomainError`, from the core. The caller gets the category, `retryable` and a message |
+
+An invariant is the stronger choice when it can express the rule, because every part of the chain knows it. A declared error is the choice for the other rules. Refer to [Add an invariant](../how-to/add-an-invariant) and [Declare an error](../how-to/declare-an-error).
+
+### Data that the input does not carry
+
+The core is a function of its input. It cannot read a database, a clock or the session of the caller. If a rule needs such data, for example the tier of a member or the number of loans that a member has, the shell gets the data before the call and puts it in the input:
+
+1. Declare a field for each value, for example `member.field.tier` and `member.field.open_loans`.
+2. Put the fields in the input entity, or embed an entity that holds them.
+3. In the shell, read the values, add them to the payload, and call `executeOperation`.
+
+The values then pass their schemas, as the other input does, and a scenario can send them in a column. The same is true for the date of today: the shell sends it as a `date` field, and the core never reads the clock. Thus each scenario gives the same result on each day.
+
 ## Categories and `retryable` belong to the shell
 
 Each declared error has a `category` and a `retryable` flag. The five categories are `validation`, `conflict`, `not_found`, `forbidden` and `precondition`. The core never reads these values. They go into the `DispatchMap` and into the `DomainError`, for the shell. A shell can use them to select an HTTP status, or to decide if a client can send the request again.
@@ -87,6 +108,8 @@ domain.manifest.yaml:107:12  error  unknown-placeholder  urn:urn_forge:toolchain
 ## Why error fields are plain
 
 A handler gives plain values to `fail`, and `executeOperation` parses and brands them. This is the same rule as for output: the core does not make brands. [The functional core and brands](./functional-core) tells why.
+
+The parse also applies the constraints of each field. Thus a value of an error must be a value that its field accepts. If the field of an error property has `max: 28`, the error cannot carry `29`: `executeOperation` gives `ContractViolation`, not the error. To report a value that the input refused to accept, declare a field without that limit for the error. A scenario that expects the error with the edge value finds such a mistake.
 
 The parsed error has a `kind` property that holds the error URN. Callers can switch on it. As a result, no property of an error can have the name `kind`. The compiler reports such a field as `reserved-property`.
 

@@ -2,7 +2,7 @@
 
 A declared error is a named rejection: the operation refuses the input, and nothing changes. This guide declares an error, lists it on an operation, returns it from the handler and tests it with a scenario.
 
-The examples come from `packages/urn-forge/tutorial/2-declared-errors/`, which CI tests. The operation `quote_shipping` refuses an express parcel over 5000 grams.
+The examples come from [`packages/urn-forge/tutorial/2-declared-errors/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/2-declared-errors/), which CI tests. The operation `quote_shipping` refuses an express parcel over 5000 grams.
 
 ## Before you start
 
@@ -32,6 +32,10 @@ quote.error.too_heavy_for_express:
 | `message` | Necessary. A template. Each `{placeholder}` names a field of the error |
 | `fields` | Optional. Field references, as in an entity. The default is no fields |
 | `recordAs` | Optional. The short key of an event. The runtime makes this event from the fields of the error, so the shell can keep the refusal in an audit trail |
+
+Each value in `fields` must pass all the constraints of its field. The runtime parses the error with the schema of each field, as it parses the input. If the handler gives a value that the field refuses, the result is `ContractViolation`, not the error. `tsc` does not find this mistake, because the value is a plain value until the parse.
+
+Thus, choose the field of each error property for the values that the error carries, not for the values that the input carries. For example, a field `loan_days` with `max: 28` cannot report a loan of 29 days. To report the days that a caller asked for, declare a different field, for example `requested_days` with no `max`, and use it in the error. A scenario that expects the error with the edge value finds this mistake: refer to step 6.
 
 For the full rules, refer to [The manifest](../reference/manifest). For `recordAs`, refer to [Emit an event](emit-an-event).
 
@@ -70,13 +74,13 @@ The error type of the handler is now the payload of `too_heavy_for_express`. If 
 
 Import `fail` from the generated runtime. Call it with the URN of the error and its fields:
 
-<<< @/../packages/urn-forge/tutorial/2-declared-errors/core.ts
+<<< @/../packages/urn-forge/tutorial/2-declared-errors/src/core.ts
 
 - `fail` does not take `kind`. It adds `kind` itself.
 - If the error has no fields, call `fail` with the URN only, for example `fail('urn:demo:shop:order:error:pricing_offline')`.
 - If the operation does not list the error, gate 1 fails with `TS2322`. The type of `fail(…)` is not assignable to the result type of the handler.
 
-To choose between more than one error, use a `switch`, as in `packages/urn-forge/self/core.ts`:
+To choose between more than one error, use a `switch`, as in [`packages/urn-forge/self/core.ts`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/self/core.ts):
 
 <<< @/../packages/urn-forge/self/core.ts
 

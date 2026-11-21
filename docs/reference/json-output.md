@@ -153,10 +153,10 @@ npx urn-forge verify --config tutorial/2-declared-errors/urn-forge.config.ts --f
 ```json
 {"type":"diagnostic","gate":3,"severity":"warning","code":"uncovered-boundary","file":"tutorial/2-declared-errors/features","urn":"urn:demo:shipping:parcel:field:weight_grams","message":"urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)"}
 {"type":"diagnostic","gate":3,"severity":"warning","code":"uncovered-boundary","file":"tutorial/2-declared-errors/features","urn":"urn:demo:shipping:parcel:field:zone","message":"urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values"}
-{"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over tutorial/2-declared-errors/core.ts; `core` satisfies DomainCoreImplementation"}
+{"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over tutorial/2-declared-errors/src/core.ts; `core` satisfies DomainCoreImplementation"}
 {"type":"gate","gate":2,"name":"boundary","ok":true,"summary":"1 core file(s), 0 shell file(s): 0 problem(s)"}
 {"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features"}
-{"type":"gate","gate":4,"name":"drift","ok":true,"summary":"2 generated file(s) compared byte for byte against tutorial/2-declared-errors/generated"}
+{"type":"gate","gate":4,"name":"drift","ok":true,"summary":"2 generated file(s) compared byte for byte against tutorial/2-declared-errors/src/generated"}
 {"type":"result","ok":true,"failedGates":[],"warnings":2,"sunsetDatesChecked":true}
 ```
 
