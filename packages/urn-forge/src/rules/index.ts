@@ -1,0 +1,490 @@
+/**
+ * The invariant rule language (spec §4.3; invariants plan, "The rule language").
+ *
+ *   or      := and ('or' and)*
+ *   and     := unary ('and' unary)*
+ *   unary   := 'not' unary | compare
+ *   compare := sum (('<' | '<=' | '=' | '!=' | '>=' | '>') sum)?
+ *   sum     := primary (('+' | '-') primary)*
+ *   primary := '(' or ')' | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
+ *
+ * `parseRule` gives an AST whose nodes carry their column in the rule text; `stripColumns`
+ * gives the form the IR keeps; `printRule` gives the canonical text. `checkRule` (pass 6)
+ * types the AST against the fields of the invariant's entity.
+ */
+import { DECIMAL, isCalendarDate, isUtcTimestamp } from '../primitives/exact.js';
+import type { Primitive } from '../primitives/index.js';
+
+export type Comparison = '<' | '<=' | '=' | '!=' | '>=' | '>';
+export type Arithmetic = '+' | '-';
+
+/** A rule as the IR keeps it: JSON, no positions. Number literals keep their text, so a decimal stays exact. */
+export type RuleExpr =
+  | { readonly op: 'field'; readonly name: string }
+  | { readonly op: 'number'; readonly value: string }
+  | { readonly op: 'text'; readonly value: string }
+  | { readonly op: 'boolean'; readonly value: boolean }
+  | { readonly op: 'present' | 'absent'; readonly field: string }
+  | { readonly op: 'not'; readonly operand: RuleExpr }
+  | { readonly op: 'and' | 'or' | Comparison | Arithmetic; readonly left: RuleExpr; readonly right: RuleExpr };
+
+/** The same AST, with the 1-based column of each node in the rule text. */
+export type LocatedExpr = (
+  | { readonly op: 'field'; readonly name: string }
+  | { readonly op: 'number'; readonly value: string }
+  | { readonly op: 'text'; readonly value: string }
+  | { readonly op: 'boolean'; readonly value: boolean }
+  | { readonly op: 'present' | 'absent'; readonly field: string }
+  | { readonly op: 'not'; readonly operand: LocatedExpr }
+  | { readonly op: 'and' | 'or' | Comparison | Arithmetic; readonly left: LocatedExpr; readonly right: LocatedExpr }
+) & { readonly at: number };
+
+export interface RuleProblem {
+  readonly code: 'rule-syntax' | 'unknown-rule-field' | 'rule-type' | 'unguarded-field';
+  readonly message: string;
+  /** 1-based column in the rule text. */
+  readonly column: number;
+}
+
+// ---------------------------------------------------------------------------
+// Tokens
+// ---------------------------------------------------------------------------
+
+type Token =
+  | { readonly kind: 'name'; readonly text: string; readonly at: number }
+  | { readonly kind: 'number'; readonly text: string; readonly at: number }
+  | { readonly kind: 'text'; readonly text: string; readonly at: number }
+  | { readonly kind: 'symbol'; readonly text: string; readonly at: number }
+  | { readonly kind: 'end'; readonly text: ''; readonly at: number };
+
+const KEYWORDS = new Set(['and', 'or', 'not', 'is', 'present', 'absent', 'true', 'false']);
+const SYMBOLS = ['<=', '>=', '!=', '<', '>', '=', '+', '-', '(', ')'];
+
+class SyntaxProblem extends Error {
+  constructor(
+    message: string,
+    readonly column: number,
+  ) {
+    super(message);
+  }
+}
+
+function tokenize(source: string): Token[] {
+  const tokens: Token[] = [];
+  let i = 0;
+  while (i < source.length) {
+    const c = source[i]!;
+    const at = i + 1;
+    if (/\s/u.test(c)) {
+      i += 1;
+      continue;
+    }
+    const name = /^[a-z][a-z0-9_]*/u.exec(source.slice(i));
+    if (name) {
+      tokens.push({ kind: 'name', text: name[0], at });
+      i += name[0].length;
+      continue;
+    }
+    const number = /^[0-9]+(\.[0-9]+)?/u.exec(source.slice(i));
+    if (number) {
+      tokens.push({ kind: 'number', text: number[0], at });
+      i += number[0].length;
+      continue;
+    }
+    if (c === "'") {
+      const end = source.indexOf("'", i + 1);
+      if (end < 0) throw new SyntaxProblem('a text literal has no closing quote', at);
+      tokens.push({ kind: 'text', text: source.slice(i + 1, end), at });
+      i = end + 1;
+      continue;
+    }
+    const symbol = SYMBOLS.find((s) => source.startsWith(s, i));
+    if (symbol) {
+      tokens.push({ kind: 'symbol', text: symbol, at });
+      i += symbol.length;
+      continue;
+    }
+    throw new SyntaxProblem(`unexpected character "${c}"`, at);
+  }
+  tokens.push({ kind: 'end', text: '', at: source.length + 1 });
+  return tokens;
+}
+
+// ---------------------------------------------------------------------------
+// Parser
+// ---------------------------------------------------------------------------
+
+const COMPARISONS: readonly string[] = ['<', '<=', '=', '!=', '>=', '>'];
+
+export type ParseResult = { readonly ok: true; readonly expr: LocatedExpr } | { readonly ok: false; readonly problem: RuleProblem };
+
+export function parseRule(source: string): ParseResult {
+  try {
+    const tokens = tokenize(source);
+    let pos = 0;
+    const peek = () => tokens[pos]!;
+    const take = () => tokens[pos++]!;
+    const isWord = (word: string) => peek().kind === 'name' && peek().text === word;
+    const isSymbol = (symbol: string) => peek().kind === 'symbol' && peek().text === symbol;
+    const describe = (t: Token) => (t.kind === 'end' ? 'the end of the rule' : `"${t.kind === 'text' ? `'${t.text}'` : t.text}"`);
+    const expected = (what: string): never => {
+      const t = peek();
+      throw new SyntaxProblem(`expected ${what}, found ${describe(t)}`, t.at);
+    };
+
+    const or = (): LocatedExpr => {
+      let left = and();
+      while (isWord('or')) {
+        take();
+        left = { op: 'or', left, right: and(), at: left.at };
+      }
+      return left;
+    };
+    const and = (): LocatedExpr => {
+      let left = unary();
+      while (isWord('and')) {
+        take();
+        left = { op: 'and', left, right: unary(), at: left.at };
+      }
+      return left;
+    };
+    const unary = (): LocatedExpr => {
+      if (isWord('not')) {
+        const at = take().at;
+        return { op: 'not', operand: unary(), at };
+      }
+      return compare();
+    };
+    const compare = (): LocatedExpr => {
+      const left = sum();
+      if (peek().kind === 'symbol' && COMPARISONS.includes(peek().text)) {
+        const op = take().text as Comparison;
+        const right = sum();
+        if (peek().kind === 'symbol' && COMPARISONS.includes(peek().text)) {
+          throw new SyntaxProblem('a comparison cannot follow another comparison; use and', peek().at);
+        }
+        return { op, left, right, at: left.at };
+      }
+      return left;
+    };
+    const sum = (): LocatedExpr => {
+      let left = primary();
+      while (isSymbol('+') || isSymbol('-')) {
+        const op = take().text as Arithmetic;
+        left = { op, left, right: primary(), at: left.at };
+      }
+      return left;
+    };
+    const primary = (): LocatedExpr => {
+      const t = peek();
+      if (isSymbol('(')) {
+        take();
+        const inner = or();
+        if (!isSymbol(')')) expected('")"');
+        take();
+        return inner;
+      }
+      if (isSymbol('-') && tokens[pos + 1]?.kind === 'number') {
+        take();
+        const n = take();
+        return { op: 'number', value: `-${n.text}`, at: t.at };
+      }
+      if (t.kind === 'number') return { op: 'number', value: take().text, at: t.at };
+      if (t.kind === 'text') return { op: 'text', value: take().text, at: t.at };
+      if (t.kind === 'name' && (t.text === 'true' || t.text === 'false')) return { op: 'boolean', value: take().text === 'true', at: t.at };
+      if (t.kind === 'name' && !KEYWORDS.has(t.text)) {
+        take();
+        if (isWord('is')) {
+          take();
+          if (isWord('present') || isWord('absent')) return { op: take().text as 'present' | 'absent', field: t.text, at: t.at };
+          expected('"present" or "absent"');
+        }
+        return { op: 'field', name: t.text, at: t.at };
+      }
+      return expected('a field, a literal or "("');
+    };
+
+    const expr = or();
+    if (peek().kind !== 'end') expected('"and", "or" or the end of the rule');
+    return { ok: true, expr };
+  } catch (error) {
+    if (error instanceof SyntaxProblem) return { ok: false, problem: { code: 'rule-syntax', message: error.message, column: error.column } };
+    throw error;
+  }
+}
+
+/** The IR form: the same tree without columns. */
+export function stripColumns(expr: LocatedExpr): RuleExpr {
+  switch (expr.op) {
+    case 'field':
+      return { op: 'field', name: expr.name };
+    case 'number':
+    case 'text':
+      return { op: expr.op, value: expr.value };
+    case 'boolean':
+      return { op: 'boolean', value: expr.value };
+    case 'present':
+    case 'absent':
+      return { op: expr.op, field: expr.field };
+    case 'not':
+      return { op: 'not', operand: stripColumns(expr.operand) };
+    default:
+      return { op: expr.op, left: stripColumns(expr.left), right: stripColumns(expr.right) };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Printer
+// ---------------------------------------------------------------------------
+
+/** Binding strength: a child that binds less tightly than its parent needs parentheses. */
+function precedence(expr: RuleExpr): number {
+  switch (expr.op) {
+    case 'or':
+      return 1;
+    case 'and':
+      return 2;
+    case 'not':
+      return 3;
+    case '<':
+    case '<=':
+    case '=':
+    case '!=':
+    case '>=':
+    case '>':
+      return 4;
+    case '+':
+    case '-':
+      return 5;
+    default:
+      return 6;
+  }
+}
+
+/** The canonical text: one space around each operator, parentheses only where they are necessary. */
+export function printRule(expr: RuleExpr): string {
+  const wrap = (child: RuleExpr, min: number) => (precedence(child) < min ? `(${printRule(child)})` : printRule(child));
+  switch (expr.op) {
+    case 'field':
+      return expr.name;
+    case 'number':
+      return expr.value;
+    case 'text':
+      return `'${expr.value}'`;
+    case 'boolean':
+      return String(expr.value);
+    case 'present':
+    case 'absent':
+      return `${expr.field} is ${expr.op}`;
+    case 'not':
+      return `not ${wrap(expr.operand, 3)}`;
+    default: {
+      const p = precedence(expr);
+      // and, or, + and - group to the left, so a right child of equal strength needs parentheses.
+      // A comparison cannot hold a comparison, so both of its sides need them.
+      const leftMin = p === 4 ? 5 : p;
+      return `${wrap(expr.left, leftMin)} ${expr.op} ${wrap(expr.right, p + 1)}`;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Type checker (pass 6)
+// ---------------------------------------------------------------------------
+
+/** What a rule may know about a property of the invariant's entity. */
+export interface RuleField {
+  readonly primitive: Primitive;
+  readonly required: boolean;
+  readonly many: boolean;
+  /** The names of an `enum`, to check a text literal. */
+  readonly values?: readonly string[];
+}
+
+type ValueType = { readonly kind: 'value'; readonly primitive: Primitive } | { readonly kind: 'literal'; readonly literal: 'number' | 'text' | 'boolean'; readonly text: string };
+type Checked = ValueType | { readonly kind: 'condition' };
+
+const ORDERED: ReadonlySet<Primitive> = new Set(['integer', 'float', 'decimal', 'date', 'timestamp']);
+const ARITHMETIC: ReadonlySet<Primitive> = new Set(['integer', 'decimal']);
+
+/** The fields a condition proves present (`x is present`, and chains of `and` over them). */
+function provesPresent(expr: LocatedExpr): string[] {
+  if (expr.op === 'present') return [expr.field];
+  if (expr.op === 'and') return [...provesPresent(expr.left), ...provesPresent(expr.right)];
+  return [];
+}
+
+/** The fields a condition proves absent when it is false: the left side of `x is absent or …`. */
+function provesAbsentIfFalse(expr: LocatedExpr): string[] {
+  if (expr.op === 'absent') return [expr.field];
+  if (expr.op === 'or') return [...provesAbsentIfFalse(expr.left), ...provesAbsentIfFalse(expr.right)];
+  return [];
+}
+
+/**
+ * Pass 6 for one rule: fields exist, both sides of each operator have one primitive, literals
+ * fit that primitive, and each optional field is guarded. Returns every problem it finds.
+ */
+export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, RuleField>>): RuleProblem[] {
+  const problems: RuleProblem[] = [];
+  const problem = (code: RuleProblem['code'], at: number, message: string) => problems.push({ code, message, column: at });
+
+  /** Whether a literal fits a primitive; undefined when it does, else why not. */
+  const literalProblem = (literal: Extract<ValueType, { kind: 'literal' }>, primitive: Primitive, values?: readonly string[]): string | undefined => {
+    const shown = literal.literal === 'text' ? `'${literal.text}'` : literal.text;
+    switch (primitive) {
+      case 'integer':
+        return literal.literal === 'number' && /^-?[0-9]+$/u.test(literal.text) ? undefined : `${shown} is not an integer`;
+      case 'float':
+        return literal.literal === 'number' ? undefined : `${shown} is not a number`;
+      case 'decimal':
+        return (literal.literal === 'number' || literal.literal === 'text') && DECIMAL.test(literal.text) ? undefined : `${shown} is not a decimal`;
+      case 'date':
+        return literal.literal === 'text' && isCalendarDate(literal.text) ? undefined : `${shown} is not a date in quotes, such as '2026-01-31'`;
+      case 'timestamp':
+        return literal.literal === 'text' && isUtcTimestamp(literal.text) ? undefined : `${shown} is not a timestamp in quotes, such as '2026-01-31T09:30:00Z'`;
+      case 'boolean':
+        return literal.literal === 'boolean' ? undefined : `${shown} is not true or false`;
+      case 'string':
+        return literal.literal === 'text' ? undefined : `${shown} is not text in quotes`;
+      case 'enum':
+        if (literal.literal !== 'text') return `${shown} is not text in quotes`;
+        return values === undefined || values.includes(literal.text) ? undefined : `${shown} is not one of the values (${values.join(', ')})`;
+    }
+  };
+
+  /** The primitive two sides share, reporting a mismatch; undefined after a problem. */
+  const unify = (left: ValueType, right: ValueType, at: number, op: string, fieldsOf: (v: ValueType) => RuleField | undefined): Primitive | undefined => {
+    if (left.kind === 'literal' && right.kind === 'literal') {
+      problem('rule-type', at, `${op} compares two literals; one side must be a field`);
+      return undefined;
+    }
+    if (left.kind === 'value' && right.kind === 'value') {
+      if (left.primitive !== right.primitive) {
+        problem('rule-type', at, `${op} has a ${left.primitive} on the left and a ${right.primitive} on the right; both sides must have one primitive`);
+        return undefined;
+      }
+      return left.primitive;
+    }
+    const value = (left.kind === 'value' ? left : right) as Extract<ValueType, { kind: 'value' }>;
+    const literal = (left.kind === 'literal' ? left : right) as Extract<ValueType, { kind: 'literal' }>;
+    const why = literalProblem(literal, value.primitive, fieldsOf(value)?.values);
+    if (why) {
+      problem('rule-type', at, `${why}, so it cannot meet a ${value.primitive} in ${op}`);
+      return undefined;
+    }
+    return value.primitive;
+  };
+
+  // The field behind a value, for enum values; only a bare field has one.
+  const enumFields = new Map<ValueType, RuleField>();
+
+  const check = (e: LocatedExpr, present: ReadonlySet<string>): Checked | undefined => {
+    switch (e.op) {
+      case 'field': {
+        const field = Object.hasOwn(fields, e.name) ? fields[e.name] : undefined;
+        if (!field) {
+          problem('unknown-rule-field', e.at, `"${e.name}" is not a field of the entity (fields: ${Object.keys(fields).join(', ')})`);
+          return undefined;
+        }
+        if (field.many) {
+          problem('rule-type', e.at, `"${e.name}" is a list; a rule can use a list only in "${e.name} is present" or "${e.name} is absent"`);
+          return undefined;
+        }
+        if (!field.required && !present.has(e.name)) {
+          problem('unguarded-field', e.at, `"${e.name}" is optional, so the rule must guard it: write "${e.name} is present and …" or "${e.name} is absent or …"`);
+          return undefined;
+        }
+        const type: ValueType = { kind: 'value', primitive: field.primitive };
+        enumFields.set(type, field);
+        return type;
+      }
+      case 'number':
+        return { kind: 'literal', literal: 'number', text: e.value };
+      case 'text':
+        return { kind: 'literal', literal: 'text', text: e.value };
+      case 'boolean':
+        return { kind: 'literal', literal: 'boolean', text: String(e.value) };
+      case 'present':
+      case 'absent': {
+        const field = Object.hasOwn(fields, e.field) ? fields[e.field] : undefined;
+        if (!field) {
+          problem('unknown-rule-field', e.at, `"${e.field}" is not a field of the entity (fields: ${Object.keys(fields).join(', ')})`);
+        } else if (field.required) {
+          problem('rule-type', e.at, `"${e.field}" is required, so "${e.field} is ${e.op}" is always ${e.op === 'present'}`);
+        }
+        return { kind: 'condition' };
+      }
+      case 'not':
+        condition(e.operand, present, 'not');
+        return { kind: 'condition' };
+      case 'and':
+        condition(e.left, present, 'and');
+        condition(e.right, new Set([...present, ...provesPresent(e.left)]), 'and');
+        return { kind: 'condition' };
+      case 'or':
+        condition(e.left, present, 'or');
+        condition(e.right, new Set([...present, ...provesAbsentIfFalse(e.left)]), 'or');
+        return { kind: 'condition' };
+      case '+':
+      case '-': {
+        const left = value(e.left, present, e.op);
+        const right = value(e.right, present, e.op);
+        if (!left || !right) return undefined;
+        const primitive = unify(left, right, e.at, `"${e.op}"`, (v) => enumFields.get(v));
+        if (primitive === undefined) return undefined;
+        if (!ARITHMETIC.has(primitive)) {
+          problem('rule-type', e.at, `"${e.op}" works on integer and decimal only, not on ${primitive}`);
+          return undefined;
+        }
+        return { kind: 'value', primitive };
+      }
+      default: {
+        const left = value(e.left, present, e.op);
+        const right = value(e.right, present, e.op);
+        if (!left || !right) return { kind: 'condition' };
+        const primitive = unify(left, right, e.at, `"${e.op}"`, (v) => enumFields.get(v));
+        if (primitive !== undefined && e.op !== '=' && e.op !== '!=' && !ORDERED.has(primitive)) {
+          problem('rule-type', e.at, `"${e.op}" needs an order, which ${primitive} does not have; use = or !=`);
+        }
+        return { kind: 'condition' };
+      }
+    }
+  };
+  const condition = (e: LocatedExpr, present: ReadonlySet<string>, where: string) => {
+    const result = check(e, present);
+    if (result && result.kind !== 'condition') {
+      problem('rule-type', e.at, `${where} needs a condition, such as a comparison, not a ${result.kind === 'value' ? result.primitive : `${result.literal} literal`}`);
+    }
+  };
+  const value = (e: LocatedExpr, present: ReadonlySet<string>, where: string): ValueType | undefined => {
+    const result = check(e, present);
+    if (result?.kind === 'condition') {
+      problem('rule-type', e.at, `"${where}" needs a value on each side, not a condition`);
+      return undefined;
+    }
+    return result;
+  };
+
+  condition(expr, new Set(), 'a rule');
+  return problems;
+}
+
+/** The first field a rule names, in text order: where a broken invariant points (invariants plan, decision 5). */
+export function firstField(expr: RuleExpr): string | undefined {
+  switch (expr.op) {
+    case 'field':
+      return expr.name;
+    case 'present':
+    case 'absent':
+      return expr.field;
+    case 'not':
+      return firstField(expr.operand);
+    case 'number':
+    case 'text':
+    case 'boolean':
+      return undefined;
+    default:
+      return firstField(expr.left) ?? firstField(expr.right);
+  }
+}
