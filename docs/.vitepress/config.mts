@@ -122,6 +122,7 @@ export default defineConfig({
           { text: 'Primitives plan', link: '/project/primitives-plan' },
           { text: 'Invariants plan', link: '/project/invariants-plan' },
           { text: 'Structure plan', link: '/project/structure-plan' },
+          { text: 'Postgres plan', link: '/project/postgres-plan' },
           { text: 'Spec v1.1', link: '/project/spec-v1-1' },
         ],
       },
