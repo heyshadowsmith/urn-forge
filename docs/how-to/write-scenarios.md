@@ -1,6 +1,6 @@
 # Write scenarios
 
-A scenario runs one operation with one input and checks the result. urn-forge gives five generic steps, so you do not write step code. This guide writes scenarios for outputs, rejections and declared errors.
+A scenario runs one operation with one input and checks the result. urn-forge gives six generic steps, so you do not write step code. This guide writes scenarios for outputs, rejections, broken invariants and declared errors.
 
 ## Before you start
 
@@ -20,13 +20,14 @@ Feature: Shipping quotes
 - A scenario must have exactly one operation tag, from the feature or from itself.
 - Each `@urn:…` tag must name an atom of the manifest. Gate 3 checks this.
 
-## 2. Use the five steps
+## 2. Use the six steps
 
 | Step | Use |
 | --- | --- |
 | `When I run the operation with:` | Runs the operation. A table gives the input |
 | `Then the output is:` | Checks the output. A table gives the expected values |
 | `Then the input is rejected on "<field>"` | Checks that the shell rejected the input, with an issue on the named input field |
+| `Then the input is rejected by "<invariant URN>"` | Checks that the shell rejected the input because this invariant of the input entity does not hold |
 | `Then the operation fails with "<error URN>"` | Checks that the handler returned this declared error |
 | `Then the operation fails with "<error URN>":` | The same, and a table gives the expected fields of the error |
 
@@ -129,7 +130,17 @@ The step passes only if the result is `InputRejected` with an issue on that fiel
 
 For a field with constraints, test each boundary value. Gate 3 shows the values that no scenario sends. Refer to [Adopt strict coverage](adopt-strict-coverage).
 
-## 8. Check a declared error
+## 8. Check a broken invariant
+
+Use `Then the input is rejected by "<invariant URN>"` for an input that breaks an invariant of the input entity. For example, `packages/urn-forge/insurance/features/issue_policy.feature` sends a policy that ends before it starts, and expects `Then the input is rejected by "urn:acme:insurance:policy:invariant:term_is_positive"`.
+
+- The step passes only if the result is `InputRejected` with an issue that carries this invariant URN.
+- The invariant must be on the input entity of the operation. If not, gate 3 fails with `undeclared-invariant`.
+- Send correct values for the other fields. Then only the invariant refuses the input.
+
+`Then the input is rejected on "<field>"` also passes for a broken invariant, because the issue is on the first field of the rule. But gate 3 counts only the `rejected by` step as a scenario that breaks the invariant. Refer to [Add an invariant](add-an-invariant).
+
+## 9. Check a declared error
 
 Use `Then the operation fails with "<error URN>"`. To check the fields too, end the step with a colon and add a table. The error must be one that the operation lists. Refer to [Declare an error](declare-an-error).
 

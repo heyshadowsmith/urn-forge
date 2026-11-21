@@ -114,7 +114,7 @@ jobs:
       - name: npm test
         run: npm test
 
-      - name: Recompile both domains; the committed files must not change
+      - name: Recompile each domain; the committed files must not change
         working-directory: packages/urn-forge
         run: |
           npm run compile:example

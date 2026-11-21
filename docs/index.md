@@ -24,7 +24,7 @@ features:
       light: /icons/manifest-light.svg
       dark: /icons/manifest-dark.svg
     title: A manifest of URNs
-    details: You write fields, entities, operations and errors in one YAML file. Each item has a permanent URN, for example urn:demo:math:arithmetic:operation:safe_divide.
+    details: You write fields, entities, invariants, operations and errors in one YAML file. Each item has a permanent URN, for example urn:demo:math:arithmetic:operation:safe_divide.
   - icon:
       light: /icons/contracts-light.svg
       dark: /icons/contracts-dark.svg
@@ -34,7 +34,7 @@ features:
       light: /icons/trace-light.svg
       dark: /icons/trace-dark.svg
     title: Features linked to URNs
-    details: Put an operation URN tag on a feature. Five generic steps send it through the real gatekeeper. You do not write glue code for each operation.
+    details: Put an operation URN tag on a feature. Six generic steps send it through the real gatekeeper. You do not write glue code for each operation.
   - icon:
       light: /icons/gate-light.svg
       dark: /icons/gate-dark.svg
