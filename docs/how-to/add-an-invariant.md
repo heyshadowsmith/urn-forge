@@ -14,7 +14,7 @@ The examples come from `packages/urn-forge/insurance/`, which CI tests. The inva
 
 Add an entry with the short key `<context>.invariant.<identifier>`. The insurance manifest has four invariants (highlighted):
 
-<<< @/../packages/urn-forge/insurance/domain.manifest.yaml{104-123 yaml}
+<<< @/../packages/urn-forge/insurance/domain.manifest.yaml{114-133 yaml}
 
 | Key | Value |
 | --- | --- |
@@ -40,13 +40,13 @@ For each operator and the types that it accepts, refer to [The rule language](..
 A link holds the value of the key of its target. Thus, a rule compares a link as a value of the primitive of the key. For example, `holder` of the policy is a `string`, because `customer.field.customer_id` is a `string`. A rule can compare it with a text literal, for example `holder != '00000000-0000-0000-0000-000000000000'`. A comparison with a different primitive gives `rule-type`. Here the rule is `holder > premium`:
 
 ```
-insurance/domain.manifest.yaml:112:9  error  rule-type  urn:acme:insurance:policy:invariant:term_is_positive: rule: ">" has a string on the left and a decimal on the right; both sides must have one primitive (at column 1 of the rule)
+insurance/domain.manifest.yaml:122:9  error  rule-type  urn:acme:insurance:policy:invariant:term_is_positive: rule: ">" has a string on the left and a decimal on the right; both sides must have one primitive (at column 1 of the rule)
 ```
 
 An embedded entity, or a list, has no value to compare. A rule can use it only in `is present` and `is absent`. Here the rule is `coverages > premium`:
 
 ```
-insurance/domain.manifest.yaml:112:9  error  rule-type  urn:acme:insurance:policy:invariant:term_is_positive: rule: "coverages" is a list; a rule can use it only in "coverages is present" or "coverages is absent" (at column 1 of the rule)
+insurance/domain.manifest.yaml:122:9  error  rule-type  urn:acme:insurance:policy:invariant:term_is_positive: rule: "coverages" is a list; a rule can use it only in "coverages is present" or "coverages is absent" (at column 1 of the rule)
 ```
 
 For a single embedded entity, the message says `is an embedded entity` in place of `is a list`. A guard is useful only if the property is optional. If `coverages` is required, `coverages is present` gives `rule-type` too, because it is always true.
@@ -63,7 +63,7 @@ Select the guard that gives the correct answer for an absent value. `deductible_
 If you write `deductible < premium` without a guard, `compile` stops:
 
 ```
-insurance/domain.manifest.yaml:117:9  error  unguarded-field  urn:acme:insurance:policy:invariant:deductible_below_premium: rule: "deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …" (at column 1 of the rule)
+insurance/domain.manifest.yaml:127:9  error  unguarded-field  urn:acme:insurance:policy:invariant:deductible_below_premium: rule: "deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …" (at column 1 of the rule)
 ```
 
 ## 3. Compile
@@ -75,11 +75,14 @@ npx urn-forge compile --config insurance/urn-forge.config.ts
 ```
 
 ```
+insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
 wrote      insurance/generated/domain.runtime.generated.ts
 wrote      insurance/generated/domain.schemas.generated.ts
 wrote      insurance/generated/schema.generated.sql
-fingerprint sha256:54cd88275382c52deabac2825d0ae353a3a027e039916362b9e8abd674c6dac8
+fingerprint sha256:957beb20d7d7f9f6d395ce04f1fcb67c71fa406c51f82bf94bdc7a06871ba427
 ```
+
+The `deprecated-ref` warning is about the field `note`, which the insurance domain retires. It does not stop `compile`. Refer to [Retire a URN](retire-a-urn).
 
 The schema of the entity now checks each of its invariants. If a rule does not hold, the issue points at the first field that the rule names. For `term_is_positive`, that field is `expiry_date`. The issue also carries the URN of the invariant in `invariantUrn`. For an invariant of an embedded entity, the path of the issue goes into the object, for example `coverages.0.limit`. Refer to [The generated schemas](../reference/generated-schemas).
 
@@ -94,7 +97,7 @@ Pass 6 examines each rule against the fields of its entity. If a rule is not cor
 The rule is not complete, or it has a word that the language does not know. Here the rule is `expiry_date >`:
 
 ```
-insurance/domain.manifest.yaml:112:9  error  rule-syntax  urn:acme:insurance:policy:invariant:term_is_positive: rule: expected a field, a literal or "(", found the end of the rule (at column 14 of the rule)
+insurance/domain.manifest.yaml:122:9  error  rule-syntax  urn:acme:insurance:policy:invariant:term_is_positive: rule: expected a field, a literal or "(", found the end of the rule (at column 14 of the rule)
 ```
 
 To fix it, complete the rule at the column that the message gives.
@@ -104,7 +107,7 @@ To fix it, complete the rule at the column that the message gives.
 The rule names a field that the entity does not have. Here the rule is `expiry > effective_date`:
 
 ```
-insurance/domain.manifest.yaml:112:9  error  unknown-rule-field  urn:acme:insurance:policy:invariant:term_is_positive: rule: "expiry" is not a field of the entity (fields: policy_id, holder, coverages, effective_date, expiry_date, premium, deductible) (at column 1 of the rule)
+insurance/domain.manifest.yaml:122:9  error  unknown-rule-field  urn:acme:insurance:policy:invariant:term_is_positive: rule: "expiry" is not a field of the entity (fields: policy_id, holder, coverages, effective_date, expiry_date, premium, deductible) (at column 1 of the rule)
 ```
 
 To fix it, use a name from the `fields` list. If the field is not on the entity, add it to the entity, or set `on` to a different entity.
@@ -114,13 +117,13 @@ To fix it, use a name from the `fields` list. If the field is not on the entity,
 The two sides of a comparison have different primitives. Here the rule is `premium > effective_date`:
 
 ```
-insurance/domain.manifest.yaml:112:9  error  rule-type  urn:acme:insurance:policy:invariant:term_is_positive: rule: ">" has a decimal on the left and a date on the right; both sides must have one primitive (at column 1 of the rule)
+insurance/domain.manifest.yaml:122:9  error  rule-type  urn:acme:insurance:policy:invariant:term_is_positive: rule: ">" has a decimal on the left and a date on the right; both sides must have one primitive (at column 1 of the rule)
 ```
 
 A text literal that is not a value of the other side also gives `rule-type`. Here the rule is `expiry_date > '2026-1-1'`:
 
 ```
-insurance/domain.manifest.yaml:112:9  error  rule-type  urn:acme:insurance:policy:invariant:term_is_positive: rule: '2026-1-1' is not a date in quotes, such as '2026-01-31', so it cannot meet a date in ">" (at column 1 of the rule)
+insurance/domain.manifest.yaml:122:9  error  rule-type  urn:acme:insurance:policy:invariant:term_is_positive: rule: '2026-1-1' is not a date in quotes, such as '2026-01-31', so it cannot meet a date in ">" (at column 1 of the rule)
 ```
 
 To fix it, compare values of one primitive, and write each literal in the form of that primitive.
@@ -134,7 +137,7 @@ The rule uses an optional field without a guard. Step 2 shows this problem and i
 `on` names an atom that is not an entity. Here `on` is `policy.operation.issue_policy`:
 
 ```
-insurance/domain.manifest.yaml:111:7  error  wrong-ref-kind  urn:acme:insurance:policy:invariant:term_is_positive: on "policy.operation.issue_policy" must name an entity, but urn:acme:insurance:policy:operation:issue_policy is an operation
+insurance/domain.manifest.yaml:121:7  error  wrong-ref-kind  urn:acme:insurance:policy:invariant:term_is_positive: on "policy.operation.issue_policy" must name an entity, but urn:acme:insurance:policy:operation:issue_policy is an operation
 ```
 
 To fix it, set `on` to the entity that the operation uses as its input.
@@ -143,12 +146,12 @@ To fix it, set `on` to the entity that the operation uses as its input.
 
 Add a scenario that sends an input that breaks the rule. End it with `Then the input is rejected by "<invariant URN>"`. The last three scenarios of the feature break the invariant of the coverage and the two invariants of the policy (highlighted):
 
-<<< @/../packages/urn-forge/insurance/features/issue_policy.feature{67-93 gherkin}
+<<< @/../packages/urn-forge/insurance/features/issue_policy.feature{69-95 gherkin}
 
 - Send every other field with a correct value. Then only the invariant refuses the input.
 - Send the edge of the rule too. `2026-06-01` makes the expiry date equal to the effective date, which `>` refuses.
 - The step must name an invariant of the input entity of the operation, or of an entity that the input embeds. If not, gate 3 fails with `undeclared-invariant`.
-- To break an invariant of an embedded entity, send one object that breaks it. Lines 67 to 71 send `[{ peril: fire, limit: 0 }]` for `limit_is_positive`.
+- To break an invariant of an embedded entity, send one object that breaks it. Lines 69 to 73 send `[{ peril: fire, limit: 0 }]` for `limit_is_positive`.
 - `Then the input is rejected on "expiry_date"` also passes, but it does not name the rule. Gate 3 counts only the `rejected by` step.
 
 Run the scenarios:
@@ -171,7 +174,7 @@ In your project, run `npx cucumber-js`. If a different rule refuses the input, t
 Error: urn:acme:insurance:policy:operation:issue_policy rejected the input, but not by urn:acme:insurance:policy:invariant:deductible_below_premium: InputRejected (expiry_date: The expiry date must be after the effective date)
 ```
 
-An issue of an embedded entity shows its nested path. Here the scenario of lines 67 to 71 names `term_is_positive`:
+An issue of an embedded entity shows its nested path. Here the scenario of lines 69 to 73 names `term_is_positive`:
 
 ```
 Error: urn:acme:insurance:policy:operation:issue_policy rejected the input, but not by urn:acme:insurance:policy:invariant:term_is_positive: InputRejected (coverages.0.limit: The limit of a coverage must be more than 0)
@@ -191,7 +194,7 @@ The gate 3 summary counts the invariants that a scenario breaks:
 gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 ```
 
-Each invariant on the input entity of a tagged operation needs a scenario that breaks it. An invariant of an entity that the input embeds counts as an invariant of the input. If no scenario breaks one, gate 3 reports `uncovered-invariant`. The insurance features are strict, so it is an error. Here the scenario of lines 67 to 71 is not there:
+Each invariant on the input entity of a tagged operation needs a scenario that breaks it. An invariant of an entity that the input embeds counts as an invariant of the input. If no scenario breaks one, gate 3 reports `uncovered-invariant`. The insurance features are strict, so it is an error. Here the scenario of lines 69 to 73 is not there:
 
 ```
 gate 3  gherkin       FAIL  2 feature(s), 12 scenario(s), 2/2 operations tagged, 1/1 errors expected, 3/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
@@ -234,13 +237,15 @@ To fix it, correct the handler. Do not remove the invariant to make the scenario
 
 ## Result
 
-`npx urn-forge verify` passes, and the summary shows that a scenario breaks each invariant:
+`npx urn-forge verify` passes, and the summary shows that a scenario breaks each invariant. The warning and the note come from the retired field `note`:
 
 ```
+insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
+note: sunset dates are not checked: set --reference-date or referenceDate in the config
 gate 1  completeness  PASS  tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
 gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 gate 4  drift         PASS  3 generated file(s) compared byte for byte against insurance/generated
-verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
+verify passed with 1 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
 ```
 
 ## Related pages

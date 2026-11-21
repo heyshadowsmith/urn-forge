@@ -32,7 +32,7 @@ parcel.entity.parcel:
 If a reference has both `ref` and `link`, or neither, `compile` stops at pass 1:
 
 ```
-insurance/domain.manifest.yaml:81:7  error  invalid-value  policy.entity.policy.fields.1: must have either ref or link
+insurance/domain.manifest.yaml:91:7  error  invalid-value  policy.entity.policy.fields.1: must have either ref or link
 ```
 
 For the full rules, refer to [The manifest](../reference/manifest).
@@ -123,6 +123,8 @@ policy.entity.coverage:
     - ref: policy.field.limit
     - ref: policy.field.note
       required: false
+    - ref: policy.field.remark
+      required: false
 ```
 
 ```yaml
@@ -150,7 +152,7 @@ Objects have no equality of their own. Thus, `unique` on a list of entities comp
 If the entity has no `key`, `compile` stops:
 
 ```
-insurance/domain.manifest.yaml:85:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[2] is a unique list of urn:acme:insurance:policy:entity:coverage, which has no key to compare; set key on it
+insurance/domain.manifest.yaml:95:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[2] is a unique list of urn:acme:insurance:policy:entity:coverage, which has no key to compare; set key on it
 ```
 
 To fix it, add `key` to the embedded entity. Step 5 gives the rules of a key.
@@ -162,7 +164,7 @@ If the list is in an input, gate 3 asks for the item counts and for a list with 
 An entity cannot embed itself, directly or through other entities. The type of the object would never end. Here, the coverage embeds the policy, and the policy embeds the coverage:
 
 ```
-insurance/domain.manifest.yaml:69:5  error  embedding-cycle  urn:acme:insurance:policy:entity:coverage: urn:acme:insurance:policy:entity:coverage embeds urn:acme:insurance:policy:entity:policy embeds urn:acme:insurance:policy:entity:coverage, so its type would never end; use a link for one of them
+insurance/domain.manifest.yaml:77:5  error  embedding-cycle  urn:acme:insurance:policy:entity:coverage: urn:acme:insurance:policy:entity:coverage embeds urn:acme:insurance:policy:entity:policy embeds urn:acme:insurance:policy:entity:coverage, so its type would never end; use a link for one of them
 ```
 
 To fix it, change one of the references in the cycle to `link`. Links can form a cycle, because a link holds only a value.
@@ -201,19 +203,19 @@ The `key` must name one of the fields of the entity itself. The field reference 
 If the target of a link has no `key`, `compile` stops:
 
 ```
-insurance/domain.manifest.yaml:80:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[1].link urn:acme:insurance:customer:entity:customer has no key, so a link to it holds nothing; set key on it
+insurance/domain.manifest.yaml:90:13  error  missing-key  urn:acme:insurance:policy:entity:policy: fields[1].link urn:acme:insurance:customer:entity:customer has no key, so a link to it holds nothing; set key on it
 ```
 
 If the `key` names an optional field, `compile` stops with `invalid-entity-key`. Here the key of the coverage is `policy.field.note`:
 
 ```
-insurance/domain.manifest.yaml:67:8  error  invalid-entity-key  urn:acme:insurance:policy:entity:coverage: key urn:acme:insurance:policy:field:note is optional; a key must be required
+insurance/domain.manifest.yaml:75:8  error  invalid-entity-key  urn:acme:insurance:policy:entity:coverage: key urn:acme:insurance:policy:field:note is optional; a key must be required
 ```
 
 A key that is not a field of the entity gives the same code. Here the key is `policy.field.premium`:
 
 ```
-insurance/domain.manifest.yaml:67:8  error  invalid-entity-key  urn:acme:insurance:policy:entity:coverage: key urn:acme:insurance:policy:field:premium is not a field of the entity
+insurance/domain.manifest.yaml:75:8  error  invalid-entity-key  urn:acme:insurance:policy:entity:coverage: key urn:acme:insurance:policy:field:premium is not a field of the entity
 ```
 
 To fix it, set `key` to a field that the `fields` list has, without `required: false` and without `many`.
@@ -236,7 +238,7 @@ Thus, two references with the same identifier cannot be in one entity, even if t
 `compile` stops with this error:
 
 ```
-insurance/domain.manifest.yaml:76:12  error  duplicate-property  urn:acme:insurance:policy:entity:coverage: fields[3].ref urn:acme:insurance:customer:field:note and urn:acme:insurance:policy:field:note both become property "note"; rename one with as
+insurance/domain.manifest.yaml:85:12  error  duplicate-property  urn:acme:insurance:policy:entity:coverage: fields[3].ref urn:acme:insurance:customer:field:note and urn:acme:insurance:policy:field:note both become property "note"; rename one with as
 ```
 
 To correct it, give one of the references a different name with `as`, for example `as: customer_note`.
@@ -244,7 +246,7 @@ To correct it, give one of the references a different name with `as`, for exampl
 If you list one target two times, the error is `duplicate-ref`. For example, a policy with two links to a customer, a holder and a payer, needs `as` on each link. Without it, both links become the property `customer`:
 
 ```
-insurance/domain.manifest.yaml:82:13  error  duplicate-ref  urn:acme:insurance:policy:entity:policy: fields[2].link lists urn:acme:insurance:customer:entity:customer more than once; give one of them another name with as
+insurance/domain.manifest.yaml:92:13  error  duplicate-ref  urn:acme:insurance:policy:entity:policy: fields[2].link lists urn:acme:insurance:customer:entity:customer more than once; give one of them another name with as
 ```
 
 To correct it, add `as: holder` to one link and `as: payer` to the other.

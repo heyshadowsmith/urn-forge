@@ -14,6 +14,7 @@ A how-to guide helps you do one task. Each guide starts from a project that alre
 - [Add an operation](add-an-operation): declare an operation, write its handler and tag a feature with it.
 - [Declare an error](declare-an-error): give an operation a named rejection.
 - [Add an invariant](add-an-invariant): declare a rule over the fields of one entity, and break it in a scenario.
+- [Retire a URN](retire-a-urn): deprecate an atom for a replacement, then set it to sunset.
 
 ## Scenarios
 
@@ -31,6 +32,7 @@ A how-to guide helps you do one task. Each guide starts from a project that alre
 
 - [Fix a gate that fails](fix-a-failing-gate): find the cause of a failed gate and correct it.
 - [Adopt strict coverage](adopt-strict-coverage): make coverage gaps errors, one feature at a time.
+- [Check compatibility in CI](check-compatibility): run `urn-forge diff`, and fix a breaking change to a URN.
 - [Run verify in CI](run-verify-in-ci): make `urn-forge verify` a gate of your pipeline.
 
 ## Contributors

@@ -6,6 +6,7 @@ The generated files come from the manifest. After each change to the manifest, c
 
 - You have a project that compiles. Refer to [Set up a project](set-up-a-project).
 - You changed `domain.manifest.yaml`. Any change counts, also a change to a `description`.
+- If callers already use the manifest, compare it with the old version first. `urn-forge diff` shows if the change breaks a caller or a stored row. Refer to [Check compatibility in CI](check-compatibility).
 
 ::: warning
 Do not edit the generated files. `compile` replaces them, and gate 4 fails until you do.

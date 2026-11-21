@@ -1,6 +1,6 @@
 # urn-forge
 
-Declare a domain in YAML, generate typed contracts and a runtime gatekeeper, and fail CI when the chain from a URN to a passing Gherkin scenario breaks.
+Declare a domain in YAML, generate typed contracts and a runtime gatekeeper, and fail CI when the chain from a URN to a passing Gherkin scenario breaks, or when a change breaks the callers of a URN.
 
 ## Repository layout
 
@@ -8,9 +8,9 @@ This is an npm-workspaces monorepo:
 
 | Path | What it is |
 | --- | --- |
-| [`packages/urn-forge`](packages/urn-forge) | The CLI (`urn-forge compile`, `urn-forge verify`), the Cucumber step library, tests, and the math example |
+| [`packages/urn-forge`](packages/urn-forge) | The CLI (`urn-forge compile`, `urn-forge verify`, `urn-forge diff`), the Cucumber step library, tests, and the math example |
 | [`packages/urn-forge/self`](packages/urn-forge/self) | urn-forge's own domain: the toolchain's pure functions, declared and traced with urn-forge |
-| [`packages/urn-forge/insurance`](packages/urn-forge/insurance) | The insurance domain: dates, exact decimals, an optional field, invariants, a link to a customer and an embedded list of coverages, strict from the start, with a Postgres schema for its customers and policies |
+| [`packages/urn-forge/insurance`](packages/urn-forge/insurance) | The insurance domain: dates, exact decimals, an optional field, invariants, a link to a customer and an embedded list of coverages, strict from the start, with a Postgres schema for its customers and policies, and a deprecated field that a replacement supersedes |
 | [`docs`](docs) | The VitePress documentation site, including the [MVP plan](docs/project/mvp-plan.md) and [spec v1.1](docs/project/spec-v1-1.md) |
 
 ## Commands
@@ -26,6 +26,7 @@ npm run verify:self              # urn-forge verify on urn-forge's own domain
 npm run test:features:self       # cucumber-js on urn-forge's own domain
 npm run verify:insurance         # urn-forge verify on the insurance domain
 npm run test:features:insurance  # cucumber-js on the insurance domain
+npm run diff:base --workspace urn-forge -- origin/main  # urn-forge diff of each domain against origin/main
 npm run docs:dev                 # the docs site with live reload, on http://localhost:5173
 npm run docs:build               # a static build of the docs site
 ```
@@ -42,6 +43,6 @@ npm run verify
 npm run test:features
 ```
 
-Refer to [Install urn-forge](docs/how-to/install.md) and [Set up a project](docs/how-to/set-up-a-project.md).
+Refer to [Install urn-forge](docs/how-to/install.md) and [Set up a project](docs/how-to/set-up-a-project.md). To retire a URN and to check each change for breaks, refer to [Retire a URN](docs/how-to/retire-a-urn.md) and [Check compatibility in CI](docs/how-to/check-compatibility.md).
 
 Start with the docs' [first tutorial](docs/tutorials/first-domain.md). The docs follow [Diátaxis](https://diataxis.fr/): tutorials, how-to guides, reference and explanation.
