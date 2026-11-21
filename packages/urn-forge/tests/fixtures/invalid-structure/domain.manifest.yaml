@@ -6,7 +6,7 @@ manifest:
 
 Order.field.quantity:  { primitive: integer }
 order.event.placed:    { description: An order was placed }
-order.field.weight:    { primitive: decimal }
+order.field.weight:    { primitive: money }
 order.field.note:      { primitive: string, min: 1 }
 order.field.count:     { primitive: integer, max: 1.5 }
 order.field.speed:     { primitive: enum, values: [] }

@@ -39,7 +39,7 @@ describe('manifest diagnostics', () => {
         location: { line: 7, column: 8 },
       }),
     ]);
-    expect(diagnose('geometry.field.radius:\n  primitive: decimal\n')).toEqual([
+    expect(diagnose('geometry.field.radius:\n  primitive: money\n')).toEqual([
       expect.objectContaining({ code: 'unknown-primitive', location: { line: 6, column: 14 } }),
     ]);
   });
@@ -176,7 +176,7 @@ describe('--format json', () => {
   });
 
   it('compile prints diagnostics with their location, and exits 1', async () => {
-    await writeFile(join(dir, 'bad.yaml'), `${HEADER}geometry.field.radius: { primitive: decimal }\n`);
+    await writeFile(join(dir, 'bad.yaml'), `${HEADER}geometry.field.radius: { primitive: money }\n`);
     expect(await main(['compile', '--manifest', 'bad.yaml', '--format', 'json'], io())).toBe(1);
     expect(err).toEqual([]);
     expect(lines()).toEqual([
@@ -191,7 +191,7 @@ describe('--format json', () => {
   });
 
   it('verify prints manifest diagnostics and a failed result when the manifest does not compile', async () => {
-    await writeFile(join(dir, 'domain.manifest.yaml'), `${HEADER}geometry.field.radius: { primitive: decimal }\n`);
+    await writeFile(join(dir, 'domain.manifest.yaml'), `${HEADER}geometry.field.radius: { primitive: money }\n`);
     expect(await main(['verify', '--format', 'json'], io())).toBe(1);
     expect(lines()).toEqual([
       expect.objectContaining({ type: 'diagnostic', code: 'unknown-primitive' }),

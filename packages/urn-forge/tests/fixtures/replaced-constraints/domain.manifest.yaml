@@ -11,3 +11,6 @@ value.field.twice:         { primitive: enum, values: [a, a] }
 value.field.missing:       { primitive: enum }
 value.field.old_one_of:    { primitive: string, oneOf: [a, b] }
 value.field.old_not_equal: { primitive: integer, notEqual: 0 }
+value.field.unquoted:      { primitive: decimal, min: 0.10 }
+value.field.open_day:      { primitive: date, exclusiveMin: 2026-01-01 }
+value.field.offset:        { primitive: timestamp, min: "2026-01-01T00:00:00+01:00" }

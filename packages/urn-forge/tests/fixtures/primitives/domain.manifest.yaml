@@ -26,6 +26,16 @@ value.field.ratio:         { primitive: float }
 value.field.share:         { primitive: float, min: 0, max: 1 }
 value.field.weight:        { primitive: float, exclusiveMin: 0, exclusiveMax: 1000 }
 value.field.divisor:       { primitive: float, notIn: [0] }
+# decimal: range (inclusive or exclusive), step (scale), exclusion; literals are quoted
+value.field.amount:        { primitive: decimal }
+value.field.price:         { primitive: decimal, min: "0.01", max: "9999.99", scale: 2, notIn: ["13.00"] }
+value.field.rate:          { primitive: decimal, exclusiveMin: "0", exclusiveMax: "1" }
+# date: range (inclusive)
+value.field.day:           { primitive: date }
+value.field.term_day:      { primitive: date, min: 2026-01-01, max: 2026-12-31 }
+# timestamp: range (inclusive or exclusive)
+value.field.at:            { primitive: timestamp }
+value.field.window:        { primitive: timestamp, min: "2026-01-01T00:00:00Z", exclusiveMax: "2027-01-01T00:00:00Z" }
 
 value.entity.sample:
   description: One value of each field
@@ -46,3 +56,10 @@ value.entity.sample:
     - { ref: value.field.share, required: false }
     - { ref: value.field.weight, required: false }
     - { ref: value.field.divisor, required: false }
+    - { ref: value.field.amount, required: false }
+    - { ref: value.field.price, required: false }
+    - { ref: value.field.rate, required: false }
+    - { ref: value.field.day, required: false }
+    - { ref: value.field.term_day, required: false }
+    - { ref: value.field.at, required: false }
+    - { ref: value.field.window, required: false }

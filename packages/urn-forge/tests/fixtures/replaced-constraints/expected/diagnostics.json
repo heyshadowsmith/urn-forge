@@ -58,5 +58,35 @@
     "message": "value.field.old_not_equal.notEqual: unknown property \"notEqual\"; to exclude values, use notIn: [ … ]",
     "severity": "error",
     "urn": "urn:demo:replaced:value:field:old_not_equal"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 55,
+      "line": 14
+    },
+    "message": "value.field.unquoted.min: must be a decimal in quotes, such as \"0.01\": a YAML number is not exact",
+    "severity": "error",
+    "urn": "urn:demo:replaced:value:field:unquoted"
+  },
+  {
+    "code": "constraint-not-allowed",
+    "location": {
+      "column": 47,
+      "line": 15
+    },
+    "message": "value.field.open_day.exclusiveMin: \"exclusiveMin\" is not a constraint of primitive \"date\" (allowed: min, max)",
+    "severity": "error",
+    "urn": "urn:demo:replaced:value:field:open_day"
+  },
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 57,
+      "line": 16
+    },
+    "message": "value.field.offset.min: must be ISO 8601 in UTC: YYYY-MM-DDTHH:MM:SSZ, with an optional fraction of up to 3 digits",
+    "severity": "error",
+    "urn": "urn:demo:replaced:value:field:offset"
   }
 ]

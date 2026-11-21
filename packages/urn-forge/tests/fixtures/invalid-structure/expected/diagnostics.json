@@ -32,7 +32,7 @@
       "column": 37,
       "line": 9
     },
-    "message": "order.field.weight.primitive: unknown primitive \"decimal\" (MVP primitives: boolean, enum, float, integer, string)",
+    "message": "order.field.weight.primitive: unknown primitive \"money\" (MVP primitives: boolean, date, decimal, enum, float, integer, string, timestamp)",
     "severity": "error"
   },
   {

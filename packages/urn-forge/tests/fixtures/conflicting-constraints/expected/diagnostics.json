@@ -10,6 +10,16 @@
     "urn": "urn:demo:conflicts:value:field:all_excluded"
   },
   {
+    "code": "incoherent-constraints",
+    "location": {
+      "column": 85,
+      "line": 18
+    },
+    "message": "urn:demo:conflicts:value:field:at_order: min (2026-01-02T00:00:00Z) is after max (2026-01-01T00:00:00Z), so no value is valid",
+    "severity": "error",
+    "urn": "urn:demo:conflicts:value:field:at_order"
+  },
+  {
     "code": "conflicting-constraints",
     "location": {
       "column": 69,
@@ -42,6 +52,16 @@
   {
     "code": "incoherent-constraints",
     "location": {
+      "column": 68,
+      "line": 17
+    },
+    "message": "urn:demo:conflicts:value:field:day_order: min (2026-02-01) is after max (2026-01-31), so no value is valid",
+    "severity": "error",
+    "urn": "urn:demo:conflicts:value:field:day_order"
+  },
+  {
+    "code": "incoherent-constraints",
+    "location": {
       "column": 69,
       "line": 13
     },
@@ -58,6 +78,26 @@
     "message": "urn:demo:conflicts:value:field:no_multiple: no multiple of 5 is between min (1) and max (4), so no value is valid",
     "severity": "error",
     "urn": "urn:demo:conflicts:value:field:no_multiple"
+  },
+  {
+    "code": "conflicting-constraints",
+    "location": {
+      "column": 73,
+      "line": 15
+    },
+    "message": "urn:demo:conflicts:value:field:price_both: min and exclusiveMin both set a lower bound; keep one",
+    "severity": "error",
+    "urn": "urn:demo:conflicts:value:field:price_both"
+  },
+  {
+    "code": "incoherent-constraints",
+    "location": {
+      "column": 84,
+      "line": 16
+    },
+    "message": "urn:demo:conflicts:value:field:price_scale: no value with at most 2 digit(s) after the point is between min (0.001) and max (0.009), so no value is valid",
+    "severity": "error",
+    "urn": "urn:demo:conflicts:value:field:price_scale"
   },
   {
     "code": "incoherent-constraints",

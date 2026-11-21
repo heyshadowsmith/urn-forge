@@ -105,7 +105,7 @@ describe('messages', () => {
     await writeFile(at('domain.manifest.yaml'), without);
     const { all } = await run('compile');
     expect(all).toContain(
-      'unknown-primitive  parcel.field.zone.primitive: a field must have a primitive (MVP primitives: boolean, enum, float, integer, string)',
+      'unknown-primitive  parcel.field.zone.primitive: a field must have a primitive (MVP primitives: boolean, date, decimal, enum, float, integer, string, timestamp)',
     );
   });
 });

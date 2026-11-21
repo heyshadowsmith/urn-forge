@@ -18,24 +18,40 @@ const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 0.1.0\n
 
 describe('primitive registry', () => {
   it('lists the primitives and their constraints in a fixed order', () => {
-    expect(PRIMITIVE_NAMES).toEqual(['boolean', 'enum', 'float', 'integer', 'string']);
+    expect(PRIMITIVE_NAMES).toEqual(['boolean', 'date', 'decimal', 'enum', 'float', 'integer', 'string', 'timestamp']);
     expect(Object.fromEntries(PRIMITIVE_NAMES.map((p) => [p, constraintKeys(p)]))).toEqual({
       boolean: ['mustBe'],
+      date: ['min', 'max'],
+      decimal: ['min', 'max', 'exclusiveMin', 'exclusiveMax', 'scale', 'notIn'],
       enum: ['values'],
       float: ['min', 'max', 'exclusiveMin', 'exclusiveMax', 'notIn'],
       integer: ['min', 'max', 'multipleOf', 'notIn'],
       string: ['minLength', 'maxLength', 'regex', 'format'],
+      timestamp: ['min', 'max', 'exclusiveMin', 'exclusiveMax'],
     });
   });
 
   it('drives the meta-schema: each primitive accepts its own constraints and no others', () => {
-    const sample: Record<string, unknown> = { mustBe: true, values: ['a'], min: 1, max: 1, exclusiveMin: 0, exclusiveMax: 2, multipleOf: 1, notIn: [5], minLength: 1, maxLength: 1, regex: 'a', format: 'uuid' };
+    const numbers: Record<string, unknown> = { min: 1, max: 1, exclusiveMin: 0, exclusiveMax: 2, multipleOf: 1, notIn: [5] };
+    const strings = (value: string): Record<string, unknown> => ({ min: value, max: value, exclusiveMin: value, exclusiveMax: value, notIn: [value] });
+    // A valid value of each constraint, for each primitive, so only the key decides.
+    const samples: Record<string, Record<string, unknown>> = {
+      boolean: { mustBe: true },
+      date: strings('2026-01-01'),
+      decimal: { ...strings('1.5'), scale: 2 },
+      enum: { values: ['a'] },
+      float: numbers,
+      integer: numbers,
+      string: { minLength: 1, maxLength: 1, regex: 'a', format: 'uuid' },
+      timestamp: strings('2026-01-01T00:00:00Z'),
+    };
+    const sample = (primitive: string, key: string) => samples[primitive]?.[key] ?? Object.values(samples).find((s) => key in s)?.[key];
     for (const primitive of PRIMITIVE_NAMES) {
       // An enum must list its values, so each try starts from a valid enum.
       const base = primitive === 'enum' ? { values: ['a'] } : {};
       for (const other of PRIMITIVE_NAMES) {
         for (const key of constraintKeys(other)) {
-          const result = validateManifest({ manifest: header, 'a.field.b': { primitive, ...base, [key]: sample[key] } });
+          const result = validateManifest({ manifest: header, 'a.field.b': { primitive, ...base, [key]: sample(primitive, key) } });
           expect(result.success, `${key} on ${primitive}`).toBe(constraintKeys(primitive).includes(key));
         }
       }
@@ -47,6 +63,11 @@ describe('primitive registry', () => {
     expect(coerceCell('10', field('float'))).toBe(10);
     expect(coerceCell('10', field('integer'))).toBe(10);
     expect(coerceCell('10', field('string'))).toBe('10');
+    // A decimal, a date and a timestamp stay text, so a decimal keeps every digit as written.
+    expect(coerceCell('12.50', field('decimal'))).toBe('12.50');
+    expect(coerceCell('2026-01-31', field('date'))).toBe('2026-01-31');
+    expect(coerceCell('2026-01-31T09:30:00Z', field('timestamp'))).toBe('2026-01-31T09:30:00Z');
+    expect(coerceCell('s', field('enum'))).toBe('s');
     expect([coerceCell('true', field('boolean')), coerceCell('false', field('boolean')), coerceCell('yes', field('boolean'))]).toEqual([
       true,
       false,
@@ -349,6 +370,13 @@ describe('the generated schema of each constraint (fixture: primitives)', () => 
     ['share (min, max)', kinds.ValueShareSchema, [0, 0.5, 1], [-0.1, 1.1]],
     ['weight (exclusiveMin, exclusiveMax)', kinds.ValueWeightSchema, [0.001, 999.9], [0, 1000, -1]],
     ['divisor (notIn)', kinds.ValueDivisorSchema, [1, -2.5], [0, -0]],
+    ['amount (decimal)', kinds.ValueAmountSchema, ['0', '-12.50', '123456789012345678901234.5'], ['1e3', '+1', '.5', '01', '1.', 12, '']],
+    ['price (min, max, scale, notIn)', kinds.ValuePriceSchema, ['0.01', '9999.99', '12.5', '14'], ['0.00', '0', '10000', '1.005', '13.00', '13.0', '13']],
+    ['rate (exclusiveMin, exclusiveMax)', kinds.ValueRateSchema, ['0.0001', '0.9999'], ['0', '0.000', '1', '1.0']],
+    ['day (date)', kinds.ValueDaySchema, ['2024-02-29', '0050-01-01'], ['2023-02-29', '2026-13-01', '2026-1-1', '20260101', 'x']],
+    ['term_day (min, max)', kinds.ValueTermDaySchema, ['2026-01-01', '2026-12-31'], ['2025-12-31', '2027-01-01']],
+    ['at (timestamp)', kinds.ValueAtSchema, ['2026-01-31T09:30:00Z', '2026-01-31T09:30:00.123Z'], ['2026-01-31T09:30:00+02:00', '2026-01-31T24:00:00Z', '2026-01-31 09:30:00Z', '2026-02-30T00:00:00Z', '2026-01-31T09:30:00.1234Z']],
+    ['window (min, exclusiveMax)', kinds.ValueWindowSchema, ['2026-01-01T00:00:00Z', '2026-01-01T00:00:00.000Z', '2026-12-31T23:59:59.999Z'], ['2025-12-31T23:59:59.999Z', '2027-01-01T00:00:00Z']],
   ];
   it.each(cases)('%s', (_name, schema, accepted, refused) => {
     for (const value of accepted) expect(v.is(schema, value), `accepts ${String(value)}`).toBe(true);
@@ -358,5 +386,72 @@ describe('the generated schema of each constraint (fixture: primitives)', () => 
   it('types an enum as the union of its values (checked by tsc)', () => {
     const size: 's' | 'm' | 'l' = v.parse(kinds.ValueSizeSchema, 'm');
     expect(size).toBe('m');
+  });
+});
+
+describe('decimal, date and timestamp: pass 7 and boundary cases', () => {
+  const covered = (primitive: Primitive, constraints: Record<string, unknown>, samples: readonly unknown[]) =>
+    boundaryCases(primitive, constraints as never).map((c) => [c.label, samples.filter((s) => c.covers(s))]);
+
+  it('decimal: one step outside each bound at the scale, the scale itself, and each excluded value', () => {
+    expect(covered('decimal', { min: '0.01', max: '9.99', scale: 2, notIn: ['5'] }, ['0.01', '0.010', '0.00', '0', '9.99', '10.00', '1.5', '1.25', '1.255', '5.00', 1])).toEqual([
+      ['value at min 0.01', ['0.01', '0.010']],
+      ['value one step below min (0.00)', ['0.00', '0']],
+      ['value at max 9.99', ['9.99']],
+      ['value one step above max (10.00)', ['10.00']],
+      ['value with 2 digit(s) after the point (scale)', ['0.01', '0.00', '9.99', '10.00', '1.25', '5.00']],
+      ['value with 3 digits after the point (above scale)', ['0.010', '1.255']],
+      ['value 5 (notIn)', ['5.00']],
+    ]);
+    expect(covered('decimal', { exclusiveMin: '0' }, ['0', '-0', '0.0001', '-1'])).toEqual([
+      ['value at exclusiveMin 0', ['0', '-0']],
+      ['value above exclusiveMin 0', ['0.0001']],
+    ]);
+  });
+
+  it('date: each bound and the day beyond it', () => {
+    expect(covered('date', { min: '2024-03-01', max: '2024-12-31' }, ['2024-03-01', '2024-02-29', '2024-12-31', '2025-01-01'])).toEqual([
+      ['value at min 2024-03-01', ['2024-03-01']],
+      ['day before min (2024-02-29)', ['2024-02-29']],
+      ['value at max 2024-12-31', ['2024-12-31']],
+      ['day after max (2025-01-01)', ['2025-01-01']],
+    ]);
+  });
+
+  it('timestamp: each bound, compared as an instant, and a value beyond it', () => {
+    expect(covered('timestamp', { min: '2026-01-01T00:00:00Z' }, ['2026-01-01T00:00:00.000Z', '2025-12-31T23:59:59Z', 'x'])).toEqual([
+      ['value at min 2026-01-01T00:00:00Z', ['2026-01-01T00:00:00.000Z']],
+      ['value before min 2026-01-01T00:00:00Z', ['2025-12-31T23:59:59Z']],
+    ]);
+  });
+
+  it('pass 7: bounds that admit no value', () => {
+    const diagnose = (body: string) => compile(`${HEADER}${body}`).diagnostics.map((d) => [d.code, d.message.replace(/^\S+: /, '')]);
+    expect(diagnose('a.field.b: { primitive: decimal, min: "2", max: "1.5" }\n')).toEqual([['incoherent-constraints', 'min (2) is greater than max (1.5), so no value is valid']]);
+    expect(diagnose('a.field.b: { primitive: decimal, min: "0.001", max: "0.009", scale: 2 }\n')).toEqual([
+      ['incoherent-constraints', 'no value with at most 2 digit(s) after the point is between min (0.001) and max (0.009), so no value is valid'],
+    ]);
+    expect(diagnose('a.field.b: { primitive: decimal, min: "0", max: "0.02", scale: 2, notIn: ["0", "0.01", "0.020"] }\n')).toEqual([
+      ['incoherent-constraints', 'notIn lists every value that the bounds and scale allow, so no value is valid'],
+    ]);
+    expect(diagnose('a.field.b: { primitive: decimal, exclusiveMin: "0", exclusiveMax: "0.01", scale: 2 }\n')).toEqual([
+      ['incoherent-constraints', 'no value with at most 2 digit(s) after the point is between exclusiveMin (0) and exclusiveMax (0.01), so no value is valid'],
+    ]);
+    expect(diagnose('a.field.b: { primitive: date, min: 2026-02-01, max: 2026-01-31 }\n')).toEqual([['incoherent-constraints', 'min (2026-02-01) is after max (2026-01-31), so no value is valid']]);
+    expect(diagnose('a.field.b: { primitive: timestamp, exclusiveMin: "2026-01-01T00:00:00Z", max: "2026-01-01T00:00:00.000Z" }\n')).toEqual([
+      ['incoherent-constraints', 'exclusiveMin and max are the same instant, and one of them excludes it, so no value is valid'],
+    ]);
+    expect(diagnose('a.field.b: { primitive: decimal, min: "0", max: "1", scale: 0 }\n')).toEqual([]);
+  });
+
+  it('pass 1: literals of the right form', () => {
+    const messages = (body: string) => compile(`${HEADER}${body}`).diagnostics.map((d) => d.message);
+    expect(messages('a.field.b: { primitive: decimal, min: 0.10 }\n')).toEqual(['a.field.b.min: must be a decimal in quotes, such as "0.01": a YAML number is not exact']);
+    expect(messages('a.field.b: { primitive: decimal, min: "1e3" }\n')).toEqual(['a.field.b.min: must be a decimal such as "12.50": digits, an optional point and fraction, no exponent']);
+    expect(messages('a.field.b: { primitive: date, min: 2026-02-30 }\n')).toEqual(['a.field.b.min: must be a real calendar day, YYYY-MM-DD']);
+    expect(messages('a.field.b: { primitive: timestamp, min: "2026-01-01T00:00:00+01:00" }\n')).toEqual([
+      'a.field.b.min: must be ISO 8601 in UTC: YYYY-MM-DDTHH:MM:SSZ, with an optional fraction of up to 3 digits',
+    ]);
+    expect(messages('a.field.b: { primitive: date, exclusiveMin: 2026-01-01 }\n')[0]).toContain('"exclusiveMin" is not a constraint of primitive "date" (allowed: min, max)');
   });
 });
