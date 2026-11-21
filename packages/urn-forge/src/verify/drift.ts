@@ -9,7 +9,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import type { GeneratedArtifact } from '../plugins/plugin.interface.js';
-import { generatedPath, listGeneratedFiles, writeGeneratedFiles } from '../write.js';
+import { GENERATED_MARK, generatedPath, listGeneratedFiles, writeGeneratedFiles } from '../write.js';
 import type { Diagnostic } from '../diagnostics.js';
 import { displayPath, type Gate, type GateOutcome } from './types.js';
 
@@ -62,11 +62,16 @@ export async function checkDrift(options: DriftOptions): Promise<GateOutcome> {
 
   const produced = new Set(options.files.map((f) => f.relativePath));
   for (const orphan of (await listGeneratedFiles(options.outDir)).filter((p) => !produced.has(p))) {
+    const path = generatedPath(options.outDir, orphan);
+    // compile removes an orphan only if urn-forge wrote it (removeOrphanFiles in src/write.ts).
+    const ours = (await readFile(path, 'utf8').catch(() => '')).startsWith(GENERATED_MARK);
     problems.push({
       code: 'generated-orphan',
       severity: 'error',
-      file: show(generatedPath(options.outDir, orphan)),
-      message: 'generated file has no source in the current compile; delete it',
+      file: show(path),
+      message: ours
+        ? 'generated file has no source in the current compile; run `urn-forge compile`, which removes it'
+        : 'generated file has no source in the current compile, and urn-forge did not write it (no urn-forge header); rename or delete it',
     });
   }
 

@@ -223,7 +223,17 @@ describe('urn-forge verify', () => {
       await writeFile(at('example/generated/old.generated.ts'), 'export {};\n');
       expect(failures(await run())[4]).toEqual([
         'example/generated/domain.runtime.generated.ts  error  generated-missing  missing; run `urn-forge compile`',
-        'example/generated/old.generated.ts  error  generated-orphan  generated file has no source in the current compile; delete it',
+        'example/generated/old.generated.ts  error  generated-orphan  generated file has no source in the current compile, ' +
+          'and urn-forge did not write it (no urn-forge header); rename or delete it',
+      ]);
+    });
+
+    it('tells to run compile for an orphan that urn-forge wrote, because compile removes it', async () => {
+      const runtime = await readFile(at('example/generated/domain.runtime.generated.ts'), 'utf8');
+      await writeFile(at('example/generated/old.generated.ts'), runtime);
+      expect(failures(await run())[4]).toEqual([
+        'example/generated/old.generated.ts  error  generated-orphan  generated file has no source in the current compile; ' +
+          'run `urn-forge compile`, which removes it',
       ]);
     });
   });

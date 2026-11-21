@@ -117,7 +117,7 @@ Gate 1 cannot read the tsconfig:
 
 ```
 gate 1  completeness  FAIL  tsconfig unreadable
-    tutorial/3-strict-coverage/tsconfig.json  error  tsconfig-unreadable  Cannot read file '/…/tutorial/3-strict-coverage/tsconfig.json'.
+    tutorial/3-strict-coverage/tsconfig.json  error  tsconfig-unreadable  Cannot read file 'tutorial/3-strict-coverage/tsconfig.json'.
 ```
 
 To fix it, correct the `tsconfig` path in the config or the `--tsconfig` flag. The default is `tsconfig.json` in the current folder.
@@ -134,10 +134,9 @@ A tag has an incorrect URN. As a result, no feature has the tag of the operation
 gate 3  gherkin       FAIL  1 feature(s), 6 scenario(s), 0/1 operations tagged, 0/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
     tutorial/3-strict-coverage/features/quote_shipping.feature:2:1  error  unresolved-tag  tag @urn:demo:shipping:quote:operation:quote_shiping does not resolve to a URN in the manifest
     tutorial/3-strict-coverage/features  error  untagged-operation  operation urn:demo:shipping:quote:operation:quote_shipping has no feature or scenario tagged @urn:demo:shipping:quote:operation:quote_shipping
-    tutorial/3-strict-coverage/features  error  uncovered-error  error urn:demo:shipping:quote:error:too_heavy_for_express of urn:demo:shipping:quote:operation:quote_shipping has no scenario that expects it; add one with Then the operation fails with "urn:demo:shipping:quote:error:too_heavy_for_express"
 ```
 
-To fix it, correct the tag. The two other problems go away with it.
+To fix it, correct the tag. The other problem goes away with it. An untagged operation gets no coverage diagnostics, so `untagged-operation` is the only problem for that operation.
 
 If only `untagged-operation` shows, the operation is new and has no scenario. Tag a feature or a scenario with `@` and the operation URN. Refer to [Write scenarios](write-scenarios).
 
@@ -197,25 +196,26 @@ The `features` folder does not exist, or `verify` cannot read it:
 
 ```
 gate 3  gherkin       FAIL  0 feature(s), 0 scenario(s), 0/1 operations tagged, 0/1 errors expected, strict: 0/0 features (boundaryCoverage: error)
-    tutorial/3-strict-coverage/feature  error  features-unreadable  cannot read features: ENOENT: no such file or directory, scandir '/…/tutorial/3-strict-coverage/feature'
+    tutorial/3-strict-coverage/feature  error  features-unreadable  cannot read features: ENOENT: no such file or directory, scandir 'tutorial/3-strict-coverage/feature'
     tutorial/3-strict-coverage/feature  error  untagged-operation  operation urn:demo:shipping:quote:operation:quote_shipping has no feature or scenario tagged @urn:demo:shipping:quote:operation:quote_shipping
-    tutorial/3-strict-coverage/feature  error  uncovered-error  error urn:demo:shipping:quote:error:too_heavy_for_express of urn:demo:shipping:quote:operation:quote_shipping has no scenario that expects it; add one with Then the operation fails with "urn:demo:shipping:quote:error:too_heavy_for_express"
 ```
 
 To fix it, correct the `features` path in the config or the `--features` flag.
 
 ### `feature-parse-error`
 
-A feature file is not valid Gherkin. The file then counts as no feature, so the problems of a file with no tags come after it:
+A feature file is not valid Gherkin. Gate 3 gives one problem for each parser error, at its line and column. The file then counts as no feature, so the problems of a file with no tags come after it:
 
 ```
 gate 3  gherkin       FAIL  0 feature(s), 0 scenario(s), 0/1 operations tagged, 0/1 errors expected, strict: 0/0 features (boundaryCoverage: error)
-    tutorial/3-strict-coverage/features/quote_shipping.feature  error  feature-parse-error  cannot parse: Parser errors:
+    tutorial/3-strict-coverage/features/quote_shipping.feature:20:3  error  feature-parse-error  expected: #EOF, #TableRow, #TagLine, #ExamplesLine, #ScenarioLine, #RuleLine, #Comment, #Empty, got 'Scenari: A parcel without weight is rejected at the boundary'
+    tutorial/3-strict-coverage/features/quote_shipping.feature:21:5  error  feature-parse-error  expected: #EOF, #TableRow, #TagLine, #ExamplesLine, #ScenarioLine, #RuleLine, #Comment, #Empty, got 'When I run the operation with:'
+    tutorial/3-strict-coverage/features/quote_shipping.feature:24:5  error  feature-parse-error  expected: #EOF, #TableRow, #TagLine, #ExamplesLine, #ScenarioLine, #RuleLine, #Comment, #Empty, got 'Then the input is rejected on "weight_grams"'
+    tutorial/3-strict-coverage/features/quote_shipping.feature:22:7  error  feature-parse-error  inconsistent cell count within the table
     tutorial/3-strict-coverage/features  error  untagged-operation  operation urn:demo:shipping:quote:operation:quote_shipping has no feature or scenario tagged @urn:demo:shipping:quote:operation:quote_shipping
-    tutorial/3-strict-coverage/features  error  uncovered-error  error urn:demo:shipping:quote:error:too_heavy_for_express of urn:demo:shipping:quote:operation:quote_shipping has no scenario that expects it; add one with Then the operation fails with "urn:demo:shipping:quote:error:too_heavy_for_express"
 ```
 
-The message does not give the line. To find the line, run Cucumber on the features. Cucumber shows `Parse error in "<file>" (<line>:<column>)` and the text that it did not expect. In this example, the line has `Scenari:` in place of `Scenario:`.
+One error can cause more errors on the lines after it. Correct the first one, then run `verify` again. In this example, line 20 has `Scenari:` in place of `Scenario:`.
 
 ### Coverage: `uncovered-boundary` and `uncovered-error`
 
