@@ -29,7 +29,7 @@ urn-forge 0.1.0 has the full traceability chain for the six kinds of atom of the
 | Invariants (§4.3) | `description`, `on` (one entity), `rule`, `message`. The rule language: fields, literals, `< <= = != >= >`, `+ -` on `integer` and `decimal`, `and`, `or`, `not`, `is present`, `is absent`. Guards for optional fields. A link compares as the value of its key. The invariants of an embedded entity apply inside it | Invariants across entities. Rules over the items of a list, or over the properties of an embedded entity. Functions in a rule |
 | Operations (§4.4) | `description`, `input` and `output` (entities), `errors`, `emits`. Synchronous handlers | A field as `input` or `output` |
 | Events (§4.5) | `description` and `fields`, with the same field references as an entity. The reserved property `kind`. An event only on success | `key` on an event. An invariant on an event. A count or a sequence of the events of an operation. Events across manifests |
-| Errors (§4.6) | `description`, the five categories, `retryable`, `message` with placeholders, `fields`, with the same field references as an entity. The reserved property `kind`. `recordAs`, with an event that the fields of the error can make | A `recordAs` event with a required property that the error does not have |
+| Errors (§4.6) | `description`, the five categories, `retryable`, `message` with placeholders, `fields`, with the same field references as an entity. The reserved property `kind`. `recordAs`, with an event that the fields of the error can make | A `recordAs` event with a mandatory property that the error does not have |
 
 For the full schema, refer to [The manifest](./manifest).
 
@@ -48,7 +48,7 @@ For the full schema, refer to [The manifest](./manifest).
 | --- | --- |
 | 1. Meta-schema | Built |
 | 2. Expansion | Built |
-| 3. Uniqueness | Built. It also examines property names in an entity or an error, the reserved property `kind`, and the `key` of each entity (`invalid-entity-key`) |
+| 3. Uniqueness | Built. It also examines property names in an entity, an event or an error, the reserved property `kind`, and the `key` of each entity (`invalid-entity-key`) |
 | 4. Referential integrity | Built for `ref`, `link`, `key`, `input`, `output`, `errors`, `emits`, `recordAs`, `on` and `supersededBy`. urn-forge does not have `of` and `to` at this time |
 | 5. Cycle check | Built for embedded entities (`embedding-cycle`). Links can make a cycle. Pass 5 also examines that each linked entity, and each entity in a unique list, has a `key` (`missing-key`) |
 | 6. Rule and template typing | Built for invariant rules, error message templates and `recordAs` events (`invalid-record-as`) |

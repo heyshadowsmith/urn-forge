@@ -53,7 +53,7 @@ This page gives each term that this site uses, in alphabetical sequence. The pag
 | **guard** | `x is present and …` or `x is absent or …` on the left side of a rule. An invariant rule can use the value of an optional field only after a guard. |
 | **handler** | The function in the core for one operation. It receives the input with a brand and returns a `Result`. |
 | **header** | The `manifest` key of the manifest: `namespace`, `domain`, `version` and `stability`. |
-| **identifier** | The third segment of a short key, for example `unit_cost`. In an entity or an error, the identifier of the target is the property name, if the field reference has no `as`. |
+| **identifier** | The third segment of a short key, for example `unit_cost`. In an entity, an event or an error, the identifier of the target is the property name, if the field reference has no `as`. |
 | **input** | The entity that an operation receives. |
 | **InputRejected** | A result of `executeOperation` when the input schema rejects the payload, also when the payload breaks an invariant. It shows an incorrect request, not a defect in the core. |
 | **invariant** | A kind of atom: a named rule over the fields of one entity, for example `expiry_date > effective_date`. The entity is in its `on`. Refer to [The rule language](./rule-language). |

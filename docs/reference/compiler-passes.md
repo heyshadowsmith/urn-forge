@@ -106,7 +106,7 @@ Pass 5 runs after the IR builder builds each atom, because each check reads a di
 | The embedded entity of a `ref` with `many: { unique: true }` has a `key` | `missing-key` | The `many` |
 | No entity embeds itself, directly or through other entities. Links can make a cycle | `embedding-cycle` | The `fields` of the first entity of the cycle in URN order |
 
-Pass 5 reports one `embedding-cycle` for each cycle. It examines the entities and the errors in URN order, and reports `missing-key` first.
+Pass 5 reports one `embedding-cycle` for each cycle. It examines the entities, the events and the errors in URN order, and reports `missing-key` first.
 
 These diagnostics come from a copy of the insurance manifest with two changes. The `customer` entity has no `key`, and `coverage` embeds `policy`:
 

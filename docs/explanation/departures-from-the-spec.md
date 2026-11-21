@@ -2,7 +2,7 @@
 
 urn-forge follows [specification v1.1](../project/spec-v1-1), with some differences. Some rules of the specification could not work together, some could not work with the tools, and some left a question open. This page lists each place where urn-forge 0.1.0 differs, and why. The plans in the Project section record each decision when it was made.
 
-This page does not list the parts of the specification that urn-forge does not have at this time. Examples are gate 2 and events. [Scope](../reference/scope) lists them. It does list the places where a part that is not built changes a part that is.
+This page does not list the parts of the specification that urn-forge does not have at this time. Examples are gate 2 and `urn-forge graph`. [Scope](../reference/scope) lists them. It does list the places where a part that is not built changes a part that is.
 
 ## Handlers and results
 
@@ -10,14 +10,15 @@ This page does not list the parts of the specification that urn-forge does not h
 | --- | --- | --- |
 | A handler returns branded output (§7.2) | A handler returns the plain output shape. `executeOperation` parses the output, which adds the brands | Gate 2 forbids the core to make brands, so a handler cannot get a branded output value. The two rules cannot both hold. Refer to [The functional core and brands](./functional-core) |
 | Error types in a `Result` (§7.2) do not say if their fields are branded | A handler gives plain fields to `fail`. `executeOperation` parses and brands them | The same rule as for output: the core does not make brands |
-| A successful `Result` holds `value` and `events` (§7.2) | A successful `Result` holds `value` only | urn-forge does not have the `event` kind at this time. An `events` list that is always empty would only be noise |
-| An error can name an event in `recordAs` (§4.6) | The manifest refuses `recordAs`: it "needs the event kind" | `recordAs` names an event, so it cannot exist without events |
-| The specification does not say how a handler makes a `Result` | The generated helpers `ok(value)` and `fail(errorUrn, fields)`. `fail` is typed for each error URN | `tsc` checks the fields of each error. The handlers do not write the shape of a `Result` themselves |
+| `Result<T, E>` holds `value` and `events`, and `EmittedEvent` is a union of the `emits` of the operation (§7.2) | `Result<T, E, V = never>`. `V` is the union of the event payloads of the operation. `EmittedEvent<U>` is the parsed event that `executeOperation` gives: `{ urn, fields }` | An operation with no events keeps a type with two arguments. `tsc` refuses an event of a different operation at gate 1. The shell can switch on `urn` |
+| The fields of a `recordAs` event are a superset of the fields of the error (§4.6) | The event has each property of the error, with the same target, `required` and `many`. Each other property must be optional (`invalid-record-as`) | `executeOperation` makes the event from the fields of the error. A mandatory property that the error does not have would make that impossible |
+| A valid error is returned "plus its `recordAs` event" (§7.2, step 4) | The event is `record` on the `DomainError`: `{ urn, fields }`, parsed and branded | The record is apart from the events of a success, so the stream of facts has no refusals |
+| The specification does not say how a handler makes a `Result` | The generated helpers `ok(value, events)`, `emit(eventUrn, fields)` and `fail(errorUrn, fields)`. `emit` and `fail` are typed for each URN. `ok(value)` with no events is correct | `tsc` checks the fields of each event and each error. The handlers do not write the shape of a `Result` themselves |
 | The specification does not say if an operation without errors returns a `Result` | Every handler returns a `Result`. Without declared errors, its error type is `never` | One shape for all handlers. A first error on an operation does not change the signature again |
 | A declared error is returned with its metadata (§7.2, step 4) | A separate outcome, `kind: 'DomainError'`, with the error URN, `category`, `retryable`, the message and the parsed fields | A shell can tell a refusal from `InputRejected` and `ContractViolation` by `kind` alone |
 | The specification does not say what happens when a handler returns a value that is not a `Result` | `ContractViolation` | A handler that gets past the types is a bug in the core, like any other broken contract |
 
-Sources: the [MVP plan](../project/mvp-plan), spec gap 1; the [error kind plan](../project/error-kind-plan), decisions 1 to 6 and 10.
+Sources: the [MVP plan](../project/mvp-plan), spec gap 1; the [error kind plan](../project/error-kind-plan), decisions 1 to 6 and 10; the [events plan](../project/events-plan), decisions 4 to 6.
 
 ## Primitives and constraints
 
@@ -79,8 +80,9 @@ Sources: the [invariants plan](../project/invariants-plan), "The rule language" 
 | A message placeholder names a field of the error (§4.6) | A placeholder must name a property with `required: true` and no `many`: a field or a link, not an embedded entity | An optional field can be absent. Then the message would not be complete. A list and an embedded object have no one value to put in the message |
 | The specification does not define the form of a placeholder | A placeholder is `{…}` with no space and no brace inside | Text such as `{ and }` stays text, but a typo such as `{Quantity}` is still checked |
 | An error schema has a literal `kind` with the error URN (§7.1) | The same. Also, no property of an error can have the name `kind` (`reserved-property`) | A field with that name would collide with the URN in the payload |
+| Only an error schema has a literal `kind` (§7.1) | An event schema also has `kind`, a literal of the event URN. No property of an event can have the name `kind` (`reserved-property`) | The shell and a consumer switch on `kind` in the same way for errors and events |
 
-Sources: the [error kind plan](../project/error-kind-plan), decision 7 and steps 1 and 2.
+Sources: the [error kind plan](../project/error-kind-plan), decision 7 and steps 1 and 2; the [events plan](../project/events-plan), decision 2.
 
 ## Gherkin and gate 3
 
@@ -88,10 +90,13 @@ Sources: the [error kind plan](../project/error-kind-plan), decision 7 and steps
 | --- | --- | --- |
 | A table header must be a field of the input entity (§8) | A table header can be a field of the input or of the output | The rule of the specification forbids a column for an expected output, such as `quotient` |
 | The specification does not cover tables of expected errors | The table of `Then the operation fails with "<urn>":` must use fields of that error | The fields of an error are not fields of the input or the output |
+| The specification has no step for events | `Then the operation emits "<event URN>"`, with an optional table, and `Then the operation emits no event` | A scenario can show each event of the operation, as it shows each declared error |
+| The specification does not say how a scenario counts events | The steps do not examine the count or the sequence of the events. One event with the URN, and with the fields of the table, is sufficient | A count rule would be a second language in the steps. A scenario that needs a count can show it in the output |
+| The specification does not ask for a scenario for each event (§8) | Gate 3 asks for a scenario that expects each event of an operation, with `uncovered-event` in the coverage mode. A step that names an event of a different operation is `undeclared-event` | An event that no scenario shows is an event that nobody has seen happen. The rule is the same as for declared errors |
 | A table with no column for a required field fails (§8: "missing required fields fail") | The table of `When I run the operation with:` must have a column for each required input field. An empty cell sends the payload without that key | A scenario can still test a field that is not there. It keeps the column and leaves the cell empty |
-| A Gherkin plugin writes parameter types and `urn-forge.lint.json`, and `verify` reads that file (§7.3) | Six generic steps convert each cell with the primitive of its field. Gate 3 reads the IR directly | The MVP plan cut the Gherkin plugin. The generic steps do not depend on a domain, so they ship with urn-forge |
+| A Gherkin plugin writes parameter types and `urn-forge.lint.json`, and `verify` reads that file (§7.3) | Nine generic steps convert each cell with the primitive of its field. Gate 3 reads the IR directly | The MVP plan cut the Gherkin plugin. The generic steps do not depend on a domain, so they ship with urn-forge |
 
-Sources: the [MVP plan](../project/mvp-plan), spec gap 2 and build step 8; the [foundations plan](../project/foundations-plan), phase 5; the [error kind plan](../project/error-kind-plan), step 4; `src/verify/gherkin.ts`.
+Sources: the [MVP plan](../project/mvp-plan), spec gap 2 and build step 8; the [foundations plan](../project/foundations-plan), phase 5; the [error kind plan](../project/error-kind-plan), step 4; the [events plan](../project/events-plan), decisions 7 and 8; `src/verify/gherkin.ts`.
 
 ## Boundary coverage
 
@@ -138,7 +143,7 @@ The [lifecycle plan](../project/lifecycle-plan) built pass 8 and gate 5 of §3, 
 | --- | --- | --- |
 | A tighter constraint is breaking, and a wider constraint is compatible (§3) | The class depends on the direction of use. A narrower set of values breaks In and Stored. A wider set breaks Out. A change that is neither breaks each use. A change to an unused URN breaks nothing | The rule of the specification is correct for a value that callers send. For a value that callers receive, the opposite change breaks them |
 | A removed field reference is breaking, and an optional reference that becomes required is breaking (§3) | Both depend on the direction of use. A removed property is wider, and optional → required is narrower. A removed property whose target was deprecated is a lifecycle change | The same rule as for constraints. The deprecation warned the callers, and they had until the sunset date to move |
-| A new declared error is compatible (§3) | A new declared error is breaking: it widens Out. A removed declared error is compatible | A caller that handles each kind of error of an operation has no branch for the new kind |
+| A new declared error is compatible (§3) | A new declared error is breaking: it widens Out. A removed declared error is compatible. A new event in `emits` is breaking in the same way, and a removed event is compatible | A caller that handles each kind of error of an operation has no branch for the new kind |
 | Gate 5 fails on a breaking change to a URN that is `active` or `deprecated` (§3) | The same. Also, the removal of a sunset atom is breaking, and a `status` that moves back is breaking | A sunset atom stays as a tombstone, so its URN never gets a second meaning |
 | `verify --base <git-ref>` runs gates 1 to 5 (§8, §9) | Gate 5 is the command `urn-forge diff <old> <new>`. CI writes the old manifest to a file, for example with `git show` | `verify` has one manifest and no git history. A command with two files is easy to run anywhere, also without git |
 | Each IR node has `lifecycle` (§5) | A node has `lifecycle` only if its `status` is not `active` | The IR and the fingerprint of a manifest with no lifecycle keys do not change. The structure plan kept `{ field }` in its old shape for the same reason |
@@ -146,7 +151,7 @@ The [lifecycle plan](../project/lifecycle-plan) built pass 8 and gate 5 of §3, 
 | Without a reference date, sunset checks run as warnings (§6) | Without a reference date, pass 8 does not compare sunset dates. `verify` says so, and its JSON result has `"sunsetDatesChecked":false` | A warning for each date on each build would be noise, and a person would learn to ignore it. One clear line says what did not run. A `status: sunset` is still always an error |
 | The specification does not say what a sunset atom generates | Nothing. The plugins and the gates see the live IR, with no sunset atoms. The output depends on `status` only, never on a date | A sunset atom is gone for its users. The reference date changes only diagnostics, so the generated bytes do not depend on the day |
 
-Sources: the [lifecycle plan](../project/lifecycle-plan), "The model" and decisions 2, 5, 6, 12, 13 and 15; `src/diff/classify.ts`.
+Sources: the [lifecycle plan](../project/lifecycle-plan), "The model" and decisions 2, 5, 6, 12, 13 and 15; the [events plan](../project/events-plan), decision 9; `src/diff/classify.ts`.
 
 ## The compiler and determinism
 
@@ -158,9 +163,10 @@ Sources: the [lifecycle plan](../project/lifecycle-plan), "The model" and decisi
 | `manifestHash` is the hash of the canonical manifest (§5) | The hash leaves out the kind groups that are empty | A new kind in urn-forge does not change the hash of a manifest that does not use it |
 | A field reference in the IR has `field`, `required` and `nullable` (§5) | It also has `name`, the property name, and `many` for a list. It is one of three forms: `{ field }`, `{ entity }` or `{ link }` | Every plugin and gate reads the same name from the IR, and none of them derives it again. Refer to [How urn-forge is built](./architecture) |
 | The input and output of an operation are an entity or a field (§5) | The input and output are entities | The MVP kept its scope small. No plan records a further reason |
+| Events have the shape of an entity in the IR (§5) | `IREvent` is the shape of `IREntity` without `key`. An event in the manifest has no `key`, and an invariant cannot be on an event | urn-forge does not store events, so an event needs no key. An event that needs a rule embeds the entity that has the invariant |
 | A brand collision is a compile error (§3) | The same. Also, two atoms whose generated exports have the same name give `export-collision` | Brand identifiers can be unique, while `<A>Input` of one atom is still `<B>` of a different atom |
 
-Sources: the [foundations plan](../project/foundations-plan), acceptance test 1; the [error kind plan](../project/error-kind-plan), step 1 and the findings of step 3; `src/engine.ts`, `src/ir/types.ts`, `src/plugins/valibot.plugin.ts`.
+Sources: the [foundations plan](../project/foundations-plan), acceptance test 1; the [error kind plan](../project/error-kind-plan), step 1 and the findings of step 3; the [events plan](../project/events-plan), decisions 1 and 11; `src/engine.ts`, `src/ir/types.ts`, `src/plugins/valibot.plugin.ts`.
 
 ## Related pages
 

@@ -17,7 +17,7 @@ The model gives each question to one layer:
 | Layer | Question |
 | --- | --- |
 | The field, with its primitive and constraints | What is one value, and which values are allowed? |
-| The field reference in an entity or an error | What does the property hold, is it present, and how many values are there? |
+| The field reference in an entity, an event or an error | What does the property hold, is it present, and how many values are there? |
 | The invariant, with its rule over the fields of one entity | Which combinations of fields are allowed? |
 
 Thus a field never says how many values there are. A list is `many` on the field reference, not a `list` primitive. A list of integers is a list on one axis and an integer on the other axis, so a single primitive cannot be both. The same field can be one value in one entity and a list in another entity.

@@ -9,7 +9,7 @@ These pages tell why urn-forge works as it does. They give the context of each d
 | [The traceability chain](./traceability) | What urn-forge is, and why the chain from a URN to a scenario is the product |
 | [URNs as permanent names](./urns) | The six segments, short keys, one manifest for each domain, and why a URN never changes its meaning |
 | [The functional core and brands](./functional-core) | The core and the shell, brands as proof of a parse, and why handlers are synchronous |
-| [Results and declared errors](./results-and-errors) | Why every handler returns a `Result`, and the four ways that a call can fail |
+| [Results and declared errors](./results-and-errors) | Why every handler returns a `Result`, the four ways that a call can fail, and events beside refusals |
 | [Determinism and the fingerprint](./determinism) | Why the same input always gives the same bytes, and why drift is a byte comparison |
 | [What the gates show](./what-the-gates-show) | Conformance, not correctness: what each gate shows and what it cannot show |
 | [Boundary coverage and the ratchet](./boundary-coverage) | Why gate 3 looks for boundary values, and how a project makes the check strict |

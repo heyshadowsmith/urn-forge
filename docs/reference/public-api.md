@@ -73,7 +73,7 @@ The package `urn-forge` has three entry points. `packages/urn-forge/package.json
 
 | Export | Kind | Description |
 | --- | --- | --- |
-| `UniversalIR` | Type | The IR: `meta`, `fields`, `entities`, `invariants`, `operations`, `events` and `errors`. Each record has URNs as keys, in URN order. The node type of `events` is `IREvent`: `{ urn; brandIdentifier; description; fields: readonly IRPropertyRef[] }`. The package does not export the name `IREvent` at this time. The type is available as `UniversalIR['events'][Urn]` |
+| `UniversalIR` | Type | The IR: `meta`, `fields`, `entities`, `invariants`, `operations`, `events` and `errors`. Each record has URNs as keys, in URN order. The node type of `events` is `IREvent`: `{ urn; brandIdentifier; description; fields: readonly IRPropertyRef[] }`. The package exports it as the type `IREvent` |
 | `Lifecycle` | Type | `{ status: 'active' \| 'deprecated' \| 'sunset'; supersededBy?: Urn; sunsetDate?: string }`. Each node type has `lifecycle?: Lifecycle`. The IR has it only on a node whose `status` is not `active` |
 | `statusOf` | Function | `statusOf(node: { lifecycle?: Lifecycle }): 'active' \| 'deprecated' \| 'sunset'`. The status of a node: `active` if it has no `lifecycle` |
 | `liveIr` | Function | `liveIr(ir: UniversalIR): UniversalIR`. The IR with no sunset atoms. The plugins and the gates read it |

@@ -162,7 +162,7 @@ export type <Operation brand>Handler = (
 | Error | `s.<Error brand>Input`, one for each declared error | The union of the plain payloads of the declared errors, in the sequence of the `errors` list. `never` if the operation declares no errors |
 | Events | `s.<Event brand>Input`, one for each event in `emits` | The union of the plain payloads of the events, in the sequence of the `emits` list. The type argument is there only if the operation emits one or more events. If not, the default `never` applies |
 
-The events type has only the events of the operation. If a handler returns a different event, `tsc` refuses the core at gate 1. This message comes from a copy of the insurance core in which `issue_policy` emits `policy_cancelled`. The message is shortened:
+The events type has only the events of the operation. If a handler returns a different event, `tsc` refuses the core at gate 1. This message comes from a copy of the insurance core in which `issue_policy` emits `policy_cancelled`. This page shortens the message:
 
 ```
 insurance/core.ts:24:5  error  type-error  TS2322: Type 'Success<…>' is not assignable to type 'Result<…, never, { ...; }>'.

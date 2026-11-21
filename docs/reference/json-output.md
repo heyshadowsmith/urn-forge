@@ -214,16 +214,16 @@ npx urn-forge verify --config insurance/urn-forge.config.ts --format json
 
 ### `diff`
 
-The insurance manifest, compared with its version before it had events, with `--config insurance/urn-forge.config.ts`. The new events are compatible. A new event in `emits` and a new `recordAs` are breaking. The exit code is `1`:
+The insurance manifest, compared with its version before it had events, with `--config insurance/urn-forge.config.ts`. The new events and the new record are compatible. A new event in `emits` is breaking. The exit code is `1`:
 
 ```json
+{"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:error:refund_below_minimum","message":"adds the record urn:acme:insurance:policy:event:refund_refused"}
 {"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:event:policy_cancelled","message":"is new"}
 {"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:event:policy_issued","message":"is new"}
 {"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:event:refund_refused","message":"is new"}
-{"type":"diagnostic","severity":"error","code":"breaking-change","file":"insurance/domain.manifest.yaml","urn":"urn:acme:insurance:policy:error:refund_below_minimum","message":"urn:acme:insurance:policy:error:refund_below_minimum: recordAs none → urn:acme:insurance:policy:event:refund_refused changes a value that callers receive, which breaks callers that receive it"}
 {"type":"diagnostic","severity":"error","code":"breaking-change","file":"insurance/domain.manifest.yaml","urn":"urn:acme:insurance:policy:operation:cancel_policy","message":"urn:acme:insurance:policy:operation:cancel_policy: the new event urn:acme:insurance:policy:event:policy_cancelled widens a value that callers receive, which breaks callers that receive it"}
 {"type":"diagnostic","severity":"error","code":"breaking-change","file":"insurance/domain.manifest.yaml","urn":"urn:acme:insurance:policy:operation:issue_policy","message":"urn:acme:insurance:policy:operation:issue_policy: the new event urn:acme:insurance:policy:event:policy_issued widens a value that callers receive, which breaks callers that receive it"}
-{"type":"result","ok":false,"breaking":3,"compatible":3,"lifecycle":0}
+{"type":"result","ok":false,"breaking":2,"compatible":4,"lifecycle":0}
 ```
 
 A case from `tests/diff/` with a new declared error. The exit code is `1`:

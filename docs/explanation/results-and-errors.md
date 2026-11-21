@@ -1,4 +1,4 @@
-# Results, declared errors and events
+# Results and declared errors
 
 A handler can refuse an operation. For example, a policy is already cancelled, or a parcel is too heavy for express delivery. urn-forge calls this a declared error. Every handler returns a `Result`, and the `Result` holds either the output and its events, or one declared error. This page tells why, how a declared error differs from the other ways that a call can fail, and how an event differs from an error.
 
@@ -105,7 +105,7 @@ An error and an event look alike. Both have a URN, fields, and a `kind` property
 
 A failure has no events. [Specification v1.1](../project/spec-v1-1) gives the reason: an event never tells of a refusal, "so anything that consumes an event stream can trust every item in it". A refusal that changed nothing is not a fact that other systems must know. Thus `Failure` has no `events` property, and the step `Then the operation emits no event` passes after a declared error.
 
-The handler type lists only the events of its operation, so `tsc` refuses an event that the manifest does not give at gate 1. `executeOperation` also refuses it at run time, with `ContractViolation`. It also refuses an event whose fields break its schema. In both cases, the shell gets no output and no events. Thus a shell never publishes an event that breaks the contract.
+The handler type lists only the events of its operation. Thus, at gate 1, `tsc` refuses an event that is not in the `emits` of the operation. `executeOperation` also refuses it at run time, with `ContractViolation`. It also refuses an event whose fields break its schema. In both cases, the shell gets no output and no events. Thus a shell never publishes an event that breaks the contract.
 
 The manifest does not set how many events of each kind an operation returns, or their sequence. One call can emit one `line_added` event for each line of an order, so a count depends on the input. A count rule would be a second rule language. A scenario that must show a count can show it in the output table.
 
@@ -115,7 +115,7 @@ The manifest does not set how many events of each kind an operation returns, or 
 
 A refusal is not an event, but a team can still want a record of it, for example in an audit trail. `recordAs` is the one bridge between the two kinds. An error can name an event in `recordAs`. The core never returns this event. When the handler fails with the error, `executeOperation` makes the event from the fields of the error, and gives it as `record` on the `DomainError`. The shell can store it. It is not one of the events of the operation, so it never gets into the stream of facts.
 
-The specification says that the fields of the event must be "a superset of the error's". urn-forge is stricter: each other property of the event must be optional. If the event had a required property that the error does not have, the runtime could not make the event from the error. Pass 6 thus refuses such an event with `invalid-record-as`, and the build of each record is sure to succeed. If a team needs more data in the audit record, the shell can make its own record from the `DomainError`.
+The specification says that the fields of the event must be "a superset of the error's". urn-forge is stricter: each other property of the event must be optional. If the event had a mandatory property that the error does not have, the runtime could not make the event from the error. Pass 6 thus refuses such an event with `invalid-record-as`, and the build of each record is sure to succeed. If a team needs more data in the audit record, the shell can make its own record from the `DomainError`.
 
 ## Related pages
 

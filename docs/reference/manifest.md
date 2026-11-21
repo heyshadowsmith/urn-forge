@@ -382,7 +382,7 @@ Specification v1.1 has these properties. urn-forge 0.1.0 does not accept them at
 | `nullable` | A field reference | `unknown-property` |
 | `invariants` | An entity | `unknown-property`. An invariant names its entity with `on`. urn-forge accepts `key`, with a different use. Refer to [Entity](#entity) |
 | `key` | An event | `unknown-property`. An event is not stored, so it has no key |
-| A `recordAs` event with a required property that the error does not have | An error | `invalid-record-as`. The specification permits any event whose fields are a superset of the fields of the error |
+| A `recordAs` event with a mandatory property that the error does not have | An error | `invalid-record-as`. The specification permits any event whose fields are a superset of the fields of the error |
 | A URN in `supersededBy` | Each atom | `invalid-value`. Use the short key of the atom |
 | A field as `input` or `output` | An operation | `wrong-ref-kind` |
 

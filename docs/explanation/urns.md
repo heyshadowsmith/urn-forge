@@ -29,7 +29,7 @@ The first segment, `urn`, is fixed. Each segment that is not the kind is lowerca
 
 The kind is part of the URN, so a reader can see what an atom is without the manifest. The kind does not make the name unique in practice. The brand identifier, which the next section describes, has no kind in it. Thus a field and an entity with the same context and identifier get the diagnostic `duplicate-brand`.
 
-Specification v1.1 names six kinds. urn-forge has `field`, `entity`, `invariant`, `operation` and `error`. It does not have `event` at this time. A key with this kind gets the diagnostic `unsupported-kind`.
+Specification v1.1 names six kinds, and urn-forge has all six: `field`, `entity`, `invariant`, `operation`, `event` and `error`. A key with a different kind gets the diagnostic `unknown-kind`.
 
 ## Short keys
 

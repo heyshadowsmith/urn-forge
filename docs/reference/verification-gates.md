@@ -126,7 +126,7 @@ The gate does these checks. The table gives them in the sequence of the output.
 | --- | --- | --- | --- |
 | Read the directory | The `--features` directory can be read | `features-unreadable` | `error` |
 | Parse the files | Each `.feature` file is valid Gherkin | `feature-parse-error` | `error` |
-| Tags resolve | Each tag that starts with `@urn:` is the URN of a field, an entity, an invariant, an operation or an error of the manifest. The URN of an event is not a tag that resolves. The gate examines each tag one time, where it is written | `unresolved-tag` | `error` |
+| Tags resolve | Each tag that starts with `@urn:` is the URN of a field, an entity, an invariant, an operation, an event or an error of the manifest. The gate examines each tag one time, where it is written | `unresolved-tag` | `error` |
 | One owner | A scenario or an `Examples` block has one owner or no owner, not two or more | `ambiguous-tag` | `error` |
 | Headers | Each header of a step table and of an `Examples` table is a property of the owner. For an operation, this is a property of its input or output entity. For an entity, this is a property of the entity. A scenario with no owner, or with two or more owners, is not examined. The names in an object cell are not headers. The next check examines them | `unknown-header` | `error` |
 | Error headers | Each header of the table of `the operation fails with "<error URN>":` is a field of that error. The gate examines this only if the operation declares the error | `unknown-header` | `error` |
@@ -492,7 +492,9 @@ A new name with `as` is a removal and an addition. A removed property with a dep
 | A changed `rule` or `on` of an invariant | Neither |
 | A changed `message` of an invariant or an error | `compatible` |
 | A changed `category` or `retryable` of an error | Neither, on the uses of the error |
-| A changed `recordAs` of an error, also a new or a removed `recordAs` | Neither, on the uses of the error |
+| A new `recordAs` on an error | Compatible: `adds the record <event urn>` |
+| A removed `recordAs` | Wider, on the uses of the error |
+| A `recordAs` that names another event | Neither, on the uses of the error |
 | A changed `input` or `output` of an operation | `breaking` |
 | A new declared error in the `errors` of an operation | Wider, on Out: `breaking` |
 | A declared error that is not in the `errors` of an operation any more | Narrower, on Out: `compatible` |
