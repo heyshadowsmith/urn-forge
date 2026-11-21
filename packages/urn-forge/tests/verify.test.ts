@@ -43,6 +43,8 @@ function run(): Promise<VerifyResult> {
     corePath: at('example/core.ts'),
     featuresDir: at('example/features'),
     tsconfigPath: at('tsconfig.json'),
+    // As example/urn-forge.config.ts sets it: every example feature is strict.
+    boundaryCoverage: 'error',
   });
 }
 
@@ -87,9 +89,9 @@ describe('urn-forge verify', () => {
     const result = await run();
     expect(failures(result)).toEqual({
       3: [
-        'example/features/safe_divide.feature:6:22  error  unknown-header  table header "denominator" is not a field key of the input or ' +
+        'example/features/safe_divide.feature:7:22  error  unknown-header  table header "denominator" is not a field key of the input or ' +
           'output of urn:demo:math:arithmetic:operation:safe_divide (allowed: dividend, divisor, quotient)',
-        'example/features/safe_divide.feature:6:7  error  missing-column  the table of "I run the operation with:" has no column for ' +
+        'example/features/safe_divide.feature:7:7  error  missing-column  the table of "I run the operation with:" has no column for ' +
           'required input field(s) "divisor" of urn:demo:math:arithmetic:operation:safe_divide; to test a missing value, keep the ' +
           'column and leave the cell empty',
       ],
@@ -148,7 +150,7 @@ describe('urn-forge verify', () => {
     it('fails on a tag that does not resolve', async () => {
       await edit('example/features/safe_divide.feature', '@urn:demo:math:arithmetic:operation:safe_divide', '@urn:demo:math:arithmetic:operation:safe_divid');
       expect(failures(await run())[3]).toEqual([
-        'example/features/safe_divide.feature:1:1  error  unresolved-tag  tag @urn:demo:math:arithmetic:operation:safe_divid does not resolve to a URN in the manifest',
+        'example/features/safe_divide.feature:2:1  error  unresolved-tag  tag @urn:demo:math:arithmetic:operation:safe_divid does not resolve to a URN in the manifest',
         'example/features  error  untagged-operation  operation urn:demo:math:arithmetic:operation:safe_divide has no feature or scenario tagged @urn:demo:math:arithmetic:operation:safe_divide',
       ]);
     });
@@ -163,7 +165,7 @@ describe('urn-forge verify', () => {
     it('checks Examples headers and allows output fields', async () => {
       await edit('example/features/safe_divide.feature', '| dividend | divisor | quotient |', '| dividend | divisor | ratio    |');
       expect(failures(await run())[3]).toEqual([
-        expect.stringMatching(/^example\/features\/safe_divide\.feature:13:\d+ {2}error {2}unknown-header {2}table header "ratio" is not a field key/),
+        expect.stringMatching(/^example\/features\/safe_divide\.feature:14:\d+ {2}error {2}unknown-header {2}table header "ratio" is not a field key/),
       ]);
     });
 
@@ -211,7 +213,7 @@ describe('urn-forge verify', () => {
     const out: string[] = [];
     const err: string[] = [];
     const io = { cwd: dir, stdout: (l: string) => out.push(l), stderr: (l: string) => err.push(l) };
-    const args = ['verify', '--manifest', 'domain.manifest.yaml', '--out', 'example/generated', '--core', 'example/core.ts', '--features', 'example/features'];
+    const args = ['verify', '--config', 'example/urn-forge.config.ts', '--manifest', 'domain.manifest.yaml', '--out', 'example/generated', '--core', 'example/core.ts', '--features', 'example/features'];
     expect(await main(args, io)).toBe(0);
     expect(out.map((l) => l.slice(0, 26))).toEqual([
       'gate 1  completeness  PASS',

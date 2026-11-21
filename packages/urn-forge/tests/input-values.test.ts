@@ -42,16 +42,19 @@ describe('input values on the real features', () => {
         'geometry.field.radius.x',
         'policy.event.placed',
         'policy.widget.x',
+        // Added in boundary coverage step 6: the length-1 key and the empty string (a "" cell).
+        'a',
+        '',
       ],
-      'to_brand_identifier.context': ['policy', 'geometry', 'api', 'a', 'geo_metry', 'geo', 'a'.repeat(64), 'Policy', '2fa', 'has-dash', 'geometry'],
+      'to_brand_identifier.context': ['policy', 'geometry', 'api', 'a', 'geo_metry', 'geo', 'a'.repeat(64), 'Policy', '2fa', 'has-dash', 'geometry', 'geometry', 'geometry', 'geometry'],
       // The outline's examples, then the 64-character context, then the three invalid contexts;
       // the missing-identifier scenario's empty cell is no value.
-      'to_brand_identifier.identifier': ['deductible_amount', 'circle_area', 'v2_key', 'b_', 'radius', 'metry_radius', 'radius', 'radius', 'radius', 'radius'],
-      'to_urn.namespace': ['demo', 'acme', 'urn_forge', 'urn_forge', 'demo', 'demo', 'demo'],
-      'to_urn.domain': ['math', 'insurance', 'toolchain', 'toolchain', 'math', 'math', 'math'],
-      'to_urn.context': ['arithmetic', 'policy', 'naming', 'naming', 'geometry', 'geometry', 'geometry'],
-      'to_urn.kind': ['operation', 'field', 'entity', 'error', 'event', 'widget', 'Field'],
-      'to_urn.identifier': ['safe_divide', 'deductible_amount', 'atom_address', 'invalid_short_key', 'radius', 'radius', 'radius'],
+      'to_brand_identifier.identifier': ['deductible_amount', 'circle_area', 'v2_key', 'b_', 'radius', 'metry_radius', 'radius', 'radius', 'radius', 'radius', 'Radius', '2d', 'has-dash'],
+      'to_urn.namespace': ['demo', 'acme', 'urn_forge', 'urn_forge', 'demo', 'demo', 'demo', 'Demo', 'demo', 'demo', 'demo'],
+      'to_urn.domain': ['math', 'insurance', 'toolchain', 'toolchain', 'math', 'math', 'math', 'math', 'Math', 'math', 'math'],
+      'to_urn.context': ['arithmetic', 'policy', 'naming', 'naming', 'geometry', 'geometry', 'geometry', 'geometry', 'geometry', 'geo-metry', 'geometry'],
+      'to_urn.kind': ['operation', 'field', 'entity', 'error', 'event', 'widget', 'Field', 'field', 'field', 'field', 'field'],
+      'to_urn.identifier': ['safe_divide', 'deductible_amount', 'atom_address', 'invalid_short_key', 'radius', 'radius', 'radius', 'radius', 'radius', 'radius', '2radius'],
     });
   });
 });

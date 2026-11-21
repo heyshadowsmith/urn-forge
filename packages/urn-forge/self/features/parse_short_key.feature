@@ -1,3 +1,4 @@
+@urn-forge:strict
 @urn:urn_forge:toolchain:naming:operation:parse_short_key
 Feature: Short keys
 
@@ -47,3 +48,15 @@ Feature: Short keys
     Then the operation fails with "urn:urn_forge:toolchain:naming:error:unknown_kind":
       | short_key       | kind_segment |
       | policy.widget.x | widget       |
+
+  Scenario: A one-character key passes the boundary but is refused
+    When I run the operation with:
+      | short_key |
+      | a         |
+    Then the operation fails with "urn:urn_forge:toolchain:naming:error:invalid_short_key"
+
+  Scenario: An empty key is rejected at the boundary
+    When I run the operation with:
+      | short_key |
+      | ""        |
+    Then the input is rejected on "short_key"

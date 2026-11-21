@@ -1,3 +1,4 @@
+@urn-forge:strict
 @urn:demo:math:geometry:operation:compute_area
 Feature: Circle area
 
