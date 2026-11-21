@@ -28,7 +28,7 @@ export const ParcelWeightGramsSchema = v.pipe(
 );
 ```
 
-The output type of this schema is not `number`. It is `number & Brand<"urn:demo:shipping:parcel:field:weight_grams">`. A plain `number` cannot go where this type is necessary. The usual way to get a value of this type is to parse it with the schema. Thus, when a handler receives a `ParcelWeightGrams`, the type tells the handler that the value is a safe integer from 1 to 30000. The handler does not have to examine the value again.
+The output type of this schema is not `number`. It is `number & Brand<"urn:demo:shipping:parcel:field:weight_grams">`. A plain `number` cannot go where this type is necessary. The correct way to get a value of this type is to parse it with the schema. Thus, when a handler receives a `ParcelWeightGrams`, the type tells the handler that the value is a safe integer from 1 to 30000. The handler does not have to examine the value again.
 
 A `decimal`, a `date` and a `timestamp` are branded strings in the core. A `decimal` stays a string, so no binary float holds it. The core converts it with a decimal library if it does arithmetic. A list property is a list of branded values.
 
@@ -36,9 +36,32 @@ The brand holds the URN of the field, not only its primitive. Two fields with th
 
 ### The limit of a brand
 
-A TypeScript brand exists only in the types. At run time, a branded value is a plain number or string. Code can make a false brand with a type assertion such as `as`, and `tsc` accepts it.
+A TypeScript brand exists only in the types. At run time, a branded value is a plain number or string. Thus `tsc` cannot tell a parsed value from a false one. Code can make a false brand in three ways, and `tsc` accepts each of them:
 
-Specification v1.1 plans gate 2, a lint profile, to stop this. Its rule `no-brand-construction` would not let the core import Valibot's `brand` or the generated schemas, and other rules would forbid type assertions. urn-forge does not have gate 2 at this time. Thus a brand is proof of a parse only while the core does not use type assertions. Refer to [Scope](../reference/scope).
+- A type assertion: `'0' as PolicyLimit`, or `{} as PolicyPolicy` for an object with branded properties.
+- A value of type `any`: `const id: CustomerCustomerId = JSON.parse(raw)`.
+- A comment that turns off the type check: `// @ts-expect-error` above a value of the wrong type.
+
+This site calls such a value a *forged* brand. A forged brand says "valid", but no schema examined the value. Gate 1 then proves that the handlers have the correct types, but the types are not true.
+
+## Who can make a branded value
+
+Gate 2, boundary discipline, closes this gap. Its rule is short: only a generated parser makes a branded value.
+
+| Who | Can make a branded value? | How |
+| --- | --- | --- |
+| The generated parsers in `domain.schemas.generated.ts`, which `executeOperation` calls | Yes | A parse with a schema. The value passed the rules |
+| The shell | Yes, through a parser | `executeOperation`, or a generated schema for a value that it reads, for example an id from a URL |
+| The core | No | It receives branded input, and it returns plain output that `executeOperation` parses |
+| Any code, with a type assertion, an `any` or a turned-off check | No | This is a forged brand: the type says "valid", and nothing examined the value |
+
+Gate 2 thus examines the core files and the shell files for the three ways to forge a brand. It also refuses a value import of the generated schemas or of `valibot` in a core file. The core never needs to parse, because its input is already branded and its output is plain. A type import stays correct, because the core needs the branded types to name its values.
+
+The shell can parse, because the shell is where values come in. Thus a shell file can import the schemas and `valibot`. The three rules against forged brands apply to it too.
+
+The rules are about brands only. An `as const`, or an assertion to a type with no brand, is not a forged brand, so gate 2 accepts it. A test can forge a value on purpose, to test the boundary. Thus gate 2 does not examine a test file, unless the `shell` setting names it.
+
+With gate 2, a branded type in a core or shell file is proof of a parse. Gate 2 cannot see a forged value from outside the files that it examines. Examples are a library, or a file that the `shell` setting does not name. For the limits, refer to [What the gates show](./what-the-gates-show).
 
 ## Branded input, plain output
 
@@ -57,7 +80,7 @@ The [MVP plan](../project/mvp-plan) found that the specification asks for two th
 1. The handler returns branded output.
 2. Gate 2 forbids the core to make brands.
 
-A handler can only get a branded value from a parse or from a type assertion. Gate 2 forbids both in the core. The MVP plan thus changed the first rule. The handler returns the plain shape, and `executeOperation` parses the output against the output schema. The parse checks the output and adds the brands. The fields of a declared error follow the same rule.
+A handler can only get a branded value from a parse or from a forged brand. Gate 2 forbids both in the core. The MVP plan thus changed the first rule. The handler returns the plain shape, and `executeOperation` parses the output against the output schema. The parse checks the output and adds the brands. The fields of a declared error follow the same rule.
 
 This choice has these results:
 

@@ -1,11 +1,12 @@
 /**
  * `urn-forge verify` (spec §8): compiles the manifest, builds the gate context once, then
- * runs each registered gate. Gates 2 (lint profile) and 5 (compatibility) are not built yet.
+ * runs each registered gate. Gate 5 (compatibility) is the separate command `urn-forge diff`.
  */
 import { readFile } from 'node:fs/promises';
 import { hasErrors, relativePaths, type Diagnostic } from '../diagnostics.js';
 import { compile, type PluginEntry } from '../engine.js';
 import { hasSunsetDates, liveIr } from '../ir/lifecycle.js';
+import { boundaryGate } from './boundary.js';
 import { completenessGate } from './completeness.js';
 import { driftGate } from './drift.js';
 import { indexFeatures } from './feature-index.js';
@@ -13,7 +14,7 @@ import { gherkinGate } from './gherkin.js';
 import type { Gate, GateResult } from './types.js';
 
 /** The gates `verify` runs, in order. */
-export const GATES: readonly Gate[] = [completenessGate, gherkinGate, driftGate];
+export const GATES: readonly Gate[] = [completenessGate, boundaryGate, gherkinGate, driftGate];
 
 export interface VerifyOptions {
   readonly cwd: string;
@@ -30,6 +31,8 @@ export interface VerifyOptions {
   readonly gates?: readonly Gate[];
   /** The day that pass 8 compares sunset dates with (YYYY-MM-DD). */
   readonly referenceDate?: string;
+  /** Gate 2: the shell's files and directories, absolute. Default: none. */
+  readonly shellPaths?: readonly string[];
 }
 
 export interface VerifyResult {
@@ -74,6 +77,7 @@ export async function verify(options: VerifyOptions): Promise<VerifyResult> {
     featuresDir: options.featuresDir,
     features: await indexFeatures(options.featuresDir, options.cwd),
     boundaryCoverage: options.boundaryCoverage ?? 'warn',
+    shellPaths: options.shellPaths ?? [],
   };
   const gates: GateResult[] = [];
   for (const gate of options.gates ?? GATES) {

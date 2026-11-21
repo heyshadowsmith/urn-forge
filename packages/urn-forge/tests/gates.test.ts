@@ -437,9 +437,10 @@ describe('gate framework', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('runs gates 1, 3 and 4 in order', () => {
+  it('runs gates 1, 2, 3 and 4 in order', () => {
     expect(GATES.map((g) => [g.number, g.name])).toEqual([
       [1, 'completeness'],
+      [2, 'boundary'],
       [3, 'gherkin'],
       [4, 'drift'],
     ]);
@@ -469,7 +470,7 @@ describe('gate framework', () => {
     const out: string[] = [];
     const io = { cwd: repo(''), stdout: (l: string) => out.push(l), stderr: () => undefined };
     expect(await main(['verify', '--config', 'example/urn-forge.config.ts'], io)).toBe(0);
-    expect(out.at(-1)).toBe('verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)');
-    expect(verifyPassedLine([1, 3, 4], 2)).toBe('verify passed with 2 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)');
+    expect(out.at(-1)).toBe('verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)');
+    expect(verifyPassedLine([1, 2, 3, 4], 2)).toBe('verify passed with 2 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)');
   });
 });

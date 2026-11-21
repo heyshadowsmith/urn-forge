@@ -244,6 +244,7 @@ The fields of an event have the Out use, as the fields of an output do. Refer to
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)
 gate 4  drift         PASS  3 generated file(s) compared byte for byte against insurance/generated
 ```

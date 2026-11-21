@@ -20,7 +20,7 @@ The `traceability` job of urn-forge runs each check in its own step:
 2. Add one step for each check:
    - `npm test`, for the unit tests.
    - `npm run typecheck`, for `tsc` over all of the code. Vitest does not type-check.
-   - `npx urn-forge verify`, for gates 1, 3 and 4.
+   - `npx urn-forge verify`, for gates 1, 2, 3 and 4.
    - `npx cucumber-js`, for the scenarios.
 3. Give each check step this condition:
 
@@ -75,6 +75,7 @@ npx urn-forge verify --config example/urn-forge.config.ts --format json
 
 ```
 {"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over example/core.ts; `core` satisfies DomainCoreImplementation"}
+{"type":"gate","gate":2,"name":"boundary","ok":true,"summary":"1 core file(s), 0 shell file(s): 0 problem(s)"}
 {"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"2 feature(s), 4 scenario(s), 2/2 operations tagged, strict: 2/2 features (boundaryCoverage: error)"}
 {"type":"gate","gate":4,"name":"drift","ok":true,"summary":"2 generated file(s) compared byte for byte against example/generated"}
 {"type":"result","ok":true,"failedGates":[],"warnings":0,"sunsetDatesChecked":true}
@@ -118,6 +119,7 @@ When a scenario expects an error that the operation does not declare, the step w
 
 ```
 gate 1 completeness PASS  tsc: 0 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
+gate 2 boundary PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3 gherkin FAIL  1 feature(s), 6 scenario(s), 1/1 operations tagged, 0/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
 gate 4 drift PASS  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
 ::error file=packages/urn-forge/tutorial/3-strict-coverage/features/quote_shipping.feature,line=30,col=5,title=undeclared-error::"urn:demo:shipping:quote:error:too_heavy" is not a declared error of urn:demo:shipping:quote:operation:quote_shipping (errors: urn:demo:shipping:quote:error:too_heavy_for_express)
@@ -143,6 +145,7 @@ The Turkish locale changes how letters change case and how strings sort. A gener
 A pull request that breaks the chain fails the job:
 
 - A handler that is not there fails the `urn-forge verify` step at gate 1.
+- A type assertion to a branded type, such as `'0' as PolicyLimit`, fails it at gate 2.
 - A table header that is not a field fails it at gate 3.
 - An edit to a generated file fails it at gate 4.
 - A reference to an atom on or after its sunset date fails it before the gates, with `sunset-ref`.

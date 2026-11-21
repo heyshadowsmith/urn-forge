@@ -26,6 +26,8 @@ export interface GateContext {
   readonly features: FeatureIndex;
   /** Gate 3's coverage mode: whether coverage gaps outside strict features are warnings or errors. */
   readonly boundaryCoverage: 'warn' | 'error';
+  /** Gate 2: the shell's files and directories (config `shell`), absolute. */
+  readonly shellPaths?: readonly string[];
 }
 
 export interface GateOutcome {

@@ -43,7 +43,7 @@ The properties occur in this sequence. urn-forge leaves out a property that has 
 | Property | Type | Present | Description |
 | --- | --- | --- | --- |
 | `type` | `"diagnostic"` | Always | The kind of line |
-| `gate` | `1`, `3` or `4` | `verify`, for a gate problem only | The gate that found the problem. A diagnostic of the configuration or the manifest has no `gate` |
+| `gate` | `1`, `2`, `3` or `4` | `verify`, for a gate problem only | The gate that found the problem. A diagnostic of the configuration or the manifest has no `gate` |
 | `severity` | `"error"`, `"warning"` or `"note"` | Always | Refer to [Diagnostics](./diagnostics) |
 | `code` | string | Always | The stable code. Each code is in [Diagnostics](./diagnostics) |
 | `file` | string | Always | The file that has the problem, relative to the current directory, with forward slashes. For a manifest diagnostic, this is the `--manifest` path. For some gate 3 problems, this is the `--features` directory. For `breaking-change`, this is the new manifest of `diff` |
@@ -75,8 +75,8 @@ The properties occur in this sequence. urn-forge leaves out a property that has 
 | Property | Type | Description |
 | --- | --- | --- |
 | `type` | `"gate"` | The kind of line |
-| `gate` | `1`, `3` or `4` | The number of the gate |
-| `name` | `"completeness"`, `"gherkin"` or `"drift"` | The name of the gate |
+| `gate` | `1`, `2`, `3` or `4` | The number of the gate |
+| `name` | `"completeness"`, `"boundary"`, `"gherkin"` or `"drift"` | The name of the gate |
 | `ok` | boolean | `true` if the gate found no error. Warnings and notes do not make it `false` |
 | `summary` | string | One line that tells what the gate examined. Refer to [Verification gates](./verification-gates) |
 
@@ -107,8 +107,8 @@ If there is an error, `compile` writes no files and no `file` lines. The `result
 ### `verify`
 
 1. The `diagnostic` lines of the configuration or the manifest. These lines have no `gate` property.
-2. The `diagnostic` lines of the gates: first all the problems of gate 1, then of gate 3, then of gate 4. Each line has a `gate` property.
-3. One `gate` line for each gate, in the sequence 1, 3, 4.
+2. The `diagnostic` lines of the gates: first all the problems of gate 1, then of gate 2, then of gate 3, then of gate 4. Each line has a `gate` property.
+3. One `gate` line for each gate, in the sequence 1, 2, 3, 4.
 4. One `result` line.
 
 If the configuration is not valid, or if the manifest has an error, no gate runs. Then the output has only the diagnostics of step 1 and the `result` line, with `"failedGates":[]` and `"warnings":0`.
@@ -154,27 +154,30 @@ npx urn-forge verify --config tutorial/2-declared-errors/urn-forge.config.ts --f
 {"type":"diagnostic","gate":3,"severity":"warning","code":"uncovered-boundary","file":"tutorial/2-declared-errors/features","urn":"urn:demo:shipping:parcel:field:weight_grams","message":"urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)"}
 {"type":"diagnostic","gate":3,"severity":"warning","code":"uncovered-boundary","file":"tutorial/2-declared-errors/features","urn":"urn:demo:shipping:parcel:field:zone","message":"urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values"}
 {"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over tutorial/2-declared-errors/core.ts; `core` satisfies DomainCoreImplementation"}
+{"type":"gate","gate":2,"name":"boundary","ok":true,"summary":"1 core file(s), 0 shell file(s): 0 problem(s)"}
 {"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features"}
 {"type":"gate","gate":4,"name":"drift","ok":true,"summary":"2 generated file(s) compared byte for byte against tutorial/2-declared-errors/generated"}
 {"type":"result","ok":true,"failedGates":[],"warnings":2,"sunsetDatesChecked":true}
 ```
 
-A project with a problem at each gate: a handler with an incorrect URN, a column name with an error, and a manual edit of a generated file. The exit code is `1`:
+A project with a problem at each gate. The project is a copy of the snapshot of tutorial 2. It has a handler with an incorrect URN and a type assertion to a branded type. It also has a column name with an error, and a manual edit of a generated file. The exit code is `1`:
 
 ```json
 {"type":"diagnostic","gate":1,"severity":"error","code":"type-error","file":"core.ts","line":8,"column":3,"message":"TS2353: Object literal may only specify known properties, and ''urn:demo:shipping:quote:operation:quote_shiping'' does not exist in type 'DomainCoreImplementation'."}
 {"type":"diagnostic","gate":1,"severity":"error","code":"type-error","file":"core.ts","line":8,"column":57,"message":"TS7031: Binding element 'weight_grams' implicitly has an 'any' type."}
 {"type":"diagnostic","gate":1,"severity":"error","code":"type-error","file":"core.ts","line":8,"column":71,"message":"TS7031: Binding element 'zone' implicitly has an 'any' type."}
 {"type":"diagnostic","gate":1,"severity":"error","code":"type-error","file":"core.ts","line":8,"column":77,"message":"TS7031: Binding element 'express' implicitly has an 'any' type."}
+{"type":"diagnostic","gate":2,"severity":"error","code":"brand-assertion","file":"core.ts","line":21,"column":20,"message":"'mars' as ParcelZone asserts the branded type ParcelZone; only a generated parser makes a branded value"}
 {"type":"diagnostic","gate":3,"severity":"error","code":"unknown-header","file":"features/quote_shipping.feature","line":21,"column":9,"urn":"urn:demo:shipping:quote:operation:quote_shipping","message":"table header \"weight\" is not a field key of the input or output of urn:demo:shipping:quote:operation:quote_shipping (allowed: weight_grams, zone, express, price_cents)"}
 {"type":"diagnostic","gate":3,"severity":"error","code":"missing-column","file":"features/quote_shipping.feature","line":21,"column":7,"urn":"urn:demo:shipping:quote:operation:quote_shipping","message":"the table of \"I run the operation with:\" has no column for required input field(s) \"weight_grams\" of urn:demo:shipping:quote:operation:quote_shipping; to test a missing value, keep the column and leave the cell empty"}
 {"type":"diagnostic","gate":3,"severity":"warning","code":"uncovered-boundary","file":"features","urn":"urn:demo:shipping:parcel:field:weight_grams","message":"urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at min − 1 (0), no value at max 30000, no value at max + 1 (30001)"}
 {"type":"diagnostic","gate":3,"severity":"warning","code":"uncovered-boundary","file":"features","urn":"urn:demo:shipping:parcel:field:zone","message":"urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values"}
 {"type":"diagnostic","gate":4,"severity":"error","code":"generated-differs","file":"generated/domain.schemas.generated.ts","line":21,"column":1,"message":"differs from a fresh compile (hand-edited or stale); run `urn-forge compile`"}
 {"type":"gate","gate":1,"name":"completeness","ok":false,"summary":"tsc: 4 error(s) over core.ts; `core` satisfies DomainCoreImplementation"}
+{"type":"gate","gate":2,"name":"boundary","ok":false,"summary":"1 core file(s), 0 shell file(s): 1 problem(s)"}
 {"type":"gate","gate":3,"name":"gherkin","ok":false,"summary":"1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features"}
 {"type":"gate","gate":4,"name":"drift","ok":false,"summary":"2 generated file(s) compared byte for byte against generated"}
-{"type":"result","ok":false,"failedGates":[1,3,4],"warnings":2,"sunsetDatesChecked":true}
+{"type":"result","ok":false,"failedGates":[1,2,3,4],"warnings":2,"sunsetDatesChecked":true}
 ```
 
 A message with more than one line. The line break is `\n` in the JSON string:
@@ -207,6 +210,7 @@ npx urn-forge verify --config insurance/urn-forge.config.ts --format json
 ```json
 {"type":"diagnostic","severity":"warning","code":"deprecated-ref","file":"insurance/domain.manifest.yaml","line":79,"column":12,"urn":"urn:acme:insurance:policy:entity:coverage","message":"urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)"}
 {"type":"gate","gate":1,"name":"completeness","ok":true,"summary":"tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation"}
+{"type":"gate","gate":2,"name":"boundary","ok":true,"summary":"1 core file(s), 0 shell file(s): 0 problem(s)"}
 {"type":"gate","gate":3,"name":"gherkin","ok":true,"summary":"2 feature(s), 13 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 4/4 invariants broken, strict: 2/2 features (boundaryCoverage: error)"}
 {"type":"gate","gate":4,"name":"drift","ok":true,"summary":"3 generated file(s) compared byte for byte against insurance/generated"}
 {"type":"result","ok":true,"failedGates":[],"warnings":1,"sunsetDatesChecked":true}

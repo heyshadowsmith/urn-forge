@@ -72,7 +72,7 @@ describe('urn-forge verify', () => {
     const result = await run();
     expect(failures(result)).toEqual({});
     expect(result.ok).toBe(true);
-    expect(result.gates.map((g) => [g.gate, g.ok])).toEqual([[1, true], [3, true], [4, true]]);
+    expect(result.gates.map((g) => [g.gate, g.ok])).toEqual([[1, true], [2, true], [3, true], [4, true]]);
   });
 
   it('Done #1: deleting the safe_divide handler fails gate 1 only', async () => {
@@ -254,9 +254,10 @@ describe('urn-forge verify', () => {
     expect(await main(args, io)).toBe(0);
     expect(out.map((l) => l.slice(0, 26))).toEqual([
       'gate 1  completeness  PASS',
+      'gate 2  boundary      PASS',
       'gate 3  gherkin       PASS',
       'gate 4  drift         PASS',
-      'verify passed (gates 1, 3,',
+      'verify passed (gates 1, 2,',
     ]);
 
     out.length = 0;

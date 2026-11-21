@@ -1,6 +1,6 @@
 # Fix a gate that fails
 
-`urn-forge verify` runs gates 1, 3 and 4. A gate fails when it reports one error or more. This guide gives the symptom and the fix for each code that a gate can report. The output on this page comes from the domain of [tutorial 3](../tutorials/strict-coverage), with one part broken on purpose for each example. The examples for invariants, embedded entities, links and events come from the insurance domain in `packages/urn-forge/insurance/`.
+`urn-forge verify` runs gates 1, 2, 3 and 4. A gate fails when it reports one error or more. This guide gives the symptom and the fix for each code that a gate can report. The output on this page comes from the domain of [tutorial 3](../tutorials/strict-coverage), with one part broken on purpose for each example. The examples for invariants, embedded entities, links, events and gate 2 come from the insurance domain in `packages/urn-forge/insurance/`.
 
 ## Before you start
 
@@ -194,6 +194,141 @@ gate 1  completeness  FAIL  tsconfig unreadable
 ```
 
 To fix it, correct the `tsconfig` path in the config or the `--tsconfig` flag. The default is `tsconfig.json` in the current folder.
+
+## Gate 2: boundary discipline
+
+Gate 2 makes sure that no core file and no shell file makes a branded value without a parse. Only a generated schema makes a branded value. Gate 2 examines these files:
+
+- The core entry, and the files that it imports from its own folder.
+- The files and folders of the `shell` setting in the config. The default is none.
+
+Gate 2 does not examine the generated files or the tests. It has no waiver. The examples add code to the insurance core, `insurance/core.ts`. Each one passes gate 1.
+
+If gate 1 cannot read the tsconfig, gate 2 shows `PASS  not run: gate 1 could not build the program`. Fix gate 1 first.
+
+### `brand-assertion`
+
+The core makes branded values with a type assertion:
+
+```ts
+import type { CustomerCustomerId, PolicyLimit, PolicyPolicy } from './generated/domain.schemas.generated';
+
+export const NO_LIMIT = '0' as PolicyLimit;
+export const NOBODY = '' as unknown as CustomerCustomerId;
+export const EMPTY = {} as PolicyPolicy;
+```
+
+```
+gate 2  boundary      FAIL  1 core file(s), 0 shell file(s): 3 problem(s)
+    insurance/core.ts:23:25  error  brand-assertion  '0' as PolicyLimit asserts the branded type PolicyLimit; only a generated parser makes a branded value
+    insurance/core.ts:24:23  error  brand-assertion  '' as unknown as CustomerCustomerId asserts the branded type CustomerCustomerId; only a generated parser makes a branded value
+    insurance/core.ts:25:22  error  brand-assertion  {} as PolicyPolicy asserts the branded type PolicyPolicy; only a generated parser makes a branded value
+```
+
+An assertion through `unknown` is also a problem. An assertion to an object with branded fields, such as `PolicyPolicy`, is also a problem. `as const` and an assertion to a type with no brand are not problems.
+
+To fix it, remove the assertion. Then do one of these:
+
+- If the value comes from outside, parse it in the shell with its generated schema, for example `v.parse(PolicyLimitSchema, raw)`. Refer to [Call an operation from the shell](call-an-operation).
+- If the value is input of an operation, give it to `executeOperation`. `executeOperation` parses it.
+- If the core needs only the plain value, use the plain type, for example `string`. Refer to [Use branded values in the core](use-branded-values).
+
+### `brand-from-any`
+
+The core puts a value of type `any` where a branded type belongs. `JSON.parse` returns `any`, and `tsc` accepts `any` for each type:
+
+```ts
+import type { CustomerCustomerId, PolicyPremium } from './generated/domain.schemas.generated';
+
+/** The holder of a policy that the store gives as JSON. */
+export function holderOf(raw: string): CustomerCustomerId {
+  const id: CustomerCustomerId = JSON.parse(raw);
+  return id;
+}
+
+export function premiumOf(raw: string): PolicyPremium {
+  return JSON.parse(raw);
+}
+```
+
+```
+gate 2  boundary      FAIL  1 core file(s), 0 shell file(s): 2 problem(s)
+    insurance/core.ts:24:34  error  brand-from-any  JSON.parse(raw) is any where the branded type CustomerCustomerId belongs; parse the value with a generated schema in the shell
+    insurance/core.ts:29:10  error  brand-from-any  JSON.parse(raw) is any where the branded type PolicyPremium belongs; parse the value with a generated schema in the shell
+```
+
+Gate 2 finds an `any` in an assignment, a return, an argument and a property. To fix it, move the parse to the shell, and parse the value with its generated schema:
+
+```ts
+import * as v from 'valibot';
+import { CustomerCustomerIdSchema } from './generated/domain.schemas.generated';
+
+export function holderOf(raw: string) {
+  return v.parse(CustomerCustomerIdSchema, JSON.parse(raw));
+}
+```
+
+`v.parse` gets `unknown`, so the `any` is not a problem there. Then give the branded value to the core.
+
+### `suppressed-check`
+
+A comment turns off a type check. Here `@ts-expect-error` hides an event that has no `premium`:
+
+```ts
+  'urn:acme:insurance:policy:operation:issue_policy': (policy) =>
+    ok({ ...policy }, [
+      // @ts-expect-error the event has no premium yet
+      emit('urn:acme:insurance:policy:event:policy_issued', { policy_id: policy.policy_id, holder: policy.holder }),
+    ]),
+```
+
+```
+gate 2  boundary      FAIL  1 core file(s), 0 shell file(s): 1 problem(s)
+    insurance/core.ts:25:7  error  suppressed-check  @ts-expect-error turns off a type check, which could hide a forged brand; correct the type instead
+```
+
+Gate 2 finds `@ts-ignore`, `@ts-expect-error` and `@ts-nocheck`. To fix it, remove the comment. Gate 1 then shows the error that the comment hid:
+
+```
+gate 1  completeness  FAIL  tsc: 1 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
+    insurance/core.ts:25:61  error  type-error  TS2345: Argument of type '{ policy_id: string & Brand<"urn:acme:insurance:policy:field:policy_id">; holder: string & Brand<"urn:acme:insurance:customer:field:customer_id">; }' is not assignable to parameter of type 'EventFields<"urn:acme:insurance:policy:event:policy_issued">'.
+      Property 'premium' is missing in type '{ policy_id: string & Brand<"urn:acme:insurance:policy:field:policy_id">; holder: string & Brand<"urn:acme:insurance:customer:field:customer_id">; }' but required in type 'EventFields<"urn:acme:insurance:policy:event:policy_issued">'.
+```
+
+Correct the type. Here, give `premium: policy.premium` to the event.
+
+### `core-parser-import`
+
+A core file imports the generated schemas, or `valibot`, as a value. Here the core parses the refund:
+
+```ts
+import * as v from 'valibot';
+import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
+import { PolicyRefundSchema } from './generated/domain.schemas.generated';
+
+// …
+
+function amount(cents: bigint): string {
+  return v.parse(PolicyRefundSchema, `${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`);
+}
+```
+
+```
+gate 2  boundary      FAIL  1 core file(s), 0 shell file(s): 2 problem(s)
+    insurance/core.ts:3:1  error  core-parser-import  the core imports valibot as a value, which can make branded values; the core receives branded input and returns plain output, so import types only (import type)
+    insurance/core.ts:5:1  error  core-parser-import  the core imports ./generated/domain.schemas.generated as a value, which can make branded values; the core receives branded input and returns plain output, so import types only (import type)
+```
+
+To fix it, do these steps:
+
+1. Remove the parse from the core. Return the plain value. `executeOperation` parses the output of the handler.
+2. If the core needs a branded type, import it with `import type`, for example `import type { PolicyLimit } from './generated/domain.schemas.generated';`.
+
+This rule applies only to the core files. A shell file can import the schemas and `valibot`, because the shell parses values.
+
+### A shell file
+
+Gate 2 applies `brand-assertion`, `brand-from-any` and `suppressed-check` to the shell files too. If the summary shows `0 shell file(s)`, gate 2 does not examine your shell. Add `shell` to the config. Refer to [Call an operation from the shell](call-an-operation), which also shows a problem in a shell file.
 
 ## Gate 3: Gherkin traceability
 
@@ -448,6 +583,7 @@ A generated file is not in the output folder:
 ```
 gate 1  completeness  FAIL  tsc: 1 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
     tutorial/3-strict-coverage/generated/domain.runtime.generated.ts:5:20  error  type-error  TS2307: Cannot find module './domain.schemas.generated.js' or its corresponding type declarations.
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
 gate 4  drift         FAIL  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
     tutorial/3-strict-coverage/generated/domain.schemas.generated.ts  error  generated-missing  missing; run `urn-forge compile`
@@ -481,9 +617,10 @@ If urn-forge did not write the file, the message tells you to rename or delete i
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/3-strict-coverage/core.ts; `core` satisfies DomainCoreImplementation
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against tutorial/3-strict-coverage/generated
-verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
+verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 
 ## Related pages

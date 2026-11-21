@@ -39,7 +39,7 @@ features:
       light: /icons/gate-light.svg
       dark: /icons/gate-dark.svg
     title: A gate for each link
-    details: The urn-forge verify command makes CI fail for three errors. A handler is not there, a table header is not a field, or a person edits a generated file.
+    details: The urn-forge verify command makes CI fail for four errors. A handler is not there, the core forges a brand, a table header is not a field, or a person edits a generated file.
 ---
 
 ## How these pages are organized

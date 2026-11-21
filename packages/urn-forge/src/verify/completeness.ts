@@ -83,6 +83,21 @@ function satisfyingExports(source: ts.SourceFile, checker: ts.TypeChecker, runti
   return found;
 }
 
+/** The program of each run, so gate 2 checks the same files without a second parse. */
+const programs = new WeakMap<object, ts.Program>();
+
+/** The program over the core entry with the project's tsconfig, or undefined when the tsconfig cannot be read. */
+export function programFor(options: CompletenessOptions): ts.Program | undefined {
+  const cached = programs.get(options);
+  if (cached) return cached;
+  const config = ts.readConfigFile(options.tsconfigPath, ts.sys.readFile);
+  if (config.error) return undefined;
+  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, dirname(options.tsconfigPath));
+  const program = ts.createProgram({ rootNames: [options.corePath], options: { ...parsed.options, noEmit: true } });
+  programs.set(options, program);
+  return program;
+}
+
 export function checkCompleteness(options: CompletenessOptions): GateOutcome {
   const show = (path: string) => displayPath(options.cwd, path, relative);
   const fail = (problem: Diagnostic, summary: string): GateOutcome => ({ summary, problems: [problem] });
@@ -99,8 +114,7 @@ export function checkCompleteness(options: CompletenessOptions): GateOutcome {
       'tsconfig unreadable',
     );
   }
-  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, dirname(options.tsconfigPath));
-  const program = ts.createProgram({ rootNames: [options.corePath], options: { ...parsed.options, noEmit: true } });
+  const program = programFor(options)!;
 
   const source = program.getSourceFile(options.corePath);
   if (!source) {

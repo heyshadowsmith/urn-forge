@@ -37,9 +37,10 @@ This guide makes a project in which `urn-forge compile`, `urn-forge verify` and 
 
    ```
    gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
+   gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
    gate 3  gherkin       PASS  1 feature(s), 5 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features (boundaryCoverage: error)
    gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
-   verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
+   verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
    ```
 
 3. Run `npm run test:features`. All scenarios pass:
@@ -110,6 +111,7 @@ Make `urn-forge.config.ts`:
 - The tutorial uses `../../tsconfig.json`, the tsconfig of the package. In your project, point `tsconfig` to your own file.
 - A flag on the command line overrides the value in the file.
 - If you leave out a key, the CLI uses its default. For example, the default of `out` is `src/generated`.
+- If the project has a shell, add `shell` with its files or folders, for example `shell: ['./shell.ts']`. Gate 2 then examines the shell. Refer to [Call an operation from the shell](call-an-operation).
 
 For each key and its default, refer to [The configuration file](../reference/configuration).
 
@@ -243,11 +245,12 @@ For the steps, refer to [Write scenarios](write-scenarios).
 
    ```
    gate 1  completeness  PASS  tsc: 0 error(s) over core.ts; `core` satisfies DomainCoreImplementation
+   gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
    gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, strict: 0/1 features
        features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
        features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
    gate 4  drift         PASS  2 generated file(s) compared byte for byte against generated
-   verify passed with 2 warning(s) (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
+   verify passed with 2 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
    ```
 
    The warnings show boundaries that no scenario tests. To remove them, refer to [Adopt strict coverage](adopt-strict-coverage).

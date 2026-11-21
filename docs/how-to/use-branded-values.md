@@ -95,7 +95,36 @@ const limit: ParcelWeightGrams = 5000;
 error TS2322: Type 'number' is not assignable to type 'number & Brand<"urn:demo:shipping:parcel:field:weight_grams">'.
 ```
 
-Do not cast a plain value to a branded type with `as`. A brand must mean that a schema parsed the value. Only the shell parses values, in `executeOperation`.
+A brand must mean that a generated schema parsed the value. Gate 2 makes sure of this. In a core file, it refuses these things:
+
+- A type assertion to a branded type, for example `1000 as ParcelWeightGrams`. Gate 2 also refuses an assertion through `unknown`, and an assertion to an object with branded fields.
+- A value of type `any` where a branded type belongs, for example the result of `JSON.parse`.
+- A comment that turns off a type check: `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`.
+- A value import of the generated schemas or of `valibot`. Use `import type` for the branded types.
+
+Here, two new lines in the core of `tutorial/1-first-domain` make two weights without a parse:
+
+```ts
+import type { ParcelWeightGrams } from './generated/domain.schemas.generated';
+
+const LIGHT = 1000 as ParcelWeightGrams;
+const HEAVY: ParcelWeightGrams = JSON.parse('30000');
+```
+
+`tsc` accepts both lines, so gate 1 passes. Gate 2 fails:
+
+```
+gate 2  boundary      FAIL  1 core file(s), 0 shell file(s): 2 problem(s)
+    tutorial/1-first-domain/core.ts:6:15  error  brand-assertion  1000 as ParcelWeightGrams asserts the branded type ParcelWeightGrams; only a generated parser makes a branded value
+    tutorial/1-first-domain/core.ts:7:34  error  brand-from-any  JSON.parse('30000') is any where the branded type ParcelWeightGrams belongs; parse the value with a generated schema in the shell
+```
+
+To correct it, do one of these:
+
+- If the core needs a fixed number, use the plain type: `const LIGHT = 1000;`. A branded value compares with a plain value.
+- If the value comes from outside, parse it in the shell with its generated schema, or give it to `executeOperation`. Refer to [Call an operation from the shell](call-an-operation).
+
+`as const` is not a problem, as `BASE_CENTS` in the core of tutorial 1 shows. An assertion to a type with no brand is not a problem. For each code and its fix, refer to [Fix a gate that fails](fix-a-failing-gate).
 
 ## 5. Return plain output
 
@@ -108,10 +137,11 @@ The output type and the error types of a handler are plain. They have no brands:
 
 ## Result
 
-Run `npx urn-forge verify`. Gate 1 shows no type errors:
+Run `npx urn-forge verify`. Gate 1 shows no type errors, and gate 2 shows no problems. For the core of tutorial 1, the output starts with these lines:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/1-first-domain/core.ts; `core` satisfies DomainCoreImplementation
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 ```
 
 ## Related pages

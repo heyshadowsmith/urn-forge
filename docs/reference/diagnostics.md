@@ -184,6 +184,15 @@ The messages of `incoherent-constraints`, for each primitive. `<lower>` is `min`
 | `type-error` | `error` | `TS<number>: <TypeScript message>` | TypeScript finds an error in the core or in a file that it imports. A handler that is not there, or a handler with the wrong type, causes this error | Correct the type error |
 | `missing-satisfies` | `error` | `` no export uses `satisfies DomainCoreImplementation` from <runtime file>; declare the core as `export const core = { … } satisfies DomainCoreImplementation;` `` | No export of the core file uses `satisfies` with the generated `DomainCoreImplementation`. These forms count: `export const core = … satisfies …`, a `const` with `satisfies` that `export { core }`, `export { core as other }` or `export default core` exports later, and `export default … satisfies …` | Declare the core with `satisfies DomainCoreImplementation`. Import the type from the generated runtime file |
 
+## Gate 2: boundary discipline
+
+| Code | Severity | Message | Cause | Correction |
+| --- | --- | --- | --- | --- |
+| `brand-assertion` | `error` | `<expression> asserts the branded type <type>; only a generated parser makes a branded value` | A core or shell file has a type assertion (`as T`, `<T>x`) whose target type carries a brand, also inside an object, an array or a union. Example: `'0' as PolicyLimit asserts the branded type PolicyLimit; …`. `as const` and an assertion to a type with no brand are not problems | Parse the value with a generated schema in the shell, or let `executeOperation` parse it |
+| `brand-from-any` | `error` | `<expression> is any where the branded type <type> belongs; parse the value with a generated schema in the shell` | A value of type `any` is assigned, returned, passed or put in a property where the type carries a brand. Example: `JSON.parse(raw) is any where the branded type CustomerCustomerId belongs; …`. `<type>` is the type annotation or the return type as the file writes it. In other places, it is the type as TypeScript writes it | Parse the value with a generated schema in the shell |
+| `suppressed-check` | `error` | `@ts-<ignore \| expect-error \| nocheck> turns off a type check, which could hide a forged brand; correct the type instead` | A core or shell file has a comment that turns off a type check, after `//` or `/*`. The position is the start of the comment | Remove the comment, and correct the type |
+| `core-parser-import` | `error` | `the core imports <module> as a value, which can make branded values; the core receives branded input and returns plain output, so import types only (import type)` | A core file imports the generated schemas module or `valibot` as a value. Example: `the core imports valibot as a value, …`. A shell file can import them | Use `import type`. The core receives branded input from the shell, and returns plain output that the shell parses |
+
 ## Gate 3: Gherkin traceability
 
 | Code | Severity | Message | Cause | Correction |

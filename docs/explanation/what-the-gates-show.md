@@ -12,26 +12,29 @@ Conformance means that the parts agree with the manifest. Correctness means that
 
 ## What each gate shows
 
-`verify` runs gates 1, 3 and 4. urn-forge does not have gate 2 at this time. Gate 5 compares two manifests, so it is the separate command `urn-forge diff`. `verify` says so:
+`verify` runs gates 1, 2, 3 and 4. Gate 5 compares two manifests, so it is the separate command `urn-forge diff`. `verify` says so:
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over self/core.ts; `core` satisfies DomainCoreImplementation
-gate 3  gherkin       PASS  3 feature(s), 18 scenario(s), 3/3 operations tagged, 3/3 errors expected, strict: 3/3 features (boundaryCoverage: error)
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
+gate 3  gherkin       PASS  3 feature(s), 17 scenario(s), 3/3 operations tagged, 2/2 errors expected, strict: 3/3 features (boundaryCoverage: error)
 gate 4  drift         PASS  2 generated file(s) compared byte for byte against self/generated
-verify passed (gates 1, 3, 4; gate 2 is not built; gate 5 is urn-forge diff)
+verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 
 | Gate | It shows | It cannot show |
 | --- | --- | --- |
-| 1. Completeness | Every operation has a handler of the generated type. The core uses `satisfies DomainCoreImplementation`, and the name resolves to the generated file, not to a copy | That a handler computes the correct value. A type assertion can also hide a wrong type from `tsc` |
+| 1. Completeness | Every operation has a handler of the generated type. The core uses `satisfies DomainCoreImplementation`, and the name resolves to the generated file, not to a copy | That a handler computes the correct value. That the types are true: gate 2 examines that |
+| 2. Boundary discipline | No core file and no shell file makes a branded value without a parse. There is no type assertion to a branded type, no `any` where a branded type belongs, and no `@ts-` comment that turns off a check. The core does not import a parser as a value | A forged value from a file that gate 2 does not examine. A wrong value that a parse accepts |
 | 3. Gherkin | Every `@urn:` tag resolves. Every operation has a tagged feature. Table headers are fields. The input table has each required column. Each expected error is declared, and each declared error has a scenario. Each invariant of an operation input has a scenario that breaks it. The boundary values are present | That a scenario passes. That its expected values are correct. That a boundary scenario expects the correct outcome |
 | 4. Drift | Each committed generated file is equal, byte for byte, to a fresh compile. No committed generated file is left without a source | That the manifest is correct |
 | 5. Compatibility (`urn-forge diff`) | No change to a live URN can break a caller that sends it, a caller that receives it, or a row that a table stores | A change of meaning that keeps the schema. A consumer that the manifest and the configuration do not show. That a change that it calls breaking really breaks a consumer |
-| 2. Boundary discipline (not built) | The core does not make a false brand | — |
 
 Some limits need more words:
 
-- **Gate 1 sees the types, not the values.** A handler that returns `ok({ price_cents: 0 })` for every parcel passes gate 1. Without gate 2, a handler can also use `as` to make `tsc` accept a value of the wrong type.
+- **Gate 1 sees the types, not the values.** A handler that returns `ok({ price_cents: 0 })` for every parcel passes gate 1.
+- **Gate 2 sees only the files that it examines.** These are the core entry, the files that it imports in its directory, and the `shell` setting. A helper in a different directory, a library or a test can forge a value, and gate 2 does not see it. A project can add such a directory to `shell`. [The functional core and brands](./functional-core) tells why gate 2 exists.
+- **Gate 2 sees brands, not all types.** An `any` or an assertion that does not touch a brand passes. Gate 2 looks into a type to a depth of four levels, so a brand deeper in a large object is not found. A value of type `unknown` cannot get a brand without an assertion, which gate 2 refuses.
 - **Gate 3 counts values, it does not judge them.** A scenario that sends `-1` to a field with `min: 0` covers the boundary, even if the scenario expects success. The Cucumber run then fails, and that is the correct result. But gate 3 alone does not see the problem. [Boundary coverage and the ratchet](./boundary-coverage) tells more.
 - **Gate 3 does not run the rules.** It sees that a scenario names an invariant in `the input is rejected by`. Only the Cucumber run shows that the rule refuses that input.
 - **Gate 4 trusts the manifest.** If the manifest says that a divisor can be zero, the generated schema accepts zero, and gate 4 agrees.
@@ -55,6 +58,7 @@ The static checks also give a position. Most problems have a file, a line and a 
 A build that passes says that the chain is complete:
 
 - Each operation in the manifest has a handler of the correct type.
+- No core file and no shell file forges a brand.
 - Each operation has scenarios that use real field names and that include the boundary values.
 - Each scenario passes.
 - Nobody edited a generated file.

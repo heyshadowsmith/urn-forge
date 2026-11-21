@@ -33,6 +33,8 @@ export interface UrnForgeConfig {
   readonly features?: string;
   /** verify: the tsconfig for gate 1. Default: `tsconfig.json`. */
   readonly tsconfig?: string;
+  /** verify: the shell's files and directories, which gate 2 checks besides the core. Default: none. */
+  readonly shell?: readonly string[];
   /**
    * verify: whether gate 3's coverage gaps (boundaries and declared errors) are warnings or
    * errors. Default: `warn`. A feature tagged `@urn-forge:strict` makes its operations' gaps
@@ -62,6 +64,7 @@ const ConfigSchema = v.strictObject({
   core: v.optional(Path),
   features: v.optional(Path),
   tsconfig: v.optional(Path),
+  shell: v.optional(v.array(Path)),
   boundaryCoverage: v.optional(v.picklist(['warn', 'error'])),
   referenceDate: v.optional(v.pipe(v.string(), v.check((value: string) => isCalendarDate(value), 'must be a date YYYY-MM-DD'))),
   // No plugin would write no file, and gate 1 would then fail on a missing runtime. An item

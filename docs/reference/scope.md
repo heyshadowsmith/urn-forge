@@ -4,7 +4,7 @@ This page compares urn-forge 0.1.0 with [specification v1.1](../project/spec-v1-
 
 ## Summary
 
-urn-forge 0.1.0 has the full traceability chain for the six kinds of atom of the specification: the manifest, the IR, the generated contracts, the Gherkin checks and the drift check. It also has the lifecycle of each atom and the compatibility check, `urn-forge diff`. It does not have the kinds, primitives, plugins, gates and commands that only make the product larger.
+urn-forge 0.1.0 has the full traceability chain for the six kinds of atom of the specification: the manifest, the IR, the generated contracts, the Gherkin checks and the drift check. It also has the lifecycle of each atom and the compatibility check, `urn-forge diff`. It has the five gates of the specification: gates 1 to 4 in `verify`, and gate 5 as `urn-forge diff`. It does not have the kinds, primitives, plugins and commands that only make the product larger.
 
 ## URNs and versions (§3)
 
@@ -76,7 +76,7 @@ Refer to [Compiler passes](./compiler-passes).
 | FCIS plugin (§7.2) | `Result` with events, `ok`, `emit` and `fail`, a handler type for each operation that accepts only its events, `DomainCoreImplementation`, `DispatchMap`, `executeOperation` with `UnknownOperation`, `InputRejected`, `DomainError` and `ContractViolation`. The parsed events of a success, and the `recordAs` event of a declared error as `record`. The invariant URN on each issue of an invariant | — |
 | Gherkin plugin (§7.3) | A generic step library in `urn-forge/cucumber`, in place of generated code | `domain.cucumber.generated.ts`, `defineParameterType` for each field, `urn-forge.lint.json` |
 | Postgres plugin (§7.4) | `schema.generated.sql` with `CREATE` statements for Postgres 14 or later. Nothing for an operation, an event or an error. The plugin is not in the default list. Its option `tables` names the entities that become tables, and `unenforced` sets the severity of `unenforced-in-sql`. A schema for each context. A domain for each stored field, with one `CHECK` for all its constraints. A root table for each entity in `tables`, with its `key` as the primary key. A child table for each list and each embedded entity. A foreign key for each link to a root table. `UNIQUE` for a unique list. A deferred constraint trigger for each count. A named `CHECK` for each invariant. `COMMENT ON` with the URNs. The codes `unenforced-in-sql` and `invalid-sql-name` | A table for each entity with a `key`. `ck_<brand>` checks on each table. The option `listStorage` and `JSONB` lists. `nullable`. `VARCHAR(n)`, `UUID` and `NUMERIC(p, s)` columns. Migrations, code that reads and writes rows, indexes other than keys and `UNIQUE`, and databases other than Postgres. An event store, an outbox table or a publisher of events |
-| Config (§7.5) | `manifest`, `out`, `plugins`, `referenceDate`. Also `core`, `features`, `tsconfig` and `boundaryCoverage`. `defineConfig` from `urn-forge` and from `urn-forge/config` | `boundaryCoverage` is a top-level setting, not a setting of a `gherkin` plugin. `listStorage` in the configuration of `postgres` |
+| Config (§7.5) | `manifest`, `out`, `plugins`, `referenceDate`. Also `core`, `features`, `tsconfig`, `shell` and `boundaryCoverage`. `defineConfig` from `urn-forge` and from `urn-forge/config` | `boundaryCoverage` is a top-level setting, not a setting of a `gherkin` plugin. `listStorage` in the configuration of `postgres` |
 
 For the generated code, refer to [The generated schemas](./generated-schemas), [The generated runtime](./generated-runtime) and [The Postgres schema](./postgres-schema).
 
@@ -85,7 +85,7 @@ For the generated code, refer to [The generated schemas](./generated-schemas), [
 | Gate | urn-forge 0.1.0 has | urn-forge 0.1.0 does not have at this time |
 | --- | --- | --- |
 | 1. Implementation completeness | `tsc` over the core entry, and a check for `satisfies DomainCoreImplementation` | — |
-| 2. Boundary discipline | — | The ESLint profile `urn-forge/eslint-config` and the rule `no-brand-construction` |
+| 2. Boundary discipline | The gate `boundary` in `verify`, on the TypeScript program of gate 1. Four rules about brands: `brand-assertion`, `brand-from-any`, `suppressed-check`, and `core-parser-import` for core files only. The core files: the core entry and the files that it imports in its directory. The shell files: the `shell` setting | The ESLint profile `urn-forge/eslint-config`, typescript-eslint and the rule `no-brand-construction`. Rules about `any` and type assertions that do not touch a brand. A waiver for gate 2. An ESLint configuration from `urn-forge init` |
 | 3. Gherkin traceability | Tags, table headers, a column for each mandatory input field, list and object cells (`invalid-cell`), declared errors in steps, error coverage, events in steps and event coverage, input invariants in steps and invariant coverage (also of embedded entities), boundary coverage of each constraint at any depth and of the item count and `unique` of a list, `@urn-forge:strict`, `boundaryCoverage`, the `ratchet-ready` note, waivers, strict and non-strict counts | A waiver as the tag `@urn-forge:waive(<field URN>, <reason>)`: urn-forge uses the comment `# urn-forge:waive <field URN> <reason>` |
 | 4. Drift | A byte comparison with a new compile, and generated files with no source (`generated-orphan`) | — |
 | 5. Compatibility | The command `urn-forge diff <old> <new>`, apart from `verify`. The CI job `compatibility` of this repository runs it against the base branch | Gate 5 inside `verify`, with `--base` |
@@ -144,6 +144,10 @@ urn-forge 0.1.0 changes these parts of the specification:
 | `IREvent` | The shape of `IREntity` | The shape of `IREntity` without `key` |
 | The removal of a sunset atom | Not specified | Breaking: a sunset atom stays as a tombstone |
 | Gate 5 | `verify --base <git-ref>` | The separate command `urn-forge diff <old> <new>` |
+| Gate 2: the tool | The ESLint profile `urn-forge/eslint-config`, with typescript-eslint and the rule `no-brand-construction` | Four rules of urn-forge on the TypeScript checker of gate 1, in `verify`. No ESLint |
+| Gate 2: the rules | No `any`, no type assertion and no `@ts-` comment in a core or shell file. No import of the `brand` of Valibot or of the generated schemas in the core directory | No `any` where a branded type belongs (`brand-from-any`). No type assertion to a branded type (`brand-assertion`). No `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` (`suppressed-check`). No value import of the generated schemas or of `valibot` in a core file (`core-parser-import`) |
+| Gate 2: the files | The configured core and shell paths | The core entry and the files that it imports in its directory, and the `shell` setting |
+| `urn-forge init` | Writes an ESLint configuration | Writes no ESLint configuration |
 | `Lifecycle` in the IR | On each node | Only on a node whose `status` is not `active` |
 | `supersededBy` | A URN | A short key |
 | No reference date | Sunset checks are warnings | Sunset dates are not compared, and `verify` says so |

@@ -36,9 +36,10 @@ All settings are optional. The configuration object cannot have other properties
 | --- | --- | --- | --- | --- |
 | `manifest` | `string`, not empty | `domain.manifest.yaml` | `--manifest` | `compile` and `verify` |
 | `out` | `string`, not empty | `src/generated` | `--out` | `compile` and `verify` |
-| `core` | `string`, not empty | `src/core.ts` | `--core` | `verify` (gate 1) |
+| `core` | `string`, not empty | `src/core.ts` | `--core` | `verify` (gates 1 and 2) |
 | `features` | `string`, not empty | `features` | `--features` | `verify` (gate 3) |
-| `tsconfig` | `string`, not empty | `tsconfig.json` | `--tsconfig` | `verify` (gate 1) |
+| `tsconfig` | `string`, not empty | `tsconfig.json` | `--tsconfig` | `verify` (gates 1 and 2) |
+| `shell` | An array of `string`, each not empty | None: no shell files | None | `verify` (gate 2) |
 | `boundaryCoverage` | `'warn'` or `'error'` | `'warn'` | None | `verify` (gate 3) |
 | `referenceDate` | A date `'YYYY-MM-DD'` | None | `--reference-date` | `compile` and `verify` (pass 8) |
 | `plugins` | An array of plugin entries | `['valibot', 'fcis']`, each with `{}` | None | `compile` and `verify` (gate 4). `diff` reads the `tables` of `postgres` |
@@ -53,7 +54,7 @@ The directory of the generated files. `compile` writes the files in this directo
 
 ### `core`
 
-The core entry file. One export of this file must use `satisfies DomainCoreImplementation`. Gate 1 type-checks this file.
+The core entry file. One export of this file must use `satisfies DomainCoreImplementation`. Gate 1 type-checks this file. Gate 2 examines this file and the files that it imports in its directory.
 
 ### `features`
 
@@ -61,7 +62,24 @@ The directory of the `.feature` files. Gate 3 reads this directory and its subdi
 
 ### `tsconfig`
 
-The TypeScript configuration file. Gate 1 uses its compiler options for the type check.
+The TypeScript configuration file. Gate 1 uses its compiler options for the type check. Gate 2 uses the same program.
+
+### `shell`
+
+The files and directories of the shell. Gate 2 examines them with three of its rules, in addition to the core files. Each item is a file or a directory. For a directory, gate 2 examines each `.ts`, `.tsx`, `.mts` and `.cts` file in it and in its subdirectories.
+
+Gate 2 does not examine these files as shell files:
+
+- A core file. Gate 2 examines it as a core file.
+- A file in the `out` directory.
+- A declaration file (`.d.ts`).
+- A file in a `node_modules` directory, or in a directory whose name starts with `.`.
+
+An item that is not there adds no file and causes no error. An empty string causes `config-invalid`. There is no command-line option for this setting. For the rules, refer to [Verification gates](./verification-gates).
+
+```ts
+shell: ['./src/shell', './src/server.ts']
+```
 
 ### `boundaryCoverage`
 
@@ -153,7 +171,8 @@ urn-forge reports these errors against the configuration file. Each error stops 
 | The file has no default export | `config-invalid` | ``config: the file must `export default` the config`` |
 | The default export is not an object | `config-invalid` | `config: Invalid type: Expected Object but received 5` |
 | An unknown setting | `config-invalid` | `config.foo: unknown option "foo"` |
-| A path setting that is an empty string | `config-invalid` | `config.core: must not be empty` |
+| A path setting that is an empty string | `config-invalid` | `config.core: must not be empty`<br>`config.shell[0]: must not be empty` |
+| A `shell` that is not an array | `config-invalid` | `config.shell: Invalid type: Expected Array but received "./shell"` |
 | A value of the incorrect type | `config-invalid` | `config.boundaryCoverage: Invalid type: Expected ("warn" \| "error") but received "strict"` |
 | A `referenceDate` that is not a day of the calendar | `config-invalid` | `config.referenceDate: must be a date YYYY-MM-DD` |
 | An unknown plugin | `config-invalid` | `config.plugins[1]: unknown plugin "mysql" (plugins: valibot, fcis, postgres)` |

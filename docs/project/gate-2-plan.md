@@ -63,23 +63,28 @@ Step 0 writes `tests/gate-2/`: one small project per rule (a manifest, a generat
 
 One PR (decision 11), one commit per step. Each step leaves the repository green and ends with a check.
 
-- [ ] **0. The target.** As above. *Check:* `verify` passes on every case, because no gate 2 exists yet.
-- [ ] **1. The gate.** The file sets, the brand test, the four rules, the codes, the summary, `shell` in the config. *Check:* each case of `tests/gate-2/` gives exactly its code; the clean case passes; every core of the repository passes.
-- [ ] **2. Ship.** The docs; the starter's config names its shell, if it has one. *Check:* CI green; every sabotage below fails.
+- [x] **0. The target.** As above. *Check:* `verify` passes on every case, because no gate 2 exists yet.
+  - *Done.* Each case is a fragment that the test adds to a copy of insurance's core, or a shell file, so a case is a few lines. The check was met: with gate 1 only, all ten cases passed, so each forgery was unseen. The fragments are excluded from the package's own tsconfig, because they type-check only inside the copy.
+- [x] **1. The gate.** The file sets, the brand test, the four rules, the codes, the summary, `shell` in the config. *Check:* each case of `tests/gate-2/` gives exactly its code; the clean case passes; every core of the repository passes.
+  - *Done.* The check was met: each case gives exactly its code, at the line of the forgery, and the clean case none. The cores of insurance, self, the example and the three tutorials pass, and so does the starter of `urn-forge init` in the tarball test. Gate 1 keeps its program for the run (`programFor`), and gate 2 builds on it, so the core files are parsed once. The first messages printed the expanded type (`string & Brand<"urn:…">`, or a whole object); they now name the type as the code writes it (`PolicyLimit`). A test runs `verify` through the CLI with `shell` in a config.
+- [x] **2. Ship.** The docs; the starter's config names its shell, if it has one. *Check:* CI green; every sabotage below fails.
+  - *Done.* Every quoted `verify` output in the docs now has the gate 2 line and the summary `gates 1, 2, 3, 4; gate 5 is urn-forge diff`. The docs writers found two faults, each fixed with a test: an `any` in an object property was reported twice (also at the property name), and a `@ts-ignore` inside a string counted as a suppression; the gate now reads comments only. They also noted that gate 2 shows PASS when gate 1 cannot build the program; gate 1 fails the run then, so this stays.
 
 ## Done
 
-| Sabotage | What catches it |
-| --- | --- |
-| `'0' as PolicyLimit` in a core | `brand-assertion` |
-| `x as unknown as CustomerCustomerId` | `brand-assertion` |
-| `{ … } as PolicyPolicy`, an object with branded fields | `brand-assertion` |
-| `const id: CustomerCustomerId = JSON.parse(raw)` | `brand-from-any` |
-| A handler that returns an `any` as its branded input type | `brand-from-any` |
-| `// @ts-expect-error` above a mistyped handler | `suppressed-check` |
-| `import { PolicyLimitSchema } from './generated/…'` in a core | `core-parser-import` |
-| The same import in a shell file | Nothing: the shell may parse |
-| `as const`, and `as HTMLInputElement` in a shell | Nothing: no brand |
+| Sabotage | What catches it | Result |
+| --- | --- | --- |
+| `'0' as PolicyLimit` in a core | `brand-assertion` | Caught (case `assertion`) |
+| `x as unknown as CustomerCustomerId` | `brand-assertion` | Caught (case `double-assertion`) |
+| `{ … } as PolicyPolicy`, an object with branded fields | `brand-assertion` | Caught (case `object-assertion`) |
+| `const id: CustomerCustomerId = JSON.parse(raw)` | `brand-from-any` | Caught (case `from-any`) |
+| A handler that returns an `any` as its branded input type | `brand-from-any` | Caught as a function typed `PolicyPremium` that returns `JSON.parse(raw)` (case `return-any`) |
+| `// @ts-expect-error` above a mistyped handler | `suppressed-check` | Caught, above a mistyped constant (case `suppressed`) |
+| `import { PolicyLimitSchema } from './generated/…'` in a core | `core-parser-import` | Caught (case `core-imports-parser`; also `valibot`, case `core-imports-valibot`) |
+| The same import in a shell file | Nothing: the shell may parse | Met (case `clean`) |
+| `as const`, and `as HTMLInputElement` in a shell | Nothing: no brand | Met with `as const` and `as Record<string, unknown>` (case `clean`): the package's tsconfig has no DOM types |
+
+**Met.**
 
 ## Risks
 

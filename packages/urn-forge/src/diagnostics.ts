@@ -72,6 +72,11 @@ export const DIAGNOSTIC_CODES = {
   'core-not-found': 'The core entry file does not exist',
   'type-error': 'The TypeScript compiler reports an error',
   'missing-satisfies': 'No core export satisfies the generated DomainCoreImplementation',
+  // Gate 2: boundary discipline
+  'brand-assertion': 'A type assertion makes a branded type without a parse',
+  'brand-from-any': 'A value of type any is used where a branded type belongs',
+  'suppressed-check': 'A @ts-ignore, @ts-expect-error or @ts-nocheck comment turns off a type check in a core or shell file',
+  'core-parser-import': 'A core file imports the generated schemas or valibot as a value',
   // Gate 3: Gherkin traceability
   'features-unreadable': 'The features directory cannot be read',
   'feature-parse-error': 'A feature file is not valid Gherkin',
