@@ -29,7 +29,7 @@ export {
 } from './diagnostics.js';
 
 // The IR
-export type { IREntity, IRField, IRFieldRef, IROperation, UniversalIR, Urn } from './ir/types.js';
+export type { ErrorCategory, IREntity, IRError, IRField, IRFieldRef, IROperation, MessagePart, UniversalIR, Urn } from './ir/types.js';
 
 // Plugins
 export { DEFAULT_PLUGINS, PLUGINS, type PluginName } from './plugins/index.js';
