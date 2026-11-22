@@ -1,0 +1,85 @@
+# Totals over list items and exact products (lists.test.ts).
+manifest:
+  namespace: demo
+  domain: sums
+  version: 1.0.0
+
+claim.field.claim_id:
+  primitive: string
+  regex: 'CLM-[0-9]{4}'
+  description: The id of a claim
+claim.field.amount:
+  primitive: decimal
+  scale: 2
+  min: '0.01'
+  description: The amount of one line
+claim.field.total:
+  primitive: decimal
+  scale: 2
+  min: '0.00'
+  description: The total of a claim
+claim.field.note:
+  primitive: string
+  description: A note on a line
+claim.entity.line:
+  description: One line of a claim
+  fields:
+    - ref: claim.field.amount
+    - ref: claim.field.note
+      required: false
+claim.entity.claim:
+  description: A claim with lines and a total
+  key: claim.field.claim_id
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.total
+    - ref: claim.entity.line
+      as: lines
+      many: { minItems: 1, maxItems: 50 }
+claim.invariant.total_is_sum:
+  description: The total of a claim is the sum of its lines
+  on: claim.entity.claim
+  rule: 'total = sum(line in lines: line.amount)'
+  message: The total must be the sum of the line amounts
+claim.operation.create_claim:
+  description: Create a claim
+  input: claim.entity.claim
+  output: claim.entity.claim
+
+payment.field.amount:
+  primitive: decimal
+  scale: 2
+  min: '0.01'
+  description: An amount
+payment.field.quantity:
+  primitive: integer
+  min: 1
+  description: How many of an item
+payment.field.unit_amount:
+  primitive: decimal
+  scale: 2
+  min: '0.00'
+  description: The price of one item
+payment.entity.item:
+  description: One item of a payment
+  fields:
+    - ref: payment.field.quantity
+    - ref: payment.field.unit_amount
+payment.entity.request:
+  description: A payment, with its items when it has them
+  fields:
+    - ref: payment.field.amount
+    - ref: payment.entity.item
+      as: line_items
+      required: false
+      many: { minItems: 1, maxItems: 100 }
+payment.invariant.amount_is_sum:
+  description: The amount of a payment with items is the sum of quantity times unit amount
+  on: payment.entity.request
+  rule: 'line_items is absent or amount = sum(item in line_items: item.quantity * item.unit_amount)'
+  message: The amount must be the sum of quantity times unit amount
+payment.operation.create_payment:
+  description: Create a payment
+  input: payment.entity.request
+  output: payment.entity.request
+

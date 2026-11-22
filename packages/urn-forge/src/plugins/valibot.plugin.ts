@@ -243,13 +243,19 @@ function conditionDeclarations(ir: UniversalIR): string[] {
 function conditionPrimitives(op: IROperation, ir: UniversalIR) {
   const entities: Record<string, IREntity> = { input: ir.entities[op.input]!, output: ir.entities[op.output]!, ...(op.changes ? { current: ir.entities[op.changes.entity]! } : {}) };
   return (name: string) => {
-    const [prefix, property] = name.split('.') as [string, string];
-    return primitiveIn(entities[prefix]!, ir)(property);
+    const dot = name.indexOf('.');
+    return primitiveIn(entities[name.slice(0, dot)]!, ir)(name.slice(dot + 1));
   };
 }
 
-function primitiveIn(entity: IREntity, ir: UniversalIR) {
-  return (name: string) => ir.fields[valueField(ir, entity.fields.find((f) => f.name === name)!)!]!.primitive;
+/** The primitive of a property of an entity, or of a path into the items of a list of entities (`lines.amount`). */
+function primitiveIn(entity: IREntity, ir: UniversalIR): (name: string) => Primitive {
+  return (name: string) => {
+    const dot = name.indexOf('.');
+    const ref = entity.fields.find((f) => f.name === (dot < 0 ? name : name.slice(0, dot)))!;
+    if (dot >= 0 && 'entity' in ref) return primitiveIn(ir.entities[ref.entity]!, ir)(name.slice(dot + 1));
+    return ir.fields[valueField(ir, ref)!]!.primitive;
+  };
 }
 
 /** Entities in URN order, except that an entity comes after each entity it embeds. */

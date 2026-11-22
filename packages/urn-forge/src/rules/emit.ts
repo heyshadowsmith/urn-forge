@@ -5,7 +5,7 @@
  * The rule has passed pass 6, so every field exists and both sides of each operator agree.
  */
 import type { Primitive } from '../primitives/index.js';
-import { hasDateArithmetic, valueType, type RuleExpr } from './index.js';
+import { hasDateArithmetic, itemPrimitives, valueType, type RuleExpr } from './index.js';
 
 export interface EmittedRule {
   readonly code: string;
@@ -26,8 +26,13 @@ const PLAIN_TYPE: { readonly [P in Primitive]: string } = {
 
 const JS_OPERATOR: Readonly<Record<string, string>> = { '=': '===', '!=': '!==', '<': '<', '<=': '<=', '>': '>', '>=': '>=' };
 
-export function emitRule(rule: RuleExpr, primitiveOf: (field: string) => Primitive): EmittedRule {
+export function emitRule(rule: RuleExpr, outerPrimitiveOf: (field: string) => Primitive): EmittedRule {
   const helpers = new Set<'decimal' | 'decimalArithmetic' | 'days'>();
+  // Inside a sum, the item's names: a local variable, and the primitives of the list's items.
+  let primitiveOf = outerPrimitiveOf;
+  const bound = new Set<string>();
+  /** A name in the code: a property of p, or of the item of an enclosing sum. */
+  const ref = (name: string) => (bound.has(name.split('.')[0]!) ? name : `p.${name}`);
 
   /** The primitive of a value: a field's or an arithmetic's; undefined for a literal. */
   const typeOf = (e: RuleExpr): Primitive | undefined => valueType(e, primitiveOf);
@@ -37,7 +42,7 @@ export function emitRule(rule: RuleExpr, primitiveOf: (field: string) => Primiti
     helpers.add('days');
     switch (e.op) {
       case 'field':
-        return `epochDay((p.${e.name} as string))`;
+        return `epochDay((${ref(e.name)} as string))`;
       case 'text':
         return `epochDay(${JSON.stringify(e.value)})`;
       case '+':
@@ -53,7 +58,7 @@ export function emitRule(rule: RuleExpr, primitiveOf: (field: string) => Primiti
       case 'field':
         // Two fields carry different brands, and TypeScript does not compare two brands.
         // The rule has passed pass 6, so the plain type of the primitive is correct here.
-        return `(p.${e.name} as ${PLAIN_TYPE[primitive]})`;
+        return `(${ref(e.name)} as ${PLAIN_TYPE[primitive]})`;
       case 'number':
         return primitive === 'decimal' ? JSON.stringify(e.value) : e.value;
       case 'text':
@@ -69,6 +74,31 @@ export function emitRule(rule: RuleExpr, primitiveOf: (field: string) => Primiti
           return `${e.op === '+' ? 'addDecimal' : 'subtractDecimal'}(${value(e.left, primitive)}, ${value(e.right, primitive)})`;
         }
         return `(${value(e.left, primitive)} ${e.op} ${value(e.right, primitive)})`;
+      case '*': {
+        // An integer times an integer, or an integer times a decimal: exact.
+        if (primitive === 'integer') return `(${value(e.left, 'integer')} * ${value(e.right, 'integer')})`;
+        helpers.add('decimalArithmetic');
+        const side = (x: RuleExpr) => {
+          const own = x.op === 'number' ? (x.value.includes('.') ? 'decimal' : 'integer') : typeOf(x);
+          return own === 'integer' ? `String(${value(x, 'integer')})` : value(x, 'decimal');
+        };
+        return `multiplyDecimal(${side(e.left)}, ${side(e.right)})`;
+      }
+      case 'sum': {
+        // The total over the items; an absent list adds up to 0.
+        const list = `((${ref(e.list)} ?? []) as readonly any[])`;
+        const outer = primitiveOf;
+        primitiveOf = itemPrimitives(e, outer);
+        bound.add(e.item);
+        const item = value(e.value, primitive);
+        bound.delete(e.item);
+        primitiveOf = outer;
+        if (primitive === 'decimal') {
+          helpers.add('decimalArithmetic');
+          return `${list}.reduce((total: string, ${e.item}) => addDecimal(total, ${item}), '0')`;
+        }
+        return `${list}.reduce((total: number, ${e.item}) => total + ${item}, 0)`;
+      }
       default:
         throw new Error(`internal error: ${e.op} is not a value`);
     }
@@ -77,9 +107,9 @@ export function emitRule(rule: RuleExpr, primitiveOf: (field: string) => Primiti
   const condition = (e: RuleExpr): string => {
     switch (e.op) {
       case 'present':
-        return `p.${e.field} !== undefined`;
+        return `${ref(e.field)} !== undefined`;
       case 'absent':
-        return `p.${e.field} === undefined`;
+        return `${ref(e.field)} === undefined`;
       case 'not':
         return `!(${condition(e.operand)})`;
       case 'and':

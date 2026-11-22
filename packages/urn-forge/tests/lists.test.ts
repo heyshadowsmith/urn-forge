@@ -51,10 +51,6 @@ describe('sum and *', () => {
     expect(parse('PaymentRequestSchema', { amount: '9.99' }).success).toBe(true);
   });
 
-  target.sum('mark a rule with sum as not enforced in SQL', () => {
-    const result = compile(source, [{ plugin: PLUGINS.valibot, config: {} }, { plugin: PLUGINS.fcis, config: {} }, { plugin: PLUGINS.postgres, config: { tables: ['claim.entity.claim', 'reservation.entity.request'] } }]);
-    expect(result.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'unenforced-in-sql' })]));
-  });
 });
 
 describe('unique by several properties', () => {
@@ -91,5 +87,32 @@ describe('equality of embedded entities', () => {
       kind: 'ContractViolation',
       issues: [{ message: `the handler for ${CHANGE} answered a value that breaks ensures: input.proration != 'at_period_end' or output.plan = current.plan` }],
     });
+  });
+});
+
+describe('sum and * in the generated schemas (fixture: sums)', async () => {
+  const sums = await import('./fixtures/sums/expected/domain.schemas.generated.js');
+  const claim = (total: string, ...amounts: string[]) => ({ claim_id: 'CLM-0001', total, lines: amounts.map((amount) => ({ amount })) });
+
+  it('accept a total that is the exact sum of the lines, and refuse another', () => {
+    expect(v.safeParse(sums.ClaimClaimSchema, claim('0.30', '0.10', '0.20')).success).toBe(true);
+    const refused = v.safeParse(sums.ClaimClaimSchema, claim('0.31', '0.10', '0.20'));
+    expect(refused.success).toBe(false);
+    expect(refused.issues?.[0]?.message).toBe('The total must be the sum of the line amounts');
+  });
+
+  it('multiply a quantity by a unit amount exactly, add the products, and skip an absent list', () => {
+    const items = [{ quantity: 2, unit_amount: '1.25' }, { quantity: 3, unit_amount: '0.10' }];
+    expect(v.safeParse(sums.PaymentRequestSchema, { amount: '2.80', line_items: items }).success).toBe(true);
+    expect(v.safeParse(sums.PaymentRequestSchema, { amount: '2.81', line_items: items }).success).toBe(false);
+    expect(v.safeParse(sums.PaymentRequestSchema, { amount: '9.99' }).success).toBe(true);
+  });
+
+  it('mark the rule with a sum as not enforced in SQL', () => {
+    const result = compile(readFileSync(new URL('./fixtures/sums/domain.manifest.yaml', import.meta.url), 'utf8'), [
+      { plugin: PLUGINS.valibot, config: {} },
+      { plugin: PLUGINS.postgres, config: { tables: ['claim.entity.claim'] } },
+    ]);
+    expect(result.diagnostics.map((d) => [d.code, d.urn])).toEqual([['unenforced-in-sql', 'urn:demo:sums:claim:invariant:total_is_sum']]);
   });
 });
