@@ -1,0 +1,12 @@
+[
+  {
+    "code": "invalid-value",
+    "location": {
+      "column": 13,
+      "line": 115
+    },
+    "message": "reservation.entity.request.fields.1.many: must be true or { minItems, maxItems, unique }",
+    "severity": "error",
+    "urn": "urn:demo:lists:reservation:entity:request"
+  }
+]
