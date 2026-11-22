@@ -46,7 +46,7 @@ export function answersSql(ir: UniversalIR): string[] {
 
 /** The import of the store file for runOnce. */
 export function answersImports(): string {
-  return `import { createHash } from 'node:crypto';\nimport { idempotencyConflict, idempotencyOf, type ExecuteResult } from './${FCIS_RUNTIME_FILE.replace(/\.ts$/, '.js')}';`;
+  return `import { createHash } from 'node:crypto';\nimport { idempotencyOf, type ExecuteOptions, type ExecuteResult } from './${FCIS_RUNTIME_FILE.replace(/\.ts$/, '.js')}';`;
 }
 
 /** The answers part of the store file: runOnce. */
@@ -58,26 +58,31 @@ export type Query = (statement: Statement) => Promise<{ readonly rows: readonly 
 
 /**
  * Runs a call of an operation at most once for each key in its window. Call it in the transaction
- * of the call, with the same \\\`query\\\`; \\\`execute\\\` calls executeOperation.
+ * of the call, with the same \\\`query\\\`; \\\`execute\\\` calls executeOperation with the \\\`repeat\\\` it gets.
  *
- * - The same key, owners and body in the window: the first answer, and \\\`execute\\\` does not run.
+ * - The same key, owners and body in the window: executeOperation gives the first answer, once the
+ *   caller may call; the state and the handler do not run.
  * - The same key with another body: the declared \\\`otherwise\\\` error, or the first answer without one.
- * - Else \\\`execute\\\` runs, and a success is stored. A refusal is not.
+ * - Else the call runs, and a success is stored. A refusal is not.
  *
  * A repeat that runs while the first call is in its transaction fails on the primary key: roll
  * back, and retry; the retry finds the first answer.
  */
-export async function runOnce(query: Query, urn: string, payload: unknown, options: { readonly caller?: unknown; readonly now: string }, execute: () => ExecuteResult): Promise<ExecuteResult> {
+export async function runOnce(
+  query: Query,
+  urn: string,
+  payload: unknown,
+  options: { readonly caller?: unknown; readonly now: string },
+  execute: (repeat?: ExecuteOptions['repeat']) => ExecuteResult,
+): Promise<ExecuteResult> {
   const call = idempotencyOf(urn, payload, options);
   if (!call) return execute();
   const hash = createHash('sha256').update(call.body).digest('hex');
   const since = new Date(Date.parse(options.now) - call.windowMs).toISOString();
   const key = [urn, call.scope, call.key];
   const found = (await query({ text: 'SELECT "body_hash", "answer" FROM ${table} WHERE "operation" = $1 AND "scope" = $2 AND "key" = $3 AND "created_at" > $4', values: [...key, since] })).rows[0];
-  if (found) {
-    const first = { ok: true, urn, output: found['answer'], events: [] } as unknown as ExecuteResult;
-    return found['body_hash'] === hash ? first : (idempotencyConflict(urn, payload) ?? first);
-  }
+  // A repeat: the runtime answers it once the caller may call, and stores nothing.
+  if (found) return execute(found['body_hash'] !== hash && call.refusesOtherBody ? { conflict: true } : { output: found['answer'] });
   const result = execute();
   if (result.ok) {
     // An answer older than the window frees its key; an answer in the window stays, and the insert fails on it.

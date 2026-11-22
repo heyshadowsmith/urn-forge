@@ -45,12 +45,12 @@ urn:demo:idempotency:payment:operation:create_payment: idempotency.key: "input.a
 
 ## 2. Call runOnce in the shell
 
-The schema has the table `"idempotency"."<domain>"`, and the store file has `runOnce`. Call it in the transaction of the call, with the query function of your driver, and give it the call of `executeOperation`:
+The schema has the table `"idempotency"."<domain>"`, and the store file has `runOnce`. Call it in the transaction of the call, with the query function of your driver, and give it the call of `executeOperation` with the `repeat` that it passes:
 
 ```ts
 await db.transaction(async (tx) => {
   const query = (s: Statement) => tx.query(s.text, s.values);
-  const result = await runOnce(query, urn, body, { caller, now }, () => executeOperation(urn, body, core, { caller, now, newEventId }));
+  const result = await runOnce(query, urn, body, { caller, now }, (repeat) => executeOperation(urn, body, core, { caller, now, newEventId, repeat }));
   if (result.ok && result.events.length > 0) for (const s of insertEvents(result.events)) await query(s);
 });
 ```
@@ -59,27 +59,30 @@ What `runOnce` does:
 
 | The call | The result |
 | --- | --- |
-| A key, owners and body that it has an answer for, in the window | The first answer, with no events. `executeOperation` does not run |
-| The same key and owners with another body, in the window | The `otherwise` error, or the first answer when there is none |
+| A key, owners and body that it has an answer for, in the window | The first answer, with no events. `executeOperation` gives it once the caller may call; the state and the handler do not run |
+| The same key and owners with another body, in the window | The `otherwise` error, or the first answer when there is none, also once the caller may call |
 | Any other call | `executeOperation` runs. A success is stored with the time `now`; a refusal is not |
 
+- A caller that `callers` refuses gets its refusal, not the first answer: a key does not open a call to another caller.
 - The body is the parsed input, as JSON with sorted properties. Two bodies that parse to one value are one body.
 - The operation, the owners and the key are the primary key. A repeat that runs while the first call is in its transaction fails on it: roll back and retry, and the retry finds the first answer.
 - The table keeps old answers. Delete the rows older than the window when you want.
 
 ## 3. Write the scenarios
 
-1. In `features/support/steps.ts`, give the steps the helpers of the runtime. The steps then keep the answers of a scenario with the rules of `runOnce`:
+1. In `features/support/steps.ts`, give the steps the helper of the runtime. The steps then keep the answers of a scenario with the rules of `runOnce`, and pass a repeat to `execute` as `repeat`:
 
    ```ts
-   import { DispatchMap, executeOperation, idempotencyConflict, idempotencyOf } from '../../src/generated/domain.runtime.generated';
+   import { DispatchMap, executeOperation, idempotencyOf } from '../../src/generated/domain.runtime.generated';
 
    registerOperationSteps({
      dispatch: DispatchMap,
      execute: (urn, payload, options) => executeOperation(urn, payload, core, options),
-     idempotency: { idempotencyOf, idempotencyConflict },
+     idempotency: { idempotencyOf },
    });
    ```
+
+   To show the window, change the time between the two runs with `And the time is "<timestamp>"`.
 
 2. Repeat the call with `When I run the operation again with:`, and check it with `Then the answer is the first answer`:
 

@@ -39,7 +39,7 @@ async function answers(): Promise<{ db: PGlite; query: (s: { text: string; value
   return { db, query: async ({ text, values }) => (await db.query(text, values as unknown[])) as { rows: Record<string, unknown>[] } };
 }
 const once = (query: unknown, urn: string, body: unknown, now: string, caller: unknown = merchant) =>
-  store.runOnce(query, urn, body, { caller, now }, () => runtime.executeOperation(urn, body, core, { caller }));
+  store.runOnce(query, urn, body, { caller, now }, (repeat: unknown) => runtime.executeOperation(urn, body, core, { caller, ...(repeat ? { repeat } : {}) }));
 
 describe('the idempotency target compiles', () => {
   it('with no diagnostics, and the IR holds the key, its owners, the window and the conflict', () => {
@@ -113,6 +113,17 @@ describe('runOnce of the idempotency target, on PGlite', () => {
     await once(query, CREATE, { amount: 500 }, '2026-11-22T10:00:02Z');
     await once(query, CREATE, { amount: 500 }, '2026-11-22T10:00:03Z');
     expect(payments).toBe(before + 2);
+  });
+
+  it('gives a repeat only to a caller that may call: another caller gets its refusal, not the first answer', async () => {
+    const { query } = await answers();
+    const refund = { idempotency_key: 'key-0003', payment_id: 'pay_00000001', amount: 100 };
+    expect(await once(query, REFUND, refund, '2026-11-22T10:00:00Z')).toMatchObject({ ok: true });
+    expect(await once(query, REFUND, refund, '2026-11-22T10:00:01Z', { merchant_id: 'mer_zzz999' })).toMatchObject({
+      ok: false,
+      kind: 'DomainError',
+      error: { urn: 'urn:demo:idempotency:payment:error:forbidden' },
+    });
   });
 
   it('refuses a second answer for one key in the window: the primary key', async () => {

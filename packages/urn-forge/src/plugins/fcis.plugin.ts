@@ -131,10 +131,16 @@ function canonical(value: unknown): string {
 
 /**
  * The key of a call of an operation with idempotency: the values that own the key (as JSON),
- * the key, and the parsed input as canonical JSON. Undefined when the operation has none, or the
- * call has no key or an input that does not parse: then the call runs as any call.
+ * the key, the parsed input as canonical JSON, and whether another body is refused. Undefined when
+ * the operation has none, or the call has no key or an input that does not parse: then the call runs
+ * as any call. runOnce gives a repeat to executeOperation as \`repeat\`, which answers it once the
+ * caller may call.
  */
-export function idempotencyOf(urn: string, rawPayload: unknown, options: { readonly caller?: unknown } = {}): { readonly scope: string; readonly key: string; readonly body: string; readonly windowMs: number } | undefined {
+export function idempotencyOf(
+  urn: string,
+  rawPayload: unknown,
+  options: { readonly caller?: unknown } = {},
+): { readonly scope: string; readonly key: string; readonly body: string; readonly windowMs: number; readonly refusesOtherBody: boolean } | undefined {
   if (!isOperationUrn(urn)) return undefined;
   const contract: OperationContract = DispatchMap[urn];
   const rule = 'idempotency' in contract ? contract.idempotency : undefined;
@@ -149,28 +155,18 @@ export function idempotencyOf(urn: string, rawPayload: unknown, options: { reado
     const [prefix, property] = name.split('.') as [string, string];
     return (prefix === 'caller' ? caller : values)[property] ?? null;
   });
-  return { scope: JSON.stringify(owners), key, body: canonical(input.output), windowMs: rule.windowMs };
-}
-
-/** The declared error for the same key with another body, filled from the input; undefined when the operation names none. */
-export function idempotencyConflict(urn: string, rawPayload: unknown): ExecuteResult | undefined {
-  if (!isOperationUrn(urn)) return undefined;
-  const contract: OperationContract = DispatchMap[urn];
-  const errorUrn = 'idempotency' in contract ? contract.idempotency?.otherwise : undefined;
-  const declared = errorUrn === undefined ? undefined : contract.errors[errorUrn];
-  const input = v.safeParse(contract.input.schema, rawPayload);
-  if (!declared || !input.success) return undefined;
-  const known = input.output as Readonly<Record<string, unknown>>;
-  const names = Object.keys(declared.fields).filter((name) => known[name] !== undefined);
-  const error = v.safeParse(declared.schema, { ...Object.fromEntries(names.map((name) => [name, known[name]])), kind: errorUrn });
-  if (!error.success) return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(error.issues, declared) };
-  return {
-    ok: false,
-    kind: 'DomainError',
-    urn,
-    error: { urn: errorUrn, category: declared.category, retryable: declared.retryable, message: renderMessage(declared.message, error.output), fields: error.output },
-  } as ExecuteResult;
+  return { scope: JSON.stringify(owners), key, body: canonical(input.output), windowMs: rule.windowMs, refusesOtherBody: rule.otherwise !== undefined };
 }`;
+
+/** A repeat that runOnce found: once the caller may call, the first answer, or the declared error of another body. */
+const REPEAT = `
+  // A repeat that runOnce found, given only once the caller may call: the first answer, with no
+  // change and no event, or the declared error of another body. The state and the handler do not run.
+  if (result === undefined && options.repeat) {
+    if ('output' in options.repeat) return { ok: true, urn, output: options.repeat.output, events: [] } as unknown as ExecuteResult;
+    const conflict = 'idempotency' in contract ? contract.idempotency?.otherwise : undefined;
+    if (conflict !== undefined) result = fill(conflict, input.output as Readonly<Record<string, unknown>>);
+  }`;
 
 /** A timed change: the shell's clock calls it only for a record that is due. */
 const DUE = `
@@ -190,7 +186,7 @@ const TIME = `  // The time of the call, from the shell: a UTC timestamp. An ope
 `;
 
 /** The options of a domain with a caller or a read: the record, the caller, and the ids of events, as the domain uses them. */
-const accessSignatures = (record: boolean, caller: boolean, delivery: boolean, time = false) => `/** What the shell knows of the call, besides the payload. */
+const accessSignatures = (record: boolean, caller: boolean, delivery: boolean, time = false, idempotent = false) => `/** What the shell knows of the call, besides the payload. */
 export interface ExecuteOptions {${record ? `
   /** For an operation that changes or reads a record: the record as it is stored now, or null when there is none. */
   readonly current?: unknown;` : ''}${caller ? `
@@ -199,7 +195,9 @@ export interface ExecuteOptions {${record ? `
   /** For an event with a delivery: a new, unique id for each event. */
   readonly newEventId?: () => string;` : ''}${time ? `
   /** For an operation whose rules read the time: the time of the call, a UTC timestamp such as 2026-11-22T18:00:00Z. */
-  readonly now?: string;` : ''}
+  readonly now?: string;` : ''}${idempotent ? `
+  /** From runOnce, for a repeat: the first answer, or the conflict of another body. The runtime gives it once the caller may call. */
+  readonly repeat?: { readonly output: unknown } | { readonly conflict: true };` : ''}
 }
 
 export function executeOperation<U extends OperationUrn>(
@@ -217,7 +215,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
  * \`changes\` and the requires rules. The callers are checked before the state, so a caller who may
  * not call learns nothing of the record from another refusal.
  */
-const accessCall = (changes: boolean, reads: boolean, caller: boolean, conditions: boolean, time = false, due = false) => `${time ? TIME : ''}  // The caller, the record, who may call, then the state: the handler runs only when each holds.${changes ? `
+const accessCall = (changes: boolean, reads: boolean, caller: boolean, conditions: boolean, time = false, due = false, idempotent = false) => `${time ? TIME : ''}  // The caller, the record, who may call, then the state: the handler runs only when each holds.${changes ? `
   const change: ChangeContract | undefined = 'changes' in contract ? contract.changes : undefined;` : ''}${reads ? `
   const read: ReadContract | undefined = 'reads' in contract ? contract.reads : undefined;` : ''}${changes || reads ? `
   const record = ${[...(changes ? ['change?.entity'] : []), ...(reads ? ['read?.entity'] : [])].join(' ?? ')};
@@ -255,7 +253,7 @@ ${changes || reads ? `  if (record) {
   const callers = contract.callers;
   if (result === undefined && callers.allow !== 'any' && !callers.allow.some((rule) => (rule.check as (values: unknown) => boolean)({ input: input.output, current, caller }))) {
     result = fill(callers.otherwise!, { ...(input.output as object), ...current, ...caller });
-  }` : ''}${changes ? `
+  }` : ''}${idempotent ? REPEAT : ''}${changes ? `
   if (result === undefined && change && current && !change.from.includes(current[change.property] as string)) result = fill(change.otherwise, { ...(input.output as object), ...current });` : ''}${due ? DUE : ''}${conditions ? REQUIRES : ''}
   result ??= handler(input.output, current);`;
 
@@ -383,7 +381,7 @@ function callSnippet(changes: boolean, conditions: boolean): string {
 }
 
 /** The gatekeeper: the same for every manifest, plus the record of `changes` when an operation has one. */
-const shell = (changes: boolean, conditions = false, counts = false, delivery = false, reads = false, caller = false, time = false, due = false) => `// Shell gatekeeper
+const shell = (changes: boolean, conditions = false, counts = false, delivery = false, reads = false, caller = false, time = false, due = false, idempotent = false) => `// Shell gatekeeper
 
 export type OperationUrn = keyof DomainCoreImplementation;
 
@@ -513,7 +511,7 @@ function renderMessage(parts: readonly MessagePart[], fields: unknown): string {
  * Parses the input, calls the handler with branded input, then parses and brands its
  * output, or its error when the error is one the operation declares.
  */
-${reads || caller || time || due ? accessSignatures(changes || reads, caller, delivery, time) : delivery ? deliverySignatures(changes) : changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
+${reads || caller || time || due || idempotent ? accessSignatures(changes || reads, caller, delivery, time, idempotent) : delivery ? deliverySignatures(changes) : changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
   if (!isOperationUrn(urn)) {
     return { ok: false, kind: 'UnknownOperation', urn, issues: [{ path: '', message: \`unknown operation \${urn}\` }] };
   }
@@ -527,7 +525,7 @@ ${reads || caller || time || due ? accessSignatures(changes || reads, caller, de
 
   const handler: unknown = core[urn];
   if (typeof handler !== 'function') return violation(\`no handler for \${urn}\`);
-${reads || caller || time || due ? accessCall(changes, reads, caller, conditions || counts, time, due) : callSnippet(changes, conditions || counts)}
+${reads || caller || time || due || idempotent ? accessCall(changes, reads, caller, conditions || counts, time, due, idempotent) : callSnippet(changes, conditions || counts)}
   if (!isResult(result)) return violation(\`the handler for \${urn} did not return a Result; return ok(…) or fail(…)\`);
 
   // \`=== false\`, not \`!result.ok\`: without strictNullChecks, TypeScript narrows a union on
@@ -1033,11 +1031,11 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       `// Dispatch`,
       dispatch,
       (anyTime
-        ? shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, true, anyDue)
+        ? shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, true, anyDue, anyIdempotency)
             // The rules read the time of the call, and the handler gets it.
             .replaceAll('{ input: input.output, current', '{ input: input.output, now, today, current')
             .replace('result ??= handler(input.output, current);', 'result ??= handler(input.output, current, now);')
-        : shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, false, anyDue)
+        : shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, false, anyDue, anyIdempotency)
       ).trimEnd() + idempotencyHelpers,
     ];
     return {

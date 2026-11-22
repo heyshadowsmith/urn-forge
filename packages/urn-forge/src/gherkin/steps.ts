@@ -102,16 +102,23 @@ export interface OperationStepsOptions {
    * Runs one operation. `options.current` is the record of `Given the current <entity> is:`;
    * a domain with `changes` passes it on: `executeOperation(urn, payload, core, options)`.
    */
-  readonly execute: (urn: string, payload: unknown, options: { readonly current?: unknown; readonly caller?: unknown; readonly now?: string }) => ExecuteResultLike;
+  readonly execute: (
+    urn: string,
+    payload: unknown,
+    options: { readonly current?: unknown; readonly caller?: unknown; readonly now?: string; readonly repeat?: { readonly output: unknown } | { readonly conflict: true } },
+  ) => ExecuteResultLike;
   /** The caller entity of a domain with a caller (the generated CallerContract), for `Given the caller is:`. */
   readonly caller?: { readonly urn: string; readonly fields: FieldsLike };
   /**
-   * For a domain with idempotency: the generated idempotencyOf and idempotencyConflict. The steps
-   * then keep the answers of a scenario with the rules of runOnce, so a repeat returns the first answer.
+   * For a domain with idempotency: the generated idempotencyOf. The steps then keep the answers of a
+   * scenario with the rules of runOnce, and give a repeat to execute as \`repeat\`.
    */
   readonly idempotency?: {
-    readonly idempotencyOf: (urn: string, payload: unknown, options: { readonly caller?: unknown }) => { readonly scope: string; readonly key: string; readonly body: string; readonly windowMs: number } | undefined;
-    readonly idempotencyConflict: (urn: string, payload: unknown) => ExecuteResultLike | undefined;
+    readonly idempotencyOf: (
+      urn: string,
+      payload: unknown,
+      options: { readonly caller?: unknown },
+    ) => { readonly scope: string; readonly key: string; readonly body: string; readonly windowMs: number; readonly refusesOtherBody: boolean } | undefined;
   };
 }
 
@@ -465,11 +472,12 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
   const run = (s: ScenarioState, table: DataTable) => {
     const urn = operationUrnFromTags(s.tags);
     const payload = tableToObject(table.raw(), contract(urn).input.fields, 'input', urn);
-    const execute = () =>
+    const execute = (repeat?: { readonly output: unknown } | { readonly conflict: true }) =>
       options.execute(urn, payload, {
         ...(s.current === undefined ? {} : { current: s.current }),
         ...(s.caller === undefined ? {} : { caller: s.caller }),
         ...(s.now === undefined ? {} : { now: s.now }),
+        ...(repeat === undefined ? {} : { repeat }),
       });
     s.urn = urn;
     const call = options.idempotency?.idempotencyOf(urn, payload, { caller: s.caller });
@@ -477,8 +485,8 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     const id = call && JSON.stringify([urn, call.scope, call.key]);
     const found = id === undefined ? undefined : s.answers?.get(id);
     if (call && found && at < found.at + call.windowMs) {
-      const first: ExecuteResultLike = { ok: true, output: found.output, events: [] };
-      s.result = found.body === call.body ? first : (options.idempotency!.idempotencyConflict(urn, payload) ?? first);
+      // A repeat: the runtime answers it once the caller may call, as runOnce gives it.
+      s.result = execute(found.body !== call.body && call.refusesOtherBody ? { conflict: true } : { output: found.output });
     } else {
       s.result = execute();
       if (call && id !== undefined && s.result.ok) (s.answers ??= new Map()).set(id, { body: call.body, output: s.result.output, at });
@@ -493,7 +501,7 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
   When(STEP_PHRASES.runAgain, function (this: StepsWorld, table: DataTable) {
     const s = state(this);
     if (s.urn === undefined) throw new Error('"I run the operation again with:" repeats a call; start with "When I run the operation with:"');
-    if (!options.idempotency) throw new Error('"I run the operation again with:" needs the idempotency helpers: pass idempotency: { idempotencyOf, idempotencyConflict } to registerOperationSteps');
+    if (!options.idempotency) throw new Error('"I run the operation again with:" needs the idempotency helper: pass idempotency: { idempotencyOf } to registerOperationSteps');
     run(s, table);
   });
 

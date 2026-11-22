@@ -52,6 +52,11 @@ payment.error.idempotency_conflict:
   message: The key {idempotency_key} belongs to another request
   fields:
     - ref: request.field.idempotency_key
+payment.error.forbidden:
+  description: The caller may not refund
+  category: forbidden
+  retryable: false
+  message: This caller may not refund
 payment.event.created:
   description: A payment was created
   fields:
@@ -77,4 +82,7 @@ payment.operation.refund_payment:
     key: input.idempotency_key
     window: 24 hours
   callers:
-    allow: any
+    allow:
+      - caller.merchant_id = 'mer_abc123'
+    otherwise: payment.error.forbidden
+  errors: [payment.error.forbidden]

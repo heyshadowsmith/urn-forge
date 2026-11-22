@@ -70,6 +70,19 @@
     }
   },
   "errors": {
+    "urn:demo:idempotency:payment:error:forbidden": {
+      "brandIdentifier": "PaymentForbidden",
+      "category": "forbidden",
+      "description": "The caller may not refund",
+      "fields": [],
+      "message": [
+        {
+          "text": "This caller may not refund"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:idempotency:payment:error:forbidden"
+    },
     "urn:demo:idempotency:payment:error:idempotency_conflict": {
       "brandIdentifier": "PaymentIdempotencyConflict",
       "category": "conflict",
@@ -154,7 +167,7 @@
     "caller": "urn:demo:idempotency:auth:entity:caller",
     "domain": "idempotency",
     "irSchemaVersion": 1,
-    "manifestHash": "2585c64519b320de4064b734ad53e8e44d92d3c3d11f259995c794d76df0c563",
+    "manifestHash": "3b0c3629209de45ffd0de3f9a20025a35285874aff6e6c6f2fef70d69401be9b",
     "manifestVersion": "1.0.0",
     "namespace": "demo",
     "stability": "stable"
@@ -188,11 +201,29 @@
     "urn:demo:idempotency:payment:operation:refund_payment": {
       "brandIdentifier": "PaymentRefundPayment",
       "callers": {
-        "allow": "any"
+        "allow": [
+          {
+            "rule": {
+              "left": {
+                "name": "caller.merchant_id",
+                "op": "field"
+              },
+              "op": "=",
+              "right": {
+                "op": "text",
+                "value": "mer_abc123"
+              }
+            },
+            "ruleText": "caller.merchant_id = 'mer_abc123'"
+          }
+        ],
+        "otherwise": "urn:demo:idempotency:payment:error:forbidden"
       },
       "description": "Refund a payment, once for each key in 24 hours, whatever the body of a repeat",
       "emits": [],
-      "errors": [],
+      "errors": [
+        "urn:demo:idempotency:payment:error:forbidden"
+      ],
       "idempotency": {
         "key": "idempotency_key",
         "window": "24 hours",

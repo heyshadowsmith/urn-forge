@@ -458,7 +458,7 @@ payment.operation.create_payment:
   # first answer is found before the callers are checked.
   idempotency:
     key: input.idempotency_key
-    scope: [caller.merchant_id, caller.key_kind]
+    scope: caller.merchant_id
     window: 24 hours
     otherwise: payment.error.idempotency_conflict
   # Authentication (a valid key) is the shell's; who may call is here. A request that names a
@@ -628,7 +628,7 @@ refund.operation.refund_payment:
   # first answer is found before the callers are checked.
   idempotency:
     key: input.idempotency_key
-    scope: [caller.merchant_id, caller.key_kind]
+    scope: caller.merchant_id
     window: 24 hours
     otherwise: payment.error.idempotency_conflict
   changes:

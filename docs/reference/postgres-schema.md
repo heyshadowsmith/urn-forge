@@ -228,7 +228,7 @@ For a domain with an operation that has `idempotency`, the schema has the table 
 | Export | Description |
 | --- | --- |
 | `Query` | `(statement: Statement) => Promise<{ rows }>`: the query function of your driver |
-| `runOnce(query, urn, payload, { caller, now }, execute)` | Gives the first answer to a repeat in the window, or the `otherwise` error for another body; else runs `execute` and stores a success. It imports the runtime file and `node:crypto` |
+| `runOnce(query, urn, payload, { caller, now }, execute)` | For a repeat in the window, calls `execute({ output })` with the first answer, or `execute({ conflict: true })` for another body when there is an `otherwise`; `executeOperation` gives them once the caller may call. Else calls `execute()` and stores a success. It imports the runtime file and `node:crypto` |
 
 Refer to [Make a call safe to repeat](../how-to/make-a-call-safe-to-repeat).
 

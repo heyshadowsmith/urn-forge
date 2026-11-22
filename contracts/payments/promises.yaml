@@ -80,16 +80,15 @@ promises:
     status: declared
     by: [payment.operation.void_payment, refund.operation.refund_payment, payment.field.status, payment.error.invalid_state]
   # Stated: create_payment and refund_payment, the two writes that create a payment or a refund,
-  # have idempotency: key input.idempotency_key, scope caller.merchant_id (with caller.key_kind,
-  # below), window 24 hours, otherwise idempotency_conflict. The Postgres plugin generates the
+  # have idempotency: key input.idempotency_key, scope caller.merchant_id, window
+  # 24 hours, otherwise idempotency_conflict. The Postgres plugin generates the
   # answers table "idempotency"."payments" and runOnce: a repeat with the same key, merchant and
   # body before 24 hours have passed gets the stored first answer and runs nothing (no second
   # payment or refund, no event); the same key with another body is idempotency_conflict; the key
   # of another merchant is another scope. The core keeps no keys. Scenarios show the repeat at
   # 24 hours less a millisecond, the new call at 24 hours, the key of another merchant, and the
-  # conflict. The key kind is in the scope because runOnce answers before the callers are
-  # checked; only a secret key can succeed, so the merchant still has one scope for its writes,
-  # and a read-only key that repeats a write is still refused (P22). A refusal is not stored, so
+  # conflict. The runtime answers a repeat only once the caller may call, so a read-only key
+  # that repeats a write of its merchant is still refused (P22). A refusal is not stored, so
   # a repeat of a refused request runs again and is refused again on the same rules. The shell
   # must call runOnce in the transaction of the call, as it must call insertEvents.
   P15:

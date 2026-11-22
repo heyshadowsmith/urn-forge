@@ -1,7 +1,7 @@
 // Connects urn-forge's generic steps to this domain's generated runtime and core.
 import { registerOperationSteps } from 'urn-forge/cucumber';
 import { core } from '../../src/core';
-import { DispatchMap, executeOperation, idempotencyConflict, idempotencyOf } from '../../src/generated/domain.runtime.generated';
+import { DispatchMap, executeOperation, idempotencyOf } from '../../src/generated/domain.runtime.generated';
 
 // The shell gives each event its message id: here 00000000-0000-4000-8000-000000000001, 2, ... within a scenario.
 let ids = 0;
@@ -14,5 +14,5 @@ registerOperationSteps({
     return executeOperation(urn, payload, core, { ...options, newEventId });
   },
   // The steps keep the answers of a scenario with the rules of the generated runOnce.
-  idempotency: { idempotencyOf, idempotencyConflict },
+  idempotency: { idempotencyOf },
 });
