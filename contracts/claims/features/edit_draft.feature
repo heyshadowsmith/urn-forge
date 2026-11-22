@@ -3,6 +3,9 @@
 Feature: Edit a draft claim
 
   Scenario Outline: A draft that obeys every rule is kept, and the answer gives its total
+    Given the current claim is:
+      | claim_id       | version | employee_id | state | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 1       | E-1001      | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
       | claim_id       | version | actor_id | purpose   | currency | lines   |
       | CLM-0000000123 | 1       | E-1001   | <purpose> | EUR      | <lines> |
@@ -16,7 +19,21 @@ Feature: Edit a draft claim
       | =repeat(500, "p") | =repeat(50, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 10.00 })                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 500.00   |
       | Client visit      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | 95.00    |
 
+  Scenario: A rejected claim that is edited goes back to DRAFT
+    Given the current claim is:
+      | claim_id       | version | employee_id | state    | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 3       | E-1001      | REJECTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
+    When I run the operation with:
+      | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                          |
+      | CLM-0000000123 | 3       | E-1001   | Client visit | EUR      | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 95.00, distance_km: 460 }] |
+    Then the output is:
+      | claim_id       | state | total | currency | version |
+      | CLM-0000000123 | DRAFT | 95.00 | EUR      | 4       |
+
   Scenario Outline: A purpose that is empty or longer than 500 characters is rejected
+    Given the current claim is:
+      | claim_id       | version | employee_id | state | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 1       | E-1001      | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
       | claim_id       | version | actor_id | purpose   | currency | lines                                                                                                                                                                                                                              |
       | CLM-0000000123 | 1       | E-1001   | <purpose> | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
@@ -28,12 +45,18 @@ Feature: Edit a draft claim
       | =repeat(501, "p") |
 
   Scenario: A currency that is not three capital letters is rejected
+    Given the current claim is:
+      | claim_id       | version | employee_id | state | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 1       | E-1001      | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
       | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
       | CLM-0000000123 | 1       | E-1001   | Client visit | eur      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
     Then the input is rejected on "currency"
 
   Scenario Outline: A list of lines that breaks a rule of its values is rejected
+    Given the current claim is:
+      | claim_id       | version | employee_id | state | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 1       | E-1001      | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
       | claim_id       | version | actor_id | purpose      | currency | lines   |
       | CLM-0000000123 | 1       | E-1001   | Client visit | EUR      | <lines> |
@@ -57,6 +80,9 @@ Feature: Edit a draft claim
       | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive, amount: 800.00, distance_km: 2000.5 }]                                                                                                                                                                             |
 
   Scenario Outline: A line that breaks a rule across its values is rejected
+    Given the current claim is:
+      | claim_id       | version | employee_id | state | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 1       | E-1001      | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
       | claim_id       | version | actor_id | purpose      | currency | lines   |
       | CLM-0000000123 | 1       | E-1001   | Client visit | EUR      | <lines> |
@@ -70,18 +96,25 @@ Feature: Edit a draft claim
       | distance_only_for_mileage | [{ category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 10.00, distance_km: 40 }]                                                                                                                                          |
 
   Scenario: A malformed claim id is rejected
+    Given the current claim is:
+      | claim_id       | version | employee_id | state | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 1       | E-1001      | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
       | claim_id | version | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
       | CLM-12   | 1       | E-1001   | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
     Then the input is rejected on "claim_id"
 
   Scenario: A version below 1 is rejected
+    Given the current claim is:
+      | claim_id       | version | employee_id | state | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 1       | E-1001      | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
       | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
       | CLM-0000000123 | 0       | E-1001   | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
     Then the input is rejected on "version"
 
   Scenario: A claim that does not exist is not found
+    Given there is no current claim
     When I run the operation with:
       | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
       | CLM-0000000404 | 4       | E-1001   | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
@@ -90,6 +123,9 @@ Feature: Edit a draft claim
       | CLM-0000000404 |
 
   Scenario: A user who may not act on the claim is refused
+    Given the current claim is:
+      | claim_id       | version | employee_id | state | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 4       | E-1001      | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
       | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
       | CLM-0000000123 | 4       | stranger | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
@@ -97,23 +133,39 @@ Feature: Edit a draft claim
       | actor_id |
       | stranger |
 
-  Scenario: A claim in a state that does not allow the change is refused
+  Scenario Outline: A claim that is not DRAFT or REJECTED is refused
+    Given the current claim is:
+      | claim_id       | version | employee_id | state   | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 1       | E-1001      | <state> | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
       | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
-      | CLM-0000000412 | 4       | E-1001   | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
+      | CLM-0000000123 | 1       | E-1001   | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
     Then the operation fails with "urn:corpus:claims:claim:error:invalid_state":
-      | claim_id       | state |
-      | CLM-0000000412 | PAID  |
+      | claim_id       | state   |
+      | CLM-0000000123 | <state> |
+
+    Examples: 
+      | state     |
+      | SUBMITTED |
+      | APPROVED  |
+      | WITHDRAWN |
+      | PAID      |
 
   Scenario: A claim that changed since the caller read it is refused
+    Given the current claim is:
+      | claim_id       | version | employee_id | state | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 5       | E-1001      | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
       | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
-      | CLM-0000000409 | 4       | E-1001   | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
+      | CLM-0000000123 | 4       | E-1001   | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
     Then the operation fails with "urn:corpus:claims:claim:error:version_conflict":
       | claim_id       | version |
-      | CLM-0000000409 | 4       |
+      | CLM-0000000123 | 4       |
 
   Scenario: A receipt that is already on another claim is refused
+    Given the current claim is:
+      | claim_id       | version | employee_id | state | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 1       | E-1001      | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
       | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
       | CLM-0000000123 | 1       | E-1001   | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, media_type: application/pdf, size_bytes: 48213 } }] |
