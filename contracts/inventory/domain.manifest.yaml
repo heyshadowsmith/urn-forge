@@ -214,6 +214,9 @@ reservation.field.result:
 reservation.field.state:
   primitive: enum
   values: [ACTIVE, PARTIALLY_SHIPPED, SHIPPED, RELEASED, EXPIRED]
+  moves:
+    ACTIVE: [PARTIALLY_SHIPPED, SHIPPED, RELEASED, EXPIRED]
+    PARTIALLY_SHIPPED: [SHIPPED, RELEASED]
   description: The state of a reservation
 reservation.field.expires_at:
   primitive: timestamp
@@ -332,6 +335,12 @@ reservation.operation.release_reservation:
   description: Give the stock of an active or partly shipped reservation back
   input: reservation.entity.release_request
   output: reservation.entity.reservation_status
+  changes:
+    entity: reservation.entity.reservation
+    from: [ACTIVE, PARTIALLY_SHIPPED]
+    to: RELEASED
+    otherwise: reservation.error.invalid_state
+    missing: reservation.error.reservation_not_found
   errors:
     - reservation.error.reservation_not_found
     - reservation.error.invalid_state
@@ -341,6 +350,12 @@ reservation.operation.ship_reservation:
   description: Ship a reservation, in full or the stated quantity per line
   input: reservation.entity.ship_request
   output: reservation.entity.reservation_status
+  changes:
+    entity: reservation.entity.reservation
+    from: [ACTIVE, PARTIALLY_SHIPPED]
+    to: [PARTIALLY_SHIPPED, SHIPPED]
+    otherwise: reservation.error.invalid_state
+    missing: reservation.error.reservation_not_found
   errors:
     - request.error.invalid_request
     - reservation.error.reservation_not_found
