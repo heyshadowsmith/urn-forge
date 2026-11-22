@@ -3,6 +3,7 @@
 Feature: Validate a ticket at the entry
 
   Scenario: An issued ticket is admitted and becomes used
+    Given the time is "2026-12-01T19:00:00Z"
     When I run the operation with:
       | ticket_code      | event_id                             |
       | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f |
@@ -14,6 +15,7 @@ Feature: Validate a ticket at the entry
       | 00000000-0000-4000-8000-000000000001 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ABCDEFGH23456789 | 2026-12-01T19:00:00Z |
 
   Scenario Outline: A ticket that cannot enter gets another answer, and nothing is used
+    Given the time is "2026-12-01T19:00:00Z"
     When I run the operation with:
       | ticket_code   | event_id   |
       | <ticket_code> | <event_id> |
@@ -21,6 +23,7 @@ Feature: Validate a ticket at the entry
       | verdict   |
       | <verdict> |
     And the operation emits no event
+    And the operation emits no "urn:corpus:ticketing:ticket:event:ticket_used"
 
     Examples:
       | ticket_code      | event_id                             | verdict      |
@@ -29,6 +32,7 @@ Feature: Validate a ticket at the entry
       | ABCDEFGH23456789 | 00000000-0000-4000-8000-000000000999 | WRONG_EVENT  |
 
   Scenario Outline: A ticket code or an event identifier that is not valid is rejected at the boundary
+    Given the time is "2026-12-01T19:00:00Z"
     When I run the operation with:
       | ticket_code   | event_id   |
       | <ticket_code> | <event_id> |

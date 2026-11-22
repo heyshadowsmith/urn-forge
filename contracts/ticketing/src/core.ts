@@ -22,6 +22,10 @@ const FEE_PER_TICKET = 250;
 const MAX_TICKETS = 10;
 
 const eur = (amount_minor: number) => ({ amount_minor, currency: 'EUR' });
+/** The instant a number of minutes after a UTC timestamp, as a UTC timestamp; whole seconds without milliseconds. */
+const after = (at: string, minutes: number) => new Date(Date.parse(at) + minutes * 60_000).toISOString().replace('.000Z', 'Z');
+const HOLD_MINUTES = 10;
+const TRANSFER_MINUTES = 72 * 60;
 
 const ticketA = {
   ticket_code: 'ABCDEFGH23456789',
@@ -53,7 +57,8 @@ const order = {
 };
 
 export const core = {
-  'urn:corpus:ticketing:hold:operation:create_hold': ({ event_id, lines }) => {
+  // The hold is created at the time of the call, and expires 10 minutes later.
+  'urn:corpus:ticketing:hold:operation:create_hold': ({ event_id, lines }, _current, now) => {
     if (event_id === CLOSED_EVENT) return fail('urn:corpus:ticketing:hold:error:sales_closed', { event_id });
     const count = lines.reduce((sum, line) => sum + (line.quantity ?? 1), 0);
     if (count > MAX_TICKETS) return fail('urn:corpus:ticketing:hold:error:limit_exceeded');
@@ -70,10 +75,16 @@ export const core = {
     }));
     const total = held.reduce((sum, line) => sum + line.price.amount_minor, 0);
     return ok(
-      { hold_id: HOLD, event_id, hold_status: 'ACTIVE', lines: held, total: eur(total), created_at: AT, expires_at: '2026-12-01T19:10:00Z' },
-      [emit('urn:corpus:ticketing:hold:event:hold_created', { event_id, hold_id: HOLD, occurred_at: AT })],
+      { hold_id: HOLD, event_id, hold_status: 'ACTIVE', lines: held, total: eur(total), created_at: now, expires_at: after(now, HOLD_MINUTES) },
+      [emit('urn:corpus:ticketing:hold:event:hold_created', { event_id, hold_id: HOLD, occurred_at: now })],
     );
   },
+
+  // The shell's clock calls this for a hold after its expiry time; the runtime refuses a call before it.
+  'urn:corpus:ticketing:hold:operation:expire_hold': ({ hold_id }, current, now) =>
+    ok({ hold_id, hold_status: 'EXPIRED' }, [
+      emit('urn:corpus:ticketing:hold:event:hold_expired', { event_id: current.event_id, hold_id, occurred_at: now }),
+    ]),
 
   'urn:corpus:ticketing:hold:operation:release_hold': ({ hold_id }) => ok({ hold_id, hold_status: 'RELEASED' }),
 
@@ -97,18 +108,20 @@ export const core = {
 
   'urn:corpus:ticketing:order:operation:get_order': ({ order_id }) => ok({ ...order, order_id }),
 
-  'urn:corpus:ticketing:transfer:operation:transfer_ticket': ({ ticket_code, recipient_email }, current) =>
-    ok({ transfer_id: TRANSFER, ticket_code, recipient_email, offered_at: AT, accept_until: '2026-12-04T19:00:00Z', starts_at: current.starts_at }),
+  // The offer is made at the time of the call, and can be accepted for 72 hours.
+  'urn:corpus:ticketing:transfer:operation:transfer_ticket': ({ ticket_code, recipient_email }, current, now) =>
+    ok({ transfer_id: TRANSFER, ticket_code, recipient_email, offered_at: now, accept_until: after(now, TRANSFER_MINUTES), starts_at: current.starts_at }),
 
-  // The runtime refuses an acceptance 2 hours or less before the start of the event before this runs.
-  'urn:corpus:ticketing:transfer:operation:accept_transfer': () => {
+  // The runtime refuses an acceptance 2 hours or less before the start of the event, or more than
+  // 72 hours after the offer, before this runs.
+  'urn:corpus:ticketing:transfer:operation:accept_transfer': (_input, current, now) => {
     const fresh = { ...ticketA, ticket_code: 'NEWXCDE234567892' };
     return ok(fresh, [
       emit('urn:corpus:ticketing:ticket:event:ticket_transferred', {
         event_id: EVENT,
         ticket_code: fresh.ticket_code,
-        void_ticket_code: ticketA.ticket_code,
-        occurred_at: AT,
+        void_ticket_code: current.ticket_code,
+        occurred_at: now,
       }),
     ]);
   },
@@ -127,12 +140,12 @@ export const core = {
     );
   },
 
-  'urn:corpus:ticketing:entry:operation:validate_ticket': ({ ticket_code, event_id }) => {
+  'urn:corpus:ticketing:entry:operation:validate_ticket': ({ ticket_code, event_id }, _current, now) => {
     if (event_id !== EVENT) return ok({ ticket_code, event_id, verdict: 'WRONG_EVENT' });
     if (ticket_code === USED_TICKET) return ok({ ticket_code, event_id, verdict: 'ALREADY_USED' });
     if (ticket_code !== ticketA.ticket_code) return ok({ ticket_code, event_id, verdict: 'NOT_VALID' });
     return ok({ ticket_code, event_id, verdict: 'ADMIT' }, [
-      emit('urn:corpus:ticketing:ticket:event:ticket_used', { event_id, ticket_code, occurred_at: AT }),
+      emit('urn:corpus:ticketing:ticket:event:ticket_used', { event_id, ticket_code, occurred_at: now }),
     ]);
   },
 

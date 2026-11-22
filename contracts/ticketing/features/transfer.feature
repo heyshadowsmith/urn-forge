@@ -62,8 +62,8 @@ Feature: Transfer a ticket
       | ticket_code      | recipient_email    |
       | ABCDEFGH23456789 | friend@example.com |
     Then the output is:
-      | ticket_code      | recipient_email    |
-      | ABCDEFGH23456789 | friend@example.com |
+      | ticket_code      | recipient_email    | offered_at               | accept_until             |
+      | ABCDEFGH23456789 | friend@example.com | 2026-12-12T17:59:59.999Z | 2026-12-15T17:59:59.999Z |
 
   @urn:corpus:ticketing:transfer:operation:transfer_ticket
   Scenario: A transfer at 2 hours before the start of the event is refused
@@ -125,7 +125,7 @@ Feature: Transfer a ticket
     Given the time is "2026-12-12T17:59:59.999Z"
     And the current transfer is:
       | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         | starts_at            |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-01T19:00:00Z | 2026-12-04T19:00:00Z | 2026-12-12T20:00:00Z |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-10T19:00:00Z | 2026-12-13T19:00:00Z | 2026-12-12T20:00:00Z |
     When I run the operation with:
       | transfer_id                          |
       | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
@@ -138,7 +138,7 @@ Feature: Transfer a ticket
     Given the time is "2026-12-12T18:00:00Z"
     And the current transfer is:
       | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         | starts_at            |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-01T19:00:00Z | 2026-12-04T19:00:00Z | 2026-12-12T20:00:00Z |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-10T19:00:00Z | 2026-12-13T19:00:00Z | 2026-12-12T20:00:00Z |
     When I run the operation with:
       | transfer_id                          |
       | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
@@ -152,7 +152,7 @@ Feature: Transfer a ticket
     Given the time is "2026-12-12T21:00:00Z"
     And the current transfer is:
       | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         | starts_at            |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-01T19:00:00Z | 2026-12-04T19:00:00Z | 2026-12-12T20:00:00Z |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-10T19:00:00Z | 2026-12-13T19:00:00Z | 2026-12-12T20:00:00Z |
     When I run the operation with:
       | transfer_id                          |
       | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
@@ -160,6 +160,41 @@ Feature: Transfer a ticket
       | ticket_code      | starts_at            |
       | ABCDEFGH23456789 | 2026-12-12T20:00:00Z |
     And the operation emits no event
+
+  @urn:corpus:ticketing:transfer:operation:accept_transfer
+  Scenario: A transfer accepted exactly 72 hours after the offer becomes the recipient's ticket
+    Given the time is "2026-12-04T19:00:00Z"
+    And the current transfer is:
+      | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         | starts_at            |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-01T19:00:00Z | 2026-12-04T19:00:00Z | 2026-12-12T20:00:00Z |
+    When I run the operation with:
+      | transfer_id                          |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
+    Then the output is:
+      | ticket_code      | ticket_status |
+      | NEWXCDE234567892 | ISSUED        |
+    And the operation emits "urn:corpus:ticketing:ticket:event:ticket_transferred":
+      | message_id                           | event_id                             | ticket_code      | void_ticket_code | occurred_at          |
+      | 00000000-0000-4000-8000-000000000001 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | NEWXCDE234567892 | ABCDEFGH23456789 | 2026-12-04T19:00:00Z |
+
+  @urn:corpus:ticketing:transfer:operation:accept_transfer
+  Scenario Outline: A transfer accepted more than 72 hours after the offer is refused
+    Given the time is "<now>"
+    And the current transfer is:
+      | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         | starts_at            |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-01T19:00:00Z | 2026-12-04T19:00:00Z | 2026-12-12T20:00:00Z |
+    When I run the operation with:
+      | transfer_id                          |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
+    Then the operation fails with "urn:corpus:ticketing:transfer:error:transfer_expired":
+      | transfer_id                          | accept_until         |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | 2026-12-04T19:00:00Z |
+    And the operation emits no event
+
+    Examples:
+      | now                      |
+      | 2026-12-04T19:00:00.001Z |
+      | 2026-12-10T19:00:00Z     |
 
   @urn:corpus:ticketing:transfer:operation:accept_transfer
   Scenario: An unknown transfer cannot be accepted

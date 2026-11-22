@@ -382,6 +382,14 @@ transfer.error.transfer_window_closed:
   fields:
     - ref: ticket.field.ticket_code
     - ref: show.field.starts_at
+transfer.error.transfer_expired:
+  description: The transfer was offered more than 72 hours ago, so the recipient can no longer accept it
+  category: precondition
+  retryable: false
+  message: Transfer {transfer_id} can no longer be accepted; it could be accepted until {accept_until}
+  fields:
+    - ref: transfer.field.transfer_id
+    - ref: transfer.field.accept_until
 transfer.entity.transfer_ref:
   description: A request that names one transfer
   fields:
@@ -555,7 +563,37 @@ hold.operation.create_hold:
     - hold.error.section_sold_out
     - hold.error.limit_exceeded
     - hold.error.sales_closed
-  emits: [hold.event.hold_created]
+  # The hold is created at the time of the call, and expires exactly 10 minutes later. The one
+  # HoldCreated of a success names the new hold, its event, and the time of the call.
+  ensures:
+    - output.created_at = now
+    - output.expires_at = output.created_at + 10 minutes
+    - event.hold_id = output.hold_id
+    - event.event_id = output.event_id
+    - event.occurred_at = now
+  emits:
+    - event: hold.event.hold_created
+hold.operation.expire_hold:
+  description: Expire an ACTIVE hold after its expiry time, so that its seats are no longer held by it. The shell's clock calls it, with no request
+  input: hold.entity.hold_ref
+  output: hold.entity.hold_state
+  changes:
+    entity: hold.entity.hold
+    from: [ACTIVE]
+    to: EXPIRED
+    otherwise: hold.error.hold_not_active
+    missing: hold.error.hold_not_found
+  # Due after the expiry time: at the expiry time itself the hold can still be checked out (check_out).
+  due: now > current.expires_at
+  ensures:
+    - event.hold_id = current.hold_id
+    - event.event_id = current.event_id
+    - event.occurred_at = now
+  errors:
+    - hold.error.hold_not_found
+    - hold.error.hold_not_active
+  emits:
+    - event: hold.event.hold_expired
 hold.operation.release_hold:
   description: Release a hold, so that its seats are no longer held by it
   input: hold.entity.hold_ref
@@ -605,6 +643,13 @@ transfer.operation.transfer_ticket:
   requires:
     - rule: now < current.starts_at - 2 hours
       otherwise: transfer.error.transfer_window_closed
+  # The offer names the ticket and the recipient, is made at the time of the call, and can be
+  # accepted for 72 hours.
+  ensures:
+    - output.ticket_code = current.ticket_code
+    - output.recipient_email = input.recipient_email
+    - output.offered_at = now
+    - output.accept_until = output.offered_at + 72 hours
   errors: [ticket.error.invalid_ticket_state, transfer.error.transfer_window_closed]
 transfer.operation.accept_transfer:
   description: Accept a transfer, so that the recipient gets a new ticket code for the same place
@@ -615,11 +660,23 @@ transfer.operation.accept_transfer:
   reads:
     entity: transfer.entity.transfer
     missing: transfer.error.transfer_not_found
+  # "Within 72 hours" of the offer: at 72 hours after the offer, still.
   requires:
     - rule: now < current.starts_at - 2 hours
       otherwise: transfer.error.transfer_window_closed
-  errors: [transfer.error.transfer_not_found, transfer.error.transfer_window_closed]
-  emits: [ticket.event.ticket_transferred]
+    - rule: now <= current.offered_at + 72 hours
+      otherwise: transfer.error.transfer_expired
+  # A new, ISSUED ticket code; the one TicketTransferred names it, the old code as void, and the time of the call.
+  ensures:
+    - output.ticket_code != current.ticket_code
+    - output.ticket_status = 'ISSUED'
+    - event.ticket_code = output.ticket_code
+    - event.void_ticket_code = current.ticket_code
+    - event.event_id = output.event_id
+    - event.occurred_at = now
+  errors: [transfer.error.transfer_not_found, transfer.error.transfer_window_closed, transfer.error.transfer_expired]
+  emits:
+    - event: ticket.event.ticket_transferred
 transfer.operation.cancel_transfer:
   description: Cancel a transfer, so that the ticket is ISSUED again
   input: transfer.entity.transfer_ref
@@ -651,7 +708,14 @@ entry.operation.validate_ticket:
   description: Validate a ticket at the entry of an event
   input: entry.entity.entry_scan
   output: entry.entity.entry_result
-  emits: [ticket.event.ticket_used]
+  # One TicketUsed for an admitted ticket, and none otherwise, with the ticket and the time of the call.
+  ensures:
+    - event.ticket_code = output.ticket_code
+    - event.event_id = output.event_id
+    - event.occurred_at = now
+  emits:
+    - event: ticket.event.ticket_used
+      when: output.verdict = 'ADMIT'
 show.operation.cancel_event:
   description: Cancel an event and refund its tickets
   input: show.entity.event_cancellation
