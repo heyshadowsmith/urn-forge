@@ -42,6 +42,7 @@ describe('kind registry', () => {
         { path: ['changes', 'entity'], targets: ['entity'] },
         { path: ['changes', 'otherwise'], targets: ['error'] },
         { path: ['changes', 'missing'], targets: ['error'] },
+        { path: ['requires', '*', 'otherwise'], targets: ['error'] },
       ],
       event: [
         { path: ['fields', '*', 'ref'], targets: ['field', 'entity'] },

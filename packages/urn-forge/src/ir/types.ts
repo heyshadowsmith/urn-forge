@@ -192,7 +192,22 @@ export interface IROperation {
   readonly emits: readonly Urn[];
   /** The stored record that the operation changes, and the move it makes. */
   readonly changes?: IRChange;
+  /** Rules that must hold before the handler runs; the first that does not answers its error. */
+  readonly requires?: readonly IRRequire[];
+  /** Rules that the answer must keep; one that does not is a ContractViolation. */
+  readonly ensures?: readonly IRRule[];
   readonly lifecycle?: Lifecycle;
+}
+
+/** A rule of a condition over `input.`, `current.` and `output.`, parsed, and as text. */
+export interface IRRule {
+  readonly rule: RuleExpr;
+  readonly ruleText: string;
+}
+
+/** A `requires` rule, and the declared error that answers when it does not hold. */
+export interface IRRequire extends IRRule {
+  readonly otherwise: Urn;
 }
 
 /**

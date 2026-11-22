@@ -21,6 +21,25 @@ export type InvariantDecl = v.InferOutput<typeof InvariantSchema>;
  * `on` only: an entity does not list its invariants, so the two cannot disagree. The IR keeps
  * the parsed rule and its canonical text.
  */
+/** The properties of an entity as a rule sees them, each name with `prefix` before it (`input.` in a condition). */
+export function ruleFields(entity: IREntity, node: (kind: 'field' | 'entity', urn: Urn) => unknown, prefix = ''): Record<string, RuleField> {
+  const fields: Record<string, RuleField> = {};
+  for (const ref of entity.fields) {
+    if ('entity' in ref) {
+      // An embedded object has no value to compare; a rule can only ask whether it is there.
+      fields[prefix + ref.name] = { primitive: 'string', required: ref.required, many: ref.many !== undefined, embedded: true };
+      continue;
+    }
+    // A link compares as its target's key.
+    const fieldUrn = 'field' in ref ? ref.field : (node('entity', ref.link) as IREntity | undefined)?.key;
+    const field = fieldUrn && (node('field', fieldUrn) as IRField | undefined);
+    if (!field) continue;
+    const values = field.primitive === 'enum' ? (field.constraints['values'] as readonly string[] | undefined) : undefined;
+    fields[prefix + ref.name] = { primitive: field.primitive, required: ref.required, many: ref.many !== undefined, ...(values ? { values } : {}) };
+  }
+  return fields;
+}
+
 export const invariant = defineKind<InvariantDecl, IRInvariant>()({
   name: 'invariant',
   group: 'invariants',
@@ -39,20 +58,7 @@ export const invariant = defineKind<InvariantDecl, IRInvariant>()({
     }
     const entity = on && (node('entity', on.urn) as IREntity | undefined);
     if (!entity) return undefined; // pass 4 reported the reference
-    const fields: Record<string, RuleField> = {};
-    for (const ref of entity.fields) {
-      if ('entity' in ref) {
-        // An embedded object has no value to compare; a rule can only ask whether it is there.
-        fields[ref.name] = { primitive: 'string', required: ref.required, many: ref.many !== undefined, embedded: true };
-        continue;
-      }
-      // A link compares as its target's key.
-      const fieldUrn = 'field' in ref ? ref.field : (node('entity', ref.link) as IREntity | undefined)?.key;
-      const field = fieldUrn && (node('field', fieldUrn) as IRField | undefined);
-      if (!field) continue;
-      const values = field.primitive === 'enum' ? (field.constraints['values'] as readonly string[] | undefined) : undefined;
-      fields[ref.name] = { primitive: field.primitive, required: ref.required, many: ref.many !== undefined, ...(values ? { values } : {}) };
-    }
+    const fields = ruleFields(entity, node);
     // Pass 6: rule typing.
     const problems = checkRule(parsed.expr, fields);
     for (const problem of problems) {

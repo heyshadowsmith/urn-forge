@@ -10,7 +10,7 @@ import { compile } from '../src/engine.js';
 import type { Urn } from '../src/ir/types.js';
 
 /** A test of the target that does not pass yet: `it.fails` until its step is built, then `it`. */
-const target = { compile: it.fails, runtime: it.fails };
+const target = { compile: it, runtime: it.fails };
 
 const CREATE = 'urn:demo:conditions:booking:operation:create_booking';
 const SUBMIT = 'urn:demo:conditions:claim:operation:submit_claim';
@@ -47,7 +47,7 @@ describe('the runtime of the conditions target', () => {
   const claim = (state: string, version: number) => ({ claim_id: 'CLM-0000000001', state, version });
   const payment = (refunded: string) => ({ payment_id: 'pay_abcd1234', status: 'captured', captured_amount: '12.00', refunded_amount: refunded });
 
-  target.runtime('runs the handler when each requires rule holds', () => {
+  it('runs the handler when each requires rule holds', () => {
     expect(runtime.executeOperation(CREATE, { party_size: 4 }, core)).toMatchObject({ ok: true });
     expect(runtime.executeOperation(CREATE, { party_size: 8, deposit_token: 'tok' }, core)).toMatchObject({ ok: true });
   });

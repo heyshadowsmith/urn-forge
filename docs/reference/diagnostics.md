@@ -105,6 +105,7 @@ These codes change their severity:
 | Code | Severity | Meaning | Correction |
 | --- | --- | --- | --- |
 | `invalid-moves` | `error` | A state in `moves` is not one of the `values` of the field, or a move is listed two times | Use only values of the field, each one time |
+| `invalid-condition` | `error` | A `requires` or `ensures` rule names a value with no prefix, `current.` on an operation with no `changes`, or `output.` in `requires`; or the `otherwise` of a `requires` rule is not in `errors`, or the input and the record do not have a required property of it | Correct the part that the message names |
 | `invalid-changes` | `error` | `changes` does not fit: its entity has no state field or two, the state is optional or a list, a state of `from` or `to` is not a value, a `from` state cannot move to `to`, `otherwise` is not in `errors`, or the record and the input do not have a required property of `otherwise` | Correct the part that the message names |
 
 ## Pass 7: constraint coherence

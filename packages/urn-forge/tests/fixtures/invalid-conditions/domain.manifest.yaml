@@ -1,0 +1,78 @@
+# Each problem that a requires or ensures rule can have.
+manifest:
+  namespace: demo
+  domain: conditions
+  version: 1.0.0
+
+order.field.quantity:
+  primitive: integer
+  min: 1
+  description: How many
+order.field.note:
+  primitive: string
+  description: A note
+order.field.reason:
+  primitive: string
+  description: Why
+order.entity.order:
+  description: An order
+  fields:
+    - ref: order.field.quantity
+    - ref: order.field.note
+      required: false
+order.error.too_many:
+  description: Too many
+  category: validation
+  retryable: false
+  message: Too many
+  fields:
+    - ref: order.field.quantity
+order.error.needs_reason:
+  description: An error with a property that nothing fills
+  category: validation
+  retryable: false
+  message: No
+  fields:
+    - ref: order.field.reason
+
+order.operation.no_prefix:
+  description: A name with no prefix
+  input: order.entity.order
+  output: order.entity.order
+  requires: [{ rule: quantity < 10, otherwise: order.error.too_many }]
+  errors: [order.error.too_many]
+order.operation.current_without_changes:
+  description: current. on an operation with no changes
+  input: order.entity.order
+  output: order.entity.order
+  requires: [{ rule: current.quantity < 10, otherwise: order.error.too_many }]
+  errors: [order.error.too_many]
+order.operation.output_in_requires:
+  description: output. in a requires rule
+  input: order.entity.order
+  output: order.entity.order
+  requires: [{ rule: output.quantity < 10, otherwise: order.error.too_many }]
+  errors: [order.error.too_many]
+order.operation.wrong_type:
+  description: A rule that does not type, and one with an unguarded optional field
+  input: order.entity.order
+  output: order.entity.order
+  requires: [{ rule: input.quantity < 'ten', otherwise: order.error.too_many }]
+  ensures: [output.note = input.note]
+  errors: [order.error.too_many]
+order.operation.bad_syntax:
+  description: A rule that does not parse
+  input: order.entity.order
+  output: order.entity.order
+  ensures: ['output.quantity <']
+order.operation.undeclared_otherwise:
+  description: An otherwise that the operation does not declare
+  input: order.entity.order
+  output: order.entity.order
+  requires: [{ rule: input.quantity < 10, otherwise: order.error.too_many }]
+order.operation.unfilled_otherwise:
+  description: An otherwise with a property that neither the input nor the record has
+  input: order.entity.order
+  output: order.entity.order
+  requires: [{ rule: input.quantity < 10, otherwise: order.error.needs_reason }]
+  errors: [order.error.needs_reason]
