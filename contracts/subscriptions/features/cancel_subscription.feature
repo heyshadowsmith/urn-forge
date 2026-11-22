@@ -98,3 +98,48 @@ Feature: Cancel a subscription
     Then the output is:
       | status   | cancel_at     | trial_will_end_sent_at |
       | trialing | at_period_end | 2026-11-22T00:00:00Z   |
+
+  Scenario: A repeat of the same key and the same body within 24 hours returns the first answer and has no second effect
+    Given the time is "2026-11-22T10:00:00Z"
+    And the current subscription is:
+      | subscription_id | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+    When I run the operation with:
+      | subscription_id | cancel_mode | idempotency_key |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | immediately | key-1 |
+    And the time is "2026-11-23T09:59:59Z"
+    And I run the operation again with:
+      | subscription_id | cancel_mode | idempotency_key |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | immediately | key-1 |
+    Then the answer is the first answer
+    And the operation emits no event
+
+  Scenario: A repeat of the same key with a different body within 24 hours is refused with conflict
+    Given the time is "2026-11-22T10:00:00Z"
+    And the current subscription is:
+      | subscription_id | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+    When I run the operation with:
+      | subscription_id | cancel_mode | idempotency_key |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | immediately | key-1 |
+    And I run the operation again with:
+      | subscription_id | cancel_mode | idempotency_key |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | at_period_end | key-1 |
+    Then the operation fails with "urn:corpus:subscriptions:request:error:conflict":
+      | idempotency_key |
+      | key-1           |
+    And the operation emits no event
+
+  Scenario: After 24 hours the same key is free, and the request runs again
+    Given the time is "2026-11-22T10:00:00Z"
+    And the current subscription is:
+      | subscription_id | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+    When I run the operation with:
+      | subscription_id | cancel_mode | idempotency_key |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | immediately | key-1 |
+    And the time is "2026-11-23T10:00:00Z"
+    And I run the operation again with:
+      | subscription_id | cancel_mode | idempotency_key |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | immediately | key-1 |
+    Then the operation emits "urn:corpus:subscriptions:subscription:event:canceled"
