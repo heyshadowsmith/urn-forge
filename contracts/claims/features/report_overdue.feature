@@ -149,3 +149,24 @@ Feature: Report a claim that waits for a decision for 30 days
       | REJECTED  |
       | WITHDRAWN |
       | PAID      |
+
+  Scenario: A repeat of the clock with the same idempotency key within 24 hours returns the first answer and reports nothing again
+    Given the time is "2026-11-19T09:00:00Z"
+    And the caller is:
+      | role  |
+      | clock |
+    And the current claim is:
+      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           | submitted_at         |
+      | CLM-0000000123 | 2       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] | 2026-10-20T09:00:00Z |
+    When I run the operation with:
+      | idempotency_key | claim_id       |
+      | tick-2026-11-19 | CLM-0000000123 |
+    And the time is "2026-11-19T09:05:00Z"
+    And I run the operation again with:
+      | idempotency_key | claim_id       |
+      | tick-2026-11-19 | CLM-0000000123 |
+    Then the answer is the first answer
+    And the output is:
+      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           | submitted_at         | overdue_reported_at  |
+      | CLM-0000000123 | 2       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] | 2026-10-20T09:00:00Z | 2026-11-19T09:00:00Z |
+    And the operation emits no event

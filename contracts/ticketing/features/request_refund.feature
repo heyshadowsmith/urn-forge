@@ -114,3 +114,33 @@ Feature: Refund tickets
       | order_id                             |
       | 00000000-0000-4000-8000-000000000404 |
     And the operation emits no event
+
+  Scenario: A repeat of a refund with the same key within 24 hours returns the first refund and refunds nothing more
+    Given the time is "2026-11-22T18:00:00Z"
+    And the current order is:
+      | order_id                             | event_id                             | starts_at            | tickets                                                                                                                                                                                                                                                                                                                                                                                                                       | fees                                 | total                                 |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-12T20:00:00Z | [{ ticket_code: ABCDEFGH23456789, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: seated, section: A1, row: C, seat_number: 12, ticket_status: ISSUED, price: { amount_minor: 5000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }, { ticket_code: ZYXWVUTS98765432, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: standing, section: FLOOR, ticket_status: ISSUED, price: { amount_minor: 3000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }] | { amount_minor: 500, currency: EUR } | { amount_minor: 8500, currency: EUR } |
+    When I run the operation with:
+      | idempotency_key | order_id                             | ticket_codes       |
+      | refund-0001     | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789] |
+    Then the operation emits "urn:corpus:ticketing:ticket:event:ticket_refunded"
+    Given the time is "2026-11-23T17:59:59.999Z"
+    When I run the operation again with:
+      | idempotency_key | order_id                             | ticket_codes                         |
+      | refund-0001     | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789, ZYXWVUTS98765432] |
+    Then the answer is the first answer
+    And the operation emits no event
+
+  Scenario: 24 hours after the first refund the key is free, and the repeat runs again
+    Given the time is "2026-11-22T18:00:00Z"
+    And the current order is:
+      | order_id                             | event_id                             | starts_at            | tickets                                                                                                                                                                                                                                                                                                                                                                                                                       | fees                                 | total                                 |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-12T20:00:00Z | [{ ticket_code: ABCDEFGH23456789, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: seated, section: A1, row: C, seat_number: 12, ticket_status: ISSUED, price: { amount_minor: 5000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }, { ticket_code: ZYXWVUTS98765432, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: standing, section: FLOOR, ticket_status: ISSUED, price: { amount_minor: 3000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }] | { amount_minor: 500, currency: EUR } | { amount_minor: 8500, currency: EUR } |
+    When I run the operation with:
+      | idempotency_key | order_id                             | ticket_codes       |
+      | refund-0001     | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789] |
+    Given the time is "2026-11-23T18:00:00Z"
+    When I run the operation again with:
+      | idempotency_key | order_id                             | ticket_codes       |
+      | refund-0001     | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789] |
+    Then the operation emits "urn:corpus:ticketing:ticket:event:ticket_refunded"

@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 import { Description, ShortKeyRef } from '../grammar.js';
-import type { IRCallers, IRChange, IREmitRule, IREntity, IRError, IREvent, IRField, IROperation, IRRead, IRRequire, IRRule, Urn } from '../ir/types.js';
+import type { IRCallers, IRChange, IRIdempotency, IREmitRule, IREntity, IRError, IREvent, IRField, IROperation, IRRead, IRRequire, IRRule, Urn } from '../ir/types.js';
 import { checkRule, namesIn, parseRule, printRule, stripColumns, TIME_NAMES, type RuleField } from '../rules/index.js';
 import { ruleFields } from './invariant.js';
 import { defineKind } from './types.js';
@@ -36,6 +36,15 @@ const OperationSchema = v.strictObject({
       otherwise: v.optional(ShortKeyRef),
     }),
   ),
+  /** A repeat with the same key, in the window, returns the first answer with no second effect. */
+  idempotency: v.optional(
+    v.strictObject({
+      key: v.string(),
+      scope: v.optional(v.union([v.string(), v.array(v.string())])),
+      window: v.string(),
+      otherwise: v.optional(ShortKeyRef),
+    }),
+  ),
   /** When the shell's clock must call the operation, for a record: a rule over the record and now. */
   due: v.optional(v.string()),
   /** Rules over the request and the record that must hold before the handler runs, each with the error that answers when it does not. */
@@ -64,6 +73,7 @@ export const operation = defineKind<OperationDecl, IROperation>()({
     { path: ['reads', 'entity'], targets: ['entity'] },
     { path: ['reads', 'missing'], targets: ['error'] },
     { path: ['callers', 'otherwise'], targets: ['error'] },
+    { path: ['idempotency', 'otherwise'], targets: ['error'] },
   ],
   // `changes` is checked against the state field of its entity and the fields of its error.
   after: ['field', 'entity', 'error', 'event'],
@@ -113,6 +123,11 @@ export const operation = defineKind<OperationDecl, IROperation>()({
       if (!reads) return undefined;
     }
     const record = changes?.entity ?? reads?.entity;
+    let idempotency: IRIdempotency | undefined;
+    if (decl.idempotency) {
+      idempotency = buildIdempotency(decl.idempotency, { urn: atom.urn, shortKey, input: input.urn, errors, caller, ref, node, report });
+      if (!idempotency) return undefined;
+    }
     const conditions = buildConditions(decl, { urn: atom.urn, shortKey, input: input.urn, output: output.urn, errors, changes, record, caller, counted, countsAll, ref, node, report });
     if (!conditions) return undefined;
     return {
@@ -127,6 +142,7 @@ export const operation = defineKind<OperationDecl, IROperation>()({
       ...(reads ? { reads } : {}),
       ...(conditions.callers ? { callers: conditions.callers } : {}),
       ...(conditions.due ? { due: conditions.due } : {}),
+      ...(idempotency ? { idempotency } : {}),
       ...(conditions.requires.length > 0 ? { requires: conditions.requires } : {}),
       ...(conditions.ensures.length > 0 ? { ensures: conditions.ensures } : {}),
       ...(conditions.exactly.length > 0 ? { exactly: conditions.exactly } : {}),
@@ -432,4 +448,64 @@ function buildRead(decl: NonNullable<OperationDecl['reads']>, c: ReadContext): I
   }
   if (problems > 0) return undefined;
   return { entity: entityAtom.urn, ...(missing ? { missing: missing.urn } : {}) };
+}
+
+interface IdempotencyContext {
+  readonly urn: Urn;
+  readonly shortKey: string;
+  readonly input: Urn;
+  readonly errors: readonly Urn[];
+  readonly caller: Urn | undefined;
+  readonly ref: (path: (string | number)[]) => { readonly urn: Urn } | undefined;
+  readonly node: (kind: 'field' | 'entity' | 'error', urn: Urn) => unknown;
+  readonly report: (issue: { code: 'invalid-idempotency'; urn: string; message: string; path: (string | number)[] }) => void;
+}
+
+/** The window of idempotency: a number of minutes, hours or days. */
+const WINDOW = /^([1-9][0-9]*) (minutes|hours|days)$/;
+const WINDOW_MS = { minutes: 60_000, hours: 3_600_000, days: 86_400_000 } as const;
+
+/** Checks `idempotency`: a key of the input that holds text, its owners, its window and its conflict error; undefined after a problem. */
+function buildIdempotency(decl: NonNullable<OperationDecl['idempotency']>, c: IdempotencyContext): IRIdempotency | undefined {
+  let problems = 0;
+  const problem = (message: string, ...path: (string | number)[]) => {
+    problems += 1;
+    c.report({ code: 'invalid-idempotency', urn: c.urn, message: `${c.urn}: idempotency.${message}`, path: [c.shortKey, 'idempotency', ...path] });
+  };
+  const nodeOf = c.node as (kind: 'field' | 'entity', urn: Urn) => unknown;
+  const input = c.node('entity', c.input) as IREntity | undefined;
+  const callerEntity = c.caller ? (c.node('entity', c.caller) as IREntity | undefined) : undefined;
+  const values: Record<string, RuleField> = { ...(input ? ruleFields(input, nodeOf, 'input.') : {}), ...(callerEntity ? ruleFields(callerEntity, nodeOf, 'caller.') : {}) };
+  const key = Object.hasOwn(values, decl.key) && decl.key.startsWith('input.') ? values[decl.key] : undefined;
+  if (!key) problem(`key: "${decl.key}" is not a property of the input; name one such as input.idempotency_key`, 'key');
+  else if (key.primitive !== 'string' || key.many) problem(`key: "${decl.key}" is ${key.primitive}${key.many ? ' (a list)' : ''}; the key is a text that the caller chooses`, 'key');
+  const scope = decl.scope === undefined ? [] : typeof decl.scope === 'string' ? [decl.scope] : decl.scope;
+  scope.forEach((name, index) => {
+    const value = Object.hasOwn(values, name) ? values[name] : undefined;
+    const at = typeof decl.scope === 'string' ? ['scope'] : ['scope', index];
+    if (!value) problem(`scope: "${name}" is not a property of the caller or the input (values: ${Object.keys(values).join(', ')})`, ...at);
+    else if (value.many || value.embedded) problem(`scope: "${name}" holds ${value.many ? 'a list' : 'an embedded entity'}; name values that hold one value`, ...at);
+  });
+  const window = WINDOW.exec(decl.window);
+  if (!window) problem(`window: "${decl.window}" is not a time; write one such as 24 hours`, 'window');
+  let otherwise: Urn | undefined;
+  if (decl.otherwise !== undefined) {
+    const target = c.ref(['idempotency', 'otherwise']);
+    const error = target && (c.node('error', target.urn) as IRError | undefined);
+    if (!error) return undefined; // pass 4 reported the reference
+    if (!c.errors.includes(error.urn)) problem(`otherwise: ${error.urn} is not one of the errors of the operation; add it to errors`, 'otherwise');
+    const names = new Set((input?.fields ?? []).map((p) => p.name));
+    for (const property of error.fields) {
+      if (property.required && !names.has(property.name)) problem(`otherwise: ${error.urn} needs ${property.name}, which the input does not have`, 'otherwise');
+    }
+    otherwise = error.urn;
+  }
+  if (problems > 0 || !window) return undefined;
+  return {
+    key: decl.key.slice('input.'.length),
+    ...(scope.length > 0 ? { scope } : {}),
+    window: decl.window,
+    windowMs: Number(window[1]) * WINDOW_MS[window[2] as keyof typeof WINDOW_MS],
+    ...(otherwise ? { otherwise } : {}),
+  };
 }

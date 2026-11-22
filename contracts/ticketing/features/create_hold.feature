@@ -135,3 +135,41 @@ Feature: Hold seats and standing places during checkout
       | event_id                             |
       | 00000000-0000-4000-8000-0000000000c1 |
     And the operation emits no event
+
+  Scenario: A repeat with the same key within 24 hours returns the first hold and holds nothing more
+    Given the time is "2026-12-01T19:00:00Z"
+    When I run the operation with:
+      | idempotency_key | event_id                             | lines                                                          |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
+    Then the operation emits "urn:corpus:ticketing:hold:event:hold_created"
+    Given the time is "2026-12-02T18:59:59.999Z"
+    When I run the operation again with:
+      | idempotency_key | event_id                             | lines                                                          |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
+    Then the answer is the first answer
+    And the operation emits no event
+
+  Scenario: A repeat with the same key and another body still returns the first hold
+    Given the time is "2026-12-01T19:00:00Z"
+    When I run the operation with:
+      | idempotency_key | event_id                             | lines                                                          |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
+    And I run the operation again with:
+      | idempotency_key | event_id                             | lines                                              |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: standing, section: FLOOR, quantity: 2 }] |
+    Then the answer is the first answer
+    And the operation emits no event
+
+  Scenario: 24 hours after the first call the key is free, and the repeat holds again
+    Given the time is "2026-12-01T19:00:00Z"
+    When I run the operation with:
+      | idempotency_key | event_id                             | lines                                                          |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
+    Given the time is "2026-12-02T19:00:00Z"
+    When I run the operation again with:
+      | idempotency_key | event_id                             | lines                                                          |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
+    Then the output is:
+      | created_at           | expires_at           |
+      | 2026-12-02T19:00:00Z | 2026-12-02T19:10:00Z |
+    And the operation emits "urn:corpus:ticketing:hold:event:hold_created"

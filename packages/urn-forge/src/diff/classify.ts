@@ -342,6 +342,17 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     for (const rule of requires(a).filter((r) => !requires(b!).includes(r))) compatible(urn, `the requires rule ${rule} is removed`);
     for (const rule of ensures(b!).filter((r) => !ensures(a).includes(r))) compatible(urn, `the new ensures rule ${rule}`);
     for (const rule of ensures(a).filter((r) => !ensures(b!).includes(r))) breaking(urn, `the ensures rule ${rule} is removed, which breaks callers that rely on it`);
+    // Idempotency: callers rely on safe retries. Adding it, or a longer window, is safe; the rest is not.
+    const once = (op: typeof a) => op.idempotency;
+    const [ia, ib] = [once(a), once(b!)];
+    if (!ia && ib) compatible(urn, `idempotency: a repeat with the same ${ib.key} in ${ib.window} now returns the first answer`);
+    else if (ia && !ib) breaking(urn, `idempotency removed: a repeat with the same ${ia.key} makes a second change`);
+    else if (ia && ib) {
+      if (ia.key !== ib.key || JSON.stringify(ia.scope ?? []) !== JSON.stringify(ib.scope ?? [])) breaking(urn, `idempotency: the key ${ia.key} of ${JSON.stringify(ia.scope ?? [])} → ${ib.key} of ${JSON.stringify(ib.scope ?? [])}`);
+      if (ib.windowMs < ia.windowMs) breaking(urn, `idempotency.window ${ia.window} → ${ib.window}: a repeat after the new window makes a second change`);
+      else if (ib.windowMs > ia.windowMs) compatible(urn, `idempotency.window ${ia.window} → ${ib.window}`);
+      if (ia.otherwise !== ib.otherwise) breaking(urn, `idempotency.otherwise ${ia.otherwise ?? 'none'} → ${ib.otherwise ?? 'none'}: a repeat with another body gets another answer`);
+    }
     // A timed change: when it happens by itself is a promise to consumers.
     if (a.due?.ruleText !== b!.due?.ruleText) breaking(urn, `due ${a.due?.ruleText ?? 'none'} → ${b!.due?.ruleText ?? 'none'}: the change happens at another time, or no longer by itself`);
     // Who may call: a new allow rule lets more callers in; a removed one, or new callers, shuts some out.

@@ -251,6 +251,43 @@ Feature: Refund a payment
     Then the operation fails with "urn:corpus:payments:refund:error:refund_window_closed"
     And the operation emits no event
 
+  Scenario: A repeat with the same key and the same body within 24 hours gets the first answer, and refunds nothing more
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
+      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
+      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
+    When I run the operation with:
+      | merchant_id | payment_id                   | amount | idempotency_key |
+      | mer_1       | pay_captured0000000000000000 | 100    | refund-8        |
+    And the time is "2026-11-23T09:59:59.999Z"
+    And I run the operation again with:
+      | merchant_id | payment_id                   | amount | idempotency_key |
+      | mer_1       | pay_captured0000000000000000 | 100    | refund-8        |
+    Then the answer is the first answer
+    And the operation emits no event
+
+  Scenario: A repeat with the same key and the same body after 24 hours is a new refund
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
+      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
+      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
+    When I run the operation with:
+      | merchant_id | payment_id                   | amount | idempotency_key |
+      | mer_1       | pay_captured0000000000000000 | 100    | refund-9        |
+    And the time is "2026-11-23T10:00:00Z"
+    And I run the operation again with:
+      | merchant_id | payment_id                   | amount | idempotency_key |
+      | mer_1       | pay_captured0000000000000000 | 100    | refund-9        |
+    Then the operation emits "urn:corpus:payments:payment:event:partially_refunded":
+      | payment_id                   | new_status         | occurred_at          |
+      | pay_captured0000000000000000 | partially_refunded | 2026-11-23T10:00:00Z |
+
   Scenario: An idempotency key that an earlier, different request used is refused
     Given the time is "2026-11-22T10:00:00Z"
     And the caller is:
@@ -262,9 +299,13 @@ Feature: Refund a payment
     When I run the operation with:
       | merchant_id | payment_id                   | amount | idempotency_key |
       | mer_1       | pay_captured0000000000000000 | 100    | used-key        |
+    And I run the operation again with:
+      | merchant_id | payment_id                   | amount | idempotency_key |
+      | mer_1       | pay_captured0000000000000000 | 200    | used-key        |
     Then the operation fails with "urn:corpus:payments:payment:error:idempotency_conflict":
       | idempotency_key |
       | used-key        |
+    And the operation emits no event
 
   Scenario Outline: A key of another merchant, a read-only key, or the clock is refused as not found
     Given the time is "2026-11-22T10:00:00Z"

@@ -75,17 +75,83 @@ Feature: Book a table
     Then the operation fails with "urn:corpus:bookings:booking:error:payment_declined"
     And the operation emits no event
 
+  Scenario: A repeat with the same key and request returns the first answer and books nothing more
+    Given the caller is:
+      | role  |
+      | guest |
+    And the time is "2026-11-22T10:00:00Z"
+    When I run the operation with:
+      | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key       | deposit_token |
+      | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 8           | { name: Ada, email: ada@example.com } | client-key-0000000008 | tok_visa_4242 |
+    And I run the operation again with:
+      | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key       | deposit_token |
+      | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 8           | { name: Ada, email: ada@example.com } | client-key-0000000008 | tok_visa_4242 |
+    Then the answer is the first answer
+    And the output is:
+      | reference | restaurant_id                        | status    | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | deposit_per_guest | currency |
+      | NEWBK234  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 8          | 120              | 160.00         | 20.00             | EUR      |
+    And the operation emits no event
+
+  Scenario: A repeat with the same key just before 24 hours still returns the first answer
+    Given the caller is:
+      | role  |
+      | guest |
+    And the time is "2026-11-22T10:00:00Z"
+    When I run the operation with:
+      | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key       | deposit_token |
+      | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 8           | { name: Ada, email: ada@example.com } | client-key-0000000008 | tok_visa_4242 |
+    And the time is "2026-11-23T09:59:59Z"
+    And I run the operation again with:
+      | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key       | deposit_token |
+      | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 8           | { name: Ada, email: ada@example.com } | client-key-0000000008 | tok_visa_4242 |
+    Then the answer is the first answer
+    And the operation emits no event
+
+  Scenario: After 24 hours the key is free, so the same request books again
+    Given the caller is:
+      | role  |
+      | guest |
+    And the time is "2026-11-22T10:00:00Z"
+    When I run the operation with:
+      | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key       | deposit_token |
+      | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 8           | { name: Ada, email: ada@example.com } | client-key-0000000008 | tok_visa_4242 |
+    And the time is "2026-11-23T10:00:00Z"
+    And I run the operation again with:
+      | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key       | deposit_token |
+      | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 8           | { name: Ada, email: ada@example.com } | client-key-0000000008 | tok_visa_4242 |
+    Then the operation emits "urn:corpus:bookings:booking:event:booking_created":
+      | event_id                             | reference | restaurant_id                        | state     | party_size | local_date | local_time | time_zone    | occurred_at          | guest_id                             |
+      | 16fd2706-8baf-433b-82eb-8c7fed5c9b0e | NEWBK234  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 8          | 2026-12-24 | 19:30      | Europe/Paris | 2026-11-22T10:00:00Z | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
+
   Scenario: An idempotency key used before with a different request is refused
     Given the caller is:
       | role  |
       | guest |
+    And the time is "2026-11-22T10:00:00Z"
     When I run the operation with:
-      | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key   |
-      | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 2          | { name: Ada, email: ada@example.com } | reused-key-000001 |
+      | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key       | deposit_token |
+      | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 8           | { name: Ada, email: ada@example.com } | client-key-0000000008 | tok_visa_4242 |
+    And I run the operation again with:
+      | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key       | deposit_token |
+      | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 20:00      | 8           | { name: Ada, email: ada@example.com } | client-key-0000000008 | tok_visa_4242 |
     Then the operation fails with "urn:corpus:bookings:booking:error:invalid_request":
-      | idempotency_key   |
-      | reused-key-000001 |
+      | idempotency_key       |
+      | client-key-0000000008 |
     And the operation emits no event
+
+  Scenario: A refusal is not kept, so a repeat of a refused request runs again
+    Given the caller is:
+      | role  |
+      | guest |
+    When I run the operation with:
+      | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key       | deposit_token |
+      | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 8           | { name: Ada, email: ada@example.com } | client-key-0000000008 | declined      |
+    And I run the operation again with:
+      | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key       | deposit_token |
+      | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 8           | { name: Ada, email: ada@example.com } | client-key-0000000008 | tok_visa_4242 |
+    Then the operation emits "urn:corpus:bookings:booking:event:booking_created":
+      | event_id                             | reference | restaurant_id                        | state     | party_size | local_date | local_time | time_zone    | occurred_at          | guest_id                             |
+      | 16fd2706-8baf-433b-82eb-8c7fed5c9b0e | NEWBK234  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 8          | 2026-12-24 | 19:30      | Europe/Paris | 2026-11-22T10:00:00Z | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
 
   Scenario: A start time outside the booking window is refused
     Given the caller is:

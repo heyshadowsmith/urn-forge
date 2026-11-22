@@ -86,7 +86,7 @@ const due = addDays('2026-11-21', 28); // '2026-12-19'
 
 | Export | Signature | Description |
 | --- | --- | --- |
-| `registerOperationSteps` | `registerOperationSteps(options: { dispatch; execute: (urn: string, payload: unknown, options) => ExecuteResultLike; caller? }): void` | Registers a `Before` hook and the generic steps. `execute` gets `{ current?, caller? }` from the Given steps. `caller` is the generated `CallerContract`, for `Given the caller is:`. Refer to [Gherkin steps](./gherkin-steps) |
+| `registerOperationSteps` | `registerOperationSteps(options: { dispatch; execute: (urn: string, payload: unknown, options) => ExecuteResultLike; caller? }): void` | Registers a `Before` hook and the generic steps. `execute` gets `{ current?, caller?, now? }` from the Given steps. `idempotency` takes the generated `idempotencyOf`, for a repeat, which `execute` gets as `{ repeat }`. `caller` is the generated `CallerContract`, for `Given the caller is:`. Refer to [Gherkin steps](./gherkin-steps) |
 | `operationUrnFromTags` | `(tags: readonly string[]): string` | The one operation URN in the tags. Throws if there is none or more than one |
 | `coerceCell` | `(cell: string, field: PropertyInfoLike): unknown` | A table cell as a value of the primitive of the field |
 | `tableToObject` | `(rows, fields, side: 'input' \| 'output' \| 'error' \| 'event', urn: string): Record<string, unknown>` | A table of one header row and one data row as an object |

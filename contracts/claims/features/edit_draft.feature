@@ -223,3 +223,23 @@ Feature: Edit a draft claim
     Then the operation fails with "urn:corpus:claims:claim:error:duplicate_receipt":
       | sha256                                                           |
       | ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff |
+
+  Scenario: A repeat with the same idempotency key by the same caller within 24 hours returns the first answer, whatever its body
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
+      | role     | employee_id |
+      | employee | E-1001      |
+    And the current claim is:
+      | claim_id       | version | employee_id | manager_id | state | purpose      | currency | total  | lines                                                                                                           |
+      | CLM-0000000123 | 1       | E-1001      | M-3003     | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
+    When I run the operation with:
+      | idempotency_key | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                          |
+      | key-0001        | CLM-0000000123 | 1       | E-1001   | Client visit | EUR      | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 95.00, distance_km: 460 }] |
+    And the time is "2026-11-23T09:59:59.999Z"
+    And I run the operation again with:
+      | idempotency_key | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                          |
+      | key-0001        | CLM-0000000123 | 1       | E-1001   | Client visit | EUR      | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 50.00, distance_km: 200 }] |
+    Then the answer is the first answer
+    And the output is:
+      | claim_id       | state | total | currency | version |
+      | CLM-0000000123 | DRAFT | 95.00 | EUR      | 2       |

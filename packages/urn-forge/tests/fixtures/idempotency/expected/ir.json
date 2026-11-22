@@ -1,0 +1,237 @@
+{
+  "entities": {
+    "urn:demo:idempotency:auth:entity:caller": {
+      "brandIdentifier": "AuthCaller",
+      "description": "The merchant that calls, as the shell authenticated its key",
+      "fields": [
+        {
+          "field": "urn:demo:idempotency:auth:field:merchant_id",
+          "name": "merchant_id",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:idempotency:auth:entity:caller"
+    },
+    "urn:demo:idempotency:payment:entity:create_request": {
+      "brandIdentifier": "PaymentCreateRequest",
+      "description": "A request for a payment",
+      "fields": [
+        {
+          "field": "urn:demo:idempotency:request:field:idempotency_key",
+          "name": "idempotency_key",
+          "required": false
+        },
+        {
+          "field": "urn:demo:idempotency:payment:field:amount",
+          "name": "amount",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:idempotency:payment:entity:create_request"
+    },
+    "urn:demo:idempotency:payment:entity:payment": {
+      "brandIdentifier": "PaymentPayment",
+      "description": "A payment",
+      "fields": [
+        {
+          "field": "urn:demo:idempotency:payment:field:payment_id",
+          "name": "payment_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:idempotency:payment:field:amount",
+          "name": "amount",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:idempotency:payment:entity:payment"
+    },
+    "urn:demo:idempotency:payment:entity:refund_request": {
+      "brandIdentifier": "PaymentRefundRequest",
+      "description": "A request for a refund",
+      "fields": [
+        {
+          "field": "urn:demo:idempotency:request:field:idempotency_key",
+          "name": "idempotency_key",
+          "required": true
+        },
+        {
+          "field": "urn:demo:idempotency:payment:field:payment_id",
+          "name": "payment_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:idempotency:payment:field:amount",
+          "name": "amount",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:idempotency:payment:entity:refund_request"
+    }
+  },
+  "errors": {
+    "urn:demo:idempotency:payment:error:forbidden": {
+      "brandIdentifier": "PaymentForbidden",
+      "category": "forbidden",
+      "description": "The caller may not refund",
+      "fields": [],
+      "message": [
+        {
+          "text": "This caller may not refund"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:idempotency:payment:error:forbidden"
+    },
+    "urn:demo:idempotency:payment:error:idempotency_conflict": {
+      "brandIdentifier": "PaymentIdempotencyConflict",
+      "category": "conflict",
+      "description": "The key was used before with another request",
+      "fields": [
+        {
+          "field": "urn:demo:idempotency:request:field:idempotency_key",
+          "name": "idempotency_key",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "The key "
+        },
+        {
+          "field": "idempotency_key"
+        },
+        {
+          "text": " belongs to another request"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:idempotency:payment:error:idempotency_conflict"
+    }
+  },
+  "events": {
+    "urn:demo:idempotency:payment:event:created": {
+      "brandIdentifier": "PaymentCreated",
+      "description": "A payment was created",
+      "fields": [
+        {
+          "field": "urn:demo:idempotency:payment:field:payment_id",
+          "name": "payment_id",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:idempotency:payment:event:created"
+    }
+  },
+  "fields": {
+    "urn:demo:idempotency:auth:field:merchant_id": {
+      "brandIdentifier": "AuthMerchantId",
+      "constraints": {
+        "regex": "mer_[a-z0-9]{6}"
+      },
+      "description": "The merchant of the key that calls",
+      "primitive": "string",
+      "urn": "urn:demo:idempotency:auth:field:merchant_id"
+    },
+    "urn:demo:idempotency:payment:field:amount": {
+      "brandIdentifier": "PaymentAmount",
+      "constraints": {
+        "min": 1
+      },
+      "description": "An amount in minor units",
+      "primitive": "integer",
+      "urn": "urn:demo:idempotency:payment:field:amount"
+    },
+    "urn:demo:idempotency:payment:field:payment_id": {
+      "brandIdentifier": "PaymentPaymentId",
+      "constraints": {
+        "regex": "pay_[a-z0-9]{8}"
+      },
+      "description": "The id of a payment",
+      "primitive": "string",
+      "urn": "urn:demo:idempotency:payment:field:payment_id"
+    },
+    "urn:demo:idempotency:request:field:idempotency_key": {
+      "brandIdentifier": "RequestIdempotencyKey",
+      "constraints": {
+        "maxLength": 64,
+        "minLength": 8
+      },
+      "description": "A key that the caller chooses, so a repeat is safe",
+      "primitive": "string",
+      "urn": "urn:demo:idempotency:request:field:idempotency_key"
+    }
+  },
+  "invariants": {},
+  "meta": {
+    "caller": "urn:demo:idempotency:auth:entity:caller",
+    "domain": "idempotency",
+    "irSchemaVersion": 1,
+    "manifestHash": "3b0c3629209de45ffd0de3f9a20025a35285874aff6e6c6f2fef70d69401be9b",
+    "manifestVersion": "1.0.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {
+    "urn:demo:idempotency:payment:operation:create_payment": {
+      "brandIdentifier": "PaymentCreatePayment",
+      "callers": {
+        "allow": "any"
+      },
+      "description": "Create a payment, once for each key of the merchant in 24 hours",
+      "emits": [
+        "urn:demo:idempotency:payment:event:created"
+      ],
+      "errors": [
+        "urn:demo:idempotency:payment:error:idempotency_conflict"
+      ],
+      "idempotency": {
+        "key": "idempotency_key",
+        "otherwise": "urn:demo:idempotency:payment:error:idempotency_conflict",
+        "scope": [
+          "caller.merchant_id"
+        ],
+        "window": "24 hours",
+        "windowMs": 86400000
+      },
+      "input": "urn:demo:idempotency:payment:entity:create_request",
+      "output": "urn:demo:idempotency:payment:entity:payment",
+      "urn": "urn:demo:idempotency:payment:operation:create_payment"
+    },
+    "urn:demo:idempotency:payment:operation:refund_payment": {
+      "brandIdentifier": "PaymentRefundPayment",
+      "callers": {
+        "allow": [
+          {
+            "rule": {
+              "left": {
+                "name": "caller.merchant_id",
+                "op": "field"
+              },
+              "op": "=",
+              "right": {
+                "op": "text",
+                "value": "mer_abc123"
+              }
+            },
+            "ruleText": "caller.merchant_id = 'mer_abc123'"
+          }
+        ],
+        "otherwise": "urn:demo:idempotency:payment:error:forbidden"
+      },
+      "description": "Refund a payment, once for each key in 24 hours, whatever the body of a repeat",
+      "emits": [],
+      "errors": [
+        "urn:demo:idempotency:payment:error:forbidden"
+      ],
+      "idempotency": {
+        "key": "idempotency_key",
+        "window": "24 hours",
+        "windowMs": 86400000
+      },
+      "input": "urn:demo:idempotency:payment:entity:refund_request",
+      "output": "urn:demo:idempotency:payment:entity:payment",
+      "urn": "urn:demo:idempotency:payment:operation:refund_payment"
+    }
+  }
+}

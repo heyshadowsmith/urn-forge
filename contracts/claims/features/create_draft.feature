@@ -111,3 +111,54 @@ Feature: Create a draft claim
     Then the operation fails with "urn:corpus:claims:claim:error:duplicate_receipt":
       | sha256                                                           |
       | ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff |
+
+  Scenario: A repeat with the same idempotency key by the same caller within 24 hours returns the first answer, whatever its body
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
+      | role     | employee_id |
+      | employee | E-1001      |
+    When I run the operation with:
+      | idempotency_key | actor_id | employee_id | purpose      | currency | lines                                                                                                          |
+      | key-0001        | E-1001   | E-1001      | Client visit | EUR      | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 95.00, distance_km: 460 }] |
+    And the time is "2026-11-23T09:59:59.999Z"
+    And I run the operation again with:
+      | idempotency_key | actor_id | employee_id | purpose       | currency | lines                                                                                                          |
+      | key-0001        | E-1001   | E-1001      | Another visit | EUR      | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 50.00, distance_km: 200 }] |
+    Then the answer is the first answer
+    And the output is:
+      | claim_id       | state | total | currency | version |
+      | CLM-0000000001 | DRAFT | 95.00 | EUR      | 1       |
+
+  Scenario: The same idempotency key sent by another caller is a new request
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
+      | role     | employee_id |
+      | employee | E-1001      |
+    When I run the operation with:
+      | idempotency_key | actor_id | employee_id | purpose      | currency | lines                                                                                                          |
+      | key-0001        | E-1001   | E-1001      | Client visit | EUR      | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 95.00, distance_km: 460 }] |
+    And the caller is:
+      | role     | employee_id |
+      | employee | E-2002      |
+    And I run the operation again with:
+      | idempotency_key | actor_id | employee_id | purpose      | currency | lines                                                                                                          |
+      | key-0001        | E-2002   | E-2002      | Client visit | EUR      | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 50.00, distance_km: 200 }] |
+    Then the output is:
+      | claim_id       | state | total | currency | version |
+      | CLM-0000000001 | DRAFT | 50.00 | EUR      | 1       |
+
+  Scenario: The same idempotency key 24 hours after the first request is a new request
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
+      | role     | employee_id |
+      | employee | E-1001      |
+    When I run the operation with:
+      | idempotency_key | actor_id | employee_id | purpose      | currency | lines                                                                                                          |
+      | key-0001        | E-1001   | E-1001      | Client visit | EUR      | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 95.00, distance_km: 460 }] |
+    And the time is "2026-11-23T10:00:00Z"
+    And I run the operation again with:
+      | idempotency_key | actor_id | employee_id | purpose      | currency | lines                                                                                                          |
+      | key-0001        | E-1001   | E-1001      | Client visit | EUR      | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 50.00, distance_km: 200 }] |
+    Then the output is:
+      | claim_id       | state | total | currency | version |
+      | CLM-0000000001 | DRAFT | 50.00 | EUR      | 1       |

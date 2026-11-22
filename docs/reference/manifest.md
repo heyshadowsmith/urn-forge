@@ -178,6 +178,7 @@ policy.operation.cancel_policy:
 | `emits` | A list of strings or maps | No | `[]` | Each event one time: its short key, or `{ event, when }`. Refer to [`emits`](#emits) |
 | `changes` | A map | No | — | The stored record that the operation changes. Refer to [`changes`](#changes) |
 | `reads` | A map | No | — | The stored record that the operation reads. Refer to [`reads`](#reads) |
+| `idempotency` | A map | No | — | `key` (a text property of the input, as `input.<name>`), `scope` (optional: `caller.` or `input.` values that own the key), `window` (a time, such as `24 hours`) and `otherwise` (optional: the error for the same key with another body). Any other problem causes `invalid-idempotency`. Refer to [Make a call safe to repeat](../how-to/make-a-call-safe-to-repeat) |
 | `due` | string | No | — | When the shell's clock must call the operation, for a record: a rule over `current.`, `now` and `today`. It needs `changes`. Any other problem causes `invalid-due`. Refer to [Run changes on a clock](../how-to/run-changes-on-a-clock) |
 | `callers` | A map | With a `caller` in the header | — | Who may call. Refer to [`callers`](#callers) |
 | `requires` | A list of maps | No | `[]` | Each `{ rule, otherwise }`. Refer to [`requires` and `ensures`](#requires-and-ensures) |

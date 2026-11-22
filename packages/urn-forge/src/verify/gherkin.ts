@@ -96,6 +96,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const expectedErrors = new Set<string>();
   /** `<operation URN> <event URN>` for each event some scenario expects. */
   const expectedEvents = new Set<string>();
+  /** Each idempotent operation that a scenario runs again. */
+  const repeated = new Set<string>();
   /** Each timed change that a scenario calls for a record that is not due. */
   const notDue = new Set<string>();
   /** Each event that a scenario expects a success without: the other side of a \`when\` rule. */
@@ -180,6 +182,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
       let runs: SourceLocation | undefined;
       for (const step of scenario.steps) {
         if (step.text === STEP_PHRASES.run) runs ??= step.location;
+        // `When I run the operation again with:`: a repeat of an idempotent call.
+        if (step.text === STEP_PHRASES.runAgain && owner && operation?.idempotency) repeated.add(owner.urn);
         // `Then the operation is not due`: a timed change, called too early.
         if (step.text === STEP_PHRASES.notDue) {
           if (operation?.due && owner) notDue.add(owner.urn);
@@ -462,6 +466,17 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         message: `${operation.urn} has no scenario with a ${change.property} outside ${change.from.join(', ')} that expects "${change.otherwise}"; add one with Given the current ${identifier} is: and Then the operation fails with "${change.otherwise}"`,
       });
     }
+  }
+  // Idempotency: a scenario must repeat the call, to show that the repeat returns the first answer.
+  for (const operation of Object.values(ir.operations)) {
+    if (!operation.idempotency || !covered.has(operation.urn) || repeated.has(operation.urn)) continue;
+    problems.push({
+      code: 'uncovered-idempotency',
+      severity: coverageSeverity(operation.urn),
+      file: features.directory,
+      urn: operation.urn,
+      message: `${operation.urn} returns the first answer to a repeat with the same ${operation.idempotency.key}, and no scenario repeats a call; add one with When I run the operation again with:`,
+    });
   }
   // A timed change: a scenario must call it for a record that is not due, the other side of its due rule.
   for (const operation of Object.values(ir.operations)) {

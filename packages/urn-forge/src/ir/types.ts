@@ -213,6 +213,8 @@ export interface IROperation {
   readonly reads?: IRRead;
   /** Who may call: any caller, or a caller for whom one rule holds; else the runtime answers `otherwise`. */
   readonly callers?: IRCallers;
+  /** A repeat with the same key in the window returns the first answer, with no second effect. */
+  readonly idempotency?: IRIdempotency;
   /** When the shell's clock must call the operation, for a record of `changes`: a rule over `current.` and `now`. */
   readonly due?: IRRule;
   /** Rules that must hold before the handler runs; the first that does not answers its error. */
@@ -248,6 +250,19 @@ export interface IRRule {
 export interface IREmitRule {
   readonly event: Urn;
   readonly when?: IRRule;
+}
+
+/** The idempotency of an operation: the key of the input, its owners, the window, and the error for another body. */
+export interface IRIdempotency {
+  /** The property of the input that holds the key. A call without it is not idempotent. */
+  readonly key: string;
+  /** The prefixed names (`caller.merchant_id`, `input.order_id`) whose values own the key with it. */
+  readonly scope?: readonly string[];
+  /** The window as the manifest writes it, such as `24 hours`, and in milliseconds. */
+  readonly window: string;
+  readonly windowMs: number;
+  /** The declared error for the same key with another body; without it, a repeat returns the first answer. */
+  readonly otherwise?: Urn;
 }
 
 /** The record that an operation reads: the shell passes it as `current`. */

@@ -221,6 +221,17 @@ For each operation with `due` whose `changes` entity is a table, the store file 
 
 If the entity is not a table, or the rule reads a list or an embedded entity, the plugin reports `unenforced-in-sql`, and the file has no query for the operation. Refer to [Run changes on a clock](../how-to/run-changes-on-a-clock).
 
+## Answers of idempotent operations
+
+For a domain with an operation that has `idempotency`, the schema has the table `"idempotency"."<domain>"`: `operation`, `scope` (the owners of the key, as JSON), `key`, `body_hash` (SHA-256 of the canonical body), `answer` (`JSONB`) and `created_at`. The operation, the scope and the key are the primary key. The store file has:
+
+| Export | Description |
+| --- | --- |
+| `Query` | `(statement: Statement) => Promise<{ rows }>`: the query function of your driver |
+| `runOnce(query, urn, payload, { caller, now }, execute)` | For a repeat in the window, calls `execute({ output })` with the first answer, or `execute({ conflict: true })` for another body when there is an `otherwise`; `executeOperation` gives them once the caller may call. Else calls `execute()` and stores a success. It imports the runtime file and `node:crypto` |
+
+Refer to [Make a call safe to repeat](../how-to/make-a-call-safe-to-repeat).
+
 ## The outbox
 
 A domain with an event that has `delivery` gets one more table, also with no table in `tables`:

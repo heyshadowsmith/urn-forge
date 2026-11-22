@@ -12,6 +12,10 @@ export const STEP_PHRASES = {
   /** The time of the call, as the shell's clock would give it: a UTC timestamp. */
   time: 'the time is {string}',
   run: 'I run the operation with:',
+  /** The same operation once more in the scenario, as a repeat of the caller: the answers of the scenario are kept. */
+  runAgain: 'I run the operation again with:',
+  /** The answer of the last run is the answer of the first run that succeeded. */
+  firstAnswer: 'the answer is the first answer',
   output: 'the output is:',
   rejected: 'the input is rejected on {string}',
   /** The input breaks the invariant with this URN. */

@@ -66,6 +66,7 @@ const strict = compile(source('tutorial/3-strict-coverage/domain.manifest.yaml')
 // States, over the states fixture: seating a booking needs its current record.
 const states = compile(source('tests/fixtures/states/domain.manifest.yaml')).ir!;
 const SEAT = '@urn:demo:states:booking:operation:seat_booking';
+const idempotent = compile(source('tests/fixtures/idempotency/domain.manifest.yaml')).ir!;
 const clock = compile(source('tests/fixtures/clock/domain.manifest.yaml')).ir!;
 const timed = compile(source('tests/fixtures/time/domain.manifest.yaml')).ir!;
 const callers = compile(source('tests/fixtures/callers/domain.manifest.yaml')).ir!;
@@ -192,6 +193,8 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
     manifest('a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\n' +
       'a.error.no: { description: N, category: not_found, retryable: false, message: No }\n' +
       'a.operation.o: { description: O, input: a.entity.e, output: a.entity.e, reads: { entity: a.entity.e, missing: a.error.no } }\n'),
+  'invalid-idempotency': () =>
+    manifest('a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\n' + 'a.operation.o: { description: O, input: a.entity.e, output: a.entity.e, idempotency: { key: input.n, window: 24 hours } }\n'),
   'invalid-due': () =>
     manifest('a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\n' + 'a.operation.o: { description: O, input: a.entity.e, output: a.entity.e, due: now > now }\n'),
   'invalid-condition': () =>
@@ -258,6 +261,15 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'uncovered-invariant': () => gate3(scenario(ISSUE_RUN, ISSUE), 'warn', insurance),
   'uncovered-state': () => gate3(scenario(CURRENT('confirmed') + SEAT_RUN, SEAT), 'warn', states),
   'invalid-current': () => gate3(scenario(SEAT_RUN, SEAT), 'warn', states),
+  'uncovered-idempotency': () =>
+    gate3(
+      scenario(
+        '    Given the caller is:\n      | merchant_id |\n      | mer_abc123 |\n    When I run the operation with:\n      | idempotency_key | amount |\n      | key-0001 | 500 |\n',
+        '@urn:demo:idempotency:payment:operation:create_payment',
+      ),
+      'warn',
+      idempotent,
+    ),
   'uncovered-due': () =>
     gate3(
       scenario(

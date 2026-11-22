@@ -326,6 +326,13 @@ subscription.error.invalid_state_transition:
   fields:
     - ref: subscription.field.subscription_id
     - ref: subscription.field.status
+request.error.conflict:
+  description: The idempotency key was sent before, within 24 hours, with a different request
+  category: conflict
+  retryable: false
+  message: The idempotency key {idempotency_key} belongs to a different request
+  fields:
+    - ref: request.field.idempotency_key
 subscription.error.currency_mismatch:
   description: The new plan has a different currency than the subscription
   category: precondition
@@ -410,6 +417,10 @@ subscription.operation.create_subscription:
   description: Subscribe a customer to a plan, with an optional trial
   input: subscription.entity.create_request
   output: subscription.entity.subscription
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
+    otherwise: request.error.conflict
   requires:
     - rule: input.trial_end is absent or input.trial_end > today and input.trial_end <= today + 730
       otherwise: subscription.error.invalid_trial_end
@@ -425,6 +436,7 @@ subscription.operation.create_subscription:
   errors:
     - subscription.error.invalid_trial_end
     - subscription.error.conflict
+    - request.error.conflict
   emits:
     - event: subscription.event.created
     - event: subscription.event.trial_will_end
@@ -447,6 +459,10 @@ subscription.operation.change_plan:
   description: Move a subscription to a different plan of the same currency
   input: subscription.entity.change_plan_request
   output: subscription.entity.subscription
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
+    otherwise: request.error.conflict
   changes:
     entity: subscription.entity.subscription
     from: [trialing, active, past_due, paused]
@@ -462,12 +478,17 @@ subscription.operation.change_plan:
     - subscription.error.not_found
     - subscription.error.currency_mismatch
     - subscription.error.invalid_state_transition
+    - request.error.conflict
   emits:
     - event: subscription.event.updated
 subscription.operation.pause_subscription:
   description: Pause an active or trialing subscription
   input: subscription.entity.pause_request
   output: subscription.entity.subscription
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
+    otherwise: request.error.conflict
   changes:
     entity: subscription.entity.subscription
     from: [active, trialing]
@@ -484,12 +505,17 @@ subscription.operation.pause_subscription:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
     - subscription.error.invalid_resume_date
+    - request.error.conflict
   emits:
     - event: subscription.event.updated
 subscription.operation.resume_subscription:
   description: Resume a paused subscription
   input: subscription.entity.resume_request
   output: subscription.entity.subscription
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
+    otherwise: request.error.conflict
   changes:
     entity: subscription.entity.subscription
     from: [paused]
@@ -501,12 +527,17 @@ subscription.operation.resume_subscription:
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
+    - request.error.conflict
   emits:
     - event: subscription.event.updated
 subscription.operation.cancel_subscription:
   description: Cancel a subscription now or at the end of its period
   input: subscription.entity.cancel_request
   output: subscription.entity.subscription
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
+    otherwise: request.error.conflict
   changes:
     entity: subscription.entity.subscription
     from: [trialing, active, past_due, paused]
@@ -520,6 +551,7 @@ subscription.operation.cancel_subscription:
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
+    - request.error.conflict
   emits:
     - event: subscription.event.canceled
 subscription.operation.announce_trial_end:

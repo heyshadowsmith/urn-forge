@@ -204,3 +204,49 @@ Feature: Create a subscription
       | customer_id | plan_id    |
       | cus_taken   | plan_basic |
     And the operation emits no event
+
+  Scenario: A repeat of the same key and the same body within 24 hours returns the first answer and has no second effect
+    Given the time is "2026-11-22T10:00:00Z"
+    When I run the operation with:
+      | customer_id | plan_id    | quantity | idempotency_key |
+      | cus_1       | plan_basic | 1        | key-1           |
+    And the time is "2026-11-23T09:59:59Z"
+    And I run the operation again with:
+      | customer_id | plan_id    | quantity | idempotency_key |
+      | cus_1       | plan_basic | 1        | key-1           |
+    Then the answer is the first answer
+    And the operation emits no event
+
+  Scenario: A repeat of the same key with a different body within 24 hours is refused with conflict
+    Given the time is "2026-11-22T10:00:00Z"
+    When I run the operation with:
+      | customer_id | plan_id    | quantity | idempotency_key |
+      | cus_1       | plan_basic | 1        | key-1           |
+    And I run the operation again with:
+      | customer_id | plan_id    | quantity | idempotency_key |
+      | cus_1       | plan_basic | 2        | key-1           |
+    Then the operation fails with "urn:corpus:subscriptions:request:error:conflict":
+      | idempotency_key |
+      | key-1           |
+    And the operation emits no event
+
+  Scenario: After 24 hours the same key is free, and the request runs again
+    Given the time is "2026-11-22T10:00:00Z"
+    When I run the operation with:
+      | customer_id | plan_id    | quantity | idempotency_key |
+      | cus_1       | plan_basic | 1        | key-1           |
+    And the time is "2026-11-23T10:00:00Z"
+    And I run the operation again with:
+      | customer_id | plan_id    | quantity | idempotency_key |
+      | cus_1       | plan_basic | 1        | key-1           |
+    Then the operation emits "urn:corpus:subscriptions:subscription:event:created"
+
+  Scenario: A repeat without a key is a new request, and runs again
+    Given the time is "2026-11-22T10:00:00Z"
+    When I run the operation with:
+      | customer_id | plan_id    | quantity |
+      | cus_1       | plan_basic | 1        |
+    And I run the operation again with:
+      | customer_id | plan_id    | quantity |
+      | cus_1       | plan_basic | 1        |
+    Then the operation emits "urn:corpus:subscriptions:subscription:event:created"
