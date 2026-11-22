@@ -25,7 +25,7 @@
  *     execute: (urn, payload) => executeOperation(urn, payload, core),
  *   });
  */
-import { Before, Then, When, type DataTable } from '@cucumber/cucumber';
+import { Before, Given, Then, When, type DataTable } from '@cucumber/cucumber';
 import { type Primitive } from '../primitives/index.js';
 import { readCell } from './cells.js';
 import { STEP_PHRASES } from './phrases.js';
@@ -63,6 +63,8 @@ export interface OperationContractLike {
   readonly errors: Readonly<Record<string, { readonly fields: FieldsLike; readonly recordAs?: { readonly urn: string; readonly fields: FieldsLike } }>>;
   /** The operation's events, keyed by event URN. */
   readonly events?: Readonly<Record<string, { readonly fields: FieldsLike }>>;
+  /** The record that the operation changes, when it changes one. */
+  readonly changes?: { readonly entity: { readonly urn: string; readonly fields: FieldsLike } };
 }
 
 export interface EmittedEventLike {
@@ -92,7 +94,11 @@ export type ExecuteResultLike =
 
 export interface OperationStepsOptions {
   readonly dispatch: Readonly<Record<string, OperationContractLike>>;
-  readonly execute: (urn: string, payload: unknown) => ExecuteResultLike;
+  /**
+   * Runs one operation. `options.current` is the record of `Given the current <entity> is:`;
+   * a domain with `changes` passes it on: `executeOperation(urn, payload, core, options)`.
+   */
+  readonly execute: (urn: string, payload: unknown, options: { readonly current?: unknown }) => ExecuteResultLike;
 }
 
 // ---------------------------------------------------------------------------
@@ -132,7 +138,7 @@ export function coerceCell(cell: string, field: PropertyInfoLike): unknown {
 export function tableToObject(
   rows: readonly (readonly string[])[],
   fields: FieldsLike,
-  side: 'input' | 'output' | 'error' | 'event',
+  side: 'input' | 'output' | 'error' | 'event' | 'current record',
   urn: string,
 ): Record<string, unknown> {
   if (rows.length !== 2) {
@@ -320,6 +326,8 @@ export function assertEmitsNone(result: ExecuteResultLike, urn: string): void {
 
 interface ScenarioState {
   tags: readonly string[];
+  /** The record of `Given the current <entity> is:`, as the shell would load it. */
+  current?: unknown;
   urn?: string;
   result?: ExecuteResultLike;
 }
@@ -378,12 +386,22 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     this.urnForge = { tags: pickle.tags.map((tag) => tag.name) };
   });
 
+  Given(STEP_PHRASES.current, function (this: StepsWorld, word: string, table: DataTable) {
+    const s = state(this);
+    const urn = operationUrnFromTags(s.tags);
+    const change = contract(urn).changes;
+    if (!change) throw new Error(`${urn} changes no record, so "the current ${word} is:" has nothing to give`);
+    const identifier = change.entity.urn.split(':').at(-1);
+    if (word !== identifier) throw new Error(`${urn} changes a record of ${change.entity.urn}: write "the current ${identifier} is:"`);
+    s.current = tableToObject(table.raw(), change.entity.fields, 'current record', change.entity.urn);
+  });
+
   When(STEP_PHRASES.run, function (this: StepsWorld, table: DataTable) {
     const s = state(this);
     const urn = operationUrnFromTags(s.tags);
     const payload = tableToObject(table.raw(), contract(urn).input.fields, 'input', urn);
     s.urn = urn;
-    s.result = options.execute(urn, payload);
+    s.result = options.execute(urn, payload, s.current === undefined ? {} : { current: s.current });
   });
 
   Then(STEP_PHRASES.output, function (this: StepsWorld, table: DataTable) {

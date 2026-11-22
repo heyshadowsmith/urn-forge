@@ -7,6 +7,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';
 import type { Urn } from '../src/ir/types.js';
+import { indexFeatureSource } from '../src/verify/feature-index.js';
+import { checkGherkin } from '../src/verify/gherkin.js';
+import type { GateContext } from '../src/verify/types.js';
 import {
   executeOperation,
   ok,
@@ -112,5 +115,55 @@ describe('the runtime of the states target', () => {
       [SEAT]: (_input, current: { readonly refund: string }) => ok({ reference: current.refund, state: 'seated', party_size: 1 }),
     } satisfies DomainCoreImplementation;
     expect(typed).toBeDefined();
+  });
+});
+
+describe('gate 3 for the states target', () => {
+  const ir = compile(source).ir!;
+  const gate3 = (feature: string) =>
+    checkGherkin({ ir, features: { directory: 'features', features: [indexFeatureSource(feature, 'f.feature')!], problems: [] }, boundaryCoverage: 'warn' } as unknown as GateContext);
+  const states = (outcome: ReturnType<typeof gate3>) => outcome.problems.filter((p) => p.code === 'uncovered-state' || p.code === 'invalid-current').map((p) => p.message);
+
+  const current = (state: string) => `    Given the current booking is:\n      | reference | state | party_size |\n      | KMPQXRTA | ${state} | 4 |\n`;
+  const scenario = (tag: string, name: string, steps: string) => `  @${tag}\n  Scenario: ${name}\n${steps}`;
+  const seat = (state: string, then: string) =>
+    scenario(SEAT, `seat from ${state}`, `${current(state)}    When I run the operation with:\n      | reference |\n      | KMPQXRTA |\n    Then ${then}\n`);
+  const SEAT_COVERED = seat('confirmed', 'the output is:\n      | reference | state | party_size |\n      | KMPQXRTA | seated | 4 |') + seat('cancelled', `the operation fails with "${INVALID_STATE}"`);
+
+  it('passes, and counts the states, when each from state and a refused state have a scenario', () => {
+    const outcome = gate3(`Feature: f\n${SEAT_COVERED}`);
+    expect(states(outcome)).toEqual([]);
+    expect(outcome.summary).toContain(', 2/6 states covered');
+  });
+
+  it('counts a state of an Examples row', () => {
+    const outline =
+      `  @${SEAT}\n  Scenario Outline: seat\n${current('<state>')}    When I run the operation with:\n      | reference |\n      | KMPQXRTA |\n` +
+      `    Then the operation fails with "${INVALID_STATE}"\n    Examples:\n      | state |\n      | seated |\n`;
+    expect(states(gate3(`Feature: f\n${outline}`)).filter((m) => m.includes('outside'))).toEqual([]);
+  });
+
+  it('reports a from state with no scenario, and no refused state', () => {
+    expect(states(gate3(`Feature: f\n${seat('cancelled', 'the output is:\n      | state |\n      | seated |')}`))).toEqual([
+      `${SEAT} starts from state "confirmed", which no scenario gives; add one with Given the current booking is: and state confirmed`,
+      `${SEAT} has no scenario with a state outside confirmed that expects "${INVALID_STATE}"; add one with Given the current booking is: and Then the operation fails with "${INVALID_STATE}"`,
+    ]);
+  });
+
+  it('reports a current record that names another entity, one on an operation with no changes, and a run with none', () => {
+    const wrongWord = scenario(SEAT, 'w', `    Given the current table is:\n      | reference |\n      | KMPQXRTA |\n    When I run the operation with:\n      | reference |\n      | KMPQXRTA |\n`);
+    const noRecord = scenario(SEAT, 'n', `    When I run the operation with:\n      | reference |\n      | KMPQXRTA |\n`);
+    const messages = states(gate3(`Feature: f\n${SEAT_COVERED}${wrongWord}${noRecord}`));
+    expect(messages).toEqual([
+      `${SEAT} changes a record of urn:demo:states:booking:entity:booking: write "the current booking is:", not "the current table is:"`,
+      `${SEAT} changes a record of urn:demo:states:booking:entity:booking; give it with "Given the current booking is:" before the operation runs`,
+    ]);
+  });
+
+  it('checks the headers of the current record against the changed entity', () => {
+    const extra = scenario(SEAT, 'x', `    Given the current booking is:\n      | reference | state | refund |\n      | KMPQXRTA | confirmed | 1.00 |\n    When I run the operation with:\n      | reference |\n      | KMPQXRTA |\n`);
+    expect(gate3(`Feature: f\n${SEAT_COVERED}${extra}`).problems.filter((p) => p.code === 'unknown-header').map((p) => p.message)).toEqual([
+      'table header "refund" is not a field key of urn:demo:states:booking:entity:booking (allowed: reference, state, party_size)',
+    ]);
   });
 });

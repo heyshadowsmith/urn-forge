@@ -99,6 +99,8 @@ export const DIAGNOSTIC_CODES = {
   'uncovered-record': 'The record of a refusal (recordAs) has no scenario that expects it (a warning)',
   'undeclared-invariant': 'A scenario expects an invariant that is not on the input entity of its operation',
   'uncovered-invariant': 'An invariant of an operation\'s input has no scenario that breaks it (a warning)',
+  'uncovered-state': 'A state that an operation starts from, or a state outside its from that expects otherwise, has no scenario',
+  'invalid-current': 'A Given the current <entity> is: step is on an operation that changes no record or names another entity, or an operation that changes a record runs without one',
   'uncovered-boundary': 'The examples of an input field do not include every boundary case of its constraints (a warning)',
   'ratchet-ready': 'Every feature is strict, so boundaryCoverage can be set to error (a note)',
   'waived-boundary': 'A waiver removed the boundary gaps of a field, with its reason (a note)',

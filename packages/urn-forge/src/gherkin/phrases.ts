@@ -3,6 +3,8 @@
  * them to know which table of a scenario is the operation's input.
  */
 export const STEP_PHRASES = {
+  /** The record that the operation changes, as the shell loads it: one header row and one data row. */
+  current: 'the current {word} is:',
   run: 'I run the operation with:',
   output: 'the output is:',
   rejected: 'the input is rejected on {string}',
@@ -21,6 +23,14 @@ export const STEP_PHRASES = {
   /** The same, followed by a table of the event's fields. */
   recordedAsWithFields: 'the refusal is recorded as {string}:',
 } as const;
+
+/** Matches the text of the current-record step: group 1 is the word, such as `booking`. */
+export const CURRENT_TEXT = /^the current (\S+) is:$/;
+
+/** The word of a current-record step, or undefined for any other step. */
+export function currentWord(text: string): string | undefined {
+  return CURRENT_TEXT.exec(text)?.[1];
+}
 
 /**
  * Matches the text of either `fails with` step. Cucumber's `{string}` accepts double or

@@ -35,7 +35,8 @@
  * operation carries `@urn-forge:strict`; then they are errors.
  */
 
-import { emitsUrn, failsWithUrn, recordedAsUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
+import { currentWord, emitsUrn, failsWithUrn, recordedAsUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
+import { substitute } from './input-values.js';
 import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
 import { valueField, type UniversalIR, type Urn } from '../ir/types.js';
 import { invariantsWithin, keyName } from './shapes.js';
@@ -99,6 +100,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const expectedRecords = new Set<string>();
   /** `<operation URN> <invariant URN>` for each input invariant some scenario breaks. */
   const brokenInvariants = new Set<string>();
+  /** `<operation URN> <state>` for each `from` state some scenario starts from, and `<operation URN> *otherwise` for a refused state. */
+  const coveredStates = new Set<string>();
 
   for (const feature of features.features) {
     const report = (code: DiagnosticCode, location: SourceLocation, message: string, urn?: string, severity: Severity = 'error') =>
@@ -159,7 +162,41 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
 
     for (const scenario of feature.scenarios) {
       const owner = ownerOf(scenario.tags, scenario.location);
+      const change = owner && owner.urn in ir.operations ? ir.operations[owner.urn as Urn]!.changes : undefined;
+      /** The states of the current record that the scenario sets, and whether it expects `otherwise`. */
+      const states = new Set<string>();
+      let hasCurrent = false;
+      let expectsOtherwise = false;
+      let runs: SourceLocation | undefined;
       for (const step of scenario.steps) {
+        if (step.text === STEP_PHRASES.run) runs ??= step.location;
+        // `Given the current <entity> is:`: the record that the operation changes.
+        const word = currentWord(step.text);
+        if (word !== undefined) {
+          hasCurrent = true;
+          if (!owner || !(owner.urn in ir.operations)) continue;
+          if (!change) {
+            report('invalid-current', step.location, `"${step.text}" gives the record that an operation changes, but ${owner.urn} has no changes`, owner.urn);
+            continue;
+          }
+          const identifier = change.entity.split(':').at(-1)!;
+          if (word !== identifier) {
+            report('invalid-current', step.location, `${owner.urn} changes a record of ${change.entity}: write "the current ${identifier} is:", not "the current ${word} is:"`, owner.urn);
+            continue;
+          }
+          if (!step.table) continue;
+          checkHeader(step.table.header, entityOwner(ir, change.entity));
+          const column = step.table.header.findIndex((cell) => cell.value === change.property);
+          if (column < 0) continue;
+          const blocks = scenario.examples.filter((e) => e.table);
+          const rows =
+            blocks.length === 0
+              ? substitute(step.table)
+              : blocks.flatMap((block) => block.table!.rows.flatMap((row) => substitute(step.table!, { header: block.table!.header.map((c) => c.value), row })));
+          for (const row of rows) if (row[column]) states.add(row[column]!);
+          continue;
+        }
+        if (change && stepTexts(scenario, step.text).some((text) => failsWithUrn(text) === change.otherwise)) expectsOtherwise = true;
         // An outline's step text can hold placeholders; Cucumber runs it once for each Examples
         // row, with the values of that row. Each distinct text is checked, and reported once.
         const texts = stepTexts(scenario, step.text);
@@ -240,6 +277,16 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         if (!step.table) continue;
         checkHeader(step.table.header, owner);
         if (step.text === STEP_PHRASES.run) checkRequired(step.table, owner);
+      }
+      if (change && owner) {
+        if (runs && !hasCurrent) {
+          const identifier = change.entity.split(':').at(-1)!;
+          report('invalid-current', runs, `${owner.urn} changes a record of ${change.entity}; give it with "Given the current ${identifier} is:" before the operation runs`, owner.urn);
+        }
+        for (const state of states) {
+          if (change.from.includes(state)) coveredStates.add(`${owner.urn} ${state}`);
+          else if (expectsOtherwise) coveredStates.add(`${owner.urn} *otherwise`);
+        }
       }
       for (const examples of scenario.examples) {
         if (!examples.table) continue;
@@ -327,6 +374,33 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
       });
     }
   }
+
+  // State coverage: each state that an operation starts from, and one state outside `from` that
+  // expects `otherwise`, needs a scenario: the edges of the promise, as with boundary coverage.
+  let declaredStates = 0;
+  for (const operation of Object.values(ir.operations)) {
+    const change = operation.changes;
+    if (!change) continue;
+    declaredStates += change.from.length + 1;
+    if (!covered.has(operation.urn)) continue;
+    const identifier = change.entity.split(':').at(-1)!;
+    const at = { code: 'uncovered-state' as const, severity: coverageSeverity(operation.urn), file: features.directory, urn: operation.urn };
+    for (const state of change.from) {
+      if (coveredStates.has(`${operation.urn} ${state}`)) continue;
+      problems.push({ ...at, message: `${operation.urn} starts from ${change.property} "${state}", which no scenario gives; add one with Given the current ${identifier} is: and ${change.property} ${state}` });
+    }
+    if (!coveredStates.has(`${operation.urn} *otherwise`)) {
+      problems.push({
+        ...at,
+        message: `${operation.urn} has no scenario with a ${change.property} outside ${change.from.join(', ')} that expects "${change.otherwise}"; add one with Given the current ${identifier} is: and Then the operation fails with "${change.otherwise}"`,
+      });
+    }
+  }
+  const coveredStateCount = [...coveredStates].filter((key) => {
+    const [urn, state] = key.split(' ');
+    const change = ir.operations[urn as Urn]?.changes;
+    return change !== undefined && (state === '*otherwise' || change.from.includes(state!));
+  }).length;
 
   // Waivers: `# urn-forge:waive <field URN> <reason…>` comments.
   const waivers: Waiver[] = [];
@@ -432,7 +506,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     (declaredErrors > 0 ? `, ${expectedErrors.size}/${declaredErrors} errors expected` : '') +
     (declaredEvents > 0 ? `, ${expectedEvents.size}/${declaredEvents} events expected` : '') +
     (declaredRecords > 0 ? `, ${expectedRecords.size}/${declaredRecords} records expected` : '') +
-    (inputInvariants > 0 ? `, ${brokenInvariants.size}/${inputInvariants} invariants broken` : '');
+    (inputInvariants > 0 ? `, ${brokenInvariants.size}/${inputInvariants} invariants broken` : '') +
+    (declaredStates > 0 ? `, ${coveredStateCount}/${declaredStates} states covered` : '');
   const featureCount = features.features.length;
 
   // The ratchet trigger: once every feature is strict and the gate passes, the

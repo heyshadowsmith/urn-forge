@@ -62,6 +62,12 @@ const ISSUE_RUN =
 
 // The tutorial's strict step 3 passes every check, so one change shows one code.
 const strict = compile(source('tutorial/3-strict-coverage/domain.manifest.yaml')).ir!;
+
+// States, over the states fixture: seating a booking needs its current record.
+const states = compile(source('tests/fixtures/states/domain.manifest.yaml')).ir!;
+const SEAT = '@urn:demo:states:booking:operation:seat_booking';
+const SEAT_RUN = '    When I run the operation with:\n      | reference |\n      | KMPQXRTA |\n';
+const CURRENT = (state: string) => `    Given the current booking is:\n      | reference | state | party_size |\n      | KMPQXRTA | ${state} | 4 |\n`;
 const strictFeature = source('tutorial/3-strict-coverage/features/quote_shipping.feature');
 
 // Gates 1 and 4, and the CLI, over a copy of the tutorial's step 2.
@@ -225,6 +231,8 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'undeclared-invariant': () =>
     gate3(scenario(`${ISSUE_RUN}    Then the input is rejected by "urn:acme:insurance:policy:invariant:cancellation_within_term"\n`, ISSUE), 'warn', insurance),
   'uncovered-invariant': () => gate3(scenario(ISSUE_RUN, ISSUE), 'warn', insurance),
+  'uncovered-state': () => gate3(scenario(CURRENT('confirmed') + SEAT_RUN, SEAT), 'warn', states),
+  'invalid-current': () => gate3(scenario(SEAT_RUN, SEAT), 'warn', states),
   'undeclared-event': () =>
     gate3(scenario(`${ISSUE_RUN}    Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"\n`, ISSUE), 'warn', insurance),
   'uncovered-event': () => gate3(scenario(ISSUE_RUN, ISSUE), 'warn', insurance),
