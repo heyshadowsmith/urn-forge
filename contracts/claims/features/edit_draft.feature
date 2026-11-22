@@ -151,16 +151,21 @@ Feature: Edit a draft claim
       | WITHDRAWN |
       | PAID      |
 
-  Scenario: A claim that changed since the caller read it is refused
+  Scenario Outline: A version other than the current one is refused with the current version
     Given the current claim is:
       | claim_id       | version | employee_id | state | purpose      | currency | total  | lines                                                                                                           |
       | CLM-0000000123 | 5       | E-1001      | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
-      | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
-      | CLM-0000000123 | 4       | E-1001   | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
+      | claim_id       | version   | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
+      | CLM-0000000123 | <version> | E-1001   | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
     Then the operation fails with "urn:corpus:claims:claim:error:version_conflict":
       | claim_id       | version |
-      | CLM-0000000123 | 4       |
+      | CLM-0000000123 | 5       |
+
+    Examples: 
+      | version |
+      | 4       |
+      | 6       |
 
   Scenario: A receipt that is already on another claim is refused
     Given the current claim is:
