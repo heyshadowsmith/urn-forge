@@ -15,6 +15,8 @@ export interface UniversalIR {
     /** Author-set semver from the manifest header. */
     readonly manifestVersion: string;
     readonly stability: 'experimental' | 'stable';
+    /** The entity of the caller, when the header names one: every operation then has callers. */
+    readonly caller?: Urn;
     /** SHA-256 (hex) of the canonical JSON of the validated manifest. */
     readonly manifestHash: string;
     readonly irSchemaVersion: 1;
@@ -207,6 +209,10 @@ export interface IROperation {
   readonly exactly?: readonly IREmitRule[];
   /** The stored record that the operation changes, and the move it makes. */
   readonly changes?: IRChange;
+  /** The record that the operation reads, without a change of state. */
+  readonly reads?: IRRead;
+  /** Who may call: any caller, or a caller for whom one rule holds; else the runtime answers `otherwise`. */
+  readonly callers?: IRCallers;
   /** Rules that must hold before the handler runs; the first that does not answers its error. */
   readonly requires?: readonly IRRequire[];
   /** Rules that the answer must keep; one that does not is a ContractViolation. */
@@ -224,6 +230,21 @@ export interface IRRule {
 export interface IREmitRule {
   readonly event: Urn;
   readonly when?: IRRule;
+}
+
+/** The record that an operation reads: the shell passes it as `current`. */
+export interface IRRead {
+  readonly entity: Urn;
+  /** The declared error when the shell finds no record (`current: null`). */
+  readonly missing?: Urn;
+}
+
+/** Who may call an operation, over `caller.`, `input.` and `current.`. */
+export interface IRCallers {
+  /** 'any': every caller that the shell authenticated. Else the call is allowed when one rule holds. */
+  readonly allow: 'any' | readonly IRRule[];
+  /** The declared error for any other caller. */
+  readonly otherwise: Urn;
 }
 
 /** A `requires` rule, and the declared error that answers when it does not hold. */

@@ -81,6 +81,17 @@ export function buildIr(manifest: ValidManifest, options: BuildOptions = {}): IR
     }
   }
 
+  // The caller entity of the header: an entity of this manifest.
+  let caller: Urn | undefined;
+  if (header.caller !== undefined) {
+    const path: ManifestPath = ['manifest', 'caller'];
+    const target = expand(header.caller);
+    const atom = target && byUrn.get(target.urn);
+    if (!atom) issues.push({ code: 'unresolved-ref', message: `manifest: caller "${header.caller}" does not resolve (no atom ${target?.urn ?? header.caller} in this manifest)`, path });
+    else if (atom.kind !== 'entity') issues.push({ code: 'wrong-ref-kind', message: `manifest: caller "${header.caller}" must name an entity, but ${atom.urn} is ${namedKinds([atom.kind])}`, path });
+    else caller = atom.urn;
+  }
+
   const nodes = new Map<KindName, Map<Urn, unknown>>(KIND_NAMES.map((name) => [name, new Map()]));
   /** Every resolved reference, for pass 8. */
   const references: Reference[] = [];
@@ -147,6 +158,7 @@ export function buildIr(manifest: ValidManifest, options: BuildOptions = {}): IR
       ref: (path) => resolved.get(JSON.stringify(path)),
       report: (issue) => issues.push(issue),
       node: (name, urn) => nodes.get(name)!.get(urn),
+      ...(caller ? { caller } : {}),
     });
     if (node === undefined) continue;
     // The IR has a lifecycle only for an atom that is not plain active.
@@ -179,6 +191,7 @@ export function buildIr(manifest: ValidManifest, options: BuildOptions = {}): IR
       domain: header.domain,
       manifestVersion: header.version,
       stability: header.stability ?? 'stable',
+      ...(caller ? { caller } : {}),
       // Empty kind groups are left out, so the hash depends only on what the manifest says:
       // a kind added to urn-forge does not change the hash of a manifest that does not use it.
       manifestHash: sha256Hex(canonicalJson(Object.fromEntries(Object.entries(manifest).filter(([, group]) => Object.keys(group).length > 0)))),
