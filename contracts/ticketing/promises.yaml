@@ -1,0 +1,51 @@
+contract: ticketing
+description: "Sells tickets for concerts and events with seated and standing sections to buyers, holds seats during checkout, issues tickets, and handles transfers and refunds for buyers, organizers and box-office staff."
+promises:
+  P01:
+    promise: "A seat is identified by a section code of 1 to 6 uppercase letters or digits, a row of 1 to 2 uppercase letters, and a seat number from 1 to 150; a standing section has no row and no seat number."
+  P02:
+    promise: "Every money amount is a non-negative integer number of minor units (for example cents) together with a three-letter ISO 4217 currency code, and all amounts in one order share the same currency."
+  P03:
+    promise: "A ticket code is exactly 16 characters from the uppercase letters A-Z (without I and O) and the digits 2-9, and is unique across all events."
+  P04:
+    promise: "A hold request names one event and contains 1 to 10 lines, where a seated line names exactly one distinct seat and a standing line names a section and a quantity of at least 1, and the total number of tickets across all lines is at most 10."
+  P05:
+    promise: "A single hold or order never contains the same seat twice."
+  P06:
+    promise: "A caller can request: create a hold, release a hold, check out a hold, get an order, transfer a ticket, accept a transfer, cancel a transfer, request a refund, and validate a ticket at entry."
+  P07:
+    promise: "A successful hold answer carries a hold id, the held seats or standing quantities, the price of each line, the order total, and an expiry time exactly 10 minutes after the hold was created."
+  P08:
+    promise: "A hold request is refused with SEAT_UNAVAILABLE listing every requested seat that cannot be held, with SECTION_SOLD_OUT naming the standing section lacking capacity, with LIMIT_EXCEEDED if the buyer would hold more than 10 tickets for the event, or with SALES_CLOSED if the event is not on sale; a refused hold holds nothing."
+  P09:
+    promise: "A checkout request must carry the hold id and a payment reference, and is refused with HOLD_EXPIRED if received after the hold's expiry time, with HOLD_NOT_FOUND for an unknown hold, or with PAYMENT_DECLINED if the payment fails, in which case no ticket is issued."
+  P10:
+    promise: "A successful checkout returns an order id and exactly one ticket per held seat or standing place, and the order total equals the sum of the line prices plus the listed fees."
+  P11:
+    promise: "A hold moves only from ACTIVE to CONVERTED, RELEASED or EXPIRED, and once it leaves ACTIVE its seats are no longer held by it."
+  P12:
+    promise: "A ticket moves only from ISSUED to TRANSFER_PENDING, USED, REFUNDED or VOID, from TRANSFER_PENDING back to ISSUED, and no ticket ever leaves USED, REFUNDED or VOID."
+  P13:
+    promise: "At any moment a given seat of an event belongs to at most one active hold or one ISSUED, TRANSFER_PENDING or USED ticket, and a standing section never has more held and issued tickets than its stated capacity."
+  P14:
+    promise: "Create-hold, checkout and refund requests carry a client-supplied idempotency key of 8 to 64 characters, and repeating a request with the same key within 24 hours returns the original answer without creating a second hold, order or refund."
+  P15:
+    promise: "A transfer names one ISSUED ticket and a recipient email address, may be accepted only by that recipient within 72 hours, and on acceptance the old ticket code becomes VOID and the recipient receives a new ticket code for the same seat."
+  P16:
+    promise: "A refund is never more than the amount paid for the refunded tickets, and requesting a refund for a ticket that is USED, REFUNDED or VOID is refused with TICKET_NOT_REFUNDABLE."
+  P17:
+    promise: "When an organizer cancels an event, every ISSUED or TRANSFER_PENDING ticket of that event is refunded in full including fees, and the cancellation is published before the refunds."
+  P18:
+    promise: "Validating a ticket at entry answers ADMIT exactly once for an ISSUED ticket, and answers ALREADY_USED, NOT_VALID or WRONG_EVENT otherwise."
+  P19:
+    promise: "The domain publishes HoldCreated, HoldExpired, OrderPlaced, TicketIssued, TicketTransferred, TicketRefunded, TicketUsed and EventCancelled events, each carrying an event id, the event's id, the affected ticket or hold ids, and the time it occurred."
+  P20:
+    promise: "Published events are delivered at least once and in order per ticket, and each carries a unique event id so consumers can discard duplicates."
+  P21:
+    promise: "Only the buyer who owns an order may check it out, request its refund or transfer its tickets; only the event's organizer may cancel the event; only box-office staff assigned to the event may validate its tickets."
+  P22:
+    promise: "All times are exchanged in UTC as ISO 8601 timestamps, while each event also states its start time in its venue's IANA time zone."
+  P23:
+    promise: "Buyer-requested refunds are accepted only until 48 hours before the event's start time, and transfers are accepted only until 2 hours before the event's start time."
+  P24:
+    promise: "Within one major version, fields and refusal codes are only added and never removed or renamed, callers must ignore unknown fields, and a new major version is announced at least 180 days before the old one is retired."

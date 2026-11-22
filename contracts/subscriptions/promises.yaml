@@ -1,0 +1,51 @@
+contract: subscriptions
+description: "Manages customer subscriptions to priced plans with monthly or yearly billing periods, trials, plan changes, pauses, cancellation and per-period invoices, for merchant back-office systems and their customers."
+promises:
+  P01:
+    promise: "A subscription id is the prefix \"sub_\" followed by exactly 24 lowercase letters or digits, and a plan id is the prefix \"plan_\" followed by 1 to 40 lowercase letters, digits or hyphens."
+  P02:
+    promise: "A billing period is either \"month\" or \"year\", and a plan's interval count is a whole number from 1 to 12 for \"month\" and exactly 1 for \"year\"."
+  P03:
+    promise: "Every money amount is an integer number of minor currency units from 0 to 99999999 paired with a three-letter uppercase ISO 4217 currency code."
+  P04:
+    promise: "A subscription's status is exactly one of \"trialing\", \"active\", \"past_due\", \"paused\", \"canceled\" or \"expired\"."
+  P05:
+    promise: "A create-subscription request must contain a customer id, a plan id and a quantity that is a whole number from 1 to 10000, and may contain trial days from 0 to 730."
+  P06:
+    promise: "A create-subscription request may contain either trial days or an explicit trial end date but never both, and an explicit trial end must be in the future and at most 730 days after the request."
+  P07:
+    promise: "Callers can create, read, list, change plan, pause, resume and cancel a subscription, and read and list its invoices."
+  P08:
+    promise: "A successful create returns 201 with the full subscription, whose status is \"trialing\" if the request asked for more than 0 trial days and \"active\" otherwise."
+  P09:
+    promise: "Every refused request returns one named error code from \"invalid_request\", \"not_found\", \"forbidden\", \"conflict\", \"invalid_state_transition\", \"currency_mismatch\" or \"rate_limited\" together with a human-readable message and the request id."
+  P10:
+    promise: "A change-plan request must name a plan whose currency equals the subscription's current currency, otherwise it is refused with \"currency_mismatch\"."
+  P11:
+    promise: "A change-plan request must state a proration mode of \"immediate\", \"none\" or \"at_period_end\", and with \"at_period_end\" the answer shows the new plan as scheduled and the current plan as unchanged."
+  P12:
+    promise: "A pause request may contain a resume date that is at least 1 day and at most 90 days after the request, and a subscription may only be paused while \"active\" or \"trialing\"."
+  P13:
+    promise: "A cancel request states either \"immediately\" or \"at_period_end\", and a canceled or expired subscription can never move to any other status, so any further change request on it is refused with \"invalid_state_transition\"."
+  P14:
+    promise: "Within one subscription, invoice periods never overlap, each invoice's period end is after its period start, and each invoice's period start equals the previous invoice's period end."
+  P15:
+    promise: "Every invoice's total equals the sum of its line amounts, each line has a quantity of at least 1, and no invoice has a negative total."
+  P16:
+    promise: "An invoice's status is exactly one of \"draft\", \"open\", \"paid\", \"void\" or \"uncollectible\", and a \"paid\" or \"void\" invoice never changes status again."
+  P17:
+    promise: "A customer has at most one non-canceled, non-expired subscription per plan, and a second create for the same customer and plan is refused with \"conflict\"."
+  P18:
+    promise: "Every write request may carry an idempotency key of 1 to 255 characters, and a repeat of the same key with the same body within 24 hours returns the original answer without a second effect, while the same key with a different body is refused with \"conflict\"."
+  P19:
+    promise: "The domain publishes the events subscription.created, subscription.updated, subscription.canceled, subscription.trial_will_end, invoice.created and invoice.paid, each carrying a unique event id, the event type, the subscription id and the occurrence time."
+  P20:
+    promise: "Events are delivered at least once and in order per subscription, so consumers must ignore an event id they have already processed."
+  P21:
+    promise: "subscription.trial_will_end is published 3 days before a trial ends, or immediately on creation if the trial is shorter than 3 days."
+  P22:
+    promise: "A customer may only read, list, pause, resume and cancel their own subscriptions, while only merchant staff with the billing-admin role may create subscriptions, change plans or void invoices."
+  P23:
+    promise: "All timestamps in requests, answers and events are ISO 8601 in UTC with a trailing \"Z\", and a monthly period that starts on a day missing from the next month ends on that month's last day."
+  P24:
+    promise: "Within one major API version, fields and enum values are only added and never removed or renamed, callers must ignore unknown fields, and a removed version keeps working for at least 12 months after its deprecation is announced."

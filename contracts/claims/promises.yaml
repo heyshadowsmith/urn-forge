@@ -1,0 +1,51 @@
+contract: claims
+description: "Lets employees submit expense claims with receipt lines for reimbursement, managers approve or reject them, and finance pay them."
+promises:
+  P01:
+    promise: "A claim id is the prefix \"CLM-\" followed by exactly 10 digits, is assigned by the domain on creation, and is never reused for another claim."
+  P02:
+    promise: "Every money amount is a decimal with at most 2 fraction digits in an ISO 4217 three-letter currency code, and every line amount is greater than 0.00 and at most 10000.00."
+  P03:
+    promise: "A line's category is exactly one of TRAVEL, LODGING, MEALS, MILEAGE, SUPPLIES, TRAINING or OTHER."
+  P04:
+    promise: "A claim has 1 to 50 lines, all lines of one claim use the same currency as the claim, and the claim total always equals the sum of its line amounts."
+  P05:
+    promise: "A line's expense date is never later than the claim's submission date and never more than 90 days before it."
+  P06:
+    promise: "A line with an amount above 25.00 must carry a receipt reference, and each receipt file is a PDF, JPEG or PNG of at most 10 MB."
+  P07:
+    promise: "A MILEAGE line must carry a distance in kilometres between 1 and 2000 and must not carry a receipt, while every other category must not carry a distance."
+  P08:
+    promise: "A claim's purpose text is 1 to 500 characters and a line description is 1 to 200 characters."
+  P09:
+    promise: "Callers can create a draft claim, edit a draft, submit, withdraw, approve, reject, mark paid, and get a claim by id, and each change request names the claim id and the version the caller last read."
+  P10:
+    promise: "A claim is in exactly one state of DRAFT, SUBMITTED, APPROVED, REJECTED, WITHDRAWN or PAID, and the only allowed moves are DRAFT to SUBMITTED, SUBMITTED to APPROVED, REJECTED or WITHDRAWN, REJECTED to DRAFT, and APPROVED to PAID."
+  P11:
+    promise: "PAID and WITHDRAWN are final states, and once a claim leaves DRAFT its lines and amounts cannot be changed."
+  P12:
+    promise: "A successful request answers with the claim id, its new state, its total and currency, and its new version number, which is 1 higher than the version sent."
+  P13:
+    promise: "A refused request answers with exactly one of the codes INVALID_REQUEST, NOT_FOUND, FORBIDDEN, INVALID_STATE, VERSION_CONFLICT or DUPLICATE_RECEIPT, plus a human-readable message, and changes nothing."
+  P14:
+    promise: "A rejection must include a reason of 10 to 500 characters, and the answer and the published event carry that reason."
+  P15:
+    promise: "A payment amount always equals the approved claim total in the claim's currency, and a claim is never paid twice."
+  P16:
+    promise: "A request carrying an idempotency key already used by the same caller within 24 hours returns the original answer without making a second change."
+  P17:
+    promise: "The same receipt file, by its SHA-256 hash, cannot appear on two lines of claims that are not REJECTED or WITHDRAWN, and an attempt is refused with DUPLICATE_RECEIPT."
+  P18:
+    promise: "Only the employee who owns a claim may create, edit, submit or withdraw it, and only that employee, their manager and finance users may read it."
+  P19:
+    promise: "Only the claimant's manager may approve or reject a claim, a caller may never approve their own claim, and only finance users may mark a claim paid."
+  P20:
+    promise: "On each state change the domain publishes a ClaimSubmitted, ClaimApproved, ClaimRejected, ClaimWithdrawn or ClaimPaid event carrying the claim id, employee id, total, currency, new state, actor id and timestamp."
+  P21:
+    promise: "Events are delivered at least once, carry a unique event id for deduplication, and events of one claim are delivered in the order the changes happened."
+  P22:
+    promise: "All timestamps are ISO 8601 in UTC, while expense dates are calendar dates without time zone."
+  P23:
+    promise: "A claim left in SUBMITTED for 30 days without a decision is reported in a ClaimDecisionOverdue event, and its state is not changed by that."
+  P24:
+    promise: "Within a major version, new optional fields, event types, categories or refusal codes may be added, but existing fields, states and codes are never removed or renamed, and callers must ignore unknown fields."

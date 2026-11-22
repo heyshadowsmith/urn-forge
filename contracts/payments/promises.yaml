@@ -1,0 +1,51 @@
+contract: payments
+description: "Takes payments from buyers on behalf of merchants by card or bank transfer, captures or voids them, and refunds them."
+promises:
+  P01:
+    promise: "An amount is a whole number of minor currency units (for example cents) from 1 to 99999999, paired with an ISO 4217 currency code of three uppercase letters."
+  P02:
+    promise: "A payment id is the prefix \"pay_\" followed by 24 lowercase letters or digits, and a refund id is the prefix \"re_\" followed by 24 lowercase letters or digits."
+  P03:
+    promise: "A payment method is exactly one of \"card\" or \"bank_transfer\", and a card payment must carry card details while a bank transfer payment must carry an IBAN and must not carry card details."
+  P04:
+    promise: "A card number is 12 to 19 digits that pass the Luhn check, its expiry month is 1 to 12, its expiry year is four digits, and its security code is 3 digits, or 4 digits for American Express."
+  P05:
+    promise: "An IBAN is a two-letter country code, two check digits and up to 30 letters or digits, at most 34 characters in total, and passes the mod-97 check."
+  P06:
+    promise: "A create-payment request must contain a merchant id, an amount, a currency, a payment method, and an idempotency key of 1 to 64 printable characters, and may contain a description of at most 255 characters and up to 20 metadata entries."
+  P07:
+    promise: "When a create-payment request carries line items, there are 1 to 100 of them, each has a quantity of at least 1 and a non-negative unit amount, and the payment amount equals the sum of quantity times unit amount over all lines."
+  P08:
+    promise: "A caller can create a payment, capture it, void it, refund it, and read a payment or refund by id."
+  P09:
+    promise: "Creating a payment answers either \"authorized\", \"pending\" (bank transfers only) or a refusal named one of \"invalid_request\", \"card_declined\", \"insufficient_funds\", \"expired_card\", \"unsupported_currency\" or \"fraud_suspected\", and every success carries the payment id, amount, currency and status."
+  P10:
+    promise: "A capture request may carry an amount, which must be at least 1 and at most the authorized amount, and if it is omitted the full authorized amount is captured."
+  P11:
+    promise: "A refund request carries an amount of at least 1, and the sum of all refunds on a payment never exceeds the captured amount, otherwise the refund is refused as \"amount_exceeds_captured\"."
+  P12:
+    promise: "A refund always has the same currency as the payment it refunds."
+  P13:
+    promise: "A payment moves only along these steps: pending to authorized or failed, authorized to captured, voided or expired, captured to partially_refunded or refunded, and partially_refunded to refunded; any other requested move is refused as \"invalid_state\"."
+  P14:
+    promise: "Only an authorized payment that has not been captured can be voided, and only a captured or partially refunded payment can be refunded."
+  P15:
+    promise: "A second request with the same idempotency key and the same body from the same merchant within 24 hours returns the original answer without creating a second payment or refund, and one with the same key but a different body is refused as \"idempotency_conflict\"."
+  P16:
+    promise: "Every payment belongs to exactly one merchant, and a request naming an unknown merchant or a payment of another merchant is refused as \"not_found\"."
+  P17:
+    promise: "An authorized card payment that is not captured within 7 days moves to expired and can no longer be captured."
+  P18:
+    promise: "A refund can be requested at most 180 days after the payment was captured, after which it is refused as \"refund_window_closed\"."
+  P19:
+    promise: "All timestamps in requests, answers and events are UTC in ISO 8601 format with a trailing \"Z\"."
+  P20:
+    promise: "Each change of payment status publishes exactly one event named \"payment.<new_status>\" carrying the event id, payment id, merchant id, amount, currency, previous status, new status and the time of the change."
+  P21:
+    promise: "Events are delivered at least once, in the order of the changes for any one payment, and a consumer can discard duplicates by event id."
+  P22:
+    promise: "Only a merchant's own secret API key may create, capture, void or refund its payments, while a read-only key may only read them, and any other caller is refused as \"unauthorized\" or \"forbidden\"."
+  P23:
+    promise: "Answers and events never contain a full card number or security code, showing at most the card brand, the last 4 digits and the expiry."
+  P24:
+    promise: "Within one major API version, fields and refusal names are never removed or renamed, new optional fields and new event types may be added, and a major version is supported for at least 12 months after its successor is released."

@@ -1,0 +1,49 @@
+contract: inventory
+description: "Tracks on-hand, reserved and available stock of products per warehouse location, and lets order, purchasing and warehouse systems receive, reserve, release, ship and adjust that stock."
+promises:
+  P01:
+    promise: "A SKU is 3 to 32 characters of uppercase letters A-Z, digits 0-9 and hyphens, and never starts or ends with a hyphen."
+  P02:
+    promise: "A location code has the form WAREHOUSE-ZONE-BIN, where the warehouse is 3 uppercase letters, the zone is 1 uppercase letter and the bin is 4 digits (for example \"AMS-B-0142\")."
+  P03:
+    promise: "Every quantity in a request or answer is a whole number of units; quantities in receive, reserve, release and ship requests are between 1 and 100000 inclusive."
+  P04:
+    promise: "Every stock level reported for a SKU at a location carries on-hand, reserved and available counts, where reserved and available are each at least 0 and available always equals on-hand minus reserved."
+  P05:
+    promise: "An adjustment carries a signed non-zero quantity delta between -100000 and 100000 and a reason code that is one of DAMAGED, LOST, FOUND, CYCLE_COUNT or CORRECTION."
+  P06:
+    promise: "A reservation request names an order id and has 1 to 100 lines, each with a SKU, a location and a quantity of at least 1, and no SKU-location pair appears twice in the same request."
+  P07:
+    promise: "The service offers exactly these operations - GetStock, ReceiveGoods, ReserveStock, ReleaseReservation, ShipReservation and AdjustStock - and each write request must carry a caller-chosen idempotency key of 8 to 64 characters."
+  P08:
+    promise: "ReserveStock is all-or-nothing - it either reserves every line in full and answers RESERVED with a reservation id, or reserves nothing and answers INSUFFICIENT_STOCK listing each short line with its requested and available quantity."
+  P09:
+    promise: "Every refusal answer carries exactly one error code from INVALID_REQUEST, UNKNOWN_SKU, UNKNOWN_LOCATION, INSUFFICIENT_STOCK, RESERVATION_NOT_FOUND, INVALID_STATE, FORBIDDEN or IDEMPOTENCY_CONFLICT, plus a human-readable message."
+  P10:
+    promise: "A successful ReserveStock answer contains one line per requested line, with the same SKU, location and quantity as requested."
+  P11:
+    promise: "ShipReservation ships either the whole reservation or a stated quantity per line that is never more than the quantity still reserved on that line, and a larger quantity is refused with INVALID_REQUEST."
+  P12:
+    promise: "An adjustment with a negative delta that would make on-hand fall below the quantity currently reserved is refused with INSUFFICIENT_STOCK and changes nothing."
+  P13:
+    promise: "A reservation id is unique across the service and is never reused, and at most one open reservation exists per order id."
+  P14:
+    promise: "A reservation is in one of the states ACTIVE, PARTIALLY_SHIPPED, SHIPPED, RELEASED or EXPIRED, may move only from ACTIVE to PARTIALLY_SHIPPED, SHIPPED, RELEASED or EXPIRED and from PARTIALLY_SHIPPED to SHIPPED or RELEASED, and SHIPPED, RELEASED and EXPIRED are final."
+  P15:
+    promise: "A write request repeated with the same idempotency key and the same body within 24 hours returns the original answer without changing stock again, and the same key with a different body is refused with IDEMPOTENCY_CONFLICT."
+  P16:
+    promise: "An ACTIVE reservation that is neither shipped nor released expires 30 minutes after creation unless the request set a time-to-live between 1 minute and 7 days, and its stock becomes available again."
+  P17:
+    promise: "All timestamps in requests, answers and events are UTC in ISO 8601 format with a trailing \"Z\" and millisecond precision."
+  P18:
+    promise: "For every successful change to stock the service publishes exactly one event of type StockReceived, StockReserved, ReservationReleased, ReservationExpired, StockShipped or StockAdjusted, carrying an event id, the SKU, the location, the quantity changed, the new on-hand and available counts and the time of the change."
+  P19:
+    promise: "Events are delivered at least once, may be duplicated but carry the same event id when they are, and events for the same SKU and location arrive in the order the changes happened, each with a per-SKU-location sequence number that increases by 1."
+  P20:
+    promise: "Whenever the available count for a SKU at a location drops to 0 the service publishes a StockDepleted event for that SKU and location."
+  P21:
+    promise: "Only the order system may call ReserveStock, ReleaseReservation and ShipReservation; only warehouse staff and the purchasing system may call ReceiveGoods; only warehouse supervisors may call AdjustStock; any authenticated caller may call GetStock, and other calls are refused with FORBIDDEN."
+  P22:
+    promise: "ReceiveGoods names a purchase order id and 1 to 200 lines, and the answer reports for each line the new on-hand count, which equals the previous on-hand plus the received quantity."
+  P23:
+    promise: "Within a major version of the contract, fields, operations, error codes and event types are only added, never removed or renamed, callers must ignore fields they do not know, and a removed element stays supported for at least 6 months after it is announced as deprecated."

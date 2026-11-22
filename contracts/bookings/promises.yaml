@@ -1,0 +1,51 @@
+contract: bookings
+description: "Lets guests and restaurant staff book, change and cancel tables at a restaurant for a given date, time and party size, with deposits for larger parties."
+promises:
+  P01:
+    promise: "A booking reference is exactly 8 characters drawn from upper-case letters A-Z (excluding I and O) and digits 2-9, and is never reused for another booking."
+  P02:
+    promise: "A party size is a whole number from 1 to 20, and requests for 13 or more guests are refused with PARTY_TOO_LARGE_FOR_ONLINE so they can be handled by phone."
+  P03:
+    promise: "A booking time is given as a local date and time on a 15-minute boundary (minutes 00, 15, 30 or 45) in the restaurant's IANA time zone, and every answer carries that time zone name alongside the time."
+  P04:
+    promise: "A guest's contact must include a name of 1 to 100 characters and at least one of an email address or an E.164 phone number of at most 15 digits."
+  P05:
+    promise: "Special requests are free text of at most 500 characters, and dietary tags, if given, are a list of at most 10 distinct values from a fixed published set such as vegetarian, vegan, gluten_free, nut_allergy and halal."
+  P06:
+    promise: "A create-booking request must contain the restaurant id, local date and time, party size, guest contact and a client-generated idempotency key of 16 to 64 characters."
+  P07:
+    promise: "A booking can be made no earlier than 2 hours and no later than 90 days before its start time, and requests outside that window are refused with OUTSIDE_BOOKING_WINDOW."
+  P08:
+    promise: "A party of 7 or more guests must include a deposit payment token in the request, otherwise the request is refused with DEPOSIT_REQUIRED."
+  P09:
+    promise: "A deposit, when taken, is in the restaurant's single published currency, is a positive amount with at most 2 decimal places, and equals the per-guest deposit amount stated in the answer times the party size."
+  P10:
+    promise: "A successful create returns status CONFIRMED with the booking reference, restaurant id, local start time, time zone, party size, booked duration in minutes and any deposit amount charged."
+  P11:
+    promise: "Every refusal carries exactly one error code from the published list (INVALID_REQUEST, OUTSIDE_BOOKING_WINDOW, NO_AVAILABILITY, DEPOSIT_REQUIRED, PAYMENT_DECLINED, PARTY_TOO_LARGE_FOR_ONLINE, BOOKING_NOT_FOUND, INVALID_STATE, CHANGE_DEADLINE_PASSED, FORBIDDEN) and a human-readable message, and a refused request creates or changes nothing."
+  P12:
+    promise: "A NO_AVAILABILITY refusal may carry up to 5 alternative start times, each on the same date, within 2 hours of the requested time and for the same party size."
+  P13:
+    promise: "A booking is always in exactly one of the states CONFIRMED, SEATED, COMPLETED, CANCELLED or NO_SHOW, and the only allowed moves are CONFIRMED to SEATED, CANCELLED or NO_SHOW, and SEATED to COMPLETED; CANCELLED, COMPLETED and NO_SHOW are final."
+  P14:
+    promise: "A guest may change the date, time or party size, or cancel, only while the booking is CONFIRMED and at least 2 hours before its start time, otherwise the request is refused with CHANGE_DEADLINE_PASSED or INVALID_STATE."
+  P15:
+    promise: "A cancellation made 24 hours or more before the start time refunds the full deposit, a later one refunds nothing, and a refund is never more than the deposit paid."
+  P16:
+    promise: "A booking can be marked NO_SHOW only by restaurant staff and only from 15 minutes after its start time onward."
+  P17:
+    promise: "Repeating a create request with the same idempotency key within 24 hours returns the original answer and booking reference without creating a second booking or charging a second deposit, and reusing a key with a different request body is refused with INVALID_REQUEST."
+  P18:
+    promise: "Cancelling a booking that is already CANCELLED returns success with the same cancellation details and does not refund again."
+  P19:
+    promise: "A guest can read, change or cancel only bookings whose reference and contact email or phone they present, while restaurant staff can read and act on any booking of their own restaurant and never on another restaurant's bookings."
+  P20:
+    promise: "Every state change publishes exactly one event (BookingCreated, BookingChanged, BookingCancelled, BookingSeated, BookingCompleted or BookingNoShow) carrying the booking reference, restaurant id, new state, party size, local start time with time zone and an event timestamp in UTC."
+  P21:
+    promise: "Events are delivered at least once, each carries a unique event id for de-duplication, and events for the same booking are delivered in the order the changes happened."
+  P22:
+    promise: "Personal guest contact details are never included in published events, which refer to the guest only by an opaque guest id."
+  P23:
+    promise: "All timestamps other than the booking's local start time are given in UTC in ISO 8601 format with a trailing Z."
+  P24:
+    promise: "Within a major version the contract only adds optional request fields, new answer fields and new event fields, callers must ignore fields they do not know, and a removed or changed field or error code requires a new major version announced at least 6 months before the old one is withdrawn."
