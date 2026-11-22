@@ -1,0 +1,23 @@
+# The contract corpus. Each contract in this folder lists its promises in promises.yaml.
+# The score is the share of promises that are declared; CI fails below the minimum.
+# Each plan that moves promises to declared raises the minimum.
+minimum: 0
+
+# The holes of the contract completeness roadmap (planning/contract-completeness-roadmap.md).
+# A promise that is a workaround or not declarable names the hole that would declare it.
+holes:
+  A1: Rules between an entity and its list items and embedded entities
+  A2: Rules between the request and the answer
+  A3: More than one declared error for one call
+  B1: Either-or shapes
+  B2: Present and empty, not absent
+  B3: Maps
+  B4: Units and currencies
+  C1: Uniqueness among stored records
+  C2: The same request two times
+  C3: States and transitions of an entity
+  C4: Operations that take a long time
+  D1: One domain that refers to another
+  D2: Who can call
+  D3: Time zones
+  D4: The delivery of events
