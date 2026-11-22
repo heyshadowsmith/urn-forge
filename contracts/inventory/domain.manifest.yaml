@@ -2,6 +2,26 @@ manifest:
   namespace: corpus
   domain: inventory
   version: 1.0.0
+  caller: access.entity.caller
+
+# Who calls, as the shell authenticated them. Authentication is the shell's; who may call each
+# operation is stated in its callers.
+access.field.role:
+  primitive: enum
+  values: [order_system, purchasing_system, warehouse_staff, warehouse_supervisor]
+  description: The kind of caller, as the shell authenticated it
+access.entity.caller:
+  description: Who calls, as the shell authenticated them
+  fields:
+    - ref: access.field.role
+# The refusal of a caller that no rule of callers allows.
+access.error.forbidden:
+  description: The caller may not call this operation
+  category: forbidden
+  retryable: false
+  message: A caller with the role {role} may not call this operation
+  fields:
+    - ref: access.field.role
 
 # Stock of one product at one warehouse location.
 stock.field.sku:
@@ -168,6 +188,9 @@ stock.operation.get_stock:
   description: Read the stock of one SKU at one location
   input: stock.entity.stock_query
   output: stock.entity.stock_level
+  # Any authenticated caller may read the stock.
+  callers:
+    allow: any
   errors:
     - stock.error.unknown_sku
     - stock.error.unknown_location
@@ -198,10 +221,16 @@ receipt.operation.receive_goods:
   description: Add received goods to the on-hand stock
   input: receipt.entity.receive_request
   output: receipt.entity.receipt
+  callers:
+    allow:
+      - caller.role = 'warehouse_staff'
+      - caller.role = 'purchasing_system'
+    otherwise: access.error.forbidden
   errors:
     - stock.error.unknown_sku
     - stock.error.unknown_location
     - request.error.idempotency_conflict
+    - access.error.forbidden
   emits: [stock.event.stock_received]
 
 # Reservations.
@@ -359,11 +388,16 @@ reservation.operation.reserve_stock:
   description: Reserve every line in full, or nothing
   input: reservation.entity.reserve_request
   output: reservation.entity.reservation
+  callers:
+    allow:
+      - caller.role = 'order_system'
+    otherwise: access.error.forbidden
   errors:
     - stock.error.unknown_sku
     - stock.error.unknown_location
     - stock.error.insufficient_stock
     - request.error.idempotency_conflict
+    - access.error.forbidden
   emits: [reservation.event.stock_reserved, stock.event.stock_depleted]
 reservation.operation.release_reservation:
   description: Give the stock of an active or partly shipped reservation back
@@ -375,10 +409,15 @@ reservation.operation.release_reservation:
     to: RELEASED
     otherwise: reservation.error.invalid_state
     missing: reservation.error.reservation_not_found
+  callers:
+    allow:
+      - caller.role = 'order_system'
+    otherwise: access.error.forbidden
   errors:
     - reservation.error.reservation_not_found
     - reservation.error.invalid_state
     - request.error.idempotency_conflict
+    - access.error.forbidden
   emits: [reservation.event.reservation_released]
 reservation.operation.ship_reservation:
   description: Ship a reservation, in full or the stated quantity per line
@@ -390,11 +429,16 @@ reservation.operation.ship_reservation:
     to: [PARTIALLY_SHIPPED, SHIPPED]
     otherwise: reservation.error.invalid_state
     missing: reservation.error.reservation_not_found
+  callers:
+    allow:
+      - caller.role = 'order_system'
+    otherwise: access.error.forbidden
   errors:
     - request.error.invalid_request
     - reservation.error.reservation_not_found
     - reservation.error.invalid_state
     - request.error.idempotency_conflict
+    - access.error.forbidden
   emits: [reservation.event.stock_shipped]
 
 # Adjustments.
@@ -439,11 +483,16 @@ adjustment.operation.adjust_stock:
   description: Correct the on-hand count of one SKU at one location
   input: adjustment.entity.adjustment
   output: stock.entity.stock_level
+  callers:
+    allow:
+      - caller.role = 'warehouse_supervisor'
+    otherwise: access.error.forbidden
   errors:
     - stock.error.unknown_sku
     - stock.error.unknown_location
     - stock.error.insufficient_stock
     - request.error.idempotency_conflict
+    - access.error.forbidden
   # Exactly one stock_adjusted on each success, and one stock_depleted when the available count is 0.
   emits:
     - event: adjustment.event.stock_adjusted

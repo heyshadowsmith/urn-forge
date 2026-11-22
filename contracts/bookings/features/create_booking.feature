@@ -2,6 +2,9 @@
 Feature: Book a table
 
   Scenario Outline: A valid request is confirmed, with its reference, time zone, duration and any deposit
+    Given the caller is:
+      | role  |
+      | guest |
     When I run the operation with:
       | restaurant_id                        | local_date | local_time   | party_size   | contact   | idempotency_key   | special_requests   | dietary_tags   | deposit_token   |
       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | <local_time> | <party_size> | <contact> | <idempotency_key> | <special_requests> | <dietary_tags> | <deposit_token> |
@@ -20,6 +23,9 @@ Feature: Book a table
       | 12:45      | 12         | { name: Ada Lovelace, phone: "+447911123456" }                | client-key-0000000012  |                      | [pescatarian]                                                                                                        | tok_visa_4242 | 240.00         | 20.00             | EUR      |
 
   Scenario Outline: A party size outside 1 to 20 is rejected
+    Given the caller is:
+      | role  |
+      | guest |
     When I run the operation with:
       | restaurant_id                        | local_date | local_time | party_size   | contact                               | idempotency_key  |
       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | <party_size> | { name: Ada, email: ada@example.com } | 0123456789abcdef |
@@ -31,6 +37,9 @@ Feature: Book a table
       | 21         |
 
   Scenario Outline: A party of 13 to 20 is refused online, to book by phone
+    Given the caller is:
+      | role  |
+      | guest |
     When I run the operation with:
       | restaurant_id                        | local_date | local_time | party_size   | contact                               | idempotency_key  | deposit_token |
       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | <party_size> | { name: Ada, email: ada@example.com } | 0123456789abcdef | tok_visa_4242 |
@@ -45,6 +54,9 @@ Feature: Book a table
       | 20         |
 
   Scenario: A party of 7 with no deposit token is refused
+    Given the caller is:
+      | role  |
+      | guest |
     When I run the operation with:
       | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key  |
       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 7          | { name: Ada, email: ada@example.com } | 0123456789abcdef |
@@ -54,6 +66,9 @@ Feature: Book a table
     And the operation emits no event
 
   Scenario: A declined deposit payment is refused
+    Given the caller is:
+      | role  |
+      | guest |
     When I run the operation with:
       | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key  | deposit_token |
       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 8          | { name: Ada, email: ada@example.com } | 0123456789abcdef | declined      |
@@ -61,6 +76,9 @@ Feature: Book a table
     And the operation emits no event
 
   Scenario: An idempotency key used before with a different request is refused
+    Given the caller is:
+      | role  |
+      | guest |
     When I run the operation with:
       | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key   |
       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 2          | { name: Ada, email: ada@example.com } | reused-key-000001 |
@@ -70,6 +88,9 @@ Feature: Book a table
     And the operation emits no event
 
   Scenario: A start time outside the booking window is refused
+    Given the caller is:
+      | role  |
+      | guest |
     When I run the operation with:
       | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key  |
       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-21 | 19:30      | 2          | { name: Ada, email: ada@example.com } | 0123456789abcdef |
@@ -79,6 +100,9 @@ Feature: Book a table
     And the operation emits no event
 
   Scenario: A full time is refused, with other start times on the same day
+    Given the caller is:
+      | role  |
+      | guest |
     When I run the operation with:
       | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key  |
       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 23:45      | 2          | { name: Ada, email: ada@example.com } | 0123456789abcdef |
@@ -88,12 +112,18 @@ Feature: Book a table
     And the operation emits no event
 
   Scenario: A contact with neither an email address nor a phone number is rejected
+    Given the caller is:
+      | role  |
+      | guest |
     When I run the operation with:
       | restaurant_id                        | local_date | local_time | party_size | contact       | idempotency_key  |
       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 2          | { name: Ada } | 0123456789abcdef |
     Then the input is rejected by "urn:corpus:bookings:guest:invariant:email_or_phone"
 
   Scenario Outline: A contact with a name, an email address or a phone number that is not valid is rejected
+    Given the caller is:
+      | role  |
+      | guest |
     When I run the operation with:
       | restaurant_id                        | local_date | local_time | party_size | contact   | idempotency_key  |
       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 19:30      | 2          | <contact> | 0123456789abcdef |
@@ -108,6 +138,9 @@ Feature: Book a table
       | { name: Ada, phone: "+1234567890123456" }               |
 
   Scenario Outline: A request with a field that is not valid is rejected on that field
+    Given the caller is:
+      | role  |
+      | guest |
     When I run the operation with:
       | restaurant_id   | local_date | local_time   | party_size | contact                               | idempotency_key   | special_requests   | dietary_tags   |
       | <restaurant_id> | 2026-12-24 | <local_time> | 2          | { name: Ada, email: ada@example.com } | <idempotency_key> | <special_requests> | <dietary_tags> |
@@ -125,6 +158,9 @@ Feature: Book a table
       | dietary_tags     | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 19:30      | 0123456789abcdef  |                   | [paleo]                                                                                                                            |
 
   Scenario Outline: A request that leaves out a required part is rejected on that part
+    Given the caller is:
+      | role  |
+      | guest |
     When I run the operation with:
       | restaurant_id   | local_date   | local_time   | party_size   | contact   | idempotency_key   |
       | <restaurant_id> | <local_date> | <local_time> | <party_size> | <contact> | <idempotency_key> |

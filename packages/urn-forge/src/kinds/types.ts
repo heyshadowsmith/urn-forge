@@ -41,6 +41,8 @@ export interface BuildContext<D> {
   report(issue: IRIssue): void;
   /** A node already built, of a kind this kind builds `after`; undefined if it did not build. */
   node(kind: KindName, urn: Urn): unknown;
+  /** The caller entity of the manifest header, when it names one that resolves. */
+  readonly caller?: Urn;
 }
 
 export interface KindDescriptor<N extends KindName = KindName, D = unknown, Node = unknown, G extends string = string> {

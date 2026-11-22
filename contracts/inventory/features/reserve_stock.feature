@@ -2,6 +2,12 @@
 @urn:corpus:inventory:reservation:operation:reserve_stock
 Feature: Reserve stock for an order
 
+  # Only the order system may reserve stock; the scenarios below run as the order system.
+  Background:
+    Given the caller is:
+      | role         |
+      | order_system |
+
   Scenario: A reservation holds every line in full and answers RESERVED with a reservation id
     When I run the operation with:
       | idempotency_key | order_id | lines                                                                                                          |
@@ -135,3 +141,21 @@ Feature: Reserve stock for an order
       | idempotency_key |
       | conflict-key    |
     And the operation emits no event
+
+  Scenario Outline: Any caller other than the order system is refused
+    Given the caller is:
+      | role                 |
+      | <role>               |
+    When I run the operation with:
+      | idempotency_key | order_id | lines                                                  |
+      | res-0101        | ORD-1    | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    Then the operation fails with "urn:corpus:inventory:access:error:forbidden":
+      | role   |
+      | <role> |
+    And the operation emits no event
+
+    Examples:
+      | role                 |
+      | purchasing_system    |
+      | warehouse_staff      |
+      | warehouse_supervisor |

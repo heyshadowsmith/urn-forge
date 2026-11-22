@@ -1,6 +1,8 @@
-// A small payments core. The operations that move a payment get it as `current`; the reads find
-// it among a few fixed payments. A few fixed card numbers, currencies and keys stand in for the
-// answers of banks and of earlier requests.
+// A small payments core. The operations that move or read a payment or a refund get it as
+// `current`. Who may call (the merchant of the key, and its kind) is checked by the runtime from
+// the callers of the manifest before a handler runs, so no handler reads the merchant to refuse.
+// A few fixed card numbers, currencies and keys stand in for the answers of banks and of earlier
+// requests.
 import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
 
 type Status = 'pending' | 'authorized' | 'failed' | 'captured' | 'voided' | 'expired' | 'partially_refunded' | 'refunded';
@@ -15,19 +17,10 @@ interface Stored {
 }
 
 const NOW = '2026-11-22T10:00:00Z';
-const MERCHANT = 'mer_1';
 const paymentId = (word: string) => `pay_${word.padEnd(24, '0')}`;
-
-const PAYMENTS: Readonly<Record<string, Stored>> = {
-  [paymentId('authorized')]: { merchant_id: MERCHANT, amount: 5000, currency: 'EUR', status: 'authorized', captured_amount: 0, refunded_amount: 0 },
-  [paymentId('partiallyrefunded')]: { merchant_id: MERCHANT, amount: 5000, currency: 'EUR', status: 'partially_refunded', captured_amount: 5000, refunded_amount: 2000 },
-};
 
 /** The payment captured more than 180 days ago: the record does not hold when it was captured. */
 const CAPTURED_LONG_AGO = paymentId('capturedlongago');
-
-const REFUND_ID = `re_${'1'.padStart(24, '0')}`;
-const REFUND = { payment_id: paymentId('partiallyrefunded'), amount: 2000 };
 
 /** The test cards whose bank refuses the payment. */
 const REFUSING_CARDS = {
@@ -39,11 +32,6 @@ const REFUSING_CARDS = {
 const UNSUPPORTED_CURRENCY = 'XXX';
 /** A key that an earlier request with a different body used. */
 const USED_KEY = 'used-key';
-
-const find = (merchant: string, id: string): Stored | undefined => {
-  const payment = PAYMENTS[id];
-  return payment && payment.merchant_id === merchant ? payment : undefined;
-};
 
 const brandOf = (number: string) =>
   number.startsWith('4') ? 'visa' : /^5[1-5]/.test(number) ? 'mastercard' : /^3[47]/.test(number) ? 'amex' : 'other';
@@ -62,7 +50,6 @@ const change = (id: string, p: Stored, previous: Status | undefined, next: Statu
 export const core = {
   'urn:corpus:payments:payment:operation:create_payment': (request) => {
     const { merchant_id, amount, currency, method, idempotency_key, card } = request;
-    if (merchant_id !== MERCHANT) return fail('urn:corpus:payments:payment:error:not_found', {});
     if (idempotency_key === USED_KEY) return fail('urn:corpus:payments:payment:error:idempotency_conflict', { idempotency_key });
     if (currency === UNSUPPORTED_CURRENCY) return fail('urn:corpus:payments:payment:error:unsupported_currency', { currency });
     const number: string = card?.card_number ?? '';
@@ -91,8 +78,7 @@ export const core = {
     );
   },
 
-  'urn:corpus:payments:payment:operation:capture_payment': ({ merchant_id, payment_id, amount }, current) => {
-    if (current.merchant_id !== merchant_id) return fail('urn:corpus:payments:payment:error:not_found', {});
+  'urn:corpus:payments:payment:operation:capture_payment': ({ payment_id, amount }, current) => {
     const captured = amount ?? current.amount;
     return ok(
       { payment_id, currency: current.currency, authorized_amount: current.amount, captured_amount: captured, status: 'captured' as const },
@@ -100,33 +86,16 @@ export const core = {
     );
   },
 
-  'urn:corpus:payments:payment:operation:void_payment': ({ merchant_id, payment_id }, current) => {
-    if (current.merchant_id !== merchant_id) return fail('urn:corpus:payments:payment:error:not_found', {});
+  'urn:corpus:payments:payment:operation:void_payment': ({ payment_id }, current) => {
     return ok(
       { ...current, status: 'voided' as const },
       [emit('urn:corpus:payments:payment:event:voided', change(payment_id, current, current.status, 'voided'))],
     );
   },
 
-  'urn:corpus:payments:payment:operation:get_payment': ({ merchant_id, payment_id }) => {
-    const p = find(merchant_id, payment_id);
-    if (!p) return fail('urn:corpus:payments:payment:error:not_found', {});
-    return ok({
-      payment_id,
-      merchant_id,
-      amount: p.amount,
-      currency: 'EUR',
-      method: 'card' as const,
-      status: p.status,
-      captured_amount: p.captured_amount,
-      refunded_amount: p.refunded_amount,
-      card: { brand: 'visa' as const, last4: '4242', exp_month: 12, exp_year: 2030 },
-      created_at: NOW,
-    });
-  },
+  'urn:corpus:payments:payment:operation:get_payment': (_lookup, current) => ok(current),
 
-  'urn:corpus:payments:refund:operation:refund_payment': ({ merchant_id, payment_id, amount, idempotency_key }, current) => {
-    if (current.merchant_id !== merchant_id) return fail('urn:corpus:payments:payment:error:not_found', {});
+  'urn:corpus:payments:refund:operation:refund_payment': ({ payment_id, amount, idempotency_key }, current) => {
     if (idempotency_key === USED_KEY) return fail('urn:corpus:payments:payment:error:idempotency_conflict', { idempotency_key });
     if (payment_id === CAPTURED_LONG_AGO) return fail('urn:corpus:payments:refund:error:refund_window_closed', {});
 
@@ -134,7 +103,7 @@ export const core = {
     const next = refunded_total === current.captured_amount ? 'refunded' : 'partially_refunded';
     const event = change(payment_id, current, current.status, next);
     return ok(
-      { refund_id: `re_${'2'.padStart(24, '0')}`, payment_id, merchant_id, amount, currency: current.currency, captured_amount: current.captured_amount, refunded_total, created_at: NOW },
+      { refund_id: `re_${'2'.padStart(24, '0')}`, payment_id, merchant_id: current.merchant_id, amount, currency: current.currency, captured_amount: current.captured_amount, refunded_total, created_at: NOW },
       [
         next === 'refunded'
           ? emit('urn:corpus:payments:payment:event:refunded', event)
@@ -143,18 +112,5 @@ export const core = {
     );
   },
 
-  'urn:corpus:payments:refund:operation:get_refund': ({ merchant_id, refund_id }) => {
-    const p = find(merchant_id, REFUND.payment_id);
-    if (refund_id !== REFUND_ID || !p) return fail('urn:corpus:payments:payment:error:not_found', {});
-    return ok({
-      refund_id,
-      payment_id: REFUND.payment_id,
-      merchant_id,
-      amount: REFUND.amount,
-      currency: 'EUR',
-      captured_amount: p.captured_amount,
-      refunded_total: p.refunded_amount,
-      created_at: NOW,
-    });
-  },
+  'urn:corpus:payments:refund:operation:get_refund': (_lookup, current) => ok(current),
 } satisfies DomainCoreImplementation;

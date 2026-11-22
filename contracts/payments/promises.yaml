@@ -86,15 +86,22 @@ promises:
     status: workaround
     by: [payment.field.idempotency_key, payment.error.idempotency_conflict]
     hole: C2
-  # Every payment carries one merchant id, and not_found is declared. That a payment of another
-  # merchant is not found depends on who calls; that a merchant exists is in another domain. A
-  # capture, void or refund of an unknown payment is declared: the shell finds no record, and the
-  # runtime refuses it as not_found.
+  # Every payment (and refund) carries exactly one, required merchant id. The manifest names the
+  # caller (auth.entity.caller: the merchant and the kind of the API key that the shell
+  # authenticated), and each operation has callers with otherwise: not_found. Create allows only
+  # caller.merchant_id = input.merchant_id, so a request that names any merchant other than the
+  # one of the key, unknown or known, is not found. Capture, void, refund (changes) and the two
+  # reads (reads: payment or refund, missing: not_found) also need caller.merchant_id =
+  # current.merchant_id, so a payment or refund of another merchant is not found; the runtime
+  # checks it before the state and before requires, so the refusal shows nothing of the record.
+  # An unknown payment or refund is the missing error, not_found. The core no longer checks the
+  # merchant. The shell keeps authentication: that the merchant of the caller is the merchant of
+  # a valid key, so a merchant that exists. That is what a caller is, as the plan defines it, not
+  # a part of this promise left out of the manifest.
   P16:
     promise: "Every payment belongs to exactly one merchant, and a request naming an unknown merchant or a payment of another merchant is refused as \"not_found\"."
-    status: workaround
-    by: [payment.entity.payment, payment.field.merchant_id, payment.error.not_found]
-    hole: D2
+    status: declared
+    by: [payment.entity.payment, refund.entity.refund, payment.field.merchant_id, auth.entity.caller, payment.operation.create_payment, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.operation.get_payment, refund.operation.get_refund, payment.error.not_found]
   # The move from authorized to expired is declared, and a capture starts only from authorized,
   # so an expired payment cannot be captured. The move after 7 days, with no request, is not.
   P17:
@@ -140,9 +147,22 @@ promises:
     promise: "Events are delivered at least once, in the order of the changes for any one payment, and a consumer can discard duplicates by event id."
     status: declared
     by: [payment.event.pending, payment.event.authorized, payment.event.captured, payment.event.voided, payment.event.partially_refunded, payment.event.refunded, payment.field.event_id, payment.field.payment_id]
+  # Stated: the caller carries the kind of its key (secret or read_only) and its merchant;
+  # create, capture, void and refund allow only caller.key_kind = 'secret' of the merchant of the
+  # request and of the payment; get_payment and get_refund allow either kind of that merchant.
+  # So a read-only key cannot write, and a key of another merchant can do nothing to a payment.
+  # Lost: the names of the refusals. An operation has one callers.otherwise, and P16 needs it to
+  # be not_found, so a read-only key that tries to write is answered not_found, not "forbidden";
+  # callers cannot answer forbidden for one failed condition and not_found for another, and no
+  # other rule may read the caller. "unauthorized" (no key, or a key that is not valid) is
+  # authentication, which stays in the shell: the runtime takes no caller as a ContractViolation,
+  # not as a refusal, and the manifest cannot state that the shell answers "unauthorized". So
+  # the manifest keeps who may do what; the shell keeps the key and "unauthorized"; "forbidden"
+  # is kept by no one.
   P22:
     promise: "Only a merchant's own secret API key may create, capture, void or refund its payments, while a read-only key may only read them, and any other caller is refused as \"unauthorized\" or \"forbidden\"."
-    status: not-declarable
+    status: workaround
+    by: [auth.entity.caller, auth.field.key_kind, payment.field.merchant_id, payment.operation.create_payment, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.operation.get_payment, refund.operation.get_refund]
     hole: D2
   P23:
     promise: "Answers and events never contain a full card number or security code, showing at most the card brand, the last 4 digits and the expiry."

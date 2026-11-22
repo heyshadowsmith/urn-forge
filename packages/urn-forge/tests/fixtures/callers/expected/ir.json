@@ -1,0 +1,351 @@
+{
+  "entities": {
+    "urn:demo:callers:auth:entity:caller": {
+      "brandIdentifier": "AuthCaller",
+      "description": "Who calls, as the shell authenticated them",
+      "fields": [
+        {
+          "field": "urn:demo:callers:auth:field:role",
+          "name": "role",
+          "required": true
+        },
+        {
+          "field": "urn:demo:callers:auth:field:employee_id",
+          "name": "employee_id",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:callers:auth:entity:caller"
+    },
+    "urn:demo:callers:claim:entity:claim": {
+      "brandIdentifier": "ClaimClaim",
+      "description": "A stored claim",
+      "fields": [
+        {
+          "field": "urn:demo:callers:claim:field:claim_id",
+          "name": "claim_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:callers:claim:field:state",
+          "name": "state",
+          "required": true
+        },
+        {
+          "field": "urn:demo:callers:auth:field:employee_id",
+          "name": "employee_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:callers:auth:field:employee_id",
+          "name": "manager_id",
+          "required": true
+        }
+      ],
+      "key": "urn:demo:callers:claim:field:claim_id",
+      "urn": "urn:demo:callers:claim:entity:claim"
+    },
+    "urn:demo:callers:claim:entity:claim_ref": {
+      "brandIdentifier": "ClaimClaimRef",
+      "description": "The claim to act on",
+      "fields": [
+        {
+          "field": "urn:demo:callers:claim:field:claim_id",
+          "name": "claim_id",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:callers:claim:entity:claim_ref"
+    }
+  },
+  "errors": {
+    "urn:demo:callers:claim:error:forbidden": {
+      "brandIdentifier": "ClaimForbidden",
+      "category": "forbidden",
+      "description": "The caller may not do this",
+      "fields": [
+        {
+          "field": "urn:demo:callers:auth:field:role",
+          "name": "role",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "A caller with the role "
+        },
+        {
+          "field": "role"
+        },
+        {
+          "text": " may not do this"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:callers:claim:error:forbidden"
+    },
+    "urn:demo:callers:claim:error:invalid_state": {
+      "brandIdentifier": "ClaimInvalidState",
+      "category": "conflict",
+      "description": "The claim is not in a state for this",
+      "fields": [
+        {
+          "field": "urn:demo:callers:claim:field:claim_id",
+          "name": "claim_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:callers:claim:field:state",
+          "name": "state",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "Claim "
+        },
+        {
+          "field": "claim_id"
+        },
+        {
+          "text": " is "
+        },
+        {
+          "field": "state"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:callers:claim:error:invalid_state"
+    },
+    "urn:demo:callers:claim:error:not_found": {
+      "brandIdentifier": "ClaimNotFound",
+      "category": "not_found",
+      "description": "No claim has this id",
+      "fields": [
+        {
+          "field": "urn:demo:callers:claim:field:claim_id",
+          "name": "claim_id",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "No claim "
+        },
+        {
+          "field": "claim_id"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:callers:claim:error:not_found"
+    }
+  },
+  "events": {},
+  "fields": {
+    "urn:demo:callers:auth:field:employee_id": {
+      "brandIdentifier": "AuthEmployeeId",
+      "constraints": {
+        "regex": "E-[0-9]{4}"
+      },
+      "description": "The id of an employee",
+      "primitive": "string",
+      "urn": "urn:demo:callers:auth:field:employee_id"
+    },
+    "urn:demo:callers:auth:field:role": {
+      "brandIdentifier": "AuthRole",
+      "constraints": {
+        "values": [
+          "employee",
+          "manager",
+          "finance"
+        ]
+      },
+      "description": "The role of the caller",
+      "primitive": "enum",
+      "urn": "urn:demo:callers:auth:field:role"
+    },
+    "urn:demo:callers:claim:field:claim_id": {
+      "brandIdentifier": "ClaimClaimId",
+      "constraints": {
+        "regex": "CLM-[0-9]{10}"
+      },
+      "description": "The id of a claim",
+      "primitive": "string",
+      "urn": "urn:demo:callers:claim:field:claim_id"
+    },
+    "urn:demo:callers:claim:field:state": {
+      "brandIdentifier": "ClaimState",
+      "constraints": {
+        "values": [
+          "SUBMITTED",
+          "APPROVED"
+        ]
+      },
+      "description": "The state of a claim",
+      "moves": {
+        "SUBMITTED": [
+          "APPROVED"
+        ]
+      },
+      "primitive": "enum",
+      "urn": "urn:demo:callers:claim:field:state"
+    }
+  },
+  "invariants": {},
+  "meta": {
+    "caller": "urn:demo:callers:auth:entity:caller",
+    "domain": "callers",
+    "irSchemaVersion": 1,
+    "manifestHash": "df65e281bee09cee2bab08abfb6e8d0494b9f41057ac537e9da725e22dc41a5f",
+    "manifestVersion": "1.0.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {
+    "urn:demo:callers:claim:operation:approve_claim": {
+      "brandIdentifier": "ClaimApproveClaim",
+      "callers": {
+        "allow": [
+          {
+            "rule": {
+              "left": {
+                "left": {
+                  "left": {
+                    "name": "caller.role",
+                    "op": "field"
+                  },
+                  "op": "=",
+                  "right": {
+                    "op": "text",
+                    "value": "manager"
+                  }
+                },
+                "op": "and",
+                "right": {
+                  "left": {
+                    "name": "caller.employee_id",
+                    "op": "field"
+                  },
+                  "op": "=",
+                  "right": {
+                    "name": "current.manager_id",
+                    "op": "field"
+                  }
+                }
+              },
+              "op": "and",
+              "right": {
+                "left": {
+                  "name": "caller.employee_id",
+                  "op": "field"
+                },
+                "op": "!=",
+                "right": {
+                  "name": "current.employee_id",
+                  "op": "field"
+                }
+              }
+            },
+            "ruleText": "caller.role = 'manager' and caller.employee_id = current.manager_id and caller.employee_id != current.employee_id"
+          }
+        ],
+        "otherwise": "urn:demo:callers:claim:error:forbidden"
+      },
+      "changes": {
+        "entity": "urn:demo:callers:claim:entity:claim",
+        "from": [
+          "SUBMITTED"
+        ],
+        "otherwise": "urn:demo:callers:claim:error:invalid_state",
+        "property": "state",
+        "to": [
+          "APPROVED"
+        ]
+      },
+      "description": "Approve a submitted claim",
+      "emits": [],
+      "errors": [
+        "urn:demo:callers:claim:error:invalid_state",
+        "urn:demo:callers:claim:error:forbidden"
+      ],
+      "input": "urn:demo:callers:claim:entity:claim_ref",
+      "output": "urn:demo:callers:claim:entity:claim",
+      "urn": "urn:demo:callers:claim:operation:approve_claim"
+    },
+    "urn:demo:callers:claim:operation:check_claim_id": {
+      "brandIdentifier": "ClaimCheckClaimId",
+      "callers": {
+        "allow": "any"
+      },
+      "description": "Check the form of a claim id, for any caller",
+      "emits": [],
+      "errors": [],
+      "input": "urn:demo:callers:claim:entity:claim_ref",
+      "output": "urn:demo:callers:claim:entity:claim_ref",
+      "urn": "urn:demo:callers:claim:operation:check_claim_id"
+    },
+    "urn:demo:callers:claim:operation:read_claim": {
+      "brandIdentifier": "ClaimReadClaim",
+      "callers": {
+        "allow": [
+          {
+            "rule": {
+              "left": {
+                "name": "caller.employee_id",
+                "op": "field"
+              },
+              "op": "=",
+              "right": {
+                "name": "current.employee_id",
+                "op": "field"
+              }
+            },
+            "ruleText": "caller.employee_id = current.employee_id"
+          },
+          {
+            "rule": {
+              "left": {
+                "name": "caller.employee_id",
+                "op": "field"
+              },
+              "op": "=",
+              "right": {
+                "name": "current.manager_id",
+                "op": "field"
+              }
+            },
+            "ruleText": "caller.employee_id = current.manager_id"
+          },
+          {
+            "rule": {
+              "left": {
+                "name": "caller.role",
+                "op": "field"
+              },
+              "op": "=",
+              "right": {
+                "op": "text",
+                "value": "finance"
+              }
+            },
+            "ruleText": "caller.role = 'finance'"
+          }
+        ],
+        "otherwise": "urn:demo:callers:claim:error:forbidden"
+      },
+      "description": "Read a claim",
+      "emits": [],
+      "errors": [
+        "urn:demo:callers:claim:error:not_found",
+        "urn:demo:callers:claim:error:forbidden"
+      ],
+      "input": "urn:demo:callers:claim:entity:claim_ref",
+      "output": "urn:demo:callers:claim:entity:claim",
+      "reads": {
+        "entity": "urn:demo:callers:claim:entity:claim",
+        "missing": "urn:demo:callers:claim:error:not_found"
+      },
+      "urn": "urn:demo:callers:claim:operation:read_claim"
+    }
+  }
+}

@@ -106,10 +106,11 @@ promises:
     status: workaround
     by: [stock.event.stock_depleted, reservation.operation.reserve_stock, adjustment.operation.adjust_stock]
     hole: A2
+  # The header names the caller access.entity.caller, with a role: order_system, purchasing_system, warehouse_staff or warehouse_supervisor (authentication is the shell's; a caller that is absent or does not parse is a ContractViolation). Each operation states its callers, checked by the generated runtime before the record's state, requires and the handler: ReserveStock, ReleaseReservation and ShipReservation allow caller.role = 'order_system'; ReceiveGoods allows caller.role = 'warehouse_staff' or caller.role = 'purchasing_system'; AdjustStock allows caller.role = 'warehouse_supervisor'; each refuses any other caller with access.error.forbidden (FORBIDDEN), filled with the role. GetStock has allow: any; its otherwise is never answered. Warehouse supervisors are a role of their own, apart from warehouse staff, as the promise names them. The scenarios show each role allowed and every other role refused, also before the state of a reservation; the core does not read the caller.
   P21:
     promise: "Only the order system may call ReserveStock, ReleaseReservation and ShipReservation; only warehouse staff and the purchasing system may call ReceiveGoods; only warehouse supervisors may call AdjustStock; any authenticated caller may call GetStock, and other calls are refused with FORBIDDEN."
-    status: not-declarable
-    hole: D2
+    status: declared
+    by: [access.entity.caller, access.field.role, access.error.forbidden, reservation.operation.reserve_stock, reservation.operation.release_reservation, reservation.operation.ship_reservation, receipt.operation.receive_goods, adjustment.operation.adjust_stock, stock.operation.get_stock]
   # The purchase order, the 1 to 200 lines and the new on-hand count of each line are declared. "New on-hand = previous on-hand + received" needs the stored count.
   P22:
     promise: "ReceiveGoods names a purchase order id and 1 to 200 lines, and the answer reports for each line the new on-hand count, which equals the previous on-hand plus the received quantity."

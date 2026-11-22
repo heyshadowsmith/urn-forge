@@ -7,6 +7,8 @@ export const STEP_PHRASES = {
   current: 'the current {word} is:',
   /** The shell found no record that the operation changes. */
   noCurrent: 'there is no current {word}',
+  /** Who calls, as the shell authenticated them: one header row and one data row. */
+  caller: 'the caller is:',
   run: 'I run the operation with:',
   output: 'the output is:',
   rejected: 'the input is rejected on {string}',

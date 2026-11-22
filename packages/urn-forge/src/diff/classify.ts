@@ -82,6 +82,8 @@ export function usesOf(ir: UniversalIR, tables: readonly Urn[] = []): Map<Urn, S
     }
   }
   for (const table of tables) entity(table, 'stored');
+  // The shell sends the caller, as it sends an input.
+  if (live.meta?.caller) entity(live.meta.caller, 'in');
   for (const invariant of Object.values(live.invariants)) for (const use of uses.get(invariant.on) ?? []) add(invariant.urn, use);
   return uses;
 }
@@ -340,6 +342,23 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     for (const rule of requires(a).filter((r) => !requires(b!).includes(r))) compatible(urn, `the requires rule ${rule} is removed`);
     for (const rule of ensures(b!).filter((r) => !ensures(a).includes(r))) compatible(urn, `the new ensures rule ${rule}`);
     for (const rule of ensures(a).filter((r) => !ensures(b!).includes(r))) breaking(urn, `the ensures rule ${rule} is removed, which breaks callers that rely on it`);
+    // Who may call: a new allow rule lets more callers in; a removed one, or new callers, shuts some out.
+    const allow = (op: typeof a): 'any' | readonly string[] | undefined => (op.callers === undefined ? undefined : op.callers.allow === 'any' ? 'any' : op.callers.allow.map((r) => r.ruleText));
+    const [before, after] = [allow(a), allow(b!)];
+    if (before === undefined && after !== undefined) {
+      if (after === 'any') compatible(urn, 'callers: any caller may call');
+      else breaking(urn, `callers: only a caller for whom ${after.join(' or ')} may now call`);
+    } else if (before !== undefined && after === undefined) {
+      compatible(urn, 'callers removed: any caller may call');
+    } else if (before !== undefined && after !== undefined) {
+      if (before === 'any' && after !== 'any') breaking(urn, `callers: any caller → only a caller for whom ${after.join(' or ')}`);
+      else if (before !== 'any' && after === 'any') compatible(urn, 'callers: any caller may now call');
+      else if (before !== 'any' && after !== 'any') {
+        for (const rule of after.filter((r) => !before.includes(r))) compatible(urn, `the new allow rule ${rule} lets more callers call`);
+        for (const rule of before.filter((r) => !after.includes(r))) breaking(urn, `the allow rule ${rule} is removed, which shuts out callers that it let in`);
+      }
+      if (before !== 'any' && after !== 'any' && a.callers!.otherwise !== b!.callers!.otherwise) breaking(urn, `callers.otherwise ${a.callers!.otherwise} → ${b!.callers!.otherwise}: refused callers receive another error`);
+    }
   }
 
   // The moves of a state field: a removed move breaks the callers that make it.

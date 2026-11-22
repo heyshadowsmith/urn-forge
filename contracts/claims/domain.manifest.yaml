@@ -3,8 +3,14 @@ manifest:
   namespace: corpus
   domain: claims
   version: 1.0.0
+  caller: auth.entity.caller
 
 # Values
+
+auth.field.role:
+  primitive: enum
+  values: [employee, manager, finance]
+  description: The role of the caller, as the shell authenticated them; finance users pay claims
 
 claim.field.claim_id:
   primitive: string
@@ -40,6 +46,9 @@ claim.field.purpose:
 claim.field.employee_id:
   primitive: string
   description: The employee who owns a claim
+claim.field.manager_id:
+  primitive: string
+  description: The employee id of the manager of the employee who owns a claim, as the employee directory names them; the shell stores it with the claim
 claim.field.actor_id:
   primitive: string
   description: The user who makes a request
@@ -96,6 +105,12 @@ event.field.occurred_at:
   description: When a change happened, ISO 8601 in UTC
 
 # Entities
+
+auth.entity.caller:
+  description: Who calls, as the shell authenticated them
+  fields:
+    - ref: auth.field.role
+    - ref: claim.field.employee_id
 
 receipt.entity.receipt:
   description: A receipt file for an expense
@@ -200,6 +215,7 @@ claim.entity.claim:
     - ref: claim.field.claim_id
     - ref: claim.field.version
     - ref: claim.field.employee_id
+    - ref: claim.field.manager_id
     - ref: claim.field.state
     - ref: claim.field.purpose
     - ref: claim.field.currency
@@ -308,6 +324,10 @@ claim.operation.create_draft:
   ensures:
     - output.currency = input.currency
     - 'output.total = sum(line in input.lines: line.amount)'
+  callers:
+    allow:
+      - input.actor_id = caller.employee_id and caller.employee_id = input.employee_id
+    otherwise: claim.error.forbidden
   errors: [claim.error.forbidden, claim.error.duplicate_receipt]
 claim.operation.edit_draft:
   description: Replace the purpose, currency and lines of a draft claim; a rejected claim goes back to DRAFT
@@ -327,6 +347,10 @@ claim.operation.edit_draft:
     - output.version = input.version + 1
     - output.currency = input.currency
     - 'output.total = sum(line in input.lines: line.amount)'
+  callers:
+    allow:
+      - input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
+    otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
 claim.operation.submit_claim:
   description: Submit a draft claim for a decision
@@ -352,6 +376,10 @@ claim.operation.submit_claim:
     - event.currency = output.currency
     - event.state = output.state
     - event.actor_id = input.actor_id
+  callers:
+    allow:
+      - input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
+    otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
     - event: claim.event.claim_submitted
@@ -379,6 +407,10 @@ claim.operation.withdraw_claim:
     - event.currency = output.currency
     - event.state = output.state
     - event.actor_id = input.actor_id
+  callers:
+    allow:
+      - input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
+    otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
     - event: claim.event.claim_withdrawn
@@ -406,6 +438,10 @@ claim.operation.approve_claim:
     - event.currency = output.currency
     - event.state = output.state
     - event.actor_id = input.actor_id
+  callers:
+    allow:
+      - input.actor_id = caller.employee_id and caller.employee_id = current.manager_id and caller.employee_id != current.employee_id
+    otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
     - event: claim.event.claim_approved
@@ -435,6 +471,10 @@ claim.operation.reject_claim:
     - event.state = output.state
     - event.actor_id = input.actor_id
     - event.reason = input.reason
+  callers:
+    allow:
+      - input.actor_id = caller.employee_id and caller.employee_id = current.manager_id
+    otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
     - event: claim.event.claim_rejected
@@ -462,6 +502,10 @@ claim.operation.mark_paid:
     - event.currency = output.currency
     - event.state = output.state
     - event.actor_id = input.actor_id
+  callers:
+    allow:
+      - input.actor_id = caller.employee_id and caller.role = 'finance'
+    otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
     - event: claim.event.claim_paid
@@ -469,4 +513,13 @@ claim.operation.get_claim:
   description: Read a claim by its id
   input: claim.entity.lookup
   output: claim.entity.claim
+  reads:
+    entity: claim.entity.claim
+    missing: claim.error.not_found
+  callers:
+    allow:
+      - input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
+      - input.actor_id = caller.employee_id and caller.employee_id = current.manager_id
+      - input.actor_id = caller.employee_id and caller.role = 'finance'
+    otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden]

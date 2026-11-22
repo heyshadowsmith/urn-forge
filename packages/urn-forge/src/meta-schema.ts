@@ -45,6 +45,8 @@ export const HeaderSchema = v.strictObject({
   domain: Segment,
   version: v.pipe(v.string(), v.regex(SEMVER_PATTERN, 'must be a semver version such as 0.1.0')),
   stability: v.optional(v.picklist(['experimental', 'stable'])),
+  /** The entity of the caller, as the shell authenticated them: every operation then states who may call it. */
+  caller: v.optional(v.pipe(v.string(), v.regex(/^[a-z][a-z0-9_]*\.entity\.[a-z][a-z0-9_]*$/, 'must be the short key of an entity, such as auth.entity.caller'))),
 });
 export type ManifestHeader = v.InferOutput<typeof HeaderSchema>;
 

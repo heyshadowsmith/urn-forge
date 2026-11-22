@@ -2,6 +2,12 @@
 @urn:corpus:inventory:stock:operation:get_stock
 Feature: Read the stock of a SKU at a location
 
+  # Any authenticated caller may read the stock; the scenarios below run as warehouse staff.
+  Background:
+    Given the caller is:
+      | role            |
+      | warehouse_staff |
+
   Scenario Outline: A stock level has on-hand, reserved and available counts
     When I run the operation with:
       | sku   | location   |
@@ -59,3 +65,21 @@ Feature: Read the stock of a SKU at a location
     Then the operation fails with "urn:corpus:inventory:stock:error:unknown_location":
       | location   |
       | ZZZ-Z-9999 |
+
+  Scenario Outline: Any authenticated caller may read the stock
+    Given the caller is:
+      | role   |
+      | <role> |
+    When I run the operation with:
+      | sku      | location   |
+      | WIDGET-1 | AMS-B-0142 |
+    Then the output is:
+      | sku      | location   | on_hand | reserved | available |
+      | WIDGET-1 | AMS-B-0142 | 500     | 100      | 400       |
+
+    Examples:
+      | role                 |
+      | order_system         |
+      | purchasing_system    |
+      | warehouse_staff      |
+      | warehouse_supervisor |

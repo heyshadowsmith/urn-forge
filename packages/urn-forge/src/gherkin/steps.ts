@@ -66,6 +66,8 @@ export interface OperationContractLike {
   readonly events?: Readonly<Record<string, { readonly fields: FieldsLike }>>;
   /** The record that the operation changes, when it changes one. */
   readonly changes?: { readonly entity: { readonly urn: string; readonly fields: FieldsLike } };
+  /** The record that the operation reads, when it reads one. */
+  readonly reads?: { readonly entity: { readonly urn: string; readonly fields: FieldsLike } };
 }
 
 export interface EmittedEventLike {
@@ -99,7 +101,9 @@ export interface OperationStepsOptions {
    * Runs one operation. `options.current` is the record of `Given the current <entity> is:`;
    * a domain with `changes` passes it on: `executeOperation(urn, payload, core, options)`.
    */
-  readonly execute: (urn: string, payload: unknown, options: { readonly current?: unknown }) => ExecuteResultLike;
+  readonly execute: (urn: string, payload: unknown, options: { readonly current?: unknown; readonly caller?: unknown }) => ExecuteResultLike;
+  /** The caller entity of a domain with a caller (the generated CallerContract), for `Given the caller is:`. */
+  readonly caller?: { readonly urn: string; readonly fields: FieldsLike };
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +143,7 @@ export function coerceCell(cell: string, field: PropertyInfoLike): unknown {
 export function tableToObject(
   rows: readonly (readonly string[])[],
   fields: FieldsLike,
-  side: 'input' | 'output' | 'error' | 'event' | 'current record',
+  side: 'input' | 'output' | 'error' | 'event' | 'current record' | 'caller',
   urn: string,
 ): Record<string, unknown> {
   if (rows.length !== 2) {
@@ -336,6 +340,8 @@ interface ScenarioState {
   tags: readonly string[];
   /** The record of `Given the current <entity> is:`, as the shell would load it. */
   current?: unknown;
+  /** The caller of `Given the caller is:`, as the shell would authenticate them. */
+  caller?: unknown;
   urn?: string;
   result?: ExecuteResultLike;
 }
@@ -394,10 +400,16 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     this.urnForge = { tags: pickle.tags.map((tag) => tag.name) };
   });
 
+  Given(STEP_PHRASES.caller, function (this: StepsWorld, table: DataTable) {
+    const s = state(this);
+    if (!options.caller) throw new Error('"the caller is:" needs the caller entity: pass caller: CallerContract to registerOperationSteps');
+    s.caller = tableToObject(table.raw(), options.caller.fields, 'caller', options.caller.urn);
+  });
+
   Given(STEP_PHRASES.current, function (this: StepsWorld, word: string, table: DataTable) {
     const s = state(this);
     const urn = operationUrnFromTags(s.tags);
-    const change = contract(urn).changes;
+    const change = contract(urn).changes ?? contract(urn).reads;
     if (!change) throw new Error(`${urn} changes no record, so "the current ${word} is:" has nothing to give`);
     const identifier = change.entity.urn.split(':').at(-1);
     if (word !== identifier) throw new Error(`${urn} changes a record of ${change.entity.urn}: write "the current ${identifier} is:"`);
@@ -407,7 +419,7 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
   Given(STEP_PHRASES.noCurrent, function (this: StepsWorld, word: string) {
     const s = state(this);
     const urn = operationUrnFromTags(s.tags);
-    const change = contract(urn).changes;
+    const change = contract(urn).changes ?? contract(urn).reads;
     if (!change) throw new Error(`${urn} changes no record, so "there is no current ${word}" has nothing to say`);
     const identifier = change.entity.urn.split(':').at(-1);
     if (word !== identifier) throw new Error(`${urn} changes a record of ${change.entity.urn}: write "there is no current ${identifier}"`);
@@ -420,7 +432,7 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     const urn = operationUrnFromTags(s.tags);
     const payload = tableToObject(table.raw(), contract(urn).input.fields, 'input', urn);
     s.urn = urn;
-    s.result = options.execute(urn, payload, s.current === undefined ? {} : { current: s.current });
+    s.result = options.execute(urn, payload, { ...(s.current === undefined ? {} : { current: s.current }), ...(s.caller === undefined ? {} : { caller: s.caller }) });
   });
 
   Then(STEP_PHRASES.output, function (this: StepsWorld, table: DataTable) {

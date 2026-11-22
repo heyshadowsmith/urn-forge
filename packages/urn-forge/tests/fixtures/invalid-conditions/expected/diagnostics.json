@@ -45,7 +45,7 @@
       "column": 22,
       "line": 48
     },
-    "message": "urn:demo:conditions:order:operation:current_without_changes: requires.0.rule: \"current.quantity\" reads the record that the operation changes, but the operation has no changes",
+    "message": "urn:demo:conditions:order:operation:current_without_changes: requires.0.rule: \"current.quantity\" reads the record that the operation changes or reads, but the operation has no changes or reads",
     "severity": "error",
     "urn": "urn:demo:conditions:order:operation:current_without_changes"
   },

@@ -2,6 +2,12 @@
 @urn:corpus:inventory:reservation:operation:ship_reservation
 Feature: Ship a reservation
 
+  # Only the order system may ship a reservation; the scenarios below run as the order system.
+  Background:
+    Given the caller is:
+      | role         |
+      | order_system |
+
   Scenario Outline: An active or partly shipped reservation shipped without lines ships in full
     Given the current reservation is:
       | result   | reservation_id                       | order_id | state   | lines                                                   | expires_at               |
@@ -24,7 +30,7 @@ Feature: Ship a reservation
   Scenario Outline: A stated quantity per line ships that much of each line
     Given the current reservation is:
       | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
+      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE  | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
     When I run the operation with:
       | idempotency_key   | reservation_id                       | lines   |
       | <idempotency_key> | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | <lines> |
@@ -43,7 +49,7 @@ Feature: Ship a reservation
   Scenario: A quantity over what is still reserved on the line is refused
     Given the current reservation is:
       | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
+      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE  | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
     When I run the operation with:
       | idempotency_key | reservation_id                       | lines                                                       |
       | shp-0005        | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 100000 }] |
@@ -53,7 +59,7 @@ Feature: Ship a reservation
   Scenario Outline: Lines that are empty, more than 100, or break their rules are rejected
     Given the current reservation is:
       | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
+      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE  | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
     When I run the operation with:
       | idempotency_key | reservation_id                       | lines   |
       | shp-0006        | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | <lines> |
@@ -73,7 +79,7 @@ Feature: Ship a reservation
   Scenario Outline: An idempotency key shorter than 8 or longer than 64 characters is rejected
     Given the current reservation is:
       | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
+      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE  | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
     When I run the operation with:
       | idempotency_key   | reservation_id                       |
       | <idempotency_key> | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
@@ -87,7 +93,7 @@ Feature: Ship a reservation
   Scenario: A reservation id that is not a UUID is rejected
     Given the current reservation is:
       | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
+      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE  | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
     When I run the operation with:
       | idempotency_key | reservation_id |
       | shp-0007        | RES-1          |
@@ -123,10 +129,50 @@ Feature: Ship a reservation
   Scenario: An idempotency key used before with a different body is refused
     Given the current reservation is:
       | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
+      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE  | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
     When I run the operation with:
       | idempotency_key | reservation_id                       |
       | conflict-key    | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
     Then the operation fails with "urn:corpus:inventory:request:error:idempotency_conflict":
       | idempotency_key |
       | conflict-key    |
+
+  Scenario Outline: Any caller other than the order system is refused
+    Given the caller is:
+      | role                 |
+      | <role>               |
+    And the current reservation is:
+      | result   | reservation_id                       | order_id | state   | lines                                                   | expires_at               |
+      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE  | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
+    When I run the operation with:
+      | idempotency_key | reservation_id                       |
+      | shp-0101        | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
+    Then the operation fails with "urn:corpus:inventory:access:error:forbidden":
+      | role   |
+      | <role> |
+    And the operation emits no event
+
+    Examples:
+      | role                 |
+      | purchasing_system    |
+      | warehouse_staff      |
+      | warehouse_supervisor |
+
+  Scenario Outline: A refused caller does not learn the state of the reservation
+    Given the caller is:
+      | role                 |
+      | <role>               |
+    And the current reservation is:
+      | result   | reservation_id                       | order_id | state   | lines                                                   | expires_at               |
+      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | SHIPPED | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
+    When I run the operation with:
+      | idempotency_key | reservation_id                       |
+      | shp-0101        | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
+    Then the operation fails with "urn:corpus:inventory:access:error:forbidden":
+      | role   |
+      | <role> |
+    And the operation emits no event
+
+    Examples:
+      | role                 |
+      | warehouse_staff      |

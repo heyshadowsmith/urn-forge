@@ -2,6 +2,12 @@
 @urn:corpus:inventory:adjustment:operation:adjust_stock
 Feature: Adjust the on-hand stock
 
+  # Only warehouse supervisors may adjust stock; the scenarios below run as a warehouse supervisor.
+  Background:
+    Given the caller is:
+      | role                 |
+      | warehouse_supervisor |
+
   Scenario Outline: An adjustment changes the on-hand count by its delta, for its reason
     When I run the operation with:
       | idempotency_key   | sku   | location   | delta   | reason   |
@@ -112,3 +118,21 @@ Feature: Adjust the on-hand stock
     Then the operation fails with "urn:corpus:inventory:request:error:idempotency_conflict":
       | idempotency_key |
       | conflict-key    |
+
+  Scenario Outline: Any caller other than a warehouse supervisor is refused
+    Given the caller is:
+      | role                 |
+      | <role>               |
+    When I run the operation with:
+      | idempotency_key | sku      | location   | delta | reason |
+      | adj-0101        | WIDGET-1 | AMS-B-0142 | -1    | LOST   |
+    Then the operation fails with "urn:corpus:inventory:access:error:forbidden":
+      | role   |
+      | <role> |
+    And the operation emits no event
+
+    Examples:
+      | role                 |
+      | order_system         |
+      | purchasing_system    |
+      | warehouse_staff      |

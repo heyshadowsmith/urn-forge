@@ -1,0 +1,103 @@
+# Callers: the target of callers.test.ts. The header names the caller, and each operation
+# states who may call it: a manager who is not the claimant, the owner, finance, or any caller.
+manifest:
+  namespace: demo
+  domain: callers
+  version: 1.0.0
+  caller: auth.entity.caller
+
+auth.field.role:
+  primitive: enum
+  values: [employee, manager, finance]
+  description: The role of the caller
+auth.field.employee_id:
+  primitive: string
+  regex: 'E-[0-9]{4}'
+  description: The id of an employee
+auth.entity.caller:
+  description: Who calls, as the shell authenticated them
+  fields:
+    - ref: auth.field.role
+    - ref: auth.field.employee_id
+    - ref: claim.field.claim_id
+
+claim.field.claim_id:
+  primitive: string
+  regex: 'CLM-[0-9]{10}'
+  description: The id of a claim
+claim.field.state:
+  primitive: enum
+  values: [SUBMITTED, APPROVED]
+  moves:
+    SUBMITTED: [APPROVED]
+  description: The state of a claim
+claim.entity.claim:
+  description: A stored claim
+  key: claim.field.claim_id
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.state
+    - ref: auth.field.employee_id
+    - ref: auth.field.employee_id
+      as: manager_id
+claim.entity.claim_ref:
+  description: The claim to act on
+  fields:
+    - ref: claim.field.claim_id
+claim.error.invalid_state:
+  description: The claim is not in a state for this
+  category: conflict
+  retryable: false
+  message: Claim {claim_id} is {state}
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.state
+claim.error.forbidden:
+  description: The caller may not do this
+  category: forbidden
+  retryable: false
+  message: A caller with the role {role} may not do this
+  fields:
+    - ref: auth.field.role
+claim.error.not_found:
+  description: No claim has this id
+  category: not_found
+  retryable: false
+  message: No claim {claim_id}
+  fields:
+    - ref: claim.field.claim_id
+
+claim.operation.approve_claim:
+  description: Approve a submitted claim
+  input: claim.entity.claim_ref
+  output: claim.entity.claim
+  changes:
+    entity: claim.entity.claim
+    from: [SUBMITTED]
+    to: APPROVED
+    otherwise: claim.error.invalid_state
+  callers:
+    allow:
+      - caller.role = 'manager' and caller.employee_id = current.manager_id and caller.employee_id != current.employee_id
+    otherwise: claim.error.forbidden
+  errors: [claim.error.invalid_state, claim.error.forbidden]
+claim.operation.read_claim:
+  description: Read a claim
+  input: claim.entity.claim_ref
+  output: claim.entity.claim
+  reads:
+    entity: claim.entity.claim
+    missing: claim.error.not_found
+  callers:
+    allow:
+      - caller.employee_id = current.employee_id
+      - caller.employee_id = current.manager_id
+      - caller.role = 'finance'
+    otherwise: claim.error.forbidden
+  errors: [claim.error.not_found, claim.error.forbidden]
+claim.operation.check_claim_id:
+  description: Check the form of a claim id, for any caller
+  input: claim.entity.claim_ref
+  output: claim.entity.claim_ref
+  callers:
+    allow: any

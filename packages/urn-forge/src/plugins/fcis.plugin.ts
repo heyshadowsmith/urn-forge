@@ -115,6 +115,74 @@ export function executeOperation<U extends OperationUrn>(
 export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options?: ExecuteOptions): ExecuteResult;
 export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options: ExecuteOptions = {}): ExecuteResult {`;
 
+/** The options of a domain with a caller or a read: the record, the caller, and the ids of events, as the domain uses them. */
+const accessSignatures = (record: boolean, caller: boolean, delivery: boolean) => `/** What the shell knows of the call, besides the payload. */
+export interface ExecuteOptions {${record ? `
+  /** For an operation that changes or reads a record: the record as it is stored now, or null when there is none. */
+  readonly current?: unknown;` : ''}${caller ? `
+  /** Who calls, as the shell authenticated them. */
+  readonly caller?: unknown;` : ''}${delivery ? `
+  /** For an event with a delivery: a new, unique id for each event. */
+  readonly newEventId?: () => string;` : ''}
+}
+
+export function executeOperation<U extends OperationUrn>(
+  urn: U,
+  rawPayload: unknown,
+  core: DomainCoreImplementation,
+  options?: ExecuteOptions,
+): ExecuteResult<U>;
+export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options?: ExecuteOptions): ExecuteResult;
+export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options: ExecuteOptions = {}): ExecuteResult {`;
+
+/**
+ * The call in a domain with a caller or a read: the caller parses, the record parses (or is null
+ * for \`missing\`), a caller that no rule of \`callers\` allows gets \`otherwise\`, then the state of
+ * \`changes\` and the requires rules. The callers are checked before the state, so a caller who may
+ * not call learns nothing of the record from another refusal.
+ */
+const accessCall = (changes: boolean, reads: boolean, caller: boolean, conditions: boolean) => `  // The caller, the record, who may call, then the state: the handler runs only when each holds.${changes ? `
+  const change: ChangeContract | undefined = 'changes' in contract ? contract.changes : undefined;` : ''}${reads ? `
+  const read: ReadContract | undefined = 'reads' in contract ? contract.reads : undefined;` : ''}
+  const record = ${[...(changes ? ['change?.entity'] : []), ...(reads ? ['read?.entity'] : [])].join(' ?? ') || 'undefined'};
+  const missing = ${[...(changes ? ['change?.missing'] : []), ...(reads ? ['read?.missing'] : [])].join(' ?? ') || 'undefined'};
+  let current: Readonly<Record<string, unknown>> | undefined;
+  let result: unknown;
+  const fill = (errorUrn: string, known: Readonly<Record<string, unknown>>) => {
+    const names = Object.keys(contract.errors[errorUrn]?.fields ?? {}).filter((name) => known[name] !== undefined);
+    return { ok: false, error: { ...Object.fromEntries(names.map((name) => [name, known[name]])), kind: errorUrn } };
+  };${caller ? `
+  if (options.caller === undefined) return violation(\`\${urn} needs the caller, as the shell authenticated them: pass it as { caller }\`);
+  const who = v.safeParse(CallerContract.schema, options.caller);
+  if (!who.success) {
+    const issues = boundaryIssues(who.issues, CallerContract).map((issue) => ({ ...issue, path: issue.path === '' ? 'caller' : \`caller.\${issue.path}\` }));
+    return { ok: false, kind: 'ContractViolation', urn, issues };
+  }
+  const caller = who.output as Readonly<Record<string, unknown>>;` : ''}
+  if (record) {
+    if (options.current === undefined || (options.current === null && missing === undefined)) {
+      const message = options.current === null ? 'the shell found no record, and the operation declares no missing error' : 'pass it as { current }';
+      return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: 'current', message: \`\${urn} \${'changes' in contract ? 'changes' : 'reads'} a record of \${record.urn}: \${message}\` }] };
+    }
+    if (options.current === null) {
+      result = fill(missing!, input.output as Readonly<Record<string, unknown>>);
+    } else {
+      const stored = v.safeParse(record.schema, options.current);
+      if (!stored.success) {
+        const issues = boundaryIssues(stored.issues, record).map((issue) => ({ ...issue, path: issue.path === '' ? 'current' : \`current.\${issue.path}\` }));
+        return { ok: false, kind: 'ContractViolation', urn, issues };
+      }
+      current = stored.output as Readonly<Record<string, unknown>>;
+    }
+  }${caller ? `
+  // Who may call: any caller, or one for whom a rule holds. Else \`otherwise\`, filled from the caller, the record and the request.
+  const callers = contract.callers;
+  if (result === undefined && callers.allow !== 'any' && !callers.allow.some((rule) => (rule.check as (values: unknown) => boolean)({ input: input.output, current, caller }))) {
+    result = fill(callers.otherwise!, { ...(input.output as object), ...current, ...caller });
+  }` : ''}${changes ? `
+  if (result === undefined && change && current && !change.from.includes(current[change.property] as string)) result = fill(change.otherwise, { ...(input.output as object), ...current });` : ''}${conditions ? REQUIRES : ''}
+  result ??= handler(input.output, current);`;
+
 const PLAIN_CALL = `  const result: unknown = handler(input.output);`;
 
 const CHANGE_CALL = `  // An operation that changes a record: the record must parse, and its state must be one the
@@ -239,7 +307,7 @@ function callSnippet(changes: boolean, conditions: boolean): string {
 }
 
 /** The gatekeeper: the same for every manifest, plus the record of `changes` when an operation has one. */
-const shell = (changes: boolean, conditions = false, counts = false, delivery = false) => `// Shell gatekeeper
+const shell = (changes: boolean, conditions = false, counts = false, delivery = false, reads = false, caller = false) => `// Shell gatekeeper
 
 export type OperationUrn = keyof DomainCoreImplementation;
 
@@ -369,7 +437,7 @@ function renderMessage(parts: readonly MessagePart[], fields: unknown): string {
  * Parses the input, calls the handler with branded input, then parses and brands its
  * output, or its error when the error is one the operation declares.
  */
-${delivery ? deliverySignatures(changes) : changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
+${reads || caller ? accessSignatures(changes || reads, caller, delivery) : delivery ? deliverySignatures(changes) : changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
   if (!isOperationUrn(urn)) {
     return { ok: false, kind: 'UnknownOperation', urn, issues: [{ path: '', message: \`unknown operation \${urn}\` }] };
   }
@@ -383,7 +451,7 @@ ${delivery ? deliverySignatures(changes) : changes ? CHANGE_SIGNATURES : PLAIN_S
 
   const handler: unknown = core[urn];
   if (typeof handler !== 'function') return violation(\`no handler for \${urn}\`);
-${callSnippet(changes, conditions || counts)}
+${reads || caller ? accessCall(changes, reads, caller, conditions || counts) : callSnippet(changes, conditions || counts)}
   if (!isResult(result)) return violation(\`the handler for \${urn} did not return a Result; return ok(…) or fail(…)\`);
 
   // \`=== false\`, not \`!result.ok\`: without strictNullChecks, TypeScript narrows a union on
@@ -613,7 +681,9 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
     ].join('\n');
 
     const anyChanges = operations.some((op) => op.changes !== undefined);
-    const anyConditions = operations.some((op) => op.requires !== undefined || op.ensures !== undefined || op.exactly !== undefined);
+    const anyReads = operations.some((op) => op.reads !== undefined);
+    const anyCaller = ir.meta.caller !== undefined;
+    const anyConditions = operations.some((op) => op.requires !== undefined || op.ensures !== undefined || op.exactly !== undefined) || anyCaller;
     const handlers = operations.map((op) => {
       const errorTypes = op.errors.map((urn) => `s.${schemaNames(error(urn).brandIdentifier).input}`);
       // Only the events of the operation: tsc refuses another.
@@ -623,7 +693,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
         `export type ${handlerName(op.brandIdentifier)} = (`,
         `  input: s.${schemaNames(entity(op.input).brandIdentifier).output},`,
         // The record that the operation changes, as stored, after the runtime checked its state.
-        ...(op.changes ? [`  current: s.${schemaNames(entity(op.changes.entity).brandIdentifier).output},`] : []),
+        ...(op.changes || op.reads ? [`  current: s.${schemaNames(entity((op.changes ?? op.reads)!.entity).brandIdentifier).output},`] : []),
         `) => Result<s.${schemaNames(entity(op.output).brandIdentifier).input}, ${errorTypes.length > 0 ? errorTypes.join(' | ') : 'never'}${eventTypes.length > 0 ? `, ${eventTypes.join(' | ')}` : ''}>;`,
       ].join('\n');
     });
@@ -691,6 +761,8 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       `  /** Keyed by event URN: the events it may return on success. */`,
       `  readonly events: Readonly<Record<string, ${anyDelivery ? 'EventContract' : 'EntityContract'}>>;`,
       ...(anyChanges ? [`  /** The record that the operation changes, when it changes one. */`, `  readonly changes?: ChangeContract;`] : []),
+      ...(anyReads ? [`  /** The record that the operation reads, when it reads one. */`, `  readonly reads?: ReadContract;`] : []),
+      ...(anyCaller ? [`  /** Who may call the operation. */`, `  readonly callers: CallersContract;`] : []),
       ...(anyConditions
         ? [
             `  /** Rules that must hold before the handler runs, each with the error that answers when it does not. */`,
@@ -701,6 +773,20 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
           ]
         : []),
       `}`,
+      ...(anyReads
+        ? [``, `/** The record that an operation reads, and the error when the shell finds none. */`, `export interface ReadContract {`, `  readonly entity: EntityContract & { readonly urn: string };`, `  readonly missing?: string;`, `}`]
+        : []),
+      ...(anyCaller
+        ? [
+            ``,
+            `/** Who may call an operation: any caller, or one for whom a rule holds; else the error \`otherwise\`. */`,
+            `export interface CallersContract {`,
+            `  readonly allow: 'any' | readonly ConditionInfo[];`,
+            `  /** Absent with allow: any. */`,
+            `  readonly otherwise?: string;`,
+            `}`,
+          ]
+        : []),
       ...(anyCounts
         ? [``, `/** An event that an operation emits exactly once where its rule holds (always, without one). */`, `export interface CountInfo {`, `  readonly event: string;`, `  readonly when?: ConditionInfo;`, `}`]
         : []),
@@ -780,6 +866,31 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
           ? [`    events: {},`]
           : [`    events: {`, ...op.emits.flatMap((urn) => [`      ${q(urn)}: {`, ...eventLines(event(urn), ir, '        '), `      },`]), `    },`]),
         ...(op.changes ? changeLines(op.changes, op.output, ir, '    ') : []),
+        ...(op.reads
+          ? [
+              `    reads: {`,
+              `      entity: {`,
+              `        urn: ${q(op.reads.entity)},`,
+              ...entityContract(entity(op.reads.entity), ir, '        '),
+              `      },`,
+              ...(op.reads.missing === undefined ? [] : [`      missing: ${q(op.reads.missing)},`]),
+              `    },`,
+            ]
+          : []),
+        ...(op.callers
+          ? [
+              op.callers.allow === 'any'
+                ? `    callers: { allow: 'any' },`
+                : [
+                    `    callers: {`,
+                    `      allow: [`,
+                    ...op.callers.allow.map((r, i) => `        { text: ${q(r.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'caller', i)} },`),
+                    `      ],`,
+                    `      otherwise: ${q(op.callers.otherwise!)},`,
+                    `    },`,
+                  ].join('\n'),
+            ]
+          : []),
         ...(op.requires
           ? [`    requires: [`, ...op.requires.map((r, i) => `      { text: ${q(r.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'requires', i)}, otherwise: ${q(r.otherwise)}${r.fill ? `, fill: { ${Object.entries(r.fill).map(([k, v]) => `${q(k)}: ${q(v)}`).join(', ')} }` : ''} },`), `    ],`]
           : []),
@@ -800,6 +911,16 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
         `  },`,
       ]),
       `} as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;`,
+      ...(anyCaller
+        ? [
+            ``,
+            `/** Who calls, as the shell authenticated them: the caller entity of the manifest. */`,
+            `export const CallerContract = {`,
+            `  urn: ${q(ir.meta.caller!)},`,
+            ...entityContract(entity(ir.meta.caller!), ir, '  '),
+            `} as const satisfies EntityContract & { readonly urn: string };`,
+          ]
+        : []),
     ].join('\n');
 
     const sections = [
@@ -813,7 +934,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       registry,
       `// Dispatch`,
       dispatch,
-      shell(anyChanges, anyConditions, anyCounts, anyDelivery).trimEnd(),
+      shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller).trimEnd(),
     ];
     return {
       artifacts: [{ relativePath: FCIS_RUNTIME_FILE, content: `${sections.join('\n\n')}\n` }],

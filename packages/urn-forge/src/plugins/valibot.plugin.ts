@@ -253,16 +253,23 @@ function listSchema(item: string, rule: ListRule, key?: string): string {
 function conditionDeclarations(ir: UniversalIR): string[] {
   return valuesInUrnOrder(ir.operations).flatMap((op) => {
     const whens = (op.exactly ?? []).flatMap((item, i) => (item.when ? [[item.when, i] as const] : []));
-    if (!op.requires && !op.ensures && whens.length === 0) return [];
+    const allows = op.callers && op.callers.allow !== 'any' ? op.callers.allow : [];
+    if (!op.requires && !op.ensures && whens.length === 0 && allows.length === 0) return [];
     const typeOf = (urn: Urn) => schemaNames(ir.entities[urn]!.brandIdentifier).output;
-    const values = [`input: ${typeOf(op.input)}`, ...(op.changes ? [`current: ${typeOf(op.changes.entity)}`] : [])];
+    const record = op.changes?.entity ?? op.reads?.entity;
+    const values = [`input: ${typeOf(op.input)}`, ...(record ? [`current: ${typeOf(record)}`] : [])];
     // An ensures rule that names the event reads the one event of the success.
     const eventType = (op.exactly ?? []).map((item) => schemaNames(ir.events[item.event]!.brandIdentifier).output).join(' | ');
     const primitiveOf = conditionPrimitives(op, ir);
     const propertiesOf = conditionEmbedded(op, ir);
-    const declare = (rule: IRRule, kind: 'requires' | 'ensures' | 'when', index: number) => {
+    const declare = (rule: IRRule, kind: 'requires' | 'ensures' | 'when' | 'caller', index: number) => {
       const event = kind === 'ensures' && namesIn(rule.rule).some((name) => name.startsWith('event.'));
-      const parameters = [...values, ...(kind === 'requires' ? [] : [`output: ${typeOf(op.output)}`]), ...(event ? [`event: ${eventType}`] : [])];
+      const parameters = [
+        ...values,
+        ...(kind === 'requires' || kind === 'caller' ? [] : [`output: ${typeOf(op.output)}`]),
+        ...(event ? [`event: ${eventType}`] : []),
+        ...(kind === 'caller' ? [`caller: ${typeOf(ir.meta.caller!)}`] : []),
+      ];
       return [
         `/** ${op.urn} — ${kind}: ${rule.ruleText} */`,
         `export const ${conditionName(op.brandIdentifier, kind, index)} = (p: { ${parameters.join('; ')} }): boolean =>`,
@@ -273,6 +280,7 @@ function conditionDeclarations(ir: UniversalIR): string[] {
       ...(op.requires ?? []).map((rule, i) => declare(rule, 'requires', i)),
       ...(op.ensures ?? []).map((rule, i) => declare(rule, 'ensures', i)),
       ...whens.map(([rule, i]) => declare(rule, 'when', i)),
+      ...allows.map((rule, i) => declare(rule, 'caller', i)),
     ];
   });
 }
@@ -280,10 +288,12 @@ function conditionDeclarations(ir: UniversalIR): string[] {
 /** The entity of each prefix of an operation's conditions. `event.` names properties that each of its events has, so the first event gives them. */
 function conditionEntities(op: IROperation, ir: UniversalIR): Record<string, IREntity> {
   const event = op.exactly?.[0] && ir.events[op.exactly[0].event];
+  const record = op.changes?.entity ?? op.reads?.entity;
   return {
     input: ir.entities[op.input]!,
     output: ir.entities[op.output]!,
-    ...(op.changes ? { current: ir.entities[op.changes.entity]! } : {}),
+    ...(record ? { current: ir.entities[record]! } : {}),
+    ...(ir.meta.caller ? { caller: ir.entities[ir.meta.caller]! } : {}),
     ...(event ? { event: event as unknown as IREntity } : {}),
   };
 }
@@ -409,7 +419,8 @@ function helpersFor(ir: UniversalIR): ValibotHelper[] {
     for (const helper of emitRule(invariant.rule, primitiveOf, embeddedIn(ir.entities[invariant.on]!, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
   }
   for (const op of Object.values(ir.operations)) {
-    for (const rule of [...(op.requires ?? []), ...(op.ensures ?? []), ...(op.exactly ?? []).flatMap((item) => (item.when ? [item.when] : []))]) {
+    const allows = op.callers && op.callers.allow !== 'any' ? op.callers.allow : [];
+    for (const rule of [...(op.requires ?? []), ...(op.ensures ?? []), ...(op.exactly ?? []).flatMap((item) => (item.when ? [item.when] : [])), ...allows]) {
       for (const helper of emitRule(rule.rule, conditionPrimitives(op, ir), conditionEmbedded(op, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
     }
   }

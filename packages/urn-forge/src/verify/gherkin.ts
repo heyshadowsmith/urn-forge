@@ -164,31 +164,44 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
 
     for (const scenario of feature.scenarios) {
       const owner = ownerOf(scenario.tags, scenario.location);
-      const change = owner && owner.urn in ir.operations ? ir.operations[owner.urn as Urn]!.changes : undefined;
+      const operation = owner && owner.urn in ir.operations ? ir.operations[owner.urn as Urn]! : undefined;
+      const change = operation?.changes;
+      // The record that the operation changes or reads, and the verb for messages.
+      const record = change ?? operation?.reads;
+      const verb = change ? 'changes' : 'reads';
       /** The states of the current record that the scenario sets, and whether it expects `otherwise`. */
       const states = new Set<string>();
       let hasCurrent = false;
+      let hasCaller = false;
       let expectsOtherwise = false;
       let runs: SourceLocation | undefined;
       for (const step of scenario.steps) {
         if (step.text === STEP_PHRASES.run) runs ??= step.location;
-        // `Given the current <entity> is:`: the record that the operation changes.
+        // `Given the caller is:`: who calls, in a domain whose manifest names the caller.
+        if (step.text === STEP_PHRASES.caller) {
+          hasCaller = true;
+          if (!ir.meta.caller) report('invalid-caller', step.location, `"${step.text}" gives the caller, but the manifest names no caller`, owner?.urn ?? '');
+          else if (step.table) checkHeader(step.table.header, entityOwner(ir, ir.meta.caller));
+          continue;
+        }
+        // `Given the current <entity> is:`: the record that the operation changes or reads.
         const word = currentWord(step.text);
         if (word !== undefined) {
           hasCurrent = true;
           if (!owner || !(owner.urn in ir.operations)) continue;
-          if (!change) {
+          if (!record) {
             report('invalid-current', step.location, `"${step.text}" gives the record that an operation changes, but ${owner.urn} has no changes`, owner.urn);
             continue;
           }
-          const identifier = change.entity.split(':').at(-1)!;
+          const identifier = record.entity.split(':').at(-1)!;
           if (word !== identifier) {
             const right = step.text.startsWith('there is no') ? `there is no current ${identifier}` : `the current ${identifier} is:`;
-            report('invalid-current', step.location, `${owner.urn} changes a record of ${change.entity}: write "${right}", not "${step.text}"`, owner.urn);
+            report('invalid-current', step.location, `${owner.urn} ${verb} a record of ${record.entity}: write "${right}", not "${step.text}"`, owner.urn);
             continue;
           }
           if (!step.table) continue;
-          checkHeader(step.table.header, entityOwner(ir, change.entity));
+          checkHeader(step.table.header, entityOwner(ir, record.entity));
+          if (!change) continue;
           const column = step.table.header.findIndex((cell) => cell.value === change.property);
           if (column < 0) continue;
           const blocks = scenario.examples.filter((e) => e.table);
@@ -291,11 +304,14 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         checkHeader(step.table.header, owner);
         if (step.text === STEP_PHRASES.run) checkRequired(step.table, owner);
       }
+      if (operation?.callers && owner && runs && !hasCaller) {
+        report('invalid-caller', runs, `${owner.urn} states who may call it; give the caller with "Given the caller is:" before the operation runs`, owner.urn);
+      }
+      if (record && owner && runs && !hasCurrent) {
+        const identifier = record.entity.split(':').at(-1)!;
+        report('invalid-current', runs, `${owner.urn} ${verb} a record of ${record.entity}; give it with "Given the current ${identifier} is:" before the operation runs`, owner.urn);
+      }
       if (change && owner) {
-        if (runs && !hasCurrent) {
-          const identifier = change.entity.split(':').at(-1)!;
-          report('invalid-current', runs, `${owner.urn} changes a record of ${change.entity}; give it with "Given the current ${identifier} is:" before the operation runs`, owner.urn);
-        }
         for (const state of states) {
           if (change.from.includes(state)) coveredStates.add(`${owner.urn} ${state}`);
           else if (expectsOtherwise) coveredStates.add(`${owner.urn} *otherwise`);
@@ -631,9 +647,18 @@ function mergeOwners(owners: readonly Owner[]): Owner {
  */
 /** With a current-record table in the scenario, the fields of the changed entity may be Examples columns too. */
 function withCurrent(ir: UniversalIR, owner: Owner | undefined, steps: readonly { readonly text: string; readonly table?: IndexedTable }[]): Owner | undefined {
-  const change = owner && owner.urn in ir.operations ? ir.operations[owner.urn as Urn]!.changes : undefined;
-  if (!owner || !change || !steps.some((step) => step.table && currentWord(step.text) !== undefined)) return owner;
-  return { ...owner, description: `${owner.description}, or of the current ${change.entity}`, keys: new Set([...owner.keys, ...propertyNames(ir, change.entity)]) };
+  const operation = owner && owner.urn in ir.operations ? ir.operations[owner.urn as Urn]! : undefined;
+  const change = operation?.changes ?? operation?.reads;
+  let widened = owner;
+  if (owner && change && steps.some((step) => step.table && currentWord(step.text) !== undefined)) {
+    widened = { ...owner, description: `${owner.description}, or of the current ${change.entity}`, keys: new Set([...owner.keys, ...propertyNames(ir, change.entity)]) };
+  }
+  // With a caller table, the fields of the caller may be Examples columns too.
+  const caller = ir.meta.caller;
+  if (widened && caller && steps.some((step) => step.table && step.text === STEP_PHRASES.caller)) {
+    widened = { ...widened, description: `${widened.description}, or of the caller ${caller}`, keys: new Set([...widened.keys, ...propertyNames(ir, caller)]) };
+  }
+  return widened;
 }
 
 function withStepTables(ir: UniversalIR, owner: Owner | undefined, steps: readonly { readonly text: string }[]): Owner | undefined {

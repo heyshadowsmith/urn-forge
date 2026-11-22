@@ -86,6 +86,8 @@ These codes change their severity:
 | Code | Severity | Meaning | Correction |
 | --- | --- | --- | --- |
 | `invalid-unique` | `error` | `unique: [ … ]` is on a list of values, or names a property that the item does not have, or one that holds a list or an entity, or one name two times | Name properties of the item that hold one value, each one time; on a list of values, write `unique: true` |
+| `invalid-callers` | `error` | In a domain whose header names a `caller`, an operation has no `callers`; or an operation has `callers` and the header names no `caller`; or a rule of `allow` names a value that it cannot read; or `otherwise` is not in `errors`, or has a required field that neither the caller, the input nor the record has | Add `callers` to each operation, with `allow: any` for every caller; name the caller in the header; use `caller.`, `input.` and `current.` only |
+| `invalid-reads` | `error` | An operation has both `reads` and `changes`, or `reads.missing` is not in `errors`, or has a required field that the input does not have | Leave out `reads` when the operation changes the record; add the error to `errors`; give the input the field |
 | `invalid-delivery` | `error` | The `delivery` of an event names a property that the event does not have, or one that is optional, a list or an embedded entity; or `id` is not a `string`, or `sequence` is not an `integer`; or it names one property two times | Name required properties of the event that hold one value: a `string` for `id`, an `integer` for `sequence` |
 | `missing-key` | `error` | A `link`, a `unique` list of an embedded entity, or a Postgres table names an entity with no `key` | Set `key` on the entity |
 | `embedding-cycle` | `error` | Entities embed each other in a cycle | Change one embedding to a `link` |
@@ -182,7 +184,8 @@ These codes change their severity:
 | `undeclared-invariant` | `error` | A step names an invariant that is not on the input entity | Use an invariant from the message |
 | `uncovered-invariant` | `warning` or `error` | No scenario breaks an invariant of the input | Add `Then the input is rejected by "<invariant URN>"` |
 | `uncovered-state` | `warning`, or `error` when strict | A state in the `from` of an operation has no scenario that starts from it, or no scenario gives a state outside `from` and expects `otherwise` | Add a scenario with `Given the current <entity> is:` for the state |
-| `invalid-current` | `error` | `Given the current <entity> is:` is on an operation with no `changes`, or names another entity; or an operation with `changes` runs with no current record | Give the record of the entity that the operation changes, before `When I run the operation with:` |
+| `invalid-current` | `error` | `Given the current <entity> is:` is on an operation with no `changes` or `reads`, or names another entity; or an operation with `changes` or `reads` runs with no current record | Give the record of the entity that the operation changes or reads, before `When I run the operation with:` |
+| `invalid-caller` | `error` | An operation with `callers` runs with no `Given the caller is:`, or the step is in a domain whose header names no `caller` | Give the caller before `When I run the operation with:` |
 | `uncovered-boundary` | `warning` or `error` | The scenarios do not send each boundary value of an input field | Add the values in the message, or waive the field |
 | `ratchet-ready` | `note` | Each feature is strict, and `boundaryCoverage` is `warn` | Set `boundaryCoverage: 'error'` |
 | `waived-boundary` | `note` | A waiver removed the boundary gaps of a field | None |

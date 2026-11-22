@@ -57,6 +57,8 @@ export const DIAGNOSTIC_CODES = {
   // States and moves
   'invalid-moves': 'The moves of an enum field name a state that is not one of its values, or a move more than once',
   'invalid-changes': 'The changes of an operation do not fit its entity, the moves of its state field, or its declared errors',
+  'invalid-callers': 'An operation of a domain with a caller does not state its callers, or its callers have a rule that names a value it cannot read, or an otherwise error that is not declared or cannot be filled',
+  'invalid-reads': 'The reads of an operation name an entity that the operation also changes, or a missing error that is not declared or cannot be filled from the input',
   'invalid-condition': 'A requires or ensures rule names a value that it cannot read, or the otherwise error of a requires rule is not declared or cannot be filled',
   // Pass 8: lifecycle
   'deprecated-ref': 'An active atom refers to a deprecated atom (a warning)',
@@ -104,6 +106,7 @@ export const DIAGNOSTIC_CODES = {
   'uncovered-invariant': 'An invariant of an operation\'s input has no scenario that breaks it (a warning)',
   'uncovered-state': 'A state that an operation starts from, or a state outside its from that expects otherwise, has no scenario',
   'invalid-current': 'A Given the current <entity> is: step is on an operation that changes no record or names another entity, or an operation that changes a record runs without one',
+  'invalid-caller': 'A scenario of an operation with callers runs it without Given the caller is:, or the step is in a domain whose manifest names no caller',
   'uncovered-boundary': 'The examples of an input field do not include every boundary case of its constraints (a warning)',
   'ratchet-ready': 'Every feature is strict, so boundaryCoverage can be set to error (a note)',
   'waived-boundary': 'A waiver removed the boundary gaps of a field, with its reason (a note)',
