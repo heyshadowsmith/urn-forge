@@ -26,7 +26,9 @@ export type RuleExpr =
   | { readonly op: 'boolean'; readonly value: boolean }
   | { readonly op: 'present' | 'absent'; readonly field: string }
   | { readonly op: 'not'; readonly operand: RuleExpr }
-  | { readonly op: 'and' | 'or' | Comparison | Arithmetic; readonly left: RuleExpr; readonly right: RuleExpr };
+  /** The total of `value` over the items of `list`; `item` names one item inside `value`. */
+  | { readonly op: 'sum'; readonly item: string; readonly list: string; readonly value: RuleExpr }
+  | { readonly op: 'and' | 'or' | Comparison | Arithmetic | '*'; readonly left: RuleExpr; readonly right: RuleExpr };
 
 /** The same AST, with the 1-based column of each node in the rule text. */
 export type LocatedExpr = (
@@ -36,7 +38,8 @@ export type LocatedExpr = (
   | { readonly op: 'boolean'; readonly value: boolean }
   | { readonly op: 'present' | 'absent'; readonly field: string }
   | { readonly op: 'not'; readonly operand: LocatedExpr }
-  | { readonly op: 'and' | 'or' | Comparison | Arithmetic; readonly left: LocatedExpr; readonly right: LocatedExpr }
+  | { readonly op: 'sum'; readonly item: string; readonly list: string; readonly value: LocatedExpr }
+  | { readonly op: 'and' | 'or' | Comparison | Arithmetic | '*'; readonly left: LocatedExpr; readonly right: LocatedExpr }
 ) & { readonly at: number };
 
 export interface RuleProblem {
@@ -58,7 +61,7 @@ type Token =
   | { readonly kind: 'end'; readonly text: ''; readonly at: number };
 
 const KEYWORDS = new Set(['and', 'or', 'not', 'is', 'present', 'absent', 'true', 'false']);
-const SYMBOLS = ['<=', '>=', '!=', '<', '>', '=', '+', '-', '(', ')'];
+const SYMBOLS = ['<=', '>=', '!=', '<', '>', '=', '+', '-', '*', '(', ')', ':'];
 
 class SyntaxProblem extends Error {
   constructor(
@@ -169,12 +172,38 @@ export function parseRule(source: string): ParseResult {
       return left;
     };
     const sum = (): LocatedExpr => {
-      let left = primary();
+      let left = product();
       while (isSymbol('+') || isSymbol('-')) {
         const op = take().text as Arithmetic;
-        left = { op, left, right: primary(), at: left.at };
+        left = { op, left, right: product(), at: left.at };
       }
       return left;
+    };
+    const product = (): LocatedExpr => {
+      let left = primary();
+      while (isSymbol('*')) {
+        take();
+        left = { op: '*', left, right: primary(), at: left.at };
+      }
+      return left;
+    };
+    /** `sum(<item> in <list>: <value>)`; `sum` is a word of the language only before "(". */
+    const total = (at: number): LocatedExpr => {
+      take(); // (
+      const item = peek();
+      if (item.kind !== 'name' || KEYWORDS.has(item.text) || item.text.includes('.')) expected('a name for one item, such as "line"');
+      take();
+      if (!isWord('in')) expected('"in"');
+      take();
+      const list = peek();
+      if (list.kind !== 'name' || KEYWORDS.has(list.text)) expected('the list to add up');
+      take();
+      if (!isSymbol(':')) expected('":"');
+      take();
+      const value = sum();
+      if (!isSymbol(')')) expected('")"');
+      take();
+      return { op: 'sum', item: item.text, list: list.text, value, at };
     };
     const primary = (): LocatedExpr => {
       const t = peek();
@@ -193,6 +222,10 @@ export function parseRule(source: string): ParseResult {
       if (t.kind === 'number') return { op: 'number', value: take().text, at: t.at };
       if (t.kind === 'text') return { op: 'text', value: take().text, at: t.at };
       if (t.kind === 'name' && (t.text === 'true' || t.text === 'false')) return { op: 'boolean', value: take().text === 'true', at: t.at };
+      if (t.kind === 'name' && t.text === 'sum' && tokens[pos + 1]?.kind === 'symbol' && tokens[pos + 1]?.text === '(') {
+        take();
+        return total(t.at);
+      }
       if (t.kind === 'name' && !KEYWORDS.has(t.text)) {
         take();
         if (isWord('is')) {
@@ -229,6 +262,8 @@ export function stripColumns(expr: LocatedExpr): RuleExpr {
       return { op: expr.op, field: expr.field };
     case 'not':
       return { op: 'not', operand: stripColumns(expr.operand) };
+    case 'sum':
+      return { op: 'sum', item: expr.item, list: expr.list, value: stripColumns(expr.value) };
     default:
       return { op: expr.op, left: stripColumns(expr.left), right: stripColumns(expr.right) };
   }
@@ -257,8 +292,10 @@ function precedence(expr: RuleExpr): number {
     case '+':
     case '-':
       return 5;
-    default:
+    case '*':
       return 6;
+    default:
+      return 7;
   }
 }
 
@@ -279,6 +316,8 @@ export function printRule(expr: RuleExpr): string {
       return `${expr.field} is ${expr.op}`;
     case 'not':
       return `not ${wrap(expr.operand, 3)}`;
+    case 'sum':
+      return `sum(${expr.item} in ${expr.list}: ${printRule(expr.value)})`;
     default: {
       const p = precedence(expr);
       // and, or, + and - group to the left, so a right child of equal strength needs parentheses.
@@ -307,6 +346,8 @@ export interface RuleField {
   readonly values?: readonly string[];
   /** An embedded entity: a rule can use it only in `is present` and `is absent`. */
   readonly embedded?: boolean;
+  /** For a list of embedded entities: the properties of one item, which `sum` can name. */
+  readonly items?: Readonly<Record<string, RuleField>>;
 }
 
 type ValueType = { readonly kind: 'value'; readonly primitive: Primitive } | { readonly kind: 'literal'; readonly literal: 'number' | 'text' | 'boolean'; readonly text: string };
@@ -437,10 +478,12 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
   // The field behind a value, for enum values; only a bare field has one.
   const enumFields = new Map<ValueType, RuleField>();
 
+  // The names that a rule can use: the fields, and inside a sum also the item.
+  let scope: Readonly<Record<string, RuleField>> = fields;
   const check = (e: LocatedExpr, present: ReadonlySet<string>): Checked | undefined => {
     switch (e.op) {
       case 'field': {
-        const field = Object.hasOwn(fields, e.name) ? fields[e.name] : undefined;
+        const field = Object.hasOwn(scope, e.name) ? scope[e.name] : undefined;
         if (!field) {
           problem('unknown-rule-field', e.at, `"${e.name}" is not a field of ${owner} (fields: ${Object.keys(fields).join(', ')})`);
           return undefined;
@@ -466,7 +509,7 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
         return { kind: 'literal', literal: 'boolean', text: String(e.value) };
       case 'present':
       case 'absent': {
-        const field = Object.hasOwn(fields, e.field) ? fields[e.field] : undefined;
+        const field = Object.hasOwn(scope, e.field) ? scope[e.field] : undefined;
         if (!field) {
           problem('unknown-rule-field', e.at, `"${e.field}" is not a field of ${owner} (fields: ${Object.keys(fields).join(', ')})`);
         } else if (field.required) {
@@ -502,6 +545,53 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
         if (primitive === undefined) return undefined;
         if (!ARITHMETIC.has(primitive)) {
           problem('rule-type', e.at, `"${e.op}" works on integer, decimal and date only, not on ${primitive}`);
+          return undefined;
+        }
+        return { kind: 'value', primitive };
+      }
+      case '*': {
+        const left = value(e.left, present, e.op);
+        const right = value(e.right, present, e.op);
+        if (!left || !right) return undefined;
+        // An integer times an integer, or an integer times a decimal: exact, with no scale to choose.
+        const kinds = [left, right].map((t) => (t.kind === 'value' ? t.primitive : t.literal === 'number' ? (/^-?[0-9]+$/u.test(t.text) ? 'integer' : 'decimal') : t.literal));
+        if (left.kind === 'literal' && right.kind === 'literal') {
+          problem('rule-type', e.at, '"*" multiplies two literals; one side must be a field');
+          return undefined;
+        }
+        const ok = kinds.every((k) => k === 'integer' || k === 'decimal') && kinds.includes('integer');
+        if (!ok) {
+          problem('rule-type', e.at, `"*" multiplies an integer by an integer or by a decimal, not ${article(kinds[0]!)} by ${article(kinds[1]!)}`);
+          return undefined;
+        }
+        return { kind: 'value', primitive: kinds.includes('decimal') ? 'decimal' : 'integer' };
+      }
+      case 'sum': {
+        const list = Object.hasOwn(scope, e.list) ? scope[e.list] : undefined;
+        if (!list) {
+          problem('unknown-rule-field', e.at, `"${e.list}" is not a field of ${owner} (fields: ${Object.keys(scope).join(', ')})`);
+          return undefined;
+        }
+        if (!list.many) {
+          problem('rule-type', e.at, `sum adds up the items of a list, and "${e.list}" is not a list`);
+          return undefined;
+        }
+        if (Object.hasOwn(scope, e.item) || Object.keys(scope).some((n) => n.startsWith(`${e.item}.`))) {
+          problem('rule-type', e.at, `"${e.item}" is already a name in the rule; give the item another name`);
+          return undefined;
+        }
+        // Inside the sum, the item: its properties for a list of entities, the value itself for a list of values.
+        const itemFields: Record<string, RuleField> = list.embedded
+          ? Object.fromEntries(Object.entries(list.items ?? {}).map(([name, field]) => [`${e.item}.${name}`, field]))
+          : { [e.item]: { primitive: list.primitive, required: true, many: false, ...(list.values ? { values: list.values } : {}) } };
+        const outer = scope;
+        scope = { ...scope, ...itemFields };
+        const total = value(e.value, present, 'sum');
+        scope = outer;
+        if (!total) return undefined;
+        const primitive = total.kind === 'value' ? total.primitive : total.literal === 'number' ? (/^-?[0-9]+$/u.test(total.text) ? 'integer' : 'decimal') : undefined;
+        if (primitive !== 'integer' && primitive !== 'decimal') {
+          problem('rule-type', e.at, `sum adds integers or decimals, not ${article(primitive ?? (total.kind === 'literal' ? `${total.literal} literal` : 'value'))}`);
           return undefined;
         }
         return { kind: 'value', primitive };
@@ -543,6 +633,11 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
  */
 export function valueType(e: RuleExpr, primitiveOf: (field: string) => Primitive): Primitive | undefined {
   if (e.op === 'field') return primitiveOf(e.name);
+  if (e.op === 'sum') return valueType(e.value, itemPrimitives(e, primitiveOf));
+  if (e.op === '*') {
+    const side = (x: RuleExpr) => (x.op === 'number' ? (x.value.includes('.') ? 'decimal' : 'integer') : valueType(x, primitiveOf));
+    return side(e.left) === 'decimal' || side(e.right) === 'decimal' ? 'decimal' : 'integer';
+  }
   if (e.op !== '+' && e.op !== '-') return undefined;
   const [left, right] = [valueType(e.left, primitiveOf), valueType(e.right, primitiveOf)];
   if (left === 'date') return right === 'date' || (e.op === '-' && e.right.op === 'text') ? 'integer' : 'date';
@@ -550,8 +645,17 @@ export function valueType(e: RuleExpr, primitiveOf: (field: string) => Primitive
   return left ?? right;
 }
 
+/**
+ * Inside a sum, the primitive of a name: the item's properties are the list's (`line.amount` is
+ * `lines.amount`), and the item of a list of values is the list's value.
+ */
+export function itemPrimitives(e: Extract<RuleExpr, { op: 'sum' }>, primitiveOf: (field: string) => Primitive): (field: string) => Primitive {
+  return (name) => (name === e.item ? primitiveOf(e.list) : name.startsWith(`${e.item}.`) ? primitiveOf(`${e.list}.${name.slice(e.item.length + 1)}`) : primitiveOf(name));
+}
+
 /** Whether a value counts days: a `+` or `-` with a date in it. */
 export function hasDateArithmetic(e: RuleExpr, primitiveOf: (field: string) => Primitive): boolean {
+  if (e.op === 'sum') return hasDateArithmetic(e.value, itemPrimitives(e, primitiveOf));
   if (e.op !== '+' && e.op !== '-') return false;
   return valueType(e.left, primitiveOf) === 'date' || valueType(e.right, primitiveOf) === 'date' || hasDateArithmetic(e.left, primitiveOf) || hasDateArithmetic(e.right, primitiveOf);
 }
@@ -575,6 +679,16 @@ export function namesIn(expr: RuleExpr): string[] {
       case 'text':
       case 'boolean':
         return;
+      case 'sum': {
+        // The list, and the names of the value that are not the item.
+        names.push(e.list);
+        const inner: string[] = [];
+        const before = names.length;
+        visit(e.value);
+        inner.push(...names.splice(before));
+        names.push(...inner.filter((n) => n !== e.item && !n.startsWith(`${e.item}.`)));
+        return;
+      }
       default:
         visit(e.left);
         visit(e.right);
@@ -598,6 +712,8 @@ export function firstField(expr: RuleExpr): string | undefined {
     case 'text':
     case 'boolean':
       return undefined;
+    case 'sum':
+      return expr.list;
     default:
       return firstField(expr.left) ?? firstField(expr.right);
   }

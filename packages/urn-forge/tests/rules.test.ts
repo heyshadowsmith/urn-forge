@@ -1,6 +1,6 @@
 /** The invariant rule language: parse, print and type-check. */
 import { describe, expect, it } from 'vitest';
-import { checkRule, firstField, parseRule, printRule, stripColumns, type LocatedExpr, type RuleField } from '../src/rules/index.js';
+import { checkRule, firstField, namesIn, parseRule, printRule, stripColumns, type LocatedExpr, type RuleField } from '../src/rules/index.js';
 
 const parse = (text: string): LocatedExpr => {
   const result = parseRule(text);
@@ -207,5 +207,55 @@ describe('prefixed names, for the conditions of an operation', () => {
 
   it('refuses a second prefix', () => {
     expect(parseRule('input.a.b < 1')).toMatchObject({ ok: false });
+  });
+});
+
+describe('sum and *', () => {
+  const amount: RuleField = { primitive: 'decimal', required: true, many: false };
+  const fields: Record<string, RuleField> = {
+    total: amount,
+    count: { primitive: 'integer', required: true, many: false },
+    lines: { primitive: 'string', required: true, many: true, embedded: true, items: { amount, quantity: { primitive: 'integer', required: true, many: false }, note: { primitive: 'string', required: false, many: false } } },
+    tags: { primitive: 'integer', required: true, many: true },
+  };
+  const parsed = (source: string) => {
+    const result = parseRule(source);
+    if (!result.ok) throw new Error(result.problem.message);
+    return result.expr;
+  };
+  const problems = (source: string) => checkRule(parsed(source), fields).map((p) => p.message);
+
+  it('reads and prints a sum with a product, and keeps * tighter than +', () => {
+    const rule = stripColumns(parsed('total = sum(line in lines: line.quantity * line.amount) + 1'));
+    expect(printRule(rule)).toBe('total = sum(line in lines: line.quantity * line.amount) + 1');
+    expect(rule).toMatchObject({ op: '=', right: { op: '+', left: { op: 'sum', item: 'line', list: 'lines', value: { op: '*' } } } });
+    expect(printRule(stripColumns(parsed('count = (count + 1) * 2')))).toBe('count = (count + 1) * 2');
+  });
+
+  it('types a sum of decimals, of integers, and of a list of values', () => {
+    expect(problems('total = sum(line in lines: line.amount)')).toEqual([]);
+    expect(problems('count = sum(line in lines: line.quantity)')).toEqual([]);
+    expect(problems('count = sum(tag in tags: tag)')).toEqual([]);
+    expect(problems('total = sum(line in lines: line.quantity * line.amount)')).toEqual([]);
+  });
+
+  it('refuses a sum over a property that is not a list, of a value that is not a number, and an item name that is taken', () => {
+    expect(problems('total = sum(line in total: line)')).toEqual(['sum adds up the items of a list, and "total" is not a list']);
+    expect(problems("total = sum(line in lines: line.note)")).toEqual(['"line.note" is optional, so the rule must guard it: write "line.note is present and …" or "line.note is absent or …"']);
+    expect(problems('total = sum(count in lines: count.amount)')).toEqual(['"count" is already a name in the rule; give the item another name']);
+  });
+
+  it('refuses a product of two decimals', () => {
+    expect(problems('total = total * total')).toEqual(['"*" multiplies an integer by an integer or by a decimal, not a decimal by a decimal']);
+  });
+
+  it('keeps the item out of the names of the rule, and points at the list', () => {
+    const rule = stripColumns(parsed('total = sum(line in lines: line.amount)'));
+    expect(namesIn(rule)).toEqual(['total', 'lines']);
+    expect(firstField({ op: 'sum', item: 'l', list: 'lines', value: { op: 'field', name: 'l.amount' } })).toBe('lines');
+  });
+
+  it('keeps a field named sum a field', () => {
+    expect(stripColumns(parsed('sum > 1'))).toEqual({ op: '>', left: { op: 'field', name: 'sum' }, right: { op: 'number', value: '1' } });
   });
 });

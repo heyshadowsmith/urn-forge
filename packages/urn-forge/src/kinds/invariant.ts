@@ -22,12 +22,20 @@ export type InvariantDecl = v.InferOutput<typeof InvariantSchema>;
  * the parsed rule and its canonical text.
  */
 /** The properties of an entity as a rule sees them, each name with `prefix` before it (`input.` in a condition). */
-export function ruleFields(entity: IREntity, node: (kind: 'field' | 'entity', urn: Urn) => unknown, prefix = ''): Record<string, RuleField> {
+export function ruleFields(entity: IREntity, node: (kind: 'field' | 'entity', urn: Urn) => unknown, prefix = '', depth = 0): Record<string, RuleField> {
   const fields: Record<string, RuleField> = {};
   for (const ref of entity.fields) {
     if ('entity' in ref) {
-      // An embedded object has no value to compare; a rule can only ask whether it is there.
-      fields[prefix + ref.name] = { primitive: 'string', required: ref.required, many: ref.many !== undefined, embedded: true };
+      // An embedded object has no value to compare; a rule can only ask whether it is there, or add
+      // up a property of the items of a list of them (sum). Embedding cycles are a pass 5 error.
+      const child = depth < 8 && ref.many !== undefined ? (node('entity', ref.entity) as IREntity | undefined) : undefined;
+      fields[prefix + ref.name] = {
+        primitive: 'string',
+        required: ref.required,
+        many: ref.many !== undefined,
+        embedded: true,
+        ...(child ? { items: ruleFields(child, node, '', depth + 1) } : {}),
+      };
       continue;
     }
     // A link compares as its target's key.
