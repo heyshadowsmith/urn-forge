@@ -24,6 +24,7 @@ These guides come in the order that you meet the tasks.
 
 - [Store entities in Postgres](store-in-postgres): make tables and statements from the manifest.
 - [Declare states and moves](declare-states): let an operation change a record only from the states that you allow.
+- [Declare preconditions and postconditions](declare-conditions): state the rules between the request, the stored record and the answer.
 - [Emit an event](emit-an-event): give an operation a fact that the shell publishes.
 - [Change the contract](change-the-contract): retire a URN, and check a change with `urn-forge diff`.
 - [Close boundary gaps](close-boundary-gaps): make coverage gaps errors, or waive a boundary.

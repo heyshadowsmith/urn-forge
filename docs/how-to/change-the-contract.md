@@ -28,6 +28,15 @@ States and moves have rules of their own:
 | A removed move, or a removed state in `from` | Breaking: callers that make the move, or whose record is in that state, are refused |
 | A changed `to`, `otherwise` or `entity`, or a changed or removed `missing` | Breaking |
 | A new `missing` | Compatible |
+
+Conditions:
+
+| Change | Class |
+| --- | --- |
+| A new or changed `requires` rule | Breaking: callers that it refuses worked before |
+| A removed `requires` rule | Compatible |
+| A new `ensures` rule | Compatible |
+| A removed or changed `ensures` rule | Breaking: callers can rely on less |
 | `changes` on an operation that had none | Breaking |
 
 A URN that has two uses obeys the rules of both. These changes are also breaking:

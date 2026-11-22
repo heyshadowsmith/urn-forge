@@ -79,6 +79,18 @@ A literal gets the primitive of the other side of its operator. One side must co
 | `enum` | A text that is one of the `values` | `tier = 'gold'` |
 | `boolean` | `true` or `false` | `flag = true` |
 
+## Names in a condition
+
+In the `requires` and `ensures` rules of an operation, each name has one prefix:
+
+| Prefix | The value | Where |
+| --- | --- | --- |
+| `input.` | The request, parsed | `requires` and `ensures` |
+| `current.` | The record of `changes` | `requires` and `ensures`, with `changes` only |
+| `output.` | The answer, parsed | `ensures` only |
+
+`current.version + 1 = output.version` compares values from two prefixes. An invariant rule names the properties of its entity with no prefix. A name with two prefixes causes `rule-syntax`.
+
 ## Operators for each primitive
 
 | Primitive | `=`, `!=` | `<`, `<=`, `>=`, `>` | `+`, `-` | Comparison at run time |

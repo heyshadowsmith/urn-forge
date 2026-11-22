@@ -62,6 +62,7 @@ export default defineConfig({
         items: [
           { text: 'Change the contract', link: '/how-to/change-the-contract' },
           { text: 'Declare states and moves', link: '/how-to/declare-states' },
+          { text: 'Declare preconditions and postconditions', link: '/how-to/declare-conditions' },
           { text: 'Emit an event', link: '/how-to/emit-an-event' },
           { text: 'Store entities in Postgres', link: '/how-to/store-in-postgres' },
           { text: 'Close boundary gaps', link: '/how-to/close-boundary-gaps' },

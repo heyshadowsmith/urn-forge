@@ -176,6 +176,8 @@ policy.operation.cancel_policy:
 | `errors` | A list of strings | No | `[]` | Short keys of errors, each one time |
 | `emits` | A list of strings | No | `[]` | Short keys of events, each one time |
 | `changes` | A map | No | — | The stored record that the operation changes. Refer to [`changes`](#changes) |
+| `requires` | A list of maps | No | `[]` | Each `{ rule, otherwise }`. Refer to [`requires` and `ensures`](#requires-and-ensures) |
+| `ensures` | A list of strings | No | `[]` | Rules that the answer must keep. Refer to [`requires` and `ensures`](#requires-and-ensures) |
 
 - An operation with no `errors` can only succeed. Its error type is `never`.
 - A successful operation returns zero or more events of each kind in `emits`, in any sequence.
@@ -191,6 +193,16 @@ policy.operation.cancel_policy:
 | `missing` | string | No | Short key of an error in `errors`, for no record. Each required field of the error is a property of `input` |
 
 Any other problem causes `invalid-changes`. The handler gets the record as its second parameter, `current`. `executeOperation` answers `otherwise` for a state outside `from`, and `missing` for `current: null`, without a call of the handler. When `output` has the state field, the state of the answer must be in `to` and reached by a move or the same, or stay without `to`. When `output` has the key field, the key must not change. Refer to [Declare states and moves](../how-to/declare-states).
+
+### `requires` and `ensures`
+
+| Property | Type | Necessary | Rule |
+| --- | --- | --- | --- |
+| `requires[].rule` | string | Yes | A rule over `input.<property>` and, with `changes`, `current.<property>` |
+| `requires[].otherwise` | string | Yes | Short key of an error in `errors`. Each required field of the error is a property of `input` or of the `changes` entity |
+| `ensures[]` | string | — | A rule over `input.`, `current.` and `output.` |
+
+A rule uses the [rule language](./rule-language). A name with no prefix, `current.` without `changes`, or `output.` in `requires` causes `invalid-condition`; a rule that does not parse or type causes the codes of an invariant rule. `executeOperation` checks `requires` after the state of `changes`, in order, and answers the `otherwise` of the first rule that does not hold, without a call of the handler. It checks `ensures` on a success; a rule that does not hold is a `ContractViolation`. Refer to [Declare preconditions and postconditions](../how-to/declare-conditions).
 
 ## Event
 
