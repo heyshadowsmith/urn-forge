@@ -4,6 +4,8 @@ This page compares urn-forge 0.1.0 with [specification v1.1](../project/spec-v1-
 
 ## Summary
 
+For the promises of a contract that a manifest cannot state at this time, and what to do in their place, refer to [What a contract cannot say yet](../explanation/known-holes).
+
 urn-forge 0.1.0 has the full traceability chain for the six kinds of atom of the specification: the manifest, the IR, the generated contracts, the Gherkin checks and the drift check. It also has the lifecycle of each atom and the compatibility check, `urn-forge diff`. It has the five gates of the specification: gates 1 to 4 in `verify`, and gate 5 as `urn-forge diff`. It does not have the kinds, primitives, plugins and commands that only make the product larger.
 
 ## URNs and versions (§3)
