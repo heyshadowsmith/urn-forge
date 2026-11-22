@@ -101,7 +101,7 @@ export interface OperationStepsOptions {
    * Runs one operation. `options.current` is the record of `Given the current <entity> is:`;
    * a domain with `changes` passes it on: `executeOperation(urn, payload, core, options)`.
    */
-  readonly execute: (urn: string, payload: unknown, options: { readonly current?: unknown; readonly caller?: unknown }) => ExecuteResultLike;
+  readonly execute: (urn: string, payload: unknown, options: { readonly current?: unknown; readonly caller?: unknown; readonly now?: string }) => ExecuteResultLike;
   /** The caller entity of a domain with a caller (the generated CallerContract), for `Given the caller is:`. */
   readonly caller?: { readonly urn: string; readonly fields: FieldsLike };
 }
@@ -342,6 +342,8 @@ interface ScenarioState {
   current?: unknown;
   /** The caller of `Given the caller is:`, as the shell would authenticate them. */
   caller?: unknown;
+  /** The time of `Given the time is "<timestamp>"`, as the shell's clock would give it. */
+  now?: string;
   urn?: string;
   result?: ExecuteResultLike;
 }
@@ -400,6 +402,10 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     this.urnForge = { tags: pickle.tags.map((tag) => tag.name) };
   });
 
+  Given(STEP_PHRASES.time, function (this: StepsWorld, now: string) {
+    state(this).now = now;
+  });
+
   Given(STEP_PHRASES.caller, function (this: StepsWorld, table: DataTable) {
     const s = state(this);
     if (!options.caller) throw new Error('"the caller is:" needs the caller entity: pass caller: CallerContract to registerOperationSteps');
@@ -432,7 +438,11 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     const urn = operationUrnFromTags(s.tags);
     const payload = tableToObject(table.raw(), contract(urn).input.fields, 'input', urn);
     s.urn = urn;
-    s.result = options.execute(urn, payload, { ...(s.current === undefined ? {} : { current: s.current }), ...(s.caller === undefined ? {} : { caller: s.caller }) });
+    s.result = options.execute(urn, payload, {
+      ...(s.current === undefined ? {} : { current: s.current }),
+      ...(s.caller === undefined ? {} : { caller: s.caller }),
+      ...(s.now === undefined ? {} : { now: s.now }),
+    });
   });
 
   Then(STEP_PHRASES.output, function (this: StepsWorld, table: DataTable) {

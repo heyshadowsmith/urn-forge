@@ -13,6 +13,9 @@ show.field.event_id:
   primitive: string
   format: uuid
   description: The identifier of a concert or other event that sells tickets
+show.field.starts_at:
+  primitive: timestamp
+  description: The start time of the event, in UTC. The shell loads it with each ticket and order of the event, from the event as it is now
 show.field.cancelled_at:
   primitive: timestamp
   description: When the organizer cancelled the event, in UTC
@@ -254,6 +257,7 @@ ticket.entity.ticket:
     - ref: ticket.field.ticket_status
     - ref: money.entity.money
       as: price
+    - ref: show.field.starts_at
 ticket.error.invalid_ticket_state:
   description: The ticket is not in a state that allows this
   category: conflict
@@ -292,9 +296,11 @@ order.entity.checkout_request:
     - ref: order.field.payment_reference
 order.entity.order:
   description: A paid order, with one ticket per held seat or standing place
+  key: order.field.order_id
   fields:
     - ref: order.field.order_id
     - ref: show.field.event_id
+    - ref: show.field.starts_at
     - ref: ticket.entity.ticket
       as: tickets
       many: { minItems: 1, maxItems: 10, unique: [section, row, seat_number] }
@@ -309,6 +315,13 @@ order.invariant.total_is_prices_plus_fees:
   message: The total must be the sum of the ticket prices plus the fees
 order.entity.order_ref:
   description: A request that names one order
+  fields:
+    - ref: order.field.order_id
+order.error.order_not_found:
+  description: No order has this identifier
+  category: not_found
+  retryable: false
+  message: No order {order_id}
   fields:
     - ref: order.field.order_id
 order.error.payment_declined:
@@ -340,18 +353,35 @@ transfer.entity.transfer_request:
     - ref: ticket.field.ticket_code
     - ref: transfer.field.recipient_email
 transfer.entity.transfer:
-  description: A transfer that waits for the recipient
+  description: A transfer that waits for the recipient, with the start time of the event of its ticket
+  key: transfer.field.transfer_id
   fields:
     - ref: transfer.field.transfer_id
     - ref: ticket.field.ticket_code
     - ref: transfer.field.recipient_email
     - ref: transfer.field.offered_at
     - ref: transfer.field.accept_until
+    - ref: show.field.starts_at
 transfer.invariant.accept_after_offer:
   description: A transfer can be accepted only after it was offered
   on: transfer.entity.transfer
   rule: accept_until > offered_at
   message: The end of the acceptance window must be after the offer
+transfer.error.transfer_not_found:
+  description: No transfer has this identifier
+  category: not_found
+  retryable: false
+  message: No transfer {transfer_id}
+  fields:
+    - ref: transfer.field.transfer_id
+transfer.error.transfer_window_closed:
+  description: The event starts in less than 2 hours, so its tickets can no longer be transferred
+  category: precondition
+  retryable: false
+  message: Ticket {ticket_code} can no longer be transferred; transfers close 2 hours before the event starts at {starts_at}
+  fields:
+    - ref: ticket.field.ticket_code
+    - ref: show.field.starts_at
 transfer.entity.transfer_ref:
   description: A request that names one transfer
   fields:
@@ -387,6 +417,14 @@ refund.error.ticket_not_refundable:
   message: Ticket {ticket_code} cannot be refunded
   fields:
     - ref: ticket.field.ticket_code
+refund.error.refund_window_closed:
+  description: The event starts in less than 48 hours, so the buyer can no longer refund tickets of the order
+  category: precondition
+  retryable: false
+  message: Order {order_id} can no longer be refunded; refunds close 48 hours before the event starts at {starts_at}
+  fields:
+    - ref: order.field.order_id
+    - ref: show.field.starts_at
 
 # Entry.
 entry.field.verdict:
@@ -541,6 +579,10 @@ order.operation.check_out:
     to: CONVERTED
     otherwise: order.error.hold_expired
     missing: hold.error.hold_not_found
+  # "Refused if received after the hold's expiry time": a checkout at the expiry time itself is not after it.
+  requires:
+    - rule: now <= current.expires_at
+      otherwise: order.error.hold_expired
   errors:
     - order.error.hold_expired
     - hold.error.hold_not_found
@@ -559,11 +601,24 @@ transfer.operation.transfer_ticket:
     from: [ISSUED]
     to: TRANSFER_PENDING
     otherwise: ticket.error.invalid_ticket_state
-  errors: [ticket.error.invalid_ticket_state]
+  # Transfers are accepted only until 2 hours before the start: at 2 hours before, no longer.
+  requires:
+    - rule: now < current.starts_at - 2 hours
+      otherwise: transfer.error.transfer_window_closed
+  errors: [ticket.error.invalid_ticket_state, transfer.error.transfer_window_closed]
 transfer.operation.accept_transfer:
   description: Accept a transfer, so that the recipient gets a new ticket code for the same place
   input: transfer.entity.transfer_ref
   output: ticket.entity.ticket
+  # The transfer, with the start of the event. A transfer is accepted only until 2 hours before the
+  # start, whether "accepted" is the offer (transfer_ticket) or the recipient's acceptance (here).
+  reads:
+    entity: transfer.entity.transfer
+    missing: transfer.error.transfer_not_found
+  requires:
+    - rule: now < current.starts_at - 2 hours
+      otherwise: transfer.error.transfer_window_closed
+  errors: [transfer.error.transfer_not_found, transfer.error.transfer_window_closed]
   emits: [ticket.event.ticket_transferred]
 transfer.operation.cancel_transfer:
   description: Cancel a transfer, so that the ticket is ISSUED again
@@ -579,7 +634,17 @@ refund.operation.request_refund:
   description: Refund tickets of an order
   input: refund.entity.refund_request
   output: refund.entity.refund
+  # The order, with the start of its event. Refunds are accepted only until 48 hours before the
+  # start: at 48 hours before, no longer.
+  reads:
+    entity: order.entity.order
+    missing: order.error.order_not_found
+  requires:
+    - rule: now < current.starts_at - 48 hours
+      otherwise: refund.error.refund_window_closed
   errors:
+    - order.error.order_not_found
+    - refund.error.refund_window_closed
     - refund.error.ticket_not_refundable
   emits: [ticket.event.ticket_refunded]
 entry.operation.validate_ticket:

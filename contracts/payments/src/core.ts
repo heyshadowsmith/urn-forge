@@ -1,6 +1,8 @@
 // A small payments core. The operations that move or read a payment or a refund get it as
 // `current`. Who may call (the merchant of the key, and its kind) is checked by the runtime from
 // the callers of the manifest before a handler runs, so no handler reads the merchant to refuse.
+// The shell gives the time of the call (`now`) to each operation whose rules read it, and the
+// core puts it in each event and in each new record.
 // A few fixed card numbers, currencies and keys stand in for the answers of banks and of earlier
 // requests.
 import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
@@ -16,11 +18,7 @@ interface Stored {
   readonly refunded_amount: number;
 }
 
-const NOW = '2026-11-22T10:00:00Z';
 const paymentId = (word: string) => `pay_${word.padEnd(24, '0')}`;
-
-/** The payment captured more than 180 days ago: the record does not hold when it was captured. */
-const CAPTURED_LONG_AGO = paymentId('capturedlongago');
 
 /** The test cards whose bank refuses the payment. */
 const REFUSING_CARDS = {
@@ -37,18 +35,18 @@ const brandOf = (number: string) =>
   number.startsWith('4') ? 'visa' : /^5[1-5]/.test(number) ? 'mastercard' : /^3[47]/.test(number) ? 'amex' : 'other';
 
 // The event of a change. The shell gives its event_id (newEventId), so the core does not.
-const change = (id: string, p: Stored, previous: Status | undefined, next: Status) => ({
+const change = (id: string, p: Stored, previous: Status | undefined, next: Status, now: string) => ({
   payment_id: id,
   merchant_id: p.merchant_id,
   amount: p.amount,
   currency: p.currency,
   ...(previous ? { previous_status: previous } : {}),
   new_status: next,
-  occurred_at: NOW,
+  occurred_at: now,
 });
 
 export const core = {
-  'urn:corpus:payments:payment:operation:create_payment': (request) => {
+  'urn:corpus:payments:payment:operation:create_payment': (request, _current, now) => {
     const { merchant_id, amount, currency, method, idempotency_key, card } = request;
     if (idempotency_key === USED_KEY) return fail('urn:corpus:payments:payment:error:idempotency_conflict', { idempotency_key });
     if (currency === UNSUPPORTED_CURRENCY) return fail('urn:corpus:payments:payment:error:unsupported_currency', { currency });
@@ -58,7 +56,7 @@ export const core = {
     const payment_id = paymentId('new');
     const status = method === 'card' ? 'authorized' : 'pending';
     const stored: Stored = { merchant_id, amount, currency, status, captured_amount: 0, refunded_amount: 0 };
-    const event = change(payment_id, stored, undefined, status);
+    const event = change(payment_id, stored, undefined, status, now);
     return ok(
       {
         payment_id,
@@ -68,7 +66,7 @@ export const core = {
         method,
         status,
         ...(card ? { card: { brand: brandOf(number), last4: number.slice(-4), exp_month: card.exp_month, exp_year: card.exp_year } } : {}),
-        created_at: NOW,
+        created_at: now,
       },
       [
         status === 'authorized'
@@ -78,32 +76,31 @@ export const core = {
     );
   },
 
-  'urn:corpus:payments:payment:operation:capture_payment': ({ payment_id, amount }, current) => {
+  'urn:corpus:payments:payment:operation:capture_payment': ({ payment_id, amount }, current, now) => {
     const captured = amount ?? current.amount;
     return ok(
-      { payment_id, currency: current.currency, authorized_amount: current.amount, captured_amount: captured, status: 'captured' as const },
-      [emit('urn:corpus:payments:payment:event:captured', change(payment_id, current, current.status, 'captured'))],
+      { payment_id, currency: current.currency, authorized_amount: current.amount, captured_amount: captured, status: 'captured' as const, captured_at: now },
+      [emit('urn:corpus:payments:payment:event:captured', change(payment_id, current, current.status, 'captured', now))],
     );
   },
 
-  'urn:corpus:payments:payment:operation:void_payment': ({ payment_id }, current) => {
+  'urn:corpus:payments:payment:operation:void_payment': ({ payment_id }, current, now) => {
     return ok(
       { ...current, status: 'voided' as const },
-      [emit('urn:corpus:payments:payment:event:voided', change(payment_id, current, current.status, 'voided'))],
+      [emit('urn:corpus:payments:payment:event:voided', change(payment_id, current, current.status, 'voided', now))],
     );
   },
 
   'urn:corpus:payments:payment:operation:get_payment': (_lookup, current) => ok(current),
 
-  'urn:corpus:payments:refund:operation:refund_payment': ({ payment_id, amount, idempotency_key }, current) => {
+  'urn:corpus:payments:refund:operation:refund_payment': ({ payment_id, amount, idempotency_key }, current, now) => {
     if (idempotency_key === USED_KEY) return fail('urn:corpus:payments:payment:error:idempotency_conflict', { idempotency_key });
-    if (payment_id === CAPTURED_LONG_AGO) return fail('urn:corpus:payments:refund:error:refund_window_closed', {});
 
     const refunded_total = current.refunded_amount + amount;
     const next = refunded_total === current.captured_amount ? 'refunded' : 'partially_refunded';
-    const event = change(payment_id, current, current.status, next);
+    const event = change(payment_id, current, current.status, next, now);
     return ok(
-      { refund_id: `re_${'2'.padStart(24, '0')}`, payment_id, merchant_id: current.merchant_id, amount, currency: current.currency, captured_amount: current.captured_amount, refunded_total, created_at: NOW },
+      { refund_id: `re_${'2'.padStart(24, '0')}`, payment_id, merchant_id: current.merchant_id, amount, currency: current.currency, captured_amount: current.captured_amount, refunded_total, created_at: now },
       [
         next === 'refunded'
           ? emit('urn:corpus:payments:payment:event:refunded', event)

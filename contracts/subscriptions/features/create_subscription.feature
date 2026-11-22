@@ -3,9 +3,10 @@
 Feature: Create a subscription
 
   Scenario Outline: A subscription without a trial is active and bills its first invoice
+    Given the time is "2026-11-22T10:00:00Z"
     When I run the operation with:
-      | customer_id   | plan_id   | quantity   | requested_on | idempotency_key   |
-      | <customer_id> | <plan_id> | <quantity> | 2026-11-22   | <idempotency_key> |
+      | customer_id   | plan_id   | quantity   | idempotency_key   |
+      | <customer_id> | <plan_id> | <quantity> | <idempotency_key> |
     Then the output is:
       | subscription_id              | customer_id   | quantity   | status | trial_end |
       | sub_nnnnnnnnnnnnnnnnnnnnnnnn | <customer_id> | <quantity> | active |           |
@@ -28,9 +29,10 @@ Feature: Create a subscription
       | cus_1       | plan_pro-yearly-2          | 2        |                   |
 
   Scenario Outline: The subscription shows the billing period of its plan
+    Given the time is "2026-11-22T10:00:00Z"
     When I run the operation with:
-      | customer_id | plan_id   | quantity | requested_on |
-      | cus_1       | <plan_id> | 1        | 2026-11-22   |
+      | customer_id | plan_id   | quantity |
+      | cus_1       | <plan_id> | 1        |
     Then the output is:
       | plan   |
       | <plan> |
@@ -42,9 +44,10 @@ Feature: Create a subscription
       | plan_team-annual-monthly | { plan_id: plan_team-annual-monthly, billing_period: month, interval_count: 12, price: { amount_minor: 1500, currency: EUR } } |
 
   Scenario Outline: Trial days of 0 make an active subscription, and more than 0 a trialing one
+    Given the time is "2026-11-22T10:00:00Z"
     When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_days   | requested_on |
-      | cus_1       | plan_basic | 1        | <trial_days> | 2026-11-22   |
+      | customer_id | plan_id    | quantity | trial_days   |
+      | cus_1       | plan_basic | 1        | <trial_days> |
     Then the output is:
       | status   | trial_end   |
       | <status> | <trial_end> |
@@ -55,10 +58,23 @@ Feature: Create a subscription
       | 14         | trialing | 2026-12-06 |
       | 730        | trialing | 2028-11-21 |
 
-  Scenario Outline: A trial shorter than 3 days announces its end at once
+  Scenario: Trial days count from today, the UTC date of the time of the request
+    Given the time is "2026-11-23T00:00:00Z"
     When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_days   | trial_end   | requested_on |
-      | cus_1       | plan_basic | 1        | <trial_days> | <trial_end> | 2026-11-22   |
+      | customer_id | plan_id    | quantity | trial_days |
+      | cus_1       | plan_basic | 1        | 2          |
+    Then the output is:
+      | status   | trial_end  |
+      | trialing | 2026-11-25 |
+    And the operation emits "urn:corpus:subscriptions:subscription:event:trial_will_end":
+      | subscription_id              |
+      | sub_nnnnnnnnnnnnnnnnnnnnnnnn |
+
+  Scenario Outline: A trial shorter than 3 days announces its end at once
+    Given the time is "2026-11-22T10:00:00Z"
+    When I run the operation with:
+      | customer_id | plan_id    | quantity | trial_days   | trial_end   |
+      | cus_1       | plan_basic | 1        | <trial_days> | <trial_end> |
     Then the output is:
       | status   |
       | trialing |
@@ -75,9 +91,10 @@ Feature: Create a subscription
       |            | 2026-11-24 |
 
   Scenario Outline: An explicit trial end in the window is accepted
+    Given the time is "2026-11-22T10:00:00Z"
     When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_end   | requested_on |
-      | cus_1       | plan_basic | 1        | <trial_end> | 2026-11-22   |
+      | customer_id | plan_id    | quantity | trial_end   |
+      | cus_1       | plan_basic | 1        | <trial_end> |
     Then the output is:
       | status   | trial_end   |
       | trialing | <trial_end> |
@@ -92,9 +109,10 @@ Feature: Create a subscription
       | 2026-11-25 |
 
   Scenario Outline: A request that breaks a field limit is rejected
+    Given the time is "2026-11-22T10:00:00Z"
     When I run the operation with:
-      | customer_id   | plan_id   | quantity   | trial_days   | requested_on | idempotency_key   |
-      | <customer_id> | <plan_id> | <quantity> | <trial_days> | 2026-11-22   | <idempotency_key> |
+      | customer_id   | plan_id   | quantity   | trial_days   | idempotency_key   |
+      | <customer_id> | <plan_id> | <quantity> | <trial_days> | <idempotency_key> |
     Then the input is rejected on "<field>"
 
     Examples:
@@ -113,16 +131,21 @@ Feature: Create a subscription
       | idempotency_key | cus_1       | plan_basic                             | 1        |            | =repeat(256, "k") |
 
   Scenario: Trial days and a trial end together are rejected
+    Given the time is "2026-11-22T10:00:00Z"
     When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_days | trial_end  | requested_on |
-      | cus_1       | plan_basic | 1        | 14         | 2026-12-06 | 2026-11-22   |
+      | customer_id | plan_id    | quantity | trial_days | trial_end  |
+      | cus_1       | plan_basic | 1        | 14         | 2026-12-06 |
     Then the input is rejected by "urn:corpus:subscriptions:subscription:invariant:trial_days_or_trial_end"
 
-  Scenario Outline: A trial end that is not in the future, or more than 730 days away, is rejected
+  Scenario Outline: A trial end that is not after today, or more than 730 days after today, is refused, at 2026-11-22T10:00:00Z
+    Given the time is "2026-11-22T10:00:00Z"
     When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_end   | requested_on |
-      | cus_1       | plan_basic | 1        | <trial_end> | 2026-11-22   |
-    Then the input is rejected by "urn:corpus:subscriptions:subscription:invariant:trial_end_in_window"
+      | customer_id | plan_id    | quantity | trial_end   |
+      | cus_1       | plan_basic | 1        | <trial_end> |
+    Then the operation fails with "urn:corpus:subscriptions:subscription:error:invalid_trial_end":
+      | trial_end   |
+      | <trial_end> |
+    And the operation emits no event
 
     Examples:
       | trial_end  |
@@ -130,10 +153,53 @@ Feature: Create a subscription
       | 2026-11-01 |
       | 2028-11-22 |
 
-  Scenario: A second subscription of a customer to the same plan is a conflict
+  Scenario Outline: A trial end that is not after today, or more than 730 days after today, is refused, at 2026-11-23T00:00:00Z
+    Given the time is "2026-11-23T00:00:00Z"
     When I run the operation with:
-      | customer_id | plan_id    | quantity | requested_on |
-      | cus_taken   | plan_basic | 1        | 2026-11-22   |
+      | customer_id | plan_id    | quantity | trial_end   |
+      | cus_1       | plan_basic | 1        | <trial_end> |
+    Then the operation fails with "urn:corpus:subscriptions:subscription:error:invalid_trial_end":
+      | trial_end   |
+      | <trial_end> |
+    And the operation emits no event
+
+    Examples:
+      | trial_end  |
+      | 2026-11-23 |
+      | 2028-11-23 |
+
+  Scenario Outline: Today is the UTC date of the time of the request, at 2026-11-22T23:59:59.999Z
+    Given the time is "2026-11-22T23:59:59.999Z"
+    When I run the operation with:
+      | customer_id | plan_id    | quantity | trial_end   |
+      | cus_1       | plan_basic | 1        | <trial_end> |
+    Then the output is:
+      | status   | trial_end   |
+      | trialing | <trial_end> |
+
+    Examples:
+      | trial_end  |
+      | 2026-11-23 |
+
+  Scenario Outline: Today is the UTC date of the time of the request, at 2026-11-23T00:00:00Z
+    Given the time is "2026-11-23T00:00:00Z"
+    When I run the operation with:
+      | customer_id | plan_id    | quantity | trial_end   |
+      | cus_1       | plan_basic | 1        | <trial_end> |
+    Then the output is:
+      | status   | trial_end   |
+      | trialing | <trial_end> |
+
+    Examples:
+      | trial_end  |
+      | 2026-11-24 |
+      | 2028-11-22 |
+
+  Scenario: A second subscription of a customer to the same plan is a conflict
+    Given the time is "2026-11-22T10:00:00Z"
+    When I run the operation with:
+      | customer_id | plan_id    | quantity |
+      | cus_taken   | plan_basic | 1        |
     Then the operation fails with "urn:corpus:subscriptions:subscription:error:conflict":
       | customer_id | plan_id    |
       | cus_taken   | plan_basic |

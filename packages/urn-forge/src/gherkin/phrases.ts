@@ -9,6 +9,8 @@ export const STEP_PHRASES = {
   noCurrent: 'there is no current {word}',
   /** Who calls, as the shell authenticated them: one header row and one data row. */
   caller: 'the caller is:',
+  /** The time of the call, as the shell's clock would give it: a UTC timestamp. */
+  time: 'the time is {string}',
   run: 'I run the operation with:',
   output: 'the output is:',
   rejected: 'the input is rejected on {string}',
@@ -62,6 +64,15 @@ export const EMITS_TEXT = /^the operation emits (?:"([^"]*)"|'([^']*)')(:?)$/;
 /** The event URN of an `emits` step text, or `undefined` for any other step. */
 export function emitsUrn(text: string): string | undefined {
   const match = EMITS_TEXT.exec(text);
+  return match ? (match[1] ?? match[2]) : undefined;
+}
+
+/** Matches the text of the time step, in double or single quotes: group 1 or group 2 is the time. */
+export const TIME_TEXT = /^the time is (?:"([^"]*)"|'([^']*)')$/;
+
+/** The time of a time step text, or `undefined` for any other step. */
+export function timeOf(text: string): string | undefined {
+  const match = TIME_TEXT.exec(text);
   return match ? (match[1] ?? match[2]) : undefined;
 }
 

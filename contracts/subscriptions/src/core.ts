@@ -53,12 +53,14 @@ const invoice = (invoice_id: string, subscription_id: string) => ({
 const meta = (subscription_id: string) => ({ subscription_id, occurred_at: NOW });
 
 export const core = {
-  'urn:corpus:subscriptions:subscription:operation:create_subscription': (req) => {
+  // The shell gives the time of the call (now); the day of the request is its UTC date.
+  'urn:corpus:subscriptions:subscription:operation:create_subscription': (req, _current, now) => {
+    const today = now.slice(0, 10);
     if (req.customer_id === TAKEN_CUSTOMER) {
       return fail('urn:corpus:subscriptions:subscription:error:conflict', { customer_id: req.customer_id, plan_id: req.plan_id });
     }
     const trialEnd =
-      req.trial_end ?? (req.trial_days !== undefined && req.trial_days > 0 ? addDays(req.requested_on, req.trial_days) : undefined);
+      req.trial_end ?? (req.trial_days !== undefined && req.trial_days > 0 ? addDays(today, req.trial_days) : undefined);
     const base = { ...subscription(CREATED), customer_id: req.customer_id, plan: planOf(req.plan_id), quantity: req.quantity };
     const created = emit('urn:corpus:subscriptions:subscription:event:created', meta(CREATED));
     if (trialEnd === undefined) {
@@ -68,7 +70,7 @@ export const core = {
         emit('urn:corpus:subscriptions:invoice:event:paid', { ...meta(CREATED), invoice_id: 'in_1' }),
       ]);
     }
-    const soon = daysBetween(req.requested_on, trialEnd) < 3;
+    const soon = daysBetween(today, trialEnd) < 3;
     const events = soon ? [created, emit('urn:corpus:subscriptions:subscription:event:trial_will_end', meta(CREATED))] : [created];
     return ok({ ...base, status: 'trialing' as const, trial_end: trialEnd }, events);
   },

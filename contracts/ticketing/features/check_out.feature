@@ -3,7 +3,8 @@
 Feature: Check out a hold
 
   Scenario: A paid hold becomes an order with one ticket per place
-    Given the current hold is:
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current hold is:
       | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
       | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:58:00Z | 2026-12-01T19:08:00Z |
     When I run the operation with:
@@ -20,7 +21,8 @@ Feature: Check out a hold
       | 00000000-0000-4000-8000-000000000002 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ABCDEFGH23456789 | 2026-12-01T19:00:00Z |
 
   Scenario Outline: Values at the edges of their limits are accepted
-    Given the current hold is:
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current hold is:
       | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
       | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:58:00Z | 2026-12-01T19:08:00Z |
     When I run the operation with:
@@ -36,7 +38,8 @@ Feature: Check out a hold
       | =repeat(64, "k") | pay_123           |
 
   Scenario Outline: A request outside the limits of a field is rejected at the boundary
-    Given the current hold is:
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current hold is:
       | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
       | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:58:00Z | 2026-12-01T19:08:00Z |
     When I run the operation with:
@@ -52,7 +55,8 @@ Feature: Check out a hold
       | payment_reference | checkout-0001    | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | ""                |
 
   Scenario: A checkout without a payment reference is rejected
-    Given the current hold is:
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current hold is:
       | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
       | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:58:00Z | 2026-12-01T19:08:00Z |
     When I run the operation with:
@@ -61,7 +65,8 @@ Feature: Check out a hold
     Then the input is rejected on "payment_reference"
 
   Scenario: A checkout after the expiry of the hold is refused, and no ticket is issued
-    Given the current hold is:
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current hold is:
       | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
       | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:45:00Z | 2026-12-01T18:55:00Z |
     When I run the operation with:
@@ -72,8 +77,46 @@ Feature: Check out a hold
       | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 2026-12-01T18:55:00Z |
     And the operation emits no event
 
+  Scenario: A checkout a millisecond before the expiry time of the hold is accepted
+    Given the time is "2026-12-01T19:07:59.999Z"
+    And the current hold is:
+      | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
+      | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:58:00Z | 2026-12-01T19:08:00Z |
+    When I run the operation with:
+      | idempotency_key | hold_id                              | payment_reference |
+      | checkout-0001   | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | pay_123           |
+    Then the output is:
+      | order_id                             |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f |
+
+  Scenario: A checkout received at the expiry time itself is not after it, so it is accepted
+    Given the time is "2026-12-01T19:08:00Z"
+    And the current hold is:
+      | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
+      | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:58:00Z | 2026-12-01T19:08:00Z |
+    When I run the operation with:
+      | idempotency_key | hold_id                              | payment_reference |
+      | checkout-0001   | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | pay_123           |
+    Then the output is:
+      | order_id                             |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f |
+
+  Scenario: A checkout received a millisecond after the expiry time is refused, and no ticket is issued
+    Given the time is "2026-12-01T19:08:00.001Z"
+    And the current hold is:
+      | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
+      | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:58:00Z | 2026-12-01T19:08:00Z |
+    When I run the operation with:
+      | idempotency_key | hold_id                              | payment_reference |
+      | checkout-0001   | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | pay_123           |
+    Then the operation fails with "urn:corpus:ticketing:order:error:hold_expired":
+      | hold_id                              | expires_at           |
+      | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 2026-12-01T19:08:00Z |
+    And the operation emits no event
+
   Scenario: An unknown hold is refused
-    Given there is no current hold
+    Given the time is "2026-12-01T19:00:00Z"
+    And there is no current hold
     When I run the operation with:
       | idempotency_key | hold_id                              | payment_reference |
       | checkout-0001   | 00000000-0000-4000-8000-000000000404 | pay_123           |
@@ -81,7 +124,8 @@ Feature: Check out a hold
     And the operation emits no event
 
   Scenario: A declined payment issues no ticket
-    Given the current hold is:
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current hold is:
       | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
       | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:58:00Z | 2026-12-01T19:08:00Z |
     When I run the operation with:
@@ -93,7 +137,8 @@ Feature: Check out a hold
     And the operation emits no event
 
   Scenario Outline: A hold that is no longer ACTIVE cannot be checked out, and no ticket is issued
-    Given the current hold is:
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current hold is:
       | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
       | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | <hold_status> | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:40:00Z | 2026-12-01T18:50:00Z |
     When I run the operation with:

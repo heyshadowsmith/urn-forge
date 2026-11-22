@@ -108,16 +108,22 @@ promises:
     promise: "An authorized card payment that is not captured within 7 days moves to expired and can no longer be captured."
     status: not-declarable
     hole: E3
-  # The refusal is declared; the 180 days after the capture, against the current time, are not.
+  # The stored payment holds when it was captured (captured_at; an invariant makes it present in
+  # captured, partially_refunded and refunded), and capture_payment ensures output.captured_at =
+  # now, the time of the capture that the shell gives. refund_payment requires
+  # current.captured_at is present and now <= current.captured_at + 180 days, otherwise
+  # refund_window_closed: "at most 180 days after" is <=, so a refund on the instant 180 days
+  # after the capture is allowed and one a millisecond later is refused. The runtime checks it
+  # before the handler, after the state (a payment that is not captured is invalid_state). As
+  # for refunded_amount (P11), the shell stores the answer's captured_at in the record.
   P18:
     promise: "A refund can be requested at most 180 days after the payment was captured, after which it is refused as \"refund_window_closed\"."
-    status: workaround
-    by: [refund.error.refund_window_closed]
-    hole: E2
+    status: declared
+    by: [refund.operation.refund_payment, payment.operation.capture_payment, payment.entity.payment, payment.entity.capture_result, payment.field.captured_at, payment.invariant.captured_payment_has_capture_time, refund.error.refund_window_closed]
   P19:
     promise: "All timestamps in requests, answers and events are UTC in ISO 8601 format with a trailing \"Z\"."
     status: declared
-    by: [payment.field.created_at, payment.field.occurred_at]
+    by: [payment.field.created_at, payment.field.occurred_at, payment.field.captured_at]
   # Declared for each call that changes the status: create_payment emits exactly one of
   # payment.authorized (when output.status = 'authorized') or payment.pending (when
   # output.status = 'pending'); capture_payment exactly one payment.captured; void_payment
@@ -127,15 +133,16 @@ promises:
   # the payment id, merchant id, amount and currency of the payment, new_status (the status of
   # the answer, or the one that the event's name says for a refund), previous_status = the
   # stored status (absent on create, which has no earlier status), and the event id comes from
-  # the shell (delivery.id, newEventId). Lost: "the time of the change" is occurred_at, a value
-  # of the core; nothing states that it is the time the status changed (E2). And the moves
-  # pending to authorized, pending to failed and authorized to expired have no call, so no
-  # event is stated for them: payment.failed and payment.expired do not exist (see P17).
+  # the shell (delivery.id, newEventId), and event.occurred_at = now in each of the four
+  # operations: the time of the change is the time of the call, which the shell gives (E2 is
+  # met). Lost: the moves pending to authorized, pending to failed and authorized to expired
+  # have no call, so no event is stated for them: payment.failed and payment.expired do not
+  # exist, and nothing can state that such a move publishes one (E3, see P17).
   P20:
     promise: "Each change of payment status publishes exactly one event named \"payment.<new_status>\" carrying the event id, payment id, merchant id, amount, currency, previous status, new status and the time of the change."
     status: workaround
     by: [payment.operation.create_payment, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.event.pending, payment.event.authorized, payment.event.captured, payment.event.voided, payment.event.partially_refunded, payment.event.refunded, payment.field.event_id, payment.field.occurred_at]
-    hole: E2
+    hole: E3
   # Each event has delivery { id: event_id, orderBy: payment_id }, and the contract uses the
   # Postgres plugin, so the outbox keeps the delivery: insertEvents writes the events in the
   # transaction of the change (none is lost), a row stays until markPublished (at least once),

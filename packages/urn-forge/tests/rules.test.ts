@@ -156,7 +156,7 @@ describe('days', () => {
     expect(problems("effective_date - 'soon' > 0")).toEqual([['rule-type', 1, "'soon' is not a date in quotes, such as '2026-01-31', so it cannot meet a date in \"-\""]]);
     expect(problems('effective_date + premium > expiry_date')).toEqual([['rule-type', 1, '"+" adds an integer of days to a date, not a decimal']]);
     expect(problems('effective_date - premium > expiry_date')).toEqual([['rule-type', 1, '"-" takes an integer of days from a date, not a decimal']]);
-    expect(problems('at + 1 > at')).toEqual([['rule-type', 1, '"+" works on integer, decimal and date only, not on timestamp']]);
+    expect(problems('at + 1 > at')).toEqual([['rule-type', 1, '"+" on a timestamp needs a unit: write 2 hours, 15 minutes or 180 days']]);
     // The days between two dates are an integer, not a date.
     expect(problems('expiry_date - effective_date > effective_date')).toEqual([['rule-type', 1, '">" has an integer on the left and a date on the right; both sides must have one primitive']]);
   });

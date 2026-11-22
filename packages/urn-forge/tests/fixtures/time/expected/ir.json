@@ -1,0 +1,501 @@
+{
+  "entities": {
+    "urn:demo:time:hold:entity:hold": {
+      "brandIdentifier": "HoldHold",
+      "description": "A hold on seats",
+      "fields": [
+        {
+          "field": "urn:demo:time:hold:field:hold_id",
+          "name": "hold_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:time:hold:field:status",
+          "name": "status",
+          "required": true
+        },
+        {
+          "field": "urn:demo:time:hold:field:expires_at",
+          "name": "expires_at",
+          "required": true
+        }
+      ],
+      "key": "urn:demo:time:hold:field:hold_id",
+      "urn": "urn:demo:time:hold:entity:hold"
+    },
+    "urn:demo:time:hold:entity:hold_ref": {
+      "brandIdentifier": "HoldHoldRef",
+      "description": "The hold to check out",
+      "fields": [
+        {
+          "field": "urn:demo:time:hold:field:hold_id",
+          "name": "hold_id",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:time:hold:entity:hold_ref"
+    },
+    "urn:demo:time:pause:entity:request": {
+      "brandIdentifier": "PauseRequest",
+      "description": "A request to pause, with an optional resume date",
+      "fields": [
+        {
+          "field": "urn:demo:time:pause:field:resume_on",
+          "name": "resume_on",
+          "required": false
+        }
+      ],
+      "urn": "urn:demo:time:pause:entity:request"
+    },
+    "urn:demo:time:payment:entity:payment": {
+      "brandIdentifier": "PaymentPayment",
+      "description": "A payment",
+      "fields": [
+        {
+          "field": "urn:demo:time:payment:field:payment_id",
+          "name": "payment_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:time:payment:field:status",
+          "name": "status",
+          "required": true
+        },
+        {
+          "field": "urn:demo:time:payment:field:captured_at",
+          "name": "captured_at",
+          "required": true
+        },
+        {
+          "field": "urn:demo:time:payment:field:refunded_at",
+          "name": "refunded_at",
+          "required": false
+        }
+      ],
+      "key": "urn:demo:time:payment:field:payment_id",
+      "urn": "urn:demo:time:payment:entity:payment"
+    },
+    "urn:demo:time:payment:entity:payment_ref": {
+      "brandIdentifier": "PaymentPaymentRef",
+      "description": "The payment to refund",
+      "fields": [
+        {
+          "field": "urn:demo:time:payment:field:payment_id",
+          "name": "payment_id",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:time:payment:entity:payment_ref"
+    }
+  },
+  "errors": {
+    "urn:demo:time:hold:error:hold_expired": {
+      "brandIdentifier": "HoldHoldExpired",
+      "category": "precondition",
+      "description": "The hold expired before the check-out",
+      "fields": [
+        {
+          "field": "urn:demo:time:hold:field:hold_id",
+          "name": "hold_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:time:hold:field:expires_at",
+          "name": "expires_at",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "Hold "
+        },
+        {
+          "field": "hold_id"
+        },
+        {
+          "text": " expired at "
+        },
+        {
+          "field": "expires_at"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:time:hold:error:hold_expired"
+    },
+    "urn:demo:time:hold:error:invalid_status": {
+      "brandIdentifier": "HoldInvalidStatus",
+      "category": "conflict",
+      "description": "The hold is not active",
+      "fields": [
+        {
+          "field": "urn:demo:time:hold:field:hold_id",
+          "name": "hold_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:time:hold:field:status",
+          "name": "status",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "Hold "
+        },
+        {
+          "field": "hold_id"
+        },
+        {
+          "text": " is "
+        },
+        {
+          "field": "status"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:time:hold:error:invalid_status"
+    },
+    "urn:demo:time:pause:error:invalid_resume_date": {
+      "brandIdentifier": "PauseInvalidResumeDate",
+      "category": "validation",
+      "description": "The resume date is not from 1 to 90 days after today",
+      "fields": [],
+      "message": [
+        {
+          "text": "A resume date must be from 1 to 90 days after today"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:time:pause:error:invalid_resume_date"
+    },
+    "urn:demo:time:payment:error:invalid_status": {
+      "brandIdentifier": "PaymentInvalidStatus",
+      "category": "conflict",
+      "description": "The payment is not in a status for this",
+      "fields": [
+        {
+          "field": "urn:demo:time:payment:field:payment_id",
+          "name": "payment_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:time:payment:field:status",
+          "name": "status",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "Payment "
+        },
+        {
+          "field": "payment_id"
+        },
+        {
+          "text": " is "
+        },
+        {
+          "field": "status"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:time:payment:error:invalid_status"
+    },
+    "urn:demo:time:payment:error:refund_window_closed": {
+      "brandIdentifier": "PaymentRefundWindowClosed",
+      "category": "precondition",
+      "description": "The payment was captured more than 180 days ago",
+      "fields": [
+        {
+          "field": "urn:demo:time:payment:field:payment_id",
+          "name": "payment_id",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "Payment "
+        },
+        {
+          "field": "payment_id"
+        },
+        {
+          "text": " was captured more than 180 days ago"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:time:payment:error:refund_window_closed"
+    }
+  },
+  "events": {},
+  "fields": {
+    "urn:demo:time:hold:field:expires_at": {
+      "brandIdentifier": "HoldExpiresAt",
+      "constraints": {},
+      "description": "When the hold expires",
+      "primitive": "timestamp",
+      "urn": "urn:demo:time:hold:field:expires_at"
+    },
+    "urn:demo:time:hold:field:hold_id": {
+      "brandIdentifier": "HoldHoldId",
+      "constraints": {
+        "regex": "hld_[a-z0-9]{8}"
+      },
+      "description": "The id of a hold",
+      "primitive": "string",
+      "urn": "urn:demo:time:hold:field:hold_id"
+    },
+    "urn:demo:time:hold:field:status": {
+      "brandIdentifier": "HoldStatus",
+      "constraints": {
+        "values": [
+          "ACTIVE",
+          "CONVERTED"
+        ]
+      },
+      "description": "The status of a hold",
+      "moves": {
+        "ACTIVE": [
+          "CONVERTED"
+        ]
+      },
+      "primitive": "enum",
+      "urn": "urn:demo:time:hold:field:status"
+    },
+    "urn:demo:time:pause:field:resume_on": {
+      "brandIdentifier": "PauseResumeOn",
+      "constraints": {},
+      "description": "The day the subscription resumes",
+      "primitive": "date",
+      "urn": "urn:demo:time:pause:field:resume_on"
+    },
+    "urn:demo:time:payment:field:captured_at": {
+      "brandIdentifier": "PaymentCapturedAt",
+      "constraints": {},
+      "description": "When the payment was captured",
+      "primitive": "timestamp",
+      "urn": "urn:demo:time:payment:field:captured_at"
+    },
+    "urn:demo:time:payment:field:payment_id": {
+      "brandIdentifier": "PaymentPaymentId",
+      "constraints": {
+        "regex": "pay_[a-z0-9]{8}"
+      },
+      "description": "The id of a payment",
+      "primitive": "string",
+      "urn": "urn:demo:time:payment:field:payment_id"
+    },
+    "urn:demo:time:payment:field:refunded_at": {
+      "brandIdentifier": "PaymentRefundedAt",
+      "constraints": {},
+      "description": "When the payment was refunded",
+      "primitive": "timestamp",
+      "urn": "urn:demo:time:payment:field:refunded_at"
+    },
+    "urn:demo:time:payment:field:status": {
+      "brandIdentifier": "PaymentStatus",
+      "constraints": {
+        "values": [
+          "captured",
+          "refunded"
+        ]
+      },
+      "description": "The status of a payment",
+      "moves": {
+        "captured": [
+          "refunded"
+        ]
+      },
+      "primitive": "enum",
+      "urn": "urn:demo:time:payment:field:status"
+    }
+  },
+  "invariants": {},
+  "meta": {
+    "domain": "time",
+    "irSchemaVersion": 1,
+    "manifestHash": "41df96b7abab3138100fe081cebbfe9c1ed87f77fd59c4319f1ab688fb60c131",
+    "manifestVersion": "1.0.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {
+    "urn:demo:time:hold:operation:check_out": {
+      "brandIdentifier": "HoldCheckOut",
+      "changes": {
+        "entity": "urn:demo:time:hold:entity:hold",
+        "from": [
+          "ACTIVE"
+        ],
+        "otherwise": "urn:demo:time:hold:error:invalid_status",
+        "property": "status",
+        "to": [
+          "CONVERTED"
+        ]
+      },
+      "description": "Check out an active hold before it expires",
+      "emits": [],
+      "errors": [
+        "urn:demo:time:hold:error:invalid_status",
+        "urn:demo:time:hold:error:hold_expired"
+      ],
+      "input": "urn:demo:time:hold:entity:hold_ref",
+      "output": "urn:demo:time:hold:entity:hold",
+      "requires": [
+        {
+          "otherwise": "urn:demo:time:hold:error:hold_expired",
+          "rule": {
+            "left": {
+              "name": "now",
+              "op": "field"
+            },
+            "op": "<",
+            "right": {
+              "name": "current.expires_at",
+              "op": "field"
+            }
+          },
+          "ruleText": "now < current.expires_at"
+        }
+      ],
+      "urn": "urn:demo:time:hold:operation:check_out"
+    },
+    "urn:demo:time:pause:operation:pause": {
+      "brandIdentifier": "PausePause",
+      "description": "Pause, until a resume date from 1 to 90 days after today",
+      "emits": [],
+      "errors": [
+        "urn:demo:time:pause:error:invalid_resume_date"
+      ],
+      "input": "urn:demo:time:pause:entity:request",
+      "output": "urn:demo:time:pause:entity:request",
+      "requires": [
+        {
+          "otherwise": "urn:demo:time:pause:error:invalid_resume_date",
+          "rule": {
+            "left": {
+              "field": "input.resume_on",
+              "op": "absent"
+            },
+            "op": "or",
+            "right": {
+              "left": {
+                "left": {
+                  "name": "input.resume_on",
+                  "op": "field"
+                },
+                "op": ">=",
+                "right": {
+                  "left": {
+                    "name": "today",
+                    "op": "field"
+                  },
+                  "op": "+",
+                  "right": {
+                    "op": "number",
+                    "value": "1"
+                  }
+                }
+              },
+              "op": "and",
+              "right": {
+                "left": {
+                  "name": "input.resume_on",
+                  "op": "field"
+                },
+                "op": "<=",
+                "right": {
+                  "left": {
+                    "name": "today",
+                    "op": "field"
+                  },
+                  "op": "+",
+                  "right": {
+                    "op": "number",
+                    "value": "90"
+                  }
+                }
+              }
+            }
+          },
+          "ruleText": "input.resume_on is absent or input.resume_on >= today + 1 and input.resume_on <= today + 90"
+        }
+      ],
+      "urn": "urn:demo:time:pause:operation:pause"
+    },
+    "urn:demo:time:payment:operation:refund_payment": {
+      "brandIdentifier": "PaymentRefundPayment",
+      "changes": {
+        "entity": "urn:demo:time:payment:entity:payment",
+        "from": [
+          "captured"
+        ],
+        "otherwise": "urn:demo:time:payment:error:invalid_status",
+        "property": "status",
+        "to": [
+          "refunded"
+        ]
+      },
+      "description": "Refund a captured payment, at most 180 days after the capture",
+      "emits": [],
+      "ensures": [
+        {
+          "rule": {
+            "left": {
+              "field": "output.refunded_at",
+              "op": "present"
+            },
+            "op": "and",
+            "right": {
+              "left": {
+                "name": "output.refunded_at",
+                "op": "field"
+              },
+              "op": "=",
+              "right": {
+                "name": "now",
+                "op": "field"
+              }
+            }
+          },
+          "ruleText": "output.refunded_at is present and output.refunded_at = now"
+        }
+      ],
+      "errors": [
+        "urn:demo:time:payment:error:invalid_status",
+        "urn:demo:time:payment:error:refund_window_closed"
+      ],
+      "input": "urn:demo:time:payment:entity:payment_ref",
+      "output": "urn:demo:time:payment:entity:payment",
+      "requires": [
+        {
+          "otherwise": "urn:demo:time:payment:error:refund_window_closed",
+          "rule": {
+            "left": {
+              "name": "now",
+              "op": "field"
+            },
+            "op": "<=",
+            "right": {
+              "left": {
+                "name": "current.captured_at",
+                "op": "field"
+              },
+              "op": "+",
+              "right": {
+                "op": "duration",
+                "unit": "days",
+                "value": {
+                  "op": "number",
+                  "value": "180"
+                }
+              }
+            }
+          },
+          "ruleText": "now <= current.captured_at + 180 days"
+        }
+      ],
+      "urn": "urn:demo:time:payment:operation:refund_payment"
+    }
+  }
+}

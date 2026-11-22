@@ -3,7 +3,8 @@
 Feature: Create a payment
 
   Scenario: A card payment is authorized, and the answer shows only a summary of the card
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | key_kind | merchant_id |
       | secret   | mer_1       |
     When I run the operation with:
@@ -18,7 +19,8 @@ Feature: Create a payment
     And the operation emits no "urn:corpus:payments:payment:event:pending"
 
   Scenario Outline: A card payment with each value at the edge of its limits is authorized
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | key_kind | merchant_id |
       | secret   | mer_1       |
     When I run the operation with:
@@ -28,8 +30,8 @@ Feature: Create a payment
       | payment_id                   | merchant_id | amount   | currency | method | status     |
       | pay_new000000000000000000000 | mer_1       | <amount> | EUR      | card   | authorized |
     And the operation emits "urn:corpus:payments:payment:event:authorized":
-      | payment_id                   | amount   | new_status |
-      | pay_new000000000000000000000 | <amount> | authorized |
+      | payment_id                   | amount   | new_status | occurred_at          |
+      | pay_new000000000000000000000 | <amount> | authorized | 2026-11-22T10:00:00Z |
 
     Examples:
       | amount   | idempotency_key     | description         | metadata | line_items                                                             | card |
@@ -40,7 +42,8 @@ Feature: Create a payment
       | 5000     | order-44            |                     |          | [{ quantity: 1, unit_amount: 0 }, { quantity: 2, unit_amount: 2500 }] | { card_number: 4242424242424242, exp_month: 6, exp_year: 2030, security_code: 123 } |
 
   Scenario: A bank transfer payment is pending
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | key_kind | merchant_id |
       | secret   | mer_1       |
     When I run the operation with:
@@ -50,12 +53,13 @@ Feature: Create a payment
       | payment_id                   | amount | currency | method        | status  | card |
       | pay_new000000000000000000000 | 5000   | EUR      | bank_transfer | pending |      |
     And the operation emits "urn:corpus:payments:payment:event:pending":
-      | payment_id                   | merchant_id | amount | currency | previous_status | new_status |
-      | pay_new000000000000000000000 | mer_1       | 5000   | EUR      |                 | pending    |
+      | payment_id                   | merchant_id | amount | currency | previous_status | new_status | occurred_at          |
+      | pay_new000000000000000000000 | mer_1       | 5000   | EUR      |                 | pending    | 2026-11-22T10:00:00Z |
     And the operation emits no "urn:corpus:payments:payment:event:authorized"
 
   Scenario Outline: A request with a value out of its limits is rejected on that value
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | key_kind | merchant_id |
       | secret   | mer_1       |
     When I run the operation with:
@@ -87,7 +91,8 @@ Feature: Create a payment
       | card            | 5000      | EUR      | card   | k                |                   |                                                      |                                                | { card_number: 4242424242424242, exp_month: 1, exp_year: 2030, security_code: 12 }     |
 
   Scenario: An IBAN that does not have its form is rejected
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | key_kind | merchant_id |
       | secret   | mer_1       |
     When I run the operation with:
@@ -96,7 +101,8 @@ Feature: Create a payment
     Then the input is rejected on "iban"
 
   Scenario: A card payment without card details is rejected
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | key_kind | merchant_id |
       | secret   | mer_1       |
     When I run the operation with:
@@ -105,7 +111,8 @@ Feature: Create a payment
     Then the input is rejected by "urn:corpus:payments:payment:invariant:card_payment_has_card"
 
   Scenario Outline: A bank transfer payment without an IBAN, or with card details, is rejected
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | key_kind | merchant_id |
       | secret   | mer_1       |
     When I run the operation with:
@@ -119,7 +126,8 @@ Feature: Create a payment
       | DE89370400440532013000 | { card_number: 4242424242424242, exp_month: 1, exp_year: 2030, security_code: 123 } |
 
   Scenario Outline: The bank of the card refuses the payment
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | key_kind | merchant_id |
       | secret   | mer_1       |
     When I run the operation with:
@@ -136,7 +144,8 @@ Feature: Create a payment
       | { card_number: 4100000000000019, exp_month: 1, exp_year: 2030, security_code: 123 } | urn:corpus:payments:payment:error:fraud_suspected    |
 
   Scenario: A currency that the merchant cannot take is refused
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | key_kind | merchant_id |
       | secret   | mer_1       |
     When I run the operation with:
@@ -147,7 +156,8 @@ Feature: Create a payment
       | XXX      |
 
   Scenario Outline: Line items that do not add up to the amount are refused as an invalid request
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | key_kind | merchant_id |
       | secret   | mer_1       |
     When I run the operation with:
@@ -163,7 +173,8 @@ Feature: Create a payment
       | [{ quantity: 1, unit_amount: 5000 }, { quantity: 3, unit_amount: 0 }, { quantity: 1, unit_amount: 1 }] |
 
   Scenario: An idempotency key that an earlier, different request used is refused
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | key_kind | merchant_id |
       | secret   | mer_1       |
     When I run the operation with:
@@ -174,7 +185,8 @@ Feature: Create a payment
       | used-key        |
 
   Scenario Outline: A request that names a merchant other than the key's, known or unknown, or a read-only key is refused as not found
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | key_kind   | merchant_id |
       | <key_kind> | mer_1       |
     When I run the operation with:

@@ -1,0 +1,142 @@
+# The current time: the target of time.test.ts. A refund in a window of 180 days, a hold that
+# expires, and a resume date from 1 to 90 days after today. The shell gives the time.
+manifest:
+  namespace: demo
+  domain: time
+  version: 1.0.0
+
+payment.field.payment_id:
+  primitive: string
+  regex: 'pay_[a-z0-9]{8}'
+  description: The id of a payment
+payment.field.status:
+  primitive: enum
+  values: [captured, refunded]
+  moves:
+    captured: [refunded]
+  description: The status of a payment
+payment.field.captured_at:
+  primitive: timestamp
+  description: When the payment was captured
+payment.field.refunded_at:
+  primitive: timestamp
+  description: When the payment was refunded
+payment.entity.payment:
+  description: A payment
+  key: payment.field.payment_id
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+    - ref: payment.field.captured_at
+    - ref: payment.field.refunded_at
+      required: false
+payment.entity.payment_ref:
+  description: The payment to refund
+  fields:
+    - ref: payment.field.payment_id
+payment.error.invalid_status:
+  description: The payment is not in a status for this
+  category: conflict
+  retryable: false
+  message: Payment {payment_id} is {status}
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+payment.error.refund_window_closed:
+  description: The payment was captured more than 180 days ago
+  category: precondition
+  retryable: false
+  message: Payment {payment_id} was captured more than 180 days ago
+  fields:
+    - ref: payment.field.payment_id
+payment.operation.refund_payment:
+  description: Refund a captured payment, at most 180 days after the capture
+  input: payment.entity.payment_ref
+  output: payment.entity.payment
+  changes:
+    entity: payment.entity.payment
+    from: [captured]
+    to: refunded
+    otherwise: payment.error.invalid_status
+  requires:
+    - rule: now <= current.captured_at + 180 days
+      otherwise: payment.error.refund_window_closed
+  ensures:
+    - output.refunded_at is present and output.refunded_at = now
+  errors: [payment.error.invalid_status, payment.error.refund_window_closed]
+
+hold.field.hold_id:
+  primitive: string
+  regex: 'hld_[a-z0-9]{8}'
+  description: The id of a hold
+hold.field.status:
+  primitive: enum
+  values: [ACTIVE, CONVERTED]
+  moves:
+    ACTIVE: [CONVERTED]
+  description: The status of a hold
+hold.field.expires_at:
+  primitive: timestamp
+  description: When the hold expires
+hold.entity.hold:
+  description: A hold on seats
+  key: hold.field.hold_id
+  fields:
+    - ref: hold.field.hold_id
+    - ref: hold.field.status
+    - ref: hold.field.expires_at
+hold.entity.hold_ref:
+  description: The hold to check out
+  fields:
+    - ref: hold.field.hold_id
+hold.error.invalid_status:
+  description: The hold is not active
+  category: conflict
+  retryable: false
+  message: Hold {hold_id} is {status}
+  fields:
+    - ref: hold.field.hold_id
+    - ref: hold.field.status
+hold.error.hold_expired:
+  description: The hold expired before the check-out
+  category: precondition
+  retryable: false
+  message: Hold {hold_id} expired at {expires_at}
+  fields:
+    - ref: hold.field.hold_id
+    - ref: hold.field.expires_at
+hold.operation.check_out:
+  description: Check out an active hold before it expires
+  input: hold.entity.hold_ref
+  output: hold.entity.hold
+  changes:
+    entity: hold.entity.hold
+    from: [ACTIVE]
+    to: CONVERTED
+    otherwise: hold.error.invalid_status
+  requires:
+    - rule: now < current.expires_at
+      otherwise: hold.error.hold_expired
+  errors: [hold.error.invalid_status, hold.error.hold_expired]
+
+pause.field.resume_on:
+  primitive: date
+  description: The day the subscription resumes
+pause.entity.request:
+  description: A request to pause, with an optional resume date
+  fields:
+    - ref: pause.field.resume_on
+      required: false
+pause.error.invalid_resume_date:
+  description: The resume date is not from 1 to 90 days after today
+  category: validation
+  retryable: false
+  message: A resume date must be from 1 to 90 days after today
+pause.operation.pause:
+  description: Pause, until a resume date from 1 to 90 days after today
+  input: pause.entity.request
+  output: pause.entity.request
+  requires:
+    - rule: input.resume_on is absent or input.resume_on >= today + 1 and input.resume_on <= today + 90
+      otherwise: pause.error.invalid_resume_date
+  errors: [pause.error.invalid_resume_date]

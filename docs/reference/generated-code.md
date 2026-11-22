@@ -228,7 +228,7 @@ export type <Operation brand>Handler = (
 ) => Result<s.<Output entity brand>Input, <error types>[, <event types>]>;
 ```
 
-For an operation with `changes`, the handler has a second parameter, `current: s.<Entity brand>`: the stored record, parsed and branded.
+For an operation with `changes`, the handler has a second parameter, `current: s.<Entity brand>`: the stored record, parsed and branded. For an operation whose rules read `now` or `today`, the handler has a third parameter, `now: string`, the time of the call; its second parameter is `current: undefined` when it has no record.
 
 The input is parsed and branded. The output, the errors and the events are plain. The error type is the union of the declared errors, or `never`. The event type is the union of the events in `emits`. A handler is synchronous.
 
@@ -278,7 +278,7 @@ export function executeOperation<U extends OperationUrn>(
 export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation): ExecuteResult;
 ```
 
-In a domain with a `caller`, the runtime file also exports `CallerContract`: the `EntityContract` of the caller entity, with `urn`. `ExecuteOptions` then has `caller`, and in a domain with `reads` it has `current`.
+In a domain with a `caller`, the runtime file also exports `CallerContract`: the `EntityContract` of the caller entity, with `urn`. `ExecuteOptions` then has `caller`, and in a domain with `reads` it has `current`. In a domain whose rules read `now` or `today`, `ExecuteOptions` has `now`: the time of the call, a UTC timestamp.
 
 In a domain with `changes` or `delivery`, `executeOperation` has a fourth parameter, `options?: ExecuteOptions`. It has `current`, the record that the operation changes, as the shell loaded it, in a domain with `changes`; and `newEventId: () => string`, which gives the id of each event with `delivery`, in a domain with `delivery`. An event in the result does not have its `sequence`: the outbox sets it.
 
@@ -303,6 +303,7 @@ In a domain with `changes` or `delivery`, `executeOperation` has a fourth parame
 | 3. Find `core[urn]` | `ContractViolation`: `no handler for <urn>` |
 | 3a. With `changes` or `reads`: parse `current`; with `changes`, examine its state | `ContractViolation` on `current`: `<urn> changes a record of <entity>: pass it as { current }`, `…: the shell found no record, and the operation declares no missing error`, or the parse issues. `current: null`: the `missing` error, filled from the input. A state outside `from`: the `otherwise` error, filled from the record and the input. The handler is not called |
 | 3c. With a `caller`: parse `caller`, before the record. Then, after the record, the rules of `callers`, before the state of `changes` | `ContractViolation`: `<urn> needs the caller, as the shell authenticated them: pass it as { caller }`, or the parse issues on `caller`. No rule holds: the `otherwise` error, filled from the caller, the record and the input. The handler is not called |
+| 3d. When a rule reads `now` or `today`: the time, first | `ContractViolation`: `<urn> reads the time of the call: pass it as { now }, a UTC timestamp such as 2026-11-22T18:00:00Z` |
 | 4. Call the handler | `ContractViolation`: `the handler for <urn> did not return a Result; return ok(…) or fail(…)` |
 | 5. For a failure: find the error in `errors`, parse it, and parse its `recordAs` event | `ContractViolation`: `<urn> failed with <kind>, which it does not declare`, or the parse issues. Else `DomainError` |
 | 6. For a success: parse the output, then each event | `ContractViolation`: the parse issues, `the handler for <urn> returned events that are not a list`, or `<urn> emitted <kind>, which it does not emit`. For an event with `delivery`: the id from `newEventId`, or `<urn> emitted <kind>, whose delivery needs an event id: pass newEventId to executeOperation` |

@@ -128,6 +128,19 @@ What the contracts still could not state:
 - Filters on lists: "may list their own subscriptions" (subscriptions P22).
 - The core and the events do not get the caller, so each claims rule ties the actor of the request to the caller.
 
+## The current time (E2)
+
+Nov 22, 2026: **61 of 143 promises declared (42.7%)**, up from 57. Refer to the [time plan](./time-plan.md). Payments P18, subscriptions P06 and P12, and ticketing P23 are declared. E2 goes from 10 promises to 0: the four of bookings move to D3, as their start is a local time in the zone of the restaurant; payments P20 moves to E3; ticketing P09 moves to A2.
+
+The contracts found one gap, closed in the same change: gate 3 did not fill in the time of an outline, `Given the time is "<now>"`.
+
+What the contracts still could not state:
+- A local date and time in a zone (D3): bookings P07, P14, P15 and P16. `now` is there; the instant of the start is not.
+- A value that a record copies from another record, such as the start of the event on an order, a ticket and a transfer. A description says it; nothing checks it.
+- The record that an operation leaves behind when its answer has another shape (payments P18 states the capture time of the answer, and the shell stores it).
+- A rule on each item of a list (`every`), such as the start of each ticket of an order.
+- "One of" in the rule language: `status != 'a' and status != 'b' …`.
+
 ## The phases
 
 Each item is a plan of its own, with the format of the earlier plans: a target written first, one commit for each step, sabotages at the end. The order puts first what the most contracts need, and what fits the machinery that exists.
@@ -189,7 +202,8 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 5. Lists (A1). Done: 31.5%.
 6. Event delivery (D4). Done: 36.4%.
 7. Callers (D2). Done: 39.9%.
-8. The next plan. The score now puts A2 (12), E2 (10), C1 (9) and E3 (8) first.
+8. The current time (E2). Done: 42.7%.
+9. The next plan. The score now puts A2 (13), C1 (9), E3 (9) and D3 (8) first.
 
 ## Risks
 

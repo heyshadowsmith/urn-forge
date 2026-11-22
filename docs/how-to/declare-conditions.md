@@ -34,6 +34,7 @@ A rule uses the [rule language](../reference/rule-language), and each name has a
 | `input.` | The request, parsed | `requires` and `ensures` |
 | `current.` | The record that the operation changes | `requires` and `ensures`, only with `changes` |
 | `output.` | The answer, parsed | `ensures` only |
+| `now`, `today` | The time of the call, which the shell gives, and its UTC date | Each rule |
 | `event.` | The one event of the success, parsed. Each item of `emits` must have the form `{ event }`. Refer to [Emit an event](emit-an-event#_5-say-how-many-events-a-success-has) | `ensures` only |
 
 `otherwise` must be in `errors`. urn-forge fills its fields from the request and the record, by property name, so each required field of the error must be a property of the input or of the record. When both have the property, the value of the record is used. To choose the value, or to fill a property of another name, add `fill`:
@@ -73,6 +74,62 @@ A rule that does not fit stops `compile`:
 
 ```text
 domain.manifest.yaml:50:13  error  invalid-condition  urn:demo:conditions:booking:operation:create_booking: requires.0.rule: "output.party_size" reads the answer, which a requires rule runs before; use it in ensures
+```
+
+### A window of time
+
+A rule can compare with the time of the call: `now`, a `timestamp`, and `today`, its date in UTC. A timestamp takes minutes, hours and days:
+
+```yaml
+payment.operation.refund_payment:
+  description: Refund a captured payment, at most 180 days after the capture
+  input: payment.entity.payment_ref
+  output: payment.entity.payment
+  changes:
+    entity: payment.entity.payment
+    from: [captured]
+    to: refunded
+    otherwise: payment.error.invalid_status
+  requires:
+    - rule: now <= current.captured_at + 180 days
+      otherwise: payment.error.refund_window_closed
+  ensures:
+    - output.refunded_at is present and output.refunded_at = now
+  errors: [payment.error.invalid_status, payment.error.refund_window_closed]
+```
+
+The shell gives the time, from its clock, and the handler gets it as a third parameter. The core stays pure, and an answer can carry the time of the change:
+
+```ts
+const result = executeOperation(urn, body, core, { current, now: new Date().toISOString() });
+
+export const core = {
+  'urn:demo:time:payment:operation:refund_payment': (_input, current, now) => ok({ ...current, status: 'refunded', refunded_at: now }),
+} satisfies DomainCoreImplementation;
+```
+
+Without `now`, the result is a `ContractViolation`:
+
+```text
+urn:demo:time:pause:operation:pause reads the time of the call: pass it as { now }, a UTC timestamp such as 2026-11-22T18:00:00Z
+```
+
+In the scenarios, give the time with `Given the time is "<timestamp>"`. Write one scenario at the edge of the window and one after it:
+
+```gherkin
+Scenario Outline: A refund at most 180 days after the capture
+  Given the time is "<now>"
+  And the current payment is:
+    | payment_id   | status   | captured_at          |
+    | pay_abcd1234 | captured | 2026-01-01T12:00:00Z |
+  When I run the operation with:
+    | payment_id   |
+    | pay_abcd1234 |
+  Then the operation fails with "urn:demo:time:payment:error:refund_window_closed"
+
+  Examples:
+    | now                      |
+    | 2026-06-30T12:00:00.001Z |
 ```
 
 ## 3. Remove the rule from the handler
