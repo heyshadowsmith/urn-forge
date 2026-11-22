@@ -72,6 +72,17 @@ What the contracts still could not state, each in two or more contracts:
 - A repeat of a call that ends in the same state with the first answer (C2).
 
 
+## Conditions (part of A2)
+
+Nov 22, 2026: **40 of 143 promises declared (28.0%)**, up from 34. Refer to the [conditions plan](./conditions-plan.md). Bookings P02 and P08, claims P12, and payments P10, P11 and P12 are declared. Subscriptions P11 did not move: "the current plan is unchanged" compares an embedded entity as a whole, which a rule cannot do, so it moved to A1. A2 goes from 19 promises to 13.
+
+The contracts found that filling a refusal by property name is too weak when the request and the record share a name; `fill` names the source of each property. Still open:
+- A property of a refusal that is a calculation, such as "available = captured - refunded".
+- A rule that names an emitted event (claims P14: "the published event carries the reason").
+- `requires` runs before the core, so a refusal can carry values of the record. Who may call (D2) must be examined in the shell first.
+
+## The phases
+
 Each item is a plan of its own, with the format of the earlier plans: a target written first, one commit for each step, sabotages at the end. The order puts first what the most contracts need, and what fits the machinery that exists.
 
 ### Phase A: relations inside one request and its answer
@@ -127,7 +138,8 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 1. The docs split (decision 5). Done.
 2. The corpus, with its score in CI (decision 6). Done: 18.2%.
 3. States and moves (C3). Done: 23.8%.
-4. The next plan. The score now puts A2 (19), D4 (11) and D2 (10) first; A1 and C1 have 9 each.
+4. Conditions (part of A2). Done: 28.0%.
+5. The next plan. The score now puts A2 (13), D4 (11), A1 (10) and D2 (10) first.
 
 ## Risks
 
