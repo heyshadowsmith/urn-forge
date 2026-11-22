@@ -86,6 +86,9 @@ payment.field.refunded_amount:
   min: 0
   max: 99999999
   description: The sum of all refunds of a payment, in minor units
+payment.field.captured_at:
+  primitive: timestamp
+  description: When the payment was captured
 payment.field.created_at:
   primitive: timestamp
   description: When the payment or refund was created
@@ -245,6 +248,16 @@ payment.entity.payment:
       as: card
       required: false
     - ref: payment.field.created_at
+    - ref: payment.field.captured_at
+      required: false
+# A payment that was captured holds the time of its capture (the captured_at of the answer of
+# capture_payment), which the refund window counts from.
+payment.invariant.captured_payment_has_capture_time:
+  description: A captured or refunded payment holds when it was captured
+  on: payment.entity.payment
+  rule: status != 'captured' and status != 'partially_refunded' and status != 'refunded' or captured_at is present
+  reportOn: captured_at
+  message: A captured or refunded payment needs the time of its capture
 
 payment.entity.capture_request:
   description: A request to capture an authorized payment, in full when it has no amount
@@ -261,6 +274,7 @@ payment.entity.capture_result:
     - ref: payment.field.authorized_amount
     - ref: payment.field.captured_amount
     - ref: payment.field.status
+    - ref: payment.field.captured_at
 payment.invariant.captured_within_authorized:
   description: A capture takes at least 1 and at most the authorized amount
   on: payment.entity.capture_result
@@ -451,6 +465,7 @@ payment.operation.create_payment:
     - event.currency = output.currency
     - event.previous_status is absent
     - event.new_status = output.status
+    - event.occurred_at = now
 payment.operation.capture_payment:
   description: Capture an authorized payment, in full or in part
   input: payment.entity.capture_request
@@ -475,12 +490,14 @@ payment.operation.capture_payment:
     - output.authorized_amount = current.amount
     - input.amount is present or output.captured_amount = current.amount
     - input.amount is absent or output.captured_amount = input.amount
+    - output.captured_at = now
     - event.payment_id = output.payment_id
     - event.merchant_id = current.merchant_id
     - event.amount = current.amount
     - event.currency = current.currency
     - event.previous_status is present and event.previous_status = current.status
     - event.new_status = output.status
+    - event.occurred_at = now
   errors:
     - payment.error.not_found
     - payment.error.invalid_state
@@ -510,6 +527,7 @@ payment.operation.void_payment:
     - event.currency = current.currency
     - event.previous_status is present and event.previous_status = current.status
     - event.new_status = output.status
+    - event.occurred_at = now
   errors:
     - payment.error.not_found
     - payment.error.invalid_state
@@ -546,7 +564,10 @@ refund.operation.refund_payment:
     allow:
       - caller.key_kind = 'secret' and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
     otherwise: payment.error.not_found
+  # At most 180 days after the capture, to the millisecond: on day 180 itself a refund is allowed.
   requires:
+    - rule: current.captured_at is present and now <= current.captured_at + 180 days
+      otherwise: refund.error.refund_window_closed
     - rule: current.refunded_amount + input.amount <= current.captured_amount
       otherwise: refund.error.amount_exceeds_captured
       fill: { amount: input.amount }
@@ -562,6 +583,7 @@ refund.operation.refund_payment:
     - event.previous_status is present and event.previous_status = current.status
     - output.refunded_total < output.captured_amount or event.new_status = 'refunded'
     - output.refunded_total = output.captured_amount or event.new_status = 'partially_refunded'
+    - event.occurred_at = now
   errors:
     - payment.error.not_found
     - payment.error.invalid_state
