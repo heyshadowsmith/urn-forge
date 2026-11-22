@@ -1,51 +1,123 @@
 contract: claims
 description: "Lets employees submit expense claims with receipt lines for reimbursement, managers approve or reject them, and finance pay them."
 promises:
+  # The id is never reused: nothing states uniqueness among stored claims.
   P01:
     promise: "A claim id is the prefix \"CLM-\" followed by exactly 10 digits, is assigned by the domain on creation, and is never reused for another claim."
+    status: workaround
+    by: [claim.field.claim_id, claim.entity.draft, claim.entity.answer]
+    hole: C1
+  # The currency is only three capital letters, not a code of ISO 4217, and no amount is tied to its currency.
   P02:
     promise: "Every money amount is a decimal with at most 2 fraction digits in an ISO 4217 three-letter currency code, and every line amount is greater than 0.00 and at most 10000.00."
+    status: workaround
+    by: [line.field.amount, claim.field.total, claim.field.currency]
+    hole: B4
   P03:
     promise: "A line's category is exactly one of TRAVEL, LODGING, MEALS, MILEAGE, SUPPLIES, TRAINING or OTHER."
+    status: declared
+    by: [line.field.category]
+  # The total is not stated as the sum of the line amounts. A line has no currency of its own, so it uses the currency of the claim by its shape.
   P04:
     promise: "A claim has 1 to 50 lines, all lines of one claim use the same currency as the claim, and the claim total always equals the sum of its line amounts."
+    status: workaround
+    by: [claim.entity.draft, claim.entity.draft_edit, claim.entity.claim]
+    hole: A1
   P05:
     promise: "A line's expense date is never later than the claim's submission date and never more than 90 days before it."
+    status: not-declarable
+    hole: A1
+  # P06 and P07 conflict as written: a MILEAGE line above 25.00 cannot both carry and not carry a receipt.
+  # The invariant takes the reading that keeps both: the receipt rule applies to every category but MILEAGE.
   P06:
     promise: "A line with an amount above 25.00 must carry a receipt reference, and each receipt file is a PDF, JPEG or PNG of at most 10 MB."
+    status: declared
+    by: [line.invariant.receipt_above_25, receipt.entity.receipt, receipt.field.media_type, receipt.field.size_bytes]
+  # A line is one type with an optional distance and receipt, not a union of a MILEAGE line and other lines.
   P07:
     promise: "A MILEAGE line must carry a distance in kilometres between 1 and 2000 and must not carry a receipt, while every other category must not carry a distance."
+    status: workaround
+    by: [line.field.distance_km, line.invariant.mileage_has_distance, line.invariant.distance_only_for_mileage]
+    hole: B1
   P08:
     promise: "A claim's purpose text is 1 to 500 characters and a line description is 1 to 200 characters."
+    status: declared
+    by: [claim.field.purpose, line.field.description]
   P09:
     promise: "Callers can create a draft claim, edit a draft, submit, withdraw, approve, reject, mark paid, and get a claim by id, and each change request names the claim id and the version the caller last read."
+    status: declared
+    by: [claim.operation.create_draft, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid, claim.operation.get_claim, claim.entity.draft_edit, claim.entity.change, claim.entity.rejection]
+  # The six states are declared; the allowed moves between them are not.
   P10:
     promise: "A claim is in exactly one state of DRAFT, SUBMITTED, APPROVED, REJECTED, WITHDRAWN or PAID, and the only allowed moves are DRAFT to SUBMITTED, SUBMITTED to APPROVED, REJECTED or WITHDRAWN, REJECTED to DRAFT, and APPROVED to PAID."
+    status: workaround
+    by: [claim.field.state]
+    hole: C3
   P11:
     promise: "PAID and WITHDRAWN are final states, and once a claim leaves DRAFT its lines and amounts cannot be changed."
+    status: not-declarable
+    hole: C3
+  # The answer has its values, but not that its version is 1 higher than the version sent.
   P12:
     promise: "A successful request answers with the claim id, its new state, its total and currency, and its new version number, which is 1 higher than the version sent."
+    status: workaround
+    by: [claim.entity.answer, claim.entity.rejection_answer]
+    hole: A2
+  # INVALID_REQUEST is the rejection of the input, not a declared error; the codes as names on the wire, and that a refusal changes nothing, are not stated.
   P13:
     promise: "A refused request answers with exactly one of the codes INVALID_REQUEST, NOT_FOUND, FORBIDDEN, INVALID_STATE, VERSION_CONFLICT or DUPLICATE_RECEIPT, plus a human-readable message, and changes nothing."
+    status: workaround
+    by: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
+    hole: A2
+  # The answer and the event have a reason, but not that it is the reason of the request.
   P14:
     promise: "A rejection must include a reason of 10 to 500 characters, and the answer and the published event carry that reason."
+    status: workaround
+    by: [claim.field.reason, claim.entity.rejection, claim.entity.rejection_answer, claim.event.claim_rejected]
+    hole: A2
   P15:
     promise: "A payment amount always equals the approved claim total in the claim's currency, and a claim is never paid twice."
+    status: not-declarable
+    hole: C3
   P16:
     promise: "A request carrying an idempotency key already used by the same caller within 24 hours returns the original answer without making a second change."
+    status: not-declarable
+    hole: C2
+  # The refusal is declared; the rule across the receipts of stored claims is not.
   P17:
     promise: "The same receipt file, by its SHA-256 hash, cannot appear on two lines of claims that are not REJECTED or WITHDRAWN, and an attempt is refused with DUPLICATE_RECEIPT."
+    status: workaround
+    by: [claim.error.duplicate_receipt, receipt.field.sha256]
+    hole: C1
   P18:
     promise: "Only the employee who owns a claim may create, edit, submit or withdraw it, and only that employee, their manager and finance users may read it."
+    status: not-declarable
+    hole: D2
   P19:
     promise: "Only the claimant's manager may approve or reject a claim, a caller may never approve their own claim, and only finance users may mark a claim paid."
+    status: not-declarable
+    hole: D2
+  # The events and their values are declared, but an operation may emit zero or more of them, and the state in each event is not tied to its kind.
   P20:
     promise: "On each state change the domain publishes a ClaimSubmitted, ClaimApproved, ClaimRejected, ClaimWithdrawn or ClaimPaid event carrying the claim id, employee id, total, currency, new state, actor id and timestamp."
+    status: workaround
+    by: [claim.event.claim_submitted, claim.event.claim_approved, claim.event.claim_rejected, claim.event.claim_withdrawn, claim.event.claim_paid]
+    hole: C3
+  # Each event has an id; delivery at least once, the unique id and the order per claim are not stated.
   P21:
     promise: "Events are delivered at least once, carry a unique event id for deduplication, and events of one claim are delivered in the order the changes happened."
+    status: workaround
+    by: [event.field.event_id]
+    hole: D4
   P22:
     promise: "All timestamps are ISO 8601 in UTC, while expense dates are calendar dates without time zone."
+    status: declared
+    by: [event.field.occurred_at, line.field.expense_date]
   P23:
     promise: "A claim left in SUBMITTED for 30 days without a decision is reported in a ClaimDecisionOverdue event, and its state is not changed by that."
+    status: not-declarable
+    hole: E3
   P24:
     promise: "Within a major version, new optional fields, event types, categories or refusal codes may be added, but existing fields, states and codes are never removed or renamed, and callers must ignore unknown fields."
+    status: not-declarable
+    hole: E4
