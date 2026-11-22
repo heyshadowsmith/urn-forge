@@ -70,6 +70,7 @@ describe('public API', () => {
     expect(Object.keys(cucumber).sort()).toEqual([
       'assertEmits',
       'assertEmitsNone',
+      'assertEmitsNoneOf',
       'assertFailsWith',
       'assertOutput',
       'assertRecordedAs',

@@ -105,18 +105,24 @@ promises:
     status: workaround
     by: [booking.error.forbidden]
     hole: D2
-  # The six events and their fields are declared on the operations; emits allows zero or more events, so "exactly one per state change" is not stated.
+  # Each changing operation lists its event as { event }, so a success publishes exactly one; cancel_booking only when
+  # current.state = 'CONFIRMED' (a repeat changes nothing and publishes none). Each operation ensures the event carries the
+  # reference, restaurant id, new state, party size, local date, time and time zone of the change (cancel_booking reads the
+  # booking from current). occurred_at is a required UTC timestamp; that it is the time of the change is not in this promise
+  # (it would need a clock, E2).
   P20:
     promise: "Every state change publishes exactly one event (BookingCreated, BookingChanged, BookingCancelled, BookingSeated, BookingCompleted or BookingNoShow) carrying the booking reference, restaurant id, new state, party size, local start time with time zone and an event timestamp in UTC."
-    status: workaround
-    by: [booking.event.booking_created, booking.event.booking_changed, booking.event.booking_cancelled, booking.event.booking_seated, booking.event.booking_completed, booking.event.booking_no_show, booking.field.state, event.field.occurred_at]
-    hole: D4
-  # Each event carries an event id; at-least-once delivery, unique ids and the order of delivery are not stated.
+    status: declared
+    by: [booking.event.booking_created, booking.event.booking_changed, booking.event.booking_cancelled, booking.event.booking_seated, booking.event.booking_completed, booking.event.booking_no_show, booking.operation.create_booking, booking.operation.change_booking, booking.operation.cancel_booking, booking.operation.seat_booking, booking.operation.complete_booking, booking.operation.mark_no_show, booking.field.state, event.field.occurred_at]
+  # Each event has delivery { id: event_id, orderBy: reference }, and the contract uses the Postgres extra, so the outbox is
+  # generated: insertEvents writes the events in the transaction of the change (none is lost), a row stays until
+  # markPublished (at least once), event_id is the primary key (unique; the shell gives it through newEventId), and
+  # nextEvents gives the events of one reference by a sequence 1 higher each time (the order of the changes). The transport
+  # is the user's.
   P21:
     promise: "Events are delivered at least once, each carries a unique event id for de-duplication, and events for the same booking are delivered in the order the changes happened."
-    status: workaround
-    by: [event.field.event_id]
-    hole: D4
+    status: declared
+    by: [event.field.event_id, booking.field.reference, booking.event.booking_created, booking.event.booking_changed, booking.event.booking_cancelled, booking.event.booking_seated, booking.event.booking_completed, booking.event.booking_no_show]
   P22:
     promise: "Personal guest contact details are never included in published events, which refer to the guest only by an opaque guest id."
     status: declared

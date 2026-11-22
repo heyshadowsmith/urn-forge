@@ -20,7 +20,6 @@ const FEE_PER_TICKET = 250;
 const MAX_TICKETS = 10;
 
 const eur = (amount_minor: number) => ({ amount_minor, currency: 'EUR' });
-const messageId = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 const ticketA = {
   ticket_code: 'ABCDEFGH23456789',
@@ -67,7 +66,7 @@ export const core = {
     const total = held.reduce((sum, line) => sum + line.price.amount_minor, 0);
     return ok(
       { hold_id: HOLD, event_id, hold_status: 'ACTIVE', lines: held, total: eur(total), created_at: AT, expires_at: '2026-12-01T19:10:00Z' },
-      [emit('urn:corpus:ticketing:hold:event:hold_created', { message_id: messageId(1), event_id, hold_id: HOLD, occurred_at: AT })],
+      [emit('urn:corpus:ticketing:hold:event:hold_created', { event_id, hold_id: HOLD, occurred_at: AT })],
     );
   },
 
@@ -81,15 +80,14 @@ export const core = {
     const { event_id } = current;
     return ok({ ...order, event_id, tickets: order.tickets.map((t) => ({ ...t, event_id })) }, [
       emit('urn:corpus:ticketing:order:event:order_placed', {
-        message_id: messageId(1),
         event_id,
         order_id: ORDER,
         hold_id,
         ticket_codes: order.tickets.map((t) => t.ticket_code),
         occurred_at: AT,
       }),
-      ...order.tickets.map((t, i) =>
-        emit('urn:corpus:ticketing:ticket:event:ticket_issued', { message_id: messageId(i + 2), event_id, ticket_code: t.ticket_code, occurred_at: AT }),
+      ...order.tickets.map((t) =>
+        emit('urn:corpus:ticketing:ticket:event:ticket_issued', { event_id, ticket_code: t.ticket_code, occurred_at: AT }),
       ),
     ]);
   },
@@ -103,7 +101,6 @@ export const core = {
     const fresh = { ...ticketA, ticket_code: 'NEWXCDE234567892' };
     return ok(fresh, [
       emit('urn:corpus:ticketing:ticket:event:ticket_transferred', {
-        message_id: messageId(1),
         event_id: EVENT,
         ticket_code: fresh.ticket_code,
         void_ticket_code: ticketA.ticket_code,
@@ -119,8 +116,8 @@ export const core = {
     if (used) return fail('urn:corpus:ticketing:refund:error:ticket_not_refundable', { ticket_code: used });
     return ok(
       { refund_id: REFUND, order_id, ticket_codes: [...ticket_codes], amount: eur(SEATED_PRICE * ticket_codes.length) },
-      ticket_codes.map((ticket_code, i) =>
-        emit('urn:corpus:ticketing:ticket:event:ticket_refunded', { message_id: messageId(i + 1), event_id: EVENT, ticket_code, occurred_at: AT }),
+      ticket_codes.map((ticket_code) =>
+        emit('urn:corpus:ticketing:ticket:event:ticket_refunded', { event_id: EVENT, ticket_code, occurred_at: AT }),
       ),
     );
   },
@@ -130,15 +127,15 @@ export const core = {
     if (ticket_code === USED_TICKET) return ok({ ticket_code, event_id, verdict: 'ALREADY_USED' });
     if (ticket_code !== ticketA.ticket_code) return ok({ ticket_code, event_id, verdict: 'NOT_VALID' });
     return ok({ ticket_code, event_id, verdict: 'ADMIT' }, [
-      emit('urn:corpus:ticketing:ticket:event:ticket_used', { message_id: messageId(1), event_id, ticket_code, occurred_at: AT }),
+      emit('urn:corpus:ticketing:ticket:event:ticket_used', { event_id, ticket_code, occurred_at: AT }),
     ]);
   },
 
   'urn:corpus:ticketing:show:operation:cancel_event': ({ event_id }) =>
     ok({ event_id, cancelled_at: AT }, [
-      emit('urn:corpus:ticketing:show:event:event_cancelled', { message_id: messageId(1), event_id, occurred_at: AT }),
-      ...order.tickets.map((t, i) =>
-        emit('urn:corpus:ticketing:ticket:event:ticket_refunded', { message_id: messageId(i + 2), event_id, ticket_code: t.ticket_code, occurred_at: AT }),
+      emit('urn:corpus:ticketing:show:event:event_cancelled', { event_id, occurred_at: AT }),
+      ...order.tickets.map((t) =>
+        emit('urn:corpus:ticketing:ticket:event:ticket_refunded', { event_id, ticket_code: t.ticket_code, occurred_at: AT }),
       ),
     ]),
 } satisfies DomainCoreImplementation;

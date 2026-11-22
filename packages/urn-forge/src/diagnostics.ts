@@ -44,6 +44,7 @@ export const DIAGNOSTIC_CODES = {
   // Pass 5: structure
   'missing-key': 'A link, or a unique list of an embedded entity, names an entity that has no key',
   'invalid-unique': 'A unique list of properties is not on a list of embedded entities, or names a property that the item does not have or that holds a list or an entity',
+  'invalid-delivery': 'The delivery of an event names a property that the event does not have, or one that is optional, a list, an entity, or of the wrong primitive',
   'embedding-cycle': 'Entities embed each other in a cycle, so the type of an object would never end',
   // Pass 6: rule and template typing
   'unknown-placeholder': 'An error message placeholder does not name a required field of the error',

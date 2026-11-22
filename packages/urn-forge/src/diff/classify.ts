@@ -282,6 +282,9 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     const [a, b] = [old.events[urn]!, now.events[urn]];
     if (!live(a) || !live(b)) continue;
     properties(urn, a.fields, b!.fields, usesFor(urn, true));
+    // The delivery is what a consumer relies on to drop duplicates and to keep the order.
+    const delivery = (d: typeof a.delivery) => (d ? `id ${d.id}, orderBy ${d.orderBy.join(' and ')}${d.sequence === undefined ? '' : `, sequence ${d.sequence}`}` : 'none');
+    if (delivery(a.delivery) !== delivery(b!.delivery)) breaking(urn, `delivery ${delivery(a.delivery)} → ${delivery(b!.delivery)}: consumers rely on the id and the order`);
   }
 
   for (const urn of Object.keys(old.operations) as Urn[]) {
@@ -297,6 +300,17 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     // A new event is a new kind of fact, which a consumer that handles each kind does not know.
     for (const e of b!.emits.filter((x) => !a.emits.includes(x))) relate(urn, 'wider', `the new event ${e}`, new Set<Use>(['out']));
     for (const e of a.emits.filter((x) => !b!.emits.includes(x))) relate(urn, 'narrower', `removing the event ${e}`, new Set<Use>(['out']));
+    // A count promises how many of an event a success has: a new count promises more, a removed or changed one breaks.
+    const count = (op: typeof a, e: Urn) => {
+      const item = op.exactly?.find((x) => x.event === e);
+      return item === undefined ? undefined : item.when === undefined ? 'emitted exactly once on each success' : `emitted exactly once when ${item.when.ruleText}`;
+    };
+    for (const e of b!.emits.filter((x) => a.emits.includes(x))) {
+      const [before, after] = [count(a, e), count(b!, e)];
+      if (before === after) continue;
+      if (before === undefined) compatible(urn, `the event ${e} is now ${after}`);
+      else breaking(urn, `the event ${e} was ${before}, and is now ${after ?? 'emitted zero or more times'}`);
+    }
     // The record that the operation changes: which states it starts from is a rule on what callers can do.
     const [ca, cb] = [a.changes, b!.changes];
     if (!ca && cb) breaking(urn, `now changes a record of ${cb.entity}, only from ${cb.from.join(', ')}: a caller whose record is in another state is refused`);

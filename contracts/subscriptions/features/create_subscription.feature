@@ -18,6 +18,7 @@ Feature: Create a subscription
     And the operation emits "urn:corpus:subscriptions:invoice:event:paid":
       | subscription_id              | invoice_id |
       | sub_nnnnnnnnnnnnnnnnnnnnnnnn | in_1       |
+    And the operation emits no "urn:corpus:subscriptions:subscription:event:trial_will_end"
 
     Examples:
       | customer_id | plan_id                    | quantity | idempotency_key   |
@@ -64,11 +65,14 @@ Feature: Create a subscription
     And the operation emits "urn:corpus:subscriptions:subscription:event:trial_will_end":
       | subscription_id              |
       | sub_nnnnnnnnnnnnnnnnnnnnnnnn |
+    And the operation emits no "urn:corpus:subscriptions:invoice:event:created"
+    And the operation emits no "urn:corpus:subscriptions:invoice:event:paid"
 
     Examples:
       | trial_days | trial_end  |
       | 2          |            |
       |            | 2026-11-23 |
+      |            | 2026-11-24 |
 
   Scenario Outline: An explicit trial end in the window is accepted
     When I run the operation with:
@@ -78,10 +82,14 @@ Feature: Create a subscription
       | status   | trial_end   |
       | trialing | <trial_end> |
     And the operation emits "urn:corpus:subscriptions:subscription:event:created"
+    And the operation emits no "urn:corpus:subscriptions:subscription:event:trial_will_end"
+    And the operation emits no "urn:corpus:subscriptions:invoice:event:created"
+    And the operation emits no "urn:corpus:subscriptions:invoice:event:paid"
 
     Examples:
       | trial_end  |
       | 2028-11-21 |
+      | 2026-11-25 |
 
   Scenario Outline: A request that breaks a field limit is rejected
     When I run the operation with:

@@ -15,6 +15,7 @@ Feature: Refund a payment
     And the operation emits "urn:corpus:payments:payment:event:partially_refunded":
       | payment_id                   | merchant_id | amount | currency | previous_status | new_status         |
       | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | captured        | partially_refunded |
+    And the operation emits no "urn:corpus:payments:payment:event:refunded"
 
   Scenario: A part of what is left of a partially refunded payment is refunded, and the payment stays partially refunded
     Given the current payment is:
@@ -43,6 +44,7 @@ Feature: Refund a payment
     And the operation emits "urn:corpus:payments:payment:event:refunded":
       | payment_id                   | previous_status | new_status |
       | pay_captured0000000000000000 | captured        | refunded   |
+    And the operation emits no "urn:corpus:payments:payment:event:partially_refunded"
 
   Scenario: A refund of all that is left of a partially refunded payment makes the payment refunded
     Given the current payment is:

@@ -9,6 +9,7 @@
  */
 import type { UniversalIR } from '../ir/types.js';
 import { schemaNames } from '../naming.js';
+import { hasOutbox, outboxStore } from './postgres-outbox.js';
 import type { StoreChild, StoreRoot, StoreTable } from './postgres-tables.js';
 
 export const POSTGRES_STORE_FILE = 'domain.store.generated.ts';
@@ -83,9 +84,10 @@ function tableLiteral(table: StoreTable, indent: string): string {
   return `${indent}{\n${inner}schema: ${JSON.stringify(table.schema)},\n${inner}name: ${JSON.stringify(table.name)},\n${inner}key: [${table.key.map((k) => JSON.stringify(k)).join(', ')}],\n${inner}columns: [${columns}],\n${child}${inner}children: ${children},\n${indent}}`;
 }
 
-/** The store file for the tables, or undefined when there is no table. */
+/** The store file for the tables and the outbox, or undefined when there is neither. */
 export function storeFile(ir: UniversalIR, store: readonly StoreRoot[]): string | undefined {
-  if (store.length === 0) return undefined;
+  const outbox = hasOutbox(ir);
+  if (store.length === 0 && !outbox) return undefined;
   // The state property of each table entity that an operation changes.
   const states = new Map<string, string>();
   for (const operation of Object.values(ir.operations)) if (operation.changes) states.set(operation.changes.entity, operation.changes.property);
@@ -134,5 +136,6 @@ export function storeFile(ir: UniversalIR, store: readonly StoreRoot[]): string 
       );
     }
   }
+  if (outbox) parts.push(outboxStore(ir));
   return `${parts.join('\n')}\n`;
 }

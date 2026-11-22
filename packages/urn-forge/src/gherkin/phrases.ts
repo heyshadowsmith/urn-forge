@@ -20,6 +20,8 @@ export const STEP_PHRASES = {
   /** The same, followed by a table of the event's fields. */
   emitsWithFields: 'the operation emits {string}:',
   emitsNone: 'the operation emits no event',
+  /** The operation succeeded without this event. */
+  emitsNoneOf: 'the operation emits no {string}',
   /** The operation refused, and the error records this event for an audit trail. */
   recordedAs: 'the refusal is recorded as {string}',
   /** The same, followed by a table of the event's fields. */
@@ -58,6 +60,15 @@ export const EMITS_TEXT = /^the operation emits (?:"([^"]*)"|'([^']*)')(:?)$/;
 /** The event URN of an `emits` step text, or `undefined` for any other step. */
 export function emitsUrn(text: string): string | undefined {
   const match = EMITS_TEXT.exec(text);
+  return match ? (match[1] ?? match[2]) : undefined;
+}
+
+/** Matches the text of the step that expects a success without an event, in double or single quotes. */
+export const EMITS_NONE_OF_TEXT = /^the operation emits no (?:"([^"]*)"|'([^']*)')$/;
+
+/** The event URN of an `emits no "<urn>"` step text, or `undefined` for any other step. */
+export function emitsNoneOfUrn(text: string): string | undefined {
+  const match = EMITS_NONE_OF_TEXT.exec(text);
   return match ? (match[1] ?? match[2]) : undefined;
 }
 

@@ -82,7 +82,7 @@ The gate reads the syntax tree of each `.feature` file in `--features` and its s
 | Required columns | The table of `I run the operation with:` has a column for each required input field | `missing-column` |
 | Steps | The URN in each step is a declared error, an event of `emits`, a `recordAs` event, or an input invariant of the operation | `undeclared-error`, `undeclared-event`, `undeclared-record`, `undeclared-invariant` |
 | Tagged operations | Each operation has its URN in one or more tags | `untagged-operation` |
-| Coverage | Each tagged operation has a scenario for each declared error, each event of `emits`, each `recordAs` event and each input invariant | `uncovered-error`, `uncovered-event`, `uncovered-record`, `uncovered-invariant` |
+| Coverage | Each tagged operation has a scenario for each declared error, each event of `emits`, each `recordAs` event and each input invariant. An event with `when` also needs a successful scenario without it | `uncovered-error`, `uncovered-event`, `uncovered-record`, `uncovered-invariant` |
 | States | Each scenario of an operation with `changes` gives the record with `Given the current <entity> is:`, of that entity. Each `from` state has a scenario, and one state outside `from` has a scenario that expects `otherwise` | `invalid-current`, `uncovered-state` |
 | Waiver form | Each `# urn-forge:waive` comment has a field URN and a reason | `invalid-waiver` |
 | Cells | Each list or object cell is correct | `invalid-cell` |

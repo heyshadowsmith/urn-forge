@@ -362,7 +362,8 @@ refund.error.refund_window_closed:
   retryable: false
   message: The payment can no longer be refunded
 
-# Events: one for each status that a call can make
+# Events: one for each status that a call can make. Each has a delivery: the shell gives the
+# event id, and the outbox of the Postgres plugin keeps the events of one payment in order.
 
 payment.event.pending:
   description: A payment became pending
@@ -378,21 +379,29 @@ payment.event.pending:
     - ref: payment.field.status
       as: new_status
     - ref: payment.field.occurred_at
+  delivery: &delivery
+    id: event_id
+    orderBy: payment_id
 payment.event.authorized:
   description: A payment became authorized
   fields: *status_change
+  delivery: *delivery
 payment.event.captured:
   description: A payment became captured
   fields: *status_change
+  delivery: *delivery
 payment.event.voided:
   description: A payment became voided
   fields: *status_change
+  delivery: *delivery
 payment.event.partially_refunded:
   description: A payment became partially refunded
   fields: *status_change
+  delivery: *delivery
 payment.event.refunded:
   description: A payment became refunded in full
   fields: *status_change
+  delivery: *delivery
 
 # Calls
 
@@ -412,7 +421,18 @@ payment.operation.create_payment:
     - payment.error.fraud_suspected
     - payment.error.idempotency_conflict
     - payment.error.not_found
-  emits: [payment.event.authorized, payment.event.pending]
+  emits:
+    - event: payment.event.authorized
+      when: output.status = 'authorized'
+    - event: payment.event.pending
+      when: output.status = 'pending'
+  ensures:
+    - event.payment_id = output.payment_id
+    - event.merchant_id = output.merchant_id
+    - event.amount = output.amount
+    - event.currency = output.currency
+    - event.previous_status is absent
+    - event.new_status = output.status
 payment.operation.capture_payment:
   description: Capture an authorized payment, in full or in part
   input: payment.entity.capture_request
@@ -431,11 +451,18 @@ payment.operation.capture_payment:
     - output.authorized_amount = current.amount
     - input.amount is present or output.captured_amount = current.amount
     - input.amount is absent or output.captured_amount = input.amount
+    - event.payment_id = output.payment_id
+    - event.merchant_id = current.merchant_id
+    - event.amount = current.amount
+    - event.currency = current.currency
+    - event.previous_status is present and event.previous_status = current.status
+    - event.new_status = output.status
   errors:
     - payment.error.not_found
     - payment.error.invalid_state
     - payment.error.capture_exceeds_authorized
-  emits: [payment.event.captured]
+  emits:
+    - event: payment.event.captured
 payment.operation.void_payment:
   description: Cancel an authorized payment that was not captured
   input: payment.entity.payment_lookup
@@ -446,10 +473,18 @@ payment.operation.void_payment:
     to: voided
     otherwise: payment.error.invalid_state
     missing: payment.error.not_found
+  ensures:
+    - event.payment_id = output.payment_id
+    - event.merchant_id = current.merchant_id
+    - event.amount = current.amount
+    - event.currency = current.currency
+    - event.previous_status is present and event.previous_status = current.status
+    - event.new_status = output.status
   errors:
     - payment.error.not_found
     - payment.error.invalid_state
-  emits: [payment.event.voided]
+  emits:
+    - event: payment.event.voided
 payment.operation.get_payment:
   description: Read a payment by its id
   input: payment.entity.payment_lookup
@@ -475,13 +510,24 @@ refund.operation.refund_payment:
     - output.currency = current.currency
     - output.captured_amount = current.captured_amount
     - output.refunded_total = current.refunded_amount + input.amount
+    - event.payment_id = output.payment_id
+    - event.merchant_id = current.merchant_id
+    - event.amount = current.amount
+    - event.currency = current.currency
+    - event.previous_status is present and event.previous_status = current.status
+    - output.refunded_total < output.captured_amount or event.new_status = 'refunded'
+    - output.refunded_total = output.captured_amount or event.new_status = 'partially_refunded'
   errors:
     - payment.error.not_found
     - payment.error.invalid_state
     - payment.error.idempotency_conflict
     - refund.error.amount_exceeds_captured
     - refund.error.refund_window_closed
-  emits: [payment.event.partially_refunded, payment.event.refunded]
+  emits:
+    - event: payment.event.partially_refunded
+      when: output.refunded_total < output.captured_amount
+    - event: payment.event.refunded
+      when: output.refunded_total = output.captured_amount
 refund.operation.get_refund:
   description: Read a refund by its id
   input: refund.entity.refund_lookup

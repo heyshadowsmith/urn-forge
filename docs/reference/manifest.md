@@ -174,13 +174,27 @@ policy.operation.cancel_policy:
 | `input` | string | Yes | — | The short key of an entity |
 | `output` | string | Yes | — | The short key of an entity. It can be the `input` entity |
 | `errors` | A list of strings | No | `[]` | Short keys of errors, each one time |
-| `emits` | A list of strings | No | `[]` | Short keys of events, each one time |
+| `emits` | A list of strings or maps | No | `[]` | Each event one time: its short key, or `{ event, when }`. Refer to [`emits`](#emits) |
 | `changes` | A map | No | — | The stored record that the operation changes. Refer to [`changes`](#changes) |
 | `requires` | A list of maps | No | `[]` | Each `{ rule, otherwise }`. Refer to [`requires` and `ensures`](#requires-and-ensures) |
 | `ensures` | A list of strings | No | `[]` | Rules that the answer must keep. Refer to [`requires` and `ensures`](#requires-and-ensures) |
 
 - An operation with no `errors` can only succeed. Its error type is `never`.
-- A successful operation returns zero or more events of each kind in `emits`, in any sequence.
+- A successful operation returns zero or more events of each kind in `emits`, in any sequence, except as an item `{ event, when }` states.
+
+### `emits`
+
+| Item | Meaning |
+| --- | --- |
+| `policy.event.policy_issued` | Zero or more of the event on each success |
+| `{ event: payment.event.captured }` | Exactly one of the event on each success |
+| `{ event: payment.event.pending, when: <rule> }` | Exactly one of the event on each success where the rule holds, and none where it does not |
+
+A `when` rule reads `input.`, `current.` and `output.`, as an `ensures` rule does. A success with another count is a `ContractViolation`:
+
+```text
+urn:demo:delivery:payment:operation:create_payment emitted 0 urn:demo:delivery:payment:event:authorized, but it emits exactly one when output.status = 'authorized'
+```
 
 ### `changes`
 
@@ -201,9 +215,11 @@ Any other problem causes `invalid-changes`. The handler gets the record as its s
 | `requires[].rule` | string | Yes | A rule over `input.<property>` and, with `changes`, `current.<property>` |
 | `requires[].otherwise` | string | Yes | Short key of an error in `errors`. Each required field of the error is in `fill`, or a property of `input` or of the `changes` entity |
 | `requires[].fill` | A map | No | From a property of the error to a name with a prefix (`input.amount`, `current.amount`), of the same primitive. Properties not in `fill` are filled by name, the record's value over the input's |
-| `ensures[]` | string | — | A rule over `input.`, `current.` and `output.` |
+| `ensures[]` | string | — | A rule over `input.`, `current.`, `output.` and `event.` |
 
-A rule uses the [rule language](./rule-language). A name with no prefix, `current.` without `changes`, or `output.` in `requires` causes `invalid-condition`; a rule that does not parse or type causes the codes of an invariant rule. `executeOperation` checks `requires` after the state of `changes`, in order, and answers the `otherwise` of the first rule that does not hold, without a call of the handler. It checks `ensures` on a success; a rule that does not hold is a `ContractViolation`. Refer to [Declare preconditions and postconditions](../how-to/declare-conditions).
+`event.<property>` is the one event of the success. It is allowed only when each item of `emits` has the form `{ event }` or `{ event, when }`, and it names a property that each of those events has. On a success with no event, which the `when` rules allow, the rule is not checked. A success with more than one event is a `ContractViolation`.
+
+A rule uses the [rule language](./rule-language). A name with no prefix, `current.` without `changes`, `output.` in `requires`, or `event.` outside `ensures` causes `invalid-condition`; a rule that does not parse or type causes the codes of an invariant rule. `executeOperation` checks `requires` after the state of `changes`, in order, and answers the `otherwise` of the first rule that does not hold, without a call of the handler. It checks `ensures` on a success; a rule that does not hold is a `ContractViolation`. Refer to [Declare preconditions and postconditions](../how-to/declare-conditions).
 
 ## Event
 
@@ -221,10 +237,35 @@ policy.event.policy_issued:
 | --- | --- | --- | --- | --- |
 | `description` | string | Yes | — | Not empty |
 | `fields` | A list of [field references](#field-reference) | No | `[]` | Can be empty |
+| `delivery` | A map | No | — | How the event gets to a consumer. Refer to [`delivery`](#delivery) |
 
 - No property can have the name `kind` (`reserved-property`). The payload has `kind`, with the URN of the event.
 - Each value must pass the schema of its field. Else the result is `ContractViolation`.
 - A `key` causes `unknown-property`.
+
+### `delivery`
+
+```yaml
+payment.event.captured:
+  description: A payment was captured
+  fields:
+    - ref: event.field.event_id
+    - ref: event.field.sequence
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+  delivery:
+    id: event_id
+    orderBy: payment_id
+    sequence: sequence
+```
+
+| Property | Type | Necessary | Rule |
+| --- | --- | --- | --- |
+| `id` | string | Yes | A required `string` property of the event. The shell gives its value with `newEventId`; the core does not set it |
+| `orderBy` | A string or a list of strings | Yes | Required properties of the event that hold one value. The events with the same values get to a consumer in the order of their changes |
+| `sequence` | string | No | A required `integer` property of the event. The outbox sets it: 1 for the first event of an `orderBy` value, then 1 more for each event |
+
+Any other problem causes `invalid-delivery`. With the Postgres extra, the outbox keeps the delivery. Refer to [Emit an event](../how-to/emit-an-event#_6-deliver-the-events-in-order).
 
 ## Error
 

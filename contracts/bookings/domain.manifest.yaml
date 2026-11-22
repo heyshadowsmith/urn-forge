@@ -305,21 +305,29 @@ booking.event.booking_created:
     - ref: booking.field.local_time
     - ref: booking.field.time_zone
     - ref: guest.field.guest_id
+  delivery: &delivery
+    id: event_id
+    orderBy: reference
 booking.event.booking_changed:
   description: The date, the time or the party size of a booking changed
   fields: *event_fields
+  delivery: *delivery
 booking.event.booking_cancelled:
   description: A booking was cancelled
   fields: *event_fields
+  delivery: *delivery
 booking.event.booking_seated:
   description: The party of a booking was seated
   fields: *event_fields
+  delivery: *delivery
 booking.event.booking_completed:
   description: The party of a booking left
   fields: *event_fields
+  delivery: *delivery
 booking.event.booking_no_show:
   description: The party of a booking did not come
   fields: *event_fields
+  delivery: *delivery
 
 # Operations
 
@@ -339,7 +347,16 @@ booking.operation.create_booking:
     - booking.error.deposit_required
     - booking.error.payment_declined
     - booking.error.party_too_large_for_online
-  emits: [booking.event.booking_created]
+  emits:
+    - event: booking.event.booking_created
+  ensures:
+    - event.reference = output.reference
+    - event.restaurant_id = output.restaurant_id
+    - event.state = output.status
+    - event.party_size = output.party_size
+    - event.local_date = output.local_date
+    - event.local_time = output.local_time
+    - event.time_zone = output.time_zone
 booking.operation.get_booking:
   description: Read a booking
   input: booking.entity.booking_ref
@@ -361,7 +378,16 @@ booking.operation.change_booking:
     - booking.error.invalid_state
     - booking.error.change_deadline_passed
     - booking.error.forbidden
-  emits: [booking.event.booking_changed]
+  emits:
+    - event: booking.event.booking_changed
+  ensures:
+    - event.reference = output.reference
+    - event.restaurant_id = output.restaurant_id
+    - event.state = output.state
+    - event.party_size = output.party_size
+    - event.local_date = output.local_date
+    - event.local_time = output.local_time
+    - event.time_zone = output.time_zone
 booking.operation.cancel_booking:
   description: Cancel a booking, with the refund of its deposit
   input: booking.entity.booking_ref
@@ -374,12 +400,23 @@ booking.operation.cancel_booking:
     missing: booking.error.booking_not_found
   ensures:
     - output.refund_amount = 0 or current.deposit_amount is present and output.refund_amount <= current.deposit_amount
+    - event.reference = output.reference
+    - event.restaurant_id = current.restaurant_id
+    - event.state = output.state
+    - event.party_size = current.party_size
+    - event.local_date = current.local_date
+    - event.local_time = current.local_time
+    - event.time_zone = current.time_zone
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state
     - booking.error.change_deadline_passed
     - booking.error.forbidden
-  emits: [booking.event.booking_cancelled]
+  # A repeat on a CANCELLED booking changes nothing, so it publishes no event; the event. rules
+  # are checked on a success with the event.
+  emits:
+    - event: booking.event.booking_cancelled
+      when: current.state = 'CONFIRMED'
 booking.operation.seat_booking:
   description: Staff seat the party of a booking
   input: booking.entity.booking_ref
@@ -394,7 +431,16 @@ booking.operation.seat_booking:
     - booking.error.booking_not_found
     - booking.error.invalid_state
     - booking.error.forbidden
-  emits: [booking.event.booking_seated]
+  emits:
+    - event: booking.event.booking_seated
+  ensures:
+    - event.reference = output.reference
+    - event.restaurant_id = output.restaurant_id
+    - event.state = output.state
+    - event.party_size = output.party_size
+    - event.local_date = output.local_date
+    - event.local_time = output.local_time
+    - event.time_zone = output.time_zone
 booking.operation.complete_booking:
   description: Staff close the booking when the party leaves
   input: booking.entity.booking_ref
@@ -409,7 +455,16 @@ booking.operation.complete_booking:
     - booking.error.booking_not_found
     - booking.error.invalid_state
     - booking.error.forbidden
-  emits: [booking.event.booking_completed]
+  emits:
+    - event: booking.event.booking_completed
+  ensures:
+    - event.reference = output.reference
+    - event.restaurant_id = output.restaurant_id
+    - event.state = output.state
+    - event.party_size = output.party_size
+    - event.local_date = output.local_date
+    - event.local_time = output.local_time
+    - event.time_zone = output.time_zone
 booking.operation.mark_no_show:
   description: Staff mark a booking whose party did not come
   input: booking.entity.booking_ref
@@ -424,4 +479,13 @@ booking.operation.mark_no_show:
     - booking.error.booking_not_found
     - booking.error.invalid_state
     - booking.error.forbidden
-  emits: [booking.event.booking_no_show]
+  emits:
+    - event: booking.event.booking_no_show
+  ensures:
+    - event.reference = output.reference
+    - event.restaurant_id = output.restaurant_id
+    - event.state = output.state
+    - event.party_size = output.party_size
+    - event.local_date = output.local_date
+    - event.local_time = output.local_time
+    - event.time_zone = output.time_zone

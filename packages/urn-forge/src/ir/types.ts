@@ -153,7 +153,19 @@ export interface IREvent {
   readonly description: string;
   /** Declaration order preserved; may be empty. */
   readonly fields: readonly IRPropertyRef[];
+  /** How the event reaches a consumer; the outbox of the Postgres extra keeps it. */
+  readonly delivery?: IRDelivery;
   readonly lifecycle?: Lifecycle;
+}
+
+/** The properties of an event that its delivery uses. */
+export interface IRDelivery {
+  /** A required string property: the shell gives it through newEventId, unique for each event. */
+  readonly id: string;
+  /** Required single-valued properties: the events with the same values are delivered in order. */
+  readonly orderBy: readonly string[];
+  /** A required integer property that the outbox fills: 1 for the first event of an order, then 1 higher for each. */
+  readonly sequence?: string;
 }
 
 /** The five error categories. Metadata for the shell; the core never reads them. */
@@ -191,6 +203,8 @@ export interface IROperation {
   readonly errors: readonly Urn[];
   /** The events it may return on success (event URNs), in declaration order. */
   readonly emits: readonly Urn[];
+  /** The events of `emits` that it returns exactly once on each success where `when` holds, and never where it does not. */
+  readonly exactly?: readonly IREmitRule[];
   /** The stored record that the operation changes, and the move it makes. */
   readonly changes?: IRChange;
   /** Rules that must hold before the handler runs; the first that does not answers its error. */
@@ -204,6 +218,12 @@ export interface IROperation {
 export interface IRRule {
   readonly rule: RuleExpr;
   readonly ruleText: string;
+}
+
+/** An event that an operation emits exactly once on each success where `when` holds (always, without `when`). */
+export interface IREmitRule {
+  readonly event: Urn;
+  readonly when?: IRRule;
 }
 
 /** A `requires` rule, and the declared error that answers when it does not hold. */

@@ -9,6 +9,7 @@
  *   Then the operation emits "<event URN>"
  *   Then the operation emits "<event URN>":        one header row of event field names + one data row
  *   Then the operation emits no event
+ *   Then the operation emits no "<event URN>"
  *
  * The operation is the feature's (or scenario's) `@urn:…:operation:…` tag. Table cells are
  * coerced by the field's primitive (from the generated `DispatchMap`, read through the
@@ -320,6 +321,13 @@ export function assertEmitsNone(result: ExecuteResultLike, urn: string): void {
   if (events.length > 0) throw new Error(`${urn} emitted ${events.map((e) => e.urn).join(', ')}; expected no event`);
 }
 
+/** Checks the operation succeeded without the event \`eventUrn\`: the other side of an event that it emits only when a rule holds. */
+export function assertEmitsNoneOf(result: ExecuteResultLike, eventUrn: string, urn: string): void {
+  if (!result.ok) throw new Error(`${urn} did not succeed: ${describeFailure(result)}; expected a success without ${eventUrn}`);
+  const count = (result.events ?? []).filter((event) => event.urn === eventUrn).length;
+  if (count > 0) throw new Error(`${urn} emitted ${eventUrn}; expected a success without it`);
+}
+
 // ---------------------------------------------------------------------------
 // Cucumber registration
 // ---------------------------------------------------------------------------
@@ -473,5 +481,11 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
   Then(STEP_PHRASES.emitsNone, function (this: StepsWorld) {
     const { urn, result } = lastRun(this);
     assertEmitsNone(result, urn);
+  });
+
+  Then(STEP_PHRASES.emitsNoneOf, function (this: StepsWorld, eventUrn: string) {
+    const { urn, result } = lastRun(this);
+    declaredEvent(urn, eventUrn);
+    assertEmitsNoneOf(result, eventUrn, urn);
   });
 }

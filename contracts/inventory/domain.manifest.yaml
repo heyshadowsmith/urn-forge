@@ -116,7 +116,8 @@ request.error.idempotency_conflict:
   fields:
     - ref: request.field.idempotency_key
 
-# Events: one for each change to stock.
+# Events: one for each change to stock. Each event with a delivery goes through the outbox of
+# the Postgres extra, which gives it an id from the shell and a sequence per SKU and location.
 event.field.event_id:
   primitive: string
   format: uuid
@@ -140,10 +141,16 @@ stock.event.stock_received:
   fields:
     - ref: event.field.event_id
     - ref: event.field.sequence
+    - ref: stock.field.sku
+    - ref: stock.field.location
     - ref: event.field.quantity_changed
     - ref: stock.entity.stock_level
       as: level
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: [sku, location]
+    sequence: sequence
 stock.event.stock_depleted:
   description: The available count of a SKU at a location dropped to 0
   fields:
@@ -152,6 +159,10 @@ stock.event.stock_depleted:
     - ref: stock.field.sku
     - ref: stock.field.location
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: [sku, location]
+    sequence: sequence
 
 stock.operation.get_stock:
   description: Read the stock of one SKU at one location
@@ -285,40 +296,64 @@ reservation.event.stock_reserved:
     - ref: event.field.event_id
     - ref: event.field.sequence
     - ref: reservation.field.reservation_id
+    - ref: stock.field.sku
+    - ref: stock.field.location
     - ref: event.field.quantity_changed
     - ref: stock.entity.stock_level
       as: level
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: [sku, location]
+    sequence: sequence
 reservation.event.reservation_released:
   description: The stock of one line of a released reservation became available again
   fields:
     - ref: event.field.event_id
     - ref: event.field.sequence
     - ref: reservation.field.reservation_id
+    - ref: stock.field.sku
+    - ref: stock.field.location
     - ref: event.field.quantity_changed
     - ref: stock.entity.stock_level
       as: level
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: [sku, location]
+    sequence: sequence
 reservation.event.reservation_expired:
   description: The stock of one line of an expired reservation became available again
   fields:
     - ref: event.field.event_id
     - ref: event.field.sequence
     - ref: reservation.field.reservation_id
+    - ref: stock.field.sku
+    - ref: stock.field.location
     - ref: event.field.quantity_changed
     - ref: stock.entity.stock_level
       as: level
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: [sku, location]
+    sequence: sequence
 reservation.event.stock_shipped:
   description: Reserved stock of one line left the location
   fields:
     - ref: event.field.event_id
     - ref: event.field.sequence
     - ref: reservation.field.reservation_id
+    - ref: stock.field.sku
+    - ref: stock.field.location
     - ref: event.field.quantity_changed
     - ref: stock.entity.stock_level
       as: level
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: [sku, location]
+    sequence: sequence
 
 reservation.operation.reserve_stock:
   description: Reserve every line in full, or nothing
@@ -388,11 +423,17 @@ adjustment.event.stock_adjusted:
   fields:
     - ref: event.field.event_id
     - ref: event.field.sequence
+    - ref: stock.field.sku
+    - ref: stock.field.location
     - ref: event.field.quantity_changed
     - ref: adjustment.field.reason
     - ref: stock.entity.stock_level
       as: level
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: [sku, location]
+    sequence: sequence
 
 adjustment.operation.adjust_stock:
   description: Correct the on-hand count of one SKU at one location
@@ -403,4 +444,8 @@ adjustment.operation.adjust_stock:
     - stock.error.unknown_location
     - stock.error.insufficient_stock
     - request.error.idempotency_conflict
-  emits: [adjustment.event.stock_adjusted, stock.event.stock_depleted]
+  # Exactly one stock_adjusted on each success, and one stock_depleted when the available count is 0.
+  emits:
+    - event: adjustment.event.stock_adjusted
+    - event: stock.event.stock_depleted
+      when: output.available = 0

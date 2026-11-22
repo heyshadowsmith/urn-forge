@@ -10,8 +10,8 @@ Feature: Reserve stock for an order
       | result   | reservation_id                       | order_id | state  | lines                                                                                                          | expires_at               |
       | RESERVED | c0ffee00-1234-4abc-8def-0123456789ab | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 3 }, { sku: GADGET-2, location: ROT-A-0001, quantity: 100 }] | 2026-11-22T10:30:00.000Z |
     And the operation emits "urn:corpus:inventory:reservation:event:stock_reserved":
-      | event_id                             | sequence | reservation_id                       | quantity_changed | level                                                                                | occurred_at              |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-1e2f3a4b5c6d | 1        | c0ffee00-1234-4abc-8def-0123456789ab | 3                | { sku: WIDGET-1, location: AMS-B-0142, on_hand: 500, reserved: 103, available: 397 } | 2026-11-22T10:00:00.000Z |
+      | event_id                             | reservation_id                       | quantity_changed | level                                                                                | occurred_at              |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 | c0ffee00-1234-4abc-8def-0123456789ab | 3                | { sku: WIDGET-1, location: AMS-B-0142, on_hand: 500, reserved: 103, available: 397 } | 2026-11-22T10:00:00.000Z |
 
   Scenario Outline: A time-to-live from 1 minute to 7 days sets when the reservation expires
     When I run the operation with:
@@ -45,8 +45,8 @@ Feature: Reserve stock for an order
       | quantity_changed | level                                                                              |
       | 400              | { sku: WIDGET-1, location: AMS-B-0142, on_hand: 500, reserved: 500, available: 0 } |
     And the operation emits "urn:corpus:inventory:stock:event:stock_depleted":
-      | event_id                             | sequence | sku      | location   | occurred_at              |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-1e2f3a4b5c6d | 1        | WIDGET-1 | AMS-B-0142 | 2026-11-22T10:00:00.000Z |
+      | event_id                             | sku      | location   | occurred_at              |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000002 | WIDGET-1 | AMS-B-0142 | 2026-11-22T10:00:00.000Z |
 
   Scenario Outline: The shortest and longest values of a reservation are accepted
     When I run the operation with:

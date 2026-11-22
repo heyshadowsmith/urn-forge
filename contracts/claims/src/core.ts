@@ -11,7 +11,6 @@ const KNOWN_RECEIPT = 'f'.repeat(64);
 
 const EMPLOYEE = 'E-1001';
 const CURRENCY = 'EUR';
-const EVENT_ID = '3f0c8a52-6d1e-4b7a-9c2f-1a2b3c4d5e6f';
 const NOW = '2026-11-22T10:00:00Z';
 
 type Line = { readonly amount: string; readonly receipt?: { readonly sha256: string } };
@@ -37,11 +36,11 @@ function duplicate(lines: readonly Line[]) {
 
 const total = (lines: readonly Line[]) => sumDecimal(lines.map((line) => line.amount));
 
-/** The answer to a move of the claim to a new state, and the fields of the event that tells it. */
+/** The answer to a move of the claim to a new state, and the fields of the event that tells it; the shell gives the event id. */
 function move(state: 'SUBMITTED' | 'WITHDRAWN' | 'APPROVED' | 'PAID' | 'REJECTED', { actor_id }: Request, current: Stored) {
   const { claim_id, employee_id, total, currency } = current;
   const answer = { claim_id, state, total, currency, version: current.version + 1 };
-  const fields = { event_id: EVENT_ID, claim_id, employee_id, total, currency, state, actor_id, occurred_at: NOW };
+  const fields = { claim_id, employee_id, total, currency, state, actor_id, occurred_at: NOW };
   return { answer, fields };
 }
 

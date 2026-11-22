@@ -12,7 +12,7 @@
 import * as v from 'valibot';
 import { invariantsOf, valueField, type IREntity, type IRError, type IREvent, type IRField, type IROperation, type IRPropertyRef, type IRRule, type ListRule, type UniversalIR, type Urn } from '../ir/types.js';
 import { conditionName, ruleName, schemaNames } from '../naming.js';
-import { firstField } from '../rules/index.js';
+import { firstField, namesIn } from '../rules/index.js';
 import { emitRule, type EmbeddedProperty } from '../rules/emit.js';
 import {
   constraintKeys,
@@ -252,24 +252,45 @@ function listSchema(item: string, rule: ListRule, key?: string): string {
  */
 function conditionDeclarations(ir: UniversalIR): string[] {
   return valuesInUrnOrder(ir.operations).flatMap((op) => {
-    if (!op.requires && !op.ensures) return [];
+    const whens = (op.exactly ?? []).flatMap((item, i) => (item.when ? [[item.when, i] as const] : []));
+    if (!op.requires && !op.ensures && whens.length === 0) return [];
     const typeOf = (urn: Urn) => schemaNames(ir.entities[urn]!.brandIdentifier).output;
     const values = [`input: ${typeOf(op.input)}`, ...(op.changes ? [`current: ${typeOf(op.changes.entity)}`] : [])];
+    // An ensures rule that names the event reads the one event of the success.
+    const eventType = (op.exactly ?? []).map((item) => schemaNames(ir.events[item.event]!.brandIdentifier).output).join(' | ');
     const primitiveOf = conditionPrimitives(op, ir);
     const propertiesOf = conditionEmbedded(op, ir);
-    const declare = (rule: IRRule, kind: 'requires' | 'ensures', index: number) =>
-      [
+    const declare = (rule: IRRule, kind: 'requires' | 'ensures' | 'when', index: number) => {
+      const event = kind === 'ensures' && namesIn(rule.rule).some((name) => name.startsWith('event.'));
+      const parameters = [...values, ...(kind === 'requires' ? [] : [`output: ${typeOf(op.output)}`]), ...(event ? [`event: ${eventType}`] : [])];
+      return [
         `/** ${op.urn} — ${kind}: ${rule.ruleText} */`,
-        `export const ${conditionName(op.brandIdentifier, kind, index)} = (p: { ${[...values, ...(kind === 'ensures' ? [`output: ${typeOf(op.output)}`] : [])].join('; ')} }): boolean =>`,
+        `export const ${conditionName(op.brandIdentifier, kind, index)} = (p: { ${parameters.join('; ')} }): boolean =>`,
         `  ${emitRule(rule.rule, primitiveOf, propertiesOf).code};`,
       ].join('\n');
-    return [...(op.requires ?? []).map((rule, i) => declare(rule, 'requires', i)), ...(op.ensures ?? []).map((rule, i) => declare(rule, 'ensures', i))];
+    };
+    return [
+      ...(op.requires ?? []).map((rule, i) => declare(rule, 'requires', i)),
+      ...(op.ensures ?? []).map((rule, i) => declare(rule, 'ensures', i)),
+      ...whens.map(([rule, i]) => declare(rule, 'when', i)),
+    ];
   });
+}
+
+/** The entity of each prefix of an operation's conditions. `event.` names properties that each of its events has, so the first event gives them. */
+function conditionEntities(op: IROperation, ir: UniversalIR): Record<string, IREntity> {
+  const event = op.exactly?.[0] && ir.events[op.exactly[0].event];
+  return {
+    input: ir.entities[op.input]!,
+    output: ir.entities[op.output]!,
+    ...(op.changes ? { current: ir.entities[op.changes.entity]! } : {}),
+    ...(event ? { event: event as unknown as IREntity } : {}),
+  };
 }
 
 /** The properties of each prefixed embedded entity of an operation's conditions. */
 function conditionEmbedded(op: IROperation, ir: UniversalIR) {
-  const entities: Record<string, IREntity> = { input: ir.entities[op.input]!, output: ir.entities[op.output]!, ...(op.changes ? { current: ir.entities[op.changes.entity]! } : {}) };
+  const entities = conditionEntities(op, ir);
   return (name: string) => {
     const dot = name.indexOf('.');
     return dot < 0 ? undefined : embeddedIn(entities[name.slice(0, dot)]!, ir)(name.slice(dot + 1));
@@ -278,7 +299,7 @@ function conditionEmbedded(op: IROperation, ir: UniversalIR) {
 
 /** The primitive of each prefixed name of an operation's conditions. */
 function conditionPrimitives(op: IROperation, ir: UniversalIR) {
-  const entities: Record<string, IREntity> = { input: ir.entities[op.input]!, output: ir.entities[op.output]!, ...(op.changes ? { current: ir.entities[op.changes.entity]! } : {}) };
+  const entities = conditionEntities(op, ir);
   return (name: string) => {
     const dot = name.indexOf('.');
     return primitiveIn(entities[name.slice(0, dot)]!, ir)(name.slice(dot + 1));
@@ -388,7 +409,7 @@ function helpersFor(ir: UniversalIR): ValibotHelper[] {
     for (const helper of emitRule(invariant.rule, primitiveOf, embeddedIn(ir.entities[invariant.on]!, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
   }
   for (const op of Object.values(ir.operations)) {
-    for (const rule of [...(op.requires ?? []), ...(op.ensures ?? [])]) {
+    for (const rule of [...(op.requires ?? []), ...(op.ensures ?? []), ...(op.exactly ?? []).flatMap((item) => (item.when ? [item.when] : []))]) {
       for (const helper of emitRule(rule.rule, conditionPrimitives(op, ir), conditionEmbedded(op, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
     }
   }

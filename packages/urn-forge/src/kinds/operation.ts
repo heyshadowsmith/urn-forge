@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 import { Description, ShortKeyRef } from '../grammar.js';
-import type { IRChange, IREntity, IRError, IRField, IROperation, IRRequire, IRRule, Urn } from '../ir/types.js';
+import type { IRChange, IREmitRule, IREntity, IRError, IREvent, IRField, IROperation, IRRequire, IRRule, Urn } from '../ir/types.js';
 import { checkRule, namesIn, parseRule, printRule, stripColumns, type RuleField } from '../rules/index.js';
 import { ruleFields } from './invariant.js';
 import { defineKind } from './types.js';
@@ -11,8 +11,11 @@ const OperationSchema = v.strictObject({
   output: ShortKeyRef,
   /** Expected domain rejections. Absent means none. */
   errors: v.optional(v.array(ShortKeyRef)),
-  /** The events produced on success. Absent means none. */
-  emits: v.optional(v.array(ShortKeyRef)),
+  /**
+   * The events produced on success. Absent means none. A short key: zero or more of it.
+   * `{ event, when }`: exactly one on each success where the rule holds, and none where it does not.
+   */
+  emits: v.optional(v.array(v.union([ShortKeyRef, v.strictObject({ event: ShortKeyRef, when: v.optional(v.string()) })]))),
   /** The stored record that the operation changes, and the move it makes. */
   changes: v.optional(
     v.strictObject({
@@ -41,13 +44,14 @@ export const operation = defineKind<OperationDecl, IROperation>()({
     { path: ['output'], targets: ['entity'] },
     { path: ['errors', '*'], targets: ['error'] },
     { path: ['emits', '*'], targets: ['event'] },
+    { path: ['emits', '*', 'event'], targets: ['event'] },
     { path: ['changes', 'entity'], targets: ['entity'] },
     { path: ['changes', 'otherwise'], targets: ['error'] },
     { path: ['changes', 'missing'], targets: ['error'] },
     { path: ['requires', '*', 'otherwise'], targets: ['error'] },
   ],
   // `changes` is checked against the state field of its entity and the fields of its error.
-  after: ['field', 'entity', 'error'],
+  after: ['field', 'entity', 'error', 'event'],
   build({ atom, shortKey, decl, ref, node, report }) {
     const input = ref(['input']);
     const output = ref(['output']);
@@ -69,23 +73,26 @@ export const operation = defineKind<OperationDecl, IROperation>()({
       }
     });
     const emits: Urn[] = [];
-    (decl.emits ?? []).forEach((_, index) => {
-      const target = ref(['emits', index]);
+    const counted: CountedEmit[] = [];
+    (decl.emits ?? []).forEach((item, index) => {
+      const target = ref(typeof item === 'string' ? ['emits', index] : ['emits', index, 'event']);
       if (!target) {
         resolved = false;
       } else if (emits.includes(target.urn)) {
         report({ code: 'duplicate-ref', urn: atom.urn, message: `${atom.urn}: emits[${index}] lists ${target.urn} more than once`, path: [shortKey, 'emits', index] });
       } else {
         emits.push(target.urn);
+        if (typeof item !== 'string') counted.push({ event: target.urn, index, ...(item.when === undefined ? {} : { when: item.when }) });
       }
     });
+    const countsAll = (decl.emits ?? []).length > 0 && counted.length === (decl.emits ?? []).length;
     if (!input || !output || !resolved) return undefined;
     let changes: IRChange | undefined;
     if (decl.changes) {
       changes = buildChange(decl.changes, { urn: atom.urn, shortKey, input: input.urn, errors, ref, node, report });
       if (!changes) return undefined;
     }
-    const conditions = buildConditions(decl, { urn: atom.urn, shortKey, input: input.urn, output: output.urn, errors, changes, ref, node, report });
+    const conditions = buildConditions(decl, { urn: atom.urn, shortKey, input: input.urn, output: output.urn, errors, changes, counted, countsAll, ref, node, report });
     if (!conditions) return undefined;
     return {
       urn: atom.urn,
@@ -98,9 +105,17 @@ export const operation = defineKind<OperationDecl, IROperation>()({
       ...(changes ? { changes } : {}),
       ...(conditions.requires.length > 0 ? { requires: conditions.requires } : {}),
       ...(conditions.ensures.length > 0 ? { ensures: conditions.ensures } : {}),
+      ...(conditions.exactly.length > 0 ? { exactly: conditions.exactly } : {}),
     };
   },
 });
+
+/** An item of emits in the form { event, when }: the event, where it is, and its rule. */
+interface CountedEmit {
+  readonly event: Urn;
+  readonly index: number;
+  readonly when?: string;
+}
 
 interface ConditionContext {
   readonly urn: Urn;
@@ -109,23 +124,35 @@ interface ConditionContext {
   readonly output: Urn;
   readonly errors: readonly Urn[];
   readonly changes: IRChange | undefined;
+  readonly counted: readonly CountedEmit[];
+  /** Each item of emits has the form { event }, so a success has at most one event of each, and `event.` can name their common properties. */
+  readonly countsAll: boolean;
   readonly ref: (path: (string | number)[]) => { readonly urn: Urn } | undefined;
-  readonly node: (kind: 'field' | 'entity' | 'error', urn: Urn) => unknown;
+  readonly node: (kind: 'field' | 'entity' | 'error' | 'event', urn: Urn) => unknown;
   readonly report: (issue: { code: 'invalid-condition' | 'rule-syntax' | 'unknown-rule-field' | 'rule-type' | 'unguarded-field'; urn: string; message: string; path: (string | number)[] }) => void;
 }
 
 /** Parses and types the requires and ensures rules; undefined after a problem. */
-function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: IRRequire[]; ensures: IRRule[] } | undefined {
+function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: IRRequire[]; ensures: IRRule[]; exactly: IREmitRule[] } | undefined {
   const entity = (urn: Urn) => c.node('entity', urn) as IREntity | undefined;
   const node = c.node as (kind: 'field' | 'entity', urn: Urn) => unknown;
   const [input, output, record] = [entity(c.input), entity(c.output), c.changes ? entity(c.changes.entity) : undefined];
   if (!input || !output) return undefined;
   const before: Record<string, RuleField> = { ...ruleFields(input, node, 'input.'), ...(record ? ruleFields(record, node, 'current.') : {}) };
   const after: Record<string, RuleField> = { ...before, ...ruleFields(output, node, 'output.') };
+  // `event.`: the properties that every counted event has, with one primitive and count.
+  const events = c.counted.map((item) => c.node('event', item.event) as IREvent | undefined);
+  let eventFields: Record<string, RuleField> | undefined;
+  if (c.countsAll && events.every((e) => e !== undefined)) {
+    const each = events.map((e) => ruleFields(e as unknown as IREntity, node, 'event.'));
+    eventFields = Object.fromEntries(
+      Object.entries(each[0]!).filter(([name, field]) => each.every((f) => Object.hasOwn(f, name) && f[name]!.primitive === field.primitive && f[name]!.many === field.many && f[name]!.required === field.required)),
+    );
+  }
   let problems = 0;
 
   /** One rule: parsed, its prefixes checked, typed against the fields of its condition. */
-  const rule = (text: string, fields: Record<string, RuleField>, where: (string | number)[], kind: 'requires' | 'ensures'): IRRule | undefined => {
+  const rule = (text: string, fields: Record<string, RuleField>, where: (string | number)[], kind: 'requires' | 'ensures' | 'when'): IRRule | undefined => {
     const fail = (code: Parameters<ConditionContext['report']>[0]['code'], message: string) => {
       problems += 1;
       c.report({ code, urn: c.urn, message: `${c.urn}: ${where.join('.')}: ${message}`, path: [c.shortKey, ...where] });
@@ -136,7 +163,9 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
     for (const name of namesIn(stripColumns(parsed.expr))) {
       if (name.startsWith('current.') && !c.changes) fail('invalid-condition', `"${name}" reads the record that the operation changes, but the operation has no changes`);
       else if (name.startsWith('output.') && kind === 'requires') fail('invalid-condition', `"${name}" reads the answer, which a requires rule runs before; use it in ensures`);
-      else if (!/^(input|current|output)\./.test(name)) fail('invalid-condition', `"${name}" has no prefix; write input.${name}, current.${name} or output.${name}`);
+      else if (name.startsWith('event.') && kind !== 'ensures') fail('invalid-condition', `"${name}" reads the event, which only an ensures rule can`);
+      else if (name.startsWith('event.') && !eventFields) fail('invalid-condition', `"${name}" reads the event, so each item of emits must have the form { event } or { event, when }`);
+      else if (!/^(input|current|output|event)\./.test(name)) fail('invalid-condition', `"${name}" has no prefix; write input.${name}, current.${name} or output.${name}`);
     }
     if (problems > before) return undefined;
     for (const problem of checkRule(parsed.expr, fields, 'the condition')) fail(problem.code, `${problem.message} (at column ${problem.column} of the rule)`);
@@ -178,10 +207,20 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
   });
   const ensures: IRRule[] = [];
   (decl.ensures ?? []).forEach((text, index) => {
-    const built = rule(text, after, ['ensures', index], 'ensures');
+    const built = rule(text, { ...after, ...eventFields }, ['ensures', index], 'ensures');
     if (built) ensures.push(built);
   });
-  return problems > 0 ? undefined : { requires, ensures };
+  // A `when` rule reads what an ensures rule reads, except the event.
+  const exactly: IREmitRule[] = [];
+  for (const item of c.counted) {
+    if (item.when === undefined) {
+      exactly.push({ event: item.event });
+      continue;
+    }
+    const built = rule(item.when, after, ['emits', item.index, 'when'], 'when');
+    if (built) exactly.push({ event: item.event, when: built });
+  }
+  return problems > 0 ? undefined : { requires, ensures, exactly };
 }
 
 interface ChangeContext {

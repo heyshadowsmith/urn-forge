@@ -111,19 +111,35 @@ promises:
     promise: "All timestamps in requests, answers and events are UTC in ISO 8601 format with a trailing \"Z\"."
     status: declared
     by: [payment.field.created_at, payment.field.occurred_at]
-  # One event for each status that a call makes, with the promised payload, is declared. Lost:
-  # "exactly one" (an operation can emit zero or more of each event), a new_status that matches
-  # the name of the event, the previous status of the first status (optional), and the events
-  # failed and expired, which no call makes.
+  # Declared for each call that changes the status: create_payment emits exactly one of
+  # payment.authorized (when output.status = 'authorized') or payment.pending (when
+  # output.status = 'pending'); capture_payment exactly one payment.captured; void_payment
+  # exactly one payment.voided; refund_payment exactly one of payment.partially_refunded (when
+  # output.refunded_total < output.captured_amount) or payment.refunded (when
+  # output.refunded_total = output.captured_amount). Its ensures state the values of the event:
+  # the payment id, merchant id, amount and currency of the payment, new_status (the status of
+  # the answer, or the one that the event's name says for a refund), previous_status = the
+  # stored status (absent on create, which has no earlier status), and the event id comes from
+  # the shell (delivery.id, newEventId). Lost: "the time of the change" is occurred_at, a value
+  # of the core; nothing states that it is the time the status changed (E2). And the moves
+  # pending to authorized, pending to failed and authorized to expired have no call, so no
+  # event is stated for them: payment.failed and payment.expired do not exist (see P17).
   P20:
     promise: "Each change of payment status publishes exactly one event named \"payment.<new_status>\" carrying the event id, payment id, merchant id, amount, currency, previous status, new status and the time of the change."
     status: workaround
-    by: [payment.event.pending, payment.event.authorized, payment.event.captured, payment.event.voided, payment.event.partially_refunded, payment.event.refunded]
-    hole: D4
+    by: [payment.operation.create_payment, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.event.pending, payment.event.authorized, payment.event.captured, payment.event.voided, payment.event.partially_refunded, payment.event.refunded, payment.field.event_id, payment.field.occurred_at]
+    hole: E2
+  # Each event has delivery { id: event_id, orderBy: payment_id }, and the contract uses the
+  # Postgres plugin, so the outbox keeps the delivery: insertEvents writes the events in the
+  # transaction of the change (none is lost), a row stays until markPublished (at least once),
+  # nextEvents gives the events of one payment in the order they were written, with a sequence 1
+  # higher each time, and event_id is the primary key of the outbox. The shell gives event_id
+  # (newEventId), and a sent again event keeps it, so a consumer can discard a duplicate by it.
+  # The transport is the user's: it sends what nextEvents gives, then calls markPublished.
   P21:
     promise: "Events are delivered at least once, in the order of the changes for any one payment, and a consumer can discard duplicates by event id."
-    status: not-declarable
-    hole: D4
+    status: declared
+    by: [payment.event.pending, payment.event.authorized, payment.event.captured, payment.event.voided, payment.event.partially_refunded, payment.event.refunded, payment.field.event_id, payment.field.payment_id]
   P22:
     promise: "Only a merchant's own secret API key may create, capture, void or refund its payments, while a read-only key may only read them, and any other caller is refused as \"unauthorized\" or \"forbidden\"."
     status: not-declarable

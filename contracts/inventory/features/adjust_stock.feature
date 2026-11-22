@@ -10,8 +10,9 @@ Feature: Adjust the on-hand stock
       | sku   | location   | on_hand   | reserved | available   |
       | <sku> | AMS-B-0142 | <on_hand> | 100      | <available> |
     And the operation emits "urn:corpus:inventory:adjustment:event:stock_adjusted":
-      | event_id                             | sequence | quantity_changed | reason   | occurred_at              |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-1e2f3a4b5c6d | 1        | <delta>          | <reason> | 2026-11-22T10:00:00.000Z |
+      | event_id                             | sku   | location   | quantity_changed | reason   | occurred_at              |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 | <sku> | AMS-B-0142 | <delta>          | <reason> | 2026-11-22T10:00:00.000Z |
+    And the operation emits no "urn:corpus:inventory:stock:event:stock_depleted"
 
     Examples:
       | idempotency_key  | sku                              | delta  | reason      | on_hand | available |
@@ -29,8 +30,8 @@ Feature: Adjust the on-hand stock
       | quantity_changed | level                                                                              |
       | -400             | { sku: WIDGET-1, location: AMS-B-0142, on_hand: 100, reserved: 100, available: 0 } |
     And the operation emits "urn:corpus:inventory:stock:event:stock_depleted":
-      | sku      | location   |
-      | WIDGET-1 | AMS-B-0142 |
+      | event_id                             | sku      | location   |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000002 | WIDGET-1 | AMS-B-0142 |
 
   Scenario Outline: An adjustment below the reserved count is refused and changes nothing
     When I run the operation with:

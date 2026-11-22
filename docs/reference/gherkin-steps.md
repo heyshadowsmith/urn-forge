@@ -17,6 +17,7 @@ The module `urn-forge/cucumber` has generic Cucumber steps for all domains. The 
 | `the operation emits "<event URN>"` | None | The operation emits the event, and the result is a success with one or more events with this URN |
 | `the operation emits "<event URN>":` | Event fields | The same, and one event with this URN agrees with the table |
 | `the operation emits no event` | None | The result is a success with no events, or a `DomainError` |
+| `the operation emits no "<event URN>"` | None | The operation emits the event, and the result is a success with no event with this URN |
 | `the refusal is recorded as "<event URN>"` | None | The result is a `DomainError` whose `record` is this event |
 | `the refusal is recorded as "<event URN>":` | Event fields | The same, and the record agrees with the table |
 
@@ -192,6 +193,7 @@ The module also exports the functions that the steps use. They do not need Cucum
 | `assertFailsWith` | `(result: ExecuteResultLike, errorUrn: string, urn: string, expected?: Record<string, unknown>) => void` |
 | `assertEmits` | `(result: ExecuteResultLike, eventUrn: string, urn: string, expected?: Record<string, unknown>) => void` |
 | `assertEmitsNone` | `(result: ExecuteResultLike, urn: string) => void` |
+| `assertEmitsNoneOf` | `(result: ExecuteResultLike, eventUrn: string, urn: string) => void` |
 
 ## Related pages
 

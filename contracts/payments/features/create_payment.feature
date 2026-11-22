@@ -11,7 +11,8 @@ Feature: Create a payment
       | pay_new000000000000000000000 | mer_1       | 5000   | EUR      | card   | authorized | { brand: amex, last4: 0005, exp_month: 12, exp_year: 2030 } | 2026-11-22T10:00:00Z |
     And the operation emits "urn:corpus:payments:payment:event:authorized":
       | event_id                             | payment_id                   | merchant_id | amount | currency | previous_status | new_status | occurred_at          |
-      | 123e4567-e89b-12d3-a456-426614174000 | pay_new000000000000000000000 | mer_1       | 5000   | EUR      |                 | authorized | 2026-11-22T10:00:00Z |
+      | 00000000-0000-4000-8000-000000000001 | pay_new000000000000000000000 | mer_1       | 5000   | EUR      |                 | authorized | 2026-11-22T10:00:00Z |
+    And the operation emits no "urn:corpus:payments:payment:event:pending"
 
   Scenario Outline: A card payment with each value at the edge of its limits is authorized
     When I run the operation with:
@@ -42,6 +43,7 @@ Feature: Create a payment
     And the operation emits "urn:corpus:payments:payment:event:pending":
       | payment_id                   | merchant_id | amount | currency | previous_status | new_status |
       | pay_new000000000000000000000 | mer_1       | 5000   | EUR      |                 | pending    |
+    And the operation emits no "urn:corpus:payments:payment:event:authorized"
 
   Scenario Outline: A request with a value out of its limits is rejected on that value
     When I run the operation with:

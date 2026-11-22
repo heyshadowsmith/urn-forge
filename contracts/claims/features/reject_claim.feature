@@ -14,7 +14,7 @@ Feature: Reject a claim
       | CLM-0000000123 | REJECTED | 120.00 | EUR      | 2       | <reason> |
     And the operation emits "urn:corpus:claims:claim:event:claim_rejected":
       | event_id                             | claim_id       | employee_id | total  | currency | state    | actor_id | occurred_at          | reason   |
-      | 3f0c8a52-6d1e-4b7a-9c2f-1a2b3c4d5e6f | CLM-0000000123 | E-1001      | 120.00 | EUR      | REJECTED | M-3003   | 2026-11-22T10:00:00Z | <reason> |
+      | 3f0c8a52-6d1e-4b7a-9c2f-000000000001 | CLM-0000000123 | E-1001      | 120.00 | EUR      | REJECTED | M-3003   | 2026-11-22T10:00:00Z | <reason> |
 
     Examples: 
       | reason            |

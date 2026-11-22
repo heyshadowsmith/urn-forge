@@ -16,7 +16,6 @@ interface Stored {
 
 const NOW = '2026-11-22T10:00:00Z';
 const MERCHANT = 'mer_1';
-const EVENT_ID = '123e4567-e89b-12d3-a456-426614174000';
 const paymentId = (word: string) => `pay_${word.padEnd(24, '0')}`;
 
 const PAYMENTS: Readonly<Record<string, Stored>> = {
@@ -49,8 +48,8 @@ const find = (merchant: string, id: string): Stored | undefined => {
 const brandOf = (number: string) =>
   number.startsWith('4') ? 'visa' : /^5[1-5]/.test(number) ? 'mastercard' : /^3[47]/.test(number) ? 'amex' : 'other';
 
+// The event of a change. The shell gives its event_id (newEventId), so the core does not.
 const change = (id: string, p: Stored, previous: Status | undefined, next: Status) => ({
-  event_id: EVENT_ID,
   payment_id: id,
   merchant_id: p.merchant_id,
   amount: p.amount,

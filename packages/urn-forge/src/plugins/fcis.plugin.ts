@@ -18,6 +18,7 @@ import * as v from 'valibot';
 import type { IRChange, IREntity, IRError, IREvent, IRPropertyRef, MessagePart, UniversalIR, Urn } from '../ir/types.js';
 import { ERROR_CATEGORIES, invariantsOf, valueField } from '../ir/types.js';
 import { conditionName, handlerName, ruleName, schemaNames } from '../naming.js';
+import { namesIn } from '../rules/index.js';
 import { PRIMITIVE_NAMES } from '../primitives/index.js';
 import { docComment, valuesInUrnOrder, type CodegenPlugin } from './plugin.interface.js';
 import { VALIBOT_SCHEMAS_FILE } from './valibot.plugin.js';
@@ -88,6 +89,21 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
 const CHANGE_SIGNATURES = `/** For an operation that changes a record: the record as it is stored now, before the call. */
 export interface ExecuteOptions {
   readonly current?: unknown;
+}
+
+export function executeOperation<U extends OperationUrn>(
+  urn: U,
+  rawPayload: unknown,
+  core: DomainCoreImplementation,
+  options?: ExecuteOptions,
+): ExecuteResult<U>;
+export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options?: ExecuteOptions): ExecuteResult;
+export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options: ExecuteOptions = {}): ExecuteResult {`;
+
+/** The options of a domain whose events have a delivery: the record of \`changes\`, when an operation has one, and the ids of events. */
+const deliverySignatures = (changes: boolean) => `/** ${changes ? 'For an operation that changes a record: the record as it is stored now, before the call. ' : ''}For an event with a delivery: a new, unique id for each event. */
+export interface ExecuteOptions {${changes ? '\n  readonly current?: unknown;' : ''}
+  readonly newEventId?: () => string;
 }
 
 export function executeOperation<U extends OperationUrn>(
@@ -186,6 +202,32 @@ const ENSURES = `
     }
   }`;
 
+/** The counts of events: exactly one where the \`when\` rule holds, and none where it does not. Then the ensures rules, which can read the event. */
+const COUNTS = `
+  // Each event of an item { event, when }: exactly one on a success where its rule holds, none where it does not.
+  for (const rule of ('exactly' in contract ? contract.exactly : undefined) ?? []) {
+    const holds = rule.when === undefined || (rule.when.check as (values: unknown) => boolean)({ input: input.output, current, output: output.output });
+    const count = events.filter((event) => event.urn === rule.event).length;
+    if (holds && count !== 1) return violation(\`\${urn} emitted \${count} \${rule.event}, but it emits exactly one\${rule.when ? \` when \${rule.when.text}\` : ''}\`);
+    if (!holds && count > 0) return violation(\`\${urn} emitted \${rule.event}, but it emits it only when \${rule.when!.text}\`);
+  }
+  // The ensures rules: an answer that breaks one is a bug in the core. A rule that reads the event is
+  // about the one event of the success: with none, which the counts above allow, it has nothing to check.
+  for (const condition of ('ensures' in contract ? contract.ensures : undefined) ?? []) {
+    if ('event' in condition && events.length === 0) continue;
+    if ('event' in condition && events.length > 1) return violation(\`ensures \${condition.text} reads the event, but the handler for \${urn} emitted \${events.length} events\`);
+    if (!(condition.check as (values: unknown) => boolean)({ input: input.output, current, output: output.output, event: events[0]?.fields })) {
+      return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: '', message: \`the handler for \${urn} answered a value that breaks ensures: \${condition.text}\` }] };
+    }
+  }`;
+
+/** The parse of an event with a delivery: the id from the shell, and no sequence, which the outbox fills. */
+const DELIVERY_PARSE = `
+    const delivery = 'delivery' in declared ? declared.delivery : undefined;
+    if (delivery && !options.newEventId) return violation(\`\${urn} emitted \${eventUrn}, whose delivery needs an event id: pass newEventId to executeOperation\`);
+    const schema = delivery?.sequence === undefined ? declared.schema : v.omit(declared.schema as v.ObjectSchema<v.ObjectEntries, undefined>, [delivery.sequence]);
+    const event = v.safeParse(schema, delivery ? { ...(candidate as object), [delivery.id]: options.newEventId!() } : candidate);`;
+
 /** How the handler is called: plain, with the record of `changes`, and with the requires rules. Without conditions, the text is as before. */
 function callSnippet(changes: boolean, conditions: boolean): string {
   if (!conditions) return changes ? CHANGE_CALL : PLAIN_CALL;
@@ -197,7 +239,7 @@ function callSnippet(changes: boolean, conditions: boolean): string {
 }
 
 /** The gatekeeper: the same for every manifest, plus the record of `changes` when an operation has one. */
-const shell = (changes: boolean, conditions = false) => `// Shell gatekeeper
+const shell = (changes: boolean, conditions = false, counts = false, delivery = false) => `// Shell gatekeeper
 
 export type OperationUrn = keyof DomainCoreImplementation;
 
@@ -219,12 +261,15 @@ export type EmittedEvent<U extends OperationUrn = OperationUrn> = U extends Oper
   ? {
       readonly [K in keyof DeclaredEvents<U>]: {
         readonly urn: K;
-        readonly fields: DeclaredEvents<U>[K] extends { readonly schema: infer S extends v.GenericSchema } ? v.InferOutput<S> : never;
+        readonly fields: DeclaredEvents<U>[K] extends { readonly schema: infer S extends v.GenericSchema } ? ${delivery ? 'Omit<v.InferOutput<S>, SequenceOf<DeclaredEvents<U>[K]>>' : 'v.InferOutput<S>'} : never;
       };
     }[keyof DeclaredEvents<U>]
   : never;
 
-/** A declared error of operation \`U\`, parsed and branded, with its metadata and rendered message. */
+${delivery ? `/** The property that the outbox fills, which an event has only once it is in the outbox. */
+type SequenceOf<E> = E extends { readonly delivery: { readonly sequence: infer Q extends string } } ? Q : never;
+
+` : ''}/** A declared error of operation \`U\`, parsed and branded, with its metadata and rendered message. */
 export type DomainError<U extends OperationUrn = OperationUrn> = U extends OperationUrn
   ? {
       readonly [K in keyof DeclaredErrors<U>]: {
@@ -324,7 +369,7 @@ function renderMessage(parts: readonly MessagePart[], fields: unknown): string {
  * Parses the input, calls the handler with branded input, then parses and brands its
  * output, or its error when the error is one the operation declares.
  */
-${changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
+${delivery ? deliverySignatures(changes) : changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
   if (!isOperationUrn(urn)) {
     return { ok: false, kind: 'UnknownOperation', urn, issues: [{ path: '', message: \`unknown operation \${urn}\` }] };
   }
@@ -338,7 +383,7 @@ ${changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
 
   const handler: unknown = core[urn];
   if (typeof handler !== 'function') return violation(\`no handler for \${urn}\`);
-${callSnippet(changes, conditions)}
+${callSnippet(changes, conditions || counts)}
   if (!isResult(result)) return violation(\`the handler for \${urn} did not return a Result; return ok(…) or fail(…)\`);
 
   // \`=== false\`, not \`!result.ok\`: without strictNullChecks, TypeScript narrows a union on
@@ -379,7 +424,7 @@ ${callSnippet(changes, conditions)}
   const output = v.safeParse(contract.output.schema, result.value);
   if (!output.success) {
     return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(output.issues, contract.output) };
-  }${changes ? CHANGE_ANSWER : ''}${conditions ? ENSURES : ''}
+  }${changes ? CHANGE_ANSWER : ''}${conditions && !counts ? ENSURES : ''}
   // Each event must be one the operation emits, and must parse.
   const emitted: unknown = (result as { readonly events?: unknown }).events ?? [];
   if (!Array.isArray(emitted)) return violation(\`the handler for \${urn} returned events that are not a list\`);
@@ -387,13 +432,13 @@ ${callSnippet(changes, conditions)}
   for (const candidate of emitted) {
     const eventUrn = (candidate as { readonly kind?: unknown } | null | undefined)?.kind;
     const declared = typeof eventUrn === 'string' && Object.hasOwn(contract.events, eventUrn) ? contract.events[eventUrn] : undefined;
-    if (typeof eventUrn !== 'string' || !declared) return violation(\`\${urn} emitted \${String(eventUrn)}, which it does not emit\`);
-    const event = v.safeParse(declared.schema, candidate);
+    if (typeof eventUrn !== 'string' || !declared) return violation(\`\${urn} emitted \${String(eventUrn)}, which it does not emit\`);${delivery ? DELIVERY_PARSE : `
+    const event = v.safeParse(declared.schema, candidate);`}
     if (!event.success) {
       return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(event.issues, declared) };
     }
     events.push({ urn: eventUrn, fields: event.output });
-  }
+  }${counts ? COUNTS : ''}
   // The events were checked against the contract above; the cast goes through unknown, because a
   // domain with no events types them as never.
   return { ok: true, urn, output: output.output, events } as unknown as ExecuteResult;
@@ -462,14 +507,23 @@ function errorContract(error: IRError, ir: UniversalIR, indent: string): string[
     `${indent}  fields: {`,
     ...fieldInfoLines(error.urn, error.fields, ir, `${indent}    `),
     `${indent}  },`,
-    ...(record ? [`${indent}  recordAs: {`, `${indent}    urn: ${q(record.urn)},`, ...eventLines(record, ir, `${indent}    `), `${indent}  },`] : []),
+    ...(record ? [`${indent}  recordAs: {`, `${indent}    urn: ${q(record.urn)},`, ...eventLines(record, ir, `${indent}    `, false), `${indent}  },`] : []),
     `${indent}},`,
   ];
 }
 
 /** An event's schema and properties, as an entity's are. */
-function eventLines(event: IREvent, ir: UniversalIR, indent: string): string[] {
-  return [`${indent}schema: s.${schemaNames(event.brandIdentifier).schema},`, `${indent}fields: {`, ...fieldInfoLines(event.urn, event.fields, ir, `${indent}  `), `${indent}},`];
+function eventLines(event: IREvent, ir: UniversalIR, indent: string, withDelivery = true): string[] {
+  const delivery = withDelivery ? event.delivery : undefined;
+  return [
+    `${indent}schema: s.${schemaNames(event.brandIdentifier).schema},`,
+    `${indent}fields: {`,
+    ...fieldInfoLines(event.urn, event.fields, ir, `${indent}  `),
+    `${indent}},`,
+    ...(delivery
+      ? [`${indent}delivery: { id: ${q(delivery.id)}, orderBy: [${delivery.orderBy.map(q).join(', ')}]${delivery.sequence === undefined ? '' : `, sequence: ${q(delivery.sequence)}`} },`]
+      : []),
+  ];
 }
 
 /** The `changes` entry of an operation in the dispatch map. */
@@ -534,6 +588,14 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       if (!found) throw new Error(`IR is not resolved: missing event ${urn}`);
       return found;
     };
+    const anyCounts = operations.some((op) => op.exactly !== undefined);
+    const anyDelivery = events.some((e) => e.delivery !== undefined);
+    // An event as the core builds it: without the id and the sequence of its delivery, which the shell and the outbox fill.
+    const coreEventType = (e: IREvent) => {
+      const filled = e.delivery ? [e.delivery.id, ...(e.delivery.sequence === undefined ? [] : [e.delivery.sequence])] : [];
+      const input = `s.${schemaNames(e.brandIdentifier).input}`;
+      return filled.length === 0 ? input : `Omit<${input}, ${filled.map(q).join(' | ')}>`;
+    };
     const payloads = [
       `/** Every declared error, by URN: its payload as a handler builds it (plain, \`kind\` included). */`,
       errors.length === 0
@@ -547,15 +609,15 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       `/** Every event, by URN: its payload as a handler builds it with \`emit\` (plain, \`kind\` included). */`,
       events.length === 0
         ? `export interface EventPayloads {}`
-        : [`export interface EventPayloads {`, ...events.map((e) => `  readonly ${q(e.urn)}: s.${schemaNames(e.brandIdentifier).input};`), `}`].join('\n'),
+        : [`export interface EventPayloads {`, ...events.map((e) => `  readonly ${q(e.urn)}: ${coreEventType(e)};`), `}`].join('\n'),
     ].join('\n');
 
     const anyChanges = operations.some((op) => op.changes !== undefined);
-    const anyConditions = operations.some((op) => op.requires !== undefined || op.ensures !== undefined);
+    const anyConditions = operations.some((op) => op.requires !== undefined || op.ensures !== undefined || op.exactly !== undefined);
     const handlers = operations.map((op) => {
       const errorTypes = op.errors.map((urn) => `s.${schemaNames(error(urn).brandIdentifier).input}`);
       // Only the events of the operation: tsc refuses another.
-      const eventTypes = op.emits.map((urn) => `s.${schemaNames(event(urn).brandIdentifier).input}`);
+      const eventTypes = op.emits.map((urn) => coreEventType(event(urn)));
       return [
         docComment(`${op.urn} — ${op.description}`, op),
         `export type ${handlerName(op.brandIdentifier)} = (`,
@@ -627,7 +689,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       `  /** Keyed by error URN. */`,
       `  readonly errors: Readonly<Record<string, ErrorContract>>;`,
       `  /** Keyed by event URN: the events it may return on success. */`,
-      `  readonly events: Readonly<Record<string, EntityContract>>;`,
+      `  readonly events: Readonly<Record<string, ${anyDelivery ? 'EventContract' : 'EntityContract'}>>;`,
       ...(anyChanges ? [`  /** The record that the operation changes, when it changes one. */`, `  readonly changes?: ChangeContract;`] : []),
       ...(anyConditions
         ? [
@@ -635,9 +697,28 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
             `  readonly requires?: readonly RequireInfo[];`,
             `  /** Rules that the answer must keep. */`,
             `  readonly ensures?: readonly ConditionInfo[];`,
+            ...(anyCounts ? [`  /** The events that it emits exactly once on a success where the rule holds, and never where it does not. */`, `  readonly exactly?: readonly CountInfo[];`] : []),
           ]
         : []),
       `}`,
+      ...(anyCounts
+        ? [``, `/** An event that an operation emits exactly once where its rule holds (always, without one). */`, `export interface CountInfo {`, `  readonly event: string;`, `  readonly when?: ConditionInfo;`, `}`]
+        : []),
+      ...(anyDelivery
+        ? [
+            ``,
+            `/** How an event reaches a consumer: the property of its id, the properties that order it, and the one that the outbox fills. */`,
+            `export interface DeliveryInfo {`,
+            `  readonly id: string;`,
+            `  readonly orderBy: readonly string[];`,
+            `  readonly sequence?: string;`,
+            `}`,
+            ``,
+            `export interface EventContract extends EntityContract {`,
+            `  readonly delivery?: DeliveryInfo;`,
+            `}`,
+          ]
+        : []),
       ...(anyConditions
         ? [
             ``,
@@ -645,6 +726,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
             `export interface ConditionInfo {`,
             `  readonly text: string;`,
             `  readonly check: (values: never) => boolean;`,
+            ...(anyCounts ? [`  /** The rule reads the event, so the success must have one. */`, `  readonly event?: true;`] : []),
             `}`,
             ``,
             `export interface RequireInfo extends ConditionInfo {`,
@@ -701,7 +783,20 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
         ...(op.requires
           ? [`    requires: [`, ...op.requires.map((r, i) => `      { text: ${q(r.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'requires', i)}, otherwise: ${q(r.otherwise)}${r.fill ? `, fill: { ${Object.entries(r.fill).map(([k, v]) => `${q(k)}: ${q(v)}`).join(', ')} }` : ''} },`), `    ],`]
           : []),
-        ...(op.ensures ? [`    ensures: [`, ...op.ensures.map((r, i) => `      { text: ${q(r.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'ensures', i)} },`), `    ],`] : []),
+        ...(op.ensures
+          ? [
+              `    ensures: [`,
+              ...op.ensures.map((r, i) => `      { text: ${q(r.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'ensures', i)}${namesIn(r.rule).some((n) => n.startsWith('event.')) ? ', event: true' : ''} },`),
+              `    ],`,
+            ]
+          : []),
+        ...(op.exactly
+          ? [
+              `    exactly: [`,
+              ...op.exactly.map((item, i) => `      { event: ${q(item.event)}${item.when ? `, when: { text: ${q(item.when.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'when', i)} }` : ''} },`),
+              `    ],`,
+            ]
+          : []),
         `  },`,
       ]),
       `} as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;`,
@@ -718,7 +813,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       registry,
       `// Dispatch`,
       dispatch,
-      shell(operations.some((op) => op.changes !== undefined), operations.some((op) => op.requires !== undefined || op.ensures !== undefined)).trimEnd(),
+      shell(anyChanges, anyConditions, anyCounts, anyDelivery).trimEnd(),
     ];
     return {
       artifacts: [{ relativePath: FCIS_RUNTIME_FILE, content: `${sections.join('\n\n')}\n` }],

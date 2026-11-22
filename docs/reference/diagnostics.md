@@ -86,6 +86,7 @@ These codes change their severity:
 | Code | Severity | Meaning | Correction |
 | --- | --- | --- | --- |
 | `invalid-unique` | `error` | `unique: [ … ]` is on a list of values, or names a property that the item does not have, or one that holds a list or an entity, or one name two times | Name properties of the item that hold one value, each one time; on a list of values, write `unique: true` |
+| `invalid-delivery` | `error` | The `delivery` of an event names a property that the event does not have, or one that is optional, a list or an embedded entity; or `id` is not a `string`, or `sequence` is not an `integer`; or it names one property two times | Name required properties of the event that hold one value: a `string` for `id`, an `integer` for `sequence` |
 | `missing-key` | `error` | A `link`, a `unique` list of an embedded entity, or a Postgres table names an entity with no `key` | Set `key` on the entity |
 | `embedding-cycle` | `error` | Entities embed each other in a cycle | Change one embedding to a `link` |
 
@@ -175,7 +176,7 @@ These codes change their severity:
 | `undeclared-error` | `error` | A step expects an error that the operation does not declare | Use a declared error, or add it to `errors` |
 | `uncovered-error` | `warning` or `error` | No scenario expects a declared error | Add `Then the operation fails with "<error URN>"` |
 | `undeclared-event` | `error` | A step expects an event that is not in `emits` | Use an event of `emits`, or add it |
-| `uncovered-event` | `warning` or `error` | No scenario expects an event of `emits` | Add `Then the operation emits "<event URN>"` |
+| `uncovered-event` | `warning` or `error` | No scenario expects an event of `emits`, or no successful scenario is without an event that has `when` | Add `Then the operation emits "<event URN>"`, or `Then the operation emits no "<event URN>"` |
 | `undeclared-record` | `error` | A step expects a record that no declared error has as `recordAs` | Use a `recordAs` event of the operation |
 | `uncovered-record` | `warning` or `error` | No scenario expects the `recordAs` event of a declared error | Add `Then the refusal is recorded as "<event URN>"` |
 | `undeclared-invariant` | `error` | A step names an invariant that is not on the input entity | Use an invariant from the message |

@@ -243,7 +243,7 @@ export type QuoteQuoteShippingHandler = (
 
 ### Conditions
 
-For each rule of an operation, the schemas file exports `<Operation brand>Requires<n>` or `<Operation brand>Ensures<n>`, from 1: a function from `{ input, current?, output? }`, parsed, to `boolean`. The runtime calls it.
+For each rule of an operation, the schemas file exports `<Operation brand>Requires<n>`, `<Operation brand>Ensures<n>` or `<Operation brand>When<n>` (the `when` rule of item `n` of `emits`), from 1: a function from `{ input, current?, output?, event? }`, parsed, to `boolean`. The runtime calls it.
 
 ### `DispatchMap`
 
@@ -252,7 +252,9 @@ For each rule of an operation, the schemas file exports `<Operation brand>Requir
 | Type | Properties |
 | --- | --- |
 | `OperationContract` | `input`, `output`: `EntityContract`. `errors`: `ErrorContract` by error URN. `events`: `EntityContract` by event URN. `changes?`: `ChangeContract` |
-| `ConditionInfo`, `RequireInfo` | `text` (the canonical rule), `check` (the generated function); a `RequireInfo` also has `otherwise`. `OperationContract` has `requires?` and `ensures?`. Only in a domain with conditions |
+| `ConditionInfo`, `RequireInfo` | `text` (the canonical rule), `check` (the generated function), and `event?: true` when the rule reads the event; a `RequireInfo` also has `otherwise`. `OperationContract` has `requires?` and `ensures?`. Only in a domain with conditions |
+| `CountInfo` | `event`, and `when?`: a `ConditionInfo`. `OperationContract` has `exactly?`. Only in a domain with an item `{ event }` in `emits` |
+| `EventContract`, `DeliveryInfo` | An `EntityContract` with `delivery?`: `id`, `orderBy`, `sequence?`. `events` has this type. Only in a domain with `delivery` |
 | `ChangeContract` | `entity`: `EntityContract` with `urn`. `property` (the state), `from`, `to?` (a list), `moves`, `otherwise`, `missing?`, `key?`, `answerState?` and `answerKey?` (the properties of the output that hold the state and the key). Only in a domain with `changes` |
 | `EntityContract` | `schema`. `fields`: `PropertyInfo` by property name. `invariants?`: `InvariantInfo[]`, also those of embedded entities |
 | `ErrorContract` | `EntityContract`, and `category`, `retryable`, `message: MessagePart[]`, `recordAs?` |
@@ -274,7 +276,7 @@ export function executeOperation<U extends OperationUrn>(
 export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation): ExecuteResult;
 ```
 
-In a domain with `changes`, `executeOperation` has a fourth parameter, `options?: ExecuteOptions`, with `current`: the record that the operation changes, as the shell loaded it.
+In a domain with `changes` or `delivery`, `executeOperation` has a fourth parameter, `options?: ExecuteOptions`. It has `current`, the record that the operation changes, as the shell loaded it, in a domain with `changes`; and `newEventId: () => string`, which gives the id of each event with `delivery`, in a domain with `delivery`. An event in the result does not have its `sequence`: the outbox sets it.
 
 | `ok` | `kind` | Other properties | Meaning |
 | --- | --- | --- | --- |
@@ -298,10 +300,11 @@ In a domain with `changes`, `executeOperation` has a fourth parameter, `options?
 | 3a. With `changes`: parse `current`, and examine its state | `ContractViolation` on `current`: `<urn> changes a record of <entity>: pass it as { current }`, `…: the shell found no record, and the operation declares no missing error`, or the parse issues. `current: null`: the `missing` error, filled from the input. A state outside `from`: the `otherwise` error, filled from the record and the input. The handler is not called |
 | 4. Call the handler | `ContractViolation`: `the handler for <urn> did not return a Result; return ok(…) or fail(…)` |
 | 5. For a failure: find the error in `errors`, parse it, and parse its `recordAs` event | `ContractViolation`: `<urn> failed with <kind>, which it does not declare`, or the parse issues. Else `DomainError` |
-| 6. For a success: parse the output, then each event | `ContractViolation`: the parse issues, `the handler for <urn> returned events that are not a list`, or `<urn> emitted <kind>, which it does not emit` |
+| 6. For a success: parse the output, then each event | `ContractViolation`: the parse issues, `the handler for <urn> returned events that are not a list`, or `<urn> emitted <kind>, which it does not emit`. For an event with `delivery`: the id from `newEventId`, or `<urn> emitted <kind>, whose delivery needs an event id: pass newEventId to executeOperation` |
 | 3b. With `requires`: each rule, in order | The `otherwise` error of the first rule that does not hold, filled from the input and the record. The handler is not called |
 | 6a. With `changes`, when the output has the state or the key field: examine them | `ContractViolation`: `the handler for <urn> answered <state property> "<value>", but the operation moves to "<to>"`, `… but "<from>" cannot move to "<to>"`, `… but the state stays "<state>"`, or `… answered <key> "<value>", but the record has "<value>"` |
 | 6b. With `ensures`: each rule | `ContractViolation`: `the handler for <urn> answered a value that breaks ensures: <rule>` |
+| 6c. With an item `{ event, when }` in `emits`: the count of each such event, before 6b | `ContractViolation`: `<urn> emitted <n> <event>, but it emits exactly one when <rule>`, or `<urn> emitted <event>, but it emits it only when <rule>`. A rule of 6b that reads the event is not checked on a success with no event; with more than one: `ensures <rule> reads the event, but the handler for <urn> emitted <n> events` |
 
 `executeOperation` does not catch an exception from the handler, and does not make sure that a link points at an object that exists.
 

@@ -270,15 +270,21 @@ claim.event.claim_submitted:
     - ref: claim.field.state
     - ref: claim.field.actor_id
     - ref: event.field.occurred_at
+  delivery: &delivery
+    id: event_id
+    orderBy: claim_id
 claim.event.claim_approved:
   description: A claim moved to APPROVED
   fields: *change_fields
+  delivery: *delivery
 claim.event.claim_withdrawn:
   description: A claim moved to WITHDRAWN
   fields: *change_fields
+  delivery: *delivery
 claim.event.claim_paid:
   description: A claim moved to PAID
   fields: *change_fields
+  delivery: *delivery
 claim.event.claim_rejected:
   description: A claim moved to REJECTED, with the reason
   fields:
@@ -291,6 +297,7 @@ claim.event.claim_rejected:
     - ref: claim.field.actor_id
     - ref: event.field.occurred_at
     - ref: claim.field.reason
+  delivery: *delivery
 
 # Operations
 
@@ -339,8 +346,15 @@ claim.operation.submit_claim:
     - output.version = input.version + 1
     - output.total = current.total
     - output.currency = current.currency
+    - event.claim_id = output.claim_id
+    - event.employee_id = current.employee_id
+    - event.total = output.total
+    - event.currency = output.currency
+    - event.state = output.state
+    - event.actor_id = input.actor_id
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
-  emits: [claim.event.claim_submitted]
+  emits:
+    - event: claim.event.claim_submitted
 claim.operation.withdraw_claim:
   description: Withdraw a submitted claim
   input: claim.entity.change
@@ -359,8 +373,15 @@ claim.operation.withdraw_claim:
     - output.version = input.version + 1
     - output.total = current.total
     - output.currency = current.currency
+    - event.claim_id = output.claim_id
+    - event.employee_id = current.employee_id
+    - event.total = output.total
+    - event.currency = output.currency
+    - event.state = output.state
+    - event.actor_id = input.actor_id
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
-  emits: [claim.event.claim_withdrawn]
+  emits:
+    - event: claim.event.claim_withdrawn
 claim.operation.approve_claim:
   description: Approve a submitted claim
   input: claim.entity.change
@@ -379,8 +400,15 @@ claim.operation.approve_claim:
     - output.version = input.version + 1
     - output.total = current.total
     - output.currency = current.currency
+    - event.claim_id = output.claim_id
+    - event.employee_id = current.employee_id
+    - event.total = output.total
+    - event.currency = output.currency
+    - event.state = output.state
+    - event.actor_id = input.actor_id
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
-  emits: [claim.event.claim_approved]
+  emits:
+    - event: claim.event.claim_approved
 claim.operation.reject_claim:
   description: Reject a submitted claim with a reason
   input: claim.entity.rejection
@@ -400,8 +428,16 @@ claim.operation.reject_claim:
     - output.total = current.total
     - output.currency = current.currency
     - output.reason = input.reason
+    - event.claim_id = output.claim_id
+    - event.employee_id = current.employee_id
+    - event.total = output.total
+    - event.currency = output.currency
+    - event.state = output.state
+    - event.actor_id = input.actor_id
+    - event.reason = input.reason
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
-  emits: [claim.event.claim_rejected]
+  emits:
+    - event: claim.event.claim_rejected
 claim.operation.mark_paid:
   description: Mark an approved claim paid
   input: claim.entity.change
@@ -420,8 +456,15 @@ claim.operation.mark_paid:
     - output.version = input.version + 1
     - output.total = current.total
     - output.currency = current.currency
+    - event.claim_id = output.claim_id
+    - event.employee_id = current.employee_id
+    - event.total = output.total
+    - event.currency = output.currency
+    - event.state = output.state
+    - event.actor_id = input.actor_id
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
-  emits: [claim.event.claim_paid]
+  emits:
+    - event: claim.event.claim_paid
 claim.operation.get_claim:
   description: Read a claim by its id
   input: claim.entity.lookup
