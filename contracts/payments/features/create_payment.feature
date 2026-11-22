@@ -117,11 +117,18 @@ Feature: Create a payment
       | currency |
       | XXX      |
 
-  Scenario: Line items that do not add up to the amount are refused as an invalid request
+  Scenario Outline: Line items that do not add up to the amount are refused as an invalid request
     When I run the operation with:
-      | merchant_id | amount | currency | method        | idempotency_key | iban                   | line_items                                                            |
-      | mer_1       | 5000   | EUR      | bank_transfer | order-51        | DE89370400440532013000 | [{ quantity: 2, unit_amount: 2000 }, { quantity: 1, unit_amount: 999 }] |
+      | merchant_id | amount | currency | method        | idempotency_key | iban                   | line_items   |
+      | mer_1       | 5000   | EUR      | bank_transfer | order-51        | DE89370400440532013000 | <line_items> |
     Then the operation fails with "urn:corpus:payments:payment:error:invalid_request"
+    And the operation emits no event
+
+    Examples:
+      | line_items                                                              |
+      | [{ quantity: 2, unit_amount: 2000 }, { quantity: 1, unit_amount: 999 }]  |
+      | [{ quantity: 2, unit_amount: 2000 }, { quantity: 1, unit_amount: 1001 }] |
+      | [{ quantity: 1, unit_amount: 5000 }, { quantity: 3, unit_amount: 0 }, { quantity: 1, unit_amount: 1 }] |
 
   Scenario: An idempotency key that an earlier, different request used is refused
     When I run the operation with:
