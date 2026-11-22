@@ -52,6 +52,9 @@ claim.field.manager_id:
 claim.field.actor_id:
   primitive: string
   description: The user who makes a request
+claim.field.idempotency_key:
+  primitive: string
+  description: A key that the caller may send with a change, so that a repeat of the request within 24 hours returns the first answer and changes nothing
 claim.field.reason:
   primitive: string
   minLength: 10
@@ -161,6 +164,8 @@ line.invariant.distance_only_for_mileage:
 claim.entity.draft:
   description: A request to create a draft claim
   fields:
+    - ref: claim.field.idempotency_key
+      required: false
     - ref: claim.field.actor_id
     - ref: claim.field.employee_id
     - ref: claim.field.purpose
@@ -171,6 +176,8 @@ claim.entity.draft:
 claim.entity.draft_edit:
   description: A request to replace the purpose, currency and lines of a draft or rejected claim
   fields:
+    - ref: claim.field.idempotency_key
+      required: false
     - ref: claim.field.claim_id
     - ref: claim.field.version
     - ref: claim.field.actor_id
@@ -182,12 +189,16 @@ claim.entity.draft_edit:
 claim.entity.change:
   description: A request to move a claim to its next state, with the version the caller last read
   fields:
+    - ref: claim.field.idempotency_key
+      required: false
     - ref: claim.field.claim_id
     - ref: claim.field.version
     - ref: claim.field.actor_id
 claim.entity.rejection:
   description: A request to reject a claim, with the reason
   fields:
+    - ref: claim.field.idempotency_key
+      required: false
     - ref: claim.field.claim_id
     - ref: claim.field.version
     - ref: claim.field.actor_id
@@ -218,6 +229,8 @@ claim.entity.submission_answer:
 claim.entity.claim_ref:
   description: The claim that the shell's clock acts on
   fields:
+    - ref: claim.field.idempotency_key
+      required: false
     - ref: claim.field.claim_id
 claim.entity.rejection_answer:
   description: The answer to a rejection, with its reason
@@ -373,6 +386,10 @@ claim.operation.create_draft:
   description: Create a draft claim for the employee who calls
   input: claim.entity.draft
   output: claim.entity.answer
+  idempotency:
+    key: input.idempotency_key
+    scope: [caller.role, caller.employee_id]
+    window: 24 hours
   ensures:
     - output.currency = input.currency
     - 'output.total = sum(line in input.lines: line.amount)'
@@ -385,6 +402,10 @@ claim.operation.edit_draft:
   description: Replace the purpose, currency and lines of a draft claim; a rejected claim goes back to DRAFT
   input: claim.entity.draft_edit
   output: claim.entity.answer
+  idempotency:
+    key: input.idempotency_key
+    scope: [caller.role, caller.employee_id]
+    window: 24 hours
   changes:
     entity: claim.entity.claim
     from: [DRAFT, REJECTED]
@@ -408,6 +429,10 @@ claim.operation.submit_claim:
   description: Submit a draft claim for a decision
   input: claim.entity.change
   output: claim.entity.submission_answer
+  idempotency:
+    key: input.idempotency_key
+    scope: [caller.role, caller.employee_id]
+    window: 24 hours
   changes:
     entity: claim.entity.claim
     from: [DRAFT]
@@ -440,6 +465,10 @@ claim.operation.withdraw_claim:
   description: Withdraw a submitted claim
   input: claim.entity.change
   output: claim.entity.answer
+  idempotency:
+    key: input.idempotency_key
+    scope: [caller.role, caller.employee_id]
+    window: 24 hours
   changes:
     entity: claim.entity.claim
     from: [SUBMITTED]
@@ -471,6 +500,10 @@ claim.operation.approve_claim:
   description: Approve a submitted claim
   input: claim.entity.change
   output: claim.entity.answer
+  idempotency:
+    key: input.idempotency_key
+    scope: [caller.role, caller.employee_id]
+    window: 24 hours
   changes:
     entity: claim.entity.claim
     from: [SUBMITTED]
@@ -502,6 +535,10 @@ claim.operation.reject_claim:
   description: Reject a submitted claim with a reason
   input: claim.entity.rejection
   output: claim.entity.rejection_answer
+  idempotency:
+    key: input.idempotency_key
+    scope: [caller.role, caller.employee_id]
+    window: 24 hours
   changes:
     entity: claim.entity.claim
     from: [SUBMITTED]
@@ -535,6 +572,10 @@ claim.operation.mark_paid:
   description: Mark an approved claim paid
   input: claim.entity.change
   output: claim.entity.answer
+  idempotency:
+    key: input.idempotency_key
+    scope: [caller.role, caller.employee_id]
+    window: 24 hours
   changes:
     entity: claim.entity.claim
     from: [APPROVED]
@@ -583,6 +624,10 @@ claim.operation.report_overdue:
   description: Report a claim that waits in SUBMITTED for a decision for 30 days since its last submission, once, with no change of state
   input: claim.entity.claim_ref
   output: claim.entity.claim
+  idempotency:
+    key: input.idempotency_key
+    scope: [caller.role, caller.employee_id]
+    window: 24 hours
   changes:
     entity: claim.entity.claim
     from: [SUBMITTED]

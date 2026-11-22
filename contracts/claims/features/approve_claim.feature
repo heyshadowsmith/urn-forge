@@ -130,3 +130,24 @@ Feature: Approve a claim
       | version |
       | 4       |
       | 6       |
+
+  Scenario: A repeat with the same idempotency key by the same caller within 24 hours returns the first answer and changes nothing
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
+      | role    | employee_id |
+      | manager | M-3003      |
+    And the current claim is:
+      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           | submitted_at         |
+      | CLM-0000000123 | 1       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] | 2026-10-20T09:00:00Z |
+    When I run the operation with:
+      | idempotency_key | claim_id       | version | actor_id |
+      | key-0001        | CLM-0000000123 | 1       | M-3003   |
+    And the time is "2026-11-23T09:59:59.999Z"
+    And I run the operation again with:
+      | idempotency_key | claim_id       | version | actor_id |
+      | key-0001        | CLM-0000000123 | 1       | M-3003   |
+    Then the answer is the first answer
+    And the output is:
+      | claim_id       | state    | total  | currency | version |
+      | CLM-0000000123 | APPROVED | 120.00 | EUR      | 2       |
+    And the operation emits no event

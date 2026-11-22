@@ -80,10 +80,21 @@ promises:
     promise: "A payment amount always equals the approved claim total in the claim's currency, and a claim is never paid twice."
     status: not-declarable
     hole: C3
+  # Each write (create_draft, edit_draft, submit_claim, withdraw_claim, approve_claim, reject_claim,
+  # mark_paid and the clock's report_overdue) may carry claim.field.idempotency_key, and has idempotency
+  # { key: input.idempotency_key, scope: [caller.role, caller.employee_id], window: 24 hours } with no
+  # otherwise: the scope is the whole caller as the shell authenticated it (the clock has role clock and no
+  # employee id), and a repeat with any body gets the first answer. get_claim is a read and carries no key.
+  # The Postgres extra writes the table "idempotency"."claims" and runOnce in the store file: a repeat in
+  # the window returns the stored answer and runs nothing (no change, no event); a refusal is not stored;
+  # a call without a key runs as any call. The scenarios repeat each write (the first answer, no event),
+  # with another body, by another caller (a new request) and at 24 hours (a new request).
+  # The key is owned per operation: a key used on one operation and sent on another is a new request, as
+  # it has no original answer of its own. The shell must call runOnce in the transaction of the call.
   P16:
     promise: "A request carrying an idempotency key already used by the same caller within 24 hours returns the original answer without making a second change."
-    status: not-declarable
-    hole: C2
+    status: declared
+    by: [claim.field.idempotency_key, auth.entity.caller, claim.entity.draft, claim.entity.draft_edit, claim.entity.change, claim.entity.rejection, claim.entity.claim_ref, claim.operation.create_draft, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid, claim.operation.report_overdue]
   # The refusal is declared; the rule across the receipts of stored claims is not.
   P17:
     promise: "The same receipt file, by its SHA-256 hash, cannot appear on two lines of claims that are not REJECTED or WITHDRAWN, and an attempt is refused with DUPLICATE_RECEIPT."
