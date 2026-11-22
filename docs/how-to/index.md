@@ -26,6 +26,7 @@ These guides come in the order that you meet the tasks.
 - [Declare states and moves](declare-states): let an operation change a record only from the states that you allow.
 - [Declare preconditions and postconditions](declare-conditions): state the rules between the request, the stored record and the answer.
 - [Declare who may call](declare-callers): state which callers may call each operation, and on which records.
+- [Make a call safe to repeat](make-a-call-safe-to-repeat): give an operation an idempotency key, so a repeat returns the first answer.
 - [Run changes on a clock](run-changes-on-a-clock): state the changes that happen when time passes, and run them from the shell's clock.
 - [Emit an event](emit-an-event): give an operation a fact that the shell publishes.
 - [Change the contract](change-the-contract): retire a URN, and check a change with `urn-forge diff`.

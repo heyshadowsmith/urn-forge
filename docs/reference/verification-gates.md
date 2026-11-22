@@ -83,6 +83,7 @@ The gate reads the syntax tree of each `.feature` file in `--features` and its s
 | Steps | The URN in each step is a declared error, an event of `emits`, a `recordAs` event, or an input invariant of the operation | `undeclared-error`, `undeclared-event`, `undeclared-record`, `undeclared-invariant` |
 | Tagged operations | Each operation has its URN in one or more tags | `untagged-operation` |
 | Callers | Each scenario of an operation with `callers` gives the caller with `Given the caller is:` | `invalid-caller` |
+| Idempotency | Each operation with `idempotency` has a scenario with `When I run the operation again with:` | `uncovered-idempotency` |
 | Timed changes | Each operation with `due` has a scenario with `Then the operation is not due` | `uncovered-due` |
 | Time | Each scenario of an operation whose rules read `now` or `today` gives the time with `Given the time is "<timestamp>"`, a UTC timestamp | `invalid-time` |
 | Coverage | Each tagged operation has a scenario for each declared error, each event of `emits`, each `recordAs` event and each input invariant. An event with `when` also needs a successful scenario without it | `uncovered-error`, `uncovered-event`, `uncovered-record`, `uncovered-invariant` |

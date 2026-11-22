@@ -65,6 +65,7 @@ export default defineConfig({
           { text: 'Declare preconditions and postconditions', link: '/how-to/declare-conditions' },
           { text: 'Declare who may call', link: '/how-to/declare-callers' },
           { text: 'Run changes on a clock', link: '/how-to/run-changes-on-a-clock' },
+          { text: 'Make a call safe to repeat', link: '/how-to/make-a-call-safe-to-repeat' },
           { text: 'Emit an event', link: '/how-to/emit-an-event' },
           { text: 'Store entities in Postgres', link: '/how-to/store-in-postgres' },
           { text: 'Close boundary gaps', link: '/how-to/close-boundary-gaps' },

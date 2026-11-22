@@ -11,6 +11,8 @@ The module `urn-forge/cucumber` has generic Cucumber steps for all domains. The 
 | `the caller is:` | Fields of the caller entity | The domain has a `caller`. The caller goes to `execute` as `{ caller }`. `registerOperationSteps` must have `caller: CallerContract` |
 | `there is no current <entity>` | None | The same. `execute` gets `{ current: null }`: the shell found no record |
 | `I run the operation with:` | Input fields | Always. It calls `execute` and keeps the result |
+| `I run the operation again with:` | Input fields | After a run. With `idempotency` in `registerOperationSteps`, a repeat in the window gets the first answer, as `runOnce` gives it |
+| `the answer is the first answer` | None | The output of the last run is the output of the first run of the scenario that succeeded |
 | `the output is:` | Output fields | The operation succeeded, and the output agrees with the table |
 | `the input is rejected on "<field>"` | None | The result is `InputRejected`, with an issue on the property or inside it |
 | `the input is rejected by "<invariant URN>"` | None | The invariant is an input invariant, and the result is `InputRejected` with an issue of it |
