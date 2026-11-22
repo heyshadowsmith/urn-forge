@@ -236,7 +236,7 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 9. Changes on a clock (E3). Done: 45.5%.
 10. Idempotency (C2). Done: 49.7%.
 11. Compatibility (E4). Done: 51.0%. The four E4 promises left are about how long an operator runs an old major version, which nothing that urn-forge builds can check.
-12. The next plan. The score now puts A2 (14), C1 (9), D3 (8) and A1, B4, C3, D2 (5 each) first.
+12. Refusals (part of A2). [Plan](./refusals-plan.md).
 
 ## Risks
 
