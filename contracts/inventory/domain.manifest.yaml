@@ -3,6 +3,11 @@ manifest:
   domain: inventory
   version: 1.0.0
   caller: access.entity.caller
+  # Callers ignore a property, an event, a refusal code or an enum value that they do not know.
+  compatibility:
+    callers: ignore-unknown
+    # A removal is announced with deprecatedOn at least 6 months before its sunsetDate.
+    notice: 6 months
 
 # Who calls, as the shell authenticated them. Authentication is the shell's; who may call each
 # operation is stated in its callers. The clock is the shell's own clock, which calls the timed

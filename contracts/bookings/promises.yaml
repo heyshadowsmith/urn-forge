@@ -169,7 +169,11 @@ promises:
     promise: "All timestamps other than the booking's local start time are given in UTC in ISO 8601 format with a trailing Z."
     status: declared
     by: [event.field.occurred_at, booking.field.cancelled_at]
+  # Within the major version, urn-forge diff refuses a removed or changed field or error code, and a new error code
+  # (the header does not state that callers ignore unknown values). The notice for a new major version is how long
+  # the operator runs the old one, which nothing that urn-forge builds can check.
   P24:
     promise: "Within a major version the contract only adds optional request fields, new answer fields and new event fields, callers must ignore fields they do not know, and a removed or changed field or error code requires a new major version announced at least 6 months before the old one is withdrawn."
-    status: not-declarable
+    status: workaround
+    by: [manifest.version]
     hole: E4

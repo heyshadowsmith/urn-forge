@@ -118,7 +118,10 @@ promises:
     status: workaround
     by: [receipt.entity.receive_request, receipt.field.purchase_order_id, receipt.entity.receipt, stock.field.on_hand]
     hole: A2
+  # The manifest is stable, so urn-forge diff refuses a removal or a rename. compatibility.callers lets diff accept
+  # a new field, operation, error code or event type. compatibility.notice: a removal is a sunset atom, which diff
+  # accepts only after a deprecation with a sunsetDate, which compile checks is 6 months after deprecatedOn.
   P23:
     promise: "Within a major version of the contract, fields, operations, error codes and event types are only added, never removed or renamed, callers must ignore fields they do not know, and a removed element stays supported for at least 6 months after it is announced as deprecated."
-    status: not-declarable
-    hole: E4
+    status: declared
+    by: [manifest.compatibility]

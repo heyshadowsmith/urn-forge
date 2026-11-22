@@ -46,7 +46,7 @@ describe('the corpus checker', () => {
     ['a promise with no status', '  P01:\n    promise: An amount is an integer\n', 'pay.P01: has no status'],
     ['a status that does not exist', '  P01:\n    promise: An amount\n    status: done\n', 'pay.P01: status "done" is not one of declared, workaround, not-declarable'],
     ['a declared promise with no by', '  P01:\n    promise: An amount\n    status: declared\n', 'pay.P01: a declared promise needs by, the atoms that state it'],
-    ['a short key that is not an atom', '  P01:\n    promise: An amount\n    status: declared\n    by: [pay.field.total]\n', 'pay.P01: pay.field.total is not an atom of pay/domain.manifest.yaml'],
+    ['a short key that is not an atom', '  P01:\n    promise: An amount\n    status: declared\n    by: [pay.field.total]\n', 'pay.P01: pay.field.total is not an atom or a header key of pay/domain.manifest.yaml'],
     ['a not-declarable promise with no hole', '  P01:\n    promise: A total\n    status: not-declarable\n', 'pay.P01: a not-declarable promise needs hole, the hole of the roadmap that would declare it'],
     ['a workaround with no hole', '  P01:\n    promise: A card\n    status: workaround\n    by: [pay.field.amount]\n', 'pay.P01: a workaround promise needs hole, the hole of the roadmap that would declare it'],
     ['a hole that corpus.yaml does not list', '  P01:\n    promise: A total\n    status: not-declarable\n    hole: Z9\n', 'pay.P01: hole Z9 is not in corpus.yaml'],
@@ -56,6 +56,14 @@ describe('the corpus checker', () => {
     ['a promise with no text', '  P01:\n    status: declared\n', 'pay.P01: needs promise, one sentence'],
   ])('refuses %s', (_, promises, problem) => {
     expect(checkCorpus(corpus(promises)).problems).toContain(problem);
+  });
+
+  it('accepts a key of the header as manifest.<key>, for a rule of the whole contract', () => {
+    const header = '  P01:\n    promise: Nothing is removed\n    status: declared\n    by: [manifest.version]\n';
+    expect(checkCorpus(corpus(header)).problems).toEqual([]);
+    expect(checkCorpus(corpus(header.replace('manifest.version', 'manifest.compatibility'))).problems).toEqual([
+      'pay.P01: manifest.compatibility is not an atom or a header key of pay/domain.manifest.yaml',
+    ]);
   });
 
   it('refuses by when the contract has no manifest', () => {

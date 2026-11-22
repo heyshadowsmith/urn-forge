@@ -2,6 +2,9 @@ manifest:
   namespace: corpus
   domain: ticketing
   version: 1.0.0
+  # Callers ignore a property, an event, a refusal code or an enum value that they do not know.
+  compatibility:
+    callers: ignore-unknown
 
 # Values shared by many requests and answers.
 request.field.idempotency_key:
