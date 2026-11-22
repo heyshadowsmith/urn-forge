@@ -5,5 +5,5 @@ import { DispatchMap, executeOperation } from '../../src/generated/domain.runtim
 
 registerOperationSteps({
   dispatch: DispatchMap,
-  execute: (urn, payload) => executeOperation(urn, payload, core),
+  execute: (urn, payload, options) => executeOperation(urn, payload, core, options),
 });

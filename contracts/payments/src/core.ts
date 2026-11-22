@@ -1,5 +1,6 @@
-// A small payments core: a few fixed payments stand in for the stored ones, and a few fixed
-// card numbers, currencies and keys stand in for the answers of banks and of earlier requests.
+// A small payments core. The operations that move a payment get it as `current`; the reads find
+// it among a few fixed payments. A few fixed card numbers, currencies and keys stand in for the
+// answers of banks and of earlier requests.
 import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
 
 type Status = 'pending' | 'authorized' | 'failed' | 'captured' | 'voided' | 'expired' | 'partially_refunded' | 'refunded';
@@ -7,11 +8,10 @@ type Status = 'pending' | 'authorized' | 'failed' | 'captured' | 'voided' | 'exp
 interface Stored {
   readonly merchant_id: string;
   readonly amount: number;
+  readonly currency: string;
   readonly status: Status;
   readonly captured_amount: number;
   readonly refunded_amount: number;
-  /** The capture was more than 180 days ago. */
-  readonly captured_long_ago?: boolean;
 }
 
 const NOW = '2026-11-22T10:00:00Z';
@@ -20,12 +20,12 @@ const EVENT_ID = '123e4567-e89b-12d3-a456-426614174000';
 const paymentId = (word: string) => `pay_${word.padEnd(24, '0')}`;
 
 const PAYMENTS: Readonly<Record<string, Stored>> = {
-  [paymentId('authorized')]: { merchant_id: MERCHANT, amount: 5000, status: 'authorized', captured_amount: 0, refunded_amount: 0 },
-  [paymentId('captured')]: { merchant_id: MERCHANT, amount: 5000, status: 'captured', captured_amount: 5000, refunded_amount: 0 },
-  [paymentId('partiallyrefunded')]: { merchant_id: MERCHANT, amount: 5000, status: 'partially_refunded', captured_amount: 5000, refunded_amount: 2000 },
-  [paymentId('voided')]: { merchant_id: MERCHANT, amount: 5000, status: 'voided', captured_amount: 0, refunded_amount: 0 },
-  [paymentId('capturedlongago')]: { merchant_id: MERCHANT, amount: 5000, status: 'captured', captured_amount: 5000, refunded_amount: 0, captured_long_ago: true },
+  [paymentId('authorized')]: { merchant_id: MERCHANT, amount: 5000, currency: 'EUR', status: 'authorized', captured_amount: 0, refunded_amount: 0 },
+  [paymentId('partiallyrefunded')]: { merchant_id: MERCHANT, amount: 5000, currency: 'EUR', status: 'partially_refunded', captured_amount: 5000, refunded_amount: 2000 },
 };
+
+/** The payment captured more than 180 days ago: the record does not hold when it was captured. */
+const CAPTURED_LONG_AGO = paymentId('capturedlongago');
 
 const REFUND_ID = `re_${'1'.padStart(24, '0')}`;
 const REFUND = { payment_id: paymentId('partiallyrefunded'), amount: 2000 };
@@ -54,7 +54,7 @@ const change = (id: string, p: Stored, previous: Status | undefined, next: Statu
   payment_id: id,
   merchant_id: p.merchant_id,
   amount: p.amount,
-  currency: 'EUR',
+  currency: p.currency,
   ...(previous ? { previous_status: previous } : {}),
   new_status: next,
   occurred_at: NOW,
@@ -74,7 +74,7 @@ export const core = {
 
     const payment_id = paymentId('new');
     const status = method === 'card' ? 'authorized' : 'pending';
-    const stored: Stored = { merchant_id, amount, status, captured_amount: 0, refunded_amount: 0 };
+    const stored: Stored = { merchant_id, amount, currency, status, captured_amount: 0, refunded_amount: 0 };
     const event = change(payment_id, stored, undefined, status);
     return ok(
       {
@@ -89,33 +89,29 @@ export const core = {
       },
       [
         status === 'authorized'
-          ? emit('urn:corpus:payments:payment:event:authorized', { ...event, currency })
-          : emit('urn:corpus:payments:payment:event:pending', { ...event, currency }),
+          ? emit('urn:corpus:payments:payment:event:authorized', event)
+          : emit('urn:corpus:payments:payment:event:pending', event),
       ],
     );
   },
 
-  'urn:corpus:payments:payment:operation:capture_payment': ({ merchant_id, payment_id, amount }) => {
-    const p = find(merchant_id, payment_id);
-    if (!p) return fail('urn:corpus:payments:payment:error:not_found', {});
-    if (p.status !== 'authorized') return fail('urn:corpus:payments:payment:error:invalid_state', { status: p.status });
-    if (amount !== undefined && amount > p.amount) {
-      return fail('urn:corpus:payments:payment:error:capture_exceeds_authorized', { amount, authorized_amount: p.amount });
+  'urn:corpus:payments:payment:operation:capture_payment': ({ merchant_id, payment_id, amount }, current) => {
+    if (current.merchant_id !== merchant_id) return fail('urn:corpus:payments:payment:error:not_found', {});
+    if (amount !== undefined && amount > current.amount) {
+      return fail('urn:corpus:payments:payment:error:capture_exceeds_authorized', { amount, authorized_amount: current.amount });
     }
-    const captured = amount ?? p.amount;
+    const captured = amount ?? current.amount;
     return ok(
-      { payment_id, currency: 'EUR', authorized_amount: p.amount, captured_amount: captured, status: 'captured' as const },
-      [emit('urn:corpus:payments:payment:event:captured', change(payment_id, p, 'authorized', 'captured'))],
+      { payment_id, currency: current.currency, authorized_amount: current.amount, captured_amount: captured, status: 'captured' as const },
+      [emit('urn:corpus:payments:payment:event:captured', change(payment_id, current, current.status, 'captured'))],
     );
   },
 
-  'urn:corpus:payments:payment:operation:void_payment': ({ merchant_id, payment_id }) => {
-    const p = find(merchant_id, payment_id);
-    if (!p) return fail('urn:corpus:payments:payment:error:not_found', {});
-    if (p.status !== 'authorized') return fail('urn:corpus:payments:payment:error:invalid_state', { status: p.status });
+  'urn:corpus:payments:payment:operation:void_payment': ({ merchant_id, payment_id }, current) => {
+    if (current.merchant_id !== merchant_id) return fail('urn:corpus:payments:payment:error:not_found', {});
     return ok(
-      { payment_id, merchant_id, amount: p.amount, currency: 'EUR', method: 'card' as const, status: 'voided' as const, captured_amount: 0, refunded_amount: 0, created_at: NOW },
-      [emit('urn:corpus:payments:payment:event:voided', change(payment_id, p, 'authorized', 'voided'))],
+      { ...current, status: 'voided' as const },
+      [emit('urn:corpus:payments:payment:event:voided', change(payment_id, current, current.status, 'voided'))],
     );
   },
 
@@ -136,22 +132,18 @@ export const core = {
     });
   },
 
-  'urn:corpus:payments:refund:operation:refund_payment': ({ merchant_id, payment_id, amount, idempotency_key }) => {
-    const p = find(merchant_id, payment_id);
-    if (!p) return fail('urn:corpus:payments:payment:error:not_found', {});
-    if (p.status !== 'captured' && p.status !== 'partially_refunded') {
-      return fail('urn:corpus:payments:payment:error:invalid_state', { status: p.status });
-    }
+  'urn:corpus:payments:refund:operation:refund_payment': ({ merchant_id, payment_id, amount, idempotency_key }, current) => {
+    if (current.merchant_id !== merchant_id) return fail('urn:corpus:payments:payment:error:not_found', {});
     if (idempotency_key === USED_KEY) return fail('urn:corpus:payments:payment:error:idempotency_conflict', { idempotency_key });
-    if (p.captured_long_ago) return fail('urn:corpus:payments:refund:error:refund_window_closed', {});
-    const available = p.captured_amount - p.refunded_amount;
+    if (payment_id === CAPTURED_LONG_AGO) return fail('urn:corpus:payments:refund:error:refund_window_closed', {});
+    const available = current.captured_amount - current.refunded_amount;
     if (amount > available) return fail('urn:corpus:payments:refund:error:amount_exceeds_captured', { amount, available });
 
-    const refunded_total = p.refunded_amount + amount;
-    const next = refunded_total === p.captured_amount ? 'refunded' : 'partially_refunded';
-    const event = change(payment_id, p, p.status, next);
+    const refunded_total = current.refunded_amount + amount;
+    const next = refunded_total === current.captured_amount ? 'refunded' : 'partially_refunded';
+    const event = change(payment_id, current, current.status, next);
     return ok(
-      { refund_id: `re_${'2'.padStart(24, '0')}`, payment_id, merchant_id, amount, currency: 'EUR', captured_amount: p.captured_amount, refunded_total, created_at: NOW },
+      { refund_id: `re_${'2'.padStart(24, '0')}`, payment_id, merchant_id, amount, currency: current.currency, captured_amount: current.captured_amount, refunded_total, created_at: NOW },
       [
         next === 'refunded'
           ? emit('urn:corpus:payments:payment:event:refunded', event)

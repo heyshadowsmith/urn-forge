@@ -3,6 +3,9 @@
 Feature: Capture a payment
 
   Scenario Outline: An authorized payment is captured in full when the request has no amount, else for the amount
+    Given the current payment is:
+      | payment_id                   | merchant_id | amount | currency | method | status     | captured_amount | refunded_amount | created_at           |
+      | pay_authorized00000000000000 | mer_1       | 5000   | EUR      | card   | authorized | 0               | 0               | 2026-11-22T10:00:00Z |
     When I run the operation with:
       | merchant_id | payment_id                   | amount   |
       | mer_1       | pay_authorized00000000000000 | <amount> |
@@ -20,6 +23,9 @@ Feature: Capture a payment
       | 5000   | 5000            |
 
   Scenario Outline: A capture of more than the authorized amount is refused
+    Given the current payment is:
+      | payment_id                   | merchant_id | amount | currency | method | status     | captured_amount | refunded_amount | created_at           |
+      | pay_authorized00000000000000 | mer_1       | 5000   | EUR      | card   | authorized | 0               | 0               | 2026-11-22T10:00:00Z |
     When I run the operation with:
       | merchant_id | payment_id                   | amount   |
       | mer_1       | pay_authorized00000000000000 | <amount> |
@@ -34,6 +40,9 @@ Feature: Capture a payment
       | 99999999 |
 
   Scenario Outline: A request with a value out of its limits is rejected on that value
+    Given the current payment is:
+      | payment_id                   | merchant_id | amount | currency | method | status     | captured_amount | refunded_amount | created_at           |
+      | pay_authorized00000000000000 | mer_1       | 5000   | EUR      | card   | authorized | 0               | 0               | 2026-11-22T10:00:00Z |
     When I run the operation with:
       | merchant_id | payment_id   | amount   |
       | mer_1       | <payment_id> | <amount> |
@@ -45,21 +54,40 @@ Feature: Capture a payment
       | amount     | pay_authorized00000000000000 | 100000000 |
       | payment_id | pay_AUTHORIZED00000000000000 |           |
 
-  Scenario: A payment that is not authorized cannot be captured
+  Scenario Outline: A payment that is not authorized cannot be captured
+    Given the current payment is:
+      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount   | refunded_amount   | created_at           |
+      | pay_payment00000000000000000 | mer_1       | 5000   | EUR      | card   | <status> | <captured_amount> | <refunded_amount> | 2026-11-22T10:00:00Z |
     When I run the operation with:
       | merchant_id | payment_id                   |
-      | mer_1       | pay_captured0000000000000000 |
+      | mer_1       | pay_payment00000000000000000 |
     Then the operation fails with "urn:corpus:payments:payment:error:invalid_state":
       | status   |
-      | captured |
-
-  Scenario Outline: An unknown payment, or a payment of another merchant, is not found
-    When I run the operation with:
-      | merchant_id   | payment_id   |
-      | <merchant_id> | <payment_id> |
-    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
+      | <status> |
+    And the operation emits no event
 
     Examples:
+      | status             | captured_amount | refunded_amount |
+      | pending            | 0               | 0               |
+      | captured           | 5000            | 0               |
+      | partially_refunded | 5000            | 2000            |
+      | voided             | 0               | 0               |
+      | expired            | 0               | 0               |
+      | refunded           | 5000            | 5000            |
+
+  Scenario: A payment of another merchant is not found
+    Given the current payment is:
+      | payment_id                   | merchant_id | amount | currency | method | status     | captured_amount | refunded_amount | created_at           |
+      | pay_authorized00000000000000 | mer_1       | 5000   | EUR      | card   | authorized | 0               | 0               | 2026-11-22T10:00:00Z |
+    When I run the operation with:
+      | merchant_id | payment_id                   |
+      | mer_2       | pay_authorized00000000000000 |
+    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
+
+  Scenario: An unknown payment is not found
+    Given there is no current payment
+    When I run the operation with:
       | merchant_id | payment_id                   |
       | mer_1       | pay_unknown00000000000000000 |
-      | mer_2       | pay_authorized00000000000000 |
+    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
+    And the operation emits no event
