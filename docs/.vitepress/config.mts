@@ -135,6 +135,7 @@ export default defineConfig({
           { text: 'Date arithmetic plan', link: '/project/date-arithmetic-plan' },
           { text: 'reportOn plan', link: '/project/report-on-plan' },
           { text: 'Formula cells plan', link: '/project/formula-cells-plan' },
+          { text: 'Store plan', link: '/project/store-plan' },
           { text: 'Spec v1.1', link: '/project/spec-v1-1' },
         ],
       },
