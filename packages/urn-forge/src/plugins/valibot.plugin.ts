@@ -352,7 +352,9 @@ function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
     `export const ${names.schema} = v.pipe(`,
     `  ${object},`,
     ...invariants.map(
-      (invariant) => `  v.forward(v.check(${ruleName(invariant.brandIdentifier)}, ${JSON.stringify(invariant.message)}), [${JSON.stringify(invariant.reportOn ?? firstField(invariant.rule))}]),`,
+      (invariant) =>
+        // The issue goes on the property, or on the path into an embedded entity (`total.amount_minor`).
+        `  v.forward(v.check(${ruleName(invariant.brandIdentifier)}, ${JSON.stringify(invariant.message)}), [${(invariant.reportOn ?? firstField(invariant.rule) ?? '').split('.').map((k) => JSON.stringify(k)).join(', ')}]),`,
     ),
     `);`,
     ...typeExports(entity.brandIdentifier),

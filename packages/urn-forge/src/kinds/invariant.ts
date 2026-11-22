@@ -39,6 +39,13 @@ export function ruleFields(entity: IREntity, node: (kind: 'field' | 'entity', ur
         holdsList: entity !== undefined && holdsList(entity, node),
         ...(child ? { items: ruleFields(child, node, '', depth + 1) } : {}),
       };
+      // An embedded entity that is not a list: its properties by path (`total.amount_minor`). A
+      // property is required only when the entity and the property both are.
+      if (ref.many === undefined && entity && depth < 8) {
+        for (const [name, field] of Object.entries(ruleFields(entity, node, '', depth + 1))) {
+          fields[`${prefix}${ref.name}.${name}`] = { ...field, required: ref.required && field.required };
+        }
+      }
       continue;
     }
     // A link compares as its target's key.

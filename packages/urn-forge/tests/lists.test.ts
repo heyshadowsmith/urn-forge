@@ -124,4 +124,16 @@ describe('the gate 3 boundary of a unique list of properties', () => {
     expect(repeated?.covers([{ sku: 'A', location: 'X' }, { sku: 'A', location: 'Y' }])).toBe(false);
     expect(repeated?.covers([{ sku: 'A' }, { sku: 'A' }])).toBe(false);
   });
+
+});
+
+describe('paths into embedded entities (fixture: sums)', async () => {
+  const sums = await import('./fixtures/sums/expected/domain.schemas.generated.js');
+  const money = (amount_minor: number) => ({ amount_minor, currency: 'EUR' });
+
+  it('add up a property inside the embedded entity of each item, and compare it with one of the entity', () => {
+    const invoice = (total: number, ...lines: number[]) => ({ total: money(total), lines: lines.map((n) => ({ amount: money(n) })) });
+    expect(v.safeParse(sums.InvoiceInvoiceSchema, invoice(300, 100, 200)).success).toBe(true);
+    expect(v.safeParse(sums.InvoiceInvoiceSchema, invoice(301, 100, 200)).success).toBe(false);
+  });
 });

@@ -82,8 +82,8 @@ function tokenize(source: string): Token[] {
       i += 1;
       continue;
     }
-    // A name, or a prefix and a name: `input.party_size` in a condition of an operation.
-    const name = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?/u.exec(source.slice(i));
+    // A name, or a path: `input.party_size` in a condition, `total.amount_minor` into an embedded entity.
+    const name = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*/u.exec(source.slice(i));
     if (name) {
       tokens.push({ kind: 'name', text: name[0], at });
       i += name[0].length;

@@ -44,6 +44,55 @@
       ],
       "urn": "urn:demo:sums:claim:entity:line"
     },
+    "urn:demo:sums:invoice:entity:invoice": {
+      "brandIdentifier": "InvoiceInvoice",
+      "description": "An invoice whose total is the sum of its lines",
+      "fields": [
+        {
+          "entity": "urn:demo:sums:money:entity:money",
+          "name": "total",
+          "required": true
+        },
+        {
+          "entity": "urn:demo:sums:invoice:entity:line",
+          "many": {
+            "minItems": 1
+          },
+          "name": "lines",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:sums:invoice:entity:invoice"
+    },
+    "urn:demo:sums:invoice:entity:line": {
+      "brandIdentifier": "InvoiceLine",
+      "description": "One line of an invoice",
+      "fields": [
+        {
+          "entity": "urn:demo:sums:money:entity:money",
+          "name": "amount",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:sums:invoice:entity:line"
+    },
+    "urn:demo:sums:money:entity:money": {
+      "brandIdentifier": "MoneyMoney",
+      "description": "An amount with its currency",
+      "fields": [
+        {
+          "field": "urn:demo:sums:money:field:amount_minor",
+          "name": "amount_minor",
+          "required": true
+        },
+        {
+          "field": "urn:demo:sums:money:field:currency",
+          "name": "currency",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:sums:money:entity:money"
+    },
     "urn:demo:sums:payment:entity:item": {
       "brandIdentifier": "PaymentItem",
       "description": "One item of a payment",
@@ -122,6 +171,24 @@
       "primitive": "decimal",
       "urn": "urn:demo:sums:claim:field:total"
     },
+    "urn:demo:sums:money:field:amount_minor": {
+      "brandIdentifier": "MoneyAmountMinor",
+      "constraints": {
+        "min": 0
+      },
+      "description": "An amount in minor units",
+      "primitive": "integer",
+      "urn": "urn:demo:sums:money:field:amount_minor"
+    },
+    "urn:demo:sums:money:field:currency": {
+      "brandIdentifier": "MoneyCurrency",
+      "constraints": {
+        "regex": "[A-Z]{3}"
+      },
+      "description": "A currency",
+      "primitive": "string",
+      "urn": "urn:demo:sums:money:field:currency"
+    },
     "urn:demo:sums:payment:field:amount": {
       "brandIdentifier": "PaymentAmount",
       "constraints": {
@@ -177,6 +244,30 @@
       "ruleText": "total = sum(line in lines: line.amount)",
       "urn": "urn:demo:sums:claim:invariant:total_is_sum"
     },
+    "urn:demo:sums:invoice:invariant:total_is_sum": {
+      "brandIdentifier": "InvoiceTotalIsSum",
+      "description": "The total of an invoice is the sum of its line amounts, in minor units",
+      "message": "The total must be the sum of the line amounts",
+      "on": "urn:demo:sums:invoice:entity:invoice",
+      "rule": {
+        "left": {
+          "name": "total.amount_minor",
+          "op": "field"
+        },
+        "op": "=",
+        "right": {
+          "item": "line",
+          "list": "lines",
+          "op": "sum",
+          "value": {
+            "name": "line.amount.amount_minor",
+            "op": "field"
+          }
+        }
+      },
+      "ruleText": "total.amount_minor = sum(line in lines: line.amount.amount_minor)",
+      "urn": "urn:demo:sums:invoice:invariant:total_is_sum"
+    },
     "urn:demo:sums:payment:invariant:amount_is_sum": {
       "brandIdentifier": "PaymentAmountIsSum",
       "description": "The amount of a payment with items is the sum of quantity times unit amount",
@@ -219,7 +310,7 @@
   "meta": {
     "domain": "sums",
     "irSchemaVersion": 1,
-    "manifestHash": "ea91844c099b102220c0ba54372b9ca6e513418f3f83cf5792bcce3ddcfb5f77",
+    "manifestHash": "0baf19fdd5c886b593df4b6d513e785b125d1afe6bd3f429ad450f71b4edda03",
     "manifestVersion": "1.0.0",
     "namespace": "demo",
     "stability": "stable"
@@ -233,6 +324,15 @@
       "input": "urn:demo:sums:claim:entity:claim",
       "output": "urn:demo:sums:claim:entity:claim",
       "urn": "urn:demo:sums:claim:operation:create_claim"
+    },
+    "urn:demo:sums:invoice:operation:issue_invoice": {
+      "brandIdentifier": "InvoiceIssueInvoice",
+      "description": "Issue an invoice",
+      "emits": [],
+      "errors": [],
+      "input": "urn:demo:sums:invoice:entity:invoice",
+      "output": "urn:demo:sums:invoice:entity:invoice",
+      "urn": "urn:demo:sums:invoice:operation:issue_invoice"
     },
     "urn:demo:sums:payment:operation:create_payment": {
       "brandIdentifier": "PaymentCreatePayment",

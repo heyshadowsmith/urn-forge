@@ -205,8 +205,8 @@ describe('prefixed names, for the conditions of an operation', () => {
     ]);
   });
 
-  it('refuses a second prefix', () => {
-    expect(parseRule('input.a.b < 1')).toMatchObject({ ok: false });
+  it('reads a path into an embedded entity as one name', () => {
+    expect(parseRule('input.total.amount_minor < 1')).toMatchObject({ ok: true, expr: { left: { op: 'field', name: 'input.total.amount_minor' } } });
   });
 });
 
@@ -288,5 +288,29 @@ describe('equality of embedded entities', () => {
     expect(problems('output.basket = current.basket')).toEqual(['"=" cannot compare urn:a:b:shop:entity:basket, which holds a list']);
     expect(problems('output.plan = current.extra')).toEqual(['"current.extra" is optional, so the rule must guard it: write "current.extra is present and …" or "current.extra is absent or …"']);
     expect(problems('current.extra is present and output.plan = current.extra')).toEqual([]);
+  });
+});
+
+describe('paths into embedded entities', () => {
+  const minor: RuleField = { primitive: 'integer', required: true, many: false };
+  const fields: Record<string, RuleField> = {
+    'total.amount_minor': minor,
+    'fee.amount_minor': { ...minor, required: false },
+    total: { primitive: 'string', required: true, many: false, embedded: true, entity: 'urn:a:b:money:entity:money' },
+    lines: { primitive: 'string', required: true, many: true, embedded: true, items: { amount: { primitive: 'string', required: true, many: false, embedded: true }, 'amount.amount_minor': minor } },
+  };
+  const problems = (source: string) => {
+    const parsed = parseRule(source);
+    if (!parsed.ok) throw new Error(parsed.problem.message);
+    return checkRule(parsed.expr, fields).map((p) => p.message);
+  };
+
+  it('names a property inside an embedded entity, also inside a sum', () => {
+    expect(problems('total.amount_minor = sum(line in lines: line.amount.amount_minor)')).toEqual([]);
+  });
+
+  it('asks for a guard on a property of an optional embedded entity', () => {
+    expect(problems('fee.amount_minor > 0')).toEqual(['"fee.amount_minor" is optional, so the rule must guard it: write "fee.amount_minor is present and …" or "fee.amount_minor is absent or …"']);
+    expect(problems('fee.amount_minor is absent or fee.amount_minor > 0')).toEqual([]);
   });
 });

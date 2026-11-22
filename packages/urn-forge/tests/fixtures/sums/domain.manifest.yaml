@@ -83,3 +83,39 @@ payment.operation.create_payment:
   input: payment.entity.request
   output: payment.entity.request
 
+
+money.field.amount_minor:
+  primitive: integer
+  min: 0
+  description: An amount in minor units
+money.field.currency:
+  primitive: string
+  regex: '[A-Z]{3}'
+  description: A currency
+money.entity.money:
+  description: An amount with its currency
+  fields:
+    - ref: money.field.amount_minor
+    - ref: money.field.currency
+invoice.entity.line:
+  description: One line of an invoice
+  fields:
+    - ref: money.entity.money
+      as: amount
+invoice.entity.invoice:
+  description: An invoice whose total is the sum of its lines
+  fields:
+    - ref: money.entity.money
+      as: total
+    - ref: invoice.entity.line
+      as: lines
+      many: { minItems: 1 }
+invoice.invariant.total_is_sum:
+  description: The total of an invoice is the sum of its line amounts, in minor units
+  on: invoice.entity.invoice
+  rule: 'total.amount_minor = sum(line in lines: line.amount.amount_minor)'
+  message: The total must be the sum of the line amounts
+invoice.operation.issue_invoice:
+  description: Issue an invoice
+  input: invoice.entity.invoice
+  output: invoice.entity.invoice

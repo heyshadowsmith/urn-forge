@@ -48,7 +48,12 @@ export function emitRule(
   let primitiveOf = outerPrimitiveOf;
   const bound = new Set<string>();
   /** A name in the code: a property of p, or of the item of an enclosing sum. */
-  const ref = (name: string) => (bound.has(name.split('.')[0]!) ? name : `p.${name}`);
+  const ref = (name: string) => {
+    const [head, ...rest] = name.split('.');
+    // After the first name (a prefix, an item or a property), each step may be absent: read it with ?.
+    const path = [head, ...rest.map((part, i) => (i === 0 && (bound.has(head!) || ['input', 'current', 'output'].includes(head!)) ? `.${part}` : `?.${part}`))].join('');
+    return bound.has(head!) ? path : `p.${path}`;
+  };
 
   /** The primitive of a value: a field's or an arithmetic's; undefined for a literal. */
   const typeOf = (e: RuleExpr): Primitive | undefined => valueType(e, primitiveOf);
