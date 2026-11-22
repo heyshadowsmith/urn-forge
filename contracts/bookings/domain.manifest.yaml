@@ -327,6 +327,11 @@ booking.operation.create_booking:
   description: Book a table
   input: booking.entity.create_request
   output: booking.entity.confirmation
+  requires:
+    - rule: input.party_size < 13
+      otherwise: booking.error.party_too_large_for_online
+    - rule: input.party_size < 7 or input.deposit_token is present
+      otherwise: booking.error.deposit_required
   errors:
     - booking.error.invalid_request
     - booking.error.outside_booking_window
@@ -367,6 +372,8 @@ booking.operation.cancel_booking:
     to: CANCELLED
     otherwise: booking.error.invalid_state
     missing: booking.error.booking_not_found
+  ensures:
+    - output.refund_amount = 0 or current.deposit_amount is present and output.refund_amount <= current.deposit_amount
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state
