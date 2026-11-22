@@ -100,13 +100,29 @@ promises:
     status: workaround
     by: [booking.operation.mark_no_show, auth.entity.caller, auth.field.role, booking.error.forbidden, booking.error.invalid_state]
     hole: D3
-  # The key and the refusal of a reused key are declared; that a repeat within 24 hours gives the first answer and no second booking or deposit is not.
+  # create_booking has idempotency { key: input.idempotency_key, window: 24 hours, otherwise: invalid_request }, and the
+  # contract uses the Postgres extra, so the store file has runOnce and the answers table "idempotency"."bookings": a
+  # repeat with the same key and body in 24 hours returns the stored first answer (the same reference) and runs nothing,
+  # so no second booking, no second booking_created and no second deposit, which is charged only by the run of
+  # create_booking (its payment_declined, its deposit_amount); the same key with another body answers invalid_request,
+  # filled from the input (the code INVALID_REQUEST); the primary key makes a concurrent repeat wait or fail. The key has
+  # no owner, as the promise names none. Scenarios repeat with the same body (first answer, no event), just before and at
+  # 24 hours, and with another body (refused). "Original answer" is a success: a refusal is not stored, so a repeat of a
+  # refused request runs again (a scenario shows it). That the shell calls runOnce, and charges the deposit inside its
+  # run, is the shell's, as for insertEvents (P21).
   P17:
     promise: "Repeating a create request with the same idempotency key within 24 hours returns the original answer and booking reference without creating a second booking or charging a second deposit, and reusing a key with a different request body is refused with INVALID_REQUEST."
-    status: workaround
-    by: [booking.field.idempotency_key, booking.error.invalid_request]
-    hole: C2
-  # cancel_booking accepts a CANCELLED booking, which stays CANCELLED; that the answer is the same cancellation and no second refund is made is not stated.
+    status: declared
+    by: [booking.operation.create_booking, booking.field.idempotency_key, booking.error.invalid_request]
+  # cancel_booking changes from [CONFIRMED, CANCELLED] to CANCELLED, so a CANCELLED booking is a success that stays
+  # CANCELLED, and booking_cancelled is emitted only when current.state = 'CONFIRMED', so a repeat publishes none. The
+  # rest is not stated, and `ensures` cannot state it today: (1) "the same cancellation details": the stored booking has
+  # no refund_amount or cancelled_at, and adding them would not help, since no rule ties what the first cancellation
+  # stores to its answer (the output is a cancellation, not the record, and an ensures cannot name the record after the
+  # change), so an ensures `output.cancelled_at = current.cancelled_at` would hold on whatever the shell stored; (2) "does
+  # not refund again": no element models the refund itself (no refund event or effect); refund_amount is a field of the
+  # answer, which a repeat repeats, so a shell that refunds on the answer would refund twice. idempotency does not fit:
+  # there is no key, and the promise has no window.
   P18:
     promise: "Cancelling a booking that is already CANCELLED returns success with the same cancellation details and does not refund again."
     status: workaround

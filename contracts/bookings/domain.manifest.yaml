@@ -360,6 +360,12 @@ booking.operation.create_booking:
   description: Book a table
   input: booking.entity.create_request
   output: booking.entity.confirmation
+  # A repeat with the same key in 24 hours returns the first answer and runs nothing (runOnce in the
+  # store file); the same key with another body is refused with INVALID_REQUEST. The key has no owner.
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
+    otherwise: booking.error.invalid_request
   # Any caller may book: P19 is about the bookings that exist.
   callers:
     allow: any

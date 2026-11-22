@@ -40,9 +40,9 @@ function eventOf(booking: Booking) {
 
 export const core = {
   'urn:corpus:bookings:booking:operation:create_booking': (request) => {
-    const { restaurant_id, local_date, local_time, party_size, idempotency_key, deposit_token } = request;
+    // A repeat with the same idempotency key never reaches the core: runOnce in the store file answers it.
+    const { restaurant_id, local_date, local_time, party_size, deposit_token } = request;
     if (deposit_token === 'declined') return fail('urn:corpus:bookings:booking:error:payment_declined');
-    if (idempotency_key.startsWith('reused')) return fail('urn:corpus:bookings:booking:error:invalid_request', { idempotency_key });
     if (local_date < '2026-11-22' || local_date > '2027-02-20') {
       return fail('urn:corpus:bookings:booking:error:outside_booking_window', { local_date, local_time, time_zone: TIME_ZONE });
     }
