@@ -226,6 +226,13 @@ booking.entity.change_request:
     - ref: booking.field.party_size
       required: false
 
+booking.entity.alternative:
+  description: Another start time that has a free table, offered when the requested one has none
+  fields:
+    - ref: booking.field.local_date
+    - ref: booking.field.local_time
+    - ref: booking.field.party_size
+
 booking.entity.cancellation:
   description: The answer to a cancellation
   fields:
@@ -262,10 +269,10 @@ booking.error.no_availability:
     - ref: booking.field.local_time
     - ref: booking.field.time_zone
     - ref: booking.field.party_size
-    - ref: booking.field.local_time
+    - ref: booking.entity.alternative
       as: alternatives
       required: false
-      many: { maxItems: 5, unique: true }
+      many: { maxItems: 5, unique: [local_time] }
 booking.error.deposit_required:
   description: A party of 7 or more needs a deposit payment token
   category: validation
@@ -374,6 +381,12 @@ booking.operation.create_booking:
       otherwise: booking.error.party_too_large_for_online
     - rule: input.party_size < 7 or input.deposit_token is present
       otherwise: booking.error.deposit_required
+  # A refusal for no availability offers other start times on the requested date, for the same party.
+  refuses:
+    - error: booking.error.no_availability
+      ensures:
+        - 'all(alt in error.alternatives: alt.local_date = input.local_date)'
+        - 'all(alt in error.alternatives: alt.party_size = input.party_size)'
   errors:
     - booking.error.invalid_request
     - booking.error.outside_booking_window

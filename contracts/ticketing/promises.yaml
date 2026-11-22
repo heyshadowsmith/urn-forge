@@ -49,12 +49,13 @@ promises:
     status: workaround
     by: [hold.operation.create_hold, hold.error.seat_unavailable, hold.error.section_sold_out, hold.error.limit_exceeded, hold.error.sales_closed]
     hole: A2
-  # The required fields and the three refusals are declared. "Refused with HOLD_EXPIRED if received after the hold's expiry time" is requires: now <= current.expires_at (at the expiry time itself the checkout is not after it), checked by the runtime before the handler, with scenarios a millisecond before, at and a millisecond after the expiry; a hold that is not ACTIVE is also refused with HOLD_EXPIRED. Not stated: "no ticket is issued" on a refusal. A refusal has no answer and no event, but that it creates no ticket, as that a refusal changes nothing, is the shell's (A2), and the scenarios show it only as no event.
+  # Declared. The request: order.entity.checkout_request requires hold_id and payment_reference, checked by the schema at the boundary (a scenario rejects a checkout without a payment reference).
+  # HOLD_EXPIRED: "refused if received after the hold's expiry time" is requires: now <= current.expires_at (at the expiry time itself the checkout is not after it), checked by the runtime before the handler, with scenarios a millisecond before, at and a millisecond after the expiry; a hold that is not ACTIVE is also refused with HOLD_EXPIRED (changes from [ACTIVE], otherwise). HOLD_NOT_FOUND: changes missing: hold_not_found, by the runtime when there is no current hold. PAYMENT_DECLINED: a declared error of check_out that the core returns when the payment fails.
+  # "No ticket is issued" on a refusal: a refusal has no answer and no event, so no ticket_issued (the runtime); and the contract uses the Postgres extra, whose generated commit gives no statement for a refusal, even with the shell's writes, so the tickets, which the shell writes only through writes(output) of a success, are never written for a refusal. Each refusal scenario (after the expiry, a millisecond after it, a hold no longer ACTIVE, an unknown hold, a declined payment) ends with "the operation emits no event" and "nothing changes", which runs commit on the refusal. As with runOnce, the shell must run the statements of commit, and write nothing else, in the transaction of the call.
   P09:
     promise: "A checkout request must carry the hold id and a payment reference, and is refused with HOLD_EXPIRED if received after the hold's expiry time, with HOLD_NOT_FOUND for an unknown hold, or with PAYMENT_DECLINED if the payment fails, in which case no ticket is issued."
-    status: workaround
-    by: [order.operation.check_out, order.entity.checkout_request, hold.field.hold_id, order.field.payment_reference, hold.field.expires_at, order.error.hold_expired, hold.error.hold_not_found, order.error.payment_declined]
-    hole: A2
+    status: declared
+    by: [order.operation.check_out, order.entity.checkout_request, hold.field.hold_id, order.field.payment_reference, hold.field.expires_at, order.error.hold_expired, hold.error.hold_not_found, order.error.payment_declined, ticket.event.ticket_issued]
   # The total as the sum of the ticket prices plus the fees is an invariant of the order; one ticket per held place pairs the tickets of the answer with the lines of the stored hold, which no rule states.
   P10:
     promise: "A successful checkout returns an order id and exactly one ticket per held seat or standing place, and the order total equals the sum of the line prices plus the listed fees."

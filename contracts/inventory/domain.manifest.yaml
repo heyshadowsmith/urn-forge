@@ -423,9 +423,19 @@ reservation.operation.reserve_stock:
     - request.error.idempotency_conflict
     - access.error.forbidden
   # The reservation expires 30 minutes after it is made, or after the time-to-live of the request.
+  # It holds every requested line in full, and no line that was not requested.
   ensures:
     - input.ttl_minutes is present or output.expires_at = now + 30 minutes
     - input.ttl_minutes is absent or output.expires_at = now + input.ttl_minutes minutes
+    - 'all(l in input.lines: any(o in output.lines: o.sku = l.sku and o.location = l.location and o.quantity = l.quantity))'
+    - 'all(o in output.lines: any(l in input.lines: l.sku = o.sku and l.location = o.location and l.quantity = o.quantity))'
+  # Each short line is a line of the request, with its requested quantity, and more than is available.
+  # A refusal reserves nothing: commit in the store file gives no statement for it.
+  refuses:
+    - error: stock.error.insufficient_stock
+      ensures:
+        - 'all(s in error.short_lines: any(l in input.lines: l.sku = s.sku and l.location = s.location and l.quantity = s.requested))'
+        - 'all(s in error.short_lines: s.requested > s.available)'
   emits: [reservation.event.stock_reserved, stock.event.stock_depleted]
 reservation.operation.release_reservation:
   description: Give the stock of an active or partly shipped reservation back

@@ -184,6 +184,8 @@ policy.operation.cancel_policy:
 | `callers` | A map | With a `caller` in the header | — | Who may call. Refer to [`callers`](#callers) |
 | `requires` | A list of maps | No | `[]` | Each `{ rule, otherwise }`. Refer to [`requires` and `ensures`](#requires-and-ensures) |
 | `ensures` | A list of strings | No | `[]` | Rules that the answer must keep. Refer to [`requires` and `ensures`](#requires-and-ensures) |
+| `rejects` | string | No | — | Short key of an error in `errors` with no required property: the answer to an input that does not parse, with the issues. Else `invalid-rejects`. Refer to [Declare what a refusal carries](../how-to/declare-refusals) |
+| `refuses` | A list of maps | No | `[]` | For each `error` (in `errors`, once), a list `ensures` of rules that the payload of a refusal with it keeps. A rule reads `input.`, `current.`, `now`, `today` and `error.`. Else `invalid-refuses`. Refer to [Declare what a refusal carries](../how-to/declare-refusals) |
 
 - An operation with no `errors` can only succeed. Its error type is `never`.
 - A successful operation returns zero or more events of each kind in `emits`, in any sequence, except as an item `{ event, when }` states.

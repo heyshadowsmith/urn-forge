@@ -99,6 +99,7 @@ const due = addDays('2026-11-21', 28); // '2026-12-19'
 | `assertEmitsNone` | `(result, urn): void` | Throws if the operation succeeded with events, or failed with no `DomainError` |
 | `assertEmitsNoneOf` | `(result, eventUrn, urn): void` | Throws if the operation failed, or succeeded with this event |
 | `assertNotDue` | `(result, urn): void` | Throws if the result is not a `ContractViolation` of a timed change called for a record that is not due |
+| `assertNothingChanges` | `(result, urn, commit?): void` | Throws if the result is not a refusal (a `DomainError` or `InputRejected`), or if `commit` gives a statement for it |
 
 - The assert functions compare with `===`, and `NaN` equals `NaN`. Lists compare item by item, and objects property by property.
 - A property that is not in `expected` is not compared. A property of `expected` with the value `undefined` must be absent.

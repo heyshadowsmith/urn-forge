@@ -39,6 +39,9 @@ Conditions:
 | A removed `requires` rule | Compatible |
 | A new `ensures` rule | Compatible |
 | A removed or changed `ensures` rule | Breaking: callers can rely on less |
+| A new `refuses` rule | Compatible: a refusal promises more |
+| A removed or changed `refuses` rule | Breaking: callers can rely on less |
+| A new, changed or removed `rejects` | Breaking: callers get another answer for an input that does not parse |
 | `changes` on an operation that had none | Breaking |
 
 A URN that has two uses obeys the rules of both. These changes are also breaking:

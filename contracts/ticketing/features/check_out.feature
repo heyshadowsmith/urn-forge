@@ -76,6 +76,7 @@ Feature: Check out a hold
       | hold_id                              | expires_at           |
       | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 2026-12-01T18:55:00Z |
     And the operation emits no event
+    And nothing changes
 
   Scenario: A checkout a millisecond before the expiry time of the hold is accepted
     Given the time is "2026-12-01T19:07:59.999Z"
@@ -113,6 +114,7 @@ Feature: Check out a hold
       | hold_id                              | expires_at           |
       | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 2026-12-01T19:08:00Z |
     And the operation emits no event
+    And nothing changes
 
   Scenario: An unknown hold is refused
     Given the time is "2026-12-01T19:00:00Z"
@@ -122,6 +124,7 @@ Feature: Check out a hold
       | checkout-0001   | 00000000-0000-4000-8000-000000000404 | pay_123           |
     Then the operation fails with "urn:corpus:ticketing:hold:error:hold_not_found"
     And the operation emits no event
+    And nothing changes
 
   Scenario: A declined payment issues no ticket
     Given the time is "2026-12-01T19:00:00Z"
@@ -135,6 +138,7 @@ Feature: Check out a hold
       | payment_reference |
       | DECLINED          |
     And the operation emits no event
+    And nothing changes
 
   Scenario Outline: A hold that is no longer ACTIVE cannot be checked out, and no ticket is issued
     Given the time is "2026-12-01T19:00:00Z"
@@ -148,6 +152,7 @@ Feature: Check out a hold
       | hold_id                              | expires_at           |
       | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 2026-12-01T18:50:00Z |
     And the operation emits no event
+    And nothing changes
 
     Examples:
       | hold_status |

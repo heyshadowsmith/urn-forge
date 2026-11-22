@@ -1,5 +1,7 @@
 /** The invariant rule language: parse, print and type-check. */
 import { describe, expect, it } from 'vitest';
+import ts from 'typescript';
+import { emitRule } from '../src/rules/emit.js';
 import { checkRule, firstField, namesIn, parseRule, printRule, stripColumns, type LocatedExpr, type RuleField } from '../src/rules/index.js';
 
 const parse = (text: string): LocatedExpr => {
@@ -257,6 +259,83 @@ describe('sum and *', () => {
 
   it('keeps a field named sum a field', () => {
     expect(stripColumns(parsed('sum > 1'))).toEqual({ op: '>', left: { op: 'field', name: 'sum' }, right: { op: 'number', value: '1' } });
+  });
+});
+
+describe('all, any and date', () => {
+  const fields: Record<string, RuleField> = {
+    day: { primitive: 'date', required: true, many: false },
+    size: { primitive: 'integer', required: true, many: false },
+    at: { primitive: 'timestamp', required: true, many: false },
+    slots: {
+      primitive: 'string',
+      required: false,
+      many: true,
+      embedded: true,
+      items: { starts_at: { primitive: 'timestamp', required: true, many: false }, size: { primitive: 'integer', required: true, many: false }, note: { primitive: 'string', required: false, many: false } },
+    },
+    codes: { primitive: 'string', required: true, many: true },
+  };
+  const parsed = (source: string) => {
+    const result = parseRule(source);
+    if (!result.ok) throw new Error(result.problem.message);
+    return result.expr;
+  };
+  const problems = (source: string) => checkRule(parsed(source), fields).map((p) => p.message);
+  const run = (source: string, p: Record<string, unknown>): boolean => {
+    const rule = stripColumns(parsed(source));
+    const primitiveOf = (name: string) => {
+      const [head, ...rest] = name.split('.');
+      const field = fields[head!]!;
+      return (rest.length > 0 ? field.items![rest.join('.')]! : field).primitive;
+    };
+    const { code } = emitRule(rule, primitiveOf);
+    return new Function('p', ts.transpile(`return ${code};`))(p) as boolean;
+  };
+
+  it('reads and prints all, any and date, and keeps names called all, any and date fields', () => {
+    for (const text of ['all(s in slots: date(s.starts_at) = day and s.size = size)', "any(c in codes: c = 'A')", 'date(at) = day', 'date(at) + 1 >= day']) {
+      expect(printRule(stripColumns(parsed(text)))).toBe(text);
+    }
+    expect(stripColumns(parsed('all > 1'))).toEqual({ op: '>', left: { op: 'field', name: 'all' }, right: { op: 'number', value: '1' } });
+    expect(stripColumns(parsed('date = day'))).toMatchObject({ left: { op: 'field', name: 'date' } });
+  });
+
+  it('types a condition over the items, and the date of a timestamp', () => {
+    expect(problems('all(s in slots: date(s.starts_at) = day and s.size = size)')).toEqual([]);
+    expect(problems("any(c in codes: c = 'A')")).toEqual([]);
+    expect(problems('all(s in slots: s.note is absent or s.note = \'x\')')).toEqual([]);
+  });
+
+  it('refuses a value in place of a condition, a list that is not a list, and the date of a value that is not a timestamp', () => {
+    expect(problems('all(s in slots: s.size)')).toEqual(['all needs a condition, such as a comparison, not an integer']);
+    expect(problems('any(s in size: s = 1)')).toEqual(['any reads the items of a list, and "size" is not a list']);
+    expect(problems('date(day) = day')).toEqual(['date gives the date of a timestamp, not of a date']);
+    expect(problems('all(s in slots: s.note = \'x\')')).toEqual(['"s.note" is optional, so the rule must guard it: write "s.note is present and …" or "s.note is absent or …"']);
+  });
+
+  it('runs: every item or one, an absent list, and the UTC date of a timestamp', () => {
+    const slots = [{ starts_at: '2026-11-22T23:59:59Z', size: 2 }, { starts_at: '2026-11-22T00:00:00.000Z', size: 2 }];
+    const rule = 'all(s in slots: date(s.starts_at) = day and s.size = size)';
+    expect(run(rule, { day: '2026-11-22', size: 2, slots })).toBe(true);
+    expect(run(rule, { day: '2026-11-22', size: 2, slots: [...slots, { starts_at: '2026-11-23T00:00:00Z', size: 2 }] })).toBe(false);
+    expect(run(rule, { day: '2026-11-22', size: 2 })).toBe(true);
+    expect(run('any(s in slots: s.size = size)', { size: 3, slots })).toBe(false);
+    expect(run('any(s in slots: s.size = size)', { size: 2, slots })).toBe(true);
+    expect(run('any(s in slots: s.size = size)', { size: 2 })).toBe(false);
+  });
+
+  it('pairs the items of two lists with all and any', () => {
+    const rule = 'all(s in slots: any(c in codes: s.note is present and s.note = c))';
+    expect(problems(rule)).toEqual([]);
+    const slots = [{ starts_at: '2026-11-22T00:00:00Z', size: 2, note: 'A' }];
+    expect(run(rule, { slots, codes: ['B', 'A'] })).toBe(true);
+    expect(run(rule, { slots, codes: ['B'] })).toBe(false);
+    expect(run(rule, { slots: [], codes: [] })).toBe(true);
+  });
+
+  it('keeps the item out of the names of the rule', () => {
+    expect(namesIn(stripColumns(parsed('all(s in slots: s.size = size)')))).toEqual(['slots', 'size']);
   });
 });
 

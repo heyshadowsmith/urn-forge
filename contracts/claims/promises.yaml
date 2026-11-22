@@ -62,11 +62,16 @@ promises:
     promise: "A successful request answers with the claim id, its new state, its total and currency, and its new version number, which is 1 higher than the version sent."
     status: declared
     by: [claim.entity.answer, claim.entity.rejection_answer, claim.entity.submission_answer, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid]
-  # INVALID_REQUEST is the rejection of the input, not a declared error; the codes as names on the wire, and that a refusal changes nothing, are not stated.
+  # Each operation rejects an input that does not parse with claim.error.invalid_request, and the
+  # errors lists name only invalid_request, not_found, forbidden, invalid_state, version_conflict and
+  # duplicate_receipt, each with a message; commit gives no statement for a refusal, and each refusal
+  # scenario checks that nothing changes. Still missing: report_overdue also refuses with
+  # claim.error.clock_only, a seventh code outside the closed set; and the codes on the wire
+  # (NOT_FOUND and the others) are names that the shell maps from the error URNs, not stated.
   P13:
     promise: "A refused request answers with exactly one of the codes INVALID_REQUEST, NOT_FOUND, FORBIDDEN, INVALID_STATE, VERSION_CONFLICT or DUPLICATE_RECEIPT, plus a human-readable message, and changes nothing."
     status: workaround
-    by: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
+    by: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt, claim.operation.create_draft, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid, claim.operation.get_claim, claim.operation.report_overdue]
     hole: A2
   # The reason of the request is required and 10 to 500 characters. reject_claim emits exactly one
   # claim_rejected on each success ({ event }), and its ensures state output.reason = input.reason and

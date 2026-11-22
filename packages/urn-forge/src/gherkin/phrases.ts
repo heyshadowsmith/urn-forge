@@ -28,6 +28,8 @@ export const STEP_PHRASES = {
   /** The same, followed by a table of the event's fields. */
   emitsWithFields: 'the operation emits {string}:',
   emitsNone: 'the operation emits no event',
+  /** The call refused, so it changed nothing: no output, no event, and no statement from commit. */
+  nothingChanges: 'nothing changes',
   /** A timed change, called for a record that is not due: the shell's clock must not call it. */
   notDue: 'the operation is not due',
   /** The operation succeeded without this event. */

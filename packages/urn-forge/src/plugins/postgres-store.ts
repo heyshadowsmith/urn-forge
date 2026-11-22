@@ -12,6 +12,7 @@ import { schemaNames } from '../naming.js';
 import { answersImports, answersStore, hasAnswers } from './postgres-idempotency.js';
 import { hasOutbox, outboxStore } from './postgres-outbox.js';
 import type { StoreChild, StoreRoot, StoreTable } from './postgres-tables.js';
+import { valuesInUrnOrder } from './plugin.interface.js';
 
 export const POSTGRES_STORE_FILE = 'domain.store.generated.ts';
 
@@ -163,5 +164,45 @@ export function storeFile(ir: UniversalIR, store: readonly StoreRoot[], dues: re
   }
   if (outbox) parts.push(outboxStore(ir));
   if (answers) parts.push(answersStore(ir));
+  const commit = commitStore(ir, store, outbox);
+  if (commit) parts.push(commit);
   return `${parts.join('\n')}\n`;
+}
+
+/**
+ * `commit`: the statements of a call, for a domain with an operation that changes a stored record or
+ * with an outbox. A refusal gives none. A success gives the new record of an operation that changes
+ * a stored record and answers it, the statements of `writes`, and the events that the outbox holds.
+ */
+function commitStore(ir: UniversalIR, store: readonly StoreRoot[], outbox: boolean): string | undefined {
+  const tables = new Set(store.map((root) => root.entity));
+  const changes = valuesInUrnOrder(ir.operations).flatMap((op) => {
+    if (!op.changes || !tables.has(op.changes.entity) || op.output !== op.changes.entity) return [];
+    const brand = ir.entities[op.changes.entity]!.brandIdentifier;
+    return [`  ${JSON.stringify(op.urn)}: (output) => replace${brand}From(output as s.${brand}, ${JSON.stringify(op.changes.from)}),`];
+  });
+  const changesTable = valuesInUrnOrder(ir.operations).some((op) => op.changes !== undefined && tables.has(op.changes.entity));
+  if (!changesTable && !outbox) return undefined;
+  return `
+/** A result of executeOperation: a success has its output and events; a refusal has neither. */
+export type CommitResult =
+  | { readonly ok: true; readonly urn: string; readonly output: unknown; readonly events: readonly { readonly urn: string; readonly fields: object }[] }
+  | { readonly ok: false };
+
+/** For each operation that changes a stored record and answers it: the statements of the new record, while it is in a state of from. */
+const Changes: Readonly<Record<string, (output: unknown) => readonly Statement[]>> = {
+${changes.join('\n')}
+};
+
+/**
+ * The statements of a call, to run in its transaction. A refusal changes nothing: it gives no
+ * statement. A success gives the new record of an operation that changes a stored record and
+ * answers it, then the statements that \`writes\` gives for the output${outbox ? ', then the events of the outbox' : ''}.
+ * Write nothing for a call but these.
+ */
+export function commit(result: CommitResult, writes: (output: unknown) => readonly Statement[] = () => []): readonly Statement[] {
+  if (!result.ok) return [];
+  const change = Object.hasOwn(Changes, result.urn) ? Changes[result.urn]! : () => [];
+  return [...change(result.output), ...writes(result.output)${outbox ? ', ...insertEvents(result.events.filter((event) => Object.hasOwn(Delivery, event.urn)))' : ''}];
+}`;
 }

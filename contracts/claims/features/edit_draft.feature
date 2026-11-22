@@ -47,6 +47,8 @@ Feature: Edit a draft claim
       | claim_id       | version | actor_id | purpose   | currency | lines                                                                                                                                                                                                                              |
       | CLM-0000000123 | 1       | E-1001   | <purpose> | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
     Then the input is rejected on "purpose"
+    And the operation fails with "urn:corpus:claims:claim:error:invalid_request"
+    And nothing changes
 
     Examples:
       | purpose           |
@@ -64,6 +66,8 @@ Feature: Edit a draft claim
       | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
       | CLM-0000000123 | 1       | E-1001   | Client visit | eur      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
     Then the input is rejected on "currency"
+    And the operation fails with "urn:corpus:claims:claim:error:invalid_request"
+    And nothing changes
 
   Scenario Outline: A list of lines that breaks a rule of its values is rejected
     Given the caller is:
@@ -76,6 +80,8 @@ Feature: Edit a draft claim
       | claim_id       | version | actor_id | purpose      | currency | lines   |
       | CLM-0000000123 | 1       | E-1001   | Client visit | EUR      | <lines> |
     Then the input is rejected on "lines"
+    And the operation fails with "urn:corpus:claims:claim:error:invalid_request"
+    And nothing changes
 
     Examples:
       | lines                                                                                                                                                                                                                                                                                  |
@@ -105,6 +111,8 @@ Feature: Edit a draft claim
       | claim_id       | version | actor_id | purpose      | currency | lines   |
       | CLM-0000000123 | 1       | E-1001   | Client visit | EUR      | <lines> |
     Then the input is rejected by "urn:corpus:claims:line:invariant:<invariant>"
+    And the operation fails with "urn:corpus:claims:claim:error:invalid_request"
+    And nothing changes
 
     Examples:
       | invariant                 | lines                                                                                                                                                                                                                                        |
@@ -124,6 +132,8 @@ Feature: Edit a draft claim
       | claim_id | version | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
       | CLM-12   | 1       | E-1001   | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
     Then the input is rejected on "claim_id"
+    And the operation fails with "urn:corpus:claims:claim:error:invalid_request"
+    And nothing changes
 
   Scenario: A version below 1 is rejected
     Given the caller is:
@@ -136,6 +146,8 @@ Feature: Edit a draft claim
       | claim_id       | version | actor_id | purpose      | currency | lines                                                                                                                                                                                                                              |
       | CLM-0000000123 | 0       | E-1001   | Client visit | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
     Then the input is rejected on "version"
+    And the operation fails with "urn:corpus:claims:claim:error:invalid_request"
+    And nothing changes
 
   Scenario: A claim that does not exist is not found
     Given the caller is:
@@ -148,6 +160,7 @@ Feature: Edit a draft claim
     Then the operation fails with "urn:corpus:claims:claim:error:not_found":
       | claim_id       |
       | CLM-0000000404 |
+    And nothing changes
 
   Scenario Outline: Only the employee who owns the claim may edit it, as themselves
     Given the caller is:
@@ -162,6 +175,7 @@ Feature: Edit a draft claim
     Then the operation fails with "urn:corpus:claims:claim:error:forbidden":
       | actor_id   |
       | <actor_id> |
+    And nothing changes
 
     Examples:
       | role     | employee_id | actor_id |
@@ -183,6 +197,7 @@ Feature: Edit a draft claim
     Then the operation fails with "urn:corpus:claims:claim:error:invalid_state":
       | claim_id       | state   |
       | CLM-0000000123 | <state> |
+    And nothing changes
 
     Examples:
       | state     |
@@ -204,6 +219,7 @@ Feature: Edit a draft claim
     Then the operation fails with "urn:corpus:claims:claim:error:version_conflict":
       | claim_id       | version   |
       | CLM-0000000123 | <version> |
+    And nothing changes
 
     Examples:
       | version |
@@ -223,6 +239,7 @@ Feature: Edit a draft claim
     Then the operation fails with "urn:corpus:claims:claim:error:duplicate_receipt":
       | sha256                                                           |
       | ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff |
+    And nothing changes
 
   Scenario: A repeat with the same idempotency key by the same caller within 24 hours returns the first answer, whatever its body
     Given the time is "2026-11-22T10:00:00Z"

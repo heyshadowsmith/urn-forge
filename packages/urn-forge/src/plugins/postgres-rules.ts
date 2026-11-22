@@ -71,6 +71,9 @@ export function ruleSql(ir: UniversalIR, rule: RuleExpr, properties: readonly IR
         return `(${value(e.left, typeOf(e.left) ?? primitive)} * ${value(e.right, typeOf(e.right) ?? primitive)})`;
       case 'sum':
         throw new Untranslatable(`a sum adds up the rows of the child table "${e.list}", and a CHECK sees one row`);
+      case 'date':
+        // The UTC date of a timestamp.
+        return `(${value(e.value, 'timestamp')} AT TIME ZONE 'UTC')::DATE`;
       case 'field':
         return column(e.name);
       case 'number':
@@ -101,6 +104,9 @@ export function ruleSql(ir: UniversalIR, rule: RuleExpr, properties: readonly IR
 
   const condition = (e: RuleExpr): string => {
     switch (e.op) {
+      case 'all':
+      case 'any':
+        throw new Untranslatable(`${e.op} reads the rows of the child table "${e.list}", and a CHECK sees one row`);
       case 'present':
         return `${column(e.field)} IS NOT NULL`;
       case 'absent':

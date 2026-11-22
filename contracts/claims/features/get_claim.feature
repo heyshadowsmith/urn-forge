@@ -33,6 +33,8 @@ Feature: Get a claim
       | claim_id | actor_id |
       | CLM-12   | E-1001   |
     Then the input is rejected on "claim_id"
+    And the operation fails with "urn:corpus:claims:claim:error:invalid_request"
+    And nothing changes
 
   Scenario: A claim that does not exist is not found
     Given the caller is:
@@ -45,6 +47,7 @@ Feature: Get a claim
     Then the operation fails with "urn:corpus:claims:claim:error:not_found":
       | claim_id       |
       | CLM-0000000404 |
+    And nothing changes
 
   Scenario Outline: Any other caller, or a caller who names another actor, is refused
     Given the caller is:
@@ -59,6 +62,7 @@ Feature: Get a claim
     Then the operation fails with "urn:corpus:claims:claim:error:forbidden":
       | actor_id   |
       | <actor_id> |
+    And nothing changes
 
     Examples:
       | role     | employee_id | actor_id |

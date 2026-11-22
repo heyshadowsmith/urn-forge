@@ -30,6 +30,8 @@ Feature: Approve a claim
       | claim_id | version | actor_id |
       | CLM-12   | 1       | M-3003   |
     Then the input is rejected on "claim_id"
+    And the operation fails with "urn:corpus:claims:claim:error:invalid_request"
+    And nothing changes
 
   Scenario: A version below 1 is rejected
     Given the caller is:
@@ -42,6 +44,8 @@ Feature: Approve a claim
       | claim_id       | version | actor_id |
       | CLM-0000000123 | 0       | M-3003   |
     Then the input is rejected on "version"
+    And the operation fails with "urn:corpus:claims:claim:error:invalid_request"
+    And nothing changes
 
   Scenario: A claim that does not exist is not found
     Given the caller is:
@@ -54,6 +58,7 @@ Feature: Approve a claim
     Then the operation fails with "urn:corpus:claims:claim:error:not_found":
       | claim_id       |
       | CLM-0000000404 |
+    And nothing changes
 
   Scenario Outline: Only the claimant's manager may approve the claim, as themselves
     Given the caller is:
@@ -68,6 +73,7 @@ Feature: Approve a claim
     Then the operation fails with "urn:corpus:claims:claim:error:forbidden":
       | actor_id   |
       | <actor_id> |
+    And nothing changes
 
     Examples:
       | role     | employee_id | actor_id |
@@ -89,6 +95,7 @@ Feature: Approve a claim
     Then the operation fails with "urn:corpus:claims:claim:error:forbidden":
       | actor_id |
       | M-3003   |
+    And nothing changes
 
   Scenario Outline: A claim that is not SUBMITTED is refused
     Given the caller is:
@@ -103,6 +110,7 @@ Feature: Approve a claim
     Then the operation fails with "urn:corpus:claims:claim:error:invalid_state":
       | claim_id       | state   |
       | CLM-0000000123 | <state> |
+    And nothing changes
 
     Examples:
       | state     |
@@ -125,6 +133,7 @@ Feature: Approve a claim
     Then the operation fails with "urn:corpus:claims:claim:error:version_conflict":
       | claim_id       | version   |
       | CLM-0000000123 | <version> |
+    And nothing changes
 
     Examples:
       | version |

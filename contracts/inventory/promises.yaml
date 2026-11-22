@@ -30,7 +30,7 @@ promises:
     promise: "The service offers exactly these operations - GetStock, ReceiveGoods, ReserveStock, ReleaseReservation, ShipReservation and AdjustStock - and each write request must carry a caller-chosen idempotency key of 8 to 64 characters."
     status: declared
     by: [stock.operation.get_stock, receipt.operation.receive_goods, reservation.operation.reserve_stock, reservation.operation.release_reservation, reservation.operation.ship_reservation, adjustment.operation.adjust_stock, request.field.idempotency_key]
-  # The two answers are declared. That the short lines are lines of the request, and that a refusal reserves nothing, are not stated.
+  # Stated and checked: the answer lines equal the request lines both ways (ensures, all/any), RESERVED with a reservation id, a refusal gives no commit statement (nothing changes), and each listed short line is a request line with its requested quantity and requested > available (refuses). Not stated: that every short line is listed - available stock is not stored or read, so no rule can name the lines that are short.
   P08:
     promise: "ReserveStock is all-or-nothing - it either reserves every line in full and answers RESERVED with a reservation id, or reserves nothing and answers INSUFFICIENT_STOCK listing each short line with its requested and available quantity."
     status: workaround

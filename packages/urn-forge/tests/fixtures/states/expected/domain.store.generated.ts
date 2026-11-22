@@ -91,3 +91,28 @@ export function deleteBookingBooking(key: s.BookingReference): readonly Statemen
 export function replaceBookingBookingFrom(value: s.BookingBooking, from: readonly s.BookingStateInput[]): readonly Statement[] {
   return [...deleteRowsFrom(BookingBookingTable, value["reference"], "state", from), ...insertRows(BookingBookingTable, "reference", value as Readonly<Record<string, unknown>>)];
 }
+
+/** A result of executeOperation: a success has its output and events; a refusal has neither. */
+export type CommitResult =
+  | { readonly ok: true; readonly urn: string; readonly output: unknown; readonly events: readonly { readonly urn: string; readonly fields: object }[] }
+  | { readonly ok: false };
+
+/** For each operation that changes a stored record and answers it: the statements of the new record, while it is in a state of from. */
+const Changes: Readonly<Record<string, (output: unknown) => readonly Statement[]>> = {
+  "urn:demo:states:booking:operation:change_party": (output) => replaceBookingBookingFrom(output as s.BookingBooking, ["confirmed"]),
+  "urn:demo:states:booking:operation:close_booking": (output) => replaceBookingBookingFrom(output as s.BookingBooking, ["confirmed","seated"]),
+  "urn:demo:states:booking:operation:confirm_booking": (output) => replaceBookingBookingFrom(output as s.BookingBooking, ["confirmed"]),
+  "urn:demo:states:booking:operation:seat_booking": (output) => replaceBookingBookingFrom(output as s.BookingBooking, ["confirmed"]),
+};
+
+/**
+ * The statements of a call, to run in its transaction. A refusal changes nothing: it gives no
+ * statement. A success gives the new record of an operation that changes a stored record and
+ * answers it, then the statements that `writes` gives for the output.
+ * Write nothing for a call but these.
+ */
+export function commit(result: CommitResult, writes: (output: unknown) => readonly Statement[] = () => []): readonly Statement[] {
+  if (!result.ok) return [];
+  const change = Object.hasOwn(Changes, result.urn) ? Changes[result.urn]! : () => [];
+  return [...change(result.output), ...writes(result.output)];
+}

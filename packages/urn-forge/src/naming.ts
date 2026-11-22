@@ -42,8 +42,8 @@ export function ruleName(brandIdentifier: string): string {
 }
 
 /** The exported function of a condition of an operation: `<Brand>Requires<n>`, `<Brand>Ensures<n>`, `<Brand>When<n>` or `<Brand>Caller<n>`, from 1. */
-export function conditionName(brandIdentifier: string, kind: 'requires' | 'ensures' | 'when' | 'caller' | 'due', index: number): string {
-  const word = { requires: 'Requires', ensures: 'Ensures', when: 'When', caller: 'Caller', due: 'Due' }[kind];
+export function conditionName(brandIdentifier: string, kind: 'requires' | 'ensures' | 'when' | 'caller' | 'due' | 'refuses', index: number): string {
+  const word = { requires: 'Requires', ensures: 'Ensures', when: 'When', caller: 'Caller', due: 'Due', refuses: 'Refuses' }[kind];
   return `${brandIdentifier}${word}${index + 1}`;
 }
 
