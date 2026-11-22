@@ -256,7 +256,8 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof P
       unenforced,
     });
     out.push(...model.lines);
-    if (hasOutbox(ir)) out.push(...outboxSql(ir));
+    // The outbox starts with a blank line; a schema with no table already ends with one.
+    if (hasOutbox(ir)) out.push(...outboxSql(ir).slice(out.at(-1) === '' ? 1 : 0));
 
     if (diagnostics.some((d) => d.severity === 'error')) return { artifacts: [], diagnostics };
     const store = storeFile(ir, model.store);
