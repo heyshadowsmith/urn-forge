@@ -39,13 +39,11 @@ promises:
     status: workaround
     by: [payment.entity.create_payment_request, payment.field.merchant_id, payment.field.amount, payment.field.currency, payment.field.method, payment.field.idempotency_key, payment.field.description, payment.entity.metadata_entry]
     hole: B3
-  # The count and the limits of the lines are declared. That the amount is the sum of the lines
-  # is in the core, refused as invalid_request; no rule adds the items of a list.
+  # The sum is a requires rule of create_payment, so a mismatch answers invalid_request.
   P07:
     promise: "When a create-payment request carries line items, there are 1 to 100 of them, each has a quantity of at least 1 and a non-negative unit amount, and the payment amount equals the sum of quantity times unit amount over all lines."
-    status: workaround
-    by: [payment.entity.create_payment_request, payment.entity.line_item, payment.field.quantity, payment.field.unit_amount, payment.error.invalid_request]
-    hole: A1
+    status: declared
+    by: [payment.entity.create_payment_request, payment.entity.line_item, payment.field.quantity, payment.field.unit_amount, payment.operation.create_payment, payment.error.invalid_request]
   P08:
     promise: "A caller can create a payment, capture it, void it, refund it, and read a payment or refund by id."
     status: declared

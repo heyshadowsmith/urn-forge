@@ -22,12 +22,30 @@ export type InvariantDecl = v.InferOutput<typeof InvariantSchema>;
  * the parsed rule and its canonical text.
  */
 /** The properties of an entity as a rule sees them, each name with `prefix` before it (`input.` in a condition). */
-export function ruleFields(entity: IREntity, node: (kind: 'field' | 'entity', urn: Urn) => unknown, prefix = ''): Record<string, RuleField> {
+export function ruleFields(entity: IREntity, node: (kind: 'field' | 'entity', urn: Urn) => unknown, prefix = '', depth = 0): Record<string, RuleField> {
   const fields: Record<string, RuleField> = {};
   for (const ref of entity.fields) {
     if ('entity' in ref) {
-      // An embedded object has no value to compare; a rule can only ask whether it is there.
-      fields[prefix + ref.name] = { primitive: 'string', required: ref.required, many: ref.many !== undefined, embedded: true };
+      // An embedded object has no value to compare; a rule can only ask whether it is there, or add
+      // up a property of the items of a list of them (sum). Embedding cycles are a pass 5 error.
+      const entity = node('entity', ref.entity) as IREntity | undefined;
+      const child = depth < 8 && ref.many !== undefined ? entity : undefined;
+      fields[prefix + ref.name] = {
+        primitive: 'string',
+        required: ref.required,
+        many: ref.many !== undefined,
+        embedded: true,
+        entity: ref.entity,
+        holdsList: entity !== undefined && holdsList(entity, node),
+        ...(child ? { items: ruleFields(child, node, '', depth + 1) } : {}),
+      };
+      // An embedded entity that is not a list: its properties by path (`total.amount_minor`). A
+      // property is required only when the entity and the property both are.
+      if (ref.many === undefined && entity && depth < 8) {
+        for (const [name, field] of Object.entries(ruleFields(entity, node, '', depth + 1))) {
+          fields[`${prefix}${ref.name}.${name}`] = { ...field, required: ref.required && field.required };
+        }
+      }
       continue;
     }
     // A link compares as its target's key.
@@ -38,6 +56,11 @@ export function ruleFields(entity: IREntity, node: (kind: 'field' | 'entity', ur
     fields[prefix + ref.name] = { primitive: field.primitive, required: ref.required, many: ref.many !== undefined, ...(values ? { values } : {}) };
   }
   return fields;
+}
+
+/** Whether an entity, or an entity that it embeds, holds a list. */
+function holdsList(entity: IREntity, node: (kind: 'field' | 'entity', urn: Urn) => unknown, depth = 0): boolean {
+  return entity.fields.some((ref) => ref.many !== undefined || ('entity' in ref && depth < 8 && holdsList(node('entity', ref.entity) as IREntity, node, depth + 1)));
 }
 
 export const invariant = defineKind<InvariantDecl, IRInvariant>()({

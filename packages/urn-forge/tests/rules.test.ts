@@ -1,6 +1,6 @@
 /** The invariant rule language: parse, print and type-check. */
 import { describe, expect, it } from 'vitest';
-import { checkRule, firstField, parseRule, printRule, stripColumns, type LocatedExpr, type RuleField } from '../src/rules/index.js';
+import { checkRule, firstField, namesIn, parseRule, printRule, stripColumns, type LocatedExpr, type RuleField } from '../src/rules/index.js';
 
 const parse = (text: string): LocatedExpr => {
   const result = parseRule(text);
@@ -205,7 +205,112 @@ describe('prefixed names, for the conditions of an operation', () => {
     ]);
   });
 
-  it('refuses a second prefix', () => {
-    expect(parseRule('input.a.b < 1')).toMatchObject({ ok: false });
+  it('reads a path into an embedded entity as one name', () => {
+    expect(parseRule('input.total.amount_minor < 1')).toMatchObject({ ok: true, expr: { left: { op: 'field', name: 'input.total.amount_minor' } } });
+  });
+});
+
+describe('sum and *', () => {
+  const amount: RuleField = { primitive: 'decimal', required: true, many: false };
+  const fields: Record<string, RuleField> = {
+    total: amount,
+    count: { primitive: 'integer', required: true, many: false },
+    lines: { primitive: 'string', required: true, many: true, embedded: true, items: { amount, quantity: { primitive: 'integer', required: true, many: false }, note: { primitive: 'string', required: false, many: false } } },
+    tags: { primitive: 'integer', required: true, many: true },
+  };
+  const parsed = (source: string) => {
+    const result = parseRule(source);
+    if (!result.ok) throw new Error(result.problem.message);
+    return result.expr;
+  };
+  const problems = (source: string) => checkRule(parsed(source), fields).map((p) => p.message);
+
+  it('reads and prints a sum with a product, and keeps * tighter than +', () => {
+    const rule = stripColumns(parsed('total = sum(line in lines: line.quantity * line.amount) + 1'));
+    expect(printRule(rule)).toBe('total = sum(line in lines: line.quantity * line.amount) + 1');
+    expect(rule).toMatchObject({ op: '=', right: { op: '+', left: { op: 'sum', item: 'line', list: 'lines', value: { op: '*' } } } });
+    expect(printRule(stripColumns(parsed('count = (count + 1) * 2')))).toBe('count = (count + 1) * 2');
+  });
+
+  it('types a sum of decimals, of integers, and of a list of values', () => {
+    expect(problems('total = sum(line in lines: line.amount)')).toEqual([]);
+    expect(problems('count = sum(line in lines: line.quantity)')).toEqual([]);
+    expect(problems('count = sum(tag in tags: tag)')).toEqual([]);
+    expect(problems('total = sum(line in lines: line.quantity * line.amount)')).toEqual([]);
+  });
+
+  it('refuses a sum over a property that is not a list, of a value that is not a number, and an item name that is taken', () => {
+    expect(problems('total = sum(line in total: line)')).toEqual(['sum adds up the items of a list, and "total" is not a list']);
+    expect(problems("total = sum(line in lines: line.note)")).toEqual(['"line.note" is optional, so the rule must guard it: write "line.note is present and …" or "line.note is absent or …"']);
+    expect(problems('total = sum(count in lines: count.amount)')).toEqual(['"count" is already a name in the rule; give the item another name']);
+  });
+
+  it('refuses a product of two decimals', () => {
+    expect(problems('total = total * total')).toEqual(['"*" multiplies an integer by an integer or by a decimal, not a decimal by a decimal']);
+  });
+
+  it('keeps the item out of the names of the rule, and points at the list', () => {
+    const rule = stripColumns(parsed('total = sum(line in lines: line.amount)'));
+    expect(namesIn(rule)).toEqual(['total', 'lines']);
+    expect(firstField({ op: 'sum', item: 'l', list: 'lines', value: { op: 'field', name: 'l.amount' } })).toBe('lines');
+  });
+
+  it('keeps a field named sum a field', () => {
+    expect(stripColumns(parsed('sum > 1'))).toEqual({ op: '>', left: { op: 'field', name: 'sum' }, right: { op: 'number', value: '1' } });
+  });
+});
+
+describe('equality of embedded entities', () => {
+  const plan = (entity: string, holdsList = false, required = true): RuleField => ({ primitive: 'string', required, many: false, embedded: true, entity, holdsList });
+  const fields: Record<string, RuleField> = {
+    'output.plan': plan('urn:a:b:plan:entity:plan'),
+    'current.plan': plan('urn:a:b:plan:entity:plan'),
+    'current.card': plan('urn:a:b:pay:entity:card'),
+    'current.basket': plan('urn:a:b:shop:entity:basket', true),
+    'output.basket': plan('urn:a:b:shop:entity:basket', true),
+    'current.extra': plan('urn:a:b:plan:entity:plan', false, false),
+    'current.amount': { primitive: 'decimal', required: true, many: false },
+  };
+  const problems = (source: string) => {
+    const parsed = parseRule(source);
+    if (!parsed.ok) throw new Error(parsed.problem.message);
+    return checkRule(parsed.expr, fields, 'the condition').map((p) => p.message);
+  };
+
+  it('compares two embedded entities of one entity with = and !=', () => {
+    expect(problems('output.plan = current.plan')).toEqual([]);
+    expect(problems('output.plan != current.plan')).toEqual([]);
+  });
+
+  it('refuses another entity, a value, an entity that holds a list, and an unguarded optional entity', () => {
+    expect(problems('output.plan = current.card')).toEqual(['"=" compares two embedded entities of different entities (urn:a:b:plan:entity:plan and urn:a:b:pay:entity:card)']);
+    expect(problems('output.plan = current.amount')).toEqual(['"=" compares an embedded entity with something that is not an embedded entity']);
+    expect(problems('output.basket = current.basket')).toEqual(['"=" cannot compare urn:a:b:shop:entity:basket, which holds a list']);
+    expect(problems('output.plan = current.extra')).toEqual(['"current.extra" is optional, so the rule must guard it: write "current.extra is present and …" or "current.extra is absent or …"']);
+    expect(problems('current.extra is present and output.plan = current.extra')).toEqual([]);
+  });
+});
+
+describe('paths into embedded entities', () => {
+  const minor: RuleField = { primitive: 'integer', required: true, many: false };
+  const fields: Record<string, RuleField> = {
+    'total.amount_minor': minor,
+    'fee.amount_minor': { ...minor, required: false },
+    total: { primitive: 'string', required: true, many: false, embedded: true, entity: 'urn:a:b:money:entity:money' },
+    lines: { primitive: 'string', required: true, many: true, embedded: true, items: { amount: { primitive: 'string', required: true, many: false, embedded: true }, 'amount.amount_minor': minor } },
+  };
+  const problems = (source: string) => {
+    const parsed = parseRule(source);
+    if (!parsed.ok) throw new Error(parsed.problem.message);
+    return checkRule(parsed.expr, fields).map((p) => p.message);
+  };
+
+  it('names a property inside an embedded entity, also inside a sum', () => {
+    expect(problems('total.amount_minor = sum(line in lines: line.amount.amount_minor)')).toEqual([]);
+  });
+
+  it('asks for a guard on a property of an optional embedded entity', () => {
+    expect(problems('fee.amount_minor > 0')).toEqual(['"fee.amount_minor" is optional, so the rule must guard it: write "fee.amount_minor is present and …" or "fee.amount_minor is absent or …"']);
+    expect(problems('fee.amount_minor is absent or fee.amount_minor > 0')).toEqual([]);
   });
 });

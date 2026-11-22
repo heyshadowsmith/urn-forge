@@ -28,6 +28,7 @@ Feature: Hold seats and standing places during checkout
       | hold-key-0002    | [{ place_kind: standing, section: FLOOR, quantity: 1 }]                       |
       | hold-key-0003    | [{ place_kind: standing, section: FLOOR, quantity: 10 }]                      |
       | hold-key-0004    | =repeat(10, { place_kind: standing, section: FLOOR, quantity: 1 })            |
+      | hold-key-0005    | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }, { place_kind: seated, section: A1, row: D, seat_number: 12 }] |
 
   Scenario Outline: A request outside the limits of a field is rejected at the boundary
     When I run the operation with:
@@ -49,6 +50,7 @@ Feature: Hold seats and standing places during checkout
       | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 151 }]          |
       | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: standing, section: FLOOR, quantity: 0 }]                  |
       | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: standing, section: FLOOR, quantity: 11 }]                 |
+      | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }, { place_kind: seated, section: A1, row: C, seat_number: 12 }] |
 
   Scenario Outline: A seated line that does not name exactly one seat is rejected
     When I run the operation with:

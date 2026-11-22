@@ -51,6 +51,12 @@ function addDecimal(a: string, b: string): string {
 function subtractDecimal(a: string, b: string): string {
   const scale = Math.max(decimalFraction(a), decimalFraction(b));
   return unscaledDecimal(decimalScaled(a, scale) - decimalScaled(b, scale), scale);
+}
+
+/** a × b, exactly: the digits after the point are those of a and b together. */
+function multiplyDecimal(a: string, b: string): string {
+  const [fa, fb] = [decimalFraction(a), decimalFraction(b)];
+  return unscaledDecimal(decimalScaled(a, fa) * decimalScaled(b, fb), fa + fb);
 }`,
   date: `/** YYYY-MM-DD that names a real day of the proleptic Gregorian calendar. */
 function isCalendarDate(value: string): boolean {

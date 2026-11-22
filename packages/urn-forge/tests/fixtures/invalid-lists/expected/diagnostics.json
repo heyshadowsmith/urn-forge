@@ -1,0 +1,52 @@
+[
+  {
+    "code": "invalid-unique",
+    "location": {
+      "column": 23,
+      "line": 29
+    },
+    "message": "urn:demo:lists:order:entity:order: fields[0].many.unique: \"location\" is not a property of urn:demo:lists:order:entity:line (properties: sku, tag, part)",
+    "severity": "error",
+    "urn": "urn:demo:lists:order:entity:order"
+  },
+  {
+    "code": "invalid-unique",
+    "location": {
+      "column": 23,
+      "line": 32
+    },
+    "message": "urn:demo:lists:order:entity:order: fields[1].many.unique: \"tag\" holds a list; name properties that hold one value",
+    "severity": "error",
+    "urn": "urn:demo:lists:order:entity:order"
+  },
+  {
+    "code": "invalid-unique",
+    "location": {
+      "column": 23,
+      "line": 32
+    },
+    "message": "urn:demo:lists:order:entity:order: fields[1].many.unique: \"part\" holds an embedded entity; name properties that hold one value",
+    "severity": "error",
+    "urn": "urn:demo:lists:order:entity:order"
+  },
+  {
+    "code": "invalid-unique",
+    "location": {
+      "column": 23,
+      "line": 35
+    },
+    "message": "urn:demo:lists:order:entity:order: fields[2].many.unique lists \"sku\" more than once",
+    "severity": "error",
+    "urn": "urn:demo:lists:order:entity:order"
+  },
+  {
+    "code": "invalid-unique",
+    "location": {
+      "column": 23,
+      "line": 38
+    },
+    "message": "urn:demo:lists:order:entity:order: fields[3] is a list of values; a unique list of properties is for a list of embedded entities, so write unique: true",
+    "severity": "error",
+    "urn": "urn:demo:lists:order:entity:order"
+  }
+]

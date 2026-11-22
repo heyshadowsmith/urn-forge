@@ -400,6 +400,9 @@ payment.operation.create_payment:
   description: Create a payment and ask the buyer's bank to authorize it
   input: payment.entity.create_payment_request
   output: payment.entity.created_payment
+  requires:
+    - rule: 'input.line_items is absent or input.amount = sum(item in input.line_items: item.quantity * item.unit_amount)'
+      otherwise: payment.error.invalid_request
   errors:
     - payment.error.invalid_request
     - payment.error.card_declined

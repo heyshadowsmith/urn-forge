@@ -75,8 +75,7 @@ Feature: Reserve stock for an order
     When I run the operation with:
       | idempotency_key | order_id | lines                                                                                                        |
       | res-0007        | ORD-7    | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }, { sku: WIDGET-1, location: AMS-B-0142, quantity: 2 }] |
-    Then the operation fails with "urn:corpus:inventory:request:error:invalid_request"
-    And the operation emits no event
+    Then the input is rejected on "lines"
 
   Scenario Outline: A reservation with no lines or more than 100 lines, or with a line that breaks its rules, is rejected
     When I run the operation with:

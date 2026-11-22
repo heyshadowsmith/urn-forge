@@ -21,12 +21,10 @@ promises:
     promise: "An adjustment carries a signed non-zero quantity delta between -100000 and 100000 and a reason code that is one of DAMAGED, LOST, FOUND, CYCLE_COUNT or CORRECTION."
     status: declared
     by: [adjustment.entity.adjustment, adjustment.field.delta, adjustment.field.reason]
-  # The list of 1 to 100 lines and each line are declared. A list is unique by one key field only, so "no SKU-location pair twice" is a check of the core with invalid_request.
   P06:
     promise: "A reservation request names an order id and has 1 to 100 lines, each with a SKU, a location and a quantity of at least 1, and no SKU-location pair appears twice in the same request."
-    status: workaround
-    by: [reservation.entity.reserve_request, reservation.field.order_id, stock.entity.line, stock.field.quantity, request.error.invalid_request]
-    hole: A1
+    status: declared
+    by: [reservation.entity.reserve_request, reservation.field.order_id, stock.entity.line, stock.field.sku, stock.field.location, stock.field.quantity]
   P07:
     promise: "The service offers exactly these operations - GetStock, ReceiveGoods, ReserveStock, ReleaseReservation, ShipReservation and AdjustStock - and each write request must carry a caller-chosen idempotency key of 8 to 64 characters."
     status: declared

@@ -17,12 +17,12 @@ promises:
     promise: "A line's category is exactly one of TRAVEL, LODGING, MEALS, MILEAGE, SUPPLIES, TRAINING or OTHER."
     status: declared
     by: [line.field.category]
-  # The total is not stated as the sum of the line amounts. A line has no currency of its own, so it uses the currency of the claim by its shape.
+  # A line has no currency of its own, so it uses the currency of the claim by its shape. The total is
+  # the sum of the lines on the stored claim, and on the answer to a create or an edit; the other changes keep it.
   P04:
     promise: "A claim has 1 to 50 lines, all lines of one claim use the same currency as the claim, and the claim total always equals the sum of its line amounts."
-    status: workaround
-    by: [claim.entity.draft, claim.entity.draft_edit, claim.entity.claim]
-    hole: A1
+    status: declared
+    by: [claim.entity.draft, claim.entity.draft_edit, claim.entity.claim, claim.invariant.total_is_sum, claim.operation.create_draft, claim.operation.edit_draft]
   P05:
     promise: "A line's expense date is never later than the claim's submission date and never more than 90 days before it."
     status: not-declarable

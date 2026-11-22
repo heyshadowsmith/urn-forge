@@ -267,6 +267,12 @@ invoice.invariant.period_end_after_start:
   on: invoice.entity.invoice
   rule: period_end > period_start
   message: An invoice period must end after it starts
+invoice.invariant.total_is_sum:
+  description: An invoice's total is the sum of its line amounts, in minor units
+  on: invoice.entity.invoice
+  rule: 'total.amount_minor = sum(line in lines: line.amount.amount_minor)'
+  reportOn: total.amount_minor
+  message: The total must be the sum of the line amounts
 
 invoice.entity.lookup:
   description: The invoice to read
@@ -415,6 +421,7 @@ subscription.operation.change_plan:
     missing: subscription.error.not_found
   ensures:
     - input.proration != 'at_period_end' or output.scheduled_plan_id is present and output.scheduled_plan_id = input.plan_id
+    - input.proration != 'at_period_end' or output.plan = current.plan
   errors:
     - subscription.error.not_found
     - subscription.error.currency_mismatch

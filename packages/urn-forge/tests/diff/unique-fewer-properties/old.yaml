@@ -1,0 +1,40 @@
+manifest:
+  namespace: demo
+  domain: lists
+  version: 1.0.0
+
+reservation.field.order_id:
+  primitive: string
+  minLength: 1
+  description: The order of a reservation
+reservation.field.sku:
+  primitive: string
+  minLength: 1
+  description: A product
+reservation.field.location:
+  primitive: string
+  minLength: 1
+  description: A place in the warehouse
+reservation.field.quantity:
+  primitive: integer
+  min: 1
+  description: How many
+reservation.entity.line:
+  description: One line of a reservation
+  fields:
+    - ref: reservation.field.sku
+    - ref: reservation.field.location
+    - ref: reservation.field.quantity
+reservation.entity.request:
+  description: A reservation of stock for an order
+  key: reservation.field.order_id
+  fields:
+    - ref: reservation.field.order_id
+    - ref: reservation.entity.line
+      as: lines
+      many: { minItems: 1, maxItems: 100, unique: [sku, location] }
+reservation.operation.reserve:
+  description: Reserve stock
+  input: reservation.entity.request
+  output: reservation.entity.request
+

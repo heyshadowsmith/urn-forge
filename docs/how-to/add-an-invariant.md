@@ -60,6 +60,20 @@ If no scenario breaks an invariant, gate 3 reports `uncovered-invariant`. An inv
 
 The issue of a broken invariant is on the first field that the rule names. To put it on a different field, set `reportOn` to a property name that the rule names.
 
+## A total over a list
+
+A rule can add up the items of a list with `sum`, and multiply an integer by a decimal exactly. Quote a rule that has a `:`:
+
+```yaml
+claim.invariant.total_is_sum:
+  description: The total of a claim is the sum of its lines
+  on: claim.entity.claim
+  rule: 'total = sum(line in lines: line.amount)'
+  message: The total must be the sum of the line amounts
+```
+
+The schema checks the sum. The Postgres `CHECK` cannot read the rows of a child table, so `compile` warns `unenforced-in-sql`. Refer to [The rule language](../reference/rule-language#lists-and-embedded-entities).
+
 ## Result
 
 The gate 3 summary of `npx urn-forge verify` shows that a scenario breaks each invariant:

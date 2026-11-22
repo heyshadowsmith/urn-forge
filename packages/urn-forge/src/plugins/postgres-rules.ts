@@ -58,6 +58,10 @@ export function ruleSql(ir: UniversalIR, rule: RuleExpr, properties: readonly IR
 
   const value = (e: RuleExpr, primitive: Primitive): string => {
     switch (e.op) {
+      case '*':
+        return `(${value(e.left, typeOf(e.left) ?? primitive)} * ${value(e.right, typeOf(e.right) ?? primitive)})`;
+      case 'sum':
+        throw new Untranslatable(`a sum adds up the rows of the child table "${e.list}", and a CHECK sees one row`);
       case 'field':
         return column(e.name);
       case 'number':

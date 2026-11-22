@@ -70,11 +70,11 @@ urn-forge also does not do the work of the shell. It does not make an HTTP map o
 
 Some promises are contract by the two questions above, but a manifest cannot state them at this time. For each one, this section gives the promise, why a manifest cannot state it, and what to do.
 
-### Rules between an entity and its list items
+### A rule on each item of a list
 
-**The promise:** "Each receipt date is at most 90 days before the claim date." "The total is the sum of the lines."
+**The promise:** "Each receipt date is at most 90 days before the claim date."
 
-**Why:** an invariant names only the properties of its own entity. It cannot name a property inside a list item or an embedded entity, and it cannot count or add the items of a list.
+**Why:** a rule can add up the items of a list with `sum`, and a list can be unique by several properties. A rule cannot state a condition on each item.
 
 **What to do:** put the rule in the core, with a declared error. Then add the scenarios at the edges yourself, for example 90 days and 91 days. Gate 3 asks for a scenario that expects the error, but it does not know the edges of a rule in the core.
 

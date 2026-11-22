@@ -1,70 +1,147 @@
 /**
- * Lists on a field reference: the manifest form, pass 7, the
- * generated schema, table cells, comparisons and boundary cases.
+ * Rules over lists: a total over the items of a list (`sum`), an exact product (`*`),
+ * uniqueness by several properties of an item (`unique: [ … ]`), and equality of embedded
+ * entities. The target is tests/fixtures/lists.
  */
+import { existsSync, readFileSync } from 'node:fs';
 import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';
-import * as kinds from './fixtures/primitives/expected/domain.schemas.generated.js';
 import { compile } from '../src/engine.js';
-import { assertOutput, coerceCell } from '../src/gherkin/steps.js';
 import { listBoundaries } from '../src/kinds/field-refs.js';
+import { PLUGINS } from '../src/plugins/index.js';
+import type { Urn } from '../src/ir/types.js';
 
-const HEADER = 'manifest:\n  namespace: demo\n  domain: math\n  version: 0.1.0\n';
-const messages = (body: string) => compile(`${HEADER}${body}`).diagnostics.map((d) => [d.code, d.message]);
+const source = readFileSync(new URL('./fixtures/lists/domain.manifest.yaml', import.meta.url), 'utf8');
+const expected = (file: string) => new URL(`./fixtures/lists/expected/${file}`, import.meta.url);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const load = async (file: string): Promise<any> => (existsSync(expected(file)) ? import(expected(file).href) : undefined);
+const schemas = await load('domain.schemas.generated.ts');
+const runtime = await load('domain.runtime.generated.ts');
+const sql = existsSync(expected('schema.generated.sql')) ? readFileSync(expected('schema.generated.sql'), 'utf8') : '';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const parse = (schema: string, value: unknown): any => v.safeParse(schemas[schema], value);
 
-describe('lists', () => {
-  it('keep their rule in the IR; many: true is a list of any length', () => {
-    const ir = compile(`${HEADER}a.field.x: { primitive: integer }\na.entity.e:\n  description: d\n  fields:\n    - { ref: a.field.x, many: true }\n`).ir!;
-    expect(ir.entities['urn:demo:math:a:entity:e' as never]?.fields).toEqual([{ field: 'urn:demo:math:a:field:x', name: 'x', required: true, many: {} }]);
+describe('the lists target compiles', () => {
+  it('with no errors, and keeps each rule as text', () => {
+    const result = compile(source);
+    expect(result.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+    expect(result.ir?.invariants?.['urn:demo:lists:claim:invariant:total_is_sum' as Urn]).toMatchObject({ ruleText: 'total = sum(line in lines: line.amount)' });
+    expect(result.ir?.invariants?.['urn:demo:lists:payment:invariant:amount_is_sum' as Urn]).toMatchObject({
+      ruleText: 'line_items is absent or amount = sum(item in line_items: item.quantity * item.unit_amount)',
+    });
+  });
+});
+
+describe('sum and *', () => {
+  const claim = (total: string, ...amounts: string[]) => ({ claim_id: 'CLM-0001', total, lines: amounts.map((amount) => ({ amount })) });
+
+  it('accept a total that is the exact sum of the lines, and refuse another', () => {
+    expect(parse('ClaimClaimSchema', claim('0.30', '0.10', '0.20')).success).toBe(true);
+    const refused = parse('ClaimClaimSchema', claim('0.31', '0.10', '0.20'));
+    expect(refused.success).toBe(false);
+    expect(refused.issues[0].message).toBe('The total must be the sum of the line amounts');
   });
 
-  it('refuse an item count that no list can have, and a bad rule', () => {
-    expect(messages('a.field.x: { primitive: integer }\na.entity.e:\n  description: d\n  fields:\n    - { ref: a.field.x, many: { minItems: 3, maxItems: 2 } }\n')).toEqual([
-      ['incoherent-constraints', 'urn:demo:math:a:entity:e: fields[0] minItems (3) is greater than maxItems (2), so no list is valid'],
+  it('multiply a quantity by a unit amount exactly, and add the products', () => {
+    const items = [{ quantity: 2, unit_amount: '1.25' }, { quantity: 3, unit_amount: '0.10' }];
+    expect(parse('PaymentRequestSchema', { amount: '2.80', line_items: items }).success).toBe(true);
+    expect(parse('PaymentRequestSchema', { amount: '2.81', line_items: items }).success).toBe(false);
+    expect(parse('PaymentRequestSchema', { amount: '9.99' }).success).toBe(true);
+  });
+
+});
+
+describe('unique by several properties', () => {
+  const line = (sku: string, location: string) => ({ sku, location, quantity: 1 });
+
+  it('refuse two items with the same pair, and accept the same sku at another location', () => {
+    expect(parse('ReservationRequestSchema', { order_id: 'o1', lines: [line('A', 'X'), line('A', 'Y')] }).success).toBe(true);
+    const refused = parse('ReservationRequestSchema', { order_id: 'o1', lines: [line('A', 'X'), line('B', 'X'), line('A', 'X')] });
+    expect(refused.success).toBe(false);
+    expect(v.getDotPath(refused.issues[0])).toBe('lines.2');
+  });
+
+  it('is a UNIQUE constraint of the child table over the parent key and the named columns', () => {
+    expect(sql).toMatch(/UNIQUE \("order_id", "sku", "location"\)/);
+  });
+});
+
+describe('equality of embedded entities', () => {
+  const CHANGE = 'urn:demo:lists:subscription:operation:change_plan';
+  const current = { subscription_id: 's1', status: 'active', plan: { plan_id: 'basic', price: '10.00' } };
+  const core = (plan: { plan_id: string; price: string }) => ({
+    [CHANGE]: (input: { plan_id: string }) => runtime.ok({ ...current, plan, scheduled_plan_id: input.plan_id }),
+  });
+
+  it('keeps an answer whose plan equals the stored plan, property by property', () => {
+    expect(runtime.executeOperation(CHANGE, { subscription_id: 's1', plan_id: 'pro', proration: 'at_period_end' }, core({ plan_id: 'basic', price: '10.0' }), { current })).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it('is a ContractViolation when the answer changes the plan', () => {
+    expect(runtime.executeOperation(CHANGE, { subscription_id: 's1', plan_id: 'pro', proration: 'at_period_end' }, core({ plan_id: 'pro', price: '20.00' }), { current })).toMatchObject({
+      ok: false,
+      kind: 'ContractViolation',
+      issues: [{ message: `the handler for ${CHANGE} answered a value that breaks ensures: input.proration != 'at_period_end' or output.plan = current.plan` }],
+    });
+  });
+});
+
+describe('sum and * in the generated schemas (fixture: sums)', async () => {
+  const sums = await import('./fixtures/sums/expected/domain.schemas.generated.js');
+  const claim = (total: string, ...amounts: string[]) => ({ claim_id: 'CLM-0001', total, lines: amounts.map((amount) => ({ amount })) });
+
+  it('accept a total that is the exact sum of the lines, and refuse another', () => {
+    expect(v.safeParse(sums.ClaimClaimSchema, claim('0.30', '0.10', '0.20')).success).toBe(true);
+    const refused = v.safeParse(sums.ClaimClaimSchema, claim('0.31', '0.10', '0.20'));
+    expect(refused.success).toBe(false);
+    expect(refused.issues?.[0]?.message).toBe('The total must be the sum of the line amounts');
+  });
+
+  it('multiply a quantity by a unit amount exactly, add the products, and skip an absent list', () => {
+    const items = [{ quantity: 2, unit_amount: '1.25' }, { quantity: 3, unit_amount: '0.10' }];
+    expect(v.safeParse(sums.PaymentRequestSchema, { amount: '2.80', line_items: items }).success).toBe(true);
+    expect(v.safeParse(sums.PaymentRequestSchema, { amount: '2.81', line_items: items }).success).toBe(false);
+    expect(v.safeParse(sums.PaymentRequestSchema, { amount: '9.99' }).success).toBe(true);
+  });
+
+  it('mark the rule with a sum as not enforced in SQL', () => {
+    const result = compile(readFileSync(new URL('./fixtures/sums/domain.manifest.yaml', import.meta.url), 'utf8'), [
+      { plugin: PLUGINS.valibot, config: {} },
+      { plugin: PLUGINS.postgres, config: { tables: ['claim.entity.claim'] } },
     ]);
-    expect(messages('a.field.x: { primitive: integer }\na.entity.e:\n  description: d\n  fields:\n    - { ref: a.field.x, many: false }\n')[0]?.[1]).toContain('must be true or { minItems, maxItems, unique }');
+    expect(result.diagnostics.map((d) => [d.code, d.urn])).toEqual([['unenforced-in-sql', 'urn:demo:sums:claim:invariant:total_is_sum']]);
+  });
+});
+
+describe('the gate 3 boundary of a unique list of properties', () => {
+  const [repeated] = listBoundaries({ unique: ['sku', 'location'] });
+
+  it('is covered by two items with each property present and equal, and not by an item with one absent', () => {
+    expect(repeated?.label).toBe('list with a repeated sku and location (unique)');
+    expect(repeated?.covers([{ sku: 'A', location: 'X' }, { sku: 'A', location: 'X' }])).toBe(true);
+    expect(repeated?.covers([{ sku: 'A', location: 'X' }, { sku: 'A', location: 'Y' }])).toBe(false);
+    expect(repeated?.covers([{ sku: 'A' }, { sku: 'A' }])).toBe(false);
   });
 
-  it('cannot fill an error message placeholder', () => {
-    const body = 'a.field.x: { primitive: integer }\na.error.e:\n  description: d\n  category: validation\n  retryable: false\n  message: bad {x}\n  fields:\n    - { ref: a.field.x, many: true }\n';
-    expect(messages(body)).toEqual([['unknown-placeholder', 'urn:demo:math:a:error:e: message placeholder {x} names a list; placeholders must name single values (required fields: x)']]);
+  it('counts only a list of an allowed length, so a list refused for its length does not cover it', () => {
+    const unique = listBoundaries({ minItems: 1, maxItems: 2, unique: ['sku'] }).at(-1);
+    expect(unique?.label).toBe('list with a repeated sku (unique)');
+    expect(unique?.covers([{ sku: 'A' }, { sku: 'A' }])).toBe(true);
+    expect(unique?.covers([{ sku: 'A' }, { sku: 'A' }, { sku: 'A' }])).toBe(false);
+    const single = listBoundaries({ minItems: 1, maxItems: 2, unique: true }).at(-1);
+    expect(single?.covers(['a', 'a', 'a'])).toBe(false);
   });
+});
 
-  it('generate an array of the field schema, with its count and uniqueness', () => {
-    const ok = { sku: ['ABC-1234'], size: ['s', 'm'] };
-    expect(v.is(kinds.ValueListsSchema, ok)).toBe(true);
-    expect(v.is(kinds.ValueListsSchema, { ...ok, sku: [] })).toBe(true);
-    for (const bad of [{ ...ok, size: [] }, { ...ok, size: ['s', 'm', 'l', 's'] }, { ...ok, size: ['s', 's'] }, { ...ok, sku: ['nope'] }, { ...ok, price: ['1', '2', '3'] }]) {
-      expect(v.is(kinds.ValueListsSchema, bad), JSON.stringify(bad)).toBe(false);
-    }
-    const issue = v.safeParse(kinds.ValueListsSchema, { ...ok, sku: ['ABC-1234', 'nope'] }).issues?.[0];
-    expect(issue && v.getDotPath(issue)).toBe('sku.1');
-  });
+describe('paths into embedded entities (fixture: sums)', async () => {
+  const sums = await import('./fixtures/sums/expected/domain.schemas.generated.js');
+  const money = (amount_minor: number) => ({ amount_minor, currency: 'EUR' });
 
-  it('read a table cell as [a, b, c], each item by the primitive, and [] as empty', () => {
-    const list = (primitive: 'integer' | 'string') => ({ urn: 'urn:demo:math:a:field:x', primitive, required: true, many: true });
-    expect(coerceCell('[1, 2, 3]', list('integer'))).toEqual([1, 2, 3]);
-    expect(coerceCell('[]', list('integer'))).toEqual([]);
-    expect(coerceCell('[ a , "" ]', list('string'))).toEqual(['a', '']);
-    expect(coerceCell('1, 2', list('integer'))).toBe('1, 2');
-  });
-
-  it('compare item by item in Then the output is:', () => {
-    const result = { ok: true as const, output: { x: [1, 2] } };
-    expect(() => assertOutput(result, { x: [1, 2] }, 'urn:op')).not.toThrow();
-    expect(() => assertOutput(result, { x: [2, 1] }, 'urn:op')).toThrow('x: expected [2, 1], got [1, 2]');
-  });
-
-  it('need the counts at and beyond each bound, and a repeated value', () => {
-    const cases = listBoundaries({ minItems: 1, maxItems: 3, unique: true });
-    const samples: unknown[] = [[], ['a'], ['a', 'b', 'c'], ['a', 'b', 'c', 'd'], ['a', 'a'], 'a'];
-    expect(cases.map((c) => [c.label, samples.filter((s) => c.covers(s))])).toEqual([
-      ['list of 1 item(s) (minItems)', [['a']]],
-      ['list of 0 item(s) (below minItems)', [[]]],
-      ['list of 3 item(s) (maxItems)', [['a', 'b', 'c']]],
-      ['list of 4 item(s) (above maxItems)', [['a', 'b', 'c', 'd']]],
-      ['list with a repeated value (unique)', [['a', 'a']]],
-    ]);
-    expect(listBoundaries({})).toEqual([]);
+  it('add up a property inside the embedded entity of each item, and compare it with one of the entity', () => {
+    const invoice = (total: number, ...lines: number[]) => ({ total: money(total), lines: lines.map((n) => ({ amount: money(n) })) });
+    expect(v.safeParse(sums.InvoiceInvoiceSchema, invoice(300, 100, 200)).success).toBe(true);
+    expect(v.safeParse(sums.InvoiceInvoiceSchema, invoice(301, 100, 200)).success).toBe(false);
   });
 });

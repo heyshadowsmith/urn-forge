@@ -118,6 +118,7 @@ The plugin translates a `regex` only if each part is in this subset. Else the fi
 - A child table has the key columns of its parent, then `"position"` for a list, then the columns of the item.
 - The primary key of a child table is the parent key and `position`. The foreign key to the parent has `ON DELETE CASCADE`.
 - `unique: true` adds a `UNIQUE` constraint on the parent key and the item key or value.
+- `unique: [a, b]` adds a `UNIQUE` constraint on the parent key and the columns `a` and `b`, named `<child table>_a_b_key`. Postgres treats `NULL` as distinct, so a row with one of them absent is not compared.
 - The foreign keys of links come after all tables, so links can make a cycle.
 
 ```sql
@@ -180,7 +181,7 @@ A rule that names a list or an embedded entity gets no check. The plugin reports
 | A field constraint | `23514` | The identifier of the field |
 | `required: true` | `23502` | None |
 | The key | `23505` | `<table>_pkey` |
-| `unique` | `23505` | `<child table>_<column>_key` |
+| `unique` | `23505` | `<child table>_<column>_key`, or `<child table>_<columns>_key` for a list of names |
 | A link | `23503` | `<table>_<column>_fkey` |
 | An invariant | `23514` | The identifier of the invariant |
 | A count | `23514`, at `COMMIT` | `<property>_count` |

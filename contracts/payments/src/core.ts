@@ -62,12 +62,9 @@ const change = (id: string, p: Stored, previous: Status | undefined, next: Statu
 
 export const core = {
   'urn:corpus:payments:payment:operation:create_payment': (request) => {
-    const { merchant_id, amount, currency, method, idempotency_key, line_items, card } = request;
+    const { merchant_id, amount, currency, method, idempotency_key, card } = request;
     if (merchant_id !== MERCHANT) return fail('urn:corpus:payments:payment:error:not_found', {});
     if (idempotency_key === USED_KEY) return fail('urn:corpus:payments:payment:error:idempotency_conflict', { idempotency_key });
-    if (line_items && line_items.reduce((sum, line) => sum + line.quantity * line.unit_amount, 0) !== amount) {
-      return fail('urn:corpus:payments:payment:error:invalid_request', {});
-    }
     if (currency === UNSUPPORTED_CURRENCY) return fail('urn:corpus:payments:payment:error:unsupported_currency', { currency });
     const number: string = card?.card_number ?? '';
     if (number in REFUSING_CARDS) return fail(REFUSING_CARDS[number as keyof typeof REFUSING_CARDS], {});

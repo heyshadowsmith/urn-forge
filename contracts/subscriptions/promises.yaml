@@ -51,12 +51,11 @@ promises:
     status: workaround
     by: [subscription.operation.change_plan, subscription.error.currency_mismatch]
     hole: A1
-  # The proration mode is a required enum, and an ensures on change_plan states that an at_period_end answer shows the new plan as scheduled. That the current plan is unchanged compares the embedded plan of the answer with that of the record, which a rule cannot name.
+  # The proration mode is a required enum, and two ensures on change_plan state that an at_period_end answer shows the new plan as scheduled and the plan of the record unchanged.
   P11:
     promise: "A change-plan request must state a proration mode of \"immediate\", \"none\" or \"at_period_end\", and with \"at_period_end\" the answer shows the new plan as scheduled and the current plan as unchanged."
-    status: workaround
+    status: declared
     by: [subscription.field.proration, subscription.entity.change_plan_request, subscription.entity.subscription, subscription.operation.change_plan]
-    hole: A1
   # Pausing only from active or trialing, and the refusal of any other status, are declared. The resume window is checked against a request day that the shell sends, not the clock.
   P12:
     promise: "A pause request may contain a resume date that is at least 1 day and at most 90 days after the request, and a subscription may only be paused while \"active\" or \"trialing\"."
@@ -73,11 +72,11 @@ promises:
     status: workaround
     by: [invoice.invariant.period_end_after_start]
     hole: C1
-  # A line quantity of at least 1 and a total of 0 or more are declared. That the total is the sum of the line amounts is not.
+  # A line quantity of at least 1, a total of 0 or more, and a total in minor units that is the sum of the line amounts in minor units are declared. That each line is in the currency of the total is not: it is a rule on each item, which no construct states, so an invoice whose lines are in another currency than its total still passes.
   P15:
     promise: "Every invoice's total equals the sum of its line amounts, each line has a quantity of at least 1, and no invoice has a negative total."
     status: workaround
-    by: [invoice.entity.invoice, invoice.field.line_quantity, money.field.amount_minor]
+    by: [invoice.entity.invoice, invoice.invariant.total_is_sum, invoice.field.line_quantity, money.field.amount_minor]
     hole: A1
   P16:
     promise: "An invoice's status is exactly one of \"draft\", \"open\", \"paid\", \"void\" or \"uncollectible\", and a \"paid\" or \"void\" invoice never changes status again."

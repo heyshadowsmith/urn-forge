@@ -101,7 +101,7 @@ fields:
 | --- | --- | --- |
 | `minItems` | integer, 0 or more | The list has this number of items or more |
 | `maxItems` | integer, 0 or more | The list has this number of items or fewer. Not less than `minItems` (`incoherent-constraints`) |
-| `unique` | boolean | No value occurs two times. For an embedded entity, no key occurs two times, so the entity needs a `key` |
+| `unique` | `true`, or a list of property names | `true`: no value occurs two times; for an embedded entity, no key occurs two times, so the entity needs a `key`. A list, for an embedded entity only: no two items with each named property present and equal, and an item with one of them absent is not compared. A name that is not a single-valued property of the item causes `invalid-unique` |
 
 | Problem | Code |
 | --- | --- |

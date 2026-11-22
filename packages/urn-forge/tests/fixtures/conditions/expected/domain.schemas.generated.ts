@@ -53,6 +53,12 @@ function subtractDecimal(a: string, b: string): string {
   return unscaledDecimal(decimalScaled(a, scale) - decimalScaled(b, scale), scale);
 }
 
+/** a × b, exactly: the digits after the point are those of a and b together. */
+function multiplyDecimal(a: string, b: string): string {
+  const [fa, fb] = [decimalFraction(a), decimalFraction(b)];
+  return unscaledDecimal(decimalScaled(a, fa) * decimalScaled(b, fb), fa + fb);
+}
+
 // Fields
 
 /** urn:demo:conditions:booking:field:deposit_token — A token that pays the deposit */
