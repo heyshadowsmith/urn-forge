@@ -208,7 +208,39 @@ The plugin does not write an approximate rule. The Valibot schema still enforces
 | `delete<Brand>(key)` | One `DELETE`. Child rows go by `ON DELETE CASCADE`. `key` is the branded key type |
 | `replace<Brand>From(value, from)` | For an entity that an operation `changes`: as `replace<Brand>`, but the `DELETE` takes the root row only while its state is in `from` (`AND "<state>" = ANY($2)`). If it deletes no row, the record moved after the shell loaded it: roll back. A shell that does not check gets a duplicate key error from the `INSERT` |
 
-Run the statements of one call in one transaction. The file has no reads.
+Run the statements of one call in one transaction. The file has no reads, except `nextEvents` of the outbox.
+
+## The outbox
+
+A domain with an event that has `delivery` gets one more table, also with no table in `tables`:
+
+```sql
+CREATE SCHEMA IF NOT EXISTS "outbox";
+
+CREATE TABLE "outbox"."delivery" (
+  "position" BIGINT GENERATED ALWAYS AS IDENTITY,
+  "id" TEXT NOT NULL,
+  "urn" TEXT NOT NULL,
+  "order_key" TEXT NOT NULL,
+  "sequence" INTEGER NOT NULL,
+  "payload" JSONB NOT NULL,
+  "published_at" TIMESTAMPTZ,
+  CONSTRAINT "delivery_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "delivery_order_key_sequence_key" UNIQUE ("order_key", "sequence")
+);
+```
+
+The name of the table is the domain. `order_key` is the JSON list of the `orderBy` values of the event. The store file has these exports:
+
+| Export | Description |
+| --- | --- |
+| `insertEvents(events)` | One `INSERT` for each event of `executeOperation`. The sequence is 1 more than the last sequence of its `order_key`, from 1, and the payload holds it in the `sequence` property. Run the statements in the transaction of the change. An event with no `delivery` causes an exception |
+| `nextEvents(limit)` | One `SELECT` of at most `limit` rows with no `published_at`, in the order that they were written. Each row is an `OutboxRow`: `id`, `urn`, `sequence`, `payload` |
+| `markPublished(id)` | One `UPDATE` that sets `published_at`. Run it only after the transport took the event |
+
+- A second event with the same id causes a duplicate key error.
+- Two transactions that write an event of one `order_key` at the same time cannot both commit: the second gets a duplicate key error on the sequence. Run it again.
+- The table keeps published rows. Delete them when you do not need them.
 
 ## Limits
 

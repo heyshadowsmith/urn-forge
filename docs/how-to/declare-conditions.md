@@ -34,6 +34,7 @@ A rule uses the [rule language](../reference/rule-language), and each name has a
 | `input.` | The request, parsed | `requires` and `ensures` |
 | `current.` | The record that the operation changes | `requires` and `ensures`, only with `changes` |
 | `output.` | The answer, parsed | `ensures` only |
+| `event.` | The one event of the success, parsed. Each item of `emits` must have the form `{ event }`. Refer to [Emit an event](emit-an-event#_5-say-how-many-events-a-success-has) | `ensures` only |
 
 `otherwise` must be in `errors`. urn-forge fills its fields from the request and the record, by property name, so each required field of the error must be a property of the input or of the record. When both have the property, the value of the record is used. To choose the value, or to fill a property of another name, add `fill`:
 

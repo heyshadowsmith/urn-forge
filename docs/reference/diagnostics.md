@@ -176,7 +176,7 @@ These codes change their severity:
 | `undeclared-error` | `error` | A step expects an error that the operation does not declare | Use a declared error, or add it to `errors` |
 | `uncovered-error` | `warning` or `error` | No scenario expects a declared error | Add `Then the operation fails with "<error URN>"` |
 | `undeclared-event` | `error` | A step expects an event that is not in `emits` | Use an event of `emits`, or add it |
-| `uncovered-event` | `warning` or `error` | No scenario expects an event of `emits` | Add `Then the operation emits "<event URN>"` |
+| `uncovered-event` | `warning` or `error` | No scenario expects an event of `emits`, or no successful scenario is without an event that has `when` | Add `Then the operation emits "<event URN>"`, or `Then the operation emits no "<event URN>"` |
 | `undeclared-record` | `error` | A step expects a record that no declared error has as `recordAs` | Use a `recordAs` event of the operation |
 | `uncovered-record` | `warning` or `error` | No scenario expects the `recordAs` event of a declared error | Add `Then the refusal is recorded as "<event URN>"` |
 | `undeclared-invariant` | `error` | A step names an invariant that is not on the input entity | Use an invariant from the message |

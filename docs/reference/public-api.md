@@ -97,6 +97,7 @@ const due = addDays('2026-11-21', 28); // '2026-12-19'
 | `assertRecordedAs` | `(result, eventUrn, urn, expected?): void` | Throws if the result is not a `DomainError` whose `record` is this event with these fields |
 | `assertEmits` | `(result, eventUrn, urn, expected?): void` | Throws if the operation failed or returned no such event |
 | `assertEmitsNone` | `(result, urn): void` | Throws if the operation succeeded with events, or failed with no `DomainError` |
+| `assertEmitsNoneOf` | `(result, eventUrn, urn): void` | Throws if the operation failed, or succeeded with this event |
 
 - The assert functions compare with `===`, and `NaN` equals `NaN`. Lists compare item by item, and objects property by property.
 - A property that is not in `expected` is not compared. A property of `expected` with the value `undefined` must be absent.
