@@ -1,0 +1,392 @@
+manifest:
+  namespace: corpus
+  domain: inventory
+  version: 1.0.0
+
+# Stock of one product at one warehouse location.
+stock.field.sku:
+  primitive: string
+  minLength: 3
+  maxLength: 32
+  regex: '[A-Z0-9]([A-Z0-9-]*[A-Z0-9])?'
+  description: A product code of uppercase letters, digits and hyphens, with no hyphen at either end
+stock.field.location:
+  primitive: string
+  regex: '[A-Z]{3}-[A-Z]-[0-9]{4}'
+  description: A location code WAREHOUSE-ZONE-BIN, for example AMS-B-0142
+stock.field.quantity:
+  primitive: integer
+  min: 1
+  max: 100000
+  description: A number of units in a receive, reserve or ship request
+stock.field.on_hand:
+  primitive: integer
+  min: 0
+  description: The units physically at the location
+stock.field.reserved:
+  primitive: integer
+  min: 0
+  description: The units at the location that open reservations hold
+stock.field.available:
+  primitive: integer
+  min: 0
+  description: The units at the location that can still be reserved
+
+stock.entity.line:
+  description: A number of units of one SKU at one location
+  fields:
+    - ref: stock.field.sku
+    - ref: stock.field.location
+    - ref: stock.field.quantity
+stock.entity.stock_level:
+  description: The stock of one SKU at one location
+  fields:
+    - ref: stock.field.sku
+    - ref: stock.field.location
+    - ref: stock.field.on_hand
+    - ref: stock.field.reserved
+    - ref: stock.field.available
+stock.entity.stock_query:
+  description: A question for the stock of one SKU at one location
+  fields:
+    - ref: stock.field.sku
+    - ref: stock.field.location
+stock.entity.short_line:
+  description: A line that the stock cannot cover, with what was asked and what is available
+  fields:
+    - ref: stock.field.sku
+    - ref: stock.field.location
+    - ref: stock.field.quantity
+      as: requested
+    - ref: stock.field.available
+
+stock.invariant.available_is_on_hand_minus_reserved:
+  description: The available count is the on-hand count minus the reserved count
+  on: stock.entity.stock_level
+  rule: available = on_hand - reserved
+  message: The available count must equal on-hand minus reserved
+
+stock.error.unknown_sku:
+  description: The service does not know the SKU
+  category: not_found
+  retryable: false
+  message: The SKU {sku} is not known
+  fields:
+    - ref: stock.field.sku
+stock.error.unknown_location:
+  description: The service does not know the location
+  category: not_found
+  retryable: false
+  message: The location {location} is not known
+  fields:
+    - ref: stock.field.location
+stock.error.insufficient_stock:
+  description: The stock cannot cover the request, so nothing changed
+  category: precondition
+  retryable: true
+  message: The stock cannot cover the request
+  fields:
+    - ref: stock.entity.short_line
+      as: short_lines
+      many: { minItems: 1 }
+
+# What every write request carries, and the refusals that any request can get.
+request.field.idempotency_key:
+  primitive: string
+  minLength: 8
+  maxLength: 64
+  description: A key that the caller chooses for one write request
+request.field.detail:
+  primitive: string
+  minLength: 1
+  description: What is wrong with the request
+
+request.error.invalid_request:
+  description: The request is not valid for the current stock or reservation
+  category: validation
+  retryable: false
+  message: "The request is not valid: {detail}"
+  fields:
+    - ref: request.field.detail
+request.error.idempotency_conflict:
+  description: The idempotency key was used before with a different body
+  category: conflict
+  retryable: false
+  message: The idempotency key {idempotency_key} was used before with a different body
+  fields:
+    - ref: request.field.idempotency_key
+
+# Events: one for each change to stock.
+event.field.event_id:
+  primitive: string
+  format: uuid
+  description: The identifier of an event, the same in each copy of it
+event.field.sequence:
+  primitive: integer
+  min: 1
+  description: The position of the event among the events of its SKU and location
+event.field.occurred_at:
+  primitive: timestamp
+  description: When the change happened, in UTC
+event.field.quantity_changed:
+  primitive: integer
+  min: -100000
+  max: 100000
+  notIn: [0]
+  description: The number of units that the change moved
+
+stock.event.stock_received:
+  description: Goods arrived at a location
+  fields:
+    - ref: event.field.event_id
+    - ref: event.field.sequence
+    - ref: event.field.quantity_changed
+    - ref: stock.entity.stock_level
+      as: level
+    - ref: event.field.occurred_at
+stock.event.stock_depleted:
+  description: The available count of a SKU at a location dropped to 0
+  fields:
+    - ref: event.field.event_id
+    - ref: event.field.sequence
+    - ref: stock.field.sku
+    - ref: stock.field.location
+    - ref: event.field.occurred_at
+
+stock.operation.get_stock:
+  description: Read the stock of one SKU at one location
+  input: stock.entity.stock_query
+  output: stock.entity.stock_level
+  errors:
+    - stock.error.unknown_sku
+    - stock.error.unknown_location
+
+# Receiving goods.
+receipt.field.purchase_order_id:
+  primitive: string
+  minLength: 1
+  description: The purchase order that the goods arrive for
+
+receipt.entity.receive_request:
+  description: Goods that arrived for a purchase order
+  fields:
+    - ref: request.field.idempotency_key
+    - ref: receipt.field.purchase_order_id
+    - ref: stock.entity.line
+      as: lines
+      many: { minItems: 1, maxItems: 200 }
+receipt.entity.receipt:
+  description: The new stock of each received line
+  fields:
+    - ref: receipt.field.purchase_order_id
+    - ref: stock.entity.stock_level
+      as: lines
+      many: { minItems: 1, maxItems: 200 }
+
+receipt.operation.receive_goods:
+  description: Add received goods to the on-hand stock
+  input: receipt.entity.receive_request
+  output: receipt.entity.receipt
+  errors:
+    - stock.error.unknown_sku
+    - stock.error.unknown_location
+    - request.error.idempotency_conflict
+  emits: [stock.event.stock_received]
+
+# Reservations.
+reservation.field.reservation_id:
+  primitive: string
+  format: uuid
+  description: The identifier of a reservation
+reservation.field.order_id:
+  primitive: string
+  minLength: 1
+  description: The order that a reservation is for
+reservation.field.ttl_minutes:
+  primitive: integer
+  min: 1
+  max: 10080
+  description: The minutes until an unshipped, unreleased reservation expires; 30 when absent
+reservation.field.result:
+  primitive: enum
+  values: [RESERVED]
+  description: The answer of a reservation that holds every line in full
+reservation.field.state:
+  primitive: enum
+  values: [ACTIVE, PARTIALLY_SHIPPED, SHIPPED, RELEASED, EXPIRED]
+  description: The state of a reservation
+reservation.field.expires_at:
+  primitive: timestamp
+  description: When the reservation expires if it is still active
+
+reservation.entity.reserve_request:
+  description: A request to hold stock for an order
+  fields:
+    - ref: request.field.idempotency_key
+    - ref: reservation.field.order_id
+    - ref: stock.entity.line
+      as: lines
+      many: { minItems: 1, maxItems: 100 }
+    - ref: reservation.field.ttl_minutes
+      required: false
+reservation.entity.reservation:
+  description: A reservation that holds every requested line in full
+  fields:
+    - ref: reservation.field.result
+    - ref: reservation.field.reservation_id
+    - ref: reservation.field.order_id
+    - ref: reservation.field.state
+    - ref: stock.entity.line
+      as: lines
+      many: { minItems: 1, maxItems: 100 }
+    - ref: reservation.field.expires_at
+reservation.entity.release_request:
+  description: A request to give the stock of a reservation back
+  fields:
+    - ref: request.field.idempotency_key
+    - ref: reservation.field.reservation_id
+reservation.entity.ship_request:
+  description: A request to ship a reservation, in full or the stated quantity per line
+  fields:
+    - ref: request.field.idempotency_key
+    - ref: reservation.field.reservation_id
+    - ref: stock.entity.line
+      as: lines
+      required: false
+      many: { minItems: 1, maxItems: 100 }
+reservation.entity.reservation_status:
+  description: The state of a reservation after a change
+  fields:
+    - ref: reservation.field.reservation_id
+    - ref: reservation.field.state
+
+reservation.error.reservation_not_found:
+  description: No reservation has this identifier
+  category: not_found
+  retryable: false
+  message: No reservation {reservation_id}
+  fields:
+    - ref: reservation.field.reservation_id
+reservation.error.invalid_state:
+  description: The reservation is in a state that does not allow the change
+  category: precondition
+  retryable: false
+  message: The reservation {reservation_id} is {state}
+  fields:
+    - ref: reservation.field.reservation_id
+    - ref: reservation.field.state
+
+reservation.event.stock_reserved:
+  description: Stock of one line was reserved for an order
+  fields:
+    - ref: event.field.event_id
+    - ref: event.field.sequence
+    - ref: reservation.field.reservation_id
+    - ref: event.field.quantity_changed
+    - ref: stock.entity.stock_level
+      as: level
+    - ref: event.field.occurred_at
+reservation.event.reservation_released:
+  description: The stock of one line of a released reservation became available again
+  fields:
+    - ref: event.field.event_id
+    - ref: event.field.sequence
+    - ref: reservation.field.reservation_id
+    - ref: event.field.quantity_changed
+    - ref: stock.entity.stock_level
+      as: level
+    - ref: event.field.occurred_at
+reservation.event.reservation_expired:
+  description: The stock of one line of an expired reservation became available again
+  fields:
+    - ref: event.field.event_id
+    - ref: event.field.sequence
+    - ref: reservation.field.reservation_id
+    - ref: event.field.quantity_changed
+    - ref: stock.entity.stock_level
+      as: level
+    - ref: event.field.occurred_at
+reservation.event.stock_shipped:
+  description: Reserved stock of one line left the location
+  fields:
+    - ref: event.field.event_id
+    - ref: event.field.sequence
+    - ref: reservation.field.reservation_id
+    - ref: event.field.quantity_changed
+    - ref: stock.entity.stock_level
+      as: level
+    - ref: event.field.occurred_at
+
+reservation.operation.reserve_stock:
+  description: Reserve every line in full, or nothing
+  input: reservation.entity.reserve_request
+  output: reservation.entity.reservation
+  errors:
+    - request.error.invalid_request
+    - stock.error.unknown_sku
+    - stock.error.unknown_location
+    - stock.error.insufficient_stock
+    - request.error.idempotency_conflict
+  emits: [reservation.event.stock_reserved, stock.event.stock_depleted]
+reservation.operation.release_reservation:
+  description: Give the stock of an active or partly shipped reservation back
+  input: reservation.entity.release_request
+  output: reservation.entity.reservation_status
+  errors:
+    - reservation.error.reservation_not_found
+    - reservation.error.invalid_state
+    - request.error.idempotency_conflict
+  emits: [reservation.event.reservation_released]
+reservation.operation.ship_reservation:
+  description: Ship a reservation, in full or the stated quantity per line
+  input: reservation.entity.ship_request
+  output: reservation.entity.reservation_status
+  errors:
+    - request.error.invalid_request
+    - reservation.error.reservation_not_found
+    - reservation.error.invalid_state
+    - request.error.idempotency_conflict
+  emits: [reservation.event.stock_shipped]
+
+# Adjustments.
+adjustment.field.delta:
+  primitive: integer
+  min: -100000
+  max: 100000
+  notIn: [0]
+  description: The signed change to the on-hand count
+adjustment.field.reason:
+  primitive: enum
+  values: [DAMAGED, LOST, FOUND, CYCLE_COUNT, CORRECTION]
+  description: Why the on-hand count changes
+
+adjustment.entity.adjustment:
+  description: A correction of the on-hand count of one SKU at one location
+  fields:
+    - ref: request.field.idempotency_key
+    - ref: stock.field.sku
+    - ref: stock.field.location
+    - ref: adjustment.field.delta
+    - ref: adjustment.field.reason
+
+adjustment.event.stock_adjusted:
+  description: The on-hand count of a SKU at a location was corrected
+  fields:
+    - ref: event.field.event_id
+    - ref: event.field.sequence
+    - ref: event.field.quantity_changed
+    - ref: adjustment.field.reason
+    - ref: stock.entity.stock_level
+      as: level
+    - ref: event.field.occurred_at
+
+adjustment.operation.adjust_stock:
+  description: Correct the on-hand count of one SKU at one location
+  input: adjustment.entity.adjustment
+  output: stock.entity.stock_level
+  errors:
+    - stock.error.unknown_sku
+    - stock.error.unknown_location
+    - stock.error.insufficient_stock
+    - request.error.idempotency_conflict
+  emits: [adjustment.event.stock_adjusted, stock.event.stock_depleted]
