@@ -297,6 +297,27 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     // A new event is a new kind of fact, which a consumer that handles each kind does not know.
     for (const e of b!.emits.filter((x) => !a.emits.includes(x))) relate(urn, 'wider', `the new event ${e}`, new Set<Use>(['out']));
     for (const e of a.emits.filter((x) => !b!.emits.includes(x))) relate(urn, 'narrower', `removing the event ${e}`, new Set<Use>(['out']));
+    // The record that the operation changes: which states it starts from is a rule on what callers can do.
+    const [ca, cb] = [a.changes, b!.changes];
+    if (!ca && cb) breaking(urn, `now changes a record of ${cb.entity}, only from ${cb.from.join(', ')}: a caller whose record is in another state is refused`);
+    if (ca && !cb) compatible(urn, `no longer changes a record of ${ca.entity}`);
+    if (ca && cb) {
+      if (ca.entity !== cb.entity) breaking(urn, `changes a record of ${cb.entity}, not ${ca.entity}`);
+      for (const state of cb.from.filter((x) => !ca.from.includes(x))) compatible(urn, `also starts from ${ca.property} ${state}`);
+      for (const state of ca.from.filter((x) => !cb.from.includes(x))) breaking(urn, `no longer starts from ${ca.property} ${state}, which breaks callers whose record is ${state}`);
+      if (ca.to !== cb.to) breaking(urn, `the state of the answer ${ca.to ?? 'stays'} → ${cb.to ?? 'stays'}: callers receive another state`);
+      if (ca.otherwise !== cb.otherwise) breaking(urn, `otherwise ${ca.otherwise} → ${cb.otherwise}: callers receive another error for a state outside from`);
+    }
+  }
+
+  // The moves of a state field: a removed move breaks the callers that make it.
+  for (const urn of Object.keys(old.fields) as Urn[]) {
+    const [a, b] = [old.fields[urn]!, now.fields[urn]];
+    if (!live(a) || !live(b) || (!a.moves && !b!.moves)) continue;
+    const pairs = (moves: typeof a.moves) => Object.entries(moves ?? {}).flatMap(([from, targets]) => targets.map((to) => `${from} → ${to}`));
+    const [before, after] = [pairs(a.moves), pairs(b!.moves)];
+    for (const move of after.filter((m) => !before.includes(m))) compatible(urn, `the new move ${move}`);
+    for (const move of before.filter((m) => !after.includes(m))) breaking(urn, `removing the move ${move}, which breaks callers that make it`);
   }
 
   return changes.sort((x, y) => (x.urn < y.urn ? -1 : x.urn > y.urn ? 1 : 0));

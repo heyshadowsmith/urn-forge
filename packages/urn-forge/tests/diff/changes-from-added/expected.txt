@@ -1,0 +1,1 @@
+compatible urn:demo:states:booking:operation:change_party
