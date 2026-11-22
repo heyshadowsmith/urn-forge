@@ -246,13 +246,12 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof P
       out.push(`COMMENT ON DOMAIN ${qualified(domainName(field.urn))} IS ${literal(describe(field.urn, field.description, field))};`);
     }
 
-    out.push(
-      ...tablesSql(ir, tables, {
-        checkName,
-        nameTaken: (name, urn, what, owner) => report('invalid-sql-name', `${urn}: the ${what} name "${name}" is also a name that ${owner} uses`, urn),
-        unenforced,
-      }),
-    );
+    const model = tablesSql(ir, tables, {
+      checkName,
+      nameTaken: (name, urn, what, owner) => report('invalid-sql-name', `${urn}: the ${what} name "${name}" is also a name that ${owner} uses`, urn),
+      unenforced,
+    });
+    out.push(...model.lines);
 
     if (diagnostics.some((d) => d.severity === 'error')) return { artifacts: [], diagnostics };
     return { artifacts: [{ relativePath: POSTGRES_SCHEMA_FILE, content: `${out.join('\n')}\n` }], diagnostics };
