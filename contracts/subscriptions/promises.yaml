@@ -3,49 +3,127 @@ description: "Manages customer subscriptions to priced plans with monthly or yea
 promises:
   P01:
     promise: "A subscription id is the prefix \"sub_\" followed by exactly 24 lowercase letters or digits, and a plan id is the prefix \"plan_\" followed by 1 to 40 lowercase letters, digits or hyphens."
+    status: declared
+    by: [subscription.field.subscription_id, plan.field.plan_id]
   P02:
     promise: "A billing period is either \"month\" or \"year\", and a plan's interval count is a whole number from 1 to 12 for \"month\" and exactly 1 for \"year\"."
+    status: declared
+    by: [plan.field.billing_period, plan.field.interval_count, plan.invariant.yearly_interval_is_one]
+  # The currency is any three uppercase letters; nothing limits it to the ISO 4217 codes.
   P03:
     promise: "Every money amount is an integer number of minor currency units from 0 to 99999999 paired with a three-letter uppercase ISO 4217 currency code."
+    status: workaround
+    by: [money.entity.money, money.field.amount_minor, money.field.currency]
+    hole: B4
   P04:
     promise: "A subscription's status is exactly one of \"trialing\", \"active\", \"past_due\", \"paused\", \"canceled\" or \"expired\"."
+    status: declared
+    by: [subscription.field.status]
   P05:
     promise: "A create-subscription request must contain a customer id, a plan id and a quantity that is a whole number from 1 to 10000, and may contain trial days from 0 to 730."
+    status: declared
+    by: [subscription.operation.create_subscription, subscription.entity.create_request, customer.field.customer_id, plan.field.plan_id, subscription.field.quantity, subscription.field.trial_days]
+  # The window is checked against a request day that the shell sends, not against the clock. Trial days and trial end are two optional fields, not a union type (B1).
   P06:
     promise: "A create-subscription request may contain either trial days or an explicit trial end date but never both, and an explicit trial end must be in the future and at most 730 days after the request."
+    status: workaround
+    by: [subscription.invariant.trial_days_or_trial_end, subscription.invariant.trial_end_in_window, request.field.requested_on]
+    hole: E2
   P07:
     promise: "Callers can create, read, list, change plan, pause, resume and cancel a subscription, and read and list its invoices."
+    status: declared
+    by: [subscription.operation.create_subscription, subscription.operation.read_subscription, subscription.operation.list_subscriptions, subscription.operation.change_plan, subscription.operation.pause_subscription, subscription.operation.resume_subscription, subscription.operation.cancel_subscription, invoice.operation.read_invoice, invoice.operation.list_invoices]
+  # The output is the full subscription, but the rule that its status follows the trial days of the request is in the core. The status code 201 is for the shell.
   P08:
     promise: "A successful create returns 201 with the full subscription, whose status is \"trialing\" if the request asked for more than 0 trial days and \"active\" otherwise."
+    status: workaround
+    by: [subscription.operation.create_subscription, subscription.entity.subscription, subscription.field.status]
+    hole: A2
+  # Only the errors that the core returns are declared, each with a message. invalid_request, forbidden and rate_limited come from the shell, and no refusal carries the request id.
   P09:
     promise: "Every refused request returns one named error code from \"invalid_request\", \"not_found\", \"forbidden\", \"conflict\", \"invalid_state_transition\", \"currency_mismatch\" or \"rate_limited\" together with a human-readable message and the request id."
+    status: workaround
+    by: [subscription.error.not_found, invoice.error.not_found, subscription.error.conflict, subscription.error.invalid_state_transition, subscription.error.currency_mismatch]
+    hole: A2
+  # The error is declared, but the rule that compares the currency of the new plan with the currency of the subscription is in the core.
   P10:
     promise: "A change-plan request must name a plan whose currency equals the subscription's current currency, otherwise it is refused with \"currency_mismatch\"."
+    status: workaround
+    by: [subscription.operation.change_plan, subscription.error.currency_mismatch]
+    hole: A1
+  # The proration mode is a required enum. That an at_period_end answer shows the new plan as scheduled and keeps the current plan is in the core.
   P11:
     promise: "A change-plan request must state a proration mode of \"immediate\", \"none\" or \"at_period_end\", and with \"at_period_end\" the answer shows the new plan as scheduled and the current plan as unchanged."
+    status: workaround
+    by: [subscription.field.proration, subscription.entity.change_plan_request, subscription.entity.subscription]
+    hole: A2
+  # Which statuses can pause is in the core; only the refusal is declared. The resume window is checked against a request day that the shell sends, not the clock (E2).
   P12:
     promise: "A pause request may contain a resume date that is at least 1 day and at most 90 days after the request, and a subscription may only be paused while \"active\" or \"trialing\"."
+    status: workaround
+    by: [subscription.invariant.resume_in_window, request.field.requested_on, subscription.operation.pause_subscription, subscription.error.invalid_state_transition]
+    hole: C3
+  # The cancel mode and the refusal are declared. That canceled and expired are final statuses is in the core.
   P13:
     promise: "A cancel request states either \"immediately\" or \"at_period_end\", and a canceled or expired subscription can never move to any other status, so any further change request on it is refused with \"invalid_state_transition\"."
+    status: workaround
+    by: [subscription.field.cancel_mode, subscription.error.invalid_state_transition]
+    hole: C3
+  # Only "the period end is after the period start" is declared. No overlap and no gap between the invoices of one subscription are rules across stored records.
   P14:
     promise: "Within one subscription, invoice periods never overlap, each invoice's period end is after its period start, and each invoice's period start equals the previous invoice's period end."
+    status: workaround
+    by: [invoice.invariant.period_end_after_start]
+    hole: C1
+  # A line quantity of at least 1 and a total of 0 or more are declared. That the total is the sum of the line amounts is not.
   P15:
     promise: "Every invoice's total equals the sum of its line amounts, each line has a quantity of at least 1, and no invoice has a negative total."
+    status: workaround
+    by: [invoice.entity.invoice, invoice.field.line_quantity, money.field.amount_minor]
+    hole: A1
+  # The five statuses are declared. That paid and void are final is not.
   P16:
     promise: "An invoice's status is exactly one of \"draft\", \"open\", \"paid\", \"void\" or \"uncollectible\", and a \"paid\" or \"void\" invoice never changes status again."
+    status: workaround
+    by: [invoice.field.status]
+    hole: C3
+  # The conflict error is declared. At most one live subscription per customer and plan is a rule across stored records, in the core.
   P17:
     promise: "A customer has at most one non-canceled, non-expired subscription per plan, and a second create for the same customer and plan is refused with \"conflict\"."
+    status: workaround
+    by: [subscription.operation.create_subscription, subscription.error.conflict]
+    hole: C1
+  # The key of 1 to 255 characters is declared on each write request. The 24-hour replay and the conflict on a different body are for the shell.
   P18:
     promise: "Every write request may carry an idempotency key of 1 to 255 characters, and a repeat of the same key with the same body within 24 hours returns the original answer without a second effect, while the same key with a different body is refused with \"conflict\"."
+    status: workaround
+    by: [request.field.idempotency_key]
+    hole: C2
+  # The six events carry an event id, the subscription id and the time; the type is the kind URN, not the name such as subscription.created. Nothing makes the event id unique.
   P19:
     promise: "The domain publishes the events subscription.created, subscription.updated, subscription.canceled, subscription.trial_will_end, invoice.created and invoice.paid, each carrying a unique event id, the event type, the subscription id and the occurrence time."
+    status: workaround
+    by: [subscription.event.created, subscription.event.updated, subscription.event.canceled, subscription.event.trial_will_end, invoice.event.created, invoice.event.paid, event.field.event_id, event.field.occurred_at]
+    hole: D4
   P20:
     promise: "Events are delivered at least once and in order per subscription, so consumers must ignore an event id they have already processed."
+    status: not-declarable
+    hole: D4
   P21:
     promise: "subscription.trial_will_end is published 3 days before a trial ends, or immediately on creation if the trial is shorter than 3 days."
+    status: not-declarable
+    hole: E3
   P22:
     promise: "A customer may only read, list, pause, resume and cancel their own subscriptions, while only merchant staff with the billing-admin role may create subscriptions, change plans or void invoices."
+    status: not-declarable
+    hole: D2
+  # Each timestamp is ISO 8601 in UTC with a trailing Z. The end of a monthly period on a short month is a calendar calculation in the core.
   P23:
     promise: "All timestamps in requests, answers and events are ISO 8601 in UTC with a trailing \"Z\", and a monthly period that starts on a day missing from the next month ends on that month's last day."
+    status: workaround
+    by: [billing.field.period_start, billing.field.period_end, event.field.occurred_at]
+    hole: D3
   P24:
     promise: "Within one major API version, fields and enum values are only added and never removed or renamed, callers must ignore unknown fields, and a removed version keeps working for at least 12 months after its deprecation is announced."
+    status: not-declarable
+    hole: E4
