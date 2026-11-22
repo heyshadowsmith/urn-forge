@@ -235,10 +235,10 @@ claim.error.invalid_state:
     - ref: claim.field.claim_id
     - ref: claim.field.state
 claim.error.version_conflict:
-  description: The claim changed after the caller read it; the error names its current version
+  description: The claim changed after the caller read it
   category: conflict
   retryable: false
-  message: The claim {claim_id} is now at version {version}
+  message: The claim {claim_id} is no longer at version {version}
   fields:
     - ref: claim.field.claim_id
     - ref: claim.field.version
@@ -305,6 +305,7 @@ claim.operation.edit_draft:
   requires:
     - rule: input.version = current.version
       otherwise: claim.error.version_conflict
+      fill: { version: input.version }
   ensures:
     - output.version = input.version + 1
     - output.currency = input.currency
@@ -322,6 +323,7 @@ claim.operation.submit_claim:
   requires:
     - rule: input.version = current.version
       otherwise: claim.error.version_conflict
+      fill: { version: input.version }
   ensures:
     - output.version = input.version + 1
     - output.total = current.total
@@ -341,6 +343,7 @@ claim.operation.withdraw_claim:
   requires:
     - rule: input.version = current.version
       otherwise: claim.error.version_conflict
+      fill: { version: input.version }
   ensures:
     - output.version = input.version + 1
     - output.total = current.total
@@ -360,6 +363,7 @@ claim.operation.approve_claim:
   requires:
     - rule: input.version = current.version
       otherwise: claim.error.version_conflict
+      fill: { version: input.version }
   ensures:
     - output.version = input.version + 1
     - output.total = current.total
@@ -379,6 +383,7 @@ claim.operation.reject_claim:
   requires:
     - rule: input.version = current.version
       otherwise: claim.error.version_conflict
+      fill: { version: input.version }
   ensures:
     - output.version = input.version + 1
     - output.total = current.total
@@ -399,6 +404,7 @@ claim.operation.mark_paid:
   requires:
     - rule: input.version = current.version
       otherwise: claim.error.version_conflict
+      fill: { version: input.version }
   ensures:
     - output.version = input.version + 1
     - output.total = current.total
