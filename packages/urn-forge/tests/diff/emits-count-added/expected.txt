@@ -1,0 +1,1 @@
+compatible urn:demo:delivery:payment:operation:create_payment

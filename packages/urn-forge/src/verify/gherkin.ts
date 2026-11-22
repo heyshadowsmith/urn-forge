@@ -35,7 +35,7 @@
  * operation carries `@urn-forge:strict`; then they are errors.
  */
 
-import { currentWord, emitsUrn, failsWithUrn, recordedAsUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
+import { currentWord, emitsNoneOfUrn, emitsUrn, failsWithUrn, recordedAsUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
 import { substitute } from './input-values.js';
 import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
 import { valueField, type UniversalIR, type Urn } from '../ir/types.js';
@@ -96,6 +96,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const expectedErrors = new Set<string>();
   /** `<operation URN> <event URN>` for each event some scenario expects. */
   const expectedEvents = new Set<string>();
+  /** Each event that a scenario expects a success without: the other side of a \`when\` rule. */
+  const absentEvents = new Set<string>();
   /** `<operation URN> <event URN>` for each record of a refusal some scenario expects. */
   const expectedRecords = new Set<string>();
   /** `<operation URN> <invariant URN>` for each input invariant some scenario breaks. */
@@ -265,6 +267,16 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
               else reportOnce('undeclared-event', `"${eventUrn}" is not an event of ${owner.urn} (emits: ${owner.emits.length > 0 ? owner.emits.join(', ') : 'none'})`, owner.urn);
             }
             headerOwners.set(eventUrn, eventOwner(ir, owner, eventUrn));
+            continue;
+          }
+          // `the operation emits no "<urn>"`: a success without that event.
+          const absentUrn = emitsNoneOfUrn(text);
+          if (absentUrn !== undefined) {
+            kind = 'event';
+            if (owner?.emits) {
+              if (owner.emits.includes(absentUrn as Urn)) absentEvents.add(`${owner.urn} ${absentUrn}`);
+              else reportOnce('undeclared-event', `"${absentUrn}" is not an event of ${owner.urn} (emits: ${owner.emits.length > 0 ? owner.emits.join(', ') : 'none'})`, owner.urn);
+            }
           }
         }
         if (kind !== undefined) {
@@ -330,6 +342,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
 
   // Event coverage: each event of a tagged operation needs a scenario that expects it.
   let declaredEvents = 0;
+  let absentShown = 0;
   for (const operation of Object.values(ir.operations)) {
     for (const eventUrn of operation.emits) {
       declaredEvents += 1;
@@ -340,6 +353,20 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         file: features.directory,
         urn: eventUrn,
         message: `event ${eventUrn} of ${operation.urn} has no scenario that expects it; add one with Then the operation emits "${eventUrn}"`,
+      });
+    }
+    // An event that the operation emits only when a rule holds: a scenario must show a success without it.
+    for (const item of operation.exactly ?? []) {
+      if (!item.when) continue;
+      declaredEvents += 1;
+      if (absentEvents.has(`${operation.urn} ${item.event}`)) absentShown += 1;
+      if (!covered.has(operation.urn) || absentEvents.has(`${operation.urn} ${item.event}`)) continue;
+      problems.push({
+        code: 'uncovered-event',
+        severity: coverageSeverity(operation.urn),
+        file: features.directory,
+        urn: item.event,
+        message: `event ${item.event} of ${operation.urn} is emitted only when ${item.when.ruleText}, and no scenario shows a success without it; add one with Then the operation emits no "${item.event}"`,
       });
     }
   }
@@ -505,7 +532,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const scenarioCount = features.features.reduce((n, f) => n + f.scenarios.length, 0);
   const errorSummary =
     (declaredErrors > 0 ? `, ${expectedErrors.size}/${declaredErrors} errors expected` : '') +
-    (declaredEvents > 0 ? `, ${expectedEvents.size}/${declaredEvents} events expected` : '') +
+    (declaredEvents > 0 ? `, ${expectedEvents.size + absentShown}/${declaredEvents} events expected` : '') +
     (declaredRecords > 0 ? `, ${expectedRecords.size}/${declaredRecords} records expected` : '') +
     (inputInvariants > 0 ? `, ${brokenInvariants.size}/${inputInvariants} invariants broken` : '') +
     (declaredStates > 0 ? `, ${coveredStateCount}/${declaredStates} states covered` : '');

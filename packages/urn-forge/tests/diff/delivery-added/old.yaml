@@ -1,0 +1,35 @@
+manifest:
+  namespace: demo
+  domain: delivery
+  version: 1.0.0
+
+payment.field.payment_id:
+  primitive: string
+  regex: 'pay_[a-z0-9]{8}'
+  description: The id of a payment
+payment.field.status:
+  primitive: enum
+  values: [pending, authorized]
+  description: The status of a payment
+event.field.event_id:
+  primitive: string
+  format: uuid
+  description: The id of one event
+payment.entity.payment:
+  description: A payment
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+payment.event.authorized:
+  description: A payment was authorized
+  fields:
+    - ref: event.field.event_id
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+
+payment.operation.create_payment:
+  description: Create a payment
+  input: payment.entity.payment
+  output: payment.entity.payment
+  emits:
+    - payment.event.authorized

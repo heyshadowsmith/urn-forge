@@ -10,6 +10,9 @@ import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';
 import type { Urn } from '../src/ir/types.js';
 import { PLUGINS } from '../src/plugins/index.js';
+import { indexFeatureSource } from '../src/verify/feature-index.js';
+import { checkGherkin } from '../src/verify/gherkin.js';
+import type { GateContext } from '../src/verify/types.js';
 
 const CREATE = 'urn:demo:delivery:payment:operation:create_payment';
 const CAPTURE = 'urn:demo:delivery:payment:operation:capture_payment';
@@ -165,5 +168,22 @@ describe('the compile errors of delivery', () => {
       ['invalid-delivery', 'delivery.orderBy[1]: "reference" is not a property of the event (properties: event_id, sequence, payment_id, status, amount)'],
       ['invalid-delivery', 'delivery.sequence: "payment_id" is string, but the sequence must be an integer'],
     ]);
+  });
+});
+
+describe('gate 3 for an event with when', () => {
+  const ir = compile(source).ir!;
+  const gate3 = (scenarios: string) =>
+    checkGherkin({ ir, features: { directory: 'features', features: [indexFeatureSource(`Feature: f\n${scenarios}`, 'f.feature')!], problems: [] }, boundaryCoverage: 'warn' } as unknown as GateContext)
+      .problems.filter((p) => p.code === 'uncovered-event' && p.urn === PENDING)
+      .map((p) => p.message);
+  const create = (then: string) => `  @${CREATE}\n  Scenario: create\n    When I run the operation with:\n      | amount |\n      | 500 |\n    Then ${then}\n`;
+
+  it('asks for a scenario that emits the event, and one that succeeds without it', () => {
+    expect(gate3(create(`the operation emits "${AUTHORIZED}"`))).toEqual([
+      `event ${PENDING} of ${CREATE} has no scenario that expects it; add one with Then the operation emits "${PENDING}"`,
+      `event ${PENDING} of ${CREATE} is emitted only when output.status = 'pending', and no scenario shows a success without it; add one with Then the operation emits no "${PENDING}"`,
+    ]);
+    expect(gate3(create(`the operation emits "${PENDING}"`) + create(`the operation emits no "${PENDING}"`))).toEqual([]);
   });
 });
