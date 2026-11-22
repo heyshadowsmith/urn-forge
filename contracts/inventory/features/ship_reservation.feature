@@ -13,8 +13,8 @@ Feature: Ship a reservation
       | reservation_id                       | state   |
       | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | SHIPPED |
     And the operation emits "urn:corpus:inventory:reservation:event:stock_shipped":
-      | event_id                             | sequence | reservation_id                       | quantity_changed | level                                                                               | occurred_at              |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-1e2f3a4b5c6d | 1        | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | -10              | { sku: WIDGET-1, location: AMS-B-0142, on_hand: 490, reserved: 90, available: 400 } | 2026-11-22T10:00:00.000Z |
+      | event_id                             | reservation_id                       | quantity_changed | level                                                                               | occurred_at              |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | -10              | { sku: WIDGET-1, location: AMS-B-0142, on_hand: 490, reserved: 90, available: 400 } | 2026-11-22T10:00:00.000Z |
 
     Examples:
       | state             |

@@ -8,14 +8,14 @@ const AVAILABLE = ON_HAND - RESERVED;
 const RESERVED_PER_LINE = 10;
 
 const NOW = '2026-11-22T10:00:00.000Z';
-const EVENT_ID = '7d3f1c2a-5b4e-4a6d-9c8b-1e2f3a4b5c6d';
 const UNKNOWN_SKU = 'NO-SUCH-SKU';
 const UNKNOWN_LOCATION = 'ZZZ-Z-9999';
 const CONFLICTING_KEY = 'conflict-key';
 const NEW_RESERVATION = 'c0ffee00-1234-4abc-8def-0123456789ab';
 const DEFAULT_TTL_MINUTES = 30;
 
-const event = { event_id: EVENT_ID, sequence: 1, occurred_at: NOW };
+// The shell gives each event its id, and the outbox its sequence.
+const event = { occurred_at: NOW };
 
 function unknown(lines: readonly { sku: string; location: string }[]) {
   const sku = lines.find((line) => line.sku === UNKNOWN_SKU);
@@ -50,7 +50,7 @@ export const core = {
     return ok(
       { purchase_order_id, lines: levels },
       levels.map((level, i) =>
-        emit('urn:corpus:inventory:stock:event:stock_received', { ...event, quantity_changed: lines[i].quantity, level }),
+        emit('urn:corpus:inventory:stock:event:stock_received', { ...event, sku: level.sku, location: level.location, quantity_changed: lines[i].quantity, level }),
       ),
     );
   },
@@ -69,6 +69,8 @@ export const core = {
       const reserved = emit('urn:corpus:inventory:reservation:event:stock_reserved', {
         ...event,
         reservation_id: NEW_RESERVATION,
+        sku,
+        location,
         quantity_changed: quantity,
         level,
       });
@@ -98,6 +100,8 @@ export const core = {
       emit('urn:corpus:inventory:reservation:event:reservation_released', {
         ...event,
         reservation_id,
+        sku,
+        location,
         quantity_changed: quantity,
         level: { sku, location, on_hand: ON_HAND, reserved: RESERVED - quantity, available: AVAILABLE + quantity },
       }),
@@ -121,6 +125,8 @@ export const core = {
         emit('urn:corpus:inventory:reservation:event:stock_shipped', {
           ...event,
           reservation_id,
+          sku,
+          location,
           quantity_changed: -quantity,
           level: { sku, location, on_hand: ON_HAND - quantity, reserved: RESERVED - quantity, available: AVAILABLE },
         }),
@@ -140,6 +146,8 @@ export const core = {
     const level = { sku, location, on_hand, reserved: RESERVED, available: on_hand - RESERVED };
     const adjusted = emit('urn:corpus:inventory:adjustment:event:stock_adjusted', {
       ...event,
+      sku,
+      location,
       quantity_changed: delta,
       reason,
       level,

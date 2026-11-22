@@ -85,19 +85,22 @@ promises:
     status: workaround
     by: [event.field.occurred_at, reservation.field.expires_at]
     hole: D3
-  # The six events and their fields are declared, with the stock level embedded. "Exactly one event for each change" is not: emits allows zero or more events of each kind.
+  # The six events and their fields are declared: an event id (from the shell), the SKU, the location, the quantity changed, the stock level and a time. AdjustStock counts its event: exactly one stock_adjusted on each success. The rest is not stated:
+  # - ReceiveGoods, ReserveStock and ShipReservation change several SKU-locations, one event per line; ReleaseReservation gives back each line of the reservation. A count { event } is one per success, so "one event per changed line" cannot be stated, and these keep emits of zero or more.
+  # - No operation expires a reservation or emits ReservationExpired (E3).
+  # - The values are not tied to the change: an ensures with event. needs exactly one event per success, and AdjustStock also emits StockDepleted when the count drops to 0 (P20), so it cannot read the event; the other operations have one event per line.
+  # - The time of the change is a value of the core, not of a clock (E2).
   P18:
     promise: "For every successful change to stock the service publishes exactly one event of type StockReceived, StockReserved, ReservationReleased, ReservationExpired, StockShipped or StockAdjusted, carrying an event id, the SKU, the location, the quantity changed, the new on-hand and available counts and the time of the change."
     status: workaround
-    by: [stock.event.stock_received, reservation.event.stock_reserved, reservation.event.reservation_released, reservation.event.reservation_expired, reservation.event.stock_shipped, adjustment.event.stock_adjusted, event.field.event_id, event.field.quantity_changed, event.field.occurred_at]
+    by: [stock.event.stock_received, reservation.event.stock_reserved, reservation.event.reservation_released, reservation.event.reservation_expired, reservation.event.stock_shipped, adjustment.event.stock_adjusted, adjustment.operation.adjust_stock, event.field.event_id, stock.field.sku, stock.field.location, event.field.quantity_changed, stock.entity.stock_level, event.field.occurred_at]
     hole: D4
-  # Each event carries an event id and a sequence number of 1 or more. Delivery at least once, the order, and the step of 1 are not stated.
+  # Each of the seven events has delivery { id: event_id, orderBy: [sku, location], sequence: sequence }, and the contract uses the Postgres extra. The shell gives the id (newEventId); the outbox keeps the event from the transaction of the change until markPublished (at least once, a re-send has the same id), refuses a second row with an id (primary key), and fills the sequence 1, 2, ... per SKU and location in the order the events were written. The transport is the user's.
   P19:
     promise: "Events are delivered at least once, may be duplicated but carry the same event id when they are, and events for the same SKU and location arrive in the order the changes happened, each with a per-SKU-location sequence number that increases by 1."
-    status: workaround
-    by: [event.field.event_id, event.field.sequence]
-    hole: D4
-  # The event and the operations that can emit it are declared. "Whenever available drops to 0" is not.
+    status: declared
+    by: [stock.event.stock_received, reservation.event.stock_reserved, reservation.event.reservation_released, reservation.event.reservation_expired, reservation.event.stock_shipped, adjustment.event.stock_adjusted, stock.event.stock_depleted, event.field.event_id, event.field.sequence, stock.field.sku, stock.field.location]
+  # AdjustStock states it: exactly one StockDepleted when output.available = 0, and none otherwise (emits { event, when }). ReserveStock does not: it reserves several lines, so it needs one StockDepleted for each line whose count drops to 0, which a count of one per success cannot state, and its answer does not carry the available counts for a when rule.
   P20:
     promise: "Whenever the available count for a SKU at a location drops to 0 the service publishes a StockDepleted event for that SKU and location."
     status: workaround

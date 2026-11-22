@@ -10,8 +10,8 @@ Feature: Receive goods for a purchase order
       | purchase_order_id | lines                                                                                  |
       | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, on_hand: 501, reserved: 100, available: 401 }] |
     And the operation emits "urn:corpus:inventory:stock:event:stock_received":
-      | event_id                             | sequence | quantity_changed | level                                                                                | occurred_at              |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-1e2f3a4b5c6d | 1        | 1                | { sku: WIDGET-1, location: AMS-B-0142, on_hand: 501, reserved: 100, available: 401 } | 2026-11-22T10:00:00.000Z |
+      | event_id                             | quantity_changed | level                                                                                | occurred_at              |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 | 1                | { sku: WIDGET-1, location: AMS-B-0142, on_hand: 501, reserved: 100, available: 401 } | 2026-11-22T10:00:00.000Z |
 
   Scenario: Receiving 100000 of A1B reports the new on-hand count of the line
     When I run the operation with:
@@ -21,8 +21,8 @@ Feature: Receive goods for a purchase order
       | purchase_order_id | lines                                                                                   |
       | P                 | [{ sku: A1B, location: AMS-B-0142, on_hand: 100500, reserved: 100, available: 100400 }] |
     And the operation emits "urn:corpus:inventory:stock:event:stock_received":
-      | event_id                             | sequence | quantity_changed | level                                                                                 | occurred_at              |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-1e2f3a4b5c6d | 1        | 100000           | { sku: A1B, location: AMS-B-0142, on_hand: 100500, reserved: 100, available: 100400 } | 2026-11-22T10:00:00.000Z |
+      | event_id                             | quantity_changed | level                                                                                 | occurred_at              |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 | 100000           | { sku: A1B, location: AMS-B-0142, on_hand: 100500, reserved: 100, available: 100400 } | 2026-11-22T10:00:00.000Z |
 
   Scenario: Receiving 25 of a 32-character SKU reports the new on-hand count of the line
     When I run the operation with:
@@ -32,8 +32,8 @@ Feature: Receive goods for a purchase order
       | purchase_order_id | lines                                                                                                          |
       | PO-3              | [{ sku: ABCDEFGHIJKLMNOPQRSTUVWXYZ-12345, location: AMS-B-0142, on_hand: 525, reserved: 100, available: 425 }] |
     And the operation emits "urn:corpus:inventory:stock:event:stock_received":
-      | event_id                             | sequence | quantity_changed | level                                                                                                        | occurred_at              |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-1e2f3a4b5c6d | 1        | 25               | { sku: ABCDEFGHIJKLMNOPQRSTUVWXYZ-12345, location: AMS-B-0142, on_hand: 525, reserved: 100, available: 425 } | 2026-11-22T10:00:00.000Z |
+      | event_id                             | quantity_changed | level                                                                                                        | occurred_at              |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 | 25               | { sku: ABCDEFGHIJKLMNOPQRSTUVWXYZ-12345, location: AMS-B-0142, on_hand: 525, reserved: 100, available: 425 } | 2026-11-22T10:00:00.000Z |
 
   Scenario: A receipt of 200 lines is accepted
     When I run the operation with:
