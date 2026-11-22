@@ -25,6 +25,7 @@ promises:
     promise: "A reservation request names an order id and has 1 to 100 lines, each with a SKU, a location and a quantity of at least 1, and no SKU-location pair appears twice in the same request."
     status: declared
     by: [reservation.entity.reserve_request, reservation.field.order_id, stock.entity.line, stock.field.sku, stock.field.location, stock.field.quantity]
+  # The six operations are the ones offered to callers. ExpireReservation is a seventh operation of the manifest, but only the shell's own clock (caller role clock) may call it, so no caller is offered it; its request also carries the idempotency key.
   P07:
     promise: "The service offers exactly these operations - GetStock, ReceiveGoods, ReserveStock, ReleaseReservation, ShipReservation and AdjustStock - and each write request must carry a caller-chosen idempotency key of 8 to 64 characters."
     status: declared
@@ -66,18 +67,19 @@ promises:
   P14:
     promise: "A reservation is in one of the states ACTIVE, PARTIALLY_SHIPPED, SHIPPED, RELEASED or EXPIRED, may move only from ACTIVE to PARTIALLY_SHIPPED, SHIPPED, RELEASED or EXPIRED and from PARTIALLY_SHIPPED to SHIPPED or RELEASED, and SHIPPED, RELEASED and EXPIRED are final."
     status: declared
-    by: [reservation.field.state, reservation.error.invalid_state, reservation.operation.release_reservation, reservation.operation.ship_reservation]
+    by: [reservation.field.state, reservation.error.invalid_state, reservation.operation.release_reservation, reservation.operation.ship_reservation, reservation.operation.expire_reservation]
   # The key and the refusal idempotency_conflict are declared. The replay of the original answer within 24 hours is the shell.
   P15:
     promise: "A write request repeated with the same idempotency key and the same body within 24 hours returns the original answer without changing stock again, and the same key with a different body is refused with IDEMPOTENCY_CONFLICT."
     status: workaround
     by: [request.field.idempotency_key, request.error.idempotency_conflict]
     hole: C2
-  # The time-to-live of 1 to 10080 minutes and the expiry time are declared. The default of 30 minutes is only in a description, and no operation expires a reservation or emits reservation_expired.
+  # The expiry is declared: ReserveStock ensures output.expires_at = now + 30 minutes when the request has no time-to-live, and now + input.ttl_minutes minutes when it has one (1 to 10080 minutes, a field limit); ExpireReservation changes the reservation from ACTIVE only to EXPIRED (a partly shipped, shipped or released one answers invalid_state) with due: now >= current.expires_at, so the runtime refuses a call before the expiry time as not due; only the shell's clock (caller role clock) may call it; the reservation is a table, so the store file has selectReservationExpireReservationDue(now, limit), from the same rule. The scenarios show the default, each time-to-live bound, the expiry at the exact time and later, not due 1 ms before, and each other state refused.
+  # "Its stock becomes available again" is not stated. The stock levels are other records, which the manifest does not store or load: the answer is the reservation's state, and ReservationExpired (one per line in the core) is emits of zero or more with values not tied to the change, as for ReleaseReservation (P18). A change to other records in a timed change is outside the clock plan (E3).
   P16:
     promise: "An ACTIVE reservation that is neither shipped nor released expires 30 minutes after creation unless the request set a time-to-live between 1 minute and 7 days, and its stock becomes available again."
     status: workaround
-    by: [reservation.field.ttl_minutes, reservation.field.expires_at, reservation.event.reservation_expired]
+    by: [reservation.field.ttl_minutes, reservation.field.expires_at, reservation.operation.reserve_stock, reservation.operation.expire_reservation, reservation.event.reservation_expired, access.field.role]
     hole: E3
   # A timestamp is UTC with a trailing Z. It allows 0 to 3 digits after the second, so "millisecond precision" (exactly 3) is not stated.
   P17:
@@ -86,8 +88,7 @@ promises:
     by: [event.field.occurred_at, reservation.field.expires_at]
     hole: D3
   # The six events and their fields are declared: an event id (from the shell), the SKU, the location, the quantity changed, the stock level and a time. AdjustStock counts its event: exactly one stock_adjusted on each success. The rest is not stated:
-  # - ReceiveGoods, ReserveStock and ShipReservation change several SKU-locations, one event per line; ReleaseReservation gives back each line of the reservation. A count { event } is one per success, so "one event per changed line" cannot be stated, and these keep emits of zero or more.
-  # - No operation expires a reservation or emits ReservationExpired (E3).
+  # - ReceiveGoods, ReserveStock and ShipReservation change several SKU-locations, one event per line; ReleaseReservation and ExpireReservation (the shell's clock) give back each line of the reservation. A count { event } is one per success, so "one event per changed line" cannot be stated, and these keep emits of zero or more.
   # - The values are not tied to the change: an ensures with event. needs exactly one event per success, and AdjustStock also emits StockDepleted when the count drops to 0 (P20), so it cannot read the event; the other operations have one event per line.
   # - The time of the change is a value of the core, not of a clock (E2).
   P18:
@@ -106,7 +107,7 @@ promises:
     status: workaround
     by: [stock.event.stock_depleted, reservation.operation.reserve_stock, adjustment.operation.adjust_stock]
     hole: A2
-  # The header names the caller access.entity.caller, with a role: order_system, purchasing_system, warehouse_staff or warehouse_supervisor (authentication is the shell's; a caller that is absent or does not parse is a ContractViolation). Each operation states its callers, checked by the generated runtime before the record's state, requires and the handler: ReserveStock, ReleaseReservation and ShipReservation allow caller.role = 'order_system'; ReceiveGoods allows caller.role = 'warehouse_staff' or caller.role = 'purchasing_system'; AdjustStock allows caller.role = 'warehouse_supervisor'; each refuses any other caller with access.error.forbidden (FORBIDDEN), filled with the role. GetStock has allow: any; its otherwise is never answered. Warehouse supervisors are a role of their own, apart from warehouse staff, as the promise names them. The scenarios show each role allowed and every other role refused, also before the state of a reservation; the core does not read the caller.
+  # The header names the caller access.entity.caller, with a role: order_system, purchasing_system, warehouse_staff, warehouse_supervisor or clock (authentication is the shell's; a caller that is absent or does not parse is a ContractViolation). Each operation states its callers, checked by the generated runtime before the record's state, requires and the handler: ReserveStock, ReleaseReservation and ShipReservation allow caller.role = 'order_system'; ReceiveGoods allows caller.role = 'warehouse_staff' or caller.role = 'purchasing_system'; AdjustStock allows caller.role = 'warehouse_supervisor'; ExpireReservation, which the promise does not name, allows only caller.role = 'clock', the shell's own clock; each refuses any other caller with access.error.forbidden (FORBIDDEN), filled with the role. GetStock has allow: any; its otherwise is never answered. Warehouse supervisors are a role of their own, apart from warehouse staff, as the promise names them. The clock is a role too: it may call GetStock as any caller, and is refused by the five other operations. The scenarios show each role allowed and every other role refused, also before the state of a reservation; the core does not read the caller.
   P21:
     promise: "Only the order system may call ReserveStock, ReleaseReservation and ShipReservation; only warehouse staff and the purchasing system may call ReceiveGoods; only warehouse supervisors may call AdjustStock; any authenticated caller may call GetStock, and other calls are refused with FORBIDDEN."
     status: declared

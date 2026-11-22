@@ -83,3 +83,4 @@ Feature: Read the stock of a SKU at a location
       | purchasing_system    |
       | warehouse_staff      |
       | warehouse_supervisor |
+      | clock                |

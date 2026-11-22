@@ -136,3 +136,4 @@ Feature: Adjust the on-hand stock
       | order_system         |
       | purchasing_system    |
       | warehouse_staff      |
+      | clock                |

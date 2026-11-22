@@ -2,9 +2,11 @@
 @urn:corpus:inventory:reservation:operation:reserve_stock
 Feature: Reserve stock for an order
 
-  # Only the order system may reserve stock; the scenarios below run as the order system.
+  # Only the order system may reserve stock; the scenarios below run as the order system, at
+  # 10:00 UTC, so a reservation with no time-to-live expires at 10:30.
   Background:
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00.000Z"
+    And the caller is:
       | role         |
       | order_system |
 
@@ -159,3 +161,4 @@ Feature: Reserve stock for an order
       | purchasing_system    |
       | warehouse_staff      |
       | warehouse_supervisor |
+      | clock                |
