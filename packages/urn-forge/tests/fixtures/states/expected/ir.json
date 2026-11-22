@@ -1,0 +1,233 @@
+{
+  "entities": {
+    "urn:demo:states:booking:entity:booking": {
+      "brandIdentifier": "BookingBooking",
+      "description": "A booking",
+      "fields": [
+        {
+          "field": "urn:demo:states:booking:field:reference",
+          "name": "reference",
+          "required": true
+        },
+        {
+          "field": "urn:demo:states:booking:field:state",
+          "name": "state",
+          "required": true
+        },
+        {
+          "field": "urn:demo:states:booking:field:party_size",
+          "name": "party_size",
+          "required": true
+        }
+      ],
+      "key": "urn:demo:states:booking:field:reference",
+      "urn": "urn:demo:states:booking:entity:booking"
+    },
+    "urn:demo:states:booking:entity:booking_ref": {
+      "brandIdentifier": "BookingBookingRef",
+      "description": "The reference of one booking",
+      "fields": [
+        {
+          "field": "urn:demo:states:booking:field:reference",
+          "name": "reference",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:states:booking:entity:booking_ref"
+    },
+    "urn:demo:states:booking:entity:cancellation": {
+      "brandIdentifier": "BookingCancellation",
+      "description": "What a cancellation gives back",
+      "fields": [
+        {
+          "field": "urn:demo:states:booking:field:reference",
+          "name": "reference",
+          "required": true
+        },
+        {
+          "field": "urn:demo:states:booking:field:refund",
+          "name": "refund",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:states:booking:entity:cancellation"
+    },
+    "urn:demo:states:booking:entity:party_change": {
+      "brandIdentifier": "BookingPartyChange",
+      "description": "A new party size for a booking",
+      "fields": [
+        {
+          "field": "urn:demo:states:booking:field:reference",
+          "name": "reference",
+          "required": true
+        },
+        {
+          "field": "urn:demo:states:booking:field:party_size",
+          "name": "party_size",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:states:booking:entity:party_change"
+    }
+  },
+  "errors": {
+    "urn:demo:states:booking:error:invalid_state": {
+      "brandIdentifier": "BookingInvalidState",
+      "category": "conflict",
+      "description": "The booking is not in a state that allows this",
+      "fields": [
+        {
+          "field": "urn:demo:states:booking:field:reference",
+          "name": "reference",
+          "required": true
+        },
+        {
+          "field": "urn:demo:states:booking:field:state",
+          "name": "state",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "Booking "
+        },
+        {
+          "field": "reference"
+        },
+        {
+          "text": " is "
+        },
+        {
+          "field": "state"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:states:booking:error:invalid_state"
+    }
+  },
+  "events": {},
+  "fields": {
+    "urn:demo:states:booking:field:party_size": {
+      "brandIdentifier": "BookingPartySize",
+      "constraints": {
+        "max": 20,
+        "min": 1
+      },
+      "description": "The number of guests",
+      "primitive": "integer",
+      "urn": "urn:demo:states:booking:field:party_size"
+    },
+    "urn:demo:states:booking:field:reference": {
+      "brandIdentifier": "BookingReference",
+      "constraints": {
+        "regex": "[A-Z]{8}"
+      },
+      "description": "The reference of a booking, eight capital letters",
+      "primitive": "string",
+      "urn": "urn:demo:states:booking:field:reference"
+    },
+    "urn:demo:states:booking:field:refund": {
+      "brandIdentifier": "BookingRefund",
+      "constraints": {
+        "min": "0.00",
+        "scale": 2
+      },
+      "description": "The deposit that a cancellation pays back",
+      "primitive": "decimal",
+      "urn": "urn:demo:states:booking:field:refund"
+    },
+    "urn:demo:states:booking:field:state": {
+      "brandIdentifier": "BookingState",
+      "constraints": {
+        "values": [
+          "confirmed",
+          "seated",
+          "completed",
+          "cancelled"
+        ]
+      },
+      "description": "The state of a booking",
+      "moves": {
+        "confirmed": [
+          "seated",
+          "cancelled"
+        ],
+        "seated": [
+          "completed"
+        ]
+      },
+      "primitive": "enum",
+      "urn": "urn:demo:states:booking:field:state"
+    }
+  },
+  "invariants": {},
+  "meta": {
+    "domain": "states",
+    "irSchemaVersion": 1,
+    "manifestHash": "918bed62458fd7b0b25ee6f40136f73f3f393463277d01d14e23d4d84b4fe452",
+    "manifestVersion": "1.0.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {
+    "urn:demo:states:booking:operation:cancel_booking": {
+      "brandIdentifier": "BookingCancelBooking",
+      "changes": {
+        "entity": "urn:demo:states:booking:entity:booking",
+        "from": [
+          "confirmed"
+        ],
+        "otherwise": "urn:demo:states:booking:error:invalid_state",
+        "property": "state",
+        "to": "cancelled"
+      },
+      "description": "Cancel a booking",
+      "emits": [],
+      "errors": [
+        "urn:demo:states:booking:error:invalid_state"
+      ],
+      "input": "urn:demo:states:booking:entity:booking_ref",
+      "output": "urn:demo:states:booking:entity:cancellation",
+      "urn": "urn:demo:states:booking:operation:cancel_booking"
+    },
+    "urn:demo:states:booking:operation:change_party": {
+      "brandIdentifier": "BookingChangeParty",
+      "changes": {
+        "entity": "urn:demo:states:booking:entity:booking",
+        "from": [
+          "confirmed"
+        ],
+        "otherwise": "urn:demo:states:booking:error:invalid_state",
+        "property": "state"
+      },
+      "description": "Change the party size of a booking; its state stays",
+      "emits": [],
+      "errors": [
+        "urn:demo:states:booking:error:invalid_state"
+      ],
+      "input": "urn:demo:states:booking:entity:party_change",
+      "output": "urn:demo:states:booking:entity:booking",
+      "urn": "urn:demo:states:booking:operation:change_party"
+    },
+    "urn:demo:states:booking:operation:seat_booking": {
+      "brandIdentifier": "BookingSeatBooking",
+      "changes": {
+        "entity": "urn:demo:states:booking:entity:booking",
+        "from": [
+          "confirmed"
+        ],
+        "otherwise": "urn:demo:states:booking:error:invalid_state",
+        "property": "state",
+        "to": "seated"
+      },
+      "description": "Seat the party of a booking",
+      "emits": [],
+      "errors": [
+        "urn:demo:states:booking:error:invalid_state"
+      ],
+      "input": "urn:demo:states:booking:entity:booking_ref",
+      "output": "urn:demo:states:booking:entity:booking",
+      "urn": "urn:demo:states:booking:operation:seat_booking"
+    }
+  }
+}

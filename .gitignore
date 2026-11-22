@@ -6,4 +6,3 @@ docs/.vitepress/cache/
 docs/.vitepress/dist/
 *.tgz
 packages/urn-forge/.gate-2-*/
-packages/urn-forge/.states-*/
