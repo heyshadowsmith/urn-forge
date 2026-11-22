@@ -185,7 +185,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'invalid-callers': () =>
     manifest('a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\n' +
       'a.error.no: { description: N, category: forbidden, retryable: false, message: No }\n' +
-      'a.operation.o: { description: O, input: a.entity.e, output: a.entity.e, callers: { allow: any, otherwise: a.error.no }, errors: [a.error.no] }\n'),
+      'a.operation.o: { description: O, input: a.entity.e, output: a.entity.e, callers: { allow: [n > 1], otherwise: a.error.no }, errors: [a.error.no] }\n'),
   'invalid-reads': () =>
     manifest('a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\n' +
       'a.error.no: { description: N, category: not_found, retryable: false, message: No }\n' +

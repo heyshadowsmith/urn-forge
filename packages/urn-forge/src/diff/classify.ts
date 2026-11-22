@@ -357,7 +357,7 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
         for (const rule of after.filter((r) => !before.includes(r))) compatible(urn, `the new allow rule ${rule} lets more callers call`);
         for (const rule of before.filter((r) => !after.includes(r))) breaking(urn, `the allow rule ${rule} is removed, which shuts out callers that it let in`);
       }
-      if (a.callers!.otherwise !== b!.callers!.otherwise) breaking(urn, `callers.otherwise ${a.callers!.otherwise} → ${b!.callers!.otherwise}: refused callers receive another error`);
+      if (before !== 'any' && after !== 'any' && a.callers!.otherwise !== b!.callers!.otherwise) breaking(urn, `callers.otherwise ${a.callers!.otherwise} → ${b!.callers!.otherwise}: refused callers receive another error`);
     }
   }
 

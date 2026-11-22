@@ -101,5 +101,3 @@ claim.operation.check_claim_id:
   output: claim.entity.claim_ref
   callers:
     allow: any
-    otherwise: claim.error.forbidden
-  errors: [claim.error.forbidden]

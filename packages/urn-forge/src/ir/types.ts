@@ -243,8 +243,8 @@ export interface IRRead {
 export interface IRCallers {
   /** 'any': every caller that the shell authenticated. Else the call is allowed when one rule holds. */
   readonly allow: 'any' | readonly IRRule[];
-  /** The declared error for any other caller. */
-  readonly otherwise: Urn;
+  /** The declared error for any other caller; absent with 'any'. */
+  readonly otherwise?: Urn;
 }
 
 /** A `requires` rule, and the declared error that answers when it does not hold. */

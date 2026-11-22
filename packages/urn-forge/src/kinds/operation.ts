@@ -32,7 +32,8 @@ const OperationSchema = v.strictObject({
   callers: v.optional(
     v.strictObject({
       allow: v.union([v.literal('any'), v.pipe(v.array(v.string()), v.minLength(1, 'must list at least one rule, or be any'))]),
-      otherwise: ShortKeyRef,
+      /** The error for a caller that no rule allows; not with allow: any, which refuses no caller. */
+      otherwise: v.optional(ShortKeyRef),
     }),
   ),
   /** Rules over the request and the record that must hold before the handler runs, each with the error that answers when it does not. */
@@ -260,6 +261,11 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
     c.report({ code: 'invalid-callers', urn: c.urn, message: `${c.urn}: states no callers, but the manifest names the caller ${c.caller}; add callers, with allow: any for every caller`, path: [c.shortKey] });
   } else if (decl.callers && !c.caller) {
     callersProblem('callers: the manifest header names no caller; add caller: <entity> to it');
+  } else if (decl.callers && callerEntity && decl.callers.allow === 'any') {
+    if (decl.callers.otherwise !== undefined) callersProblem('callers.otherwise: allow: any refuses no caller, so leave out otherwise', 'otherwise');
+    else callers = { allow: 'any' };
+  } else if (decl.callers && callerEntity && decl.callers.otherwise === undefined) {
+    callersProblem('callers.otherwise: name the declared error for a caller that no rule allows', 'allow');
   } else if (decl.callers && callerEntity) {
     const target = c.ref(['callers', 'otherwise']);
     const error = target && (c.node('error', target.urn) as IRError | undefined);

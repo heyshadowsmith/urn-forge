@@ -254,7 +254,7 @@ For each rule of an operation, the schemas file exports `<Operation brand>Requir
 | `OperationContract` | `input`, `output`: `EntityContract`. `errors`: `ErrorContract` by error URN. `events`: `EntityContract` by event URN. `changes?`: `ChangeContract` |
 | `ConditionInfo`, `RequireInfo` | `text` (the canonical rule), `check` (the generated function), and `event?: true` when the rule reads the event; a `RequireInfo` also has `otherwise`. `OperationContract` has `requires?` and `ensures?`. Only in a domain with conditions |
 | `ReadContract` | `entity`: `EntityContract` with `urn`, and `missing?`. `OperationContract` has `reads?`. Only in a domain with `reads` |
-| `CallersContract` | `allow`: `'any'` or `ConditionInfo[]`, and `otherwise`. `OperationContract` has `callers`. Only in a domain with a `caller` |
+| `CallersContract` | `allow`: `'any'` or `ConditionInfo[]`, and `otherwise` (absent with `'any'`). `OperationContract` has `callers`. Only in a domain with a `caller` |
 | `CountInfo` | `event`, and `when?`: a `ConditionInfo`. `OperationContract` has `exactly?`. Only in a domain with an item `{ event }` in `emits` |
 | `EventContract`, `DeliveryInfo` | An `EntityContract` with `delivery?`: `id`, `orderBy`, `sequence?`. `events` has this type. Only in a domain with `delivery` |
 | `ChangeContract` | `entity`: `EntityContract` with `urn`. `property` (the state), `from`, `to?` (a list), `moves`, `otherwise`, `missing?`, `key?`, `answerState?` and `answerKey?` (the properties of the output that hold the state and the key). Only in a domain with `changes` |

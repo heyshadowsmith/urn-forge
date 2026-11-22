@@ -225,7 +225,7 @@ The handler gets the record as its second parameter, `current`, and the rules ca
 | Property | Type | Necessary | Rule |
 | --- | --- | --- | --- |
 | `allow` | `any`, or a list of strings | Yes | `any`: every caller. Else rules over `caller.`, `input.` and, with `changes` or `reads`, `current.`; the call is allowed when one rule holds |
-| `otherwise` | string | Yes | Short key of an error in `errors`. Each required field of the error is a property of the caller, of `input`, or of the record |
+| `otherwise` | string | With rules; not with `any` | Short key of an error in `errors`. Each required field of the error is a property of the caller, of `input`, or of the record |
 
 `callers` without a `caller` in the header, or an operation with no `callers` in a domain with a `caller`, causes `invalid-callers`. `executeOperation` checks the callers after the record parses, and before the state of `changes` and the `requires` rules. Refer to [Declare who may call](../how-to/declare-callers).
 

@@ -96,8 +96,10 @@ export function buildIr(manifest: ValidManifest, options: BuildOptions = {}): IR
   /** Every resolved reference, for pass 8. */
   const references: Reference[] = [];
 
-  // A kind that reads other nodes (`after`) builds once those kinds have built.
-  const stage = (atom: Atom) => (kind(atom.kind).after ? 1 : 0);
+  // A kind that reads other nodes (`after`) builds once those kinds have built: its stage is one
+  // more than the highest stage of the kinds it reads. An operation reads errors, which read events.
+  const depth = (name: KindName): number => Math.max(-1, ...(kind(name).after ?? []).map(depth)) + 1;
+  const stage = (atom: Atom) => depth(atom.kind);
   for (const atom of [...atoms].sort((a, b) => stage(a) - stage(b))) {
     if (byUrn.get(atom.urn) !== atom) continue; // duplicate, already reported
     const descriptor = kind(atom.kind);

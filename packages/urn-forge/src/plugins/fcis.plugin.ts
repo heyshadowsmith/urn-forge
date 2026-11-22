@@ -178,7 +178,7 @@ const accessCall = (changes: boolean, reads: boolean, caller: boolean, condition
   // Who may call: any caller, or one for whom a rule holds. Else \`otherwise\`, filled from the caller, the record and the request.
   const callers = contract.callers;
   if (result === undefined && callers.allow !== 'any' && !callers.allow.some((rule) => (rule.check as (values: unknown) => boolean)({ input: input.output, current, caller }))) {
-    result = fill(callers.otherwise, { ...(input.output as object), ...current, ...caller });
+    result = fill(callers.otherwise!, { ...(input.output as object), ...current, ...caller });
   }` : ''}${changes ? `
   if (result === undefined && change && current && !change.from.includes(current[change.property] as string)) result = fill(change.otherwise, { ...(input.output as object), ...current });` : ''}${conditions ? REQUIRES : ''}
   result ??= handler(input.output, current);`;
@@ -782,7 +782,8 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
             `/** Who may call an operation: any caller, or one for whom a rule holds; else the error \`otherwise\`. */`,
             `export interface CallersContract {`,
             `  readonly allow: 'any' | readonly ConditionInfo[];`,
-            `  readonly otherwise: string;`,
+            `  /** Absent with allow: any. */`,
+            `  readonly otherwise?: string;`,
             `}`,
           ]
         : []),
@@ -879,13 +880,13 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
         ...(op.callers
           ? [
               op.callers.allow === 'any'
-                ? `    callers: { allow: 'any', otherwise: ${q(op.callers.otherwise)} },`
+                ? `    callers: { allow: 'any' },`
                 : [
                     `    callers: {`,
                     `      allow: [`,
                     ...op.callers.allow.map((r, i) => `        { text: ${q(r.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'caller', i)} },`),
                     `      ],`,
-                    `      otherwise: ${q(op.callers.otherwise)},`,
+                    `      otherwise: ${q(op.callers.otherwise!)},`,
                     `    },`,
                   ].join('\n'),
             ]

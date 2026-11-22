@@ -196,7 +196,7 @@
     "caller": "urn:demo:callers:auth:entity:caller",
     "domain": "callers",
     "irSchemaVersion": 1,
-    "manifestHash": "ad34dd8ca554fc78de1fe8d91f0a8ccb7c5b6048710c27184f5715522c091f23",
+    "manifestHash": "df65e281bee09cee2bab08abfb6e8d0494b9f41057ac537e9da725e22dc41a5f",
     "manifestVersion": "1.0.0",
     "namespace": "demo",
     "stability": "stable"
@@ -275,14 +275,11 @@
     "urn:demo:callers:claim:operation:check_claim_id": {
       "brandIdentifier": "ClaimCheckClaimId",
       "callers": {
-        "allow": "any",
-        "otherwise": "urn:demo:callers:claim:error:forbidden"
+        "allow": "any"
       },
       "description": "Check the form of a claim id, for any caller",
       "emits": [],
-      "errors": [
-        "urn:demo:callers:claim:error:forbidden"
-      ],
+      "errors": [],
       "input": "urn:demo:callers:claim:entity:claim_ref",
       "output": "urn:demo:callers:claim:entity:claim_ref",
       "urn": "urn:demo:callers:claim:operation:check_claim_id"

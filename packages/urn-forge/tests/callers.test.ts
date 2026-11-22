@@ -90,7 +90,7 @@ describe('the compile errors of callers', () => {
     compile(source.replace(from, to)).diagnostics.map((d) => [d.code, d.message.replace(/^urn:demo:callers:claim:operation:/, '')]);
 
   it('refuses an operation of a domain with a caller that states no callers', () => {
-    expect(messages('  callers:\n    allow: any\n    otherwise: claim.error.forbidden\n', '')).toEqual([
+    expect(messages('  callers:\n    allow: any\n', '')).toEqual([
       ['invalid-callers', 'check_claim_id: states no callers, but the manifest names the caller urn:demo:callers:auth:entity:caller; add callers, with allow: any for every caller'],
     ]);
   });
@@ -104,12 +104,25 @@ describe('the compile errors of callers', () => {
     expect(messages("      - caller.role = 'finance'\n", '      - caller.role = 3\n')).toEqual([
       ['rule-type', 'read_claim: callers.allow.2: 3 is not text in quotes, so it cannot meet an enum in "=" (at column 1 of the rule)'],
     ]);
-    expect(messages('    otherwise: claim.error.forbidden\n  errors: [claim.error.forbidden]', "    otherwise: claim.error.forbidden\n  ensures: [\"caller.role = 'finance'\"]\n  errors: [claim.error.forbidden]")).toEqual([
+    expect(messages('  callers:\n    allow: any\n', "  callers:\n    allow: any\n  ensures: [\"caller.role = 'finance'\"]\n")).toEqual([
       ['invalid-condition', 'check_claim_id: ensures.0: "caller.role" reads the caller, which only a rule of callers can'],
     ]);
-    expect(messages('    otherwise: claim.error.forbidden\n  errors: [claim.error.forbidden]', '    otherwise: claim.error.invalid_state\n  errors: [claim.error.forbidden, claim.error.invalid_state]')).toEqual([
+    expect(messages('  callers:\n    allow: any\n', '  callers:\n    allow:\n      - caller.role = \'finance\'\n    otherwise: claim.error.invalid_state\n  errors: [claim.error.invalid_state]\n')).toEqual([
       ['invalid-callers', 'check_claim_id: callers.otherwise: urn:demo:callers:claim:error:invalid_state needs state, which neither the caller, the input nor the record has'],
     ]);
+  });
+
+  it('refuses otherwise with allow: any, which refuses no caller', () => {
+    expect(messages('  callers:\n    allow: any\n', '  callers:\n    allow: any\n    otherwise: claim.error.forbidden\n  errors: [claim.error.forbidden]\n')).toEqual([
+      ['invalid-callers', 'check_claim_id: callers.otherwise: allow: any refuses no caller, so leave out otherwise'],
+    ]);
+  });
+
+  it('builds an operation after its errors, whatever their URNs', () => {
+    // An operation in a context that sorts before the context of its otherwise error.
+    const result = compile(source.replaceAll('claim.error.forbidden', 'zeta.error.forbidden'));
+    expect(result.diagnostics).toEqual([]);
+    expect((result.ir?.operations as Record<string, { callers?: unknown }>)[APPROVE]?.callers).toMatchObject({ otherwise: 'urn:demo:callers:zeta:error:forbidden' });
   });
 
   it('refuses reads in an operation that also changes a record', () => {

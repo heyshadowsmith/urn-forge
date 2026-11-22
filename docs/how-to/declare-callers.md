@@ -44,7 +44,7 @@ urn:demo:callers:claim:operation:check_claim_id: states no callers, but the mani
 | Key | Value |
 | --- | --- |
 | `allow` | A list of rules. The call is allowed when one rule holds. Or `any`: every caller that the shell authenticated |
-| `otherwise` | The declared error for each other caller. It must be in `errors` |
+| `otherwise` | The declared error for each other caller. It must be in `errors`. Leave it out with `allow: any`, which refuses no caller |
 
 A rule reads `caller.`, `input.` and, with `changes` or `reads`, `current.`:
 
@@ -70,8 +70,6 @@ claim.operation.check_claim_id:
   output: claim.entity.claim_ref
   callers:
     allow: any
-    otherwise: claim.error.forbidden
-  errors: [claim.error.forbidden]
 ```
 
 urn-forge fills the fields of `otherwise` from the caller, the record and the request, by property name. Each required field of the error must be a property of one of them. To hide a record from a caller that may not see it, use the error that the caller gets when there is no record, for example `not_found`.
