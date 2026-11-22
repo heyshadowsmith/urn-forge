@@ -19,17 +19,17 @@ promises:
     status: workaround
     by: [ticket.field.ticket_code]
     hole: C1
-  # The total of at most 10 tickets across all lines is a sum over list items, which only the core checks; the line is not a union type (B1); the distinct seats are P05.
+  # The total of at most 10 tickets counts 1 for a seated line and the quantity for a standing line: a sum with a condition, which only the core checks; the line is not a union type (B1); the distinct seats are P05.
   P04:
     promise: "A hold request names one event and contains 1 to 10 lines, where a seated line names exactly one distinct seat and a standing line names a section and a quantity of at least 1, and the total number of tickets across all lines is at most 10."
     status: workaround
     by: [hold.entity.hold_request, hold.entity.hold_line, show.field.event_id, seat.field.quantity, hold.invariant.seated_line_names_one_seat, hold.invariant.standing_line_names_quantity]
     hole: A1
-  # A seat is three properties of a list item; unique on a list compares one key field, so no rule states that no seat repeats.
+  # Each list of places of a hold request, a hold and an order is unique by section, row and seat number; a standing line or ticket has no row or seat number, so it is not compared.
   P05:
     promise: "A single hold or order never contains the same seat twice."
-    status: not-declarable
-    hole: A1
+    status: declared
+    by: [hold.entity.hold_request, hold.entity.hold, order.entity.order, seat.field.section, seat.field.row, seat.field.seat_number]
   P06:
     promise: "A caller can request: create a hold, release a hold, check out a hold, get an order, transfer a ticket, accept a transfer, cancel a transfer, request a refund, and validate a ticket at entry."
     status: declared
@@ -52,11 +52,11 @@ promises:
     status: workaround
     by: [order.operation.check_out, order.entity.checkout_request, hold.field.hold_id, order.field.payment_reference, order.error.hold_expired, hold.error.hold_not_found, order.error.payment_declined]
     hole: E2
-  # The total as the sum of the line prices plus the fees is a sum over list items; one ticket per held place relates the answer to the hold (A2).
+  # The total as the sum of the ticket prices plus the fees is an invariant of the order; one ticket per held place pairs the tickets of the answer with the lines of the stored hold, which no rule states.
   P10:
     promise: "A successful checkout returns an order id and exactly one ticket per held seat or standing place, and the order total equals the sum of the line prices plus the listed fees."
     status: workaround
-    by: [order.operation.check_out, order.entity.order, order.field.order_id]
+    by: [order.operation.check_out, order.entity.order, order.field.order_id, order.invariant.total_is_prices_plus_fees]
     hole: A1
   # The moves and the final states are declared, and release and checkout start only from ACTIVE; that the seats of a hold that left ACTIVE are no longer held is a rule across the stored holds and tickets.
   P11:

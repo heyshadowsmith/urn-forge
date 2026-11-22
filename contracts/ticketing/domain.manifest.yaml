@@ -117,7 +117,7 @@ hold.entity.hold_request:
     - ref: show.field.event_id
     - ref: hold.entity.hold_line
       as: lines
-      many: { minItems: 1, maxItems: 10 }
+      many: { minItems: 1, maxItems: 10, unique: [section, row, seat_number] }
 
 hold.entity.held_line:
   description: One line of a hold, with its price
@@ -154,7 +154,7 @@ hold.entity.hold:
     - ref: hold.field.hold_status
     - ref: hold.entity.held_line
       as: lines
-      many: { minItems: 1, maxItems: 10 }
+      many: { minItems: 1, maxItems: 10, unique: [section, row, seat_number] }
     - ref: money.entity.money
       as: total
     - ref: hold.field.created_at
@@ -297,11 +297,16 @@ order.entity.order:
     - ref: show.field.event_id
     - ref: ticket.entity.ticket
       as: tickets
-      many: { minItems: 1, maxItems: 10 }
+      many: { minItems: 1, maxItems: 10, unique: [section, row, seat_number] }
     - ref: money.entity.money
       as: fees
     - ref: money.entity.money
       as: total
+order.invariant.total_is_prices_plus_fees:
+  description: The total of an order is the sum of the prices of its tickets plus the fees
+  on: order.entity.order
+  rule: 'total.amount_minor = sum(ticket in tickets: ticket.price.amount_minor) + fees.amount_minor'
+  message: The total must be the sum of the ticket prices plus the fees
 order.entity.order_ref:
   description: A request that names one order
   fields:
