@@ -101,14 +101,82 @@ Feature: Receive goods for a purchase order
       | location   |
       | ZZZ-Z-9999 |
 
-  Scenario: An idempotency key used before with a different body is refused
+  Scenario Outline: A repeat with the same key and body within 24 hours returns the first answer and changes nothing
+    Given the time is "2026-11-22T10:00:00.000Z"
     When I run the operation with:
       | idempotency_key | purchase_order_id | lines                                                  |
-      | conflict-key    | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+      | rcv-idem-0001   | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    And the time is "<again>"
+    And I run the operation again with:
+      | idempotency_key | purchase_order_id | lines                                                  |
+      | rcv-idem-0001   | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    Then the answer is the first answer
+    And the operation emits no event
+
+    Examples:
+      | again                    |
+      | 2026-11-22T10:00:00.000Z |
+      | 2026-11-23T09:59:59.999Z |
+
+  Scenario Outline: The same key with another body within 24 hours is refused with idempotency_conflict
+    Given the time is "2026-11-22T10:00:00.000Z"
+    When I run the operation with:
+      | idempotency_key | purchase_order_id | lines                                                  |
+      | rcv-idem-0002   | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    And the time is "<again>"
+    And I run the operation again with:
+      | idempotency_key | purchase_order_id | lines                                                  |
+      | rcv-idem-0002   | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 2 }] |
     Then the operation fails with "urn:corpus:inventory:request:error:idempotency_conflict":
       | idempotency_key |
-      | conflict-key    |
+      | rcv-idem-0002   |
     And the operation emits no event
+
+    Examples:
+      | again                    |
+      | 2026-11-22T10:00:00.000Z |
+      | 2026-11-23T09:59:59.999Z |
+
+  Scenario: 24 hours after the first answer the key is free, and a call with the same body runs again
+    Given the time is "2026-11-22T10:00:00.000Z"
+    When I run the operation with:
+      | idempotency_key | purchase_order_id | lines                                                  |
+      | rcv-idem-0003   | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    And the time is "2026-11-23T10:00:00.000Z"
+    And I run the operation again with:
+      | idempotency_key | purchase_order_id | lines                                                  |
+      | rcv-idem-0003   | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    Then the operation emits "urn:corpus:inventory:stock:event:stock_received":
+      | event_id                             |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 |
+
+  Scenario: 24 hours after the first answer the key is free, and a call with another body runs again
+    Given the time is "2026-11-22T10:00:00.000Z"
+    When I run the operation with:
+      | idempotency_key | purchase_order_id | lines                                                  |
+      | rcv-idem-0003   | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    And the time is "2026-11-23T10:00:00.000Z"
+    And I run the operation again with:
+      | idempotency_key | purchase_order_id | lines                                                  |
+      | rcv-idem-0003   | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 2 }] |
+    Then the operation emits "urn:corpus:inventory:stock:event:stock_received":
+      | event_id                             |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 |
+
+  Scenario: A refused call does not keep its key, so the key can still be used
+    Given the time is "2026-11-22T10:00:00.000Z"
+    When I run the operation with:
+      | idempotency_key | purchase_order_id | lines                                                     |
+      | rcv-idem-0004   | PO-1              | [{ sku: NO-SUCH-SKU, location: AMS-B-0142, quantity: 1 }] |
+    Then the operation fails with "urn:corpus:inventory:stock:error:unknown_sku":
+      | sku         |
+      | NO-SUCH-SKU |
+    When I run the operation again with:
+      | idempotency_key | purchase_order_id | lines                                                  |
+      | rcv-idem-0004   | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    Then the operation emits "urn:corpus:inventory:stock:event:stock_received":
+      | event_id                             |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 |
 
   Scenario: The purchasing system may receive goods
     Given the caller is:

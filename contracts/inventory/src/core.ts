@@ -10,7 +10,6 @@ const RESERVED_PER_LINE = 10;
 const NOW = '2026-11-22T10:00:00.000Z';
 const UNKNOWN_SKU = 'NO-SUCH-SKU';
 const UNKNOWN_LOCATION = 'ZZZ-Z-9999';
-const CONFLICTING_KEY = 'conflict-key';
 const NEW_RESERVATION = 'c0ffee00-1234-4abc-8def-0123456789ab';
 const DEFAULT_TTL_MINUTES = 30;
 
@@ -25,10 +24,8 @@ function unknown(lines: readonly { sku: string; location: string }[]) {
   return undefined;
 }
 
-const conflict = (idempotency_key: string) =>
-  idempotency_key === CONFLICTING_KEY
-    ? fail('urn:corpus:inventory:request:error:idempotency_conflict', { idempotency_key })
-    : undefined;
+// The core keeps no idempotency keys: runOnce in the store file keeps the first answer of each key
+// for 24 hours, returns it for a repeat and refuses another body with idempotency_conflict.
 
 const RESERVED_LINE = { sku: 'WIDGET-1', location: 'AMS-B-0142', quantity: RESERVED_PER_LINE };
 
@@ -37,8 +34,8 @@ export const core = {
     unknown([{ sku, location }]) ??
     ok({ sku, location, on_hand: ON_HAND, reserved: RESERVED, available: AVAILABLE }),
 
-  'urn:corpus:inventory:receipt:operation:receive_goods': ({ idempotency_key, purchase_order_id, lines }) => {
-    const refused = conflict(idempotency_key) ?? unknown(lines);
+  'urn:corpus:inventory:receipt:operation:receive_goods': ({ purchase_order_id, lines }) => {
+    const refused = unknown(lines);
     if (refused) return refused;
     const levels = lines.map(({ sku, location, quantity }) => ({
       sku,
@@ -56,8 +53,8 @@ export const core = {
   },
 
   // The shell gives the time of the call (now): the reservation expires ttl_minutes after it, 30 by default.
-  'urn:corpus:inventory:reservation:operation:reserve_stock': ({ idempotency_key, order_id, lines, ttl_minutes }, _current, now) => {
-    const refused = conflict(idempotency_key) ?? unknown(lines);
+  'urn:corpus:inventory:reservation:operation:reserve_stock': ({ order_id, lines, ttl_minutes }, _current, now) => {
+    const refused = unknown(lines);
     if (refused) return refused;
     const short = lines.filter((line) => line.quantity > AVAILABLE);
     if (short.length > 0) {
@@ -93,9 +90,7 @@ export const core = {
     );
   },
 
-  'urn:corpus:inventory:reservation:operation:release_reservation': ({ idempotency_key, reservation_id }) => {
-    const refused = conflict(idempotency_key);
-    if (refused) return refused;
+  'urn:corpus:inventory:reservation:operation:release_reservation': ({ reservation_id }) => {
     const { sku, location, quantity } = RESERVED_LINE;
     return ok({ reservation_id, state: 'RELEASED' as const }, [
       emit('urn:corpus:inventory:reservation:event:reservation_released', {
@@ -110,9 +105,7 @@ export const core = {
   },
 
   // The shell's clock calls it for an active reservation whose expiry time has come: each line gives its units back.
-  'urn:corpus:inventory:reservation:operation:expire_reservation': ({ idempotency_key, reservation_id }, current) => {
-    const refused = conflict(idempotency_key);
-    if (refused) return refused;
+  'urn:corpus:inventory:reservation:operation:expire_reservation': ({ reservation_id }, current) => {
     return ok(
       { reservation_id, state: 'EXPIRED' as const },
       current.lines.map(({ sku, location, quantity }) =>
@@ -128,9 +121,7 @@ export const core = {
     );
   },
 
-  'urn:corpus:inventory:reservation:operation:ship_reservation': ({ idempotency_key, reservation_id, lines }) => {
-    const refused = conflict(idempotency_key);
-    if (refused) return refused;
+  'urn:corpus:inventory:reservation:operation:ship_reservation': ({ reservation_id, lines }) => {
     const shipped = lines ?? [RESERVED_LINE];
     const over = shipped.find((line) => line.quantity > RESERVED_PER_LINE);
     if (over) {
@@ -154,8 +145,8 @@ export const core = {
     );
   },
 
-  'urn:corpus:inventory:adjustment:operation:adjust_stock': ({ idempotency_key, sku, location, delta, reason }) => {
-    const refused = conflict(idempotency_key) ?? unknown([{ sku, location }]);
+  'urn:corpus:inventory:adjustment:operation:adjust_stock': ({ sku, location, delta, reason }) => {
+    const refused = unknown([{ sku, location }]);
     if (refused) return refused;
     const on_hand = ON_HAND + delta;
     if (on_hand < RESERVED) {

@@ -222,6 +222,12 @@ receipt.operation.receive_goods:
   description: Add received goods to the on-hand stock
   input: receipt.entity.receive_request
   output: receipt.entity.receipt
+  # A repeat with the same key and the same body within 24 hours returns the first answer and
+  # changes nothing; the same key with another body is refused (runOnce in the store file).
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
+    otherwise: request.error.idempotency_conflict
   callers:
     allow:
       - caller.role = 'warehouse_staff'
@@ -395,6 +401,12 @@ reservation.operation.reserve_stock:
   description: Reserve every line in full, or nothing
   input: reservation.entity.reserve_request
   output: reservation.entity.reservation
+  # A repeat with the same key and the same body within 24 hours returns the first answer and
+  # changes nothing; the same key with another body is refused (runOnce in the store file).
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
+    otherwise: request.error.idempotency_conflict
   callers:
     allow:
       - caller.role = 'order_system'
@@ -414,6 +426,12 @@ reservation.operation.release_reservation:
   description: Give the stock of an active or partly shipped reservation back
   input: reservation.entity.release_request
   output: reservation.entity.reservation_status
+  # A repeat with the same key and the same body within 24 hours returns the first answer and
+  # changes nothing; the same key with another body is refused (runOnce in the store file).
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
+    otherwise: request.error.idempotency_conflict
   changes:
     entity: reservation.entity.reservation
     from: [ACTIVE, PARTIALLY_SHIPPED]
@@ -436,6 +454,12 @@ reservation.operation.expire_reservation:
   description: Expire an active reservation whose expiry time has come, and give its stock back
   input: reservation.entity.expire_request
   output: reservation.entity.reservation_status
+  # A repeat with the same key and the same body within 24 hours returns the first answer and
+  # changes nothing; the same key with another body is refused (runOnce in the store file).
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
+    otherwise: request.error.idempotency_conflict
   changes:
     entity: reservation.entity.reservation
     from: [ACTIVE]
@@ -457,6 +481,12 @@ reservation.operation.ship_reservation:
   description: Ship a reservation, in full or the stated quantity per line
   input: reservation.entity.ship_request
   output: reservation.entity.reservation_status
+  # A repeat with the same key and the same body within 24 hours returns the first answer and
+  # changes nothing; the same key with another body is refused (runOnce in the store file).
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
+    otherwise: request.error.idempotency_conflict
   changes:
     entity: reservation.entity.reservation
     from: [ACTIVE, PARTIALLY_SHIPPED]
@@ -517,6 +547,12 @@ adjustment.operation.adjust_stock:
   description: Correct the on-hand count of one SKU at one location
   input: adjustment.entity.adjustment
   output: stock.entity.stock_level
+  # A repeat with the same key and the same body within 24 hours returns the first answer and
+  # changes nothing; the same key with another body is refused (runOnce in the store file).
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
+    otherwise: request.error.idempotency_conflict
   callers:
     allow:
       - caller.role = 'warehouse_supervisor'

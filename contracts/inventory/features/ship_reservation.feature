@@ -126,16 +126,79 @@ Feature: Ship a reservation
       | RELEASED |
       | EXPIRED  |
 
-  Scenario: An idempotency key used before with a different body is refused
-    Given the current reservation is:
+  Scenario Outline: A repeat with the same key and body within 24 hours returns the first answer and changes nothing
+    Given the time is "2026-11-22T10:00:00.000Z"
+    And the current reservation is:
       | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE  | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
+      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
     When I run the operation with:
-      | idempotency_key | reservation_id                       |
-      | conflict-key    | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
+      | idempotency_key | reservation_id                       | lines                                                  |
+      | shp-idem-0001   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    And the time is "<again>"
+    And I run the operation again with:
+      | idempotency_key | reservation_id                       | lines                                                  |
+      | shp-idem-0001   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    Then the answer is the first answer
+    And the operation emits no event
+
+    Examples:
+      | again                    |
+      | 2026-11-22T10:00:00.000Z |
+      | 2026-11-23T09:59:59.999Z |
+
+  Scenario Outline: The same key with another body within 24 hours is refused with idempotency_conflict
+    Given the time is "2026-11-22T10:00:00.000Z"
+    And the current reservation is:
+      | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
+      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
+    When I run the operation with:
+      | idempotency_key | reservation_id                       | lines                                                  |
+      | shp-idem-0002   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    And the time is "<again>"
+    And I run the operation again with:
+      | idempotency_key | reservation_id                       | lines                                                  |
+      | shp-idem-0002   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 2 }] |
     Then the operation fails with "urn:corpus:inventory:request:error:idempotency_conflict":
       | idempotency_key |
-      | conflict-key    |
+      | shp-idem-0002   |
+    And the operation emits no event
+
+    Examples:
+      | again                    |
+      | 2026-11-22T10:00:00.000Z |
+      | 2026-11-23T09:59:59.999Z |
+
+  Scenario: 24 hours after the first answer the key is free, and a call with the same body runs again
+    Given the time is "2026-11-22T10:00:00.000Z"
+    And the current reservation is:
+      | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
+      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
+    When I run the operation with:
+      | idempotency_key | reservation_id                       | lines                                                  |
+      | shp-idem-0003   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    And the time is "2026-11-23T10:00:00.000Z"
+    And I run the operation again with:
+      | idempotency_key | reservation_id                       | lines                                                  |
+      | shp-idem-0003   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    Then the operation emits "urn:corpus:inventory:reservation:event:stock_shipped":
+      | event_id                             |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 |
+
+  Scenario: 24 hours after the first answer the key is free, and a call with another body runs again
+    Given the time is "2026-11-22T10:00:00.000Z"
+    And the current reservation is:
+      | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
+      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
+    When I run the operation with:
+      | idempotency_key | reservation_id                       | lines                                                  |
+      | shp-idem-0003   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    And the time is "2026-11-23T10:00:00.000Z"
+    And I run the operation again with:
+      | idempotency_key | reservation_id                       | lines                                                  |
+      | shp-idem-0003   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 2 }] |
+    Then the operation emits "urn:corpus:inventory:reservation:event:stock_shipped":
+      | event_id                             |
+      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 |
 
   Scenario Outline: Any caller other than the order system is refused
     Given the caller is:
