@@ -33,6 +33,7 @@ manifest:
 | `domain` | string | Yes | — | `^[a-z][a-z0-9_]{0,62}$` |
 | `version` | string | Yes | — | A semver version, for example `0.1.0` or `1.0.0-rc.1` |
 | `stability` | `stable` or `experimental` | No | `stable` | While the old manifest is `experimental`, `urn-forge diff` gives a breaking change as a warning |
+| `caller` | string | No | — | The short key of an entity: who calls, as the shell authenticated them. Each operation then must have `callers`. Refer to [`callers`](#callers) |
 
 - Other properties cause `unknown-property`.
 - YAML reads `version: 1` and `version: 1.0` as numbers. They cause `invalid-value`.
@@ -176,6 +177,8 @@ policy.operation.cancel_policy:
 | `errors` | A list of strings | No | `[]` | Short keys of errors, each one time |
 | `emits` | A list of strings or maps | No | `[]` | Each event one time: its short key, or `{ event, when }`. Refer to [`emits`](#emits) |
 | `changes` | A map | No | — | The stored record that the operation changes. Refer to [`changes`](#changes) |
+| `reads` | A map | No | — | The stored record that the operation reads. Refer to [`reads`](#reads) |
+| `callers` | A map | With a `caller` in the header | — | Who may call. Refer to [`callers`](#callers) |
 | `requires` | A list of maps | No | `[]` | Each `{ rule, otherwise }`. Refer to [`requires` and `ensures`](#requires-and-ensures) |
 | `ensures` | A list of strings | No | `[]` | Rules that the answer must keep. Refer to [`requires` and `ensures`](#requires-and-ensures) |
 
@@ -207,6 +210,24 @@ urn:demo:delivery:payment:operation:create_payment emitted 0 urn:demo:delivery:p
 | `missing` | string | No | Short key of an error in `errors`, for no record. Each required field of the error is a property of `input` |
 
 Any other problem causes `invalid-changes`. The handler gets the record as its second parameter, `current`. `executeOperation` answers `otherwise` for a state outside `from`, and `missing` for `current: null`, without a call of the handler. When `output` has the state field, the state of the answer must be in `to` and reached by a move or the same, or stay without `to`. When `output` has the key field, the key must not change. Refer to [Declare states and moves](../how-to/declare-states).
+
+### `reads`
+
+| Property | Type | Necessary | Rule |
+| --- | --- | --- | --- |
+| `entity` | string | Yes | The short key of an entity |
+| `missing` | string | No | Short key of an error in `errors`, for no record. Each required field of the error is a property of `input` |
+
+The handler gets the record as its second parameter, `current`, and the rules can read `current.`. An operation cannot have both `reads` and `changes`. Any other problem causes `invalid-reads`.
+
+### `callers`
+
+| Property | Type | Necessary | Rule |
+| --- | --- | --- | --- |
+| `allow` | `any`, or a list of strings | Yes | `any`: every caller. Else rules over `caller.`, `input.` and, with `changes` or `reads`, `current.`; the call is allowed when one rule holds |
+| `otherwise` | string | Yes | Short key of an error in `errors`. Each required field of the error is a property of the caller, of `input`, or of the record |
+
+`callers` without a `caller` in the header, or an operation with no `callers` in a domain with a `caller`, causes `invalid-callers`. `executeOperation` checks the callers after the record parses, and before the state of `changes` and the `requires` rules. Refer to [Declare who may call](../how-to/declare-callers).
 
 ### `requires` and `ensures`
 

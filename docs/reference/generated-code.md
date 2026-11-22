@@ -243,7 +243,7 @@ export type QuoteQuoteShippingHandler = (
 
 ### Conditions
 
-For each rule of an operation, the schemas file exports `<Operation brand>Requires<n>`, `<Operation brand>Ensures<n>` or `<Operation brand>When<n>` (the `when` rule of item `n` of `emits`), from 1: a function from `{ input, current?, output?, event? }`, parsed, to `boolean`. The runtime calls it.
+For each rule of an operation, the schemas file exports `<Operation brand>Requires<n>`, `<Operation brand>Ensures<n>`, `<Operation brand>When<n>` (the `when` rule of item `n` of `emits`) or `<Operation brand>Caller<n>` (rule `n` of `callers.allow`), from 1: a function from `{ input, current?, output?, event?, caller? }`, parsed, to `boolean`. The runtime calls it.
 
 ### `DispatchMap`
 
@@ -253,6 +253,8 @@ For each rule of an operation, the schemas file exports `<Operation brand>Requir
 | --- | --- |
 | `OperationContract` | `input`, `output`: `EntityContract`. `errors`: `ErrorContract` by error URN. `events`: `EntityContract` by event URN. `changes?`: `ChangeContract` |
 | `ConditionInfo`, `RequireInfo` | `text` (the canonical rule), `check` (the generated function), and `event?: true` when the rule reads the event; a `RequireInfo` also has `otherwise`. `OperationContract` has `requires?` and `ensures?`. Only in a domain with conditions |
+| `ReadContract` | `entity`: `EntityContract` with `urn`, and `missing?`. `OperationContract` has `reads?`. Only in a domain with `reads` |
+| `CallersContract` | `allow`: `'any'` or `ConditionInfo[]`, and `otherwise`. `OperationContract` has `callers`. Only in a domain with a `caller` |
 | `CountInfo` | `event`, and `when?`: a `ConditionInfo`. `OperationContract` has `exactly?`. Only in a domain with an item `{ event }` in `emits` |
 | `EventContract`, `DeliveryInfo` | An `EntityContract` with `delivery?`: `id`, `orderBy`, `sequence?`. `events` has this type. Only in a domain with `delivery` |
 | `ChangeContract` | `entity`: `EntityContract` with `urn`. `property` (the state), `from`, `to?` (a list), `moves`, `otherwise`, `missing?`, `key?`, `answerState?` and `answerKey?` (the properties of the output that hold the state and the key). Only in a domain with `changes` |
@@ -276,6 +278,8 @@ export function executeOperation<U extends OperationUrn>(
 export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation): ExecuteResult;
 ```
 
+In a domain with a `caller`, the runtime file also exports `CallerContract`: the `EntityContract` of the caller entity, with `urn`. `ExecuteOptions` then has `caller`, and in a domain with `reads` it has `current`.
+
 In a domain with `changes` or `delivery`, `executeOperation` has a fourth parameter, `options?: ExecuteOptions`. It has `current`, the record that the operation changes, as the shell loaded it, in a domain with `changes`; and `newEventId: () => string`, which gives the id of each event with `delivery`, in a domain with `delivery`. An event in the result does not have its `sequence`: the outbox sets it.
 
 | `ok` | `kind` | Other properties | Meaning |
@@ -297,7 +301,8 @@ In a domain with `changes` or `delivery`, `executeOperation` has a fourth parame
 | 1. Find the URN in `DispatchMap` | `UnknownOperation`: `unknown operation <urn>` |
 | 2. Parse the payload with the input schema | `InputRejected`. The handler is not called |
 | 3. Find `core[urn]` | `ContractViolation`: `no handler for <urn>` |
-| 3a. With `changes`: parse `current`, and examine its state | `ContractViolation` on `current`: `<urn> changes a record of <entity>: pass it as { current }`, `…: the shell found no record, and the operation declares no missing error`, or the parse issues. `current: null`: the `missing` error, filled from the input. A state outside `from`: the `otherwise` error, filled from the record and the input. The handler is not called |
+| 3a. With `changes` or `reads`: parse `current`; with `changes`, examine its state | `ContractViolation` on `current`: `<urn> changes a record of <entity>: pass it as { current }`, `…: the shell found no record, and the operation declares no missing error`, or the parse issues. `current: null`: the `missing` error, filled from the input. A state outside `from`: the `otherwise` error, filled from the record and the input. The handler is not called |
+| 3c. With a `caller`: parse `caller`, before the record. Then, after the record, the rules of `callers`, before the state of `changes` | `ContractViolation`: `<urn> needs the caller, as the shell authenticated them: pass it as { caller }`, or the parse issues on `caller`. No rule holds: the `otherwise` error, filled from the caller, the record and the input. The handler is not called |
 | 4. Call the handler | `ContractViolation`: `the handler for <urn> did not return a Result; return ok(…) or fail(…)` |
 | 5. For a failure: find the error in `errors`, parse it, and parse its `recordAs` event | `ContractViolation`: `<urn> failed with <kind>, which it does not declare`, or the parse issues. Else `DomainError` |
 | 6. For a success: parse the output, then each event | `ContractViolation`: the parse issues, `the handler for <urn> returned events that are not a list`, or `<urn> emitted <kind>, which it does not emit`. For an event with `delivery`: the id from `newEventId`, or `<urn> emitted <kind>, whose delivery needs an event id: pass newEventId to executeOperation` |

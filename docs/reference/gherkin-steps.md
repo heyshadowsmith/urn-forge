@@ -7,6 +7,7 @@ The module `urn-forge/cucumber` has generic Cucumber steps for all domains. The 
 | Step text | Table | Passes if |
 | --- | --- | --- |
 | `the current <entity> is:` | Fields of the entity that the operation changes | The operation has `changes` on this entity. The record goes to `execute` as `{ current }` |
+| `the caller is:` | Fields of the caller entity | The domain has a `caller`. The caller goes to `execute` as `{ caller }`. `registerOperationSteps` must have `caller: CallerContract` |
 | `there is no current <entity>` | None | The same. `execute` gets `{ current: null }`: the shell found no record |
 | `I run the operation with:` | Input fields | Always. It calls `execute` and keeps the result |
 | `the output is:` | Output fields | The operation succeeded, and the output agrees with the table |
