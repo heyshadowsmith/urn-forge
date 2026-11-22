@@ -17,7 +17,8 @@ and     := unary ('and' unary)*
 unary   := 'not' unary | compare
 compare := sum (('<' | '<=' | '=' | '!=' | '>=' | '>') sum)?
 sum     := product (('+' | '-') product)*
-product := primary ('*' primary)*
+product := timed ('*' timed)*
+timed   := primary ('minutes' | 'hours' | 'days')?
 primary := '(' or ')' | total | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
 total   := 'sum' '(' field 'in' field ':' sum ')'
 ```
@@ -47,6 +48,7 @@ A rule is one `or` expression, and then the end of the rule.
 | Product | `a * b` | Two `integer` values, or an `integer` and a `decimal` | An `integer`, or an exact `decimal` |
 | Total | `sum(line in lines: line.amount)` | A list, and an `integer` or `decimal` value of each item | A value of that primitive. Refer to [Lists and embedded entities](#lists-and-embedded-entities) |
 | Days | `d + n`, `d - n`, `d1 - d2` | Refer to [Days](#days) | A `date` or an `integer` |
+| Time | `t + 2 hours`, `t - 15 minutes`, `t + n days` | A `timestamp`, and an `integer` with a unit. Refer to [Time](#time) | A `timestamp` |
 | `and`, `or` | `c and d` | Two conditions | A condition |
 | `not` | `not c` | One condition | A condition |
 | Presence | `x is present`, `x is absent` | An optional property, a list or an embedded entity | A condition |
@@ -94,6 +96,8 @@ In the `requires` and `ensures` rules of an operation, each name has one prefix:
 | `current.` | The record of `changes` | `requires` and `ensures`, with `changes` only |
 | `output.` | The answer, parsed | `ensures` only |
 
+Two names have no prefix: `now`, the time of the call, a `timestamp`; and `today`, the date of `now` in UTC. Each rule of an operation can read them. An invariant cannot, because it must hold at any time. Refer to [Time](#time).
+
 `current.version + 1 = output.version` compares values from two prefixes. An invariant rule names the properties of its entity with no prefix. A name with two prefixes causes `rule-syntax`.
 
 ## Operators for each primitive
@@ -123,9 +127,23 @@ The two sides of each operator must have one primitive. A link has the primitive
 - `n` can be a number, an `integer` field or an `integer` expression.
 - In `d - '2026-01-01'`, the text is a date.
 - The unit is the day. There are no months or years. For one year, write `365` or `366`.
-- There is no "today". To compare with today, send it as a `date` field of the input.
-- A `timestamp` has no arithmetic, and a rule cannot change it to a `date`.
+- In a rule of an operation, `today` is the date of the call: `input.resume_on <= today + 90`.
+- A rule cannot change a `timestamp` to a `date`, or a `date` to a `timestamp`.
 - The arithmetic is exact, in the schemas and in the Postgres `CHECK`. Give an `integer` field that counts days a `max`.
+
+## Time
+
+| Form | Left | Right | Result | Example |
+| --- | --- | --- | --- | --- |
+| `t + n <unit>` | `timestamp` | `integer`, and `minutes`, `hours` or `days` | The instant after `t` | `now <= current.captured_at + 180 days` |
+| `t - n <unit>` | `timestamp` | The same | The instant before `t` | `now < current.starts_at - 48 hours` |
+
+- `n` is a number with no fraction, an `integer` field or an `integer` expression: `input.trial_days days`.
+- A day is 24 hours: every time is UTC, so the arithmetic is exact.
+- A `timestamp` with no unit causes `rule-type`: `"+" on a timestamp needs a unit: write 2 hours, 15 minutes or 180 days`.
+- A unit on a `date` causes `rule-type`. A date counts days: write `today + 1`.
+- There is no time between two timestamps, and no months or years.
+- `now` and `today` come from the shell. Refer to [Declare preconditions and postconditions](../how-to/declare-conditions#a-window-of-time).
 
 ## Guards
 

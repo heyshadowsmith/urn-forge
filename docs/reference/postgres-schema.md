@@ -158,6 +158,7 @@ Each invariant becomes a named `CHECK` on each table that stores its entity, in 
 | A `date`, `timestamp` or `decimal` literal | `DATE '<day>'`, `TIMESTAMPTZ '<t>'`, `'<n>'::NUMERIC` |
 | `a + b`, `a - b` | `(a + b)`. On `integer`, `(a::BIGINT + b)` |
 | `d1 - d2`, two dates | `(d1 - d2)`, in days |
+| `t + n minutes`, `hours` or `days` | `(t + n * INTERVAL '1 minute')`, `'1 hour'` or `'1 day'` |
 | `!=` | `<>` |
 | `and`, `or`, `not a` | `AND`, `OR`, `NOT (a)` |
 | `x is present`, `x is absent` | `"x" IS NOT NULL`, `"x" IS NULL` |
