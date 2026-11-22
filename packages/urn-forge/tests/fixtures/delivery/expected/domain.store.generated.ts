@@ -150,3 +150,25 @@ export function nextEvents(limit: number): Statement {
 export function markPublished(id: string): Statement {
   return { text: 'UPDATE \"outbox\".\"delivery\" SET "published_at" = now() WHERE "id" = $1', values: [id] };
 }
+
+/** A result of executeOperation: a success has its output and events; a refusal has neither. */
+export type CommitResult =
+  | { readonly ok: true; readonly urn: string; readonly output: unknown; readonly events: readonly { readonly urn: string; readonly fields: object }[] }
+  | { readonly ok: false };
+
+/** For each operation that changes a stored record and answers it: the statements of the new record, while it is in a state of from. */
+const Changes: Readonly<Record<string, (output: unknown) => readonly Statement[]>> = {
+  "urn:demo:delivery:payment:operation:capture_payment": (output) => replacePaymentPaymentFrom(output as s.PaymentPayment, ["authorized"]),
+};
+
+/**
+ * The statements of a call, to run in its transaction. A refusal changes nothing: it gives no
+ * statement. A success gives the new record of an operation that changes a stored record and
+ * answers it, then the statements that `writes` gives for the output, then the events of the outbox.
+ * Write nothing for a call but these.
+ */
+export function commit(result: CommitResult, writes: (output: unknown) => readonly Statement[] = () => []): readonly Statement[] {
+  if (!result.ok) return [];
+  const change = Object.hasOwn(Changes, result.urn) ? Changes[result.urn]! : () => [];
+  return [...change(result.output), ...writes(result.output), ...insertEvents(result.events.filter((event) => Object.hasOwn(Delivery, event.urn)))];
+}

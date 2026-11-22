@@ -4,6 +4,7 @@
  * tests/fixtures/refusals.
  */
 import { readFileSync } from 'node:fs';
+import { PGlite } from '@electric-sql/pglite';
 import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';
 
@@ -14,6 +15,8 @@ const dir = new URL('./fixtures/refusals/', import.meta.url);
 const source = readFileSync(new URL('domain.manifest.yaml', dir), 'utf8');
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const runtime: any = await import(new URL('expected/domain.runtime.generated.ts', dir).href);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const store: any = await import(new URL('expected/domain.store.generated.ts', dir).href);
 
 const request = { date: '2026-11-22', starts_at: '2026-11-22T19:00:00Z', party_size: 4 };
 const refuse = (alternatives: { starts_at: string; party_size: number }[]) => ({
@@ -88,5 +91,49 @@ describe('refuses', () => {
       issues: [{ message: `the handler for ${CREATE} refused with ${NO_AVAILABILITY}, whose payload breaks refuses: all(alt in error.alternatives: date(alt.starts_at) = input.date)` }],
     });
     expect(runtime.executeOperation(CREATE, request, refuse([{ starts_at: '2026-11-22T20:00:00Z', party_size: 2 }]))).toMatchObject({ ok: false, kind: 'ContractViolation' });
+  });
+});
+
+describe('commit, on PGlite', () => {
+  const CANCEL = 'urn:demo:refusals:booking:operation:cancel_booking';
+  const booking = { booking_id: 'bkg_abcd1234', status: 'CONFIRMED', date: '2026-11-22', starts_at: '2026-11-22T19:00:00Z', party_size: 4 };
+  const core = {
+    [CANCEL]: (_input: unknown, current: typeof booking) => runtime.ok({ ...current, status: 'CANCELLED' }, [runtime.emit('urn:demo:refusals:booking:event:cancelled', { booking_id: current.booking_id })]),
+  };
+  const database = async () => {
+    const db = new PGlite();
+    await db.exec(readFileSync(new URL('expected/schema.generated.sql', dir), 'utf8'));
+    for (const statement of store.insertBookingBooking(booking)) await db.query(statement.text, statement.values as unknown[]);
+    return db;
+  };
+  const run = async (db: PGlite, statements: readonly { text: string; values: readonly unknown[] }[]) => {
+    for (const statement of statements) await db.query(statement.text, statement.values as unknown[]);
+  };
+  const status = async (db: PGlite) => (await db.query<{ status: string }>('SELECT "status" FROM "booking"."booking"')).rows.map((r) => r.status);
+
+  it('writes the new record of a success, in a state of from', async () => {
+    const db = await database();
+    const result = runtime.executeOperation(CANCEL, { booking_id: booking.booking_id }, core, { current: booking });
+    expect(result).toMatchObject({ ok: true });
+    await run(db, store.commit(result));
+    expect(await status(db)).toEqual(['CANCELLED']);
+  });
+
+  it('gives no statement for a refusal, a rejected input, or a refusal of the core', async () => {
+    const db = await database();
+    const refused = runtime.executeOperation(CANCEL, { booking_id: booking.booking_id }, core, { current: { ...booking, status: 'CANCELLED' } });
+    expect(refused).toMatchObject({ ok: false, kind: 'DomainError', error: { urn: 'urn:demo:refusals:booking:error:invalid_state' } });
+    expect(store.commit(refused)).toEqual([]);
+    expect(store.commit(runtime.executeOperation(CREATE, { party_size: 0 }, refuse([])))).toEqual([]);
+    expect(store.commit(runtime.executeOperation(CREATE, request, refuse([])), () => [{ text: 'DELETE FROM "booking"."booking"', values: [] }])).toEqual([]);
+    expect(await status(db)).toEqual(['CONFIRMED']);
+  });
+
+  it('adds the statements of writes to a success', async () => {
+    const db = await database();
+    const result = runtime.executeOperation(CANCEL, { booking_id: booking.booking_id }, core, { current: booking });
+    const statements = store.commit(result, (output: { booking_id: string }) => [{ text: 'SELECT $1::text AS id', values: [output.booking_id] }]);
+    expect(statements.at(-1)).toEqual({ text: 'SELECT $1::text AS id', values: [booking.booking_id] });
+    await run(db, statements);
   });
 });

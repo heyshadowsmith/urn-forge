@@ -10,6 +10,7 @@
  *   Then the operation emits "<event URN>":        one header row of event field names + one data row
  *   Then the operation emits no event
  *   Then the operation is not due
+ *   Then nothing changes
  *   Then the operation emits no "<event URN>"
  *
  * The operation is the feature's (or scenario's) `@urn:…:operation:…` tag. Table cells are
@@ -113,6 +114,11 @@ export interface OperationStepsOptions {
    * For a domain with idempotency: the generated idempotencyOf. The steps then keep the answers of a
    * scenario with the rules of runOnce, and give a repeat to execute as \`repeat\`.
    */
+  /**
+   * For a domain with the Postgres extra: the generated commit. \`Then nothing changes\` then also
+   * checks that it gives no statement for the refusal.
+   */
+  readonly commit?: (result: never) => readonly unknown[];
   readonly idempotency?: {
     readonly idempotencyOf: (
       urn: string,
@@ -359,6 +365,17 @@ export function assertEmitsNone(result: ExecuteResultLike, urn: string): void {
   if (events.length > 0) throw new Error(`${urn} emitted ${events.map((e) => e.urn).join(', ')}; expected no event`);
 }
 
+/**
+ * Checks that the call changed nothing: it refused (a declared error or a rejected input), so it has
+ * no output and no event, and \`commit\`, when the domain has one, gives no statement for it.
+ */
+export function assertNothingChanges(result: ExecuteResultLike, urn: string, commit?: (result: never) => readonly unknown[]): void {
+  if (result.ok) throw new Error(`${urn} succeeded; expected it to refuse and change nothing`);
+  if (result.kind !== 'DomainError' && result.kind !== 'InputRejected') throw new Error(`${urn} failed with ${describeFailure(result)}; expected a refusal`);
+  const statements = commit?.(result as never) ?? [];
+  if (statements.length > 0) throw new Error(`${urn} refused, but commit gave ${statements.length} statement(s) for it`);
+}
+
 /** Checks that a timed change refused a call for a record that is not due (a ContractViolation that says so). */
 export function assertNotDue(result: ExecuteResultLike, urn: string): void {
   const issues = !result.ok && 'issues' in result ? result.issues : [];
@@ -581,6 +598,11 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
   Then(STEP_PHRASES.notDue, function (this: StepsWorld) {
     const { urn, result } = lastRun(this);
     assertNotDue(result, urn);
+  });
+
+  Then(STEP_PHRASES.nothingChanges, function (this: StepsWorld) {
+    const { urn, result } = lastRun(this);
+    assertNothingChanges(result, urn, options.commit);
   });
 
   Then(STEP_PHRASES.emitsNone, function (this: StepsWorld) {
