@@ -67,12 +67,13 @@ promises:
     status: workaround
     by: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
     hole: A2
-  # The answer carries the reason of the request (an ensures rule of reject_claim); that the event carries it is not stated, since a rule cannot name an emitted event.
+  # The reason of the request is required and 10 to 500 characters. reject_claim emits exactly one
+  # claim_rejected on each success ({ event }), and its ensures state output.reason = input.reason and
+  # event.reason = input.reason. Published is the delivery of P21.
   P14:
     promise: "A rejection must include a reason of 10 to 500 characters, and the answer and the published event carry that reason."
-    status: workaround
+    status: declared
     by: [claim.field.reason, claim.entity.rejection, claim.entity.rejection_answer, claim.event.claim_rejected, claim.operation.reject_claim]
-    hole: A2
   # A claim is paid only from APPROVED and PAID is final, so it is never paid twice; the payment amount is not tied to the approved total.
   P15:
     promise: "A payment amount always equals the approved claim total in the claim's currency, and a claim is never paid twice."
@@ -96,18 +97,22 @@ promises:
     promise: "Only the claimant's manager may approve or reject a claim, a caller may never approve their own claim, and only finance users may mark a claim paid."
     status: not-declarable
     hole: D2
-  # The events and their values are declared, but an operation may emit zero or more of them, and the state in each event is not tied to its kind.
+  # Each of the five operations emits exactly one event of its kind ({ event }), and its ensures tie
+  # event.claim_id, total, currency and state to the output, employee_id to current and actor_id to the input.
+  # Not declared: edit_draft moves a REJECTED claim back to DRAFT, a state change that publishes no event and
+  # that none of the five events names. The timestamp is a UTC value of the core, not the time of the change (E2).
   P20:
     promise: "On each state change the domain publishes a ClaimSubmitted, ClaimApproved, ClaimRejected, ClaimWithdrawn or ClaimPaid event carrying the claim id, employee id, total, currency, new state, actor id and timestamp."
     status: workaround
-    by: [claim.event.claim_submitted, claim.event.claim_approved, claim.event.claim_rejected, claim.event.claim_withdrawn, claim.event.claim_paid]
+    by: [claim.event.claim_submitted, claim.event.claim_approved, claim.event.claim_rejected, claim.event.claim_withdrawn, claim.event.claim_paid, claim.operation.submit_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.withdraw_claim, claim.operation.mark_paid, event.field.occurred_at]
     hole: C3
-  # Each event has an id; delivery at least once, the unique id and the order per claim are not stated.
+  # Each event has delivery { id: event_id, orderBy: claim_id }; the shell gives the id (newEventId), and
+  # the Postgres extra writes the outbox: the id is its primary key, a row stays until markPublished (at
+  # least once), and the events of one claim keep their order by a sequence per claim. The transport is the user's.
   P21:
     promise: "Events are delivered at least once, carry a unique event id for deduplication, and events of one claim are delivered in the order the changes happened."
-    status: workaround
-    by: [event.field.event_id]
-    hole: D4
+    status: declared
+    by: [event.field.event_id, claim.field.claim_id, claim.event.claim_submitted, claim.event.claim_approved, claim.event.claim_rejected, claim.event.claim_withdrawn, claim.event.claim_paid]
   P22:
     promise: "All timestamps are ISO 8601 in UTC, while expense dates are calendar dates without time zone."
     status: declared
