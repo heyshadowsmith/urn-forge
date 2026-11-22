@@ -119,5 +119,11 @@ describe('gate 3 for the time', () => {
     expect(gate3(run)).toEqual([`${PAUSE} has rules that read the time; give it with Given the time is "<timestamp>" before the operation runs`]);
     expect(gate3(`    Given the time is "2026-11-22 18:00"\n${run}`)).toEqual(['"2026-11-22 18:00" is not a UTC timestamp; write one such as 2026-11-22T18:00:00Z']);
     expect(gate3(`    Given the time is "2026-11-22T18:00:00Z"\n${run}`)).toEqual([]);
+    // An outline: the time of each Examples row.
+    const outline = `  @${PAUSE}\n  Scenario Outline: o\n    Given the time is "<now>"\n${run}\n    Examples:\n      | now |\n      | 2026-11-22T18:00:00Z |\n      | 2026-11-22 |\n`;
+    const problems = checkGherkin({ ir, features: { directory: 'features', features: [indexFeatureSource(`Feature: f\n${outline}`, 'f.feature')!], problems: [] }, boundaryCoverage: 'warn' } as unknown as GateContext)
+      .problems.filter((p) => p.code === 'invalid-time')
+      .map((p) => p.message);
+    expect(problems).toEqual(['"2026-11-22" is not a UTC timestamp; write one such as 2026-11-22T18:00:00Z']);
   });
 });

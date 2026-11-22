@@ -179,11 +179,13 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
       for (const step of scenario.steps) {
         if (step.text === STEP_PHRASES.run) runs ??= step.location;
         // `Given the time is "<timestamp>"`: the time of the call, a UTC timestamp.
-        const time = timeOf(step.text);
-        if (time !== undefined) {
+        if (timeOf(step.text) !== undefined) {
           hasTime = true;
-          if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$/.test(time) || Number.isNaN(Date.parse(time))) {
-            report('invalid-time', step.location, `"${time}" is not a UTC timestamp; write one such as 2026-11-22T18:00:00Z`, owner?.urn ?? '');
+          // In an outline, each Examples row gives the time: check each text that Cucumber runs.
+          for (const time of new Set(stepTexts(scenario, step.text).map((text) => timeOf(text) ?? ''))) {
+            if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$/.test(time) || Number.isNaN(Date.parse(time))) {
+              report('invalid-time', step.location, `"${time}" is not a UTC timestamp; write one such as 2026-11-22T18:00:00Z`, owner?.urn ?? '');
+            }
           }
           continue;
         }
