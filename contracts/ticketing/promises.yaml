@@ -111,11 +111,15 @@ promises:
     status: workaround
     by: [hold.event.hold_created, hold.event.hold_expired, order.event.order_placed, ticket.event.ticket_issued, ticket.event.ticket_transferred, ticket.event.ticket_refunded, ticket.event.ticket_used, show.event.event_cancelled, notice.field.message_id, notice.field.occurred_at]
     hole: E3
-  # Each event carries a message id; its uniqueness, the delivery at least once and the order per ticket are not stated.
+  # Each event has a delivery with id message_id, which the shell gives (newEventId), and the outbox of the Postgres
+  # extra keeps the unique id (primary key), no lost event and at least once (a row stays until markPublished). The
+  # order per ticket is not stated: the outbox orders by one orderBy value of each event, and OrderPlaced names
+  # several tickets (ordered by the order), TicketTransferred two (ordered by the new code, not with the events of
+  # the voided code), so the events of one ticket are not in one order.
   P20:
     promise: "Published events are delivered at least once and in order per ticket, and each carries a unique event id so consumers can discard duplicates."
     status: workaround
-    by: [notice.field.message_id]
+    by: [notice.field.message_id, hold.event.hold_created, hold.event.hold_expired, order.event.order_placed, ticket.event.ticket_issued, ticket.event.ticket_transferred, ticket.event.ticket_refunded, ticket.event.ticket_used, show.event.event_cancelled]
     hole: D4
   P21:
     promise: "Only the buyer who owns an order may check it out, request its refund or transfer its tickets; only the event's organizer may cancel the event; only box-office staff assigned to the event may validate its tickets."

@@ -417,7 +417,10 @@ show.entity.cancelled_event:
     - ref: show.field.cancelled_at
 
 # Published events. Each has a unique message id, the id of the event that sells the tickets,
-# the affected hold or tickets, and the time it occurred.
+# the affected hold or tickets, and the time it occurred. The shell gives the message id, and the
+# outbox of the Postgres extra keeps each event until it is published, in the order of its
+# ticket, hold, order or event. An order names several tickets, and a transfer two, so their
+# events are ordered by the order and by the new ticket code.
 hold.event.hold_created:
   description: A hold was created
   fields:
@@ -425,6 +428,9 @@ hold.event.hold_created:
     - ref: show.field.event_id
     - ref: hold.field.hold_id
     - ref: notice.field.occurred_at
+  delivery:
+    id: message_id
+    orderBy: hold_id
 hold.event.hold_expired:
   description: A hold reached its expiry time without a checkout
   fields:
@@ -432,6 +438,9 @@ hold.event.hold_expired:
     - ref: show.field.event_id
     - ref: hold.field.hold_id
     - ref: notice.field.occurred_at
+  delivery:
+    id: message_id
+    orderBy: hold_id
 order.event.order_placed:
   description: An order was placed and paid
   fields:
@@ -443,6 +452,9 @@ order.event.order_placed:
       as: ticket_codes
       many: { minItems: 1, maxItems: 10 }
     - ref: notice.field.occurred_at
+  delivery:
+    id: message_id
+    orderBy: order_id
 ticket.event.ticket_issued:
   description: A ticket was issued
   fields:
@@ -450,6 +462,9 @@ ticket.event.ticket_issued:
     - ref: show.field.event_id
     - ref: ticket.field.ticket_code
     - ref: notice.field.occurred_at
+  delivery:
+    id: message_id
+    orderBy: ticket_code
 ticket.event.ticket_transferred:
   description: A transfer was accepted. The old ticket code is VOID and the recipient has a new ticket code for the same place
   fields:
@@ -459,6 +474,9 @@ ticket.event.ticket_transferred:
     - ref: ticket.field.ticket_code
       as: void_ticket_code
     - ref: notice.field.occurred_at
+  delivery:
+    id: message_id
+    orderBy: ticket_code
 ticket.event.ticket_refunded:
   description: A ticket was refunded
   fields:
@@ -466,6 +484,9 @@ ticket.event.ticket_refunded:
     - ref: show.field.event_id
     - ref: ticket.field.ticket_code
     - ref: notice.field.occurred_at
+  delivery:
+    id: message_id
+    orderBy: ticket_code
 ticket.event.ticket_used:
   description: A ticket was admitted at the entry
   fields:
@@ -473,12 +494,18 @@ ticket.event.ticket_used:
     - ref: show.field.event_id
     - ref: ticket.field.ticket_code
     - ref: notice.field.occurred_at
+  delivery:
+    id: message_id
+    orderBy: ticket_code
 show.event.event_cancelled:
   description: The organizer cancelled an event
   fields:
     - ref: notice.field.message_id
     - ref: show.field.event_id
     - ref: notice.field.occurred_at
+  delivery:
+    id: message_id
+    orderBy: event_id
 
 # Operations: one for each caller action.
 hold.operation.create_hold:
