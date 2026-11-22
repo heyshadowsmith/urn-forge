@@ -12,8 +12,8 @@ Feature: Cancel a booking
       | reference | state     | refund_amount   | cancelled_at         |
       | CNFRMD22  | CANCELLED | <refund_amount> | 2026-11-22T10:00:00Z |
     And the operation emits "urn:corpus:bookings:booking:event:booking_cancelled":
-      | reference | state     | occurred_at          | guest_id                             |
-      | CNFRMD22  | CANCELLED | 2026-11-22T10:00:00Z | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
+      | event_id                             | reference | restaurant_id                        | state     | party_size | local_date | local_time | time_zone    | occurred_at          | guest_id                             |
+      | 16fd2706-8baf-433b-82eb-8c7fed5c9b0e | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CANCELLED | 4          | <local_date> | <local_time> | Europe/Paris | 2026-11-22T10:00:00Z | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
 
     Examples:
       | local_date | local_time | refund_amount |
@@ -59,6 +59,7 @@ Feature: Cancel a booking
     Then the output is:
       | reference | state     | refund_amount | cancelled_at         |
       | CNFRMD22  | CANCELLED | 80.00         | 2026-11-20T08:00:00Z |
+    And the operation emits no "urn:corpus:bookings:booking:event:booking_cancelled"
     And the operation emits no event
 
   Scenario Outline: A seated, completed or no-show booking cannot be cancelled

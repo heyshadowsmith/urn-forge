@@ -12,8 +12,8 @@ Feature: Seat the party of a booking
       | reference | state |
       | CNFRMD22  | SEATED |
     And the operation emits "urn:corpus:bookings:booking:event:booking_seated":
-      | reference | state | restaurant_id                        | occurred_at          |
-      | CNFRMD22  | SEATED | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z |
+      | event_id                             | reference | restaurant_id                        | state     | party_size | local_date | local_time | time_zone    | occurred_at          | guest_id                             |
+      | 16fd2706-8baf-433b-82eb-8c7fed5c9b0e | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED    | 4          | 2026-12-24 | 19:30      | Europe/Paris | 2026-11-22T10:00:00Z | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
 
   Scenario Outline: A booking in another state cannot move
     Given the current booking is:

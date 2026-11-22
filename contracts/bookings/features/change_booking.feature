@@ -12,8 +12,8 @@ Feature: Change a booking
       | reference | state     | local_date   | local_time   | time_zone    | party_size   |
       | CNFRMD22  | CONFIRMED | <local_date> | <local_time> | Europe/Paris | <party_size> |
     And the operation emits "urn:corpus:bookings:booking:event:booking_changed":
-      | reference | state     | local_date   | local_time   | party_size   | time_zone    | guest_id                             |
-      | CNFRMD22  | CONFIRMED | <local_date> | <local_time> | <party_size> | Europe/Paris | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
+      | event_id                             | reference | restaurant_id                        | state     | local_date   | local_time   | party_size   | time_zone    | occurred_at          | guest_id                             |
+      | 16fd2706-8baf-433b-82eb-8c7fed5c9b0e | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | <local_date> | <local_time> | <party_size> | Europe/Paris | 2026-11-22T10:00:00Z | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
 
     Examples:
       | local_date | local_time | party_size |

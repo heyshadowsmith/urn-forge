@@ -6,7 +6,6 @@ import type { BookingBookingInput } from './generated/domain.schemas.generated';
 const OWN_RESTAURANT = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
 const OTHER_RESTAURANT = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
 const GUEST_ID = 'a8098c1a-f86e-41da-bd5c-00c04fd430c8';
-const EVENT_ID = '16fd2706-8baf-433b-82eb-8c7fed5c9b0e';
 const NOW = '2026-11-22T10:00:00Z';
 const TIME_ZONE = 'Europe/Paris';
 const DURATION = 120;
@@ -49,9 +48,9 @@ function startsIn({ local_date, local_time, time_zone }: Booking): number {
   return (asUtc - offset - Date.parse(NOW)) / 3_600_000;
 }
 
+/** The event of a change; the shell gives its event_id (newEventId), and the outbox its order. */
 function eventOf(booking: Booking) {
   return {
-    event_id: EVENT_ID,
     occurred_at: NOW,
     reference: booking.reference,
     restaurant_id: booking.restaurant_id,
