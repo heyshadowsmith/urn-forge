@@ -82,7 +82,7 @@ export function handle(urn: string, body: unknown): HttpResponse {
 - **`message`** is the template of the error, with the field values in the placeholders. You can show it to a person.
 - **`ContractViolation`** is a bug in the core, not an error of the caller. Write it to the log, and do not show the issues to the caller.
 
-If the shell keeps the output in Postgres, write it after `ok` is `true`. Refer to [Store entities in Postgres](store-in-postgres).
+If the shell keeps the output in Postgres, write it after `ok` is `true`, with the generated statements, for example `insertPolicyPolicy(result.output)`. Do not write the `INSERT` by hand: a new property would not get to its column. Refer to [Store entities in Postgres](store-in-postgres).
 
 ## 4. Publish the events and the records
 

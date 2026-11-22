@@ -123,7 +123,7 @@ Example: the configuration file `example/urn-forge.config.ts` has `out: './gener
 | --- | --- | --- | --- | --- |
 | `valibot` | `0.1.0` | `domain.schemas.generated.ts`. Refer to [The generated schemas](./generated-schemas) | None | `{}` only |
 | `fcis` | `0.2.0` | `domain.runtime.generated.ts`. Refer to [The generated runtime](./generated-runtime) | `valibot`, because the runtime imports the schemas | `{}` only |
-| `postgres` | `0.1.0` | `schema.generated.sql`. Refer to [The Postgres schema](./postgres-schema) | None | `tables`: the short keys of the entities that become tables. Default `[]`. `unenforced`: `'warn'` (the default) or `'error'` |
+| `postgres` | `0.2.0` | `schema.generated.sql`, and `domain.store.generated.ts` if `tables` is not empty. Refer to [The Postgres schema](./postgres-schema) | `valibot`, because the store file imports the types of the schemas | `tables`: the short keys of the entities that become tables. Default `[]`. `unenforced`: `'warn'` (the default) or `'error'` |
 
 urn-forge 0.1.0 does not have the `gherkin` plugin of the specification. Refer to [Scope](./scope).
 
