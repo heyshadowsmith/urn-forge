@@ -31,6 +31,16 @@ The [README](README.md) gives each command, for example `npm run verify:insuranc
 
 The pages in `docs/` are for users. They follow the [documentation style guide](contributing/docs-style.md). A page quotes only output that urn-forge really gives.
 
+## The contract corpus
+
+The [`contracts/`](contracts) folder measures how much of a real contract a manifest can declare. Each contract has a `promises.yaml`: its promises, each with a status (`declared`, `workaround` or `not-declarable`). A promise that is not declared names the hole of the roadmap that would declare it. Each contract is also a domain that passes `verify` with strict coverage.
+
+```bash
+npm run corpus    # the score: declared ÷ all promises, and the count by hole
+```
+
+CI fails if the score falls below the `minimum` of `contracts/corpus.yaml`. A change that declares more promises sets their status to `declared`, and raises the minimum to the new score.
+
 ## Plans
 
 The [`planning/`](planning) folder keeps the plans, the scope charter, the feature audit and the roadmap. The documentation site does not publish them, and user pages do not link to them. Start with the [contract completeness roadmap](planning/contract-completeness-roadmap.md).

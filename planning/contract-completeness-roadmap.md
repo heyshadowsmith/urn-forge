@@ -16,6 +16,44 @@ A goal of "any contract" needs a measure, or it has no end.
 - **The score** is the share of promises that are declared. CI prints it. Each plan of this roadmap names the promises that it moves to *declared*, and the score must go up.
 - **A blind trial after each phase** gives a new contract to an agent, which writes its promises, then its manifest, and reports each promise that it could not declare. New promises go into the corpus.
 
+## The first score
+
+Nov 22, 2026: **26 of 143 promises declared (18.2%).** 89 are workarounds and 28 are not declarable. Refer to the [corpus plan](./corpus-plan.md).
+
+| Hole | Promises | Hole | Promises |
+| --- | --- | --- | --- |
+| A2 Request and answer | 19 | E2 The current time | 6 |
+| C3 States and transitions | 16 | E4 How the contract changes | 6 |
+| D4 Delivery of events | 11 | B1 Either-or shapes | 4 |
+| D2 Who can call | 10 | D3 Time zones | 4 |
+| A1 Lists and embedded entities | 9 | E1 Check digits | 2 |
+| C1 Uniqueness | 8 | A3 More than one error | 1 |
+| C2 The same request two times | 7 | B3 Maps | 1 |
+| E3 Changes after a time | 7 | | |
+| B4 Units and currencies | 6 | | |
+
+The corpus found four holes that this roadmap did not have, now in phase E:
+
+| # | Hole |
+| --- | --- |
+| E1 | Formats that need a check digit or a checksum (Luhn, mod-97) |
+| E2 | Rules against the current time ("at least 2 hours before the start") |
+| E3 | Changes that happen after a time, without a request ("expires after 7 days") |
+| E4 | Rules about how the contract changes over time (how long a deprecated version stays) |
+
+Each contract builder also reported gaps that no hole names. Each was met in three or more of the six contracts:
+
+- **A rejected input answers with a declared error.** The promises name a refusal code, such as `INVALID_REQUEST`. A field limit or an invariant always answers with an input rejection, which has no name of its own. This was filed under A2 or A3.
+- **A refusal changes nothing.** Nothing in a manifest says that a declared error leaves the state as it was.
+- **Exactly one event for each change.** `emits` means zero or more events of each kind.
+- **A rule on the stored state before a call**, such as "only a captured payment can be refunded". This was filed under A2 or C3, but it is closer to C3.
+- **An invariant on an output entity.** The runtime applies it to each answer, but no scenario can show it broken.
+
+Friction in urn-forge, met by two or more builders:
+
+- Gate 3 refuses an `Examples` column whose placeholder is inside a list or object cell, such as `[{ sku: <sku> }]` (`unknown-header`).
+- An event that no operation emits is not checked.
+
 ## The phases
 
 Each item is a plan of its own, with the format of the earlier plans: a target written first, one commit for each step, sabotages at the end. The order puts first what the most contracts need, and what fits the machinery that exists.
@@ -70,9 +108,9 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 
 ## The first steps
 
-1. The docs split (decision 5).
-2. The corpus, with its score in CI (decision 6).
-3. The plan for A1, rules over list items, with the corpus promises that it moves.
+1. The docs split (decision 5). Done.
+2. The corpus, with its score in CI (decision 6). Done: 18.2%.
+3. The next plan. The order of decision 7 puts A1 first, but the first score puts A2 (19 promises) and C3 (16) before A1 (9). The next plan states which it takes, and the promises that it moves.
 
 ## Risks
 
