@@ -73,7 +73,7 @@ breaking    urn:demo:shop:order:field:code  regex [A-Z]+ → [A-Z]* changes a va
 
 In this case, the new pattern only accepts one more value, the empty string. Thus the change is wider, and compatible for callers that send it. `diff` does not know that. A false "breaking" costs a new URN or a review. A false "compatible" costs a broken consumer in production. When `diff` cannot tell, it gives the answer that cannot hide a break.
 
-A new invariant is always narrower, because it can only refuse more values. A changed rule, or a changed `on`, is "neither". A change of a message is compatible, because a message is text for a person.
+A new invariant is narrower, because it can only refuse more values. On a new entity, it refuses nothing that a caller sent before, so it is compatible. A changed rule, or a changed `on`, is "neither". A change of a message is compatible, because a message is text for a person.
 
 ## Tombstones and the forward-only lifecycle
 

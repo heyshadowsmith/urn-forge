@@ -1,0 +1,3 @@
+compatible urn:demo:shop:order:entity:bulk_order
+compatible urn:demo:shop:order:invariant:bulk
+compatible urn:demo:shop:order:operation:place_bulk

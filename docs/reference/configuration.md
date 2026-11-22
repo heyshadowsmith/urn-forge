@@ -75,7 +75,7 @@ Gate 2 does not examine these files as shell files:
 - A declaration file (`.d.ts`).
 - A file in a `node_modules` directory, or in a directory whose name starts with `.`.
 
-An item that is not there adds no file and causes no error. An empty string causes `config-invalid`. There is no command-line option for this setting. For the rules, refer to [Verification gates](./verification-gates).
+An item that is not there, or a directory with no TypeScript file, adds no file. Gate 2 then gives the warning `shell-not-found`, because a misspelled path would turn off its checks for that path. An empty string causes `config-invalid`. There is no command-line option for this setting. For the rules, refer to [Verification gates](./verification-gates).
 
 ```ts
 shell: ['./src/shell', './src/server.ts']

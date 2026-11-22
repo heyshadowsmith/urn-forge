@@ -305,11 +305,13 @@ A core file imports the generated schemas, or `valibot`, as a value. Here the co
 import * as v from 'valibot';
 import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
 import { PolicyRefundSchema } from './generated/domain.schemas.generated';
+import { compareDecimal, daysBetween, divideDecimal, multiplyDecimal } from 'urn-forge/exact';
 
 // …
 
-function amount(cents: bigint): string {
-  return v.parse(PolicyRefundSchema, `${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`);
+function refundOf(premium: string, effective: string, expiry: string, cancelled: string): string {
+  const term = daysBetween(effective, expiry) + 1;
+  return v.parse(PolicyRefundSchema, divideDecimal(multiplyDecimal(premium, String(daysBetween(cancelled, expiry))), String(term), 2, 'floor'));
 }
 ```
 

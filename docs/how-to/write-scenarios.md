@@ -177,6 +177,14 @@ A placeholder can also be in the text of a step. Gate 3 then reads the step once
 
 Gate 3 counts each invariant of the rows as broken, and reports a URN that is not an invariant of the operation once for the step. In the same way, `Then the input is rejected on "<field>"` with a column `field` tests the boundary of more than one field.
 
+A column that only explains a row is not a field and fills no placeholder. Gate 3 refuses it, because a misspelled field name would look the same. Here the outline of tutorial 3 has a column `why`:
+
+```
+features/quote_shipping.feature:14:64  error  unknown-header  table header "why" is not a field key of the input or output of urn:demo:shipping:quote:operation:quote_shipping (allowed: weight_grams, zone, express, price_cents)
+```
+
+Put the note in a comment line above the row, which starts with `#`. Gherkin does not read a comment as a row.
+
 ### Write a long value as a formula
 
 Strict coverage asks for the value just past each limit: a text of 201 characters for `maxLength: 200`, a list of 21 items for `maxItems: 20`. Write such a value as a formula. A cell that starts with `=` is a formula:

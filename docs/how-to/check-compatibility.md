@@ -31,7 +31,7 @@ The commands on this page ran in a clone of the urn-forge repository, from `pack
 In this example, the change of the branch deprecates `policy.field.note` for `policy.field.remark`. The old manifest has `note` with `status: active`, and no `remark`. The new manifest is the insurance manifest of today. `diff` writes one line for each change, then a summary:
 
 ```
-compatible  urn:acme:insurance:policy:entity:coverage  adds the optional property "remark"
+compatible  urn:acme:insurance:policy:entity:coverage  adds the optional property "remark"; the database needs a migration for it
 lifecycle   urn:acme:insurance:policy:field:note  status active → deprecated
 compatible  urn:acme:insurance:policy:field:remark  is new
 diff passed: 0 breaking, 2 compatible, 1 lifecycle change(s)
@@ -59,7 +59,7 @@ Who can fail depends on how the manifest uses the URN. `diff` finds three uses:
 | --- | --- | --- |
 | In | The input of an operation: callers send it | A narrower set of values: a tighter constraint, a new required property, a new invariant |
 | Out | The output of an operation, or the payload of a declared error: callers receive it | A wider set of values: a looser constraint, a property that becomes optional, a new declared error |
-| Stored | A table of the `postgres` plugin: the database stores it | A narrower set of values. The rows that are already in the database must stay valid. A new required list that can be empty does not break them: a row with no items holds the empty list |
+| Stored | A table of the `postgres` plugin: the database stores it | A narrower set of values. The rows that are already in the database must stay valid. A new required list that can be empty does not break them: a row with no items holds the empty list. A compatible change to a stored atom can still need a change to the table, for example a new column. `diff` then adds `; the database needs a migration for it`. urn-forge writes only `CREATE` statements, so you write the migration |
 
 A URN that has two uses obeys the rules of both. The insurance coverage is in the input and the output of `issue_policy`, and in a table. Thus a tighter `maxLength` on `remark` breaks callers and rows:
 
@@ -139,7 +139,7 @@ policy.field.short_remark:
 `diff` then shows no breaking change:
 
 ```
-compatible  urn:acme:insurance:policy:entity:coverage  adds the optional property "short_remark"
+compatible  urn:acme:insurance:policy:entity:coverage  adds the optional property "short_remark"; the database needs a migration for it
 lifecycle   urn:acme:insurance:policy:field:remark  status active → deprecated
 compatible  urn:acme:insurance:policy:field:short_remark  is new
 diff passed: 0 breaking, 2 compatible, 1 lifecycle change(s)
@@ -259,7 +259,7 @@ From the next change, each breaking change fails. To add `stability: experimenta
 With `--format json`, `diff` writes one JSON object on each line to stdout. A compatible change and a lifecycle change are `"type":"change"` lines. The result line comes last:
 
 ```
-{"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:entity:coverage","message":"adds the optional property \"remark\""}
+{"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:entity:coverage","message":"adds the optional property \"remark\"; the database needs a migration for it"}
 {"type":"change","class":"lifecycle","urn":"urn:acme:insurance:policy:field:note","message":"status active → deprecated"}
 {"type":"change","class":"compatible","urn":"urn:acme:insurance:policy:field:remark","message":"is new"}
 {"type":"result","ok":true,"breaking":0,"compatible":2,"lifecycle":1}

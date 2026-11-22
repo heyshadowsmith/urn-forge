@@ -52,7 +52,7 @@ describe('diff: a new required list on a stored entity', () => {
     const added = base + '    - { ref: r.field.tag, as: tags, many: {} }\n';
     const plugins = { tables: ['r.entity.booking'] };
     const result = diffManifests(`${HEADER}${base}`, `${HEADER}${added}`, plugins as never);
-    expect(result).toMatchObject({ ok: true, breaking: [], changes: [{ class: 'compatible', message: 'adds the required list "tags", which rows already stored hold as an empty list' }] });
+    expect(result).toMatchObject({ ok: true, breaking: [], changes: [{ class: 'compatible', message: 'adds the required list "tags", which rows already stored hold as an empty list; the database needs a migration for it' }] });
     // With minItems 1 an old row has too few items, so the change still breaks stored rows.
     const atLeastOne = diffManifests(`${HEADER}${base}`, `${HEADER}${added.replace('many: {}', 'many: { minItems: 1 }')}`, plugins as never);
     expect(JSON.stringify(atLeastOne)).toContain('breaks rows already stored');

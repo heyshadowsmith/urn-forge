@@ -81,7 +81,7 @@ A step table has exactly two rows: a header row and one data row.
 | `the operation emits "<event URN>":` | A field name of the event. The step makes sure that the operation emits the event before it reads the table |
 | `the refusal is recorded as "<event URN>":` | A field name of the event |
 
-The step converts each cell with the primitive of its field, and puts the value in an object with the header as the key. A cell for a list or for an embedded entity has its own syntax. Refer to [List and object cells](#list-and-object-cells). A cell with no value puts no key in the object. A Scenario Outline operates as usual: Cucumber puts the `Examples` values in the `<placeholders>` before the step starts.
+The step converts each cell with the primitive of its field, and puts the value in an object with the header as the key. A cell for a list or for an embedded entity has its own syntax. Refer to [List and object cells](#list-and-object-cells). A cell with no value puts no key in the object. A Scenario Outline operates as usual: Cucumber puts the `Examples` values in the `<placeholders>` before the step starts. Gate 3 accepts an `Examples` column only if it is a field of the operation, of an error or an event that a step of the outline expects, or a placeholder in a step text. A column for a note to the reader is refused with `unknown-header`. Refer to [Write scenarios](../how-to/write-scenarios#_4-use-a-scenario-outline-for-many-inputs).
 
 ### Cell conversion
 

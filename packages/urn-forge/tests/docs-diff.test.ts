@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
 
 const repo = (path: string) => fileURLToPath(new URL(`../${path}`, import.meta.url));
-const page = (name: string) => readFile(repo(`../../docs/how-to/${name}.md`), 'utf8');
+const page = (name: string) => readFile(repo(`../../docs/${name.includes('/') ? name : `how-to/${name}`}.md`), 'utf8');
 
 /** `text` with each `[from, to]` replaced once; a `from` that is not there fails the test. */
 function edit(text: string, ...pairs: (readonly [string, string])[]): string {
@@ -34,7 +34,7 @@ const EXAMPLES: Record<string, { old: (m: string) => string; now: (m: string) =>
   'deprecate note for remark': {
     old: (m) => edit(m, ['  # Retired for remark, which is limited in length (lifecycle plan). Callers receive both until the sunset.\n' + NOTE_DEPRECATED + '  sunsetDate: 2027-06-30\n', ''], [REMARK, ''], [REMARK_REF, '']),
     now: (m) => m,
-    pages: ['check-compatibility', 'retire-a-urn'],
+    pages: ['check-compatibility', 'retire-a-urn', 'reference/cli'],
   },
   'a tighter maxLength': { old: (m) => m, now: (m) => edit(m, ['  maxLength: 40\n', '  maxLength: 30\n']), pages: ['check-compatibility'] },
   'a looser maxLength': { old: (m) => m, now: (m) => edit(m, ['  maxLength: 40\n', '  maxLength: 50\n']), pages: ['check-compatibility'] },
@@ -74,6 +74,29 @@ const EXAMPLES: Record<string, { old: (m: string) => string; now: (m: string) =>
     pages: ['retire-a-urn'],
   },
   'a new enum value': { old: (m) => m, now: (m) => edit(m, ['  values: [fire, flood, theft]\n', '  values: [fire, flood, theft, hail]\n']), pages: ['check-compatibility'] },
+  'rename a required input field in place': {
+    old: (m) => m,
+    now: (m) =>
+      edit(
+        m,
+        ['    - ref: policy.field.cancellation_date\npolicy.entity.refund_quote:', '    - ref: policy.field.stop_date\npolicy.entity.refund_quote:'],
+        ['  rule: cancellation_date >= effective_date and cancellation_date <= expiry_date', '  rule: stop_date >= effective_date and stop_date <= expiry_date'],
+      ) + '\npolicy.field.stop_date:\n  primitive: date\n  description: The first day that the policy does not cover\n',
+    pages: ['retire-a-urn'],
+  },
+  'rename a required input field with a new operation': {
+    old: (m) => m,
+    now: (m) =>
+      edit(m, [
+        'policy.operation.cancel_policy:\n  description: Stop a policy and calculate the refund for the days it does not cover\n',
+        'policy.operation.cancel_policy:\n  description: Stop a policy and calculate the refund for the days it does not cover\n  status: deprecated\n  supersededBy: policy.operation.stop_policy\n  sunsetDate: 2027-12-31\n',
+      ]) +
+      '\npolicy.field.stop_date:\n  primitive: date\n  description: The first day that the policy does not cover\n' +
+      'policy.entity.stop_request:\n  description: A request to stop a policy, with the terms it needs\n  fields:\n    - ref: policy.field.effective_date\n    - ref: policy.field.expiry_date\n    - ref: policy.field.premium\n    - ref: policy.field.stop_date\n' +
+      'policy.invariant.stop_within_term:\n  description: A policy can stop only on a day that it covers\n  on: policy.entity.stop_request\n  rule: stop_date >= effective_date and stop_date <= expiry_date\n  reportOn: stop_date\n  message: The stop date must be inside the term of the policy\n' +
+      'policy.operation.stop_policy:\n  description: Stop a policy and calculate the refund for the days it does not cover\n  input: policy.entity.stop_request\n  output: policy.entity.refund_quote\n  errors:\n    - policy.error.refund_below_minimum\n  emits: [policy.event.policy_cancelled]\n',
+    pages: ['retire-a-urn'],
+  },
   'a new event in emits': { old: (m) => edit(m, [CANCEL_ERRORS, '    - policy.error.refund_below_minimum\n']), now: (m) => m, pages: ['emit-an-event'] },
   'an event removed from emits': { old: (m) => m, now: (m) => edit(m, [CANCEL_ERRORS, '    - policy.error.refund_below_minimum\n']), pages: ['emit-an-event'] },
 };

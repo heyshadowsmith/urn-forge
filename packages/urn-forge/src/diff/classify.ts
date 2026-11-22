@@ -29,6 +29,9 @@ export interface Change {
 export type Use = 'in' | 'out' | 'stored';
 
 const USE_TEXT: Readonly<Record<Use, string>> = { in: 'callers send', out: 'callers receive', stored: 'the database stores' };
+/** The note on a compatible change that a table of the database does not have yet: urn-forge writes CREATE statements only. */
+const MIGRATION = '; the database needs a migration for it';
+
 /** Who a breaking change breaks, for each use. */
 const BROKEN_TEXT: Readonly<Record<Use, string>> = { in: 'callers that send it', out: 'callers that receive it', stored: 'rows already stored' };
 
@@ -175,8 +178,12 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     for (const urn of Object.keys(after) as Urn[]) {
       if (before[urn] !== undefined) continue;
       // A new invariant narrows its entity; every other new atom is new to everyone.
-      if (group === 'invariants') relate(urn, 'narrower', 'a new invariant', usesFor(now.invariants[urn]!.on, old.entities[now.invariants[urn]!.on] !== undefined));
-      else compatible(urn, 'is new');
+      // An invariant on a new entity narrows nothing that a caller sent or a row holds (fourth blind trial).
+      if (group === 'invariants') {
+        const on = now.invariants[urn]!.on;
+        if (old.entities[on] === undefined) compatible(urn, `is new, on the new entity ${on}`);
+        else relate(urn, 'narrower', 'a new invariant', usesFor(on, true));
+      } else compatible(urn, 'is new');
     }
   }
 
@@ -229,10 +236,11 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
       // An optional property is new to everyone; a required one narrows what callers may send.
       if (b.required) {
         const rest = withoutEmptyRows(b, uses);
-        if (rest.size === 0 && uses.size > 0) compatible(urn, `adds the required list "${b.name}", which rows already stored hold as an empty list`);
+        if (rest.size === 0 && uses.size > 0) compatible(urn, `adds the required list "${b.name}", which rows already stored hold as an empty list${MIGRATION}`);
         else relate(urn, 'narrower', `the new required property "${b.name}"`, rest);
       }
-      else compatible(urn, `adds the optional property "${b.name}"`);
+      // Compatible for callers, but a stored entity has a table that does not have it yet (fourth blind trial).
+      else compatible(urn, `adds the optional property "${b.name}"${uses.has('stored') ? MIGRATION : ''}`);
     }
   };
 

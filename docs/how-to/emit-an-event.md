@@ -93,7 +93,7 @@ gate 1  completeness  FAIL  tsc: 1 error(s) over insurance/core.ts; `core` satis
 
 To fix it, remove the `emit` call, or add the event to `emits` of the operation.
 
-Gate 1 does not find an event that the handler does not return. A handler of `cancel_policy` that returns `ok({ refund: amount(refund) })` passes gate 1. Only a scenario finds it. Refer to step 7.
+Gate 1 does not find an event that the handler does not return. A handler of `cancel_policy` that returns `ok({ refund })` passes gate 1. Only a scenario finds it. Refer to step 7.
 
 ## 6. Publish the events from the shell
 

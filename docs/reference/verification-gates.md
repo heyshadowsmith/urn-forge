@@ -156,6 +156,7 @@ For example, `PolicyLimit` carries a brand. `PolicyLimit[]` and `PolicyPolicy`, 
 | Type assertions | No type assertion, `x as T` or `<T>x`, has a target type that carries a brand. `as const` is permitted. An assertion to a type with no brand is permitted. For `x as unknown as T`, the gate gives one problem, for the outer assertion | `brand-assertion` | Core and shell |
 | Values of type `any` | No expression of type `any` is in a place whose type carries a brand. Such a place is a variable with a type annotation, a return, an argument or a property | `brand-from-any` | Core and shell |
 | Suppressed checks | No comment has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` after `//` or `/*`. Only comments count: the same text in a string is not a problem | `suppressed-check` | Core and shell |
+| Shell paths | Each item of the `shell` setting matches one TypeScript file or more. This is a warning: the gate passes | `shell-not-found` | Shell |
 | Parser imports | No import declaration imports the generated schemas module or `valibot` as a value. `import type` is permitted. An import in which each name has `type` is permitted. An import with no names, for example `import 'valibot'`, is permitted | `core-parser-import` | Core only |
 
 All four codes have the severity `error`. There is no waiver for gate 2. For the messages, refer to [Diagnostics](./diagnostics).
@@ -178,6 +179,7 @@ The shell can import the generated schemas and `valibot` as values, because the 
 | `brand-assertion` | The core or shell file | The start of the assertion expression |
 | `brand-from-any` | The core or shell file | The start of the expression of type `any`. For a property of an object literal, the problem is at the value, one time |
 | `suppressed-check` | The core or shell file | The `//` or `/*` of the comment |
+| `shell-not-found` | The path of the item, from the current directory | None |
 | `core-parser-import` | The core file | The `import` keyword |
 
 The gate examines the core files first, then the shell files. In each file, the `suppressed-check` problems come first. The other problems follow in the sequence of the text.
@@ -596,7 +598,7 @@ A change of `primitive` is "neither". For the same primitive, `diff` compares ea
 | --- | --- | --- |
 | A new required property | Narrower | `the new required property "<name>"` |
 | A new required list with no `minItems`, or with `minItems: 0`, on an atom that is only stored | Compatible: a row that is already stored has no items, which is the empty list | `adds the required list "<name>", which rows already stored hold as an empty list` |
-| A new optional property | Compatible for each use | `adds the optional property "<name>"` |
+| A new optional property | Compatible for each use | `adds the optional property "<name>"`. If the database stores the atom, `; the database needs a migration for it` follows: the table does not have the column or the child table yet |
 | A property that is not there any more | Wider | `removing the <required \| optional> property "<name>"` |
 | A property that is not there any more, whose target was deprecated in the old manifest | `lifecycle` | `removes the property "<name>", whose target <urn> was deprecated` |
 | `required: false` becomes `required: true` | Narrower. For a list that can be empty, not for the Stored use | `the property "<name>" (optional → required)` |
@@ -611,7 +613,7 @@ A new name with `as` is a removal and an addition. A removed property with a dep
 
 | Change | Class |
 | --- | --- |
-| A new invariant | Narrower, on the uses of its entity in the old manifest |
+| A new invariant | Narrower, on the uses of its entity in the old manifest. On an entity that is new, `compatible`: `is new, on the new entity <urn>` |
 | A changed `rule` or `on` of an invariant | Neither |
 | A changed `message` of an invariant or an error | `compatible` |
 | A changed `reportOn` of an invariant, or a new or removed one, that moves the issue to a different field | `compatible`: `reports its issue on "<a>" → "<b>"` |
