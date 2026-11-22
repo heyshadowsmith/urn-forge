@@ -235,11 +235,12 @@ The name of the table is the domain. `order_key` is the JSON list of the `orderB
 | Export | Description |
 | --- | --- |
 | `insertEvents(events)` | One `INSERT` for each event of `executeOperation`. The sequence is 1 more than the last sequence of its `order_key`, from 1, and the payload holds it in the `sequence` property. Run the statements in the transaction of the change. An event with no `delivery` causes an exception |
-| `nextEvents(limit)` | One `SELECT` of at most `limit` rows with no `published_at`, in the order that they were written. Each row is an `OutboxRow`: `id`, `urn`, `sequence`, `payload` |
+| `nextEvents(limit)` | One `SELECT` of at most `limit` rows: for each `order_key`, the row with no `published_at` and the lowest sequence, in the order that they were written. Each row is an `OutboxRow`: `id`, `urn`, `sequence`, `payload` |
 | `markPublished(id)` | One `UPDATE` that sets `published_at`. Run it only after the transport took the event |
 
 - A second event with the same id causes a duplicate key error.
 - Two transactions that write an event of one `order_key` at the same time cannot both commit: the second gets a duplicate key error on the sequence. Run it again.
+- The `sequence` column is set for each event. `delivery.sequence` also puts it in the payload.
 - The table keeps published rows. Delete them when you do not need them.
 
 ## Limits

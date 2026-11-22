@@ -304,7 +304,7 @@ In a domain with `changes` or `delivery`, `executeOperation` has a fourth parame
 | 3b. With `requires`: each rule, in order | The `otherwise` error of the first rule that does not hold, filled from the input and the record. The handler is not called |
 | 6a. With `changes`, when the output has the state or the key field: examine them | `ContractViolation`: `the handler for <urn> answered <state property> "<value>", but the operation moves to "<to>"`, `… but "<from>" cannot move to "<to>"`, `… but the state stays "<state>"`, or `… answered <key> "<value>", but the record has "<value>"` |
 | 6b. With `ensures`: each rule | `ContractViolation`: `the handler for <urn> answered a value that breaks ensures: <rule>` |
-| 6c. With an item `{ event, when }` in `emits`: the count of each such event, before 6b | `ContractViolation`: `<urn> emitted <n> <event>, but it emits exactly one when <rule>`, or `<urn> emitted <event>, but it emits it only when <rule>`. A rule of 6b that reads the event, when the success has not one event: `ensures <rule> reads the event, but the handler for <urn> emitted <n> events` |
+| 6c. With an item `{ event, when }` in `emits`: the count of each such event, before 6b | `ContractViolation`: `<urn> emitted <n> <event>, but it emits exactly one when <rule>`, or `<urn> emitted <event>, but it emits it only when <rule>`. A rule of 6b that reads the event is not checked on a success with no event; with more than one: `ensures <rule> reads the event, but the handler for <urn> emitted <n> events` |
 
 `executeOperation` does not catch an exception from the handler, and does not make sure that a link points at an object that exists.
 

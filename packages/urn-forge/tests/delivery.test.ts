@@ -87,7 +87,13 @@ describe('the runtime of the delivery target', () => {
     });
   });
 
-  it('needs newEventId for an event with delivery', () => {
+  it('checks an ensures rule on the event only on a success that has one', () => {
+    // create_payment with a status that no when rule covers: no event, so the rules on the event have nothing to check.
+    const none = { [CREATE]: () => runtime.ok({ ...payment('authorized'), status: 'captured' }, []) };
+    expect(runtime.executeOperation(CREATE, { amount: 500 }, none, { newEventId })).toMatchObject({ ok: true, events: [] });
+  });
+
+    it('needs newEventId for an event with delivery', () => {
     expect(runtime.executeOperation(CREATE, { amount: 500 }, answer('authorized', [authorized()])).issues[0].message).toBe(
       `${CREATE} emitted ${AUTHORIZED}, whose delivery needs an event id: pass newEventId to executeOperation`,
     );
@@ -113,17 +119,22 @@ describe('the outbox of the delivery target, on PGlite', () => {
     return (await db.query(text, values as unknown[])).rows;
   };
 
-  it('gives the events of one payment in order, with a sequence from 1 in each payload', async () => {
+  it('gives the events of one payment in order, one at a time, with a sequence from 1 in each payload', async () => {
     const db = await outbox();
     await run(db, store.insertEvents([event('pending'), event('authorized', 'pay_zzzz9999')]));
     await run(db, store.insertEvents([event('authorized')]));
+    const seen = (rows: { payload: Record<string, unknown> }[]) => rows.map((row) => [row.payload.payment_id, row.payload.status, row.payload.sequence]);
     const rows = await next(db);
-    expect(rows.map((row) => [row.payload.payment_id, row.payload.status, row.payload.sequence])).toEqual([
+    // The second event of pay_abcd1234 waits until the first is published.
+    expect(seen(rows)).toEqual([
       ['pay_abcd1234', 'pending', 1],
       ['pay_zzzz9999', 'authorized', 1],
-      ['pay_abcd1234', 'authorized', 2],
     ]);
     expect(rows[0]).toMatchObject({ urn: PENDING, sequence: 1 });
+    await run(db, [store.markPublished(rows[1].id)]);
+    expect(seen(await next(db))).toEqual([['pay_abcd1234', 'pending', 1]]);
+    await run(db, [store.markPublished(rows[0].id)]);
+    expect(seen(await next(db))).toEqual([['pay_abcd1234', 'authorized', 2]]);
   });
 
   it('gives an event again until it is marked published: at least once', async () => {

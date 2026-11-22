@@ -132,9 +132,18 @@ export function insertEvents(events: readonly OutboxEvent[]): readonly Statement
   });
 }
 
-/** The statement that reads at most `limit` events that are not published, in the order they were written. Its rows are OutboxRow. */
+/**
+ * The statement that reads at most `limit` events to send: for each order, its oldest event that is
+ * not published, so the next event of an order comes only once the one before it is marked. Its rows are OutboxRow.
+ */
 export function nextEvents(limit: number): Statement {
-  return { text: 'SELECT "id", "urn", "sequence", "payload" FROM \"outbox\".\"delivery\" WHERE "published_at" IS NULL ORDER BY "position" LIMIT $1', values: [limit] };
+  return {
+    text:
+      'SELECT "id", "urn", "sequence", "payload" FROM \"outbox\".\"delivery\" AS e WHERE "published_at" IS NULL ' +
+      'AND NOT EXISTS (SELECT 1 FROM \"outbox\".\"delivery\" AS p WHERE p."order_key" = e."order_key" AND p."published_at" IS NULL AND p."sequence" < e."sequence") ' +
+      'ORDER BY "position" LIMIT $1',
+    values: [limit],
+  };
 }
 
 /** The statement that marks an event published. Run it only after the transport took the event. */

@@ -115,7 +115,7 @@ payment.operation.create_payment:
 ```
 
 - On each success where the rule holds, the handler must return exactly one of the event. Where the rule does not hold, it must return none.
-- When each item of `emits` has this form, an `ensures` rule can name `event.<property>`: the one event of the success. The property must be in each of those events.
+- When each item of `emits` has this form, an `ensures` rule can name `event.<property>`: the one event of the success. The property must be in each of those events. On a success with no event, the rule is not checked.
 
 `executeOperation` examines the count and the rules. A handler that does not obey them gets a `ContractViolation`:
 
@@ -194,10 +194,10 @@ What each part keeps:
 | No event is lost | The events commit in the transaction of the change |
 | At least once | A row stays until `markPublished`. A process that stops before it sends the event again |
 | A unique id | The id is the primary key of the outbox |
-| In order for each record | `nextEvents` gives the events in the order they were written. The sequence is 1 more for each event of one `orderBy` value |
+| In order for each record | `nextEvents` gives only the oldest event of each `orderBy` value that is not published. The next one comes after `markPublished`. The sequence is 1 more for each event of one `orderBy` value |
 | The transport | Your code: a queue, a broker or a webhook |
 
-Send the events of one `orderBy` value one at a time. If a send fails, stop that value until the next call of `nextEvents`.
+If a send fails, do not mark the event. `nextEvents` gives it again, and holds the later events of its `orderBy` value until it is marked.
 
 ## 7. Record a refusal with recordAs
 

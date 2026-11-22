@@ -211,9 +211,11 @@ const COUNTS = `
     if (holds && count !== 1) return violation(\`\${urn} emitted \${count} \${rule.event}, but it emits exactly one\${rule.when ? \` when \${rule.when.text}\` : ''}\`);
     if (!holds && count > 0) return violation(\`\${urn} emitted \${rule.event}, but it emits it only when \${rule.when!.text}\`);
   }
-  // The ensures rules: an answer that breaks one is a bug in the core. A rule that reads the event needs one event.
+  // The ensures rules: an answer that breaks one is a bug in the core. A rule that reads the event is
+  // about the one event of the success: with none, which the counts above allow, it has nothing to check.
   for (const condition of ('ensures' in contract ? contract.ensures : undefined) ?? []) {
-    if ('event' in condition && events.length !== 1) return violation(\`ensures \${condition.text} reads the event, but the handler for \${urn} emitted \${events.length} events\`);
+    if ('event' in condition && events.length === 0) continue;
+    if ('event' in condition && events.length > 1) return violation(\`ensures \${condition.text} reads the event, but the handler for \${urn} emitted \${events.length} events\`);
     if (!(condition.check as (values: unknown) => boolean)({ input: input.output, current, output: output.output, event: events[0]?.fields })) {
       return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: '', message: \`the handler for \${urn} answered a value that breaks ensures: \${condition.text}\` }] };
     }

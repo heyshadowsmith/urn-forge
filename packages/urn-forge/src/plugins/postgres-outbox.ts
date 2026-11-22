@@ -7,7 +7,8 @@
  *   (at least once).
  * - The id is the primary key, so an id is never used twice.
  * - The sequence is 1 higher for each event with the same `orderBy` values, and `nextEvents`
- *   gives the events in the order they were written. Two transactions that write an event of
+ *   gives only the oldest unpublished event of each order, so a later event of one order is
+ *   never sent before an earlier one, whatever the publisher does. Two transactions that write an event of
  *   one order at the same time cannot both commit: the second fails on the unique sequence.
  *
  * The transport (a queue, a broker, a webhook) is the user's.
@@ -97,9 +98,18 @@ export function insertEvents(events: readonly OutboxEvent[]): readonly Statement
   });
 }
 
-/** The statement that reads at most \`limit\` events that are not published, in the order they were written. Its rows are OutboxRow. */
+/**
+ * The statement that reads at most \`limit\` events to send: for each order, its oldest event that is
+ * not published, so the next event of an order comes only once the one before it is marked. Its rows are OutboxRow.
+ */
 export function nextEvents(limit: number): Statement {
-  return { text: 'SELECT "id", "urn", "sequence", "payload" FROM ${table} WHERE "published_at" IS NULL ORDER BY "position" LIMIT $1', values: [limit] };
+  return {
+    text:
+      'SELECT "id", "urn", "sequence", "payload" FROM ${table} AS e WHERE "published_at" IS NULL ' +
+      'AND NOT EXISTS (SELECT 1 FROM ${table} AS p WHERE p."order_key" = e."order_key" AND p."published_at" IS NULL AND p."sequence" < e."sequence") ' +
+      'ORDER BY "position" LIMIT $1',
+    values: [limit],
+  };
 }
 
 /** The statement that marks an event published. Run it only after the transport took the event. */
