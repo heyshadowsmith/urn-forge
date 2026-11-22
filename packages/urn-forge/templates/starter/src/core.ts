@@ -1,5 +1,7 @@
 // The functional core: one handler for each operation in the manifest. `satisfies` makes
 // `verify` (gate 1) fail when a handler is missing or has the wrong type.
+// Amounts here are integer cents. For a decimal field (a string such as "12.50") or a date,
+// calculate with urn-forge/exact: it is exact, and gate 2 allows it in the core.
 import { fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
 
 export const core = {

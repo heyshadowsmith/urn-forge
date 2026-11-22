@@ -202,6 +202,8 @@ Replace the content of `src/core.ts` with this content:
 
 The core is one object. Its key is the operation URN, and it `satisfies` the generated `DomainCoreImplementation`. As a result, TypeScript knows the type of each parameter, and you do not write type annotations. The handler returns its output in `ok(…)`.
 
+The prices are integers in cents, so `+` and `*` are exact here. A `decimal` field is a string, such as `"12.50"`, and a `date` is a string too. To calculate with them, use `urn-forge/exact`, which is in the package that you installed. Refer to [Use branded values in the core](../how-to/use-branded-values#_1-read-and-compare-the-values).
+
 Line 9 gives `zone` its plain type before line 11 uses it as an object index. The value of `zone` has a brand, and a branded value cannot index an object. For more about this, refer to [Use branded values in the core](../how-to/use-branded-values).
 
 ## 10. Examine the support file
