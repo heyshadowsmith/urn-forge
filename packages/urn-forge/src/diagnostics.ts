@@ -106,6 +106,7 @@ export const DIAGNOSTIC_CODES = {
   'uncovered-invariant': 'An invariant of an operation\'s input has no scenario that breaks it (a warning)',
   'uncovered-state': 'A state that an operation starts from, or a state outside its from that expects otherwise, has no scenario',
   'invalid-current': 'A Given the current <entity> is: step is on an operation that changes no record or names another entity, or an operation that changes a record runs without one',
+  'invalid-caller': 'A scenario of an operation with callers runs it without Given the caller is:, or the step is in a domain whose manifest names no caller',
   'uncovered-boundary': 'The examples of an input field do not include every boundary case of its constraints (a warning)',
   'ratchet-ready': 'Every feature is strict, so boundaryCoverage can be set to error (a note)',
   'waived-boundary': 'A waiver removed the boundary gaps of a field, with its reason (a note)',

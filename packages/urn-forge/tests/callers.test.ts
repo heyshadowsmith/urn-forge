@@ -7,6 +7,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';
 import type { Urn } from '../src/ir/types.js';
+import { indexFeatureSource } from '../src/verify/feature-index.js';
+import { checkGherkin } from '../src/verify/gherkin.js';
+import type { GateContext } from '../src/verify/types.js';
 
 const APPROVE = 'urn:demo:callers:claim:operation:approve_claim';
 const READ = 'urn:demo:callers:claim:operation:read_claim';
@@ -113,5 +116,23 @@ describe('the compile errors of callers', () => {
     expect(messages('  changes:\n    entity: claim.entity.claim\n    from: [SUBMITTED]', '  reads:\n    entity: claim.entity.claim\n  changes:\n    entity: claim.entity.claim\n    from: [SUBMITTED]')).toEqual([
       ['invalid-reads', 'approve_claim: reads: the operation also changes a record; changes gives it as current, so leave out reads'],
     ]);
+  });
+});
+
+describe('gate 3 for callers', () => {
+  const ir = compile(source).ir!;
+  const gate3 = (steps: string) =>
+    checkGherkin({ ir, features: { directory: 'features', features: [indexFeatureSource(`Feature: f\n  @${READ}\n  Scenario: s\n${steps}`, 'f.feature')!], problems: [] }, boundaryCoverage: 'warn' } as unknown as GateContext)
+      .problems.filter((p) => ['invalid-caller', 'invalid-current', 'unknown-header'].includes(p.code))
+      .map((p) => [p.code, p.message]);
+  const current = '    And the current claim is:\n      | claim_id | state | employee_id | manager_id |\n      | CLM-0000000001 | SUBMITTED | E-1000 | E-2000 |\n';
+  const run = '    When I run the operation with:\n      | claim_id |\n      | CLM-0000000001 |\n';
+
+  it('asks for the caller and the record of a read', () => {
+    expect(gate3(run)).toEqual([
+      ['invalid-caller', `${READ} states who may call it; give the caller with "Given the caller is:" before the operation runs`],
+      ['invalid-current', `${READ} reads a record of urn:demo:callers:claim:entity:claim; give it with "Given the current claim is:" before the operation runs`],
+    ]);
+    expect(gate3(`    Given the caller is:\n      | role | employee_id |\n      | finance | E-9000 |\n${current}${run}`)).toEqual([]);
   });
 });

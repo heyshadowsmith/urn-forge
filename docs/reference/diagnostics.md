@@ -184,7 +184,8 @@ These codes change their severity:
 | `undeclared-invariant` | `error` | A step names an invariant that is not on the input entity | Use an invariant from the message |
 | `uncovered-invariant` | `warning` or `error` | No scenario breaks an invariant of the input | Add `Then the input is rejected by "<invariant URN>"` |
 | `uncovered-state` | `warning`, or `error` when strict | A state in the `from` of an operation has no scenario that starts from it, or no scenario gives a state outside `from` and expects `otherwise` | Add a scenario with `Given the current <entity> is:` for the state |
-| `invalid-current` | `error` | `Given the current <entity> is:` is on an operation with no `changes`, or names another entity; or an operation with `changes` runs with no current record | Give the record of the entity that the operation changes, before `When I run the operation with:` |
+| `invalid-current` | `error` | `Given the current <entity> is:` is on an operation with no `changes` or `reads`, or names another entity; or an operation with `changes` or `reads` runs with no current record | Give the record of the entity that the operation changes or reads, before `When I run the operation with:` |
+| `invalid-caller` | `error` | An operation with `callers` runs with no `Given the caller is:`, or the step is in a domain whose header names no `caller` | Give the caller before `When I run the operation with:` |
 | `uncovered-boundary` | `warning` or `error` | The scenarios do not send each boundary value of an input field | Add the values in the message, or waive the field |
 | `ratchet-ready` | `note` | Each feature is strict, and `boundaryCoverage` is `warn` | Set `boundaryCoverage: 'error'` |
 | `waived-boundary` | `note` | A waiver removed the boundary gaps of a field | None |

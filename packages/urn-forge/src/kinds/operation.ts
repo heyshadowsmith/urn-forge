@@ -187,7 +187,7 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
     if (!parsed.ok) return void fail('rule-syntax', `${parsed.problem.message} (at column ${parsed.problem.column} of the rule)`);
     const before = problems;
     for (const name of namesIn(stripColumns(parsed.expr))) {
-      if (name.startsWith('current.') && !c.record) fail('invalid-condition', `"${name}" reads the record that the operation changes, but the operation has no changes`);
+      if (name.startsWith('current.') && !c.record) fail('invalid-condition', `"${name}" reads the record that the operation changes or reads, but the operation has no changes or reads`);
       else if (name.startsWith('caller.') && kind !== 'callers') fail('invalid-condition', `"${name}" reads the caller, which only a rule of callers can`);
       else if (kind === 'callers' && (name.startsWith('output.') || name.startsWith('event.'))) fail('invalid-condition', `"${name}" reads the answer, which a rule of callers runs before`);
       else if (name.startsWith('output.') && kind === 'requires') fail('invalid-condition', `"${name}" reads the answer, which a requires rule runs before; use it in ensures`);
