@@ -12,7 +12,15 @@ const Count = v.pipe(v.number(), v.safeInteger(), v.minValue(0));
 
 /** `many: true` or `many: { minItems?, maxItems?, unique? }`: the property holds a list. */
 const Many = v.union(
-  [v.literal(true), v.strictObject({ minItems: v.optional(Count), maxItems: v.optional(Count), unique: v.optional(v.boolean()) })],
+  [
+    v.literal(true),
+    v.strictObject({
+      minItems: v.optional(Count),
+      maxItems: v.optional(Count),
+      // true: by the value, or by the key of an embedded entity; a list: by these properties of an embedded entity.
+      unique: v.optional(v.union([v.boolean(), v.pipe(v.array(v.string()), v.minLength(1))])),
+    }),
+  ],
   'must be true or { minItems, maxItems, unique }',
 );
 
@@ -99,7 +107,7 @@ export function buildFieldRefs(context: BuildContext<unknown>, fields: readonly 
  * outside `minItems` and `maxItems`, and a repeated value for `unique`. The items count as
  * values of the field for its own cases.
  */
-export function listBoundaries(rule: ListRule, key?: string): BoundaryCase[] {
+export function listBoundaries(rule: ListRule, key?: string | readonly string[]): BoundaryCase[] {
   const isList = (value: unknown): value is readonly unknown[] => Array.isArray(value);
   const ofLength = (n: number) => (value: unknown) => isList(value) && value.length === n;
   const cases: BoundaryCase[] = [];
@@ -111,11 +119,23 @@ export function listBoundaries(rule: ListRule, key?: string): BoundaryCase[] {
     cases.push({ label: `list of ${rule.maxItems} item(s) (maxItems)`, covers: ofLength(rule.maxItems) });
     cases.push({ label: `list of ${rule.maxItems + 1} item(s) (above maxItems)`, covers: ofLength(rule.maxItems + 1) });
   }
-  if (rule.unique) {
-    // A list of objects repeats when two of them have one key.
-    const values = (list: readonly unknown[]) => (key === undefined ? list : list.map((item) => (item as Record<string, unknown> | null)?.[key]));
+  if (Array.isArray(rule.unique)) {
+    // By several properties: two items with each of them present and equal.
+    const names = rule.unique as readonly string[];
     cases.push({
-      label: key === undefined ? 'list with a repeated value (unique)' : `list with a repeated ${key} (unique)`,
+      label: `list with a repeated ${names.join(' and ')} (unique)`,
+      covers: (value) => {
+        if (!isList(value)) return false;
+        const tuples = value.map((item) => names.map((n) => (item as Record<string, unknown> | null)?.[n])).filter((t) => t.every((x) => x !== undefined));
+        return new Set(tuples.map((t) => JSON.stringify(t))).size < tuples.length;
+      },
+    });
+  } else if (rule.unique) {
+    // A list of objects repeats when two of them have one key.
+    const single = typeof key === 'string' ? key : undefined;
+    const values = (list: readonly unknown[]) => (single === undefined ? list : list.map((item) => (item as Record<string, unknown> | null)?.[single]));
+    cases.push({
+      label: single === undefined ? 'list with a repeated value (unique)' : `list with a repeated ${single} (unique)`,
       covers: (value) => isList(value) && new Set(values(value)).size < value.length,
     });
   }

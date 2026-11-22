@@ -115,11 +115,29 @@ export function constraintRelation(primitive: Primitive, old: Readonly<Record<st
   return combine(relate(old as ConstraintsOf<Primitive>, now as ConstraintsOf<Primitive>));
 }
 
+/**
+ * Uniqueness: none admits the most lists. By several properties, fewer names refuse more lists
+ * (narrower), and more names refuse fewer (wider). `true` and a list of names do not compare.
+ */
+function uniqueRelation(old: boolean | readonly string[] | undefined, now: boolean | readonly string[] | undefined): Relation {
+  const set = (u: typeof old): undefined | true | Set<string> => (u === undefined || u === false ? undefined : u === true ? true : new Set(u));
+  const [a, b] = [set(old), set(now)];
+  if (a === undefined && b === undefined) return 'equal';
+  if (a === undefined) return 'narrower';
+  if (b === undefined) return 'wider';
+  if (a === true || b === true) return a === b ? 'equal' : 'neither';
+  const within = (x: Set<string>, y: Set<string>) => [...x].every((n) => y.has(n));
+  if (within(a, b) && within(b, a)) return 'equal';
+  if (within(b, a)) return 'narrower';
+  if (within(a, b)) return 'wider';
+  return 'neither';
+}
+
 /** The relation of a list rule to the old one: its count, and whether an item may repeat. */
 export function listRelation(old: ListRule, now: ListRule): Relation {
   return combine([
     lower(byNumber, { value: old.minItems }, { value: now.minItems }),
     upper(byNumber, { value: old.maxItems }, { value: now.maxItems }),
-    shape(old.unique ? true : undefined, now.unique ? true : undefined),
+    uniqueRelation(old.unique, now.unique),
   ]);
 }

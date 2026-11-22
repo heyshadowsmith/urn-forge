@@ -121,7 +121,8 @@ export interface IRFieldRef {
 export interface ListRule {
   readonly minItems?: number;
   readonly maxItems?: number;
-  readonly unique?: boolean;
+  /** true: no value (or key of an item) twice; a list: no two items with these properties all present and equal. */
+  readonly unique?: boolean | readonly string[];
 }
 
 export interface IREntity {

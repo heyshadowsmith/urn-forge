@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';
+import { listBoundaries } from '../src/kinds/field-refs.js';
 import { PLUGINS } from '../src/plugins/index.js';
 import type { Urn } from '../src/ir/types.js';
 
@@ -114,5 +115,16 @@ describe('sum and * in the generated schemas (fixture: sums)', async () => {
       { plugin: PLUGINS.postgres, config: { tables: ['claim.entity.claim'] } },
     ]);
     expect(result.diagnostics.map((d) => [d.code, d.urn])).toEqual([['unenforced-in-sql', 'urn:demo:sums:claim:invariant:total_is_sum']]);
+  });
+});
+
+describe('the gate 3 boundary of a unique list of properties', () => {
+  const [repeated] = listBoundaries({ unique: ['sku', 'location'] });
+
+  it('is covered by two items with each property present and equal, and not by an item with one absent', () => {
+    expect(repeated?.label).toBe('list with a repeated sku and location (unique)');
+    expect(repeated?.covers([{ sku: 'A', location: 'X' }, { sku: 'A', location: 'X' }])).toBe(true);
+    expect(repeated?.covers([{ sku: 'A', location: 'X' }, { sku: 'A', location: 'Y' }])).toBe(false);
+    expect(repeated?.covers([{ sku: 'A' }, { sku: 'A' }])).toBe(false);
   });
 });

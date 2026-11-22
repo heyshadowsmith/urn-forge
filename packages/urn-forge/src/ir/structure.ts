@@ -33,7 +33,22 @@ export function checkStructure(ir: Pick<UniversalIR, 'entities' | 'events' | 'er
           path: [shortKeyOf(owner), 'fields', index, 'link'],
         });
       }
-      if ('entity' in ref && ref.many?.unique && ir.entities[ref.entity]?.key === undefined) {
+      const unique = ref.many?.unique;
+      if (Array.isArray(unique)) {
+        const names = unique as readonly string[];
+        const item = 'entity' in ref ? ir.entities[ref.entity] : undefined;
+        const at = { code: 'invalid-unique' as const, urn: owner, path: [shortKeyOf(owner), 'fields', index, 'many', 'unique'] };
+        if (!item) {
+          issues.push({ ...at, message: `${owner}: fields[${index}] is a list of values; a unique list of properties is for a list of embedded entities, so write unique: true` });
+        } else {
+          names.forEach((name, i) => {
+            const property = item.fields.find((p) => p.name === name);
+            if (!property) issues.push({ ...at, message: `${owner}: fields[${index}].many.unique: "${name}" is not a property of ${item.urn} (properties: ${item.fields.map((p) => p.name).join(', ')})` });
+            else if ('entity' in property || property.many) issues.push({ ...at, message: `${owner}: fields[${index}].many.unique: "${name}" holds ${property.many ? 'a list' : 'an embedded entity'}; name properties that hold one value` });
+            else if (names.indexOf(name) !== i) issues.push({ ...at, message: `${owner}: fields[${index}].many.unique lists "${name}" more than once` });
+          });
+        }
+      } else if ('entity' in ref && unique && ir.entities[ref.entity]?.key === undefined) {
         issues.push({
           code: 'missing-key',
           urn: owner,

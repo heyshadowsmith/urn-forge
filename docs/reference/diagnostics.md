@@ -85,6 +85,7 @@ These codes change their severity:
 
 | Code | Severity | Meaning | Correction |
 | --- | --- | --- | --- |
+| `invalid-unique` | `error` | `unique: [ … ]` is on a list of values, or names a property that the item does not have, or one that holds a list or an entity, or one name two times | Name properties of the item that hold one value, each one time; on a list of values, write `unique: true` |
 | `missing-key` | `error` | A `link`, a `unique` list of an embedded entity, or a Postgres table names an entity with no `key` | Set `key` on the entity |
 | `embedding-cycle` | `error` | Entities embed each other in a cycle | Change one embedding to a `link` |
 

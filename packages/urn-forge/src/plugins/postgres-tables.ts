@@ -208,7 +208,13 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
     let comment: string;
     if ('entity' in ref) {
       comment = `${ref.entity} (embedded in ${owner} as ${ref.name})`;
-      if (many?.unique) {
+      if (Array.isArray(many?.unique)) {
+        // By several properties: Postgres treats NULL as distinct, so an item with one absent is not compared.
+        const names = many!.unique as readonly string[];
+        const constraint = `${name}_${names.join('_')}_key`;
+        claim(parent.schema, constraint, owner, 'unique constraint');
+        keyLines.push(`CONSTRAINT ${ident(constraint)} UNIQUE (${columnList([...parentColumns, ...names.map((n) => ({ name: n, type: '' }))])})`);
+      } else if (many?.unique) {
         const keyName = keyColumn(ref.entity).name;
         claim(parent.schema, `${name}_${keyName}_key`, owner, 'unique constraint');
         keyLines.push(`CONSTRAINT ${ident(`${name}_${keyName}_key`)} UNIQUE (${columnList([...parentColumns, { name: keyName, type: '' }])})`);

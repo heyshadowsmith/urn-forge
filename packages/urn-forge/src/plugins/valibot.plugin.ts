@@ -178,7 +178,7 @@ function fieldDeclaration(field: IRField): string {
 function propertyLines(owner: Urn, refs: readonly IRPropertyRef[], ir: UniversalIR): string[] {
   return refs.map((ref) => {
     const item = itemSchema(owner, ref, ir);
-    const schema = ref.many ? listSchema(item, ref.many, uniqueKey(ref, ir)) : item;
+    const schema = ref.many ? (Array.isArray(ref.many.unique) ? uniqueBySchema(item, ref.many, ref.many.unique as readonly string[]) : listSchema(item, ref.many, uniqueKey(ref, ir))) : item;
     return `  ${ref.name}: ${ref.required ? schema : `v.optional(${schema})`},`;
   });
 }
@@ -194,6 +194,33 @@ function itemSchema(owner: Urn, ref: IRPropertyRef, ir: UniversalIR): string {
   const field = fieldUrn && ir.fields[fieldUrn];
   if (!field) throw new Error(`IR is not resolved: ${owner} has no field for property ${ref.name}`);
   return schemaNames(field.brandIdentifier).schema;
+}
+
+/**
+ * A list of embedded entities, unique by several properties: one issue on each item that repeats
+ * an earlier one, where each named property is present in both. An item with one absent is not compared.
+ */
+function uniqueBySchema(item: string, rule: ListRule, names: readonly string[]): string {
+  const message = `Invalid items: Expected no ${names.join(' and ')} more than once`;
+  const check = [
+    `v.rawCheck(({ dataset, addIssue }) => {`,
+    `    if (!dataset.typed) return;`,
+    `    const seen = new Set<string>();`,
+    `    dataset.value.forEach((entry, index) => {`,
+    `      const values = [${names.map((n) => `entry.${n}`).join(', ')}];`,
+    `      if (values.some((value) => value === undefined)) return;`,
+    `      const tuple = JSON.stringify(values);`,
+    `      if (seen.has(tuple)) addIssue({ message: ${JSON.stringify(message)}, path: [{ type: 'array', origin: 'value', input: dataset.value, key: index, value: entry }] });`,
+    `      else seen.add(tuple);`,
+    `    });`,
+    `  })`,
+  ].join('\n');
+  const actions = [
+    ...(rule.minItems === undefined ? [] : [`v.minLength(${numberLiteral(rule.minItems)})`]),
+    ...(rule.maxItems === undefined ? [] : [`v.maxLength(${numberLiteral(rule.maxItems)})`]),
+    check,
+  ];
+  return `v.pipe(v.array(${item}), ${actions.join(', ')})`;
 }
 
 /** For a unique list of an embedded entity: the property name of its key, which uniqueness compares. */

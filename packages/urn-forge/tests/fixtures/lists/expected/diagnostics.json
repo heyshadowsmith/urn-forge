@@ -1,12 +1,22 @@
 [
   {
-    "code": "invalid-value",
+    "code": "rule-type",
     "location": {
-      "column": 13,
-      "line": 115
+      "column": 7,
+      "line": 182
     },
-    "message": "reservation.entity.request.fields.1.many: must be true or { minItems, maxItems, unique }",
+    "message": "urn:demo:lists:subscription:operation:change_plan: ensures.0: \"output.plan\" is an embedded entity; a rule can use it only in \"output.plan is present\" or \"output.plan is absent\" (at column 39 of the rule)",
     "severity": "error",
-    "urn": "urn:demo:lists:reservation:entity:request"
+    "urn": "urn:demo:lists:subscription:operation:change_plan"
+  },
+  {
+    "code": "rule-type",
+    "location": {
+      "column": 7,
+      "line": 182
+    },
+    "message": "urn:demo:lists:subscription:operation:change_plan: ensures.0: \"current.plan\" is an embedded entity; a rule can use it only in \"current.plan is present\" or \"current.plan is absent\" (at column 53 of the rule)",
+    "severity": "error",
+    "urn": "urn:demo:lists:subscription:operation:change_plan"
   }
 ]
