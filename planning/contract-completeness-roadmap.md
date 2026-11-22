@@ -235,7 +235,7 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 8. The current time (E2). Done: 42.7%.
 9. Changes on a clock (E3). Done: 45.5%.
 10. Idempotency (C2). Done: 49.7%.
-11. The next plan. The score now puts A2 (14), C1 (9), D3 (8) and E4 (6) first.
+11. Compatibility (E4). [Plan](./compatibility-plan.md).
 
 ## Risks
 
