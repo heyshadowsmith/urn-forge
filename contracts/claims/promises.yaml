@@ -89,14 +89,24 @@ promises:
     status: workaround
     by: [claim.error.duplicate_receipt, receipt.field.sha256]
     hole: C1
+  # The shell authenticates the caller (auth.entity.caller: role, employee_id); the callers of each operation
+  # decide, before the state and the handler. create_draft: caller.employee_id = input.employee_id; edit_draft,
+  # submit_claim, withdraw_claim: caller.employee_id = current.employee_id; get_claim reads the stored claim
+  # (reads) and allows the owner, current.manager_id or role finance. Every rule also needs input.actor_id =
+  # caller.employee_id, so the actor that the events carry is the caller. Each other caller gets forbidden.
+  # The manager is the manager_id stored with the claim, from the employee directory, as the shell gives the record.
   P18:
     promise: "Only the employee who owns a claim may create, edit, submit or withdraw it, and only that employee, their manager and finance users may read it."
-    status: not-declarable
-    hole: D2
+    status: declared
+    by: [auth.entity.caller, auth.field.role, claim.field.employee_id, claim.field.manager_id, claim.entity.claim, claim.error.forbidden, claim.operation.create_draft, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.get_claim]
+  # The stored claim holds manager_id. approve_claim allows caller.employee_id = current.manager_id and
+  # caller.employee_id != current.employee_id; reject_claim allows caller.employee_id = current.manager_id;
+  # mark_paid allows caller.role = 'finance'; each also needs input.actor_id = caller.employee_id. Each
+  # other caller gets forbidden, before the state and the handler.
   P19:
     promise: "Only the claimant's manager may approve or reject a claim, a caller may never approve their own claim, and only finance users may mark a claim paid."
-    status: not-declarable
-    hole: D2
+    status: declared
+    by: [auth.entity.caller, auth.field.role, claim.field.employee_id, claim.field.manager_id, claim.entity.claim, claim.error.forbidden, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid]
   # Each of the five operations emits exactly one event of its kind ({ event }), and its ensures tie
   # event.claim_id, total, currency and state to the output, employee_id to current and actor_id to the input.
   # Not declared: edit_draft moves a REJECTED claim back to DRAFT, a state change that publishes no event and
