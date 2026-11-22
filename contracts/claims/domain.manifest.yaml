@@ -210,6 +210,13 @@ claim.entity.claim:
     - ref: claim.field.reason
       required: false
 
+claim.invariant.total_is_sum:
+  description: The total of a claim is the sum of its line amounts
+  on: claim.entity.claim
+  rule: 'total = sum(line in lines: line.amount)'
+  reportOn: total
+  message: The total must be the sum of the line amounts
+
 # Refusals
 
 claim.error.not_found:
@@ -291,6 +298,9 @@ claim.operation.create_draft:
   description: Create a draft claim for the employee who calls
   input: claim.entity.draft
   output: claim.entity.answer
+  ensures:
+    - output.currency = input.currency
+    - 'output.total = sum(line in input.lines: line.amount)'
   errors: [claim.error.forbidden, claim.error.duplicate_receipt]
 claim.operation.edit_draft:
   description: Replace the purpose, currency and lines of a draft claim; a rejected claim goes back to DRAFT
@@ -309,6 +319,7 @@ claim.operation.edit_draft:
   ensures:
     - output.version = input.version + 1
     - output.currency = input.currency
+    - 'output.total = sum(line in input.lines: line.amount)'
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
 claim.operation.submit_claim:
   description: Submit a draft claim for a decision
