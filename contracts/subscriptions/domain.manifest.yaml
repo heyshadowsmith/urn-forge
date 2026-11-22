@@ -350,24 +350,36 @@ subscription.event.created:
     - ref: event.field.event_id
     - ref: subscription.field.subscription_id
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: subscription_id
 subscription.event.updated:
   description: A subscription changed its plan, paused or resumed
   fields:
     - ref: event.field.event_id
     - ref: subscription.field.subscription_id
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: subscription_id
 subscription.event.canceled:
   description: A subscription was canceled
   fields:
     - ref: event.field.event_id
     - ref: subscription.field.subscription_id
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: subscription_id
 subscription.event.trial_will_end:
   description: The trial of a subscription ends within 3 days
   fields:
     - ref: event.field.event_id
     - ref: subscription.field.subscription_id
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: subscription_id
 invoice.event.created:
   description: An invoice was created
   fields:
@@ -375,6 +387,9 @@ invoice.event.created:
     - ref: subscription.field.subscription_id
     - ref: invoice.field.invoice_id
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: subscription_id
 invoice.event.paid:
   description: An invoice was paid
   fields:
@@ -382,6 +397,9 @@ invoice.event.paid:
     - ref: subscription.field.subscription_id
     - ref: invoice.field.invoice_id
     - ref: event.field.occurred_at
+  delivery:
+    id: event_id
+    orderBy: subscription_id
 
 # Operations
 
@@ -396,10 +414,13 @@ subscription.operation.create_subscription:
   errors:
     - subscription.error.conflict
   emits:
-    - subscription.event.created
-    - subscription.event.trial_will_end
-    - invoice.event.created
-    - invoice.event.paid
+    - event: subscription.event.created
+    - event: subscription.event.trial_will_end
+      when: output.trial_end is present and output.trial_end - input.requested_on < 3
+    - event: invoice.event.created
+      when: output.trial_end is absent
+    - event: invoice.event.paid
+      when: output.trial_end is absent
 subscription.operation.read_subscription:
   description: Read one subscription
   input: subscription.entity.lookup
@@ -422,12 +443,13 @@ subscription.operation.change_plan:
   ensures:
     - input.proration != 'at_period_end' or output.scheduled_plan_id is present and output.scheduled_plan_id = input.plan_id
     - input.proration != 'at_period_end' or output.plan = current.plan
+    - event.subscription_id = output.subscription_id
   errors:
     - subscription.error.not_found
     - subscription.error.currency_mismatch
     - subscription.error.invalid_state_transition
   emits:
-    - subscription.event.updated
+    - event: subscription.event.updated
 subscription.operation.pause_subscription:
   description: Pause an active or trialing subscription
   input: subscription.entity.pause_request
@@ -438,11 +460,13 @@ subscription.operation.pause_subscription:
     to: paused
     otherwise: subscription.error.invalid_state_transition
     missing: subscription.error.not_found
+  ensures:
+    - event.subscription_id = output.subscription_id
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
   emits:
-    - subscription.event.updated
+    - event: subscription.event.updated
 subscription.operation.resume_subscription:
   description: Resume a paused subscription
   input: subscription.entity.resume_request
@@ -453,11 +477,13 @@ subscription.operation.resume_subscription:
     to: active
     otherwise: subscription.error.invalid_state_transition
     missing: subscription.error.not_found
+  ensures:
+    - event.subscription_id = output.subscription_id
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
   emits:
-    - subscription.event.updated
+    - event: subscription.event.updated
 subscription.operation.cancel_subscription:
   description: Cancel a subscription now or at the end of its period
   input: subscription.entity.cancel_request
@@ -468,11 +494,13 @@ subscription.operation.cancel_subscription:
     to: [canceled, trialing, active, past_due, paused]
     otherwise: subscription.error.invalid_state_transition
     missing: subscription.error.not_found
+  ensures:
+    - event.subscription_id = output.subscription_id
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
   emits:
-    - subscription.event.canceled
+    - event: subscription.event.canceled
 invoice.operation.read_invoice:
   description: Read one invoice
   input: invoice.entity.lookup

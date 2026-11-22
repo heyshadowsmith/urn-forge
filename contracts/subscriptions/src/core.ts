@@ -13,7 +13,6 @@ const CREATED = ID_24('n');
 const TAKEN_CUSTOMER = 'cus_taken';
 const MISSING_INVOICE = 'in_missing';
 const NOW = '2026-11-22T10:00:00Z';
-const EVENT_ID = '7d1c2a4e-5b6f-4a8b-9c0d-1e2f3a4b5c6d';
 
 // A plan id names its period: "yearly" bills each year, "quarterly" each 3 months and
 // "annual-monthly" each 12 months. Any other plan bills each month.
@@ -50,7 +49,8 @@ const invoice = (invoice_id: string, subscription_id: string) => ({
   total: { amount_minor: 3000, currency: 'EUR' },
 });
 
-const meta = (subscription_id: string) => ({ event_id: EVENT_ID, subscription_id, occurred_at: NOW });
+// The shell gives each event its id (newEventId), so the core sets only the subscription and the time.
+const meta = (subscription_id: string) => ({ subscription_id, occurred_at: NOW });
 
 export const core = {
   'urn:corpus:subscriptions:subscription:operation:create_subscription': (req) => {
