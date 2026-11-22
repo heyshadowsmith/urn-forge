@@ -320,7 +320,7 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
   for (const urn of Object.keys(old.operations) as Urn[]) {
     const [a, b] = [old.operations[urn]!, now.operations[urn]];
     if (!live(a) || !live(b)) continue;
-    const requires = (op: typeof a) => (op.requires ?? []).map((r) => `${r.ruleText} (otherwise ${r.otherwise})`);
+    const requires = (op: typeof a) => (op.requires ?? []).map((r) => `${r.ruleText} (otherwise ${r.otherwise}${r.fill ? `, fill ${JSON.stringify(r.fill)}` : ''})`);
     const ensures = (op: typeof a) => (op.ensures ?? []).map((r) => r.ruleText);
     for (const rule of requires(b!).filter((r) => !requires(a).includes(r))) breaking(urn, `the new requires rule ${rule} refuses calls that worked`);
     for (const rule of requires(a).filter((r) => !requires(b!).includes(r))) compatible(urn, `the requires rule ${rule} is removed`);

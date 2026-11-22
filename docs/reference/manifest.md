@@ -199,7 +199,8 @@ Any other problem causes `invalid-changes`. The handler gets the record as its s
 | Property | Type | Necessary | Rule |
 | --- | --- | --- | --- |
 | `requires[].rule` | string | Yes | A rule over `input.<property>` and, with `changes`, `current.<property>` |
-| `requires[].otherwise` | string | Yes | Short key of an error in `errors`. Each required field of the error is a property of `input` or of the `changes` entity |
+| `requires[].otherwise` | string | Yes | Short key of an error in `errors`. Each required field of the error is in `fill`, or a property of `input` or of the `changes` entity |
+| `requires[].fill` | A map | No | From a property of the error to a name with a prefix (`input.amount`, `current.amount`), of the same primitive. Properties not in `fill` are filled by name, the record's value over the input's |
 | `ensures[]` | string | — | A rule over `input.`, `current.` and `output.` |
 
 A rule uses the [rule language](./rule-language). A name with no prefix, `current.` without `changes`, or `output.` in `requires` causes `invalid-condition`; a rule that does not parse or type causes the codes of an invariant rule. `executeOperation` checks `requires` after the state of `changes`, in order, and answers the `otherwise` of the first rule that does not hold, without a call of the handler. It checks `ensures` on a success; a rule that does not hold is a `ContractViolation`. Refer to [Declare preconditions and postconditions](../how-to/declare-conditions).

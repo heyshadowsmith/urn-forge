@@ -162,9 +162,17 @@ const REQUIRES = `
   if (result === undefined) {
     for (const condition of ('requires' in contract ? contract.requires : undefined) ?? []) {
       if ((condition.check as (values: unknown) => boolean)({ input: input.output, current })) continue;
-      const known: Readonly<Record<string, unknown>> = { ...(input.output as object), ...current };
-      const names = Object.keys(contract.errors[condition.otherwise]?.fields ?? {}).filter((name) => known[name] !== undefined);
-      result = { ok: false, error: { ...Object.fromEntries(names.map((name) => [name, known[name]])), kind: condition.otherwise } };
+      // \`fill\` names the value of a property; the others come by name, the record's over the request's.
+      const values: Readonly<Record<string, Readonly<Record<string, unknown>> | undefined>> = { input: input.output as Readonly<Record<string, unknown>>, current };
+      const byName: Readonly<Record<string, unknown>> = { ...(input.output as object), ...current };
+      const valueOf = (name: string) => {
+        const source = condition.fill?.[name];
+        if (source === undefined) return byName[name];
+        const [prefix, property] = source.split('.') as [string, string];
+        return values[prefix]?.[property];
+      };
+      const names = Object.keys(contract.errors[condition.otherwise]?.fields ?? {}).filter((name) => valueOf(name) !== undefined);
+      result = { ok: false, error: { ...Object.fromEntries(names.map((name) => [name, valueOf(name)])), kind: condition.otherwise } };
       break;
     }
   }`;
@@ -642,6 +650,8 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
             `export interface RequireInfo extends ConditionInfo {`,
             `  /** The declared error that answers when the rule does not hold. */`,
             `  readonly otherwise: string;`,
+            `  /** The prefixed name that fills a property of the error; the others fill by name. */`,
+            `  readonly fill?: Readonly<Record<string, string>>;`,
             `}`,
           ]
         : []),
@@ -689,7 +699,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
           : [`    events: {`, ...op.emits.flatMap((urn) => [`      ${q(urn)}: {`, ...eventLines(event(urn), ir, '        '), `      },`]), `    },`]),
         ...(op.changes ? changeLines(op.changes, op.output, ir, '    ') : []),
         ...(op.requires
-          ? [`    requires: [`, ...op.requires.map((r, i) => `      { text: ${q(r.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'requires', i)}, otherwise: ${q(r.otherwise)} },`), `    ],`]
+          ? [`    requires: [`, ...op.requires.map((r, i) => `      { text: ${q(r.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'requires', i)}, otherwise: ${q(r.otherwise)}${r.fill ? `, fill: { ${Object.entries(r.fill).map(([k, v]) => `${q(k)}: ${q(v)}`).join(', ')} }` : ''} },`), `    ],`]
           : []),
         ...(op.ensures ? [`    ensures: [`, ...op.ensures.map((r, i) => `      { text: ${q(r.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'ensures', i)} },`), `    ],`] : []),
         `  },`,

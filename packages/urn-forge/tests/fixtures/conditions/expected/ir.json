@@ -218,6 +218,11 @@
           "field": "urn:demo:conditions:claim:field:version",
           "name": "version",
           "required": true
+        },
+        {
+          "field": "urn:demo:conditions:claim:field:stored_version",
+          "name": "stored_version",
+          "required": true
         }
       ],
       "message": [
@@ -228,10 +233,16 @@
           "field": "claim_id"
         },
         {
-          "text": " is at version "
+          "text": " was read at version "
         },
         {
           "field": "version"
+        },
+        {
+          "text": ", and is at version "
+        },
+        {
+          "field": "stored_version"
         }
       ],
       "retryable": true,
@@ -374,6 +385,15 @@
       "primitive": "enum",
       "urn": "urn:demo:conditions:claim:field:state"
     },
+    "urn:demo:conditions:claim:field:stored_version": {
+      "brandIdentifier": "ClaimStoredVersion",
+      "constraints": {
+        "min": 1
+      },
+      "description": "The version of the claim as it is stored",
+      "primitive": "integer",
+      "urn": "urn:demo:conditions:claim:field:stored_version"
+    },
     "urn:demo:conditions:claim:field:version": {
       "brandIdentifier": "ClaimVersion",
       "constraints": {
@@ -439,7 +459,7 @@
   "meta": {
     "domain": "conditions",
     "irSchemaVersion": 1,
-    "manifestHash": "0f1ba9fa44d982e6332084de07d6deecd74c205947dac64f36d31bc76e089c6c",
+    "manifestHash": "7af50de4b26856d51151d30519e829c180512c878a50376f2bc6be25a5d24140",
     "manifestVersion": "1.0.0",
     "namespace": "demo",
     "stability": "stable"
@@ -542,6 +562,10 @@
       "output": "urn:demo:conditions:claim:entity:claim",
       "requires": [
         {
+          "fill": {
+            "stored_version": "current.version",
+            "version": "input.version"
+          },
           "otherwise": "urn:demo:conditions:claim:error:version_conflict",
           "rule": {
             "left": {

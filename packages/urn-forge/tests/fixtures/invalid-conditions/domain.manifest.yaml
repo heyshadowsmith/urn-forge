@@ -76,3 +76,15 @@ order.operation.unfilled_otherwise:
   output: order.entity.order
   requires: [{ rule: input.quantity < 10, otherwise: order.error.needs_reason }]
   errors: [order.error.needs_reason]
+order.operation.bad_fill:
+  description: A fill of a property that the error does not have, from a value that does not exist, and of another primitive
+  input: order.entity.order
+  output: order.entity.order
+  requires:
+    - rule: input.quantity < 10
+      otherwise: order.error.too_many
+      fill: { count: input.quantity, quantity: input.amount }
+    - rule: input.quantity < 20
+      otherwise: order.error.needs_reason
+      fill: { reason: input.quantity }
+  errors: [order.error.too_many, order.error.needs_reason]

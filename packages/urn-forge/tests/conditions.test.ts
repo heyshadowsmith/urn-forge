@@ -67,7 +67,7 @@ describe('the runtime of the conditions target', () => {
     });
     expect(runtime.executeOperation(SUBMIT, { claim_id: 'CLM-0000000001', version: 3 }, core, { current: claim('DRAFT', 2) })).toMatchObject({
       ok: false,
-      error: { urn: 'urn:demo:conditions:claim:error:version_conflict', message: 'Claim CLM-0000000001 is at version 2' },
+      error: { urn: 'urn:demo:conditions:claim:error:version_conflict', fields: { version: 3, stored_version: 2 }, message: 'Claim CLM-0000000001 was read at version 3, and is at version 2' },
     });
     expect(runtime.executeOperation(SUBMIT, { claim_id: 'CLM-0000000001', version: 2 }, core, { current: claim('DRAFT', 2) })).toMatchObject({
       ok: true,

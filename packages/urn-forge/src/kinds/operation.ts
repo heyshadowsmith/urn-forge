@@ -24,7 +24,7 @@ const OperationSchema = v.strictObject({
     }),
   ),
   /** Rules over the request and the record that must hold before the handler runs, each with the error that answers when it does not. */
-  requires: v.optional(v.array(v.strictObject({ rule: v.string(), otherwise: ShortKeyRef }))),
+  requires: v.optional(v.array(v.strictObject({ rule: v.string(), otherwise: ShortKeyRef, fill: v.optional(v.record(v.string(), v.string())) }))),
   /** Rules over the request, the record and the answer that the answer must keep. */
   ensures: v.optional(v.array(v.string())),
 });
@@ -157,12 +157,24 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
       c.report({ code: 'invalid-condition', urn: c.urn, message: `${c.urn}: ${at.join('.')}: ${message}`, path: [c.shortKey, ...at] });
     };
     if (!c.errors.includes(error.urn)) fail(`${error.urn} is not one of the errors of the operation; add it to errors`);
-    // The runtime fills the error from the request and the record, by property name.
+    // `fill`: a property of the error, from a value of the request or the record of the same primitive.
+    const fill = entry.fill ?? {};
+    const errorFields = ruleFields(error as unknown as IREntity, node);
+    for (const [property, source] of Object.entries(fill)) {
+      const target = Object.hasOwn(errorFields, property) ? errorFields[property] : undefined;
+      const from = Object.hasOwn(before, source) ? before[source] : undefined;
+      if (!target) fail(`fill: "${property}" is not a property of ${error.urn} (properties: ${Object.keys(errorFields).join(', ')})`);
+      else if (!from) fail(`fill.${property}: "${source}" is not a value of the request or the record (values: ${Object.keys(before).join(', ')})`);
+      else if (from.primitive !== target.primitive || from.many !== target.many) fail(`fill.${property}: "${source}" is ${from.primitive}${from.many ? ' (a list)' : ''}, but ${property} is ${target.primitive}${target.many ? ' (a list)' : ''}`);
+    }
+    // The other properties are filled by name, from the request and the record.
     const known = new Set([...input.fields, ...(record?.fields ?? [])].map((p) => p.name));
     for (const property of error.fields) {
-      if (property.required && !known.has(property.name)) fail(`${error.urn} needs ${property.name}, which neither the input nor the record has`);
+      if (property.required && !Object.hasOwn(fill, property.name) && !known.has(property.name)) {
+        fail(`${error.urn} needs ${property.name}, which neither the input nor the record has; give it with fill`);
+      }
     }
-    requires.push({ ...built, otherwise: error.urn });
+    requires.push({ ...built, otherwise: error.urn, ...(Object.keys(fill).length > 0 ? { fill } : {}) });
   });
   const ensures: IRRule[] = [];
   (decl.ensures ?? []).forEach((text, index) => {

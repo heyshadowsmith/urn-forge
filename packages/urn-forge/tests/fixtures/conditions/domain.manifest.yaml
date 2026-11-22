@@ -67,6 +67,10 @@ claim.field.version:
   primitive: integer
   min: 1
   description: The version of a claim
+claim.field.stored_version:
+  primitive: integer
+  min: 1
+  description: The version of the claim as it is stored
 claim.entity.claim:
   description: A stored claim
   key: claim.field.claim_id
@@ -91,10 +95,11 @@ claim.error.version_conflict:
   description: The claim changed since the caller read it
   category: conflict
   retryable: true
-  message: Claim {claim_id} is at version {version}
+  message: Claim {claim_id} was read at version {version}, and is at version {stored_version}
   fields:
     - ref: claim.field.claim_id
     - ref: claim.field.version
+    - ref: claim.field.stored_version
 claim.operation.submit_claim:
   description: Submit a draft claim
   input: claim.entity.change
@@ -107,6 +112,7 @@ claim.operation.submit_claim:
   requires:
     - rule: input.version = current.version
       otherwise: claim.error.version_conflict
+      fill: { version: input.version, stored_version: current.version }
   ensures:
     - output.version = input.version + 1
   errors: [claim.error.invalid_state, claim.error.version_conflict]

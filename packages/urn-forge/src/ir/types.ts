@@ -208,6 +208,8 @@ export interface IRRule {
 /** A `requires` rule, and the declared error that answers when it does not hold. */
 export interface IRRequire extends IRRule {
   readonly otherwise: Urn;
+  /** For each property of the error that this gives, the prefixed name that fills it (`input.amount`); the others fill by name. */
+  readonly fill?: Readonly<Record<string, string>>;
 }
 
 /**

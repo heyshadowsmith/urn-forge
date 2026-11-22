@@ -35,7 +35,16 @@ A rule uses the [rule language](../reference/rule-language), and each name has a
 | `current.` | The record that the operation changes | `requires` and `ensures`, only with `changes` |
 | `output.` | The answer, parsed | `ensures` only |
 
-`otherwise` must be in `errors`. urn-forge fills its fields from the request and the record, by property name, so each required field of the error must be a property of the input or of the record. When both have the property, the value of the record is used: a version conflict gives the stored version.
+`otherwise` must be in `errors`. urn-forge fills its fields from the request and the record, by property name, so each required field of the error must be a property of the input or of the record. When both have the property, the value of the record is used. To choose the value, or to fill a property of another name, add `fill`:
+
+```yaml
+  requires:
+    - rule: input.version = current.version
+      otherwise: claim.error.version_conflict
+      fill: { version: input.version, stored_version: current.version }
+```
+
+Each value of `fill` is a name with a prefix, of the same primitive as the property of the error.
 
 ## 2. Add a postcondition
 
@@ -80,6 +89,8 @@ the handler for urn:demo:conditions:claim:operation:submit_claim answered a valu
 ```
 
 Thus the handler does not need to examine a precondition again. Remove that code from the core.
+
+The `requires` rules run before the handler. A refusal can carry values of the record, such as an amount. Thus examine who may call in the shell, before `executeOperation`, so a caller that may not see the record does not get its values in a refusal.
 
 ## 4. Write the scenarios
 
