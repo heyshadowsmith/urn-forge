@@ -70,9 +70,13 @@ export const core = {
         emit('urn:corpus:subscriptions:invoice:event:paid', { ...meta(CREATED), invoice_id: 'in_1' }),
       ]);
     }
+    // A trial shorter than 3 days announces its end at once, and keeps the mark so that the clock
+    // (announce_trial_end) does not announce it again.
     const soon = daysBetween(today, trialEnd) < 3;
-    const events = soon ? [created, emit('urn:corpus:subscriptions:subscription:event:trial_will_end', meta(CREATED))] : [created];
-    return ok({ ...base, status: 'trialing' as const, trial_end: trialEnd }, events);
+    const trialing = { ...base, status: 'trialing' as const, trial_end: trialEnd };
+    return soon
+      ? ok({ ...trialing, trial_will_end_sent_at: now }, [created, emit('urn:corpus:subscriptions:subscription:event:trial_will_end', meta(CREATED))])
+      : ok(trialing, [created]);
   },
 
   'urn:corpus:subscriptions:subscription:operation:read_subscription': ({ subscription_id }) =>
@@ -111,6 +115,11 @@ export const core = {
     const canceled = cancel_mode === 'immediately' ? { ...current, status: 'canceled' as const } : { ...current, cancel_at: cancel_mode };
     return ok(canceled, [emit('urn:corpus:subscriptions:subscription:event:canceled', meta(subscription_id))]);
   },
+
+  // The shell's clock calls it for each trialing subscription whose trial ends within 3 days and
+  // that was not announced yet; the subscription keeps its status and gets the mark.
+  'urn:corpus:subscriptions:subscription:operation:announce_trial_end': ({ subscription_id }, current, now) =>
+    ok({ ...current, trial_will_end_sent_at: now }, [emit('urn:corpus:subscriptions:subscription:event:trial_will_end', { subscription_id, occurred_at: now })]),
 
   'urn:corpus:subscriptions:invoice:operation:read_invoice': ({ invoice_id }) =>
     invoice_id === MISSING_INVOICE

@@ -87,3 +87,14 @@ Feature: Cancel a subscription
       | canceled | immediately   |
       | canceled | at_period_end |
       | expired  | immediately   |
+
+  Scenario: A cancel at the end of the period keeps the mark of a trial that was announced, so the clock does not announce it again
+    Given the current subscription is:
+      | subscription_id              | customer_id | plan | quantity | status   | current_period_start | current_period_end   | trial_end  | trial_will_end_sent_at |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 | 2026-11-22T00:00:00Z   |
+    When I run the operation with:
+      | subscription_id              | cancel_mode   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | at_period_end |
+    Then the output is:
+      | status   | cancel_at     | trial_will_end_sent_at |
+      | trialing | at_period_end | 2026-11-22T00:00:00Z   |
