@@ -121,6 +121,7 @@ promises:
     status: workaround
     by: [notice.field.message_id, hold.event.hold_created, hold.event.hold_expired, order.event.order_placed, ticket.event.ticket_issued, ticket.event.ticket_transferred, ticket.event.ticket_refunded, ticket.event.ticket_used, show.event.event_cancelled]
     hole: D4
+  # Not declarable with callers: "staff assigned to the event" needs the caller to hold the list of its events and a rule of membership, which the rule language lacks; one assigned event id would not fit staff assigned to several events. Also no record holds the owner or the organizer: the hold and the ticket have no buyer, request_refund and cancel_event read no record, and no event entity names its organizer.
   P21:
     promise: "Only the buyer who owns an order may check it out, request its refund or transfer its tickets; only the event's organizer may cancel the event; only box-office staff assigned to the event may validate its tickets."
     status: not-declarable
