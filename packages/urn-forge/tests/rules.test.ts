@@ -166,3 +166,46 @@ describe('days', () => {
     expect(canonical('expiry_date <= (effective_date + 28)')).toBe('expiry_date <= effective_date + 28');
   });
 });
+
+describe('prefixed names, for the conditions of an operation', () => {
+  const fields: Record<string, RuleField> = {
+    'input.party_size': { primitive: 'integer', required: true, many: false },
+    'input.deposit_token': { primitive: 'string', required: false, many: false },
+    'current.version': { primitive: 'integer', required: true, many: false },
+  };
+  const parsed = (source: string) => {
+    const result = parseRule(source);
+    if (!result.ok) throw new Error(result.problem.message);
+    return result.expr;
+  };
+
+  it('reads a prefix and a name as one name, and prints it back', () => {
+    const rule = stripColumns(parsed('input.party_size < 7 or input.deposit_token is present'));
+    expect(rule).toEqual({
+      op: 'or',
+      left: { op: '<', left: { op: 'field', name: 'input.party_size' }, right: { op: 'number', value: '7' } },
+      right: { op: 'present', field: 'input.deposit_token' },
+    });
+    expect(printRule(rule)).toBe('input.party_size < 7 or input.deposit_token is present');
+  });
+
+  it('types the names against the fields of the condition, with arithmetic across prefixes', () => {
+    expect(checkRule(parsed('current.version + 1 > input.party_size'), fields, 'the condition')).toEqual([]);
+  });
+
+  it('names the owner of the fields when a name is not one of them', () => {
+    expect(checkRule(parsed('party_size < 13'), fields, 'the condition')).toEqual([
+      { code: 'unknown-rule-field', column: 1, message: '"party_size" is not a field of the condition (fields: input.party_size, input.deposit_token, current.version)' },
+    ]);
+  });
+
+  it('leaves invariants as they are: a prefixed name is not a field of the entity', () => {
+    expect(checkRule(parsed('input.premium > 0'), { premium: { primitive: 'integer', required: true, many: false } })).toEqual([
+      { code: 'unknown-rule-field', column: 1, message: '"input.premium" is not a field of the entity (fields: premium)' },
+    ]);
+  });
+
+  it('refuses a second prefix', () => {
+    expect(parseRule('input.a.b < 1')).toMatchObject({ ok: false });
+  });
+});
