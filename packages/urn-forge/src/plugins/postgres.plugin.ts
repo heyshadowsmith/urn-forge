@@ -19,6 +19,7 @@ import { toUrn } from '../naming.js';
 import type { ConstraintsOf, Primitive } from '../primitives/index.js';
 import type { Format } from '../primitives/string.js';
 import { translateRegex } from './postgres-regex.js';
+import { POSTGRES_STORE_FILE, storeFile } from './postgres-store.js';
 import { tablesSql } from './postgres-tables.js';
 import { deprecationNote, numberLiteral, valuesInUrnOrder, type CodegenPlugin, type PluginDiagnostic } from './plugin.interface.js';
 
@@ -188,7 +189,9 @@ function storedFields(ir: UniversalIR, entities: readonly Urn[]): Set<Urn> {
 
 export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof PostgresConfigSchema>> = {
   name: 'postgres',
-  version: '0.1.0',
+  version: '0.2.0',
+  // The store file imports the types of the schemas (store plan).
+  requires: ['valibot'],
   configSchema: PostgresConfigSchema,
   // Operations and errors are not stored: the plugin handles them by writing nothing.
   supports: {
@@ -246,16 +249,19 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof P
       out.push(`COMMENT ON DOMAIN ${qualified(domainName(field.urn))} IS ${literal(describe(field.urn, field.description, field))};`);
     }
 
-    out.push(
-      ...tablesSql(ir, tables, {
-        checkName,
-        nameTaken: (name, urn, what, owner) => report('invalid-sql-name', `${urn}: the ${what} name "${name}" is also a name that ${owner} uses`, urn),
-        unenforced,
-      }),
-    );
+    const model = tablesSql(ir, tables, {
+      checkName,
+      nameTaken: (name, urn, what, owner) => report('invalid-sql-name', `${urn}: the ${what} name "${name}" is also a name that ${owner} uses`, urn),
+      unenforced,
+    });
+    out.push(...model.lines);
 
     if (diagnostics.some((d) => d.severity === 'error')) return { artifacts: [], diagnostics };
-    return { artifacts: [{ relativePath: POSTGRES_SCHEMA_FILE, content: `${out.join('\n')}\n` }], diagnostics };
+    const store = storeFile(ir, model.store);
+    return {
+      artifacts: [{ relativePath: POSTGRES_SCHEMA_FILE, content: `${out.join('\n')}\n` }, ...(store === undefined ? [] : [{ relativePath: POSTGRES_STORE_FILE, content: store }])],
+      diagnostics,
+    };
   },
 };
 

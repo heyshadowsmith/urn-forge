@@ -1,6 +1,6 @@
 # The Postgres schema
 
-The Postgres plugin (`postgres`, version 0.1.0) writes the file `schema.generated.sql` in the `--out` directory. The file has `CREATE` statements for Postgres. It makes a schema for each context, a domain for each stored field, and tables for the configured entities. This page gives the configuration, the names, the types and each statement of the file. For the reasons for this design, refer to [The MECE model of primitives](../explanation/primitives-model) and [Departures from the specification](../explanation/departures-from-the-spec).
+The Postgres plugin (`postgres`, version 0.2.0) writes the file `schema.generated.sql` in the `--out` directory, and the store file `domain.store.generated.ts` (refer to [The store file](#the-store-file)). The file has `CREATE` statements for Postgres. It makes a schema for each context, a domain for each stored field, and tables for the configured entities. This page gives the configuration, the names, the types and each statement of the file. For the reasons for this design, refer to [The MECE model of primitives](../explanation/primitives-model) and [Departures from the specification](../explanation/departures-from-the-spec).
 
 The plugin only writes text. It does not connect to a database, run SQL, make migrations or write code that reads and writes rows. Give the file to your migration tool.
 
@@ -9,7 +9,7 @@ The plugin only writes text. It does not connect to a database, run SQL, make mi
 | Item | Value |
 | --- | --- |
 | File name | `schema.generated.sql` |
-| Plugin | `postgres`, version `0.1.0`. The plugin is not in the default plugin list. Add it to `plugins` in the configuration file |
+| Plugin | `postgres`, version `0.2.0`. The plugin is not in the default plugin list. Add it to `plugins` in the configuration file. It needs the `valibot` plugin |
 | Necessary plugin | None. The SQL imports no other generated file |
 | Postgres version | 14 or later. Refer to [Postgres version](#postgres-version) |
 | Text format | UTF-8 with no byte order mark, `\n` line endings, and one `\n` at the end of the file |
@@ -389,6 +389,22 @@ The position of the diagnostic is the entry of the field, the entity or the inva
 
 An absent optional list and an empty list are both no rows. If an optional list has `minItems`, the count trigger accepts a parent with no rows, because the list can be absent. A parent with one or more rows must have the count.
 
+## The store file
+
+If `tables` is not empty, the plugin also writes `domain.store.generated.ts`. It builds the tables once, and writes the `CREATE` statements and this file from them. Thus each column of each table is in the `INSERT` of its table.
+
+| Export | Form | Statements |
+| --- | --- | --- |
+| `Statement` | `{ readonly text: string; readonly values: readonly unknown[] }` | One statement with `$1`, `$2`, … parameters. node-postgres and PGlite take `text` and `values` as their two arguments |
+| `insert<Brand>(value)` | `value` is the parsed entity type, for example `PolicyPolicy` | One `INSERT` for the row, then one for each row of each child table, parent before child |
+| `replace<Brand>(value)` | The same | The statement of `delete<Brand>`, then the statements of `insert<Brand>` |
+| `delete<Brand>(key)` | `key` is the branded type of the key field, for example `PolicyPolicyId` | One `DELETE` of the row. The child rows go with it, by `ON DELETE CASCADE` |
+
+- A value of a property goes in the column of the property. An absent optional value is `NULL`. A link is the value of the key of its target.
+- An item of a list is one row of the child table, with its index as `position`, from 0. An embedded entity is one row of its child table, with no `position`. A list of values is one row for each value.
+- The file runs nothing, and needs no driver. Run the statements of one call in one transaction, because Postgres checks the counts at `COMMIT`.
+- The file has no reads and no `UPDATE` of single columns.
+
 ## Limits
 
 The SQL is a second check after the Valibot schema. Some values pass one check and not the other. The tests of the plugin found these differences with PGlite, which is Postgres 18.7:
@@ -404,7 +420,7 @@ A driver gives some values in a different form from the core. node-postgres give
 urn-forge does not have these parts at this time. Refer to [Scope](./scope):
 
 - Migrations, and a comparison of two schemas.
-- Code that reads and writes rows.
+- Code that reads rows. The store file writes them: refer to [The store file](#the-store-file).
 - Indexes other than the primary keys and the unique constraints.
 - Databases other than Postgres.
 - A gate of `verify` that applies the SQL to a database. Gate 4 compares only the text of the file.

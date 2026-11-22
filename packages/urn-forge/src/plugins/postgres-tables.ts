@@ -42,6 +42,40 @@ export interface TableHooks {
   readonly unenforced: (urn: Urn, what: string) => void;
 }
 
+/** One column that a store statement writes, and the property of the entity that gives its value. */
+export interface StoreColumn {
+  readonly column: string;
+  readonly property: string;
+}
+
+/**
+ * A table as the store statements see it (store plan, decision 2). It is built in the same pass
+ * that writes the CREATE statements, column by column, so the two cannot differ.
+ */
+export interface StoreTable {
+  readonly schema: string;
+  readonly name: string;
+  /** The key columns, in order. For a root, the key property; for a child, the parent's key columns and `position` for a list. */
+  readonly key: readonly string[];
+  /** The columns that come from the properties of one value. For a list of values, the one column of the value, with the property `''`. */
+  readonly columns: readonly StoreColumn[];
+  readonly children: readonly StoreChild[];
+}
+
+/** A child table: the property of the parent that it holds, and whether it is a list. */
+export interface StoreChild extends StoreTable {
+  readonly property: string;
+  readonly many: boolean;
+}
+
+/** A root table: the entity that it stores, and the property that holds its key. */
+export interface StoreRoot extends StoreTable {
+  readonly entity: Urn;
+  readonly keyProperty: string;
+}
+
+type Mutable<T> = { -readonly [K in keyof T]: T[K] extends readonly (infer U)[] ? U[] : T[K] };
+
 const qualified = (table: { readonly schema: string; readonly name: string }) => `${ident(table.schema)}.${ident(table.name)}`;
 const columnList = (columns: readonly Column[]) => columns.map((c) => ident(c.name)).join(', ');
 
@@ -59,7 +93,8 @@ function countText(min: number, max: number | undefined): string {
   return `between ${min} and ${max}`;
 }
 
-export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHooks): string[] {
+export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHooks): { readonly lines: string[]; readonly store: readonly StoreRoot[] } {
+  const store: StoreRoot[] = [];
   const tables: string[] = [];
   const links: string[] = [];
   const counts: string[] = [];
@@ -120,16 +155,17 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
   };
 
   /** The column of one single-valued property in `table`: a field's value, or a link. */
-  const property = (table: Table, entity: Urn, ref: IRPropertyRef, columns: string[], comments: string[]) => {
+  const property = (table: Table, entity: Urn, ref: IRPropertyRef, columns: string[], comments: string[], node: Mutable<StoreTable>) => {
     if ('entity' in ref) return;
     const field = 'field' in ref ? ref.field : ir.entities[ref.link]!.key!;
     columns.push(`${ident(ref.name)} ${domainType(field)}${ref.required ? ' NOT NULL' : ''}`);
+    node.columns.push({ column: ref.name, property: ref.name });
     comments.push(`COMMENT ON COLUMN ${qualified(table)}.${ident(ref.name)} IS ${literal('field' in ref ? field : `${ref.link} (a link: the value of its key)`)};`);
     if ('link' in ref) link(table, ref.name, ref.link, entity);
   };
 
   /** A table for an entity: a root table, or a child table that holds one embedded entity per row. */
-  const entityTable = (table: Table, entity: Urn, before: readonly string[], keyLines: readonly string[], comment: string) => {
+  const entityTable = (table: Table, entity: Urn, before: readonly string[], keyLines: readonly string[], comment: string, node: Mutable<StoreTable>) => {
     const columns: string[] = [...before];
     // A property cannot have the name of a column that the plugin adds: a parent key column or position.
     for (const ref of ir.entities[entity]!.fields) {
@@ -140,8 +176,8 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
     const comments: string[] = [`COMMENT ON TABLE ${qualified(table)} IS ${literal(comment)};`];
     const children: (() => void)[] = [];
     for (const ref of ir.entities[entity]!.fields) {
-      if ('entity' in ref || ref.many !== undefined) children.push(() => child(table, entity, ref));
-      else property(table, entity, ref, columns, comments);
+      if ('entity' in ref || ref.many !== undefined) children.push(() => child(table, entity, ref, node));
+      else property(table, entity, ref, columns, comments, node);
     }
     const checks = invariants(table, entity);
     tables.push('', `CREATE TABLE ${qualified(table)} (`, [...columns, ...keyLines, ...checks.lines].map((l) => `  ${l}`).join(',\n'), ');', ...comments, ...checks.comments);
@@ -149,7 +185,7 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
   };
 
   /** A child table for a list, or for an embedded entity. */
-  const child = (parent: Table, owner: Urn, ref: IRPropertyRef) => {
+  const child = (parent: Table, owner: Urn, ref: IRPropertyRef, parentNode: Mutable<StoreTable>) => {
     const name = `${parent.name}__${ref.name}`;
     claim(parent.schema, name, owner, 'child table');
     // The parent's key columns; a parent's own position is named after its property.
@@ -158,6 +194,8 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
     const key: Column[] = [...parentColumns, ...(many ? [{ name: 'position', type: 'INTEGER' }] : [])];
     const table: Table = { schema: parent.schema, name, key, property: ref.name, owner };
     for (const c of key) hooks.checkName(c.name, owner, 'column');
+    const node: Mutable<StoreChild> = { schema: parent.schema, name, key: key.map((c) => c.name), columns: [], children: [], property: ref.name, many: many !== undefined };
+    parentNode.children.push(node);
 
     const before = key.map((c) => `${ident(c.name)} ${c.type} NOT NULL${c.name === 'position' && many ? ' CHECK ("position" >= 0)' : ''}`);
     const keyLines = [
@@ -175,7 +213,7 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
         claim(parent.schema, `${name}_${keyName}_key`, owner, 'unique constraint');
         keyLines.push(`CONSTRAINT ${ident(`${name}_${keyName}_key`)} UNIQUE (${columnList([...parentColumns, { name: keyName, type: '' }])})`);
       }
-      entityTable(table, ref.entity, before, keyLines, comment);
+      entityTable(table, ref.entity, before, keyLines, comment, node);
     } else {
       // A list of values: one value per row, in a column named after the property.
       const field = 'field' in ref ? ref.field : ir.entities[ref.link]!.key!;
@@ -186,6 +224,7 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
       }
       if (key.some((c) => c.name === ref.name)) hooks.nameTaken(`${name}.${ref.name}`, owner, 'column', owner);
       const columns = [...before, `${ident(ref.name)} ${domainType(field)} NOT NULL`];
+      node.columns.push({ column: ref.name, property: '' });
       tables.push('', `CREATE TABLE ${qualified(table)} (`, [...columns, ...keyLines].map((l) => `  ${l}`).join(',\n'), ');', `COMMENT ON TABLE ${qualified(table)} IS ${literal(comment)};`);
       if ('link' in ref) link(table, ref.name, ref.link, owner);
     }
@@ -244,9 +283,11 @@ export function tablesSql(ir: UniversalIR, roots: readonly Urn[], hooks: TableHo
     const table: Table = { schema: context, name: identifier, key: [key] };
     claim(context, `${identifier}_pkey`, root, 'primary key');
     const node = ir.entities[root]!;
-    entityTable(table, root, [], [`CONSTRAINT ${ident(`${identifier}_pkey`)} PRIMARY KEY (${ident(key.name)})`], describe(root, node.description, node));
+    const storeNode: Mutable<StoreRoot> = { schema: context, name: identifier, key: [key.name], columns: [], children: [], entity: root, keyProperty: key.name };
+    store.push(storeNode);
+    entityTable(table, root, [], [`CONSTRAINT ${ident(`${identifier}_pkey`)} PRIMARY KEY (${ident(key.name)})`], describe(root, node.description, node), storeNode);
   }
 
-  return [...tables, ...(links.length > 0 ? ['', ...links] : []), ...counts];
+  return { lines: [...tables, ...(links.length > 0 ? ['', ...links] : []), ...counts], store };
 }
 

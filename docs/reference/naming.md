@@ -98,6 +98,7 @@ In an entity, an event or an error, each field reference makes one property. The
 | `operation` | `domain.runtime.generated.ts` | The handler type | `<Brand>Handler` | `OrderPriceLineHandler` |
 | `invariant` | `domain.schemas.generated.ts` | The rule function | `<Brand>Rule` | `PolicyTermIsPositiveRule` for `policy.invariant.term_is_positive` |
 | `entity` with invariants | `domain.schemas.generated.ts` | The object without the checks. Not exported | `<Brand>Fields` | `PolicyPolicyFields` for `policy.entity.policy` |
+| `entity` in the `tables` of the `postgres` plugin | `domain.store.generated.ts` | The statements that store a value | `insert<Brand>`, `replace<Brand>`, `delete<Brand>` | `insertPolicyPolicy` for `policy.entity.policy` |
 
 `<Brand>` is the brand identifier. The functions `schemaNames`, `handlerName` and `ruleName` of the [package API](./public-api) give these names. An operation has no schema of its own. The runtime file imports the schemas file as the namespace `s`. Thus a handler name cannot be the same as a schema export. The runtime file also has fixed exports, for example `Result`, `emit`, `DispatchMap` and `executeOperation`. For the event `policy.event.policy_issued`, the exports are `PolicyPolicyIssuedSchema`, `PolicyPolicyIssued` and `PolicyPolicyIssuedInput`. Refer to [The generated runtime](./generated-runtime).
 

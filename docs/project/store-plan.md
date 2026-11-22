@@ -59,20 +59,26 @@ Step 0 writes `tests/store.test.ts` with the cases of decision 12, against a han
 
 One PR (decision 13), one commit per step. Each step leaves the repository green and ends with a check.
 
-- [ ] **0. The target.** As above. *Check:* the test fails on the missing column.
-- [ ] **1. The table model.** The plugin builds the model, and writes the `CREATE` statements from it. *Check:* `schema.generated.sql` of each domain and fixture does not change, byte for byte.
-- [ ] **2. The store file.** `insert`, `replace` and `delete` from the model, and the `Statement` type. *Check:* the target passes on PGlite; for each table of each fixture, the insert names each column of the `CREATE` statement (a test that reads both from the model); `tsc` refuses an object that is not the entity type.
-- [ ] **3. Ship.** Insurance's store file, the docs and the notes. *Check:* CI green; every sabotage below fails.
+- [x] **0. The target.** As above. *Check:* the test fails on the missing column.
+  - *Done.* The check was met: the hand-written insert stored `agent_code` as `null`. The target went in with step 2. The hand-written insert stays in the test, to show that the test can fail. The same fault was in the docs: the `savePolicy` of Store entities in Postgres left out the `remark` column of the coverages.
+- [x] **1. The table model.** The plugin builds the model, and writes the `CREATE` statements from it. *Check:* `schema.generated.sql` of each domain and fixture does not change, byte for byte.
+  - *Done.* The check was met. `tablesSql` builds the model in the same pass that writes each column, and returns it with the SQL. `tests/store-model.test.ts` compares the columns of each table in the model with the columns of its `CREATE TABLE`.
+- [x] **2. The store file.** `insert`, `replace` and `delete` from the model, and the `Statement` type. *Check:* the target passes on PGlite; for each table of each fixture, the insert names each column of the `CREATE` statement (a test that reads both from the model); `tsc` refuses an object that is not the entity type.
+  - *Done.* The check was met. The file has a fixed runtime and a literal of each table of the model, so the functions are small. Two findings: the names use the brand identifier of the entity, `insertPolicyPolicy` (decision 9), not `insertPolicy` as the example above shows; and the plugin now requires `valibot`, because the file imports the types of its schemas, so a config with `postgres` alone gets `missing-plugin`. The version of the plugin is `0.2.0`, which changes the fingerprints of the domains that use it.
+- [x] **3. Ship.** Insurance's store file, the docs and the notes. *Check:* CI green; every sabotage below fails.
+  - *Done.* Store entities in Postgres writes with the store functions, with the statements of a real run; the Postgres schema reference has the section The store file; Naming, the configuration, and Call an operation from the shell tell of it. Each quoted output of `compile` and of gate 4 for insurance has the fourth file.
 
 ## Done
 
 | Sabotage | What catches it | Result |
 | --- | --- | --- |
-| An optional property added to a stored entity, and the shell stores with `insertPolicy` | The new column has the value (the target) | |
-| `insertPolicy` of an object that is not a parsed `PolicyPolicy` | `tsc` | |
-| A hand edit of `domain.store.generated.ts` | Gate 4, `generated-differs` | |
-| `replacePolicy` with one coverage fewer | The old coverage row is gone | |
-| The statements run without a transaction, for a policy with no coverage | Postgres refuses the count at the end of the statement | |
+| An optional property added to a stored entity, and the shell stores with `insertPolicy` | The new column has the value (the target) | Met: `agent_code` is `AB12`; with the hand-written insert, `null` |
+| `insertPolicy` of an object that is not a parsed `PolicyPolicy` | `tsc` | Caught: an `@ts-expect-error` that `tsc` checks, also for a plain string as the key of `deletePolicyPolicy` |
+| A hand edit of `domain.store.generated.ts` | Gate 4, `generated-differs` | Caught: `domain.store.generated.ts:116:1  error  generated-differs` |
+| `replacePolicy` with one coverage fewer | The old coverage row is gone | Met |
+| The statements run without a transaction, for a policy with no coverage | Postgres refuses the count at the end of the statement | Caught: `"coverages" has 0 item(s); it must have between 1 and 3` |
+
+**Met.**
 
 ## Risks
 

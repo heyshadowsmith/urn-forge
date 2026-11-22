@@ -178,10 +178,12 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'missing-plugin': () => compile(math, [{ plugin: PLUGINS.fcis, config: {} }]).diagnostics,
   'unenforced-in-sql': () =>
     compile(`${HEADER}a.field.site: { primitive: string, format: uri }\na.entity.e:\n  description: d\n  key: a.field.site\n  fields:\n    - ref: a.field.site\n`, [
+      { plugin: PLUGINS.valibot, config: {} },
       { plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } },
     ]).diagnostics,
   'invalid-sql-name': () =>
     compile(`${HEADER}a.field.${'x'.repeat(60)}: { primitive: string }\na.entity.e:\n  description: d\n  key: a.field.${'x'.repeat(60)}\n  fields:\n    - ref: a.field.${'x'.repeat(60)}\n`, [
+      { plugin: PLUGINS.valibot, config: {} },
       { plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } },
     ]).diagnostics,
   // urn-forge diff

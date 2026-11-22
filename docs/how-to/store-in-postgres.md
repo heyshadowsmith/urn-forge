@@ -1,6 +1,6 @@
 # Store entities in Postgres
 
-The `postgres` plugin writes `schema.generated.sql`: `CREATE` statements for Postgres 14 or later. Each field becomes a domain, each configured entity becomes a table, and each invariant becomes a named `CHECK`. This guide enables the plugin, applies the SQL, writes rows from the shell, and maps a Postgres error back to a URN.
+The `postgres` plugin writes `schema.generated.sql`: `CREATE` statements for Postgres 14 or later. Each field becomes a domain, each configured entity becomes a table, and each invariant becomes a named `CHECK`. It also writes `domain.store.generated.ts`: the statements that store each table entity. This guide enables the plugin, applies the SQL, writes rows from the shell, and maps a Postgres error back to a URN.
 
 The examples come from [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/), which CI tests. The customer and the policy are tables. The coverages of a policy are a child table.
 
@@ -18,7 +18,7 @@ Add `postgres` to `plugins` in `urn-forge.config.ts`. List the short key of each
 
 <<< @/../packages/urn-forge/insurance/urn-forge.config.ts{13}
 
-- Keep `valibot` and `fcis` in the list. A `plugins` list replaces the default list.
+- Keep `valibot` and `fcis` in the list. A `plugins` list replaces the default list. The `postgres` plugin needs `valibot`: the store file uses the types of its schemas.
 - Do not list an embedded entity. The plugin makes a child table for each list or embedded entity of a table.
 - `unenforced` is `'warn'` by default. Step 4 tells you when to set it to `'error'`.
 
@@ -57,13 +57,14 @@ The first compile with the plugin writes the new file:
 insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
 wrote      insurance/generated/domain.runtime.generated.ts
 wrote      insurance/generated/domain.schemas.generated.ts
+wrote      insurance/generated/domain.store.generated.ts
 wrote      insurance/generated/schema.generated.sql
-fingerprint sha256:04b8be134285c63b71d20830b972a6ce13674939834448d2ee98a85c4d3f6764
+fingerprint sha256:cdd7f3a5a0f84f5f5d6d2f874a7e15be48b16ddf85506fbf72fc053a65322dd2
 ```
 
 The `deprecated-ref` warning is about the retired field `note`. Refer to [Retire a URN](retire-a-urn).
 
-Commit `schema.generated.sql` with the other generated files. Gate 4 of `verify` compares it with a fresh compile, as it does for the TypeScript files.
+Commit `schema.generated.sql` and `domain.store.generated.ts` with the other generated files. Gate 4 of `verify` compares it with a fresh compile, as it does for the TypeScript files.
 
 The file of the insurance domain:
 
@@ -130,44 +131,58 @@ Do not apply a new `schema.generated.sql` to a database that has the old one. Th
 
 The shell writes rows after `executeOperation` returns `ok: true`. Then the values are parsed and branded, so they agree with the domains of the SQL.
 
-A count of a list, such as `minItems: 1` and `maxItems: 3` for `coverages`, is a deferred trigger. Postgres checks it at `COMMIT`. Thus, write the parent and all its items in one transaction:
+Do not write the `INSERT` statements by hand. The plugin writes them in `domain.store.generated.ts`, from the same tables as the SQL. For each table entity, it has three functions:
+
+| Function | Statements |
+| --- | --- |
+| `insertPolicyPolicy(policy)` | One `INSERT` for the row of the policy, then one for each row of its child tables |
+| `replacePolicyPolicy(policy)` | A `DELETE` of the policy and its child rows, then the `INSERT` statements |
+| `deletePolicyPolicy(policyId)` | One `DELETE` of the policy. Its child rows go with it (`ON DELETE CASCADE`) |
+
+The name has the brand identifier of the entity. Each function returns statements, `{ text, values }`, and runs nothing. Each function takes the parsed entity type, so `tsc` refuses an object that `executeOperation` did not give.
+
+A count of a list, such as `minItems: 1` and `maxItems: 3` for `coverages`, is a deferred trigger. Postgres checks it at `COMMIT`. Thus, run the statements of one value in one transaction:
 
 ```ts
 import type { PolicyPolicy } from './generated/domain.schemas.generated';
+import { insertPolicyPolicy, type Statement } from './generated/domain.store.generated';
 
 /** The part of a database client that the shell uses. A node-postgres client and PGlite both have it. */
 interface Sql {
   query(text: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
 }
 
-/** Writes a policy and its coverages in one transaction. The count trigger runs at COMMIT. */
-export async function savePolicy(db: Sql, policy: PolicyPolicy): Promise<void> {
+/** Runs statements in one transaction. The count triggers run at COMMIT. */
+export async function run(db: Sql, statements: readonly Statement[]): Promise<void> {
   await db.query('BEGIN');
   try {
-    await db.query(
-      'INSERT INTO "policy"."policy" ("policy_id", "holder", "effective_date", "expiry_date", "premium", "deductible") VALUES ($1, $2, $3, $4, $5, $6)',
-      [policy.policy_id, policy.holder, policy.effective_date, policy.expiry_date, policy.premium, policy.deductible ?? null],
-    );
-    for (const [position, coverage] of policy.coverages.entries()) {
-      await db.query(
-        'INSERT INTO "policy"."policy__coverages" ("policy_id", "position", "peril", "limit", "note") VALUES ($1, $2, $3, $4, $5)',
-        [policy.policy_id, position, coverage.peril, coverage.limit, coverage.note ?? null],
-      );
-    }
+    for (const { text, values } of statements) await db.query(text, [...values]);
     await db.query('COMMIT');
   } catch (error) {
     await db.query('ROLLBACK');
     throw error;
   }
 }
+
+export function savePolicy(db: Sql, policy: PolicyPolicy): Promise<void> {
+  return run(db, insertPolicyPolicy(policy));
+}
 ```
 
-- Give each item its index in the list as `position`. A read then gets the items in the same sequence.
-- Send an absent optional value as `null`.
-- Quote each name. `limit` is a column of the coverages, and it is also a reserved word of SQL.
-- With node-postgres, get one client with `pool.connect()` for the transaction. A pool can send each query on a different connection.
+For the output of `issue_policy` with two coverages, `insertPolicyPolicy` gives these statements:
 
-This code ran with PGlite, on the output of `issue_policy`. The tests in [`packages/urn-forge/tests/postgres-insurance.test.ts`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tests/postgres-insurance.test.ts) write a policy in the same way.
+```
+INSERT INTO "policy"."policy" ("policy_id", "holder", "effective_date", "expiry_date", "premium", "deductible") VALUES ($1, $2, $3, $4, $5, $6)  ["123e4567-e89b-12d3-a456-426614174000","9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d","2026-01-01","2026-12-31","120.00",null]
+INSERT INTO "policy"."policy__coverages" ("policy_id", "position", "peril", "limit", "note", "remark") VALUES ($1, $2, $3, $4, $5, $6)  ["123e4567-e89b-12d3-a456-426614174000",0,"fire","1000.00",null,null]
+INSERT INTO "policy"."policy__coverages" ("policy_id", "position", "peril", "limit", "note", "remark") VALUES ($1, $2, $3, $4, $5, $6)  ["123e4567-e89b-12d3-a456-426614174000",1,"flood","500.00",null,"Basement excluded"]
+```
+
+- Each column of each table is in its `INSERT`. When a new property comes into the manifest, the next compile adds its column to the SQL and to the statements. A hand-written `INSERT` would not get it, and no gate finds that.
+- Each item of a list gets its index as `position`, and an absent optional value is `NULL`.
+- With node-postgres, get one client with `pool.connect()` for the transaction. A pool can send each query on a different connection.
+- Without a transaction, Postgres checks the count at the end of each statement. Then the first `INSERT` of a policy fails, because the policy has no coverage yet.
+
+This code ran with PGlite, on the output of `issue_policy`. [`packages/urn-forge/tests/store.test.ts`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tests/store.test.ts) also replaces a policy with fewer coverages and deletes it.
 
 ## 7. Convert the values that the driver reads
 
