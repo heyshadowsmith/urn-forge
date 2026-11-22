@@ -1,0 +1,122 @@
+[
+  {
+    "code": "invalid-condition",
+    "location": {
+      "column": 18,
+      "line": 85
+    },
+    "message": "urn:demo:conditions:order:operation:bad_fill: requires.0.otherwise: fill: \"count\" is not a property of urn:demo:conditions:order:error:too_many (properties: quantity)",
+    "severity": "error",
+    "urn": "urn:demo:conditions:order:operation:bad_fill"
+  },
+  {
+    "code": "invalid-condition",
+    "location": {
+      "column": 18,
+      "line": 85
+    },
+    "message": "urn:demo:conditions:order:operation:bad_fill: requires.0.otherwise: fill.quantity: \"input.amount\" is not a value of the request or the record (values: input.quantity, input.note)",
+    "severity": "error",
+    "urn": "urn:demo:conditions:order:operation:bad_fill"
+  },
+  {
+    "code": "invalid-condition",
+    "location": {
+      "column": 18,
+      "line": 88
+    },
+    "message": "urn:demo:conditions:order:operation:bad_fill: requires.1.otherwise: fill.reason: \"input.quantity\" is integer, but reason is string",
+    "severity": "error",
+    "urn": "urn:demo:conditions:order:operation:bad_fill"
+  },
+  {
+    "code": "rule-syntax",
+    "location": {
+      "column": 13,
+      "line": 67
+    },
+    "message": "urn:demo:conditions:order:operation:bad_syntax: ensures.0: expected a field, a literal or \"(\", found the end of the rule (at column 18 of the rule)",
+    "severity": "error",
+    "urn": "urn:demo:conditions:order:operation:bad_syntax"
+  },
+  {
+    "code": "invalid-condition",
+    "location": {
+      "column": 22,
+      "line": 48
+    },
+    "message": "urn:demo:conditions:order:operation:current_without_changes: requires.0.rule: \"current.quantity\" reads the record that the operation changes, but the operation has no changes",
+    "severity": "error",
+    "urn": "urn:demo:conditions:order:operation:current_without_changes"
+  },
+  {
+    "code": "invalid-condition",
+    "location": {
+      "column": 22,
+      "line": 42
+    },
+    "message": "urn:demo:conditions:order:operation:no_prefix: requires.0.rule: \"quantity\" has no prefix; write input.quantity, current.quantity or output.quantity",
+    "severity": "error",
+    "urn": "urn:demo:conditions:order:operation:no_prefix"
+  },
+  {
+    "code": "invalid-condition",
+    "location": {
+      "column": 22,
+      "line": 54
+    },
+    "message": "urn:demo:conditions:order:operation:output_in_requires: requires.0.rule: \"output.quantity\" reads the answer, which a requires rule runs before; use it in ensures",
+    "severity": "error",
+    "urn": "urn:demo:conditions:order:operation:output_in_requires"
+  },
+  {
+    "code": "invalid-condition",
+    "location": {
+      "column": 54,
+      "line": 72
+    },
+    "message": "urn:demo:conditions:order:operation:undeclared_otherwise: requires.0.otherwise: urn:demo:conditions:order:error:too_many is not one of the errors of the operation; add it to errors",
+    "severity": "error",
+    "urn": "urn:demo:conditions:order:operation:undeclared_otherwise"
+  },
+  {
+    "code": "invalid-condition",
+    "location": {
+      "column": 54,
+      "line": 77
+    },
+    "message": "urn:demo:conditions:order:operation:unfilled_otherwise: requires.0.otherwise: urn:demo:conditions:order:error:needs_reason needs reason, which neither the input nor the record has; give it with fill",
+    "severity": "error",
+    "urn": "urn:demo:conditions:order:operation:unfilled_otherwise"
+  },
+  {
+    "code": "rule-type",
+    "location": {
+      "column": 22,
+      "line": 60
+    },
+    "message": "urn:demo:conditions:order:operation:wrong_type: requires.0.rule: 'ten' is not an integer, so it cannot meet an integer in \"<\" (at column 1 of the rule)",
+    "severity": "error",
+    "urn": "urn:demo:conditions:order:operation:wrong_type"
+  },
+  {
+    "code": "unguarded-field",
+    "location": {
+      "column": 13,
+      "line": 61
+    },
+    "message": "urn:demo:conditions:order:operation:wrong_type: ensures.0: \"output.note\" is optional, so the rule must guard it: write \"output.note is present and …\" or \"output.note is absent or …\" (at column 1 of the rule)",
+    "severity": "error",
+    "urn": "urn:demo:conditions:order:operation:wrong_type"
+  },
+  {
+    "code": "unguarded-field",
+    "location": {
+      "column": 13,
+      "line": 61
+    },
+    "message": "urn:demo:conditions:order:operation:wrong_type: ensures.0: \"input.note\" is optional, so the rule must guard it: write \"input.note is present and …\" or \"input.note is absent or …\" (at column 15 of the rule)",
+    "severity": "error",
+    "urn": "urn:demo:conditions:order:operation:wrong_type"
+  }
+]

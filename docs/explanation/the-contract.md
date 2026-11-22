@@ -30,8 +30,8 @@ urn-forge makes sure that the business logic stays inside the contract. The core
 | --- | --- | --- |
 | Names | Each concept has one name, and the name always has one meaning | Short keys and URNs |
 | Valid values | These values, and only these, are valid; a record moves only between these states | Fields and their constraints, entities, invariants on one entity, `moves` on a state field |
-| Operations | These operations exist, each takes this input, and each changes a record only from these states | `operation` with `input` and `changes` |
-| Answers | An operation answers only with its output, its declared errors and its events | `output`, `errors`, `emits` |
+| Operations | These operations exist, each takes this input, and each changes a record only from these states and when these rules hold | `operation` with `input`, `changes` and `requires` |
+| Answers | An operation answers only with its output, its declared errors and its events, and its answer keeps these rules | `output`, `errors`, `emits`, `ensures` |
 | Change | A change keeps the promises that each party relies on | `status`, `stability` and `urn-forge diff` |
 
 The six kinds of the manifest map to these parts. A `field` and an `entity` give valid values, and an `invariant` gives a rule across the fields of one entity. An `operation` names an input and its answers, and with `changes`, the states of the record from which it can run. An `error` is a refusal that a caller can expect, and an `event` is a fact that a success tells. For the keys, refer to [The manifest](../reference/manifest).
@@ -78,13 +78,13 @@ Some promises are contract by the two questions above, but a manifest cannot sta
 
 **What to do:** put the rule in the core, with a declared error. Then add the scenarios at the edges yourself, for example 90 days and 91 days. Gate 3 asks for a scenario that expects the error, but it does not know the edges of a rule in the core.
 
-### Rules between the request and the answer
+### Rules between the lists of the request and the answer
 
-**The promise:** "The refund is never more than the premium."
+**The promise:** "The answer has one line for each line of the request, with the same SKU."
 
-**Why:** an invariant is on one entity. `executeOperation` examines the output of an operation against its own entity, not against the input.
+**Why:** a condition names one value of the request, the record or the answer, with `requires` and `ensures`. It cannot pair the items of two lists. A rule between single values is a condition: refer to [Declare preconditions and postconditions](../how-to/declare-conditions).
 
-**What to do:** the core keeps the rule. Show it with scenarios: an output table with the values at the edge, for example a cancellation on the first day of the term.
+**What to do:** the core keeps the rule. Show it with scenarios: an output table with the lines at the edge, for example one line and the most lines.
 
 ### Either-or shapes
 

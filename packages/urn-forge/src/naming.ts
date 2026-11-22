@@ -41,6 +41,11 @@ export function ruleName(brandIdentifier: string): string {
   return `${brandIdentifier}Rule`;
 }
 
+/** The exported function of a condition of an operation: `<Brand>Requires<n>` or `<Brand>Ensures<n>`, from 1. */
+export function conditionName(brandIdentifier: string, kind: 'requires' | 'ensures', index: number): string {
+  return `${brandIdentifier}${kind === 'requires' ? 'Requires' : 'Ensures'}${index + 1}`;
+}
+
 /** The handler type of an operation: `<Brand>Handler`. */
 export function handlerName(brandIdentifier: string): string {
   return `${brandIdentifier}Handler`;

@@ -55,6 +55,7 @@ export const DIAGNOSTIC_CODES = {
   // States and moves
   'invalid-moves': 'The moves of an enum field name a state that is not one of its values, or a move more than once',
   'invalid-changes': 'The changes of an operation do not fit its entity, the moves of its state field, or its declared errors',
+  'invalid-condition': 'A requires or ensures rule names a value that it cannot read, or the otherwise error of a requires rule is not declared or cannot be filled',
   // Pass 8: lifecycle
   'deprecated-ref': 'An active atom refers to a deprecated atom (a warning)',
   'sunset-ref': 'An atom refers to a sunset atom, or to an atom whose sunset date is on or before the reference date',

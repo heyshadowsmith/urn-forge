@@ -30,11 +30,6 @@ function notAllowed({ actor_id }: Request) {
   return actor_id === STRANGER ? fail('urn:corpus:claims:claim:error:forbidden', { actor_id }) : undefined;
 }
 
-/** The refusal of a request that was made on an older version of the claim, if any. */
-function changed({ claim_id, version }: Request, current: Stored) {
-  return version !== current.version ? fail('urn:corpus:claims:claim:error:version_conflict', { claim_id, version }) : undefined;
-}
-
 function duplicate(lines: readonly Line[]) {
   const known = lines.find((line) => line.receipt?.sha256 === KNOWN_RECEIPT);
   return known?.receipt ? fail('urn:corpus:claims:claim:error:duplicate_receipt', { sha256: known.receipt.sha256 }) : undefined;
@@ -59,28 +54,27 @@ export const core = {
 
   'urn:corpus:claims:claim:operation:edit_draft': (input, current) =>
     notOwner(input, current) ??
-    changed(input, current) ??
     duplicate(input.lines) ??
     ok({ claim_id: current.claim_id, state: 'DRAFT', total: total(input.lines), currency: input.currency, version: current.version + 1 }),
 
   'urn:corpus:claims:claim:operation:submit_claim': (input, current) =>
-    notOwner(input, current) ?? changed(input, current) ??
+    notOwner(input, current) ??
     ((m) => ok(m.answer, [emit('urn:corpus:claims:claim:event:claim_submitted', m.fields)]))(move('SUBMITTED', input, current)),
 
   'urn:corpus:claims:claim:operation:withdraw_claim': (input, current) =>
-    notOwner(input, current) ?? changed(input, current) ??
+    notOwner(input, current) ??
     ((m) => ok(m.answer, [emit('urn:corpus:claims:claim:event:claim_withdrawn', m.fields)]))(move('WITHDRAWN', input, current)),
 
   'urn:corpus:claims:claim:operation:approve_claim': (input, current) =>
-    notAllowed(input) ?? changed(input, current) ??
+    notAllowed(input) ??
     ((m) => ok(m.answer, [emit('urn:corpus:claims:claim:event:claim_approved', m.fields)]))(move('APPROVED', input, current)),
 
   'urn:corpus:claims:claim:operation:mark_paid': (input, current) =>
-    notAllowed(input) ?? changed(input, current) ??
+    notAllowed(input) ??
     ((m) => ok(m.answer, [emit('urn:corpus:claims:claim:event:claim_paid', m.fields)]))(move('PAID', input, current)),
 
   'urn:corpus:claims:claim:operation:reject_claim': (input, current) => {
-    const refused = notAllowed(input) ?? changed(input, current);
+    const refused = notAllowed(input);
     if (refused) return refused;
     const { answer, fields } = move('REJECTED', input, current);
     const { reason } = input;

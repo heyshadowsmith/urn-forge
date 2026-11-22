@@ -79,7 +79,8 @@ function tokenize(source: string): Token[] {
       i += 1;
       continue;
     }
-    const name = /^[a-z][a-z0-9_]*/u.exec(source.slice(i));
+    // A name, or a prefix and a name: `input.party_size` in a condition of an operation.
+    const name = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?/u.exec(source.slice(i));
     if (name) {
       tokens.push({ kind: 'name', text: name[0], at });
       i += name[0].length;
@@ -332,7 +333,8 @@ function provesAbsentIfFalse(expr: LocatedExpr): string[] {
  * Pass 6 for one rule: fields exist, both sides of each operator have one primitive, literals
  * fit that primitive, and each optional field is guarded. Returns every problem it finds.
  */
-export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, RuleField>>): RuleProblem[] {
+/** `owner` names what the fields belong to in a message: the entity of an invariant, or the values of a condition. */
+export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, RuleField>>, owner = 'the entity'): RuleProblem[] {
   const problems: RuleProblem[] = [];
   const problem = (code: RuleProblem['code'], at: number, message: string) => problems.push({ code, message, column: at });
 
@@ -440,7 +442,7 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
       case 'field': {
         const field = Object.hasOwn(fields, e.name) ? fields[e.name] : undefined;
         if (!field) {
-          problem('unknown-rule-field', e.at, `"${e.name}" is not a field of the entity (fields: ${Object.keys(fields).join(', ')})`);
+          problem('unknown-rule-field', e.at, `"${e.name}" is not a field of ${owner} (fields: ${Object.keys(fields).join(', ')})`);
           return undefined;
         }
         if (field.many || field.embedded) {
@@ -466,7 +468,7 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
       case 'absent': {
         const field = Object.hasOwn(fields, e.field) ? fields[e.field] : undefined;
         if (!field) {
-          problem('unknown-rule-field', e.at, `"${e.field}" is not a field of the entity (fields: ${Object.keys(fields).join(', ')})`);
+          problem('unknown-rule-field', e.at, `"${e.field}" is not a field of ${owner} (fields: ${Object.keys(fields).join(', ')})`);
         } else if (field.required) {
           problem('rule-type', e.at, `"${e.field}" is required, so "${e.field} is ${e.op}" is always ${e.op === 'present'}`);
         }

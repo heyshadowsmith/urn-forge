@@ -56,23 +56,22 @@ promises:
     promise: "PAID and WITHDRAWN are final states, and once a claim leaves DRAFT its lines and amounts cannot be changed."
     status: not-declarable
     hole: C3
-  # The answer has its values, and its claim id and state are checked against the claim and its move, but not that its version is 1 higher than the version sent.
+  # A create request sends no version; its answer has version 1.
   P12:
     promise: "A successful request answers with the claim id, its new state, its total and currency, and its new version number, which is 1 higher than the version sent."
-    status: workaround
-    by: [claim.entity.answer, claim.entity.rejection_answer]
-    hole: A2
+    status: declared
+    by: [claim.entity.answer, claim.entity.rejection_answer, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid]
   # INVALID_REQUEST is the rejection of the input, not a declared error; the codes as names on the wire, and that a refusal changes nothing, are not stated.
   P13:
     promise: "A refused request answers with exactly one of the codes INVALID_REQUEST, NOT_FOUND, FORBIDDEN, INVALID_STATE, VERSION_CONFLICT or DUPLICATE_RECEIPT, plus a human-readable message, and changes nothing."
     status: workaround
     by: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
     hole: A2
-  # The answer and the event have a reason, but not that it is the reason of the request.
+  # The answer carries the reason of the request (an ensures rule of reject_claim); that the event carries it is not stated, since a rule cannot name an emitted event.
   P14:
     promise: "A rejection must include a reason of 10 to 500 characters, and the answer and the published event carry that reason."
     status: workaround
-    by: [claim.field.reason, claim.entity.rejection, claim.entity.rejection_answer, claim.event.claim_rejected]
+    by: [claim.field.reason, claim.entity.rejection, claim.entity.rejection_answer, claim.event.claim_rejected, claim.operation.reject_claim]
     hole: A2
   # A claim is paid only from APPROVED and PAID is final, so it is never paid twice; the payment amount is not tied to the approved total.
   P15:

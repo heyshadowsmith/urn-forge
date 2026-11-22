@@ -7,12 +7,11 @@ promises:
     status: workaround
     by: [booking.field.reference]
     hole: C1
-  # The range 1 to 20 and the error are declared; that 13 or more gives this error lives in the core.
+  # The range 1 to 20 is on the field; create_booking requires fewer than 13 guests, otherwise PARTY_TOO_LARGE_FOR_ONLINE.
   P02:
     promise: "A party size is a whole number from 1 to 20, and requests for 13 or more guests are refused with PARTY_TOO_LARGE_FOR_ONLINE so they can be handled by phone."
-    status: workaround
-    by: [booking.field.party_size, booking.error.party_too_large_for_online]
-    hole: A2
+    status: declared
+    by: [booking.field.party_size, booking.error.party_too_large_for_online, booking.operation.create_booking]
   # The 15-minute boundary and the time zone in each answer are declared; that the time is in the restaurant's zone, and that the name is a real IANA zone, are not.
   P03:
     promise: "A booking time is given as a local date and time on a 15-minute boundary (minutes 00, 15, 30 or 45) in the restaurant's IANA time zone, and every answer carries that time zone name alongside the time."
@@ -39,12 +38,11 @@ promises:
     status: workaround
     by: [booking.error.outside_booking_window]
     hole: E2
-  # The token and the error are declared; that 7 or more guests with no token gives this error lives in the core (an invariant could state the rule, but would answer with an input rejection, not DEPOSIT_REQUIRED).
+  # create_booking requires fewer than 7 guests or a deposit token, otherwise DEPOSIT_REQUIRED.
   P08:
     promise: "A party of 7 or more guests must include a deposit payment token in the request, otherwise the request is refused with DEPOSIT_REQUIRED."
-    status: workaround
-    by: [booking.field.deposit_token, booking.error.deposit_required]
-    hole: A2
+    status: declared
+    by: [booking.field.deposit_token, booking.error.deposit_required, booking.operation.create_booking]
   # Positive with 2 decimals is declared; the single currency of the restaurant is not, and a rule cannot multiply the per-guest amount by the party size.
   P09:
     promise: "A deposit, when taken, is in the restaurant's single published currency, is a positive amount with at most 2 decimal places, and equals the per-guest deposit amount stated in the answer times the party size."
@@ -61,7 +59,7 @@ promises:
     status: workaround
     by: [booking.error.invalid_request, booking.error.outside_booking_window, booking.error.no_availability, booking.error.deposit_required, booking.error.payment_declined, booking.error.party_too_large_for_online, booking.error.booking_not_found, booking.error.invalid_state, booking.error.change_deadline_passed, booking.error.forbidden]
     hole: C3
-  # Up to 5 alternative times are declared; that each is on the same date, within 2 hours of the requested time and for the same party size relates the answer to the request.
+  # Up to 5 alternative times are declared; that each is on the same date, within 2 hours of the requested time and for the same party size is a rule over the items of a list (A1), and in an error, which conditions do not read.
   P12:
     promise: "A NO_AVAILABILITY refusal may carry up to 5 alternative start times, each on the same date, within 2 hours of the requested time and for the same party size."
     status: workaround
@@ -77,7 +75,7 @@ promises:
     status: workaround
     by: [booking.operation.change_booking, booking.operation.cancel_booking, booking.error.change_deadline_passed, booking.error.invalid_state]
     hole: E2
-  # The refund is a declared amount; full or nothing by 24 hours before the start needs the current time, and "never more than the deposit paid" relates the answer to stored data (A2).
+  # cancel_booking ensures the refund is zero or at most the stored deposit; full or nothing by 24 hours before the start needs the current time.
   P15:
     promise: "A cancellation made 24 hours or more before the start time refunds the full deposit, a later one refunds nothing, and a refund is never more than the deposit paid."
     status: workaround

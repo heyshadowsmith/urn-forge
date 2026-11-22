@@ -10,8 +10,8 @@
  * group declarations follow URN order.
  */
 import * as v from 'valibot';
-import { invariantsOf, valueField, type IREntity, type IRError, type IREvent, type IRField, type IRPropertyRef, type ListRule, type UniversalIR, type Urn } from '../ir/types.js';
-import { ruleName, schemaNames } from '../naming.js';
+import { invariantsOf, valueField, type IREntity, type IRError, type IREvent, type IRField, type IROperation, type IRPropertyRef, type IRRule, type ListRule, type UniversalIR, type Urn } from '../ir/types.js';
+import { conditionName, ruleName, schemaNames } from '../naming.js';
 import { firstField } from '../rules/index.js';
 import { emitRule } from '../rules/emit.js';
 import {
@@ -219,6 +219,35 @@ function listSchema(item: string, rule: ListRule, key?: string): string {
 }
 
 /** The primitive of a property that a rule names: its field's, or its linked key's. */
+/**
+ * The conditions of each operation: one exported function for each rule, over the parsed input,
+ * the record of `changes` and, for ensures, the parsed output. The runtime calls them.
+ */
+function conditionDeclarations(ir: UniversalIR): string[] {
+  return valuesInUrnOrder(ir.operations).flatMap((op) => {
+    if (!op.requires && !op.ensures) return [];
+    const typeOf = (urn: Urn) => schemaNames(ir.entities[urn]!.brandIdentifier).output;
+    const values = [`input: ${typeOf(op.input)}`, ...(op.changes ? [`current: ${typeOf(op.changes.entity)}`] : [])];
+    const primitiveOf = conditionPrimitives(op, ir);
+    const declare = (rule: IRRule, kind: 'requires' | 'ensures', index: number) =>
+      [
+        `/** ${op.urn} — ${kind}: ${rule.ruleText} */`,
+        `export const ${conditionName(op.brandIdentifier, kind, index)} = (p: { ${[...values, ...(kind === 'ensures' ? [`output: ${typeOf(op.output)}`] : [])].join('; ')} }): boolean =>`,
+        `  ${emitRule(rule.rule, primitiveOf).code};`,
+      ].join('\n');
+    return [...(op.requires ?? []).map((rule, i) => declare(rule, 'requires', i)), ...(op.ensures ?? []).map((rule, i) => declare(rule, 'ensures', i))];
+  });
+}
+
+/** The primitive of each prefixed name of an operation's conditions. */
+function conditionPrimitives(op: IROperation, ir: UniversalIR) {
+  const entities: Record<string, IREntity> = { input: ir.entities[op.input]!, output: ir.entities[op.output]!, ...(op.changes ? { current: ir.entities[op.changes.entity]! } : {}) };
+  return (name: string) => {
+    const [prefix, property] = name.split('.') as [string, string];
+    return primitiveIn(entities[prefix]!, ir)(property);
+  };
+}
+
 function primitiveIn(entity: IREntity, ir: UniversalIR) {
   return (name: string) => ir.fields[valueField(ir, entity.fields.find((f) => f.name === name)!)!]!.primitive;
 }
@@ -301,6 +330,11 @@ function helpersFor(ir: UniversalIR): ValibotHelper[] {
     const primitiveOf = primitiveIn(ir.entities[invariant.on]!, ir);
     for (const helper of emitRule(invariant.rule, primitiveOf).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
   }
+  for (const op of Object.values(ir.operations)) {
+    for (const rule of [...(op.requires ?? []), ...(op.ensures ?? [])]) {
+      for (const helper of emitRule(rule.rule, conditionPrimitives(op, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
+    }
+  }
   return (Object.keys(VALIBOT_HELPERS) as ValibotHelper[]).filter((name) => needed.has(name));
 }
 
@@ -363,6 +397,7 @@ export const valibotPlugin: CodegenPlugin<ValibotPluginConfig> = {
       ...(Object.keys(ir.errors).length > 0
         ? [`// Errors`, ...valuesInUrnOrder(ir.errors).map((error) => errorDeclaration(error, ir))]
         : []),
+      ...(conditionDeclarations(ir).length > 0 ? [`// Conditions`, ...conditionDeclarations(ir)] : []),
     ];
     if (diagnostics.length > 0) return { artifacts: [], diagnostics };
     return {

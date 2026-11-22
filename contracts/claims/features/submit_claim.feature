@@ -73,13 +73,18 @@ Feature: Submit a claim
       | WITHDRAWN |
       | PAID      |
 
-  Scenario: A claim that changed since the caller read it is refused
+  Scenario Outline: A version other than the current one is refused with the version sent
     Given the current claim is:
       | claim_id       | version | employee_id | state | purpose      | currency | total  | lines                                                                                                           |
       | CLM-0000000123 | 5       | E-1001      | DRAFT | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
     When I run the operation with:
-      | claim_id       | version | actor_id |
-      | CLM-0000000123 | 4       | E-1001   |
+      | claim_id       | version   | actor_id |
+      | CLM-0000000123 | <version> | E-1001   |
     Then the operation fails with "urn:corpus:claims:claim:error:version_conflict":
-      | claim_id       | version |
-      | CLM-0000000123 | 4       |
+      | claim_id       | version   |
+      | CLM-0000000123 | <version> |
+
+    Examples: 
+      | version |
+      | 4       |
+      | 6       |

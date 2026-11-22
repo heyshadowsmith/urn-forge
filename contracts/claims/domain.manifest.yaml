@@ -302,6 +302,13 @@ claim.operation.edit_draft:
     to: DRAFT
     missing: claim.error.not_found
     otherwise: claim.error.invalid_state
+  requires:
+    - rule: input.version = current.version
+      otherwise: claim.error.version_conflict
+      fill: { version: input.version }
+  ensures:
+    - output.version = input.version + 1
+    - output.currency = input.currency
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
 claim.operation.submit_claim:
   description: Submit a draft claim for a decision
@@ -313,6 +320,14 @@ claim.operation.submit_claim:
     to: SUBMITTED
     missing: claim.error.not_found
     otherwise: claim.error.invalid_state
+  requires:
+    - rule: input.version = current.version
+      otherwise: claim.error.version_conflict
+      fill: { version: input.version }
+  ensures:
+    - output.version = input.version + 1
+    - output.total = current.total
+    - output.currency = current.currency
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits: [claim.event.claim_submitted]
 claim.operation.withdraw_claim:
@@ -325,6 +340,14 @@ claim.operation.withdraw_claim:
     to: WITHDRAWN
     missing: claim.error.not_found
     otherwise: claim.error.invalid_state
+  requires:
+    - rule: input.version = current.version
+      otherwise: claim.error.version_conflict
+      fill: { version: input.version }
+  ensures:
+    - output.version = input.version + 1
+    - output.total = current.total
+    - output.currency = current.currency
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits: [claim.event.claim_withdrawn]
 claim.operation.approve_claim:
@@ -337,6 +360,14 @@ claim.operation.approve_claim:
     to: APPROVED
     missing: claim.error.not_found
     otherwise: claim.error.invalid_state
+  requires:
+    - rule: input.version = current.version
+      otherwise: claim.error.version_conflict
+      fill: { version: input.version }
+  ensures:
+    - output.version = input.version + 1
+    - output.total = current.total
+    - output.currency = current.currency
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits: [claim.event.claim_approved]
 claim.operation.reject_claim:
@@ -349,6 +380,15 @@ claim.operation.reject_claim:
     to: REJECTED
     missing: claim.error.not_found
     otherwise: claim.error.invalid_state
+  requires:
+    - rule: input.version = current.version
+      otherwise: claim.error.version_conflict
+      fill: { version: input.version }
+  ensures:
+    - output.version = input.version + 1
+    - output.total = current.total
+    - output.currency = current.currency
+    - output.reason = input.reason
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits: [claim.event.claim_rejected]
 claim.operation.mark_paid:
@@ -361,6 +401,14 @@ claim.operation.mark_paid:
     to: PAID
     missing: claim.error.not_found
     otherwise: claim.error.invalid_state
+  requires:
+    - rule: input.version = current.version
+      otherwise: claim.error.version_conflict
+      fill: { version: input.version }
+  ensures:
+    - output.version = input.version + 1
+    - output.total = current.total
+    - output.currency = current.currency
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits: [claim.event.claim_paid]
 claim.operation.get_claim:

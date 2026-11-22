@@ -174,6 +174,11 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'invalid-report-on': () => invariant('expiry_date > effective_date\n  reportOn: premium'),
   // States and moves
   'invalid-moves': () => manifest('a.field.s: { primitive: enum, values: [open, shut], moves: { open: [lost] } }\n'),
+  'invalid-condition': () =>
+    manifest(
+      'a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\n' +
+        'a.operation.o: { description: O, input: a.entity.e, output: a.entity.e, ensures: [n > 1] }\n',
+    ),
   'invalid-changes': () =>
     manifest(
       'a.field.s: { primitive: enum, values: [open, shut] }\na.entity.door: { description: A door, fields: [{ ref: a.field.s }] }\n' +

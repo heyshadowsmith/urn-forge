@@ -351,11 +351,11 @@ refund.error.amount_exceeds_captured:
   description: The refund would make the refunds of the payment more than its captured amount
   category: precondition
   retryable: false
-  message: A refund of {amount} is more than the {available} that is left of the captured amount
+  message: A refund of {amount} is more than is left of the captured amount of {captured_amount}, of which {refunded_amount} is refunded
   fields:
     - ref: payment.field.amount
     - ref: payment.field.captured_amount
-      as: available
+    - ref: payment.field.refunded_amount
 refund.error.refund_window_closed:
   description: The payment was captured more than 180 days ago
   category: precondition
@@ -420,6 +420,14 @@ payment.operation.capture_payment:
     to: captured
     otherwise: payment.error.invalid_state
     missing: payment.error.not_found
+  requires:
+    - rule: input.amount is absent or input.amount <= current.amount
+      otherwise: payment.error.capture_exceeds_authorized
+      fill: { amount: input.amount, authorized_amount: current.amount }
+  ensures:
+    - output.authorized_amount = current.amount
+    - input.amount is present or output.captured_amount = current.amount
+    - input.amount is absent or output.captured_amount = input.amount
   errors:
     - payment.error.not_found
     - payment.error.invalid_state
@@ -455,6 +463,15 @@ refund.operation.refund_payment:
     to: [partially_refunded, refunded]
     otherwise: payment.error.invalid_state
     missing: payment.error.not_found
+  requires:
+    - rule: current.refunded_amount + input.amount <= current.captured_amount
+      otherwise: refund.error.amount_exceeds_captured
+      fill: { amount: input.amount }
+  ensures:
+    - output.amount = input.amount
+    - output.currency = current.currency
+    - output.captured_amount = current.captured_amount
+    - output.refunded_total = current.refunded_amount + input.amount
   errors:
     - payment.error.not_found
     - payment.error.invalid_state

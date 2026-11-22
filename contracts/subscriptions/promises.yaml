@@ -33,7 +33,7 @@ promises:
     promise: "Callers can create, read, list, change plan, pause, resume and cancel a subscription, and read and list its invoices."
     status: declared
     by: [subscription.operation.create_subscription, subscription.operation.read_subscription, subscription.operation.list_subscriptions, subscription.operation.change_plan, subscription.operation.pause_subscription, subscription.operation.resume_subscription, subscription.operation.cancel_subscription, invoice.operation.read_invoice, invoice.operation.list_invoices]
-  # The output is the full subscription, but the rule that its status follows the trial days of the request is in the core. The status code 201 is for the shell.
+  # The output is the full subscription, and ensures on create_subscription tie its status to the trial days (and an explicit trial end) of the request. The status code 201 is for the shell.
   P08:
     promise: "A successful create returns 201 with the full subscription, whose status is \"trialing\" if the request asked for more than 0 trial days and \"active\" otherwise."
     status: workaround
@@ -51,12 +51,12 @@ promises:
     status: workaround
     by: [subscription.operation.change_plan, subscription.error.currency_mismatch]
     hole: A1
-  # The proration mode is a required enum. That an at_period_end answer shows the new plan as scheduled and keeps the current plan is in the core.
+  # The proration mode is a required enum, and an ensures on change_plan states that an at_period_end answer shows the new plan as scheduled. That the current plan is unchanged compares the embedded plan of the answer with that of the record, which a rule cannot name.
   P11:
     promise: "A change-plan request must state a proration mode of \"immediate\", \"none\" or \"at_period_end\", and with \"at_period_end\" the answer shows the new plan as scheduled and the current plan as unchanged."
     status: workaround
-    by: [subscription.field.proration, subscription.entity.change_plan_request, subscription.entity.subscription]
-    hole: A2
+    by: [subscription.field.proration, subscription.entity.change_plan_request, subscription.entity.subscription, subscription.operation.change_plan]
+    hole: A1
   # Pausing only from active or trialing, and the refusal of any other status, are declared. The resume window is checked against a request day that the shell sends, not the clock.
   P12:
     promise: "A pause request may contain a resume date that is at least 1 day and at most 90 days after the request, and a subscription may only be paused while \"active\" or \"trialing\"."

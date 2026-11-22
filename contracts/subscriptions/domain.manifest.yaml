@@ -383,6 +383,10 @@ subscription.operation.create_subscription:
   description: Subscribe a customer to a plan, with an optional trial
   input: subscription.entity.create_request
   output: subscription.entity.subscription
+  ensures:
+    - input.trial_days is present and input.trial_days > 0 or input.trial_end is present or output.status = 'active'
+    - input.trial_days is absent or input.trial_days = 0 or output.status = 'trialing'
+    - input.trial_end is absent or output.status = 'trialing'
   errors:
     - subscription.error.conflict
   emits:
@@ -409,6 +413,8 @@ subscription.operation.change_plan:
     from: [trialing, active, past_due, paused]
     otherwise: subscription.error.invalid_state_transition
     missing: subscription.error.not_found
+  ensures:
+    - input.proration != 'at_period_end' or output.scheduled_plan_id is present and output.scheduled_plan_id = input.plan_id
   errors:
     - subscription.error.not_found
     - subscription.error.currency_mismatch

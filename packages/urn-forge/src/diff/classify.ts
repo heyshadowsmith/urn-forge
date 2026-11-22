@@ -315,6 +315,19 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     }
   }
 
+  // Conditions: a new or changed requires rule refuses calls that worked (In narrows); a new ensures
+  // rule promises more about the answer (Out narrows), and a removed one promises less.
+  for (const urn of Object.keys(old.operations) as Urn[]) {
+    const [a, b] = [old.operations[urn]!, now.operations[urn]];
+    if (!live(a) || !live(b)) continue;
+    const requires = (op: typeof a) => (op.requires ?? []).map((r) => `${r.ruleText} (otherwise ${r.otherwise}${r.fill ? `, fill ${JSON.stringify(r.fill)}` : ''})`);
+    const ensures = (op: typeof a) => (op.ensures ?? []).map((r) => r.ruleText);
+    for (const rule of requires(b!).filter((r) => !requires(a).includes(r))) breaking(urn, `the new requires rule ${rule} refuses calls that worked`);
+    for (const rule of requires(a).filter((r) => !requires(b!).includes(r))) compatible(urn, `the requires rule ${rule} is removed`);
+    for (const rule of ensures(b!).filter((r) => !ensures(a).includes(r))) compatible(urn, `the new ensures rule ${rule}`);
+    for (const rule of ensures(a).filter((r) => !ensures(b!).includes(r))) breaking(urn, `the ensures rule ${rule} is removed, which breaks callers that rely on it`);
+  }
+
   // The moves of a state field: a removed move breaks the callers that make it.
   for (const urn of Object.keys(old.fields) as Urn[]) {
     const [a, b] = [old.fields[urn]!, now.fields[urn]];

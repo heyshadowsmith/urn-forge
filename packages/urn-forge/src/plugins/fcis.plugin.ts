@@ -17,7 +17,7 @@
 import * as v from 'valibot';
 import type { IRChange, IREntity, IRError, IREvent, IRPropertyRef, MessagePart, UniversalIR, Urn } from '../ir/types.js';
 import { ERROR_CATEGORIES, invariantsOf, valueField } from '../ir/types.js';
-import { handlerName, ruleName, schemaNames } from '../naming.js';
+import { conditionName, handlerName, ruleName, schemaNames } from '../naming.js';
 import { PRIMITIVE_NAMES } from '../primitives/index.js';
 import { docComment, valuesInUrnOrder, type CodegenPlugin } from './plugin.interface.js';
 import { VALIBOT_SCHEMAS_FILE } from './valibot.plugin.js';
@@ -155,8 +155,49 @@ const CHANGE_ANSWER = `
     }
   }`;
 
+/** The requires rules: the first that does not hold answers its declared error, and the handler does not run. */
+const REQUIRES = `
+  // The requires rules, in order, after the state of \`changes\`: the first that does not hold
+  // answers its declared error, filled from the request and the record, and the handler does not run.
+  if (result === undefined) {
+    for (const condition of ('requires' in contract ? contract.requires : undefined) ?? []) {
+      if ((condition.check as (values: unknown) => boolean)({ input: input.output, current })) continue;
+      // \`fill\` names the value of a property; the others come by name, the record's over the request's.
+      const values: Readonly<Record<string, Readonly<Record<string, unknown>> | undefined>> = { input: input.output as Readonly<Record<string, unknown>>, current };
+      const byName: Readonly<Record<string, unknown>> = { ...(input.output as object), ...current };
+      const valueOf = (name: string) => {
+        const source = condition.fill?.[name];
+        if (source === undefined) return byName[name];
+        const [prefix, property] = source.split('.') as [string, string];
+        return values[prefix]?.[property];
+      };
+      const names = Object.keys(contract.errors[condition.otherwise]?.fields ?? {}).filter((name) => valueOf(name) !== undefined);
+      result = { ok: false, error: { ...Object.fromEntries(names.map((name) => [name, valueOf(name)])), kind: condition.otherwise } };
+      break;
+    }
+  }`;
+
+/** The ensures rules: the answer must keep each one, or the core has a bug. */
+const ENSURES = `
+  // The ensures rules: an answer that breaks one is a bug in the core.
+  for (const condition of ('ensures' in contract ? contract.ensures : undefined) ?? []) {
+    if (!(condition.check as (values: unknown) => boolean)({ input: input.output, current, output: output.output })) {
+      return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: '', message: \`the handler for \${urn} answered a value that breaks ensures: \${condition.text}\` }] };
+    }
+  }`;
+
+/** How the handler is called: plain, with the record of `changes`, and with the requires rules. Without conditions, the text is as before. */
+function callSnippet(changes: boolean, conditions: boolean): string {
+  if (!conditions) return changes ? CHANGE_CALL : PLAIN_CALL;
+  const handlerCall = '\n  result ??= handler(input.output, current);';
+  const head = changes
+    ? CHANGE_CALL.slice(0, CHANGE_CALL.lastIndexOf(handlerCall))
+    : `  // No operation of this domain changes a record.\n  const current = undefined as Readonly<Record<string, unknown>> | undefined;\n  let result: unknown;`;
+  return `${head}${REQUIRES}${handlerCall}`;
+}
+
 /** The gatekeeper: the same for every manifest, plus the record of `changes` when an operation has one. */
-const shell = (changes: boolean) => `// Shell gatekeeper
+const shell = (changes: boolean, conditions = false) => `// Shell gatekeeper
 
 export type OperationUrn = keyof DomainCoreImplementation;
 
@@ -297,7 +338,7 @@ ${changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
 
   const handler: unknown = core[urn];
   if (typeof handler !== 'function') return violation(\`no handler for \${urn}\`);
-${changes ? CHANGE_CALL : PLAIN_CALL}
+${callSnippet(changes, conditions)}
   if (!isResult(result)) return violation(\`the handler for \${urn} did not return a Result; return ok(…) or fail(…)\`);
 
   // \`=== false\`, not \`!result.ok\`: without strictNullChecks, TypeScript narrows a union on
@@ -338,7 +379,7 @@ ${changes ? CHANGE_CALL : PLAIN_CALL}
   const output = v.safeParse(contract.output.schema, result.value);
   if (!output.success) {
     return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(output.issues, contract.output) };
-  }${changes ? CHANGE_ANSWER : ''}
+  }${changes ? CHANGE_ANSWER : ''}${conditions ? ENSURES : ''}
   // Each event must be one the operation emits, and must parse.
   const emitted: unknown = (result as { readonly events?: unknown }).events ?? [];
   if (!Array.isArray(emitted)) return violation(\`the handler for \${urn} returned events that are not a list\`);
@@ -510,6 +551,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
     ].join('\n');
 
     const anyChanges = operations.some((op) => op.changes !== undefined);
+    const anyConditions = operations.some((op) => op.requires !== undefined || op.ensures !== undefined);
     const handlers = operations.map((op) => {
       const errorTypes = op.errors.map((urn) => `s.${schemaNames(error(urn).brandIdentifier).input}`);
       // Only the events of the operation: tsc refuses another.
@@ -587,7 +629,32 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       `  /** Keyed by event URN: the events it may return on success. */`,
       `  readonly events: Readonly<Record<string, EntityContract>>;`,
       ...(anyChanges ? [`  /** The record that the operation changes, when it changes one. */`, `  readonly changes?: ChangeContract;`] : []),
+      ...(anyConditions
+        ? [
+            `  /** Rules that must hold before the handler runs, each with the error that answers when it does not. */`,
+            `  readonly requires?: readonly RequireInfo[];`,
+            `  /** Rules that the answer must keep. */`,
+            `  readonly ensures?: readonly ConditionInfo[];`,
+          ]
+        : []),
       `}`,
+      ...(anyConditions
+        ? [
+            ``,
+            `/** A rule of a condition: its text, and the generated function that checks it. */`,
+            `export interface ConditionInfo {`,
+            `  readonly text: string;`,
+            `  readonly check: (values: never) => boolean;`,
+            `}`,
+            ``,
+            `export interface RequireInfo extends ConditionInfo {`,
+            `  /** The declared error that answers when the rule does not hold. */`,
+            `  readonly otherwise: string;`,
+            `  /** The prefixed name that fills a property of the error; the others fill by name. */`,
+            `  readonly fill?: Readonly<Record<string, string>>;`,
+            `}`,
+          ]
+        : []),
       ...(anyChanges
         ? [
             ``,
@@ -631,6 +698,10 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
           ? [`    events: {},`]
           : [`    events: {`, ...op.emits.flatMap((urn) => [`      ${q(urn)}: {`, ...eventLines(event(urn), ir, '        '), `      },`]), `    },`]),
         ...(op.changes ? changeLines(op.changes, op.output, ir, '    ') : []),
+        ...(op.requires
+          ? [`    requires: [`, ...op.requires.map((r, i) => `      { text: ${q(r.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'requires', i)}, otherwise: ${q(r.otherwise)}${r.fill ? `, fill: { ${Object.entries(r.fill).map(([k, v]) => `${q(k)}: ${q(v)}`).join(', ')} }` : ''} },`), `    ],`]
+          : []),
+        ...(op.ensures ? [`    ensures: [`, ...op.ensures.map((r, i) => `      { text: ${q(r.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'ensures', i)} },`), `    ],`] : []),
         `  },`,
       ]),
       `} as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;`,
@@ -647,7 +718,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       registry,
       `// Dispatch`,
       dispatch,
-      shell(operations.some((op) => op.changes !== undefined)).trimEnd(),
+      shell(operations.some((op) => op.changes !== undefined), operations.some((op) => op.requires !== undefined || op.ensures !== undefined)).trimEnd(),
     ];
     return {
       artifacts: [{ relativePath: FCIS_RUNTIME_FILE, content: `${sections.join('\n\n')}\n` }],
