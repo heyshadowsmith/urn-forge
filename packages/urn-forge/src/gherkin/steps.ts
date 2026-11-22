@@ -176,8 +176,15 @@ function sameValue(actual: unknown, expected: unknown): boolean {
     const keys = new Set([...Object.keys(actual), ...Object.keys(expected)]);
     return [...keys].every((key) => sameValue(actual[key], expected[key]));
   }
+  // Two UTC timestamps are equal when they are the same instant: 19:00:00Z is 19:00:00.000Z.
+  if (typeof actual === 'string' && typeof expected === 'string' && UTC_TIMESTAMP.test(actual) && UTC_TIMESTAMP.test(expected)) {
+    return Date.parse(actual) === Date.parse(expected);
+  }
   return actual === expected || (Number.isNaN(actual) && Number.isNaN(expected));
 }
+
+/** A UTC timestamp, as a timestamp field holds it. */
+const UTC_TIMESTAMP = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]+)?)?Z$/;
 
 /** A text longer than this is shown shortened, and so is a list with more items. */
 const SHOWN_CHARACTERS = 60;
