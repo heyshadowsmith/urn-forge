@@ -35,10 +35,10 @@ All four types use STE. These are the rules that this site applies.
 - **Real code only.** Show files with VitePress snippet imports, for example `<<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts`. The tutorial snapshots, `example/`, `self/` and `tests/fixtures/` are tested in CI, so a snippet import cannot drift. Write code inline only for short fragments that no file contains, and then make sure that it is correct.
 - **Real output only.** Copy command output from a real run in this repository. Shorten long URNs with `…` only where the line is too long, and keep one full example on the page.
 - **Commands** run from `packages/urn-forge` unless the page says otherwise. Show them in `bash` blocks.
-- **Links** go to other pages with relative paths, for example `[Diagnostics](../reference/diagnostics)`. Link to a page, not to a heading on a page that someone else writes.
+- **Links** go to other pages with relative paths, for example `[Diagnostics](../docs/reference/diagnostics.md)`. Link to a page, not to a heading on a page that someone else writes.
 - **Headings** use sentence case. A how-to title is the goal. A reference title is the name of the thing.
-- **Terms** follow [the glossary](reference/glossary.md). Use *atom* for a field, entity, operation or error. Use *operation*, not *use case* or *command*. Use *the core* for the handlers and *the shell* for the code that calls `executeOperation`.
-- **Versions:** urn-forge 0.1.0. Do not promise future work. To say that a part is not built, write "urn-forge does not have … at this time", and link to [Scope](reference/scope.md).
+- **Terms** follow [the glossary](../docs/reference/glossary.md). Use *atom* for a field, entity, operation or error. Use *operation*, not *use case* or *command*. Use *the core* for the handlers and *the shell* for the code that calls `executeOperation`.
+- **Versions:** urn-forge 0.1.0. Do not promise future work. To say that a part is not built, write "urn-forge does not have … at this time", and link to [Scope](../docs/reference/scope.md).
 - **Every page** ends with a short "Related pages" list of two to five links, to other Diátaxis types where possible.
 
 ## 4. The pages

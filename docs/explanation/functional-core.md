@@ -12,7 +12,7 @@ This division has these advantages:
 
 - **A handler is easy to test.** It is a function from data to data, so a scenario only has to give a payload and read the result. The Cucumber steps of urn-forge do exactly this.
 - **A handler is deterministic.** It has no clock, no network and no database, so the same input always gives the same result.
-- **Untrusted data has one entrance.** [Specification v1.1](../project/spec-v1-1) states the principle as "parse at the edge, trust in the core". The shell parses each payload once. The core never sees a value that did not pass the schema.
+- **Untrusted data has one entrance.** Specification v1.1 states the principle as "parse at the edge, trust in the core". The shell parses each payload once. The core never sees a value that did not pass the schema.
 
 ## Brands as proof of a parse
 
@@ -75,7 +75,7 @@ export type QuoteQuoteShippingHandler = (
 
 `s.ParcelParcel` is the branded output type of the input schema. `s.QuoteQuoteInput` is the plain input type of the output schema. This is different from specification v1.1, which gives handlers a branded output type.
 
-The [MVP plan](../project/mvp-plan) found that the specification asks for two things that cannot both be true:
+The MVP plan found that the specification asks for two things that cannot both be true:
 
 1. The handler returns branded output.
 2. Gate 2 forbids the core to make brands.

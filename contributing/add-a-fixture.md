@@ -76,7 +76,7 @@ The `errors-valibot` fixture runs the Valibot plugin alone. It tested the error 
 
 <<< @/../packages/urn-forge/tests/fixtures/errors-valibot/urn-forge.config.ts
 
-A plugin with options uses the tuple form. This is the config for the example plugin of [Add a plugin](add-a-plugin):
+A plugin with options uses the tuple form. This is the config for the example plugin of [Add a plugin](./add-a-plugin.md):
 
 ```ts
 export default { plugins: [['urn-list', { exportName: 'SHIPPING_URNS' }]] };
@@ -122,7 +122,7 @@ A fixture fails if `compile` gives one error or more. A plugin error, such as `u
 
 ## Related pages
 
-- [Add a primitive](add-a-primitive)
-- [Add a plugin](add-a-plugin)
-- [Diagnostics](../reference/diagnostics)
-- [Determinism and the fingerprint](../explanation/determinism)
+- [Add a primitive](./add-a-primitive.md)
+- [Add a plugin](./add-a-plugin.md)
+- [Diagnostics](../docs/reference/diagnostics.md)
+- [Determinism and the fingerprint](../docs/explanation/determinism.md)

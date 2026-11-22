@@ -2,7 +2,7 @@
 
 Nov 22, 2026 · @Shadow Smith
 
-urn-forge has about 9,300 lines of source, 5,900 lines of tests, 77 diagnostic codes and about 144,000 words of user documentation on 60 pages. Four blind trials built four domains with it. This audit asks, for each feature: what evidence says that a user needs it, what it costs, and where it belongs. It applies the [scope charter](./scope-charter) and the product thesis: **urn-forge is a single source of truth for a domain's contract, with proof that everything that claims to implement it agrees with it.**
+urn-forge has about 9,300 lines of source, 5,900 lines of tests, 77 diagnostic codes and about 144,000 words of user documentation on 60 pages. Four blind trials built four domains with it. This audit asks, for each feature: what evidence says that a user needs it, what it costs, and where it belongs. It applies the [scope charter](./scope-charter.md) and the product thesis: **urn-forge is a single source of truth for a domain's contract, with proof that everything that claims to implement it agrees with it.**
 
 ## How to read the evidence
 

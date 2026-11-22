@@ -60,7 +60,7 @@ Here is a real `DomainError` from urn-forge's own domain, for the short key `pol
 
 ### Declared errors and exceptions
 
-A declared error is part of the contract. An exception is not. [Specification v1.1](../project/spec-v1-1) says that unexpected failures, such as bugs and I/O faults, "are not declared and are not part of the contract". Thus `executeOperation` does not catch exceptions and does not change them into a `ContractViolation`. The shell handles them as it handles any other fault.
+A declared error is part of the contract. An exception is not. Specification v1.1 says that unexpected failures, such as bugs and I/O faults, "are not declared and are not part of the contract". Thus `executeOperation` does not catch exceptions and does not change them into a `ContractViolation`. The shell handles them as it handles any other fault.
 
 ### `validation` and `InputRejected`
 
@@ -126,7 +126,7 @@ An error and an event look alike. Both have a URN, fields, and a `kind` property
 | How many | Exactly one | Zero, one or more, of the kinds in `emits` |
 | Who reads it | The caller | The shell, and the systems that it publishes to |
 
-A failure has no events. [Specification v1.1](../project/spec-v1-1) gives the reason: an event never tells of a refusal, "so anything that consumes an event stream can trust every item in it". A refusal that changed nothing is not a fact that other systems must know. Thus `Failure` has no `events` property, and the step `Then the operation emits no event` passes after a declared error.
+A failure has no events. Specification v1.1 gives the reason: an event never tells of a refusal, "so anything that consumes an event stream can trust every item in it". A refusal that changed nothing is not a fact that other systems must know. Thus `Failure` has no `events` property, and the step `Then the operation emits no event` passes after a declared error.
 
 The handler type lists only the events of its operation. Thus, at gate 1, `tsc` refuses an event that is not in the `emits` of the operation. `executeOperation` also refuses it at run time, with `ContractViolation`. It also refuses an event whose fields break its schema. In both cases, the shell gets no output and no events. Thus a shell never publishes an event that breaks the contract.
 

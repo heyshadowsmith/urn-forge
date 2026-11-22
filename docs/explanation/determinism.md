@@ -6,7 +6,7 @@ The same manifest, configuration and urn-forge version always give the same byte
 
 Gate 4 compiles the manifest again and compares the result with the committed files. If the compiler gave different bytes on a different machine, gate 4 would fail on a clean repository. A developer in one time zone would commit files that CI in a different time zone refuses. The gate would then be noise, and a team would learn to ignore it.
 
-Determinism also makes a verdict reproducible. If CI passed on a commit last month, the same commit must pass today. [Specification v1.1](../project/spec-v1-1) states it as a principle: "The same manifest, config and generator version produce byte-identical output and the same verdict, on any machine, on any date."
+Determinism also makes a verdict reproducible. If CI passed on a commit last month, the same commit must pass today. Specification v1.1 states it as a principle: "The same manifest, config and generator version produce byte-identical output and the same verdict, on any machine, on any date."
 
 ## The rules
 
@@ -100,4 +100,4 @@ A byte comparison finds every difference, whatever its cause. Its cost is a full
 - [Regenerate the code after a manifest change](../how-to/regenerate-code)
 - [Fix a gate that fails](../how-to/fix-a-failing-gate)
 - [Verification gates](../reference/verification-gates)
-- [How urn-forge is built](./architecture)
+- How urn-forge is built

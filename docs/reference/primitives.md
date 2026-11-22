@@ -284,4 +284,4 @@ Gate 3 examines the values that the scenarios of an operation send for each inpu
 - [The manifest](./manifest)
 - [The generated schemas](./generated-schemas)
 - [Add a field](../how-to/add-a-field)
-- [Contributor: add a primitive](../how-to/add-a-primitive)
+- Contributor: add a primitive

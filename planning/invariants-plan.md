@@ -2,7 +2,7 @@
 
 Nov 21, 2026 · @Shadow Smith
 
-An invariant is a named rule over the fields of one entity, such as "the expiry date is after the effective date" (spec §4.3, §5, pass 6, §7.1). It is the third layer of the MECE model ([primitives plan](./primitives-plan)): a field says which values one field allows, a field reference says whether the value is there and how many there are, and an invariant says which combinations of fields are allowed. Today the third layer has no spelling, so a cross-field rule lives only in the core, where the manifest, the schemas and the scenarios cannot see it.
+An invariant is a named rule over the fields of one entity, such as "the expiry date is after the effective date" (spec §4.3, §5, pass 6, §7.1). It is the third layer of the MECE model ([primitives plan](./primitives-plan.md)): a field says which values one field allows, a field reference says whether the value is there and how many there are, and an invariant says which combinations of fields are allowed. Today the third layer has no spelling, so a cross-field rule lives only in the core, where the manifest, the schemas and the scenarios cannot see it.
 
 This plan adds the `invariant` kind from the manifest through to a scenario that breaks it, and makes the insurance domain of the MVP plan the target, written first.
 

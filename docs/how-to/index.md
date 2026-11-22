@@ -40,11 +40,11 @@ A how-to guide helps you do one task. Each guide starts from a project that alre
 
 These guides are for people who change urn-forge itself.
 
-- [Add a primitive](add-a-primitive)
-- [Add a constraint](add-a-constraint)
-- [Add a kind](add-a-kind)
-- [Add a plugin](add-a-plugin)
-- [Add a test fixture](add-a-fixture)
+- Add a primitive
+- Add a constraint
+- Add a kind
+- Add a plugin
+- Add a test fixture
 
 ## Related pages
 

@@ -4,7 +4,7 @@
 
 ## Conformance, not correctness
 
-Specification v1.0 used words such as "mathematically guaranteed" and "proof". [Specification v1.1](../project/spec-v1-1) changed them to "gate" and "check", with stated limits. The reason is in its first section:
+Specification v1.0 used words such as "mathematically guaranteed" and "proof". Specification v1.1 changed them to "gate" and "check", with stated limits. The reason is in its first section:
 
 > The gates show *conformance*: every operation has a handler with the generated signature, every boundary crossing is parsed, every bounded field has boundary scenarios, and no generated file was edited by hand. They do not show that handler logic is *correct*. That remains the job of the tests the gates require to exist.
 

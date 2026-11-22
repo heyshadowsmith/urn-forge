@@ -19,8 +19,8 @@ One module per primitive. Each exports a descriptor made with `definePrimitive`:
 
 Adding a constraint to an existing primitive works the same way: add it to the descriptor's `constraints`, then follow `tsc` to each translation table.
 
-The MECE model (docs/project/primitives-plan.md) constrains both: a constraint name has one aspect on every primitive, two constraints for one side of one aspect form an `exclusive` group, and a kind of value is a new primitive only when it needs a different value space or comparison. Tests in `tests/primitives.test.ts` ("the MECE model") enforce the first two and keep `docs/reference/primitives.md` in step with the registry.
+The MECE model (planning/primitives-plan.md) constrains both: a constraint name has one aspect on every primitive, two constraints for one side of one aspect form an `exclusive` group, and a kind of value is a new primitive only when it needs a different value space or comparison. Tests in `tests/primitives.test.ts` ("the MECE model") enforce the first two and keep `docs/reference/primitives.md` in step with the registry.
 
 Keep descriptors free of plugin details. A property belongs here only when a part of urn-forge that is not a plugin needs it.
 
-The how-to guides `docs/how-to/add-a-primitive.md` and `docs/how-to/add-a-constraint.md` give the full procedure.
+The how-to guides `contributing/add-a-primitive.md` and `contributing/add-a-constraint.md` give the full procedure.

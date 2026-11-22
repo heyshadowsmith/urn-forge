@@ -2,9 +2,9 @@
 
 Nov 22, 2026 · @Shadow Smith
 
-**The goal: a manifest can declare any contract.** A contract is the closed, named set of promises that a domain makes at its boundaries: what it accepts, what it can answer, and what it keeps (refer to [What a contract cannot say yet](../explanation/known-holes)). Today a manifest states the promises about one value, one entity, one operation and its answers, and how the contract changes. It cannot state the promises that connect two things, and it leaves four promises out on purpose.
+**The goal: a manifest can declare any contract.** A contract is the closed, named set of promises that a domain makes at its boundaries: what it accepts, what it can answer, and what it keeps (refer to [What a contract cannot say yet](../docs/explanation/known-holes.md)). Today a manifest states the promises about one value, one entity, one operation and its answers, and how the contract changes. It cannot state the promises that connect two things, and it leaves four promises out on purpose.
 
-This roadmap replaces two decisions: the feature freeze of the [feature audit](./feature-audit) (decision 2), and the list of promises that the [scope charter](./scope-charter) leaves out on purpose (decision 3). It keeps the test of the charter: a new construct must describe the contract and not the behaviour, each part that enforces the contract must be able to use it, it must be deterministic, and a scenario must be able to show it. "Any contract" means any promise that passes that test. Business logic stays in the core.
+This roadmap replaces two decisions: the feature freeze of the [feature audit](./feature-audit.md) (decision 2), and the list of promises that the [scope charter](./scope-charter.md) leaves out on purpose (decision 3). It keeps the test of the charter: a new construct must describe the contract and not the behaviour, each part that enforces the contract must be able to use it, it must be deterministic, and a scenario must be able to show it. "Any contract" means any promise that passes that test. Business logic stays in the core.
 
 ## How completeness is measured: the contract corpus
 
@@ -12,7 +12,7 @@ A goal of "any contract" needs a measure, or it has no end.
 
 - **The corpus** is a directory, `contracts/`, of real contracts, each written as plain promises first: payments, bookings, claims, ticketing, insurance, subscriptions, inventory, and the public contract of a known API style (a payments API, a messaging API).
 - **Each promise** of each contract is a line with an ID: `payments.P07: a card payment has a card number and no account`.
-- **Each promise has one status:** *declared* (the manifest states it, and a test shows that each enforcing part applies it), *workaround* (the manifest states it only with a pattern of [known holes](../explanation/known-holes)), or *not declarable*.
+- **Each promise has one status:** *declared* (the manifest states it, and a test shows that each enforcing part applies it), *workaround* (the manifest states it only with a pattern of [known holes](../docs/explanation/known-holes.md)), or *not declarable*.
 - **The score** is the share of promises that are declared. CI prints it. Each plan of this roadmap names the promises that it moves to *declared*, and the score must go up.
 - **A blind trial after each phase** gives a new contract to an agent, which writes its promises, then its manifest, and reports each promise that it could not declare. New promises go into the corpus.
 

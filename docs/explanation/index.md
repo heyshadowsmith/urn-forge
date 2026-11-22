@@ -16,8 +16,8 @@ These pages tell why urn-forge works as it does. They give the context of each d
 | [Compatibility and the direction of use](./compatibility) | When a change to a URN breaks its consumers, and how a URN retires |
 | [What a contract cannot say yet](./known-holes) | Contract and business logic, and the promises that a manifest cannot state at this time, with what to do in their place |
 | [The MECE model of primitives](./primitives-model) | Why each kind of value has one primitive, and each constraint one aspect |
-| [How urn-forge is built](./architecture) | The pipeline, the registries, and how `tsc` keeps them complete |
-| [Dogfooding](./dogfooding) | How urn-forge tests itself, and what that found |
+| How urn-forge is built | The pipeline, the registries, and how `tsc` keeps them complete |
+| Dogfooding | How urn-forge tests itself, and what that found |
 | [Departures from the specification](./departures-from-the-spec) | Each place where urn-forge differs from specification v1.1, and why |
 
 ## An order to read the pages
@@ -34,9 +34,9 @@ Each page stands alone. If you want to read all of them, use this order:
 8. [What a contract cannot say yet](./known-holes).
 9. [The MECE model of primitives](./primitives-model).
 10. [Determinism and the fingerprint](./determinism).
-11. [How urn-forge is built](./architecture). Read this page first if you want to change urn-forge.
-12. [Dogfooding](./dogfooding).
-13. [Departures from the specification](./departures-from-the-spec). Read this page first if you know [specification v1.1](../project/spec-v1-1).
+11. How urn-forge is built. Read this page first if you want to change urn-forge.
+12. Dogfooding.
+13. [Departures from the specification](./departures-from-the-spec). Read this page first if you know specification v1.1.
 
 ## Related pages
 

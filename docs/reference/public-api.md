@@ -108,7 +108,7 @@ The package `urn-forge` has four entry points. [`packages/urn-forge/package.json
 | `GeneratedArtifact` | Type | `{ relativePath: string; content: string }`. `relativePath` is a POSIX path relative to the output directory. The engine adds the header with `--` for a path that ends in `.sql`, and with `//` for other paths |
 | `PluginDiagnostic` | Type | `{ code: DiagnosticCode; severity: 'error' \| 'warning'; urn?: Urn; message: string }` |
 
-For the steps to write a plugin, refer to [Contributor: add a plugin](../how-to/add-a-plugin).
+For the steps to write a plugin, refer to Contributor: add a plugin.
 
 ### Registries and names
 
@@ -216,5 +216,5 @@ The generated `DispatchMap` and `executeOperation` agree with these types. Refer
 - [The configuration file](./configuration)
 - [Gherkin steps](./gherkin-steps)
 - [Write scenarios](../how-to/write-scenarios)
-- [Contributor: add a plugin](../how-to/add-a-plugin)
-- [How urn-forge is built](../explanation/architecture)
+- Contributor: add a plugin
+- How urn-forge is built

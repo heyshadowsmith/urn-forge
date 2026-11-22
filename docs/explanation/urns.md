@@ -8,7 +8,7 @@ Names in code change often. A person renames a type, moves a function or splits 
 
 A URN is a name outside the code. It does not depend on a file, a type name or a language. As a result, it can be the key in every part of the chain. It is the key in the IR, the handler registry and the dispatch map, and it is the tag of a feature. The generated type names, such as `QuoteQuoteShippingHandler`, come from the URN. The URN does not come from them.
 
-A name can only be a key if it does not change. Thus the rule of [specification v1.1](../project/spec-v1-1) is strict: a URN, once published, never changes its meaning.
+A name can only be a key if it does not change. Thus the rule of specification v1.1 is strict: a URN, once published, never changes its meaning.
 
 ## The six segments
 

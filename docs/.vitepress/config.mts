@@ -6,7 +6,6 @@ export default defineConfig({
     'Write a domain in YAML. urn-forge generates typed contracts and a runtime gatekeeper. CI fails if the chain from a URN to a scenario breaks.',
   cleanUrls: true,
   // The writers' style guide is not a page of the site.
-  srcExclude: ['STYLE.md'],
   appearance: 'dark',
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
@@ -28,7 +27,6 @@ export default defineConfig({
       { text: 'How-to guides', link: '/how-to/', activeMatch: '/how-to/' },
       { text: 'Reference', link: '/reference/', activeMatch: '/reference/' },
       { text: 'Explanation', link: '/explanation/', activeMatch: '/explanation/' },
-      { text: 'Project', link: '/project/mvp-plan', activeMatch: '/project/' },
     ],
     sidebar: [
       {
@@ -63,17 +61,6 @@ export default defineConfig({
           { text: "Retire a URN", link: '/how-to/retire-a-urn' },
           { text: "Check compatibility in CI", link: '/how-to/check-compatibility' },
           { text: "Run verify in CI", link: '/how-to/run-verify-in-ci' },
-        ],
-      },
-      {
-        text: 'How-to guides for contributors',
-        collapsed: true,
-        items: [
-          { text: 'Add a primitive', link: '/how-to/add-a-primitive' },
-          { text: 'Add a constraint', link: '/how-to/add-a-constraint' },
-          { text: 'Add a kind', link: '/how-to/add-a-kind' },
-          { text: 'Add a plugin', link: '/how-to/add-a-plugin' },
-          { text: 'Add a test fixture', link: '/how-to/add-a-fixture' },
         ],
       },
       {
@@ -113,34 +100,7 @@ export default defineConfig({
           { text: "Compatibility and the direction of use", link: '/explanation/compatibility' },
           { text: "What a contract cannot say yet", link: '/explanation/known-holes' },
           { text: "The MECE model of primitives", link: '/explanation/primitives-model' },
-          { text: "How urn-forge is built", link: '/explanation/architecture' },
-          { text: "Dogfooding", link: '/explanation/dogfooding' },
           { text: "Departures from the specification", link: '/explanation/departures-from-the-spec' },
-        ],
-      },
-      {
-        text: 'Project',
-        collapsed: true,
-        items: [
-          { text: 'MVP plan', link: '/project/mvp-plan' },
-          { text: 'Foundations plan', link: '/project/foundations-plan' },
-          { text: 'Error kind plan', link: '/project/error-kind-plan' },
-          { text: 'Boundary coverage plan', link: '/project/boundary-coverage-plan' },
-          { text: 'Primitives plan', link: '/project/primitives-plan' },
-          { text: 'Invariants plan', link: '/project/invariants-plan' },
-          { text: 'Structure plan', link: '/project/structure-plan' },
-          { text: 'Postgres plan', link: '/project/postgres-plan' },
-          { text: 'Lifecycle plan', link: '/project/lifecycle-plan' },
-          { text: 'Events plan', link: '/project/events-plan' },
-          { text: 'Gate 2 plan', link: '/project/gate-2-plan' },
-          { text: 'Date arithmetic plan', link: '/project/date-arithmetic-plan' },
-          { text: 'reportOn plan', link: '/project/report-on-plan' },
-          { text: 'Formula cells plan', link: '/project/formula-cells-plan' },
-          { text: 'Store plan', link: '/project/store-plan' },
-          { text: 'Scope charter', link: '/project/scope-charter' },
-          { text: 'Feature audit', link: '/project/feature-audit' },
-          { text: 'Contract completeness roadmap', link: '/project/contract-completeness-roadmap' },
-          { text: 'Spec v1.1', link: '/project/spec-v1-1' },
         ],
       },
     ],

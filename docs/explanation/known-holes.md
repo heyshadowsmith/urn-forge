@@ -111,7 +111,7 @@ The generated type of the payment has each property as optional. Thus the core m
 
 ## Promises that urn-forge leaves out on purpose
 
-These are real promises of a contract. The [scope charter](../project/scope-charter) puts them outside urn-forge, because a different part of a system owns them.
+These are real promises of a contract. The scope charter puts them outside urn-forge, because a different part of a system owns them.
 
 | Promise | Example | Who owns it |
 | --- | --- | --- |
@@ -132,7 +132,7 @@ These are real promises of a contract. The [scope charter](../project/scope-char
 
 ## Which hole comes next
 
-urn-forge does not add a feature without the need of a real domain. Refer to the [feature audit](../project/feature-audit). Two holes fit the invariants that urn-forge already has, because each needs only the request and the answer: rules between an entity and its list items, and rules between the request and the answer. Two of the blind trials met the first one.
+urn-forge does not add a feature without the need of a real domain. Refer to the feature audit. Two holes fit the invariants that urn-forge already has, because each needs only the request and the answer: rules between an entity and its list items, and rules between the request and the answer. Two of the blind trials met the first one.
 
 ## Related pages
 

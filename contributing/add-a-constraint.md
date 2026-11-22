@@ -8,9 +8,9 @@ The example is the real addition of `format` to `string` (commit `087c5da`, "Pri
 
 - You have a clone of urn-forge, and `npm ci` ran in the root folder.
 - `npm test` and `npm run typecheck` pass.
-- You know the primitive that gets the constraint. To add a primitive, refer to [Add a primitive](add-a-primitive).
-- You know the aspect that the constraint restricts: `range`, `step`, `size`, `shape`, `membership` or `exclusion`. [The MECE model of primitives](../explanation/primitives-model) gives the rules.
-- You know the boundary cases of the constraint. [Boundary coverage and the ratchet](../explanation/boundary-coverage) gives the rules.
+- You know the primitive that gets the constraint. To add a primitive, refer to [Add a primitive](./add-a-primitive.md).
+- You know the aspect that the constraint restricts: `range`, `step`, `size`, `shape`, `membership` or `exclusion`. [The MECE model of primitives](../docs/explanation/primitives-model.md) gives the rules.
+- You know the boundary cases of the constraint. [Boundary coverage and the ratchet](../docs/explanation/boundary-coverage.md) gives the rules.
 
 Commands run from `packages/urn-forge`, except where a step says the root folder.
 
@@ -93,7 +93,7 @@ src/primitives/string.ts(58,7): error TS2741: Property 'aspect' is missing in ty
    ```
 
 4. Make sure that the text is a correct literal for each possible value. `JSON.stringify` escapes quotes in a string. `numberLiteral` keeps `-0`. `.source` escapes a `/` in a pattern.
-5. If the action calls a function that Valibot does not have, name it in `helpers` of the primitive. Refer to [Add a primitive](add-a-primitive).
+5. If the action calls a function that Valibot does not have, name it in `helpers` of the primitive. Refer to [Add a primitive](./add-a-primitive.md).
 6. Run `npm run typecheck` again until it passes.
 
 The Valibot plugin makes its `supports` declaration from its table, so it now accepts the constraint. A plugin that lists constraints in `supports.constraints` by hand needs the key there too. Otherwise a field with the constraint fails with `unsupported-construct`.
@@ -110,7 +110,7 @@ The test fails in these conditions:
 
 - A constraint name has two aspects.
 - An `exclusive` group has constraints of different aspects.
-- The constraint table in [Primitives and constraints](../reference/primitives) does not list each constraint of the registry, with its aspect.
+- The constraint table in [Primitives and constraints](../docs/reference/primitives.md) does not list each constraint of the registry, with its aspect.
 
 For example, a `min` on `string` with the aspect `size` gives this failure:
 
@@ -134,7 +134,7 @@ AssertionError: expected [ [ 'min', Set{ 'range', 'size' } ] ] to deeply equal [
    npx vitest run tests/fixtures.test.ts
    ```
 
-5. Examine the diff of each expected file. Refer to [Add a test fixture](add-a-fixture).
+5. Examine the diff of each expected file. Refer to [Add a test fixture](./add-a-fixture.md).
 
 ## Compile the committed domains again
 
@@ -154,10 +154,10 @@ The fingerprint includes the constraint keys of each primitive. Thus a new const
 
 ## Document the constraint
 
-1. Add the constraint, its value, its aspect, its coherence rules and its boundary cases to [Primitives and constraints](../reference/primitives). Add a row to the constraint table. The test of the MECE model compares the table with the registry.
-2. Add the constraint to the primitive in [Add a field](add-a-field).
-3. Update [Scope](../reference/scope).
-4. If you added a diagnostic code, add it to [Diagnostics](../reference/diagnostics).
+1. Add the constraint, its value, its aspect, its coherence rules and its boundary cases to [Primitives and constraints](../docs/reference/primitives.md). Add a row to the constraint table. The test of the MECE model compares the table with the registry.
+2. Add the constraint to the primitive in [Add a field](../docs/how-to/add-a-field.md).
+3. Update [Scope](../docs/reference/scope.md).
+4. If you added a diagnostic code, add it to [Diagnostics](../docs/reference/diagnostics.md).
 
 ## Result
 
@@ -165,8 +165,8 @@ The fingerprint includes the constraint keys of each primitive. Thus a new const
 
 ## Related pages
 
-- [Add a primitive](add-a-primitive)
-- [Add a test fixture](add-a-fixture)
-- [Primitives and constraints](../reference/primitives)
-- [The MECE model of primitives](../explanation/primitives-model)
-- [How urn-forge is built](../explanation/architecture)
+- [Add a primitive](./add-a-primitive.md)
+- [Add a test fixture](./add-a-fixture.md)
+- [Primitives and constraints](../docs/reference/primitives.md)
+- [The MECE model of primitives](../docs/explanation/primitives-model.md)
+- [How urn-forge is built](./architecture.md)

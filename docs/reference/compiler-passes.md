@@ -342,5 +342,5 @@ For each check, refer to [The Postgres schema](./postgres-schema).
 - [Diagnostics](./diagnostics)
 - [The manifest](./manifest)
 - [The Postgres schema](./postgres-schema)
-- [How urn-forge is built](../explanation/architecture)
+- How urn-forge is built
 - [Departures from the specification](../explanation/departures-from-the-spec)

@@ -54,7 +54,7 @@ A Cucumber run then sends each scenario through `executeOperation`, with the URN
 
 ## Why traceability is the product
 
-[Specification v1.1](../project/spec-v1-1) says it directly: "That traceability, from declaration to handler to scenario, is the product. Schema-to-type codegen is table stakes."
+Specification v1.1 says it directly: "That traceability, from declaration to handler to scenario, is the product. Schema-to-type codegen is table stakes."
 
 Many tools make TypeScript types from a schema. Valibot and Zod infer types from a schema in code. OpenAPI and JSON Schema tools make types from a document. None of these tools can tell you that a declared operation has a handler and a scenario. They also cannot tell you that the scenario uses the names of real fields. These questions need one name that all three parts share, and a check that reads all three parts.
 
@@ -68,7 +68,7 @@ The URN is that name. The generated code is only the means to connect the parts.
 
 Specification v1.0 put the Gherkin check last on the roadmap. Version 1.1 moved it into the first slice of the work, because traceability is the part that makes urn-forge different. If the idea did not pay off, the project had to know early.
 
-The [MVP plan](../project/mvp-plan) thus proved one claim before it added breadth. A URN in YAML traces to a typed handler and to a Gherkin scenario that passes. CI fails when a link in that chain breaks. It used a small math domain with three primitives and three kinds.
+The MVP plan thus proved one claim before it added breadth. A URN in YAML traces to a typed handler and to a Gherkin scenario that passes. CI fails when a link in that chain breaks. It used a small math domain with three primitives and three kinds.
 
 The MVP was done when CI turned red on three one-line changes: a deleted handler, a renamed table column and a hand-edited generated file. The later work added declared errors and boundary coverage to the same chain. It did not change the chain.
 

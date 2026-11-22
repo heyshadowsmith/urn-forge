@@ -8,9 +8,9 @@ The example is the real addition of `date` with its constraints `min` and `max` 
 
 - You have a clone of urn-forge, and `npm ci` ran in the root folder.
 - `npm test` and `npm run typecheck` pass.
-- You read `src/primitives/README.md`, [Primitives and constraints](../reference/primitives) and [The MECE model of primitives](../explanation/primitives-model).
+- You read `src/primitives/README.md`, [Primitives and constraints](../docs/reference/primitives.md) and [The MECE model of primitives](../docs/explanation/primitives-model.md).
 - You know that the new kind of value needs a primitive. A kind is new only if its value space or its comparison is different from that of each primitive. For example, a duration is an `integer` with the unit in its name.
-- You know which constraints the primitive accepts, the aspect of each one, and the boundary cases of each one. [Boundary coverage and the ratchet](../explanation/boundary-coverage) gives the rules.
+- You know which constraints the primitive accepts, the aspect of each one, and the boundary cases of each one. [Boundary coverage and the ratchet](../docs/explanation/boundary-coverage.md) gives the rules.
 
 Commands run from `packages/urn-forge`, except where a step says the root folder.
 
@@ -101,7 +101,7 @@ The meta-schema, `FieldInfo`, the cell conversion and the support check of the e
 5. If a helper has the same rules as a function of the descriptor, add a test to `tests/exact.test.ts`. That test runs the helper text and compares it with the descriptor on many values. `isCalendarDate` has a copy in each of the two places.
 6. Run `npm run typecheck` again until it passes.
 
-The Valibot plugin makes its `supports` declaration from `TRANSLATIONS`, so the two cannot disagree. The FCIS plugin reads only the name of a primitive, so it needs no change. A new plugin that reads constraints must declare the primitive in `supports.constraints`. Refer to [Add a plugin](add-a-plugin).
+The Valibot plugin makes its `supports` declaration from `TRANSLATIONS`, so the two cannot disagree. The FCIS plugin reads only the name of a primitive, so it needs no change. A new plugin that reads constraints must declare the primitive in `supports.constraints`. Refer to [Add a plugin](./add-a-plugin.md).
 
 ## Check the MECE model
 
@@ -121,7 +121,7 @@ It has three checks:
 
   To fix it, use the name that the aspect has: `minLength`.
 
-- **The reference table.** Each row of the constraint table in [Primitives and constraints](../reference/primitives) is one constraint of the registry, with its aspect. Add a row for each new constraint.
+- **The reference table.** Each row of the constraint table in [Primitives and constraints](../docs/reference/primitives.md) is one constraint of the registry, with its aspect. Add a row for each new constraint.
 - **The exclusive groups.** Each `exclusive` group names two or more constraints of the primitive, and all of them have one aspect.
 
 ## Test the primitive
@@ -141,7 +141,7 @@ It has three checks:
 5. Examine the diff of each file below `tests/fixtures/`. The `unknown-primitive` message lists every primitive, so `invalid-structure` changes too.
 6. If you added a diagnostic code, add a case to `tests/every-code.test.ts`.
 
-[Add a test fixture](add-a-fixture) gives the details of the harness.
+[Add a test fixture](./add-a-fixture.md) gives the details of the harness.
 
 ## Compile the committed domains again
 
@@ -162,12 +162,12 @@ The generated runtime lists every primitive in `FieldInfo`. The fingerprint also
 
 ## Document the primitive
 
-1. Add the primitive and its constraints to [Primitives and constraints](../reference/primitives), with its boundary cases. Add a row to the constraint table for each constraint. The test of the MECE model compares the table with the registry.
-2. Add the primitive to [The manifest](../reference/manifest).
-3. Add its cell conversion to [Gherkin steps](../reference/gherkin-steps).
-4. If the primitive changes the table of primitives and aspects, update [The MECE model of primitives](../explanation/primitives-model).
-5. Update [Scope](../reference/scope).
-6. If you added a diagnostic code, add it to [Diagnostics](../reference/diagnostics). A test in `tests/diagnostics.test.ts` fails until the page lists each code.
+1. Add the primitive and its constraints to [Primitives and constraints](../docs/reference/primitives.md), with its boundary cases. Add a row to the constraint table for each constraint. The test of the MECE model compares the table with the registry.
+2. Add the primitive to [The manifest](../docs/reference/manifest.md).
+3. Add its cell conversion to [Gherkin steps](../docs/reference/gherkin-steps.md).
+4. If the primitive changes the table of primitives and aspects, update [The MECE model of primitives](../docs/explanation/primitives-model.md).
+5. Update [Scope](../docs/reference/scope.md).
+6. If you added a diagnostic code, add it to [Diagnostics](../docs/reference/diagnostics.md). A test in `tests/diagnostics.test.ts` fails until the page lists each code.
 
 ## Result
 
@@ -185,8 +185,8 @@ Each command passes. A manifest field with `primitive: <name>` compiles, and its
 
 ## Related pages
 
-- [Add a constraint](add-a-constraint)
-- [Add a test fixture](add-a-fixture)
-- [Primitives and constraints](../reference/primitives)
-- [The MECE model of primitives](../explanation/primitives-model)
-- [How urn-forge is built](../explanation/architecture)
+- [Add a constraint](./add-a-constraint.md)
+- [Add a test fixture](./add-a-fixture.md)
+- [Primitives and constraints](../docs/reference/primitives.md)
+- [The MECE model of primitives](../docs/explanation/primitives-model.md)
+- [How urn-forge is built](./architecture.md)

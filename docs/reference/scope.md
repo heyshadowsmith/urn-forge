@@ -1,6 +1,6 @@
 # Scope
 
-This page compares urn-forge 0.1.0 with [specification v1.1](../project/spec-v1-1). For each area of the specification, it gives the parts that urn-forge has and the parts that urn-forge does not have at this time. The section numbers are those of the specification. For the reasons, refer to [Departures from the specification](../explanation/departures-from-the-spec).
+This page compares urn-forge 0.1.0 with specification v1.1. For each area of the specification, it gives the parts that urn-forge has and the parts that urn-forge does not have at this time. The section numbers are those of the specification. For the reasons, refer to [Departures from the specification](../explanation/departures-from-the-spec).
 
 ## Summary
 
@@ -158,7 +158,7 @@ For the reasons, refer to [Departures from the specification](../explanation/dep
 
 ## Related pages
 
-- [Specification v1.1](../project/spec-v1-1)
-- [MVP plan](../project/mvp-plan)
+- Specification v1.1
+- MVP plan
 - [Departures from the specification](../explanation/departures-from-the-spec)
 - [The manifest](./manifest)

@@ -2,7 +2,7 @@
 
 Nov 21, 2026 · @Shadow Smith
 
-Today a property of an entity holds one value of a field, or a list of them. A real domain also needs a property that holds another entity (an order holds its lines) and a property that points at another entity (an order names its customer). This plan adds both, on the axis that the [primitives plan](./primitives-plan) set for structure: the field reference. A primitive still says what one value is; a reference says what a property holds and how many.
+Today a property of an entity holds one value of a field, or a list of them. A real domain also needs a property that holds another entity (an order holds its lines) and a property that points at another entity (an order names its customer). This plan adds both, on the axis that the [primitives plan](./primitives-plan.md) set for structure: the field reference. A primitive still says what one value is; a reference says what a property holds and how many.
 
 ## What changes for a user
 

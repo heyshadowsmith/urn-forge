@@ -53,4 +53,4 @@ The documentation has four parts. Each part has a different function.
 | [Reference](/reference/) | You must find a fact: an option, a property of the manifest, a diagnostic code or a generated type | [Reference](/reference/) |
 | [Explanation](/explanation/) | You want to know why urn-forge operates as it does | [The traceability chain](/explanation/traceability) |
 
-The [Project](/project/mvp-plan) part contains the plans and the specification. These documents record the decisions, and they do not change after a phase is complete.
+The Project part contains the plans and the specification. These documents record the decisions, and they do not change after a phase is complete.

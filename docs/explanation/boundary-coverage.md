@@ -6,7 +6,7 @@ Gate 3 looks at the values that the scenarios of each operation send. For each c
 
 Many bugs are at an edge. A handler uses `>` where it must use `>=`, or a constraint says `max: 100` where the domain means 99. A scenario that sends only a value in the middle of the range does not exercise the edge. It passes if the edge is correct, and it also passes if the edge is not correct.
 
-Specification v1.0 asked for one value at or past a bound. [Specification v1.1](../project/spec-v1-1) asks for both sides: for an `integer` with `min: 1`, the values `0` and `1`. One side shows that the schema refuses a bad value. The other side shows that it accepts the first good value.
+Specification v1.0 asked for one value at or past a bound. Specification v1.1 asks for both sides: for an `integer` with `min: 1`, the values `0` and `1`. One side shows that the schema refuses a bad value. The other side shows that it accepts the first good value.
 
 Each constraint has its own cases. A `regex` needs one value that matches and one that does not. An `enum` needs each of its `values` and one value outside the list. [Verification gates](../reference/verification-gates) gives the full rules. Each primitive holds its own rules, in its descriptor, so a new primitive brings its rules with it.
 

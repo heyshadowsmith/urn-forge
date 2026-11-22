@@ -8,7 +8,7 @@ The example plugin on this page is `urn-list`. It writes one file with every URN
 
 - You have a clone of urn-forge, and `npm ci` ran in the root folder.
 - `npm test` and `npm run typecheck` pass.
-- You know the IR. Refer to [How urn-forge is built](../explanation/architecture).
+- You know the IR. Refer to [How urn-forge is built](./architecture.md).
 
 Commands run from `packages/urn-forge`, except where a step says the root folder.
 
@@ -153,14 +153,14 @@ If the config is not correct, `compile` stops before any plugin runs:
 ## Test the plugin
 
 1. Add a test file, for example `tests/urn-list.plugin.test.ts`, for the output and for each diagnostic.
-2. Add a fixture with an `urn-forge.config.ts` that enables the plugin. The fixture harness and the determinism test then compile it with that plugin list. Refer to [Add a test fixture](add-a-fixture).
+2. Add a fixture with an `urn-forge.config.ts` that enables the plugin. The fixture harness and the determinism test then compile it with that plugin list. Refer to [Add a test fixture](./add-a-fixture.md).
 3. Run `npm test` from the root folder.
 
 ## Document the plugin
 
-1. Add the plugin and its options to [The configuration file](../reference/configuration).
-2. Describe the files that it makes on a reference page, as [The generated schemas](../reference/generated-schemas) does for Valibot.
-3. Update [Scope](../reference/scope).
+1. Add the plugin and its options to [The configuration file](../docs/reference/configuration.md).
+2. Describe the files that it makes on a reference page, as [The generated schemas](../docs/reference/generated-schemas.md) does for Valibot.
+3. Update [Scope](../docs/reference/scope.md).
 
 ## Result
 
@@ -168,8 +168,8 @@ If the config is not correct, `compile` stops before any plugin runs:
 
 ## Related pages
 
-- [Add a test fixture](add-a-fixture)
-- [Add a kind](add-a-kind)
-- [The configuration file](../reference/configuration)
-- [How urn-forge is built](../explanation/architecture)
-- [Determinism and the fingerprint](../explanation/determinism)
+- [Add a test fixture](./add-a-fixture.md)
+- [Add a kind](./add-a-kind.md)
+- [The configuration file](../docs/reference/configuration.md)
+- [How urn-forge is built](./architecture.md)
+- [Determinism and the fingerprint](../docs/explanation/determinism.md)

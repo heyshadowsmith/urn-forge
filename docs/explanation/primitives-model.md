@@ -129,4 +129,4 @@ Two changes broke manifests that worked before. `oneOf` on a `string` became an 
 - [The rule language](../reference/rule-language)
 - [Add a field](../how-to/add-a-field)
 - [Departures from the specification](./departures-from-the-spec)
-- [The primitives plan](../project/primitives-plan)
+- The primitives plan

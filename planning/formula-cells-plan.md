@@ -77,7 +77,7 @@ One PR (decision 13), one commit per step. Each step leaves the repository green
 - [x] **2. Messages.** Shortened long values in the failure messages of the steps. *Check:* a test of a 10 000-item list that fails.
   - *Done.* A text of more than 60 characters shows its first 40 and its length; a list of more than 10 items, its first 3 and its length. Two long texts that differ also give the first character where they differ (the risk below).
 - [x] **3. Ship.** The docs and the notes. *Check:* CI green; every sabotage below fails.
-  - *Done.* New section [Formula cells](../reference/gherkin-steps#formula-cells) in the steps reference, with each form and each message; a section in Write scenarios with the rows of the target; a line in Adopt strict coverage.
+  - *Done.* New section [Formula cells](../docs/reference/gherkin-steps.md#formula-cells) in the steps reference, with each form and each message; a section in Write scenarios with the rows of the target; a line in Adopt strict coverage.
 
 ## Done
 
