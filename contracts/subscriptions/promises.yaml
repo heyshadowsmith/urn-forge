@@ -117,7 +117,11 @@ promises:
     status: workaround
     by: [billing.field.period_start, billing.field.period_end, event.field.occurred_at]
     hole: D3
+  # Within the major version, urn-forge diff refuses a removal or a rename, and compatibility.callers lets it accept a
+  # new field or enum value. The 12 months for which a removed version keeps working is how long the operator runs it,
+  # which nothing that urn-forge builds can check.
   P24:
     promise: "Within one major API version, fields and enum values are only added and never removed or renamed, callers must ignore unknown fields, and a removed version keeps working for at least 12 months after its deprecation is announced."
-    status: not-declarable
+    status: workaround
+    by: [manifest.compatibility, manifest.version]
     hole: E4

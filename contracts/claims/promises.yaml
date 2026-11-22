@@ -157,7 +157,9 @@ promises:
     promise: "A claim left in SUBMITTED for 30 days without a decision is reported in a ClaimDecisionOverdue event, and its state is not changed by that."
     status: declared
     by: [claim.operation.report_overdue, claim.event.claim_decision_overdue, claim.field.submitted_at, claim.field.overdue_reported_at, claim.entity.claim, claim.entity.claim_ref, claim.invariant.submitted_has_time, claim.operation.submit_claim, claim.entity.submission_answer, claim.error.clock_only, auth.field.role, auth.entity.caller]
+  # The manifest is stable, so urn-forge diff refuses a removal or a rename. compatibility.callers states that
+  # callers ignore what they do not know, so diff accepts a new optional field, event, category or refusal code.
   P24:
     promise: "Within a major version, new optional fields, event types, categories or refusal codes may be added, but existing fields, states and codes are never removed or renamed, and callers must ignore unknown fields."
-    status: not-declarable
-    hole: E4
+    status: declared
+    by: [manifest.compatibility]

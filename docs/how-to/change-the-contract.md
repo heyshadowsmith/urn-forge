@@ -19,6 +19,8 @@ The examples come from [`packages/urn-forge/insurance/`](https://github.com/heys
 | Out | The output of an operation, an event, or the payload of a declared error: callers receive it | A wider set of values: a looser constraint, a property that becomes optional, a new enum value, a new declared error, a new event |
 | Stored | A table of the `postgres` plugin: the database stores it | A narrower set of values. The rows in the database must stay valid |
 
+If the header states that callers ignore what they do not know, a new enum value, a new declared error and a new event are compatible. Refer to step 9.
+
 States and moves have rules of their own:
 
 | Change | Class |
@@ -185,6 +187,7 @@ The insurance domain retires `policy.field.note`, which has no length limit, for
    | --- | --- |
    | `status` | `active` (the default), `deprecated` or `sunset`. A status moves forward only |
    | `supersededBy` | The short key of the replacement. It must be an atom of the same kind |
+   | `deprecatedOn` | Optional. The day that you announced the deprecation, as `YYYY-MM-DD`. A notice counts from it (step 9) |
    | `sunsetDate` | The first day on which a reference to the atom is an error, as `YYYY-MM-DD` |
 
    Each kind accepts these keys. If they are not correct, `compile` stops with `invalid-lifecycle`, `wrong-ref-kind` or `unresolved-ref`. Refer to [Diagnostics](../reference/diagnostics).
@@ -313,11 +316,90 @@ diff passed: 0 breaking, 4 compatible, 1 lifecycle change(s)
 
 At the sunset date, sunset the old operation as in step 7. Also sunset the old entity and field if nothing else uses them.
 
+## 9. State how the contract changes
+
+The header can state two rules for the whole contract, with `compatibility`:
+
+```yaml
+manifest:
+  namespace: acme
+  domain: insurance
+  version: 0.1.0
+  compatibility:
+    callers: ignore-unknown
+    notice: 6 months
+```
+
+| Key | Value | Effect |
+| --- | --- | --- |
+| `callers` | `ignore-unknown` | Callers ignore a property, a value or a kind of answer that they do not know |
+| `notice` | A number of days or months: `180 days`, `6 months` | The minimum time from the announcement of a deprecation to its sunset date. Months count on the calendar: 6 months after 2026-08-31 is 2027-02-28 |
+
+Both keys are optional. Any other value stops `compile` with `invalid-compatibility`.
+
+### Let callers ignore what they do not know
+
+Without `callers: ignore-unknown`, a new declared error is breaking (step 3). With it, `diff` reports a new declared error, a new event in `emits`, or a new enum value in a value that callers receive as compatible:
+
+```
+compatible  urn:acme:insurance:policy:error:policy_already_cancelled  is new
+compatible  urn:acme:insurance:policy:operation:cancel_policy  the new declared error urn:acme:insurance:policy:error:policy_already_cancelled widens a value that callers receive, which callers ignore when they do not know it (compatibility.callers)
+diff passed: 0 breaking, 2 compatible, 0 lifecycle change(s)
+```
+
+- The rule of the old manifest applies. Callers read the contract that they have.
+- A removal, a rename and any other wider value stay breaking, for example a larger `max`. A caller that ignores an unknown value cannot ignore a larger number.
+- The rule is for the callers. urn-forge cannot check that they keep it. Write it in the documents that you give them.
+- The generated schemas remove the properties that they do not know from a request. Thus a caller that sends a property of a newer version is not refused.
+
+### Give notice before a removal
+
+With a `notice`, give each deprecated atom with a `sunsetDate` the day of the announcement, `deprecatedOn`:
+
+```yaml
+policy.field.note:
+  primitive: string
+  description: Free text about a coverage
+  status: deprecated
+  supersededBy: policy.field.remark
+  deprecatedOn: 2026-12-31
+  sunsetDate: 2027-06-30
+```
+
+A `sunsetDate` that is less than the notice after `deprecatedOn` stops `compile`:
+
+```
+insurance/domain.manifest.yaml:41:15  error  short-notice  urn:acme:insurance:policy:field:note: sunsetDate 2027-06-30 is less than 6 months after deprecatedOn 2027-01-15; set it on or after 2027-07-15
+```
+
+`compile` also stops with `short-notice` when a `sunsetDate` has no `deprecatedOn`, or a sunset atom has no `sunsetDate`.
+
+`diff` then requires the announcement before the removal:
+
+- It accepts `status: sunset` only for an atom that the old manifest deprecated with a `sunsetDate`, as in step 7.
+- It refuses `status: sunset` for an atom that was not announced.
+- It refuses a changed `deprecatedOn`. The notice counts from the day of the announcement, and that day does not move.
+
+Here `remark` goes to `sunset` with no announcement:
+
+```
+breaking    urn:acme:insurance:policy:entity:coverage  removing the optional property "remark" widens a value that callers send and callers receive and the database stores, which breaks callers that receive it
+breaking    urn:acme:insurance:policy:field:remark  status active → sunset with no notice; compatibility.notice is 6 months, so deprecate it with deprecatedOn and sunsetDate first
+diff failed: 2 breaking, 0 compatible, 0 lifecycle change(s)
+```
+
+With a reference date (step 6), a sunset atom whose `sunsetDate` is after the reference date stops `compile` with `early-sunset`. Keep the atom deprecated until its sunset date.
+
+### A new major version
+
+`diff` refuses a breaking change also when the major version goes up. A new major version is a new manifest beside the old one, and the old version keeps running. How long it runs is your decision, and urn-forge does not check it.
+
 ## Result
 
 - A pull request that changes the meaning of a live URN fails the `compatibility` job.
 - The new atom has its own URN, and callers use it.
 - The old atom has `status: sunset`, and it stays in the manifest.
+- With `compatibility`, the manifest states what callers ignore, and the notice before a removal.
 
 ## Related pages
 

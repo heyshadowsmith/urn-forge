@@ -4,6 +4,9 @@ manifest:
   domain: claims
   version: 1.0.0
   caller: auth.entity.caller
+  # Callers ignore a property, an event, a refusal code or an enum value that they do not know.
+  compatibility:
+    callers: ignore-unknown
 
 # Values
 

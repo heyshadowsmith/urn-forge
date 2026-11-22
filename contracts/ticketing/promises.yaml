@@ -162,7 +162,11 @@ promises:
     promise: "Buyer-requested refunds are accepted only until 48 hours before the event's start time, and transfers are accepted only until 2 hours before the event's start time."
     status: declared
     by: [show.field.starts_at, refund.operation.request_refund, order.entity.order, refund.error.refund_window_closed, transfer.operation.transfer_ticket, ticket.entity.ticket, transfer.operation.accept_transfer, transfer.entity.transfer, transfer.error.transfer_window_closed]
+  # Within the major version, urn-forge diff refuses a removal or a rename, and compatibility.callers lets it accept a
+  # new field or refusal code. The 180 days of notice for a new major version is how long the operator runs the old
+  # one, which nothing that urn-forge builds can check.
   P24:
     promise: "Within one major version, fields and refusal codes are only added and never removed or renamed, callers must ignore unknown fields, and a new major version is announced at least 180 days before the old one is retired."
-    status: not-declarable
+    status: workaround
+    by: [manifest.compatibility, manifest.version]
     hole: E4

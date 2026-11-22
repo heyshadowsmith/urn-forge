@@ -154,6 +154,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
     manifest('a.field.x: { primitive: float }\nb.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n    - ref: b.field.x\n'),
   'duplicate-ref': () => manifest('a.field.x: { primitive: float }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n    - ref: a.field.x\n'),
   'reserved-property': () => manifest('a.field.kind: { primitive: string }\na.error.e:\n  description: d\n  category: precondition\n  retryable: false\n  message: m\n  fields:\n    - ref: a.field.kind\n'),
+  'invalid-compatibility': () => compile(`${HEADER}  compatibility: { notice: a year }\n`).diagnostics,
   'invalid-lifecycle': () => manifest('a.field.x: { primitive: float, supersededBy: a.field.y }\na.field.y: { primitive: float }\n'),
   // Pass 4
   'unresolved-ref': () => manifest('a.entity.e:\n  description: d\n  fields:\n    - ref: a.field.nope\n'),
@@ -165,6 +166,8 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   // Pass 8
   'deprecated-ref': () => manifest('a.field.x: { primitive: float, status: deprecated }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n'),
   'sunset-ref': () => manifest('a.field.x: { primitive: float, status: sunset }\na.entity.e:\n  description: d\n  fields:\n    - ref: a.field.x\n'),
+  'short-notice': () => compile(`${HEADER}  compatibility: { notice: 6 months }\na.field.x: { primitive: float, status: deprecated, sunsetDate: 2027-01-01 }\n`).diagnostics,
+  'early-sunset': () => compile(`${HEADER}a.field.x: { primitive: float, status: sunset, sunsetDate: 2027-01-01 }\n`, DEFAULT_PLUGINS, { referenceDate: '2026-12-31' }).diagnostics,
   // Pass 6
   'invalid-record-as': () =>
     manifest('a.field.x: { primitive: float }\na.field.y: { primitive: float }\na.event.seen:\n  description: d\n  fields:\n    - ref: a.field.x\n    - ref: a.field.y\n' +

@@ -62,7 +62,8 @@ These codes change their severity:
 | `unknown-property` | `error` | An atom or the header has a key that it does not accept | Remove or correct the key. For `oneOf`, use `primitive: enum`. For `notEqual`, use `notIn` |
 | `missing-property` | `error` | An entry does not have a necessary property, for example `description` or `values` | Add the property |
 | `invalid-value` | `error` | A value has the wrong type or form | Correct the value as the message says |
-| `invalid-lifecycle` | `error` | An active atom sets `supersededBy` or `sunsetDate`, or `supersededBy` names the atom itself | Set `status: deprecated` or `status: sunset`, or remove the key |
+| `invalid-lifecycle` | `error` | An active atom sets `supersededBy`, `deprecatedOn` or `sunsetDate`, or `supersededBy` names the atom itself | Set `status: deprecated` or `status: sunset`, or remove the key |
+| `invalid-compatibility` | `error` | The header `compatibility` has a `callers` value that is not `ignore-unknown`, or a `notice` that is not a number of days or months | Write `callers: ignore-unknown`, and a notice such as `6 months` or `180 days` |
 
 ## Pass 3: uniqueness
 
@@ -127,6 +128,8 @@ These codes change their severity:
 | --- | --- | --- | --- |
 | `deprecated-ref` | `warning` | An active atom refers to a deprecated atom | Refer to the replacement before the sunset date |
 | `sunset-ref` | `error` | An atom refers to a sunset atom, or to an atom whose `sunsetDate` is on or before the reference date | Refer to the replacement |
+| `short-notice` | `error` | The header has a `notice`, and a `sunsetDate` is less than the notice after `deprecatedOn`, or has no `deprecatedOn`, or a sunset atom has no `sunsetDate` | Set `deprecatedOn` to the day of the announcement, and `sunsetDate` on or after the date in the message |
+| `early-sunset` | `error` | A sunset atom has a `sunsetDate` after the reference date | Keep the atom `deprecated` until its sunset date |
 
 ## Plugins
 

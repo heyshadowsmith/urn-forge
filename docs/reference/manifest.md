@@ -34,6 +34,7 @@ manifest:
 | `version` | string | Yes | — | A semver version, for example `0.1.0` or `1.0.0-rc.1` |
 | `stability` | `stable` or `experimental` | No | `stable` | While the old manifest is `experimental`, `urn-forge diff` gives a breaking change as a warning |
 | `caller` | string | No | — | The short key of an entity: who calls, as the shell authenticated them. Each operation then must have `callers`. Refer to [`callers`](#callers) |
+| `compatibility` | A map | No | — | `callers` (`ignore-unknown`: `urn-forge diff` accepts a new error, event or enum value in an answer) and `notice` (a number of days or months, such as `6 months`: the minimum time from `deprecatedOn` to `sunsetDate`). Any other value causes `invalid-compatibility`. Refer to [Change the contract](../how-to/change-the-contract#_9-state-how-the-contract-changes) |
 
 - Other properties cause `unknown-property`.
 - YAML reads `version: 1` and `version: 1.0` as numbers. They cause `invalid-value`.
@@ -355,6 +356,7 @@ policy.field.note:
   description: Free text about a coverage
   status: deprecated
   supersededBy: policy.field.remark
+  deprecatedOn: 2026-12-31
   sunsetDate: 2027-06-30
 ```
 
@@ -362,9 +364,10 @@ policy.field.note:
 | --- | --- | --- | --- |
 | `status` | `active`, `deprecated` or `sunset` | `active` | Moves forward only. `urn-forge diff` reports a step back as breaking |
 | `supersededBy` | string | None | The short key of a different atom of the same kind. Not a URN |
+| `deprecatedOn` | `YYYY-MM-DD` | None | The day that the deprecation was announced. With a `notice` in the header, each `sunsetDate` needs it |
 | `sunsetDate` | `YYYY-MM-DD` | None | A calendar day, with quotes or not |
 
-`supersededBy` or `sunsetDate` with `status: active` causes `invalid-lifecycle`.
+`supersededBy`, `deprecatedOn` or `sunsetDate` with `status: active` causes `invalid-lifecycle`.
 
 | Status | A reference to the atom | Generated code | Gates |
 | --- | --- | --- | --- |
@@ -373,6 +376,8 @@ policy.field.note:
 | `sunset` | From an active or a deprecated atom: `sunset-ref`, an error | None | No check |
 
 - If a `sunsetDate` is on or before the reference date, a reference from an active or a deprecated atom is `sunset-ref`. Without a reference date, urn-forge does not compare sunset dates. Refer to [The configuration file](./configuration).
+- A sunset atom whose `sunsetDate` is after the reference date is `early-sunset`.
+- With a `notice` in the header, a `sunsetDate` less than the notice after `deprecatedOn` is `short-notice`.
 - The generated code depends on `status` only.
 - Keep a sunset atom in the manifest. `urn-forge diff` reports a removed atom as a breaking change.
 

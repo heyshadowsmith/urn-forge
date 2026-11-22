@@ -19,7 +19,7 @@ breaking    urn:demo:shop:order:field:qty  max 10 → 5 narrows a value that cal
 breaking    urn:demo:shop:order:field:total  max 1000 → 2000 widens a value that callers receive, which breaks callers that receive it
 ```
 
-A URN with two uses gets the rules of each use, so a field that callers send and receive breaks on each change of its values. For the same reason, a new declared error or a new event is breaking: it widens what callers receive.
+A URN with two uses gets the rules of each use, so a field that callers send and receive breaks on each change of its values. For the same reason, a new declared error or a new event is breaking: it widens what callers receive. A contract can say that its callers ignore what they do not know, with `compatibility: { callers: ignore-unknown }` in the header. Then a new kind of answer cannot make a caller fail, and `diff` reports it as compatible. A wider value that a caller reads, such as a larger number, stays breaking.
 
 The uses come from the old manifest, because the old manifest has the consumers that exist. Storage is a decision of the shell, so `diff` reads the tables from the configuration file. Without `--config`, a stored field can look unused.
 

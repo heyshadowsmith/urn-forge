@@ -207,7 +207,11 @@ promises:
     promise: "Answers and events never contain a full card number or security code, showing at most the card brand, the last 4 digits and the expiry."
     status: declared
     by: [card.entity.card_summary, card.field.brand, card.field.last4, payment.entity.created_payment, payment.entity.payment]
+  # Within the major version, urn-forge diff refuses a removed or renamed field or refusal name. It also refuses a new
+  # event type, which the promise allows: callers are not said to ignore unknown values. The 12 months for which a
+  # major version is supported is how long the operator runs it, which nothing that urn-forge builds can check.
   P24:
     promise: "Within one major API version, fields and refusal names are never removed or renamed, new optional fields and new event types may be added, and a major version is supported for at least 12 months after its successor is released."
-    status: not-declarable
+    status: workaround
+    by: [manifest.version]
     hole: E4
