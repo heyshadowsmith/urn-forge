@@ -154,3 +154,46 @@ Feature: Check out a hold
       | CONVERTED   |
       | RELEASED    |
       | EXPIRED     |
+
+  Scenario: A repeat of a checkout with the same key within 24 hours returns the first order and issues no ticket
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current hold is:
+      | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
+      | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:58:00Z | 2026-12-01T19:08:00Z |
+    When I run the operation with:
+      | idempotency_key | hold_id                              | payment_reference |
+      | checkout-0001   | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | pay_123           |
+    Then the operation emits "urn:corpus:ticketing:order:event:order_placed"
+    When I run the operation again with:
+      | idempotency_key | hold_id                              | payment_reference |
+      | checkout-0001   | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | pay_456           |
+    Then the answer is the first answer
+    And the operation emits no event
+
+  Scenario: A refused checkout is not kept, so a repeat with the same key runs
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current hold is:
+      | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
+      | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:58:00Z | 2026-12-01T19:08:00Z |
+    When I run the operation with:
+      | idempotency_key | hold_id                              | payment_reference |
+      | checkout-0001   | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | DECLINED          |
+    Then the operation fails with "urn:corpus:ticketing:order:error:payment_declined"
+    When I run the operation again with:
+      | idempotency_key | hold_id                              | payment_reference |
+      | checkout-0001   | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | pay_123           |
+    Then the operation emits "urn:corpus:ticketing:order:event:order_placed"
+
+  Scenario: 24 hours after the first checkout the key is free, and the repeat runs again
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current hold is:
+      | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
+      | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: EUR } }] | { amount_minor: 8000, currency: EUR } | 2026-12-01T18:58:00Z | 2026-12-01T19:08:00Z |
+    When I run the operation with:
+      | idempotency_key | hold_id                              | payment_reference |
+      | checkout-0001   | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | pay_123           |
+    Given the time is "2026-12-02T19:00:00Z"
+    When I run the operation again with:
+      | idempotency_key | hold_id                              | payment_reference |
+      | checkout-0001   | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | pay_123           |
+    Then the operation fails with "urn:corpus:ticketing:order:error:hold_expired"

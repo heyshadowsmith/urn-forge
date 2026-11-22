@@ -558,6 +558,10 @@ hold.operation.create_hold:
   description: Hold seats or standing places of one event during checkout
   input: hold.entity.hold_request
   output: hold.entity.hold
+  # A repeat with the same key within 24 hours returns the first answer, whatever its body, and runs nothing.
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
   errors:
     - hold.error.seat_unavailable
     - hold.error.section_sold_out
@@ -611,6 +615,10 @@ order.operation.check_out:
   description: Pay for a hold and turn it into an order with its tickets
   input: order.entity.checkout_request
   output: order.entity.order
+  # A repeat with the same key within 24 hours returns the first answer, whatever its body, and runs nothing.
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
   changes:
     entity: hold.entity.hold
     from: [ACTIVE]
@@ -691,6 +699,10 @@ refund.operation.request_refund:
   description: Refund tickets of an order
   input: refund.entity.refund_request
   output: refund.entity.refund
+  # A repeat with the same key within 24 hours returns the first answer, whatever its body, and runs nothing.
+  idempotency:
+    key: input.idempotency_key
+    window: 24 hours
   # The order, with the start of its event. Refunds are accepted only until 48 hours before the
   # start: at 48 hours before, no longer.
   reads:
