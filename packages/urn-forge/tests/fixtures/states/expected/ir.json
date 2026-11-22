@@ -37,11 +37,16 @@
     },
     "urn:demo:states:booking:entity:cancellation": {
       "brandIdentifier": "BookingCancellation",
-      "description": "What a cancellation gives back",
+      "description": "What a cancellation gives back, with the new state",
       "fields": [
         {
           "field": "urn:demo:states:booking:field:reference",
           "name": "reference",
+          "required": true
+        },
+        {
+          "field": "urn:demo:states:booking:field:state",
+          "name": "state",
           "required": true
         },
         {
@@ -103,6 +108,28 @@
       ],
       "retryable": false,
       "urn": "urn:demo:states:booking:error:invalid_state"
+    },
+    "urn:demo:states:booking:error:not_found": {
+      "brandIdentifier": "BookingNotFound",
+      "category": "not_found",
+      "description": "No booking has this reference",
+      "fields": [
+        {
+          "field": "urn:demo:states:booking:field:reference",
+          "name": "reference",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "No booking "
+        },
+        {
+          "field": "reference"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:states:booking:error:not_found"
     }
   },
   "events": {},
@@ -164,7 +191,7 @@
   "meta": {
     "domain": "states",
     "irSchemaVersion": 1,
-    "manifestHash": "918bed62458fd7b0b25ee6f40136f73f3f393463277d01d14e23d4d84b4fe452",
+    "manifestHash": "48570f93fdb5374ce48aecf485ae051e9244c19f03a7f93b355220ad307f59ec",
     "manifestVersion": "1.0.0",
     "namespace": "demo",
     "stability": "stable"
@@ -179,7 +206,9 @@
         ],
         "otherwise": "urn:demo:states:booking:error:invalid_state",
         "property": "state",
-        "to": "cancelled"
+        "to": [
+          "cancelled"
+        ]
       },
       "description": "Cancel a booking",
       "emits": [],
@@ -209,8 +238,32 @@
       "output": "urn:demo:states:booking:entity:booking",
       "urn": "urn:demo:states:booking:operation:change_party"
     },
-    "urn:demo:states:booking:operation:seat_booking": {
-      "brandIdentifier": "BookingSeatBooking",
+    "urn:demo:states:booking:operation:close_booking": {
+      "brandIdentifier": "BookingCloseBooking",
+      "changes": {
+        "entity": "urn:demo:states:booking:entity:booking",
+        "from": [
+          "confirmed",
+          "seated"
+        ],
+        "otherwise": "urn:demo:states:booking:error:invalid_state",
+        "property": "state",
+        "to": [
+          "completed",
+          "cancelled"
+        ]
+      },
+      "description": "Close a booking, which ends completed or cancelled",
+      "emits": [],
+      "errors": [
+        "urn:demo:states:booking:error:invalid_state"
+      ],
+      "input": "urn:demo:states:booking:entity:booking_ref",
+      "output": "urn:demo:states:booking:entity:booking",
+      "urn": "urn:demo:states:booking:operation:close_booking"
+    },
+    "urn:demo:states:booking:operation:confirm_booking": {
+      "brandIdentifier": "BookingConfirmBooking",
       "changes": {
         "entity": "urn:demo:states:booking:entity:booking",
         "from": [
@@ -218,12 +271,38 @@
         ],
         "otherwise": "urn:demo:states:booking:error:invalid_state",
         "property": "state",
-        "to": "seated"
+        "to": [
+          "confirmed"
+        ]
+      },
+      "description": "Confirm a booking again; a confirmed booking stays confirmed",
+      "emits": [],
+      "errors": [
+        "urn:demo:states:booking:error:invalid_state"
+      ],
+      "input": "urn:demo:states:booking:entity:booking_ref",
+      "output": "urn:demo:states:booking:entity:booking",
+      "urn": "urn:demo:states:booking:operation:confirm_booking"
+    },
+    "urn:demo:states:booking:operation:seat_booking": {
+      "brandIdentifier": "BookingSeatBooking",
+      "changes": {
+        "entity": "urn:demo:states:booking:entity:booking",
+        "from": [
+          "confirmed"
+        ],
+        "missing": "urn:demo:states:booking:error:not_found",
+        "otherwise": "urn:demo:states:booking:error:invalid_state",
+        "property": "state",
+        "to": [
+          "seated"
+        ]
       },
       "description": "Seat the party of a booking",
       "emits": [],
       "errors": [
-        "urn:demo:states:booking:error:invalid_state"
+        "urn:demo:states:booking:error:invalid_state",
+        "urn:demo:states:booking:error:not_found"
       ],
       "input": "urn:demo:states:booking:entity:booking_ref",
       "output": "urn:demo:states:booking:entity:booking",

@@ -26,7 +26,8 @@ States and moves have rules of their own:
 | A new move, or a new state in the `from` of an operation | Compatible |
 | `changes` removed from an operation | Compatible |
 | A removed move, or a removed state in `from` | Breaking: callers that make the move, or whose record is in that state, are refused |
-| A changed `to`, `otherwise` or `entity` | Breaking |
+| A changed `to`, `otherwise` or `entity`, or a changed or removed `missing` | Breaking |
+| A new `missing` | Compatible |
 | `changes` on an operation that had none | Breaking |
 
 A URN that has two uses obeys the rules of both. These changes are also breaking:

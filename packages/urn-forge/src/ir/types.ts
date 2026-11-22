@@ -205,10 +205,15 @@ export interface IRChange {
   /** The property of the entity that holds its state: the one whose field has moves. */
   readonly property: string;
   readonly from: readonly string[];
-  /** The state of the answer, when the answer is the entity; absent when the state stays. */
-  readonly to?: string;
+  /**
+   * The states that the record can be in after the call; absent when the state stays. Each
+   * move from the record's state to the new state must be in `moves`; staying is not a move.
+   */
+  readonly to?: readonly string[];
   /** The declared error for a state outside `from`. */
   readonly otherwise: Urn;
+  /** The declared error when the shell finds no record (`current: null`). */
+  readonly missing?: Urn;
 }
 
 /** A diagnostic from passes 1–4. `urn` is set whenever the problem belongs to an atom. */

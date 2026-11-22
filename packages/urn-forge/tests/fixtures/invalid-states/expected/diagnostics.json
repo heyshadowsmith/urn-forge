@@ -72,6 +72,16 @@
   {
     "code": "invalid-changes",
     "location": {
+      "column": 65,
+      "line": 134
+    },
+    "message": "urn:demo:states:door:operation:stay_and_list: changes: no state of from (open) can move to locked: urn:demo:states:door:field:state has no such move",
+    "severity": "error",
+    "urn": "urn:demo:states:door:operation:stay_and_list"
+  },
+  {
+    "code": "invalid-changes",
+    "location": {
       "column": 75,
       "line": 104
     },
@@ -82,12 +92,42 @@
   {
     "code": "invalid-changes",
     "location": {
+      "column": 104,
+      "line": 122
+    },
+    "message": "urn:demo:states:door:operation:undeclared_missing: changes: missing: urn:demo:states:door:error:needs_reason is not one of the errors of the operation; add it to errors",
+    "severity": "error",
+    "urn": "urn:demo:states:door:operation:undeclared_missing"
+  },
+  {
+    "code": "invalid-changes",
+    "location": {
+      "column": 104,
+      "line": 122
+    },
+    "message": "urn:demo:states:door:operation:undeclared_missing: changes: missing: urn:demo:states:door:error:needs_reason needs reason, which the input does not have",
+    "severity": "error",
+    "urn": "urn:demo:states:door:operation:undeclared_missing"
+  },
+  {
+    "code": "invalid-changes",
+    "location": {
       "column": 75,
       "line": 110
     },
     "message": "urn:demo:states:door:operation:unfilled_error: changes: otherwise: urn:demo:states:door:error:needs_reason needs reason, which neither urn:demo:states:door:entity:door nor the input has",
     "severity": "error",
     "urn": "urn:demo:states:door:operation:unfilled_error"
+  },
+  {
+    "code": "invalid-changes",
+    "location": {
+      "column": 104,
+      "line": 128
+    },
+    "message": "urn:demo:states:door:operation:unfilled_missing: changes: missing: urn:demo:states:door:error:not_now needs state, which the input does not have",
+    "severity": "error",
+    "urn": "urn:demo:states:door:operation:unfilled_missing"
   },
   {
     "code": "invalid-changes",

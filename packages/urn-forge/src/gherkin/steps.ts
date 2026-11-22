@@ -396,6 +396,17 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     s.current = tableToObject(table.raw(), change.entity.fields, 'current record', change.entity.urn);
   });
 
+  Given(STEP_PHRASES.noCurrent, function (this: StepsWorld, word: string) {
+    const s = state(this);
+    const urn = operationUrnFromTags(s.tags);
+    const change = contract(urn).changes;
+    if (!change) throw new Error(`${urn} changes no record, so "there is no current ${word}" has nothing to say`);
+    const identifier = change.entity.urn.split(':').at(-1);
+    if (word !== identifier) throw new Error(`${urn} changes a record of ${change.entity.urn}: write "there is no current ${identifier}"`);
+    // The shell found no record: it passes null, and the runtime answers the declared missing error.
+    s.current = null;
+  });
+
   When(STEP_PHRASES.run, function (this: StepsWorld, table: DataTable) {
     const s = state(this);
     const urn = operationUrnFromTags(s.tags);

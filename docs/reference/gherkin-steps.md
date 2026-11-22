@@ -7,6 +7,7 @@ The module `urn-forge/cucumber` has generic Cucumber steps for all domains. The 
 | Step text | Table | Passes if |
 | --- | --- | --- |
 | `the current <entity> is:` | Fields of the entity that the operation changes | The operation has `changes` on this entity. The record goes to `execute` as `{ current }` |
+| `there is no current <entity>` | None | The same. `execute` gets `{ current: null }`: the shell found no record |
 | `I run the operation with:` | Input fields | Always. It calls `execute` and keeps the result |
 | `the output is:` | Output fields | The operation succeeded, and the output agrees with the table |
 | `the input is rejected on "<field>"` | None | The result is `InputRejected`, with an issue on the property or inside it |
@@ -19,7 +20,7 @@ The module `urn-forge/cucumber` has generic Cucumber steps for all domains. The 
 | `the refusal is recorded as "<event URN>"` | None | The result is a `DomainError` whose `record` is this event |
 | `the refusal is recorded as "<event URN>":` | Event fields | The same, and the record agrees with the table |
 
-- `the current <entity> is:` is registered with `Given`, `I run the operation with:` with `When`, the others with `Then`. Cucumber also matches `Given`, `And` and `But`.
+- `the current <entity> is:` and `there is no current <entity>` are registered with `Given`, `I run the operation with:` with `When`, the others with `Then`. Cucumber also matches `Given`, `And` and `But`.
 - A quoted value can use double or single quotes.
 - `<field>` is a property of the input entity, not of an embedded entity.
 - `<entity>` is the identifier of the entity in `changes`, for example `booking`. Each scenario of an operation with `changes` gives the record before the operation runs. Refer to [Declare states and moves](../how-to/declare-states).

@@ -103,39 +103,55 @@ const PLAIN_CALL = `  const result: unknown = handler(input.output);`;
 
 const CHANGE_CALL = `  // An operation that changes a record: the record must parse, and its state must be one the
   // operation starts from. Else the runtime answers the declared error \`otherwise\`, filled from
-  // the record and the request, and the handler does not run.
+  // the record and the request, and the handler does not run. With no record (\`current: null\`),
+  // it answers the declared error \`missing\`, filled from the request.
   const change: ChangeContract | undefined = 'changes' in contract ? contract.changes : undefined;
   let current: Readonly<Record<string, unknown>> | undefined;
   let result: unknown;
   if (change) {
-    if (options.current === undefined) {
-      return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: 'current', message: \`\${urn} changes a record of \${change.entity.urn}: pass it as { current }\` }] };
+    const fill = (errorUrn: string, known: Readonly<Record<string, unknown>>) => {
+      const names = Object.keys(contract.errors[errorUrn]?.fields ?? {}).filter((name) => known[name] !== undefined);
+      return { ok: false, error: { ...Object.fromEntries(names.map((name) => [name, known[name]])), kind: errorUrn } };
+    };
+    if (options.current === undefined || (options.current === null && change.missing === undefined)) {
+      const message = options.current === null ? 'the shell found no record, and the operation declares no missing error' : 'pass it as { current }';
+      return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: 'current', message: \`\${urn} changes a record of \${change.entity.urn}: \${message}\` }] };
     }
-    const stored = v.safeParse(change.entity.schema, options.current);
-    if (!stored.success) {
-      const issues = boundaryIssues(stored.issues, change.entity).map((issue) => ({ ...issue, path: issue.path === '' ? 'current' : \`current.\${issue.path}\` }));
-      return { ok: false, kind: 'ContractViolation', urn, issues };
-    }
-    current = stored.output as Readonly<Record<string, unknown>>;
-    if (!change.from.includes(current[change.property] as string)) {
-      const known: Readonly<Record<string, unknown>> = { ...(input.output as object), ...current };
-      const fields = Object.keys(contract.errors[change.otherwise]?.fields ?? {}).filter((name) => known[name] !== undefined);
-      result = { ok: false, error: { ...Object.fromEntries(fields.map((name) => [name, known[name]])), kind: change.otherwise } };
+    if (options.current === null) {
+      result = fill(change.missing!, input.output as Readonly<Record<string, unknown>>);
+    } else {
+      const stored = v.safeParse(change.entity.schema, options.current);
+      if (!stored.success) {
+        const issues = boundaryIssues(stored.issues, change.entity).map((issue) => ({ ...issue, path: issue.path === '' ? 'current' : \`current.\${issue.path}\` }));
+        return { ok: false, kind: 'ContractViolation', urn, issues };
+      }
+      current = stored.output as Readonly<Record<string, unknown>>;
+      if (!change.from.includes(current[change.property] as string)) result = fill(change.otherwise, { ...(input.output as object), ...current });
     }
   }
   result ??= handler(input.output, current);`;
 
 const CHANGE_ANSWER = `
-  // An answer that is the changed record: its state is \`to\` (or stays), and its key does not change.
-  if (change?.answer && current) {
+  // An answer that holds the state of the record: one of \`to\`, reached by a move (or the same
+  // state without \`to\`). An answer that holds its key: the same key.
+  if (change && current) {
     const answer = output.output as Readonly<Record<string, unknown>>;
-    const state = change.to ?? current[change.property];
-    if (answer[change.property] !== state) {
-      const expected = change.to === undefined ? \`the state stays "\${String(state)}"\` : \`the operation moves to "\${String(state)}"\`;
-      return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: change.property, message: \`the handler for \${urn} answered \${change.property} "\${String(answer[change.property])}", but \${expected}\` }] };
+    const before = current[change.property] as string;
+    if (change.answerState !== undefined) {
+      const after = answer[change.answerState] as string;
+      const allowed = change.to === undefined ? after === before : change.to.includes(after) && (after === before || (change.moves[before] ?? []).includes(after));
+      if (!allowed) {
+        const expected =
+          change.to === undefined
+            ? \`the state stays "\${before}"\`
+            : change.to.includes(after)
+              ? \`"\${before}" cannot move to "\${after}"\`
+              : \`the operation moves to \${change.to.map((state) => \`"\${state}"\`).join(' or ')}\`;
+        return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: change.answerState, message: \`the handler for \${urn} answered \${change.answerState} "\${String(after)}", but \${expected}\` }] };
+      }
     }
-    if (change.key !== undefined && answer[change.key] !== current[change.key]) {
-      return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: change.key, message: \`the handler for \${urn} answered \${change.key} "\${String(answer[change.key])}", but the record has "\${String(current[change.key])}"\` }] };
+    if (change.key !== undefined && change.answerKey !== undefined && answer[change.answerKey] !== current[change.key]) {
+      return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: change.answerKey, message: \`the handler for \${urn} answered \${change.answerKey} "\${String(answer[change.answerKey])}", but the record has "\${String(current[change.key])}"\` }] };
     }
   }`;
 
@@ -419,7 +435,16 @@ function eventLines(event: IREvent, ir: UniversalIR, indent: string): string[] {
 function changeLines(change: IRChange, output: Urn, ir: UniversalIR, indent: string): string[] {
   const entity = ir.entities[change.entity];
   if (!entity) throw new Error(`IR is not resolved: missing entity ${change.entity}`);
-  const key = entity.key === undefined ? undefined : entity.fields.find((ref) => 'field' in ref && ref.field === entity.key)?.name;
+  const nameOf = (owner: IREntity | undefined, fieldUrn: Urn | undefined) =>
+    fieldUrn === undefined ? undefined : owner?.fields.find((ref) => 'field' in ref && ref.field === fieldUrn && !ref.many)?.name;
+  const stateRef = entity.fields.find((ref) => ref.name === change.property);
+  const stateField = stateRef && 'field' in stateRef ? ir.fields[stateRef.field] : undefined;
+  const key = nameOf(entity, entity.key);
+  // The answer is checked when it holds the state, or the key, of the record: the whole entity or a smaller shape.
+  const answer = ir.entities[output];
+  const answerState = nameOf(answer, stateField?.urn);
+  const answerKey = key === undefined ? undefined : nameOf(answer, entity.key);
+  const moves = Object.entries(stateField?.moves ?? {}).map(([from, targets]) => `${q(from)}: [${targets.map(q).join(', ')}]`);
   return [
     `${indent}changes: {`,
     `${indent}  entity: {`,
@@ -428,10 +453,13 @@ function changeLines(change: IRChange, output: Urn, ir: UniversalIR, indent: str
     `${indent}  },`,
     `${indent}  property: ${q(change.property)},`,
     `${indent}  from: [${change.from.map(q).join(', ')}],`,
-    ...(change.to === undefined ? [] : [`${indent}  to: ${q(change.to)},`]),
+    ...(change.to === undefined ? [] : [`${indent}  to: [${change.to.map(q).join(', ')}],`]),
+    `${indent}  moves: { ${moves.join(', ')} },`,
     `${indent}  otherwise: ${q(change.otherwise)},`,
+    ...(change.missing === undefined ? [] : [`${indent}  missing: ${q(change.missing)},`]),
     ...(key === undefined ? [] : [`${indent}  key: ${q(key)},`]),
-    `${indent}  answer: ${output === change.entity},`,
+    ...(answerState === undefined ? [] : [`${indent}  answerState: ${q(answerState)},`]),
+    ...(answerKey === undefined ? [] : [`${indent}  answerKey: ${q(answerKey)},`]),
     `${indent}},`,
   ];
 }
@@ -570,14 +598,19 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
             `  readonly property: string;`,
             `  /** The states that the operation starts from. */`,
             `  readonly from: readonly string[];`,
-            `  /** The state of the answer; absent when the state stays. */`,
-            `  readonly to?: string;`,
+            `  /** The states that the record can be in after the call; absent when the state stays. */`,
+            `  readonly to?: readonly string[];`,
+            `  /** The moves of the state field: a new state must be one of the moves of the old, or the same. */`,
+            `  readonly moves: Readonly<Record<string, readonly string[]>>;`,
             `  /** The declared error for any other state. */`,
             `  readonly otherwise: string;`,
+            `  /** The declared error when the shell finds no record (\\\`current: null\\\`). */`,
+            `  readonly missing?: string;`,
             `  /** The property that holds the key of the record, when it has one. */`,
             `  readonly key?: string;`,
-            `  /** Whether the answer is the changed record, so its state and key are checked. */`,
-            `  readonly answer: boolean;`,
+            `  /** The properties of the answer that hold the new state and the key, when the answer has them. */`,
+            `  readonly answerState?: string;`,
+            `  readonly answerKey?: string;`,
             `}`,
           ]
         : []),

@@ -16,8 +16,9 @@ const OperationSchema = v.strictObject({
     v.strictObject({
       entity: ShortKeyRef,
       from: v.pipe(v.array(v.string()), v.minLength(1, 'must list at least one state')),
-      to: v.optional(v.string()),
+      to: v.optional(v.union([v.string(), v.pipe(v.array(v.string()), v.minLength(1, 'must list at least one state'))])),
       otherwise: ShortKeyRef,
+      missing: v.optional(ShortKeyRef),
     }),
   ),
 });
@@ -36,6 +37,7 @@ export const operation = defineKind<OperationDecl, IROperation>()({
     { path: ['emits', '*'], targets: ['event'] },
     { path: ['changes', 'entity'], targets: ['entity'] },
     { path: ['changes', 'otherwise'], targets: ['error'] },
+    { path: ['changes', 'missing'], targets: ['error'] },
   ],
   // `changes` is checked against the state field of its entity and the fields of its error.
   after: ['field', 'entity', 'error'],
@@ -109,6 +111,9 @@ function buildChange(decl: NonNullable<OperationDecl['changes']>, c: ChangeConte
   };
   const entityAtom = c.ref(['changes', 'entity']);
   const otherwiseAtom = c.ref(['changes', 'otherwise']);
+  const missingAtom = decl.missing === undefined ? undefined : c.ref(['changes', 'missing']);
+  if (decl.missing !== undefined && !missingAtom) return undefined; // pass 4 reported the reference
+  const missing = missingAtom && (c.node('error', missingAtom.urn) as IRError | undefined);
   const entity = entityAtom && (c.node('entity', entityAtom.urn) as IREntity | undefined);
   const error = otherwiseAtom && (c.node('error', otherwiseAtom.urn) as IRError | undefined);
   if (!entity || !error) return undefined; // pass 4 reported the reference
@@ -134,14 +139,24 @@ function buildChange(decl: NonNullable<OperationDecl['changes']>, c: ChangeConte
     if (!values.includes(state)) problem(`from: "${state}" is not a state of ${field.urn} (${values.join(', ')})`, 'from', index);
     else if (decl.from.indexOf(state) !== index) problem(`from lists "${state}" more than once`, 'from', index);
   });
-  if (decl.to !== undefined) {
-    if (!values.includes(decl.to)) problem(`to: "${decl.to}" is not a state of ${field.urn} (${values.join(', ')})`, 'to');
-    else
-      for (const state of decl.from) {
-        if (values.includes(state) && !(moves[state] ?? []).includes(decl.to)) {
-          problem(`${state} cannot move to ${decl.to}: ${field.urn} has no such move`, 'to');
-        }
+  // `to`: one state or a list. Staying in a state is not a move, so a `from` state may be in `to`.
+  const to = decl.to === undefined ? undefined : typeof decl.to === 'string' ? [decl.to] : decl.to;
+  const reaches = (from: string, target: string) => from === target || (moves[from] ?? []).includes(target);
+  if (to !== undefined) {
+    to.forEach((target, index) => {
+      const at = typeof decl.to === 'string' ? ['to'] : ['to', index];
+      if (!values.includes(target)) problem(`to: "${target}" is not a state of ${field.urn} (${values.join(', ')})`, ...at);
+      else if (to.indexOf(target) !== index) problem(`to lists "${target}" more than once`, ...at);
+      // With one state in `to`, the check of each `from` state below says the same.
+      else if (to.length > 1 && !decl.from.some((state) => values.includes(state) && reaches(state, target))) {
+        problem(`no state of from (${decl.from.join(', ')}) can move to ${target}: ${field.urn} has no such move`, ...at);
       }
+    });
+    for (const state of decl.from) {
+      if (values.includes(state) && to.every((target) => values.includes(target)) && !to.some((target) => reaches(state, target))) {
+        problem(`${state} cannot move to ${to.join(' or ')}: ${field.urn} has no such move`, 'to');
+      }
+    }
   }
   if (!c.errors.includes(error.urn)) problem(`otherwise: ${error.urn} is not one of the errors of the operation; add it to errors`, 'otherwise');
   // The runtime fills the error from the record and the request, by property name.
@@ -152,12 +167,23 @@ function buildChange(decl: NonNullable<OperationDecl['changes']>, c: ChangeConte
       problem(`otherwise: ${error.urn} needs ${errorProperty.name}, which neither ${entity.urn} nor the input has`, 'otherwise');
     }
   }
+  // With no record, the runtime fills the missing error from the request only.
+  if (missing) {
+    if (!c.errors.includes(missing.urn)) problem(`missing: ${missing.urn} is not one of the errors of the operation; add it to errors`, 'missing');
+    const inputNames = new Set((input?.fields ?? []).map((p) => p.name));
+    for (const errorProperty of missing.fields) {
+      if (errorProperty.required && !inputNames.has(errorProperty.name)) {
+        problem(`missing: ${missing.urn} needs ${errorProperty.name}, which the input does not have`, 'missing');
+      }
+    }
+  }
   if (problems > 0) return undefined;
   return {
     entity: entity.urn,
     property: property.name,
     from: decl.from,
-    ...(decl.to === undefined ? {} : { to: decl.to }),
+    ...(to === undefined ? {} : { to }),
     otherwise: error.urn,
+    ...(missing ? { missing: missing.urn } : {}),
   };
 }

@@ -305,8 +305,13 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
       if (ca.entity !== cb.entity) breaking(urn, `changes a record of ${cb.entity}, not ${ca.entity}`);
       for (const state of cb.from.filter((x) => !ca.from.includes(x))) compatible(urn, `also starts from ${ca.property} ${state}`);
       for (const state of ca.from.filter((x) => !cb.from.includes(x))) breaking(urn, `no longer starts from ${ca.property} ${state}, which breaks callers whose record is ${state}`);
-      if (ca.to !== cb.to) breaking(urn, `the state of the answer ${ca.to ?? 'stays'} → ${cb.to ?? 'stays'}: callers receive another state`);
+      const states = (to: readonly string[] | undefined) => (to === undefined ? 'stays' : to.join(', '));
+      if (states(ca.to) !== states(cb.to)) breaking(urn, `the state of the answer ${states(ca.to)} → ${states(cb.to)}: callers receive another state`);
       if (ca.otherwise !== cb.otherwise) breaking(urn, `otherwise ${ca.otherwise} → ${cb.otherwise}: callers receive another error for a state outside from`);
+      if (ca.missing !== cb.missing) {
+        if (ca.missing === undefined) compatible(urn, `a missing record now answers ${cb.missing}`);
+        else breaking(urn, `missing ${ca.missing} → ${cb.missing ?? 'none'}: callers receive another answer when there is no record`);
+      }
     }
   }
 

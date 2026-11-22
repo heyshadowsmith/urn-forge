@@ -5,6 +5,8 @@
 export const STEP_PHRASES = {
   /** The record that the operation changes, as the shell loads it: one header row and one data row. */
   current: 'the current {word} is:',
+  /** The shell found no record that the operation changes. */
+  noCurrent: 'there is no current {word}',
   run: 'I run the operation with:',
   output: 'the output is:',
   rejected: 'the input is rejected on {string}',
@@ -27,9 +29,12 @@ export const STEP_PHRASES = {
 /** Matches the text of the current-record step: group 1 is the word, such as `booking`. */
 export const CURRENT_TEXT = /^the current (\S+) is:$/;
 
-/** The word of a current-record step, or undefined for any other step. */
+/** Matches the text of the no-record step: group 1 is the word. */
+export const NO_CURRENT_TEXT = /^there is no current (\S+)$/;
+
+/** The word of a current-record step, or of a no-record step, or undefined for any other step. */
 export function currentWord(text: string): string | undefined {
-  return CURRENT_TEXT.exec(text)?.[1];
+  return CURRENT_TEXT.exec(text)?.[1] ?? NO_CURRENT_TEXT.exec(text)?.[1];
 }
 
 /**

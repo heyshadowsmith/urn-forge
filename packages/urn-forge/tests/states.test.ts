@@ -20,6 +20,9 @@ import {
 const SEAT = 'urn:demo:states:booking:operation:seat_booking';
 const CHANGE = 'urn:demo:states:booking:operation:change_party';
 const CANCEL = 'urn:demo:states:booking:operation:cancel_booking';
+const CLOSE = 'urn:demo:states:booking:operation:close_booking';
+const CONFIRM = 'urn:demo:states:booking:operation:confirm_booking';
+const NOT_FOUND = 'urn:demo:states:booking:error:not_found';
 const INVALID_STATE = 'urn:demo:states:booking:error:invalid_state';
 
 const source = readFileSync(new URL('./fixtures/states/domain.manifest.yaml', import.meta.url), 'utf8');
@@ -31,7 +34,7 @@ describe('the states target compiles', () => {
     expect(result.diagnostics).toEqual([]);
     expect(result.ir?.fields['urn:demo:states:booking:field:state' as Urn]).toMatchObject({ moves: { confirmed: ['seated', 'cancelled'], seated: ['completed'] } });
     expect(result.ir?.operations[SEAT as Urn]).toMatchObject({
-      changes: { entity: 'urn:demo:states:booking:entity:booking', property: 'state', from: ['confirmed'], to: 'seated', otherwise: INVALID_STATE },
+      changes: { entity: 'urn:demo:states:booking:entity:booking', property: 'state', from: ['confirmed'], to: ['seated'], otherwise: INVALID_STATE },
     });
     expect(result.ir?.operations[CHANGE as Urn]?.changes).not.toHaveProperty('to');
   });
@@ -43,7 +46,10 @@ describe('the runtime of the states target', () => {
   const core = {
     [SEAT]: (_input, current) => (calls.push(SEAT), ok({ ...current, state: 'seated' })),
     [CHANGE]: (input, current) => (calls.push(CHANGE), ok({ ...current, party_size: input.party_size })),
-    [CANCEL]: (input) => (calls.push(CANCEL), ok({ reference: input.reference, refund: '0.00' })),
+    [CANCEL]: (input) => (calls.push(CANCEL), ok({ reference: input.reference, state: 'cancelled', refund: '0.00' })),
+    // A seated party completes; a confirmed booking that closes is cancelled.
+    [CLOSE]: (_input, current) => ok({ ...current, state: current.state === 'seated' ? 'completed' : 'cancelled' }),
+    [CONFIRM]: (_input, current) => ok({ ...current }),
   } satisfies DomainCoreImplementation;
 
   it('runs the handler with the current record when its state is in from', () => {
@@ -109,6 +115,54 @@ describe('the runtime of the states target', () => {
     });
   });
 
+  it('answers missing, filled from the request, when the shell finds no record, and never calls the handler', () => {
+    calls.length = 0;
+    expect(executeOperation(SEAT, { reference: 'KMPQXRTA' }, core, { current: null })).toMatchObject({
+      ok: false,
+      kind: 'DomainError',
+      error: { urn: NOT_FOUND, fields: { reference: 'KMPQXRTA' }, message: 'No booking KMPQXRTA' },
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it('is a ContractViolation when the shell finds no record and the operation declares no missing error', () => {
+    expect(executeOperation(CANCEL, { reference: 'KMPQXRTA' }, core, { current: null })).toMatchObject({
+      ok: false,
+      kind: 'ContractViolation',
+      issues: [{ path: 'current', message: `${CANCEL} changes a record of urn:demo:states:booking:entity:booking: the shell found no record, and the operation declares no missing error` }],
+    });
+  });
+
+  it('takes a to with more than one state, and checks the move from the state of the record', () => {
+    expect(executeOperation(CLOSE, { reference: 'KMPQXRTA' }, core, { current: booking('confirmed') })).toMatchObject({ ok: true, output: { state: 'cancelled' } });
+    expect(executeOperation(CLOSE, { reference: 'KMPQXRTA' }, core, { current: booking('seated') })).toMatchObject({ ok: true, output: { state: 'completed' } });
+    const wrong = { ...core, [CLOSE]: (_input, current) => ok({ ...current, state: 'completed' }) } satisfies DomainCoreImplementation;
+    expect(executeOperation(CLOSE, { reference: 'KMPQXRTA' }, wrong, { current: booking('confirmed') })).toMatchObject({
+      ok: false,
+      kind: 'ContractViolation',
+      issues: [{ path: 'state', message: `the handler for ${CLOSE} answered state "completed", but "confirmed" cannot move to "completed"` }],
+    });
+    const outside = { ...core, [CLOSE]: (_input, current) => ok({ ...current, state: 'seated' }) } satisfies DomainCoreImplementation;
+    expect(executeOperation(CLOSE, { reference: 'KMPQXRTA' }, outside, { current: booking('confirmed') })).toMatchObject({
+      ok: false,
+      kind: 'ContractViolation',
+      issues: [{ path: 'state', message: `the handler for ${CLOSE} answered state "seated", but the operation moves to "completed" or "cancelled"` }],
+    });
+  });
+
+  it('takes a from state that is also the to state: staying is not a move', () => {
+    expect(executeOperation(CONFIRM, { reference: 'KMPQXRTA' }, core, { current: booking('confirmed') })).toMatchObject({ ok: true, output: { state: 'confirmed' } });
+  });
+
+  it('checks the state and the key of an answer that is a smaller shape than the record', () => {
+    const wrong = { ...core, [CANCEL]: (input) => ok({ reference: input.reference, state: 'seated', refund: '0.00' }) } satisfies DomainCoreImplementation;
+    expect(executeOperation(CANCEL, { reference: 'KMPQXRTA' }, wrong, { current: booking('confirmed') })).toMatchObject({
+      ok: false,
+      kind: 'ContractViolation',
+      issues: [{ path: 'state', message: `the handler for ${CANCEL} answered state "seated", but the operation moves to "cancelled"` }],
+    });
+  });
+
   it('types current as the stored entity, so tsc refuses a handler that reads it as something else', () => {
     const typed = {
       ...core,
@@ -134,7 +188,7 @@ describe('gate 3 for the states target', () => {
   it('passes, and counts the states, when each from state and a refused state have a scenario', () => {
     const outcome = gate3(`Feature: f\n${SEAT_COVERED}`);
     expect(states(outcome)).toEqual([]);
-    expect(outcome.summary).toContain(', 2/6 states covered');
+    expect(outcome.summary).toContain(', 2/11 states covered');
   });
 
   it('counts a state of an Examples row', () => {
@@ -159,6 +213,19 @@ describe('gate 3 for the states target', () => {
       `${SEAT} changes a record of urn:demo:states:booking:entity:booking: write "the current booking is:", not "the current table is:"`,
       `${SEAT} changes a record of urn:demo:states:booking:entity:booking; give it with "Given the current booking is:" before the operation runs`,
     ]);
+  });
+
+  it('counts "there is no current booking" as the record of a scenario', () => {
+    const missing = scenario(SEAT, 'm', `    Given there is no current booking\n    When I run the operation with:\n      | reference |\n      | KMPQXRTA |\n    Then the operation fails with "${NOT_FOUND}"\n`);
+    expect(states(gate3(`Feature: f\n${SEAT_COVERED}${missing}`))).toEqual([]);
+  });
+
+  it('takes an Examples column that only the current record uses', () => {
+    const outline =
+      `  @${CANCEL}\n  Scenario Outline: refused\n    Given the current booking is:\n      | reference | state | party_size |\n      | KMPQXRTA | <state> | <party_size> |\n` +
+      `    When I run the operation with:\n      | reference |\n      | KMPQXRTA |\n    Then the operation fails with "${INVALID_STATE}"\n    Examples:\n      | state | party_size |\n      | seated | 4 |\n`;
+    // party_size is only a field of the booking: not of the input, the cancellation or the error.
+    expect(gate3(`Feature: f\n${outline}`).problems.filter((p) => p.code === 'unknown-header')).toEqual([]);
   });
 
   it('checks the headers of the current record against the changed entity', () => {

@@ -186,10 +186,11 @@ policy.operation.cancel_policy:
 | --- | --- | --- | --- |
 | `entity` | string | Yes | Short key of an entity with exactly one field that has `moves`. That property must be required and not a list |
 | `from` | A list of strings | Yes | At least one state; each one is a value of the state field, one time |
-| `to` | string | No | A state. Each `from` → `to` must be a move. Leave it out when the state stays |
+| `to` | A string or a list of strings | No | A state, or the states that the record can end in. Each `from` state reaches a state of `to` by a move, or is that state. Leave it out when the state stays |
 | `otherwise` | string | Yes | Short key of an error in `errors`. Each required field of the error is a property of `entity` or of `input` |
+| `missing` | string | No | Short key of an error in `errors`, for no record. Each required field of the error is a property of `input` |
 
-Any other problem causes `invalid-changes`. The handler gets the record as its second parameter, `current`. `executeOperation` answers `otherwise` for a state outside `from`, without a call of the handler. When `output` is `entity`, the state of the answer must be `to`, or stay without `to`, and its key must not change. Refer to [Declare states and moves](../how-to/declare-states).
+Any other problem causes `invalid-changes`. The handler gets the record as its second parameter, `current`. `executeOperation` answers `otherwise` for a state outside `from`, and `missing` for `current: null`, without a call of the handler. When `output` has the state field, the state of the answer must be in `to` and reached by a move or the same, or stay without `to`. When `output` has the key field, the key must not change. Refer to [Declare states and moves](../how-to/declare-states).
 
 ## Event
 

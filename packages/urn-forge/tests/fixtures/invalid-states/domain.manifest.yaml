@@ -114,3 +114,21 @@ door.operation.wrong_kinds:
   output: door.entity.door
   errors: [door.error.not_now]
   changes: { entity: door.field.state, from: [open], otherwise: door.entity.door }
+door.operation.undeclared_missing:
+  description: A missing error that the operation does not declare
+  input: door.entity.door
+  output: door.entity.door
+  errors: [door.error.not_now]
+  changes: { entity: door.entity.door, from: [open], to: shut, otherwise: door.error.not_now, missing: door.error.needs_reason }
+door.operation.unfilled_missing:
+  description: A missing error with a property that the input does not have
+  input: door.entity.no_state
+  output: door.entity.door
+  errors: [door.error.not_now]
+  changes: { entity: door.entity.door, from: [open], to: shut, otherwise: door.error.not_now, missing: door.error.not_now }
+door.operation.stay_and_list:
+  description: A to with two states, one that no from state reaches
+  input: door.entity.door
+  output: door.entity.door
+  errors: [door.error.not_now]
+  changes: { entity: door.entity.door, from: [open], to: [open, locked], otherwise: door.error.not_now }

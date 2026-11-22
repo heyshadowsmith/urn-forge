@@ -181,7 +181,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
           }
           const identifier = change.entity.split(':').at(-1)!;
           if (word !== identifier) {
-            report('invalid-current', step.location, `${owner.urn} changes a record of ${change.entity}: write "the current ${identifier} is:", not "the current ${word} is:"`, owner.urn);
+            const right = step.text.startsWith('there is no') ? `there is no current ${identifier}` : `the current ${identifier} is:`;
+            report('invalid-current', step.location, `${owner.urn} changes a record of ${change.entity}: write "${right}", not "${step.text}"`, owner.urn);
             continue;
           }
           if (!step.table) continue;
@@ -291,7 +292,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
       for (const examples of scenario.examples) {
         if (!examples.table) continue;
         const steps = scenario.steps.flatMap((step) => stepTexts(scenario, step.text).map((text) => ({ text })));
-        checkHeader(examples.table.header, withPlaceholders(withStepTables(ir, ownerOf([...scenario.tags, ...examples.tags], examples.location), steps), scenario.steps));
+        checkHeader(examples.table.header, withCurrent(ir, withPlaceholders(withStepTables(ir, ownerOf([...scenario.tags, ...examples.tags], examples.location), steps), scenario.steps), scenario.steps));
       }
     }
   }
@@ -601,6 +602,13 @@ function mergeOwners(owners: readonly Owner[]): Owner {
  * An Examples column fills a placeholder in any step of its outline, so it may name a field of
  * the owner, or of an error or event that a step of the outline expects.
  */
+/** With a current-record table in the scenario, the fields of the changed entity may be Examples columns too. */
+function withCurrent(ir: UniversalIR, owner: Owner | undefined, steps: readonly { readonly text: string; readonly table?: IndexedTable }[]): Owner | undefined {
+  const change = owner && owner.urn in ir.operations ? ir.operations[owner.urn as Urn]!.changes : undefined;
+  if (!owner || !change || !steps.some((step) => step.table && currentWord(step.text) !== undefined)) return owner;
+  return { ...owner, description: `${owner.description}, or of the current ${change.entity}`, keys: new Set([...owner.keys, ...propertyNames(ir, change.entity)]) };
+}
+
 function withStepTables(ir: UniversalIR, owner: Owner | undefined, steps: readonly { readonly text: string }[]): Owner | undefined {
   if (!owner) return undefined;
   const extra = steps.flatMap((step) => {

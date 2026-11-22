@@ -43,9 +43,10 @@ booking.entity.party_change:
     - ref: booking.field.reference
     - ref: booking.field.party_size
 booking.entity.cancellation:
-  description: What a cancellation gives back
+  description: What a cancellation gives back, with the new state
   fields:
     - ref: booking.field.reference
+    - ref: booking.field.state
     - ref: booking.field.refund
 
 booking.error.invalid_state:
@@ -57,6 +58,14 @@ booking.error.invalid_state:
     - ref: booking.field.reference
     - ref: booking.field.state
 
+booking.error.not_found:
+  description: No booking has this reference
+  category: not_found
+  retryable: false
+  message: No booking {reference}
+  fields:
+    - ref: booking.field.reference
+
 booking.operation.seat_booking:
   description: Seat the party of a booking
   input: booking.entity.booking_ref
@@ -66,7 +75,8 @@ booking.operation.seat_booking:
     from: [confirmed]
     to: seated
     otherwise: booking.error.invalid_state
-  errors: [booking.error.invalid_state]
+    missing: booking.error.not_found
+  errors: [booking.error.invalid_state, booking.error.not_found]
 booking.operation.change_party:
   description: Change the party size of a booking; its state stays
   input: booking.entity.party_change
@@ -84,5 +94,25 @@ booking.operation.cancel_booking:
     entity: booking.entity.booking
     from: [confirmed]
     to: cancelled
+    otherwise: booking.error.invalid_state
+  errors: [booking.error.invalid_state]
+booking.operation.close_booking:
+  description: Close a booking, which ends completed or cancelled
+  input: booking.entity.booking_ref
+  output: booking.entity.booking
+  changes:
+    entity: booking.entity.booking
+    from: [confirmed, seated]
+    to: [completed, cancelled]
+    otherwise: booking.error.invalid_state
+  errors: [booking.error.invalid_state]
+booking.operation.confirm_booking:
+  description: Confirm a booking again; a confirmed booking stays confirmed
+  input: booking.entity.booking_ref
+  output: booking.entity.booking
+  changes:
+    entity: booking.entity.booking
+    from: [confirmed]
+    to: confirmed
     otherwise: booking.error.invalid_state
   errors: [booking.error.invalid_state]

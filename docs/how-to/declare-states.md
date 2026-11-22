@@ -33,8 +33,9 @@ Add `changes` to the operation:
 | --- | --- |
 | `entity` | The entity of the record. It has exactly one field with `moves`, required and not a list |
 | `from` | The states that the operation starts from |
-| `to` | The state of the record after the operation. Leave it out when the state stays |
+| `to` | The state of the record after the operation, or a list of states when it depends on the request. Leave it out when the state stays |
 | `otherwise` | The declared error for each other state. It must be in `errors` |
+| `missing` | Optional. The declared error when the shell finds no record, for example `not_found`. It must be in `errors`, and the input must have each of its required fields |
 
 ```yaml
 booking.operation.seat_booking:
@@ -51,10 +52,25 @@ booking.operation.seat_booking:
 
 urn-forge fills the fields of the `otherwise` error from the record and the request, by property name. Thus each required field of the error must be a property of the entity or of the input. Here `invalid_state` has `reference` and `state`, which the booking has.
 
-Each `from` → `to` must be a move of the field. If it is not, `compile` stops:
+Each state of `from` must reach a state of `to` by a move, or be that state: staying in a state is not a move. If a state cannot, `compile` stops:
 
 ```text
-domain.manifest.yaml:86:9  error  invalid-changes  urn:demo:states:booking:operation:cancel_booking: changes: confirmed cannot move to cancelled: urn:demo:states:booking:field:state has no such move
+domain.manifest.yaml:96:9  error  invalid-changes  urn:demo:states:booking:operation:cancel_booking: changes: confirmed cannot move to cancelled: urn:demo:states:booking:field:state has no such move
+```
+
+When the end state depends on the request, list each one. A seated party completes, and a confirmed booking that closes is cancelled:
+
+```yaml
+booking.operation.close_booking:
+  description: Close a booking, which ends completed or cancelled
+  input: booking.entity.booking_ref
+  output: booking.entity.booking
+  changes:
+    entity: booking.entity.booking
+    from: [confirmed, seated]
+    to: [completed, cancelled]
+    otherwise: booking.error.invalid_state
+  errors: [booking.error.invalid_state]
 ```
 
 ## 3. Use the record in the handler
@@ -68,7 +84,7 @@ export const core = {
 } satisfies DomainCoreImplementation;
 ```
 
-When the output is the changed entity, `executeOperation` examines the answer: its state must be `to`, or stay the same without `to`, and its key must not change. Else the result is a `ContractViolation`:
+When the output has the state field of the record, `executeOperation` examines the answer. Its state must be in `to`, reached from the state of the record by a move or the same state, or stay the same without `to`. When the output has the key field, the key must not change. The output can be the entity or a smaller shape. Else the result is a `ContractViolation`:
 
 ```text
 the handler for urn:demo:states:booking:operation:seat_booking answered state "completed", but the operation moves to "seated"
@@ -84,6 +100,7 @@ const result = executeOperation('urn:demo:states:booking:operation:seat_booking'
 ```
 
 - If the state of the record is not in `from`, the result is the declared `otherwise` error, and the handler does not run.
+- If the shell finds no record, it passes `{ current: null }`. The result is the declared `missing` error, filled from the request, and the handler does not run. Without `missing`, it is a `ContractViolation`.
 - If the shell passes no record, or a record that does not parse, the result is a `ContractViolation` on `current`.
 - `executeOperation` cannot know that the record is the one that the request names. The shell must load the correct record.
 
@@ -100,7 +117,7 @@ To store the changed record, use `replace<Entity>From` of the [Postgres extra](s
    });
    ```
 
-2. Give the record with `Given the current <entity> is:` before the operation runs. The word is the identifier of the entity, for example `booking`.
+2. Give the record with `Given the current <entity> is:` before the operation runs. The word is the identifier of the entity, for example `booking`. For a scenario where the shell finds no record, write `Given there is no current <entity>`, and expect the `missing` error.
 3. Write a scenario for each state in `from`, and one for a state outside `from` that expects the `otherwise` error:
 
 ```gherkin
