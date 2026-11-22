@@ -156,6 +156,21 @@ What the contracts still could not state:
 - No scenario shows that a stored record breaks an invariant, or that a caller does.
 - The stored record of an operation whose answer has another shape: the shell copies `submitted_at` or `captured_at` into it.
 
+## Idempotency (C2)
+
+Nov 22, 2026: **71 of 143 promises declared (49.7%)**, up from 65. Refer to the [idempotency plan](./idempotency-plan.md). Bookings P17, claims P16, inventory P15, payments P15, subscriptions P18 and ticketing P14 are declared. C2 goes from 7 promises to 1.
+
+The contracts found two gaps, each closed in the same change:
+- `runOnce`, and the steps, answered a repeat before the runtime checked `callers`, so a read-only key could get the answer of a write. The runtime now gives the first answer only once the caller may call.
+- The runtime of a domain with a caller and no record referred to a record that it does not have.
+
+What the contracts still could not state:
+- A repeat of a call with no key: bookings P18, "cancelling a cancelled booking returns the same details and does not refund again". The record does not keep the cancellation, and no refund is modelled.
+- A key shared across operations: a key is owned by one operation.
+- An `otherwise` error with fields that the input does not have: subscriptions added a second conflict error.
+- Gate 3 asks for a repeat, but not for each part of the rule: another body, another owner, the edge of the window.
+- The steps do not change the record between a call and its repeat.
+
 ## The phases
 
 Each item is a plan of its own, with the format of the earlier plans: a target written first, one commit for each step, sabotages at the end. The order puts first what the most contracts need, and what fits the machinery that exists.
@@ -219,7 +234,8 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 7. Callers (D2). Done: 39.9%.
 8. The current time (E2). Done: 42.7%.
 9. Changes on a clock (E3). Done: 45.5%.
-10. The next plan. The score now puts A2 (14), C1 (9), D3 (8) and C2 (7) first.
+10. Idempotency (C2). Done: 49.7%.
+11. The next plan. The score now puts A2 (14), C1 (9), D3 (8) and E4 (6) first.
 
 ## Risks
 
