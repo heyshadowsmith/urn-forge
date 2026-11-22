@@ -26,6 +26,9 @@ const NOTE_DEPRECATED = '  status: deprecated\n  supersededBy: policy.field.rema
 const REMARK = 'policy.field.remark:\n  primitive: string\n  maxLength: 40\n  description: Free text about a coverage, at most 40 characters\n';
 const REMARK_REF = '    - ref: policy.field.remark\n      required: false\n';
 const NOTE_REF = '    - ref: policy.field.note\n      required: false\n';
+const HEADER = '  version: 0.1.0\n';
+const IGNORE_UNKNOWN = '  compatibility:\n    callers: ignore-unknown\n';
+const NOTICE = '  compatibility:\n    notice: 6 months\n';
 const CANCEL_ERRORS = '    - policy.error.refund_below_minimum\n  emits: [policy.event.policy_cancelled]\n';
 
 /** Each example: the old manifest, the new manifest, with or without the config, and the pages that quote it. */
@@ -73,6 +76,31 @@ const EXAMPLES: Record<string, { old: (m: string) => string; now: (m: string) =>
       'policy.entity.stop_request:\n  description: A request to stop a policy, with the terms it needs\n  fields:\n    - ref: policy.field.effective_date\n    - ref: policy.field.expiry_date\n    - ref: policy.field.premium\n    - ref: policy.field.stop_date\n' +
       'policy.invariant.stop_within_term:\n  description: A policy can stop only on a day that it covers\n  on: policy.entity.stop_request\n  rule: stop_date >= effective_date and stop_date <= expiry_date\n  reportOn: stop_date\n  message: The stop date must be inside the term of the policy\n' +
       'policy.operation.stop_policy:\n  description: Stop a policy and calculate the refund for the days it does not cover\n  input: policy.entity.stop_request\n  output: policy.entity.refund_quote\n  errors:\n    - policy.error.refund_below_minimum\n  emits: [policy.event.policy_cancelled]\n',
+    pages: ['change-the-contract'],
+  },
+  'a new declared error, with callers: ignore-unknown': {
+    old: (m) => edit(m, [HEADER, HEADER + IGNORE_UNKNOWN]),
+    now: (m) =>
+      edit(m, [HEADER, HEADER + IGNORE_UNKNOWN], [CANCEL_ERRORS, '    - policy.error.refund_below_minimum\n    - policy.error.policy_already_cancelled\n  emits: [policy.event.policy_cancelled]\n']) +
+      '\npolicy.error.policy_already_cancelled:\n  description: The policy was cancelled before\n  category: conflict\n  retryable: false\n  message: The policy is already cancelled\n',
+    pages: ['change-the-contract'],
+  },
+  'sunset note, after the notice': {
+    old: (m) => edit(m, [HEADER, HEADER + NOTICE], ['  sunsetDate: 2027-06-30\n', '  deprecatedOn: 2026-12-31\n  sunsetDate: 2027-06-30\n']),
+    now: (m) =>
+      edit(m, [HEADER, HEADER + NOTICE], ['  sunsetDate: 2027-06-30\n', '  deprecatedOn: 2026-12-31\n  sunsetDate: 2027-06-30\n'], [NOTE_DEPRECATED, '  status: sunset\n  supersededBy: policy.field.remark\n'], [NOTE_REF, '']),
+    pages: ['change-the-contract'],
+  },
+  'sunset remark, with no notice': {
+    old: (m) => edit(m, [HEADER, HEADER + NOTICE], ['  sunsetDate: 2027-06-30\n', '  deprecatedOn: 2026-12-31\n  sunsetDate: 2027-06-30\n']),
+    now: (m) =>
+      edit(
+        m,
+        [HEADER, HEADER + NOTICE],
+        ['  sunsetDate: 2027-06-30\n', '  deprecatedOn: 2026-12-31\n  sunsetDate: 2027-06-30\n'],
+        ['  description: Free text about a coverage, at most 40 characters\n', '  description: Free text about a coverage, at most 40 characters\n  status: sunset\n  deprecatedOn: 2026-12-31\n  sunsetDate: 2027-06-30\n'],
+        [REMARK_REF, ''],
+      ),
     pages: ['change-the-contract'],
   },
   'a new event in emits': { old: (m) => edit(m, [CANCEL_ERRORS, '    - policy.error.refund_below_minimum\n']), now: (m) => m, pages: ['emit-an-event'] },
