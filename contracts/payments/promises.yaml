@@ -1,51 +1,144 @@
 contract: payments
 description: "Takes payments from buyers on behalf of merchants by card or bank transfer, captures or voids them, and refunds them."
 promises:
+  # The amount and its currency are two fields: no type pairs them. The currency is checked
+  # for its form only (three uppercase letters), not against the list of ISO 4217 codes.
   P01:
     promise: "An amount is a whole number of minor currency units (for example cents) from 1 to 99999999, paired with an ISO 4217 currency code of three uppercase letters."
+    status: workaround
+    by: [payment.field.amount, payment.field.currency]
+    hole: B4
   P02:
     promise: "A payment id is the prefix \"pay_\" followed by 24 lowercase letters or digits, and a refund id is the prefix \"re_\" followed by 24 lowercase letters or digits."
+    status: declared
+    by: [payment.field.payment_id, refund.field.refund_id]
+  # The method is an enum and each shape is an invariant over optional properties: the
+  # generated type is not a union of a card payment and a bank transfer payment.
   P03:
     promise: "A payment method is exactly one of \"card\" or \"bank_transfer\", and a card payment must carry card details while a bank transfer payment must carry an IBAN and must not carry card details."
+    status: workaround
+    by: [payment.field.method, payment.entity.create_payment_request, payment.invariant.card_payment_has_card, payment.invariant.bank_transfer_has_iban_and_no_card]
+    hole: B1
+  # The Luhn check is missing. The security code is 3 or 4 digits for any card: that 4 digits
+  # are only for American Express depends on the card number, which no rule can read.
   P04:
     promise: "A card number is 12 to 19 digits that pass the Luhn check, its expiry month is 1 to 12, its expiry year is four digits, and its security code is 3 digits, or 4 digits for American Express."
+    status: workaround
+    by: [card.entity.card_details, card.field.card_number, card.field.exp_month, card.field.exp_year, card.field.security_code]
+    hole: E1
+  # The form and the length are declared; the mod-97 check is missing.
   P05:
     promise: "An IBAN is a two-letter country code, two check digits and up to 30 letters or digits, at most 34 characters in total, and passes the mod-97 check."
+    status: workaround
+    by: [payment.field.iban]
+    hole: E1
+  # The metadata is a list of key and value entries, unique by key, not a map. "Printable" is
+  # read as "no Unicode control or format character".
   P06:
     promise: "A create-payment request must contain a merchant id, an amount, a currency, a payment method, and an idempotency key of 1 to 64 printable characters, and may contain a description of at most 255 characters and up to 20 metadata entries."
+    status: workaround
+    by: [payment.entity.create_payment_request, payment.field.merchant_id, payment.field.amount, payment.field.currency, payment.field.method, payment.field.idempotency_key, payment.field.description, payment.entity.metadata_entry]
+    hole: B3
+  # The count and the limits of the lines are declared. That the amount is the sum of the lines
+  # is in the core, refused as invalid_request; no rule adds the items of a list.
   P07:
     promise: "When a create-payment request carries line items, there are 1 to 100 of them, each has a quantity of at least 1 and a non-negative unit amount, and the payment amount equals the sum of quantity times unit amount over all lines."
+    status: workaround
+    by: [payment.entity.create_payment_request, payment.entity.line_item, payment.field.quantity, payment.field.unit_amount, payment.error.invalid_request]
+    hole: A1
   P08:
     promise: "A caller can create a payment, capture it, void it, refund it, and read a payment or refund by id."
+    status: declared
+    by: [payment.operation.create_payment, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.operation.get_payment, refund.operation.get_refund]
+  # The statuses of a success, "pending only for a bank transfer", the payload of a success and
+  # the refusals of the core are declared. A request that breaks a field limit is refused at the
+  # boundary as an input rejection, not as the declared error invalid_request: the manifest
+  # cannot give that refusal its name, and the shell must map it.
   P09:
     promise: "Creating a payment answers either \"authorized\", \"pending\" (bank transfers only) or a refusal named one of \"invalid_request\", \"card_declined\", \"insufficient_funds\", \"expired_card\", \"unsupported_currency\" or \"fraud_suspected\", and every success carries the payment id, amount, currency and status."
+    status: workaround
+    by: [payment.operation.create_payment, payment.entity.created_payment, payment.field.initial_status, payment.invariant.pending_only_for_bank_transfer, payment.error.invalid_request, payment.error.card_declined, payment.error.insufficient_funds, payment.error.expired_card, payment.error.unsupported_currency, payment.error.fraud_suspected]
+    hole: A3
+  # The optional amount of at least 1, the answer's "captured is at most authorized" and the
+  # refusal are declared. That an omitted amount captures the full authorized amount links the
+  # request to the answer, and the check against the stored authorized amount is in the core.
   P10:
     promise: "A capture request may carry an amount, which must be at least 1 and at most the authorized amount, and if it is omitted the full authorized amount is captured."
+    status: workaround
+    by: [payment.entity.capture_request, payment.field.amount, payment.entity.capture_result, payment.invariant.captured_within_authorized, payment.error.capture_exceeds_authorized]
+    hole: A2
+  # The refund amount of at least 1, the refusal, and the answer's "refunded total is at most
+  # the captured amount" are declared. That the refunded total holds the earlier refunds of the
+  # payment and this one is in the core: no rule links the request to the stored refunds.
   P11:
     promise: "A refund request carries an amount of at least 1, and the sum of all refunds on a payment never exceeds the captured amount, otherwise the refund is refused as \"amount_exceeds_captured\"."
+    status: workaround
+    by: [refund.entity.refund_request, payment.field.amount, refund.entity.refund, refund.invariant.refunds_within_captured, refund.error.amount_exceeds_captured]
+    hole: A2
   P12:
     promise: "A refund always has the same currency as the payment it refunds."
+    status: not-declarable
+    hole: B4
+  # The statuses and the refusal are declared; the allowed moves between them are not.
   P13:
     promise: "A payment moves only along these steps: pending to authorized or failed, authorized to captured, voided or expired, captured to partially_refunded or refunded, and partially_refunded to refunded; any other requested move is refused as \"invalid_state\"."
+    status: workaround
+    by: [payment.field.status, payment.error.invalid_state]
+    hole: C3
   P14:
     promise: "Only an authorized payment that has not been captured can be voided, and only a captured or partially refunded payment can be refunded."
+    status: not-declarable
+    hole: C3
+  # The key and the conflict refusal are declared. The stored answer for a repeated request,
+  # its 24 hours and the scope of one merchant are for the shell.
   P15:
     promise: "A second request with the same idempotency key and the same body from the same merchant within 24 hours returns the original answer without creating a second payment or refund, and one with the same key but a different body is refused as \"idempotency_conflict\"."
+    status: workaround
+    by: [payment.field.idempotency_key, payment.error.idempotency_conflict]
+    hole: C2
+  # Every payment carries one merchant id, and not_found is declared. That a payment of another
+  # merchant is not found depends on who calls; that a merchant exists is in another domain.
   P16:
     promise: "Every payment belongs to exactly one merchant, and a request naming an unknown merchant or a payment of another merchant is refused as \"not_found\"."
+    status: workaround
+    by: [payment.entity.payment, payment.field.merchant_id, payment.error.not_found]
+    hole: D2
   P17:
     promise: "An authorized card payment that is not captured within 7 days moves to expired and can no longer be captured."
+    status: not-declarable
+    hole: E3
+  # The refusal is declared; the 180 days after the capture, against the current time, are not.
   P18:
     promise: "A refund can be requested at most 180 days after the payment was captured, after which it is refused as \"refund_window_closed\"."
+    status: workaround
+    by: [refund.error.refund_window_closed]
+    hole: E2
   P19:
     promise: "All timestamps in requests, answers and events are UTC in ISO 8601 format with a trailing \"Z\"."
+    status: declared
+    by: [payment.field.created_at, payment.field.occurred_at]
+  # One event for each status that a call makes, with the promised payload, is declared. Lost:
+  # "exactly one" (an operation can emit zero or more of each event), a new_status that matches
+  # the name of the event, the previous status of the first status (optional), and the events
+  # failed and expired, which no call makes.
   P20:
     promise: "Each change of payment status publishes exactly one event named \"payment.<new_status>\" carrying the event id, payment id, merchant id, amount, currency, previous status, new status and the time of the change."
+    status: workaround
+    by: [payment.event.pending, payment.event.authorized, payment.event.captured, payment.event.voided, payment.event.partially_refunded, payment.event.refunded]
+    hole: D4
   P21:
     promise: "Events are delivered at least once, in the order of the changes for any one payment, and a consumer can discard duplicates by event id."
+    status: not-declarable
+    hole: D4
   P22:
     promise: "Only a merchant's own secret API key may create, capture, void or refund its payments, while a read-only key may only read them, and any other caller is refused as \"unauthorized\" or \"forbidden\"."
+    status: not-declarable
+    hole: D2
   P23:
     promise: "Answers and events never contain a full card number or security code, showing at most the card brand, the last 4 digits and the expiry."
+    status: declared
+    by: [card.entity.card_summary, card.field.brand, card.field.last4, payment.entity.created_payment, payment.entity.payment]
   P24:
     promise: "Within one major API version, fields and refusal names are never removed or renamed, new optional fields and new event types may be added, and a major version is supported for at least 12 months after its successor is released."
+    status: not-declarable
+    hole: E4
