@@ -1,0 +1,2 @@
+breaking urn:demo:conditions:booking:operation:create_booking
+compatible urn:demo:conditions:booking:operation:create_booking
