@@ -3,6 +3,10 @@
 Feature: Refund tickets
 
   Scenario Outline: Refunded tickets are listed with the amount
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current order is:
+      | order_id                             | event_id                             | starts_at            | tickets                                                                                                                                                                                                                                                                                                                                                                                                                       | fees                                 | total                                 |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-12T20:00:00Z | [{ ticket_code: ABCDEFGH23456789, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: seated, section: A1, row: C, seat_number: 12, ticket_status: ISSUED, price: { amount_minor: 5000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }, { ticket_code: ZYXWVUTS98765432, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: standing, section: FLOOR, ticket_status: ISSUED, price: { amount_minor: 3000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }] | { amount_minor: 500, currency: EUR } | { amount_minor: 8500, currency: EUR } |
     When I run the operation with:
       | idempotency_key   | order_id                             | ticket_codes   |
       | <idempotency_key> | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | <ticket_codes> |
@@ -19,6 +23,10 @@ Feature: Refund tickets
       | =repeat(64, "k") | [ABCDEFGH23456789, ZYXWVUTS98765432] | { amount_minor: 10000, currency: EUR } |
 
   Scenario Outline: A request outside the limits of a field is rejected at the boundary
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current order is:
+      | order_id                             | event_id                             | starts_at            | tickets                                                                                                                                                                                                                                                                                                                                                                                                                       | fees                                 | total                                 |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-12T20:00:00Z | [{ ticket_code: ABCDEFGH23456789, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: seated, section: A1, row: C, seat_number: 12, ticket_status: ISSUED, price: { amount_minor: 5000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }, { ticket_code: ZYXWVUTS98765432, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: standing, section: FLOOR, ticket_status: ISSUED, price: { amount_minor: 3000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }] | { amount_minor: 500, currency: EUR } | { amount_minor: 8500, currency: EUR } |
     When I run the operation with:
       | idempotency_key   | order_id   | ticket_codes   |
       | <idempotency_key> | <order_id> | <ticket_codes> |
@@ -34,10 +42,75 @@ Feature: Refund tickets
       | ticket_codes    | refund-0001      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH2345678O]                   |
 
   Scenario: A used ticket cannot be refunded
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current order is:
+      | order_id                             | event_id                             | starts_at            | tickets                                                                                                                                                                                                                                                                                                                                                                                                                       | fees                                 | total                                 |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-12T20:00:00Z | [{ ticket_code: ABCDEFGH23456789, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: seated, section: A1, row: C, seat_number: 12, ticket_status: ISSUED, price: { amount_minor: 5000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }, { ticket_code: ZYXWVUTS98765432, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: standing, section: FLOOR, ticket_status: ISSUED, price: { amount_minor: 3000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }] | { amount_minor: 500, currency: EUR } | { amount_minor: 8500, currency: EUR } |
     When I run the operation with:
       | idempotency_key | order_id                             | ticket_codes                         |
       | refund-0001     | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789, USEDUSEDUSEDUSED] |
     Then the operation fails with "urn:corpus:ticketing:refund:error:ticket_not_refundable":
       | ticket_code      |
       | USEDUSEDUSEDUSED |
+    And the operation emits no event
+
+  Scenario: A refund weeks before the start of the event is accepted
+    Given the time is "2026-11-22T18:00:00Z"
+    And the current order is:
+      | order_id                             | event_id                             | starts_at            | tickets                                                                                                                                                                                                                                                                                                                                                                                                                       | fees                                 | total                                 |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-12T20:00:00Z | [{ ticket_code: ABCDEFGH23456789, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: seated, section: A1, row: C, seat_number: 12, ticket_status: ISSUED, price: { amount_minor: 5000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }, { ticket_code: ZYXWVUTS98765432, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: standing, section: FLOOR, ticket_status: ISSUED, price: { amount_minor: 3000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }] | { amount_minor: 500, currency: EUR } | { amount_minor: 8500, currency: EUR } |
+    When I run the operation with:
+      | idempotency_key | order_id                             | ticket_codes       |
+      | refund-0001     | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789] |
+    Then the output is:
+      | order_id                             | ticket_codes       |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789] |
+
+  Scenario: A refund a millisecond before 48 hours before the start of the event is accepted
+    Given the time is "2026-12-10T19:59:59.999Z"
+    And the current order is:
+      | order_id                             | event_id                             | starts_at            | tickets                                                                                                                                                                                                                                                                                                                                                                                                                       | fees                                 | total                                 |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-12T20:00:00Z | [{ ticket_code: ABCDEFGH23456789, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: seated, section: A1, row: C, seat_number: 12, ticket_status: ISSUED, price: { amount_minor: 5000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }, { ticket_code: ZYXWVUTS98765432, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: standing, section: FLOOR, ticket_status: ISSUED, price: { amount_minor: 3000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }] | { amount_minor: 500, currency: EUR } | { amount_minor: 8500, currency: EUR } |
+    When I run the operation with:
+      | idempotency_key | order_id                             | ticket_codes       |
+      | refund-0001     | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789] |
+    Then the output is:
+      | order_id                             | ticket_codes       |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789] |
+
+  Scenario: A refund at 48 hours before the start of the event is refused
+    Given the time is "2026-12-10T20:00:00Z"
+    And the current order is:
+      | order_id                             | event_id                             | starts_at            | tickets                                                                                                                                                                                                                                                                                                                                                                                                                       | fees                                 | total                                 |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-12T20:00:00Z | [{ ticket_code: ABCDEFGH23456789, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: seated, section: A1, row: C, seat_number: 12, ticket_status: ISSUED, price: { amount_minor: 5000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }, { ticket_code: ZYXWVUTS98765432, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: standing, section: FLOOR, ticket_status: ISSUED, price: { amount_minor: 3000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }] | { amount_minor: 500, currency: EUR } | { amount_minor: 8500, currency: EUR } |
+    When I run the operation with:
+      | idempotency_key | order_id                             | ticket_codes       |
+      | refund-0001     | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789] |
+    Then the operation fails with "urn:corpus:ticketing:refund:error:refund_window_closed":
+      | order_id                             | starts_at            |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | 2026-12-12T20:00:00Z |
+    And the operation emits no event
+
+  Scenario: A refund after the start of the event is refused
+    Given the time is "2026-12-12T21:00:00Z"
+    And the current order is:
+      | order_id                             | event_id                             | starts_at            | tickets                                                                                                                                                                                                                                                                                                                                                                                                                       | fees                                 | total                                 |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-12T20:00:00Z | [{ ticket_code: ABCDEFGH23456789, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: seated, section: A1, row: C, seat_number: 12, ticket_status: ISSUED, price: { amount_minor: 5000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }, { ticket_code: ZYXWVUTS98765432, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: standing, section: FLOOR, ticket_status: ISSUED, price: { amount_minor: 3000, currency: EUR }, starts_at: 2026-12-12T20:00:00Z }] | { amount_minor: 500, currency: EUR } | { amount_minor: 8500, currency: EUR } |
+    When I run the operation with:
+      | idempotency_key | order_id                             | ticket_codes       |
+      | refund-0001     | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789] |
+    Then the operation fails with "urn:corpus:ticketing:refund:error:refund_window_closed":
+      | order_id                             | starts_at            |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | 2026-12-12T20:00:00Z |
+    And the operation emits no event
+
+  Scenario: An unknown order is refused
+    Given the time is "2026-12-01T19:00:00Z"
+    And there is no current order
+    When I run the operation with:
+      | idempotency_key | order_id                             | ticket_codes       |
+      | refund-0001     | 00000000-0000-4000-8000-000000000404 | [ABCDEFGH23456789] |
+    Then the operation fails with "urn:corpus:ticketing:order:error:order_not_found":
+      | order_id                             |
+      | 00000000-0000-4000-8000-000000000404 |
     And the operation emits no event

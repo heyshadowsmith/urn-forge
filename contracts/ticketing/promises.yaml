@@ -46,12 +46,12 @@ promises:
     status: workaround
     by: [hold.operation.create_hold, hold.error.seat_unavailable, hold.error.section_sold_out, hold.error.limit_exceeded, hold.error.sales_closed]
     hole: A2
-  # The required fields and the three refusals are declared, and a hold that is not ACTIVE is refused with HOLD_EXPIRED before the handler runs; "received after the expiry time" of an ACTIVE hold compares with the current time, and "no ticket is issued" is shown only as no event.
+  # The required fields and the three refusals are declared. "Refused with HOLD_EXPIRED if received after the hold's expiry time" is requires: now <= current.expires_at (at the expiry time itself the checkout is not after it), checked by the runtime before the handler, with scenarios a millisecond before, at and a millisecond after the expiry; a hold that is not ACTIVE is also refused with HOLD_EXPIRED. Not stated: "no ticket is issued" on a refusal. A refusal has no answer and no event, but that it creates no ticket, as that a refusal changes nothing, is the shell's (A2), and the scenarios show it only as no event.
   P09:
     promise: "A checkout request must carry the hold id and a payment reference, and is refused with HOLD_EXPIRED if received after the hold's expiry time, with HOLD_NOT_FOUND for an unknown hold, or with PAYMENT_DECLINED if the payment fails, in which case no ticket is issued."
     status: workaround
-    by: [order.operation.check_out, order.entity.checkout_request, hold.field.hold_id, order.field.payment_reference, order.error.hold_expired, hold.error.hold_not_found, order.error.payment_declined]
-    hole: E2
+    by: [order.operation.check_out, order.entity.checkout_request, hold.field.hold_id, order.field.payment_reference, hold.field.expires_at, order.error.hold_expired, hold.error.hold_not_found, order.error.payment_declined]
+    hole: A2
   # The total as the sum of the ticket prices plus the fees is an invariant of the order; one ticket per held place pairs the tickets of the answer with the lines of the stored hold, which no rule states.
   P10:
     promise: "A successful checkout returns an order id and exactly one ticket per held seat or standing place, and the order total equals the sum of the line prices plus the listed fees."
@@ -132,10 +132,11 @@ promises:
     status: workaround
     by: [hold.field.created_at, hold.field.expires_at, notice.field.occurred_at, transfer.field.offered_at, show.field.cancelled_at]
     hole: D3
+  # The start of the event (UTC) is on the order, the ticket and the transfer, which the shell loads with the event's start as it is now. request_refund reads the order and requires now < current.starts_at - 48 hours; transfer_ticket changes the ticket and accept_transfer reads the transfer, and each requires now < current.starts_at - 2 hours, so a transfer is neither offered nor accepted later ("until" excludes the edge). Scenarios a millisecond before each edge, at it, and after the start.
   P23:
     promise: "Buyer-requested refunds are accepted only until 48 hours before the event's start time, and transfers are accepted only until 2 hours before the event's start time."
-    status: not-declarable
-    hole: E2
+    status: declared
+    by: [show.field.starts_at, refund.operation.request_refund, order.entity.order, refund.error.refund_window_closed, transfer.operation.transfer_ticket, ticket.entity.ticket, transfer.operation.accept_transfer, transfer.entity.transfer, transfer.error.transfer_window_closed]
   P24:
     promise: "Within one major version, fields and refusal codes are only added and never removed or renamed, callers must ignore unknown fields, and a new major version is announced at least 180 days before the old one is retired."
     status: not-declarable

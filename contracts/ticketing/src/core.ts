@@ -12,8 +12,10 @@ const UNAVAILABLE_ROW = 'Q';
 const SOLD_OUT_SECTION = 'SOLD';
 const DECLINED = 'DECLINED';
 const USED_TICKET = 'USEDUSEDUSEDUSED';
-/** The time of each answer and event, and the current time of a checkout. */
+/** The time of each answer and event that does not read the time of the call. */
 const AT = '2026-12-01T19:00:00Z';
+/** The start time of the event, in UTC. */
+const STARTS_AT = '2026-12-12T20:00:00Z';
 const SEATED_PRICE = 5000;
 const STANDING_PRICE = 3000;
 const FEE_PER_TICKET = 250;
@@ -30,6 +32,7 @@ const ticketA = {
   seat_number: 12,
   ticket_status: 'ISSUED',
   price: eur(SEATED_PRICE),
+  starts_at: STARTS_AT,
 } as const;
 const ticketB = {
   ticket_code: 'ZYXWVUTS98765432',
@@ -38,10 +41,12 @@ const ticketB = {
   section: 'FLOOR',
   ticket_status: 'ISSUED',
   price: eur(STANDING_PRICE),
+  starts_at: STARTS_AT,
 } as const;
 const order = {
   order_id: ORDER,
   event_id: EVENT,
+  starts_at: STARTS_AT,
   tickets: [ticketA, ticketB],
   fees: eur(2 * FEE_PER_TICKET),
   total: eur(SEATED_PRICE + STANDING_PRICE + 2 * FEE_PER_TICKET),
@@ -72,10 +77,8 @@ export const core = {
 
   'urn:corpus:ticketing:hold:operation:release_hold': ({ hold_id }) => ok({ hold_id, hold_status: 'RELEASED' }),
 
-  'urn:corpus:ticketing:order:operation:check_out': ({ hold_id, payment_reference }, current) => {
-    if (Date.parse(current.expires_at) <= Date.parse(AT)) {
-      return fail('urn:corpus:ticketing:order:error:hold_expired', { hold_id, expires_at: current.expires_at });
-    }
+  // The runtime refuses a checkout after the expiry of the hold before this runs; the events carry the time of the call.
+  'urn:corpus:ticketing:order:operation:check_out': ({ hold_id, payment_reference }, current, now) => {
     if (payment_reference === DECLINED) return fail('urn:corpus:ticketing:order:error:payment_declined', { payment_reference });
     const { event_id } = current;
     return ok({ ...order, event_id, tickets: order.tickets.map((t) => ({ ...t, event_id })) }, [
@@ -84,19 +87,20 @@ export const core = {
         order_id: ORDER,
         hold_id,
         ticket_codes: order.tickets.map((t) => t.ticket_code),
-        occurred_at: AT,
+        occurred_at: now,
       }),
       ...order.tickets.map((t) =>
-        emit('urn:corpus:ticketing:ticket:event:ticket_issued', { event_id, ticket_code: t.ticket_code, occurred_at: AT }),
+        emit('urn:corpus:ticketing:ticket:event:ticket_issued', { event_id, ticket_code: t.ticket_code, occurred_at: now }),
       ),
     ]);
   },
 
   'urn:corpus:ticketing:order:operation:get_order': ({ order_id }) => ok({ ...order, order_id }),
 
-  'urn:corpus:ticketing:transfer:operation:transfer_ticket': ({ ticket_code, recipient_email }) =>
-    ok({ transfer_id: TRANSFER, ticket_code, recipient_email, offered_at: AT, accept_until: '2026-12-04T19:00:00Z' }),
+  'urn:corpus:ticketing:transfer:operation:transfer_ticket': ({ ticket_code, recipient_email }, current) =>
+    ok({ transfer_id: TRANSFER, ticket_code, recipient_email, offered_at: AT, accept_until: '2026-12-04T19:00:00Z', starts_at: current.starts_at }),
 
+  // The runtime refuses an acceptance 2 hours or less before the start of the event before this runs.
   'urn:corpus:ticketing:transfer:operation:accept_transfer': () => {
     const fresh = { ...ticketA, ticket_code: 'NEWXCDE234567892' };
     return ok(fresh, [
@@ -111,13 +115,14 @@ export const core = {
 
   'urn:corpus:ticketing:transfer:operation:cancel_transfer': (_input, current) => ok({ ...current, ticket_status: 'ISSUED' }),
 
-  'urn:corpus:ticketing:refund:operation:request_refund': ({ order_id, ticket_codes }) => {
+  // The runtime refuses a refund 48 hours or less before the start of the event before this runs.
+  'urn:corpus:ticketing:refund:operation:request_refund': ({ order_id, ticket_codes }, current, now) => {
     const used = ticket_codes.find((code) => code === USED_TICKET);
     if (used) return fail('urn:corpus:ticketing:refund:error:ticket_not_refundable', { ticket_code: used });
     return ok(
       { refund_id: REFUND, order_id, ticket_codes: [...ticket_codes], amount: eur(SEATED_PRICE * ticket_codes.length) },
       ticket_codes.map((ticket_code) =>
-        emit('urn:corpus:ticketing:ticket:event:ticket_refunded', { event_id: EVENT, ticket_code, occurred_at: AT }),
+        emit('urn:corpus:ticketing:ticket:event:ticket_refunded', { event_id: current.event_id, ticket_code, occurred_at: now }),
       ),
     );
   },
