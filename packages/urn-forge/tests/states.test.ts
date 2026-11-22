@@ -11,7 +11,7 @@ import { compile } from '../src/engine.js';
 import type { Urn } from '../src/ir/types.js';
 
 /** A test of the target that does not pass yet: `it.fails` until its step is built, then `it`. */
-const target = { compile: it.fails, runtime: it.fails };
+const target = { compile: it, runtime: it.fails };
 
 const pkg = fileURLToPath(new URL('..', import.meta.url));
 const SEAT = 'urn:demo:states:booking:operation:seat_booking' as Urn;
@@ -76,22 +76,39 @@ describe('the runtime of the states target', () => {
     expect(runtime.executeOperation(CHANGE, { reference: 'KMPQXRTA', party_size: 6 }, core, { current: booking('confirmed') })).toMatchObject({ ok: true, output: { state: 'confirmed', party_size: 6 } });
   });
 
-  target.runtime('does not check the state of an answer that is not the changed entity', () => {
-    expect(runtime.executeOperation(CANCEL, { reference: 'KMPQXRTA' }, core, { current: booking('confirmed') })).toMatchObject({ ok: true });
+  target.runtime('checks the state of the record also when the answer is not the changed entity, but not the answer', () => {
+    expect(runtime.executeOperation(CANCEL, { reference: 'KMPQXRTA' }, core, { current: booking('confirmed') })).toMatchObject({ ok: true, output: { refund: '0.00' } });
+    expect(runtime.executeOperation(CANCEL, { reference: 'KMPQXRTA' }, core, { current: booking('seated') })).toMatchObject({ ok: false, kind: 'DomainError', error: { urn: INVALID_STATE } });
   });
 
   target.runtime('is a ContractViolation when the answer is not in the state of to', () => {
     const wrong = { ...core, [SEAT]: (_i: unknown, current: ReturnType<typeof booking>) => ({ ok: true, value: { ...current, state: 'completed' }, events: [] }) };
-    expect(runtime.executeOperation(SEAT, { reference: 'KMPQXRTA' }, wrong, { current: booking('confirmed') })).toMatchObject({ ok: false, kind: 'ContractViolation' });
+    expect(runtime.executeOperation(SEAT, { reference: 'KMPQXRTA' }, wrong, { current: booking('confirmed') })).toMatchObject({
+      ok: false,
+      kind: 'ContractViolation',
+      issues: [{ path: 'state', message: `the handler for ${SEAT} answered state "completed", but the operation moves to "seated"` }],
+    });
   });
 
   target.runtime('is a ContractViolation when the answer has a different key', () => {
     const wrong = { ...core, [SEAT]: (_i: unknown, current: ReturnType<typeof booking>) => ({ ok: true, value: { ...current, reference: 'ZZZZZZZZ', state: 'seated' }, events: [] }) };
-    expect(runtime.executeOperation(SEAT, { reference: 'KMPQXRTA' }, wrong, { current: booking('confirmed') })).toMatchObject({ ok: false, kind: 'ContractViolation' });
+    expect(runtime.executeOperation(SEAT, { reference: 'KMPQXRTA' }, wrong, { current: booking('confirmed') })).toMatchObject({
+      ok: false,
+      kind: 'ContractViolation',
+      issues: [{ path: 'reference', message: `the handler for ${SEAT} answered reference "ZZZZZZZZ", but the record has "KMPQXRTA"` }],
+    });
   });
 
   target.runtime('is a ContractViolation when the shell passes a record that does not parse, or none', () => {
-    expect(runtime.executeOperation(SEAT, { reference: 'KMPQXRTA' }, core, { current: { reference: 'KMPQXRTA', state: 'lost', party_size: 4 } })).toMatchObject({ ok: false, kind: 'ContractViolation' });
-    expect(runtime.executeOperation(SEAT, { reference: 'KMPQXRTA' }, core)).toMatchObject({ ok: false, kind: 'ContractViolation' });
+    expect(runtime.executeOperation(SEAT, { reference: 'KMPQXRTA' }, core, { current: { reference: 'KMPQXRTA', state: 'lost', party_size: 4 } })).toMatchObject({
+      ok: false,
+      kind: 'ContractViolation',
+      issues: [{ path: 'current.state' }],
+    });
+    expect(runtime.executeOperation(SEAT, { reference: 'KMPQXRTA' }, core)).toMatchObject({
+      ok: false,
+      kind: 'ContractViolation',
+      issues: [{ path: 'current', message: `${SEAT} changes a record of urn:demo:states:booking:entity:booking: pass it as { current }` }],
+    });
   });
 });

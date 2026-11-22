@@ -52,6 +52,9 @@ export const DIAGNOSTIC_CODES = {
   'rule-type': 'An invariant rule mixes primitives, or uses an operator or a literal that does not fit them',
   'unguarded-field': 'An invariant rule uses an optional field outside a guard such as x is present and …',
   'invalid-report-on': 'The reportOn of an invariant is not a property that its rule names',
+  // States and moves
+  'invalid-moves': 'The moves of an enum field name a state that is not one of its values, or a move more than once',
+  'invalid-changes': 'The changes of an operation do not fit its entity, the moves of its state field, or its declared errors',
   // Pass 8: lifecycle
   'deprecated-ref': 'An active atom refers to a deprecated atom (a warning)',
   'sunset-ref': 'An atom refers to a sunset atom, or to an atom whose sunset date is on or before the reference date',

@@ -100,6 +100,13 @@ These codes change their severity:
 | `unguarded-field` | `error` | A rule uses an optional field with no guard on its left | Add `<name> is present and …` or `<name> is absent or …` |
 | `invalid-report-on` | `error` | `reportOn` is not a property name that the rule uses | Name a property of the rule |
 
+## States and moves
+
+| Code | Severity | Meaning | Correction |
+| --- | --- | --- | --- |
+| `invalid-moves` | `error` | A state in `moves` is not one of the `values` of the field, or a move is listed two times | Use only values of the field, each one time |
+| `invalid-changes` | `error` | `changes` does not fit: its entity has no state field or two, the state is optional or a list, a state of `from` or `to` is not a value, a `from` state cannot move to `to`, `otherwise` is not in `errors`, or the record and the input do not have a required property of `otherwise` | Correct the part that the message names |
+
 ## Pass 7: constraint coherence
 
 | Code | Severity | Meaning | Correction |

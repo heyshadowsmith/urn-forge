@@ -166,6 +166,14 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'rule-type': () => invariant('premium > effective_date'),
   'unguarded-field': () => invariant('deductible < premium'),
   'invalid-report-on': () => invariant('expiry_date > effective_date\n  reportOn: premium'),
+  // States and moves
+  'invalid-moves': () => manifest('a.field.s: { primitive: enum, values: [open, shut], moves: { open: [lost] } }\n'),
+  'invalid-changes': () =>
+    manifest(
+      'a.field.s: { primitive: enum, values: [open, shut] }\na.entity.door: { description: A door, fields: [{ ref: a.field.s }] }\n' +
+        'a.error.no: { description: No, category: conflict, retryable: false, message: No }\n' +
+        'a.operation.shut: { description: Shut, input: a.entity.door, output: a.entity.door, errors: [a.error.no], changes: { entity: a.entity.door, from: [open], to: shut, otherwise: a.error.no } }\n',
+    ),
   // Pass 7
   'conflicting-constraints': () => manifest('a.field.b: { primitive: float, min: 0, exclusiveMin: 0 }\n'),
   'incoherent-constraints': () => manifest('a.field.b: { primitive: integer, min: 5, max: 1 }\n'),
