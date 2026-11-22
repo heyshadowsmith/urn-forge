@@ -1,0 +1,121 @@
+# Event delivery: the target of delivery.test.ts. Each change publishes exactly one event,
+# which carries the values of the change, and the outbox keeps the order of each payment.
+manifest:
+  namespace: demo
+  domain: delivery
+  version: 1.0.0
+
+event.field.event_id:
+  primitive: string
+  format: uuid
+  description: The id of one event, for de-duplication
+event.field.sequence:
+  primitive: integer
+  min: 1
+  description: The place of an event in the order of its payment, from 1
+
+payment.field.payment_id:
+  primitive: string
+  regex: 'pay_[a-z0-9]{8}'
+  description: The id of a payment
+payment.field.status:
+  primitive: enum
+  values: [pending, authorized, captured]
+  moves:
+    pending: [authorized]
+    authorized: [captured]
+  description: The status of a payment
+payment.field.amount:
+  primitive: integer
+  min: 1
+  description: An amount in minor units
+payment.entity.request:
+  description: A request for a payment
+  fields:
+    - ref: payment.field.amount
+payment.entity.payment:
+  description: A payment
+  key: payment.field.payment_id
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+    - ref: payment.field.amount
+payment.entity.payment_ref:
+  description: The payment to change
+  fields:
+    - ref: payment.field.payment_id
+payment.error.invalid_status:
+  description: The payment is not in a status for this
+  category: conflict
+  retryable: false
+  message: Payment {payment_id} is {status}
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+
+payment.event.authorized:
+  description: A payment was authorized
+  fields:
+    - ref: event.field.event_id
+    - ref: event.field.sequence
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+    - ref: payment.field.amount
+  delivery:
+    id: event_id
+    orderBy: payment_id
+    sequence: sequence
+payment.event.pending:
+  description: A payment waits for the bank
+  fields:
+    - ref: event.field.event_id
+    - ref: event.field.sequence
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+    - ref: payment.field.amount
+  delivery:
+    id: event_id
+    orderBy: payment_id
+    sequence: sequence
+payment.event.captured:
+  description: A payment was captured
+  fields:
+    - ref: event.field.event_id
+    - ref: event.field.sequence
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+    - ref: payment.field.status
+      as: previous_status
+  delivery:
+    id: event_id
+    orderBy: payment_id
+    sequence: sequence
+
+payment.operation.create_payment:
+  description: Create a payment, which the bank authorizes now or later
+  input: payment.entity.request
+  output: payment.entity.payment
+  emits:
+    - event: payment.event.authorized
+      when: output.status = 'authorized'
+    - event: payment.event.pending
+      when: output.status = 'pending'
+  ensures:
+    - event.payment_id = output.payment_id
+    - event.status = output.status
+payment.operation.capture_payment:
+  description: Capture an authorized payment
+  input: payment.entity.payment_ref
+  output: payment.entity.payment
+  changes:
+    entity: payment.entity.payment
+    from: [authorized]
+    to: captured
+    otherwise: payment.error.invalid_status
+  emits:
+    - event: payment.event.captured
+  ensures:
+    - event.payment_id = output.payment_id
+    - event.status = output.status
+    - event.previous_status = current.status
+  errors: [payment.error.invalid_status]

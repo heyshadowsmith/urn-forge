@@ -179,6 +179,8 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
       'a.field.n: { primitive: integer }\na.entity.item: { description: I, fields: [{ ref: a.field.n }] }\n' +
         'a.entity.e: { description: E, fields: [{ ref: a.entity.item, as: items, many: { unique: [m] } }] }\n',
     ),
+  'invalid-delivery': () =>
+    manifest('a.field.n: { primitive: integer }\na.event.e: { description: E, fields: [{ ref: a.field.n }], delivery: { id: n, orderBy: n } }\n'),
   'invalid-condition': () =>
     manifest(
       'a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\n' +

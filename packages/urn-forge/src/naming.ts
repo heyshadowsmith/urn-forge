@@ -41,9 +41,9 @@ export function ruleName(brandIdentifier: string): string {
   return `${brandIdentifier}Rule`;
 }
 
-/** The exported function of a condition of an operation: `<Brand>Requires<n>` or `<Brand>Ensures<n>`, from 1. */
-export function conditionName(brandIdentifier: string, kind: 'requires' | 'ensures', index: number): string {
-  return `${brandIdentifier}${kind === 'requires' ? 'Requires' : 'Ensures'}${index + 1}`;
+/** The exported function of a condition of an operation: `<Brand>Requires<n>`, `<Brand>Ensures<n>` or `<Brand>When<n>`, from 1. */
+export function conditionName(brandIdentifier: string, kind: 'requires' | 'ensures' | 'when', index: number): string {
+  return `${brandIdentifier}${kind === 'requires' ? 'Requires' : kind === 'ensures' ? 'Ensures' : 'When'}${index + 1}`;
 }
 
 /** The handler type of an operation: `<Brand>Handler`. */

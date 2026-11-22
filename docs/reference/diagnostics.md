@@ -86,6 +86,7 @@ These codes change their severity:
 | Code | Severity | Meaning | Correction |
 | --- | --- | --- | --- |
 | `invalid-unique` | `error` | `unique: [ … ]` is on a list of values, or names a property that the item does not have, or one that holds a list or an entity, or one name two times | Name properties of the item that hold one value, each one time; on a list of values, write `unique: true` |
+| `invalid-delivery` | `error` | The `delivery` of an event names a property that the event does not have, or one that is optional, a list or an embedded entity; or `id` is not a `string`, or `sequence` is not an `integer`; or it names one property two times | Name required properties of the event that hold one value: a `string` for `id`, an `integer` for `sequence` |
 | `missing-key` | `error` | A `link`, a `unique` list of an embedded entity, or a Postgres table names an entity with no `key` | Set `key` on the entity |
 | `embedding-cycle` | `error` | Entities embed each other in a cycle | Change one embedding to a `link` |
 

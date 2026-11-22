@@ -15,7 +15,7 @@ function shortKeyOf(urn: Urn): string {
   return `${context}.${kind}.${identifier}`;
 }
 
-export function checkStructure(ir: Pick<UniversalIR, 'entities' | 'events' | 'errors'>): IRIssue[] {
+export function checkStructure(ir: Pick<UniversalIR, 'fields' | 'entities' | 'events' | 'errors'>): IRIssue[] {
   const issues: IRIssue[] = [];
   const owners: [Urn, readonly IRPropertyRef[]][] = [
     ...Object.values(ir.entities).map((e) => [e.urn, e.fields] as [Urn, readonly IRPropertyRef[]]),
@@ -57,6 +57,28 @@ export function checkStructure(ir: Pick<UniversalIR, 'entities' | 'events' | 'er
         });
       }
     });
+  }
+
+  // Delivery: each property that it names is a required, single value of the right primitive.
+  for (const event of Object.values(ir.events).sort((a, b) => (a.urn < b.urn ? -1 : 1))) {
+    const delivery = event.delivery;
+    if (!delivery) continue;
+    const problem = (message: string, ...path: (string | number)[]) =>
+      issues.push({ code: 'invalid-delivery', urn: event.urn, message: `${event.urn}: delivery.${message}`, path: [shortKeyOf(event.urn), 'delivery', ...path] });
+    const named: string[] = [];
+    const check = (name: string, primitives: readonly string[] | undefined, what: string, ...path: (string | number)[]) => {
+      const property = event.fields.find((p) => p.name === name);
+      const field = property && 'field' in property ? ir.fields[property.field] : undefined;
+      const at = path.map((p) => (typeof p === 'number' ? `[${p}]` : p)).join('');
+      if (!property) problem(`${at}: "${name}" is not a property of the event (properties: ${event.fields.map((p) => p.name).join(', ') || 'none'})`, ...path);
+      else if (!property.required || property.many || 'entity' in property) problem(`${at}: "${name}" must be a required property that holds one value`, ...path);
+      else if (primitives && field && !primitives.includes(field.primitive)) problem(`${at}: "${name}" is ${field.primitive}, but ${what}`, ...path);
+      else if (named.includes(name)) problem(`${at}: "${name}" is named twice in delivery`, ...path);
+      named.push(name);
+    };
+    check(delivery.id, ['string'], 'the id must be a string', 'id');
+    delivery.orderBy.forEach((name, index) => check(name, undefined, '', ...(delivery.orderBy.length === 1 && index === 0 ? ['orderBy'] : ['orderBy', index])));
+    if (delivery.sequence !== undefined) check(delivery.sequence, ['integer'], 'the sequence must be an integer', 'sequence');
   }
 
   // Embedding cycles: one report for each cycle, at its first entity in URN order.

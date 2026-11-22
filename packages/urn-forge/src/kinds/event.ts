@@ -7,6 +7,14 @@ import { defineKind } from './types.js';
 const EventSchema = v.strictObject({
   description: Description,
   fields: v.optional(v.array(FieldRef), []),
+  /** How the event reaches a consumer: its id, the properties that order it, and the sequence that the outbox fills. */
+  delivery: v.optional(
+    v.strictObject({
+      id: v.string(),
+      orderBy: v.union([v.string(), v.pipe(v.array(v.string()), v.minLength(1, 'must list at least one property'))]),
+      sequence: v.optional(v.string()),
+    }),
+  ),
 });
 export type EventDecl = v.InferOutput<typeof EventSchema>;
 
@@ -25,6 +33,11 @@ export const event = defineKind<EventDecl, IREvent>()({
     const { atom, decl } = context;
     const fields = buildFieldRefs(context as never, decl.fields);
     checkReservedProperty(context as never, decl, 'an event');
-    return { urn: atom.urn, brandIdentifier: atom.brandIdentifier, description: decl.description, fields };
+    const delivery = decl.delivery && {
+      id: decl.delivery.id,
+      orderBy: typeof decl.delivery.orderBy === 'string' ? [decl.delivery.orderBy] : decl.delivery.orderBy,
+      ...(decl.delivery.sequence === undefined ? {} : { sequence: decl.delivery.sequence }),
+    };
+    return { urn: atom.urn, brandIdentifier: atom.brandIdentifier, description: decl.description, fields, ...(delivery ? { delivery } : {}) };
   },
 });

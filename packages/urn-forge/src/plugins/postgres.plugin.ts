@@ -19,6 +19,7 @@ import { toUrn } from '../naming.js';
 import type { ConstraintsOf, Primitive } from '../primitives/index.js';
 import type { Format } from '../primitives/string.js';
 import { translateRegex } from './postgres-regex.js';
+import { hasOutbox, outboxSql } from './postgres-outbox.js';
 import { POSTGRES_STORE_FILE, storeFile } from './postgres-store.js';
 import { tablesSql } from './postgres-tables.js';
 import { deprecationNote, numberLiteral, valuesInUrnOrder, type CodegenPlugin, type PluginDiagnostic } from './plugin.interface.js';
@@ -255,6 +256,7 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof P
       unenforced,
     });
     out.push(...model.lines);
+    if (hasOutbox(ir)) out.push(...outboxSql(ir));
 
     if (diagnostics.some((d) => d.severity === 'error')) return { artifacts: [], diagnostics };
     const store = storeFile(ir, model.store);
