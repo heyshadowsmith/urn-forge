@@ -7,8 +7,8 @@ Feature: Approve a claim
       | role    | employee_id |
       | manager | M-3003      |
     And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           |
-      | CLM-0000000123 | 1       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
+      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           | submitted_at         |
+      | CLM-0000000123 | 1       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] | 2026-10-20T09:00:00Z |
     When I run the operation with:
       | claim_id       | version | actor_id |
       | CLM-0000000123 | 1       | M-3003   |
@@ -24,8 +24,8 @@ Feature: Approve a claim
       | role    | employee_id |
       | manager | M-3003      |
     And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           |
-      | CLM-0000000123 | 1       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
+      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           | submitted_at         |
+      | CLM-0000000123 | 1       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] | 2026-10-20T09:00:00Z |
     When I run the operation with:
       | claim_id | version | actor_id |
       | CLM-12   | 1       | M-3003   |
@@ -36,8 +36,8 @@ Feature: Approve a claim
       | role    | employee_id |
       | manager | M-3003      |
     And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           |
-      | CLM-0000000123 | 1       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
+      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           | submitted_at         |
+      | CLM-0000000123 | 1       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] | 2026-10-20T09:00:00Z |
     When I run the operation with:
       | claim_id       | version | actor_id |
       | CLM-0000000123 | 0       | M-3003   |
@@ -60,8 +60,8 @@ Feature: Approve a claim
       | role   | employee_id   |
       | <role> | <employee_id> |
     And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           |
-      | CLM-0000000123 | 4       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
+      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           | submitted_at         |
+      | CLM-0000000123 | 4       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] | 2026-10-20T09:00:00Z |
     When I run the operation with:
       | claim_id       | version | actor_id   |
       | CLM-0000000123 | 4       | <actor_id> |
@@ -81,8 +81,8 @@ Feature: Approve a claim
       | role    | employee_id |
       | manager | M-3003      |
     And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           |
-      | CLM-0000000123 | 4       | M-3003      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
+      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           | submitted_at         |
+      | CLM-0000000123 | 4       | M-3003      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] | 2026-10-20T09:00:00Z |
     When I run the operation with:
       | claim_id       | version | actor_id |
       | CLM-0000000123 | 4       | M-3003   |
@@ -95,8 +95,8 @@ Feature: Approve a claim
       | role    | employee_id |
       | manager | M-3003      |
     And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state   | purpose      | currency | total  | lines                                                                                                           |
-      | CLM-0000000123 | 1       | E-1001      | M-3003     | <state> | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
+      | claim_id       | version | employee_id | manager_id | state   | purpose      | currency | total  | lines                                                                                                           | submitted_at         |
+      | CLM-0000000123 | 1       | E-1001      | M-3003     | <state> | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] | 2026-10-20T09:00:00Z |
     When I run the operation with:
       | claim_id       | version | actor_id |
       | CLM-0000000123 | 1       | M-3003   |
@@ -117,8 +117,8 @@ Feature: Approve a claim
       | role    | employee_id |
       | manager | M-3003      |
     And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           |
-      | CLM-0000000123 | 5       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
+      | claim_id       | version | employee_id | manager_id | state     | purpose      | currency | total  | lines                                                                                                           | submitted_at         |
+      | CLM-0000000123 | 5       | E-1001      | M-3003     | SUBMITTED | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] | 2026-10-20T09:00:00Z |
     When I run the operation with:
       | claim_id       | version   | actor_id |
       | CLM-0000000123 | <version> | M-3003   |

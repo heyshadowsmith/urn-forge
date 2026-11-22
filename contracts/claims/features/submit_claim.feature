@@ -3,7 +3,8 @@
 Feature: Submit a claim
 
   Scenario: The claim moves to SUBMITTED, its version goes up by 1, and an event tells it
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | role     | employee_id |
       | employee | E-1001      |
     And the current claim is:
@@ -13,14 +14,15 @@ Feature: Submit a claim
       | claim_id       | version | actor_id |
       | CLM-0000000123 | 1       | E-1001   |
     Then the output is:
-      | claim_id       | state     | total  | currency | version |
-      | CLM-0000000123 | SUBMITTED | 120.00 | EUR      | 2       |
+      | claim_id       | state     | total  | currency | version | submitted_at         |
+      | CLM-0000000123 | SUBMITTED | 120.00 | EUR      | 2       | 2026-11-22T10:00:00Z |
     And the operation emits "urn:corpus:claims:claim:event:claim_submitted":
       | event_id                             | claim_id       | employee_id | total  | currency | state     | actor_id | occurred_at          |
       | 3f0c8a52-6d1e-4b7a-9c2f-000000000001 | CLM-0000000123 | E-1001      | 120.00 | EUR      | SUBMITTED | E-1001   | 2026-11-22T10:00:00Z |
 
   Scenario: A malformed claim id is rejected
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | role     | employee_id |
       | employee | E-1001      |
     And the current claim is:
@@ -32,7 +34,8 @@ Feature: Submit a claim
     Then the input is rejected on "claim_id"
 
   Scenario: A version below 1 is rejected
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | role     | employee_id |
       | employee | E-1001      |
     And the current claim is:
@@ -44,7 +47,8 @@ Feature: Submit a claim
     Then the input is rejected on "version"
 
   Scenario: A claim that does not exist is not found
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | role     | employee_id |
       | employee | E-1001      |
     And there is no current claim
@@ -56,7 +60,8 @@ Feature: Submit a claim
       | CLM-0000000404 |
 
   Scenario Outline: Only the employee who owns the claim may submit it, as themselves
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | role   | employee_id   |
       | <role> | <employee_id> |
     And the current claim is:
@@ -77,12 +82,13 @@ Feature: Submit a claim
       | employee | E-1001      | E-2002   |
 
   Scenario Outline: A claim that is not DRAFT is refused
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | role     | employee_id |
       | employee | E-1001      |
     And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state   | purpose      | currency | total  | lines                                                                                                           |
-      | CLM-0000000123 | 1       | E-1001      | M-3003     | <state> | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
+      | claim_id       | version | employee_id | manager_id | state   | purpose      | currency | total  | lines                                                                                                           | submitted_at         |
+      | CLM-0000000123 | 1       | E-1001      | M-3003     | <state> | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] | 2026-10-20T09:00:00Z |
     When I run the operation with:
       | claim_id       | version | actor_id |
       | CLM-0000000123 | 1       | E-1001   |
@@ -99,7 +105,8 @@ Feature: Submit a claim
       | PAID      |
 
   Scenario Outline: A version other than the current one is refused with the version sent
-    Given the caller is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
       | role     | employee_id |
       | employee | E-1001      |
     And the current claim is:
