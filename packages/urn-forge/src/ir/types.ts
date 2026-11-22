@@ -71,6 +71,8 @@ export interface IRField {
   /** Only the constraint keys the manifest set, validated per primitive by the meta-schema. */
   readonly constraints: Readonly<Record<string, ConstraintValue>>;
   readonly description?: string;
+  /** An `enum` field that is a state: for each state, the states it can move to. A state with no moves out is final. */
+  readonly moves?: Readonly<Record<string, readonly string[]>>;
   readonly lifecycle?: Lifecycle;
 }
 
@@ -188,7 +190,30 @@ export interface IROperation {
   readonly errors: readonly Urn[];
   /** The events it may return on success (event URNs), in declaration order. */
   readonly emits: readonly Urn[];
+  /** The stored record that the operation changes, and the move it makes. */
+  readonly changes?: IRChange;
   readonly lifecycle?: Lifecycle;
+}
+
+/**
+ * The record that an operation changes: the shell passes it as `current`. The operation runs
+ * only when the state of the record is in `from`; else the runtime answers `otherwise`.
+ */
+export interface IRChange {
+  /** The entity of the record. */
+  readonly entity: Urn;
+  /** The property of the entity that holds its state: the one whose field has moves. */
+  readonly property: string;
+  readonly from: readonly string[];
+  /**
+   * The states that the record can be in after the call; absent when the state stays. Each
+   * move from the record's state to the new state must be in `moves`; staying is not a move.
+   */
+  readonly to?: readonly string[];
+  /** The declared error for a state outside `from`. */
+  readonly otherwise: Urn;
+  /** The declared error when the shell finds no record (`current: null`). */
+  readonly missing?: Urn;
 }
 
 /** A diagnostic from passes 1–4. `urn` is set whenever the problem belongs to an atom. */

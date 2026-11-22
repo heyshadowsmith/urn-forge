@@ -54,7 +54,23 @@ Friction in urn-forge, met by two or more builders:
 - Gate 3 refuses an `Examples` column whose placeholder is inside a list or object cell, such as `[{ sku: <sku> }]` (`unknown-header`).
 - An event that no operation emits is not checked.
 
-## The phases
+## States and moves (C3)
+
+Nov 22, 2026: **34 of 143 promises declared (23.8%)**, up from 26. Refer to the [states plan](./states-plan.md). The 8 promises that the plan named are declared, and C3 goes from 16 promises to 5. Its other promises moved to the hole of the part that is still missing, most to E2 (the current time).
+
+Moving the six contracts onto states found five gaps in the first design, each closed in the same change:
+- `missing`, for a record that the shell does not find;
+- `to` as a list, for an end state that depends on the request;
+- staying in a state is not a move;
+- the state and the key of a smaller answer;
+- an Examples column that only the current record uses.
+
+What the contracts still could not state, each in two or more contracts:
+- An end state that depends on a value of the request, such as the cancel mode. `to` lists the states, but not which input gives which.
+- Fields that cannot change in some states ("lines cannot change after DRAFT").
+- A rule between the stored record and the request, such as "a capture is at most the authorized amount" or "the version is one higher". This is the stored-state part of A2.
+- A repeat of a call that ends in the same state with the first answer (C2).
+
 
 Each item is a plan of its own, with the format of the earlier plans: a target written first, one commit for each step, sabotages at the end. The order puts first what the most contracts need, and what fits the machinery that exists.
 
@@ -110,7 +126,8 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 
 1. The docs split (decision 5). Done.
 2. The corpus, with its score in CI (decision 6). Done: 18.2%.
-3. The next plan. The order of decision 7 puts A1 first, but the first score puts A2 (19 promises) and C3 (16) before A1 (9). The next plan states which it takes, and the promises that it moves.
+3. States and moves (C3). Done: 23.8%.
+4. The next plan. The score now puts A2 (19), D4 (11) and D2 (10) first; A1 and C1 have 9 each.
 
 ## Risks
 

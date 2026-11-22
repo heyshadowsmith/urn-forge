@@ -19,6 +19,17 @@ The examples come from [`packages/urn-forge/insurance/`](https://github.com/heys
 | Out | The output of an operation, an event, or the payload of a declared error: callers receive it | A wider set of values: a looser constraint, a property that becomes optional, a new enum value, a new declared error, a new event |
 | Stored | A table of the `postgres` plugin: the database stores it | A narrower set of values. The rows in the database must stay valid |
 
+States and moves have rules of their own:
+
+| Change | Class |
+| --- | --- |
+| A new move, or a new state in the `from` of an operation | Compatible |
+| `changes` removed from an operation | Compatible |
+| A removed move, or a removed state in `from` | Breaking: callers that make the move, or whose record is in that state, are refused |
+| A changed `to`, `otherwise` or `entity`, or a changed or removed `missing` | Breaking |
+| A new `missing` | Compatible |
+| `changes` on an operation that had none | Breaking |
+
 A URN that has two uses obeys the rules of both. These changes are also breaking:
 
 - A removed atom, also a sunset atom.

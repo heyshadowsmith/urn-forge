@@ -17,6 +17,11 @@ claim.field.version:
 claim.field.state:
   primitive: enum
   values: [DRAFT, SUBMITTED, APPROVED, REJECTED, WITHDRAWN, PAID]
+  moves:
+    DRAFT: [SUBMITTED]
+    SUBMITTED: [APPROVED, REJECTED, WITHDRAWN]
+    REJECTED: [DRAFT]
+    APPROVED: [PAID]
   description: The state of a claim
 claim.field.currency:
   primitive: string
@@ -291,35 +296,71 @@ claim.operation.edit_draft:
   description: Replace the purpose, currency and lines of a draft claim; a rejected claim goes back to DRAFT
   input: claim.entity.draft_edit
   output: claim.entity.answer
+  changes:
+    entity: claim.entity.claim
+    from: [DRAFT, REJECTED]
+    to: DRAFT
+    missing: claim.error.not_found
+    otherwise: claim.error.invalid_state
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
 claim.operation.submit_claim:
   description: Submit a draft claim for a decision
   input: claim.entity.change
   output: claim.entity.answer
+  changes:
+    entity: claim.entity.claim
+    from: [DRAFT]
+    to: SUBMITTED
+    missing: claim.error.not_found
+    otherwise: claim.error.invalid_state
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits: [claim.event.claim_submitted]
 claim.operation.withdraw_claim:
   description: Withdraw a submitted claim
   input: claim.entity.change
   output: claim.entity.answer
+  changes:
+    entity: claim.entity.claim
+    from: [SUBMITTED]
+    to: WITHDRAWN
+    missing: claim.error.not_found
+    otherwise: claim.error.invalid_state
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits: [claim.event.claim_withdrawn]
 claim.operation.approve_claim:
   description: Approve a submitted claim
   input: claim.entity.change
   output: claim.entity.answer
+  changes:
+    entity: claim.entity.claim
+    from: [SUBMITTED]
+    to: APPROVED
+    missing: claim.error.not_found
+    otherwise: claim.error.invalid_state
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits: [claim.event.claim_approved]
 claim.operation.reject_claim:
   description: Reject a submitted claim with a reason
   input: claim.entity.rejection
   output: claim.entity.rejection_answer
+  changes:
+    entity: claim.entity.claim
+    from: [SUBMITTED]
+    to: REJECTED
+    missing: claim.error.not_found
+    otherwise: claim.error.invalid_state
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits: [claim.event.claim_rejected]
 claim.operation.mark_paid:
   description: Mark an approved claim paid
   input: claim.entity.change
   output: claim.entity.answer
+  changes:
+    entity: claim.entity.claim
+    from: [APPROVED]
+    to: PAID
+    missing: claim.error.not_found
+    otherwise: claim.error.invalid_state
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits: [claim.event.claim_paid]
 claim.operation.get_claim:

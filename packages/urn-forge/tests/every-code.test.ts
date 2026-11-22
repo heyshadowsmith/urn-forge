@@ -62,6 +62,12 @@ const ISSUE_RUN =
 
 // The tutorial's strict step 3 passes every check, so one change shows one code.
 const strict = compile(source('tutorial/3-strict-coverage/domain.manifest.yaml')).ir!;
+
+// States, over the states fixture: seating a booking needs its current record.
+const states = compile(source('tests/fixtures/states/domain.manifest.yaml')).ir!;
+const SEAT = '@urn:demo:states:booking:operation:seat_booking';
+const SEAT_RUN = '    When I run the operation with:\n      | reference |\n      | KMPQXRTA |\n';
+const CURRENT = (state: string) => `    Given the current booking is:\n      | reference | state | party_size |\n      | KMPQXRTA | ${state} | 4 |\n`;
 const strictFeature = source('tutorial/3-strict-coverage/features/quote_shipping.feature');
 
 // Gates 1 and 4, and the CLI, over a copy of the tutorial's step 2.
@@ -166,6 +172,14 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'rule-type': () => invariant('premium > effective_date'),
   'unguarded-field': () => invariant('deductible < premium'),
   'invalid-report-on': () => invariant('expiry_date > effective_date\n  reportOn: premium'),
+  // States and moves
+  'invalid-moves': () => manifest('a.field.s: { primitive: enum, values: [open, shut], moves: { open: [lost] } }\n'),
+  'invalid-changes': () =>
+    manifest(
+      'a.field.s: { primitive: enum, values: [open, shut] }\na.entity.door: { description: A door, fields: [{ ref: a.field.s }] }\n' +
+        'a.error.no: { description: No, category: conflict, retryable: false, message: No }\n' +
+        'a.operation.shut: { description: Shut, input: a.entity.door, output: a.entity.door, errors: [a.error.no], changes: { entity: a.entity.door, from: [open], to: shut, otherwise: a.error.no } }\n',
+    ),
   // Pass 7
   'conflicting-constraints': () => manifest('a.field.b: { primitive: float, min: 0, exclusiveMin: 0 }\n'),
   'incoherent-constraints': () => manifest('a.field.b: { primitive: integer, min: 5, max: 1 }\n'),
@@ -217,6 +231,8 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'undeclared-invariant': () =>
     gate3(scenario(`${ISSUE_RUN}    Then the input is rejected by "urn:acme:insurance:policy:invariant:cancellation_within_term"\n`, ISSUE), 'warn', insurance),
   'uncovered-invariant': () => gate3(scenario(ISSUE_RUN, ISSUE), 'warn', insurance),
+  'uncovered-state': () => gate3(scenario(CURRENT('confirmed') + SEAT_RUN, SEAT), 'warn', states),
+  'invalid-current': () => gate3(scenario(SEAT_RUN, SEAT), 'warn', states),
   'undeclared-event': () =>
     gate3(scenario(`${ISSUE_RUN}    Then the operation emits "urn:acme:insurance:policy:event:policy_cancelled"\n`, ISSUE), 'warn', insurance),
   'uncovered-event': () => gate3(scenario(ISSUE_RUN, ISSUE), 'warn', insurance),

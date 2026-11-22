@@ -28,7 +28,7 @@ function operationOf(ir: UniversalIR, tags: readonly IndexedTag[]): Urn | undefi
 }
 
 /** Each data row of `table` as cells; with an `Examples` row, its placeholders substituted. */
-function substitute(table: IndexedTable, example?: { header: readonly string[]; row: readonly string[] }): string[][] {
+export function substitute(table: IndexedTable, example?: { header: readonly string[]; row: readonly string[] }): string[][] {
   if (!example) return table.rows.map((row) => [...row]);
   return table.rows.map((row) =>
     row.map((cell) =>

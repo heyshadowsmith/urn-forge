@@ -47,17 +47,16 @@ promises:
     promise: "Callers can create a draft claim, edit a draft, submit, withdraw, approve, reject, mark paid, and get a claim by id, and each change request names the claim id and the version the caller last read."
     status: declared
     by: [claim.operation.create_draft, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid, claim.operation.get_claim, claim.entity.draft_edit, claim.entity.change, claim.entity.rejection]
-  # The six states are declared; the allowed moves between them are not.
   P10:
     promise: "A claim is in exactly one state of DRAFT, SUBMITTED, APPROVED, REJECTED, WITHDRAWN or PAID, and the only allowed moves are DRAFT to SUBMITTED, SUBMITTED to APPROVED, REJECTED or WITHDRAWN, REJECTED to DRAFT, and APPROVED to PAID."
-    status: workaround
-    by: [claim.field.state]
-    hole: C3
+    status: declared
+    by: [claim.field.state, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid]
+  # PAID and WITHDRAWN are final by the moves of the state; that the lines and amounts cannot change once a claim leaves DRAFT is not stated.
   P11:
     promise: "PAID and WITHDRAWN are final states, and once a claim leaves DRAFT its lines and amounts cannot be changed."
     status: not-declarable
     hole: C3
-  # The answer has its values, but not that its version is 1 higher than the version sent.
+  # The answer has its values, and its claim id and state are checked against the claim and its move, but not that its version is 1 higher than the version sent.
   P12:
     promise: "A successful request answers with the claim id, its new state, its total and currency, and its new version number, which is 1 higher than the version sent."
     status: workaround
@@ -75,6 +74,7 @@ promises:
     status: workaround
     by: [claim.field.reason, claim.entity.rejection, claim.entity.rejection_answer, claim.event.claim_rejected]
     hole: A2
+  # A claim is paid only from APPROVED and PAID is final, so it is never paid twice; the payment amount is not tied to the approved total.
   P15:
     promise: "A payment amount always equals the approved claim total in the claim's currency, and a claim is never paid twice."
     status: not-declarable

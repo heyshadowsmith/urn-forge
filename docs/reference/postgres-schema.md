@@ -205,6 +205,7 @@ The plugin does not write an approximate rule. The Valibot schema still enforces
 | `insert<Brand>(value)` | One `INSERT` for the row, then one for each child row. `value` is the parsed entity type |
 | `replace<Brand>(value)` | The `delete<Brand>` statement, then the `insert<Brand>` statements |
 | `delete<Brand>(key)` | One `DELETE`. Child rows go by `ON DELETE CASCADE`. `key` is the branded key type |
+| `replace<Brand>From(value, from)` | For an entity that an operation `changes`: as `replace<Brand>`, but the `DELETE` takes the root row only while its state is in `from` (`AND "<state>" = ANY($2)`). If it deletes no row, the record moved after the shell loaded it: roll back. A shell that does not check gets a duplicate key error from the `INSERT` |
 
 Run the statements of one call in one transaction. The file has no reads.
 

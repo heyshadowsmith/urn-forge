@@ -1,10 +1,9 @@
 // A small ticketing core: fixed answers, and a few known values that give each declared error.
+// The operations that change a hold or a ticket get the stored record as current.
 import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
 
 const EVENT = '6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f';
 const CLOSED_EVENT = '00000000-0000-4000-8000-0000000000c1';
-const UNKNOWN = '00000000-0000-4000-8000-000000000404';
-const EXPIRED_HOLD = '00000000-0000-4000-8000-000000000410';
 const HOLD = '3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b';
 const ORDER = '7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f';
 const TRANSFER = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d';
@@ -13,6 +12,7 @@ const UNAVAILABLE_ROW = 'Q';
 const SOLD_OUT_SECTION = 'SOLD';
 const DECLINED = 'DECLINED';
 const USED_TICKET = 'USEDUSEDUSEDUSED';
+/** The time of each answer and event, and the current time of a checkout. */
 const AT = '2026-12-01T19:00:00Z';
 const SEATED_PRICE = 5000;
 const STANDING_PRICE = 3000;
@@ -71,28 +71,25 @@ export const core = {
     );
   },
 
-  'urn:corpus:ticketing:hold:operation:release_hold': ({ hold_id }) =>
-    hold_id === UNKNOWN
-      ? fail('urn:corpus:ticketing:hold:error:hold_not_found', { hold_id })
-      : ok({ hold_id, hold_status: 'RELEASED' }),
+  'urn:corpus:ticketing:hold:operation:release_hold': ({ hold_id }) => ok({ hold_id, hold_status: 'RELEASED' }),
 
-  'urn:corpus:ticketing:order:operation:check_out': ({ hold_id, payment_reference }) => {
-    if (hold_id === UNKNOWN) return fail('urn:corpus:ticketing:hold:error:hold_not_found', { hold_id });
-    if (hold_id === EXPIRED_HOLD) {
-      return fail('urn:corpus:ticketing:order:error:hold_expired', { hold_id, expires_at: '2026-12-01T19:10:00Z' });
+  'urn:corpus:ticketing:order:operation:check_out': ({ hold_id, payment_reference }, current) => {
+    if (Date.parse(current.expires_at) <= Date.parse(AT)) {
+      return fail('urn:corpus:ticketing:order:error:hold_expired', { hold_id, expires_at: current.expires_at });
     }
     if (payment_reference === DECLINED) return fail('urn:corpus:ticketing:order:error:payment_declined', { payment_reference });
-    return ok(order, [
+    const { event_id } = current;
+    return ok({ ...order, event_id, tickets: order.tickets.map((t) => ({ ...t, event_id })) }, [
       emit('urn:corpus:ticketing:order:event:order_placed', {
         message_id: messageId(1),
-        event_id: EVENT,
+        event_id,
         order_id: ORDER,
         hold_id,
         ticket_codes: order.tickets.map((t) => t.ticket_code),
         occurred_at: AT,
       }),
       ...order.tickets.map((t, i) =>
-        emit('urn:corpus:ticketing:ticket:event:ticket_issued', { message_id: messageId(i + 2), event_id: EVENT, ticket_code: t.ticket_code, occurred_at: AT }),
+        emit('urn:corpus:ticketing:ticket:event:ticket_issued', { message_id: messageId(i + 2), event_id, ticket_code: t.ticket_code, occurred_at: AT }),
       ),
     ]);
   },
@@ -115,7 +112,7 @@ export const core = {
     ]);
   },
 
-  'urn:corpus:ticketing:transfer:operation:cancel_transfer': () => ok(ticketA),
+  'urn:corpus:ticketing:transfer:operation:cancel_transfer': (_input, current) => ok({ ...current, ticket_status: 'ISSUED' }),
 
   'urn:corpus:ticketing:refund:operation:request_refund': ({ order_id, ticket_codes }) => {
     const used = ticket_codes.find((code) => code === USED_TICKET);

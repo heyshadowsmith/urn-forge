@@ -30,7 +30,7 @@ For the JSON form, refer to [The CLI](./cli).
 
 These codes change their severity:
 
-- `uncovered-error`, `uncovered-event`, `uncovered-record`, `uncovered-invariant` and `uncovered-boundary`: the coverage mode. Refer to [Verification gates](./verification-gates).
+- `uncovered-error`, `uncovered-event`, `uncovered-record`, `uncovered-invariant`, `uncovered-state` and `uncovered-boundary`: the coverage mode. Refer to [Verification gates](./verification-gates).
 - `unenforced-in-sql`: the `unenforced` option of the `postgres` plugin.
 - `breaking-change`: `warning` if the old manifest has `stability: experimental`.
 
@@ -99,6 +99,13 @@ These codes change their severity:
 | `rule-type` | `error` | A rule mixes primitives, or uses an operator or literal that does not fit | Correct the rule as the message says |
 | `unguarded-field` | `error` | A rule uses an optional field with no guard on its left | Add `<name> is present and …` or `<name> is absent or …` |
 | `invalid-report-on` | `error` | `reportOn` is not a property name that the rule uses | Name a property of the rule |
+
+## States and moves
+
+| Code | Severity | Meaning | Correction |
+| --- | --- | --- | --- |
+| `invalid-moves` | `error` | A state in `moves` is not one of the `values` of the field, or a move is listed two times | Use only values of the field, each one time |
+| `invalid-changes` | `error` | `changes` does not fit: its entity has no state field or two, the state is optional or a list, a state of `from` or `to` is not a value, a `from` state cannot move to `to`, `otherwise` is not in `errors`, or the record and the input do not have a required property of `otherwise` | Correct the part that the message names |
 
 ## Pass 7: constraint coherence
 
@@ -171,6 +178,8 @@ These codes change their severity:
 | `uncovered-record` | `warning` or `error` | No scenario expects the `recordAs` event of a declared error | Add `Then the refusal is recorded as "<event URN>"` |
 | `undeclared-invariant` | `error` | A step names an invariant that is not on the input entity | Use an invariant from the message |
 | `uncovered-invariant` | `warning` or `error` | No scenario breaks an invariant of the input | Add `Then the input is rejected by "<invariant URN>"` |
+| `uncovered-state` | `warning`, or `error` when strict | A state in the `from` of an operation has no scenario that starts from it, or no scenario gives a state outside `from` and expects `otherwise` | Add a scenario with `Given the current <entity> is:` for the state |
+| `invalid-current` | `error` | `Given the current <entity> is:` is on an operation with no `changes`, or names another entity; or an operation with `changes` runs with no current record | Give the record of the entity that the operation changes, before `When I run the operation with:` |
 | `uncovered-boundary` | `warning` or `error` | The scenarios do not send each boundary value of an input field | Add the values in the message, or waive the field |
 | `ratchet-ready` | `note` | Each feature is strict, and `boundaryCoverage` is `warn` | Set `boundaryCoverage: 'error'` |
 | `waived-boundary` | `note` | A waiver removed the boundary gaps of a field | None |

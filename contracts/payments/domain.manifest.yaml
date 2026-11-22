@@ -60,6 +60,11 @@ payment.field.iban:
 payment.field.status:
   primitive: enum
   values: [pending, authorized, failed, captured, voided, expired, partially_refunded, refunded]
+  moves:
+    pending: [authorized, failed]
+    authorized: [captured, voided, expired]
+    captured: [partially_refunded, refunded]
+    partially_refunded: [refunded]
   description: Where a payment is in its life
 payment.field.initial_status:
   primitive: enum
@@ -409,6 +414,12 @@ payment.operation.capture_payment:
   description: Capture an authorized payment, in full or in part
   input: payment.entity.capture_request
   output: payment.entity.capture_result
+  changes:
+    entity: payment.entity.payment
+    from: [authorized]
+    to: captured
+    otherwise: payment.error.invalid_state
+    missing: payment.error.not_found
   errors:
     - payment.error.not_found
     - payment.error.invalid_state
@@ -418,6 +429,12 @@ payment.operation.void_payment:
   description: Cancel an authorized payment that was not captured
   input: payment.entity.payment_lookup
   output: payment.entity.payment
+  changes:
+    entity: payment.entity.payment
+    from: [authorized]
+    to: voided
+    otherwise: payment.error.invalid_state
+    missing: payment.error.not_found
   errors:
     - payment.error.not_found
     - payment.error.invalid_state
@@ -432,6 +449,12 @@ refund.operation.refund_payment:
   description: Give back a part or all of a captured payment
   input: refund.entity.refund_request
   output: refund.entity.refund
+  changes:
+    entity: payment.entity.payment
+    from: [captured, partially_refunded]
+    to: [partially_refunded, refunded]
+    otherwise: payment.error.invalid_state
+    missing: payment.error.not_found
   errors:
     - payment.error.not_found
     - payment.error.invalid_state

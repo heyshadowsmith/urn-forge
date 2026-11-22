@@ -57,18 +57,16 @@ promises:
     status: workaround
     by: [subscription.field.proration, subscription.entity.change_plan_request, subscription.entity.subscription]
     hole: A2
-  # Which statuses can pause is in the core; only the refusal is declared. The resume window is checked against a request day that the shell sends, not the clock (E2).
+  # Pausing only from active or trialing, and the refusal of any other status, are declared. The resume window is checked against a request day that the shell sends, not the clock.
   P12:
     promise: "A pause request may contain a resume date that is at least 1 day and at most 90 days after the request, and a subscription may only be paused while \"active\" or \"trialing\"."
     status: workaround
-    by: [subscription.invariant.resume_in_window, request.field.requested_on, subscription.operation.pause_subscription, subscription.error.invalid_state_transition]
-    hole: C3
-  # The cancel mode and the refusal are declared. That canceled and expired are final statuses is in the core.
+    by: [subscription.invariant.resume_in_window, request.field.requested_on, subscription.operation.pause_subscription, subscription.field.status, subscription.error.invalid_state_transition]
+    hole: E2
   P13:
     promise: "A cancel request states either \"immediately\" or \"at_period_end\", and a canceled or expired subscription can never move to any other status, so any further change request on it is refused with \"invalid_state_transition\"."
-    status: workaround
-    by: [subscription.field.cancel_mode, subscription.error.invalid_state_transition]
-    hole: C3
+    status: declared
+    by: [subscription.field.cancel_mode, subscription.field.status, subscription.operation.change_plan, subscription.operation.pause_subscription, subscription.operation.resume_subscription, subscription.operation.cancel_subscription, subscription.error.invalid_state_transition]
   # Only "the period end is after the period start" is declared. No overlap and no gap between the invoices of one subscription are rules across stored records.
   P14:
     promise: "Within one subscription, invoice periods never overlap, each invoice's period end is after its period start, and each invoice's period start equals the previous invoice's period end."
@@ -81,12 +79,10 @@ promises:
     status: workaround
     by: [invoice.entity.invoice, invoice.field.line_quantity, money.field.amount_minor]
     hole: A1
-  # The five statuses are declared. That paid and void are final is not.
   P16:
     promise: "An invoice's status is exactly one of \"draft\", \"open\", \"paid\", \"void\" or \"uncollectible\", and a \"paid\" or \"void\" invoice never changes status again."
-    status: workaround
+    status: declared
     by: [invoice.field.status]
-    hole: C3
   # The conflict error is declared. At most one live subscription per customer and plan is a rule across stored records, in the core.
   P17:
     promise: "A customer has at most one non-canceled, non-expired subscription per plan, and a second create for the same customer and plan is refused with \"conflict\"."

@@ -52,6 +52,9 @@ export const DIAGNOSTIC_CODES = {
   'rule-type': 'An invariant rule mixes primitives, or uses an operator or a literal that does not fit them',
   'unguarded-field': 'An invariant rule uses an optional field outside a guard such as x is present and …',
   'invalid-report-on': 'The reportOn of an invariant is not a property that its rule names',
+  // States and moves
+  'invalid-moves': 'The moves of an enum field name a state that is not one of its values, or a move more than once',
+  'invalid-changes': 'The changes of an operation do not fit its entity, the moves of its state field, or its declared errors',
   // Pass 8: lifecycle
   'deprecated-ref': 'An active atom refers to a deprecated atom (a warning)',
   'sunset-ref': 'An atom refers to a sunset atom, or to an atom whose sunset date is on or before the reference date',
@@ -96,6 +99,8 @@ export const DIAGNOSTIC_CODES = {
   'uncovered-record': 'The record of a refusal (recordAs) has no scenario that expects it (a warning)',
   'undeclared-invariant': 'A scenario expects an invariant that is not on the input entity of its operation',
   'uncovered-invariant': 'An invariant of an operation\'s input has no scenario that breaks it (a warning)',
+  'uncovered-state': 'A state that an operation starts from, or a state outside its from that expects otherwise, has no scenario',
+  'invalid-current': 'A Given the current <entity> is: step is on an operation that changes no record or names another entity, or an operation that changes a record runs without one',
   'uncovered-boundary': 'The examples of an input field do not include every boundary case of its constraints (a warning)',
   'ratchet-ready': 'Every feature is strict, so boundaryCoverage can be set to error (a note)',
   'waived-boundary': 'A waiver removed the boundary gaps of a field, with its reason (a note)',

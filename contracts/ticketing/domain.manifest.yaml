@@ -76,7 +76,9 @@ hold.field.hold_id:
 hold.field.hold_status:
   primitive: enum
   values: [ACTIVE, CONVERTED, RELEASED, EXPIRED]
-  description: The state of a hold. A hold starts ACTIVE and moves only to CONVERTED, RELEASED or EXPIRED
+  moves:
+    ACTIVE: [CONVERTED, RELEASED, EXPIRED]
+  description: The state of a hold. A hold starts ACTIVE and moves only to CONVERTED, RELEASED or EXPIRED, which are final
 hold.field.created_at:
   primitive: timestamp
   description: When the hold was created, in UTC
@@ -145,6 +147,7 @@ hold.invariant.standing_held_line_has_quantity:
 
 hold.entity.hold:
   description: A hold of seats or standing places, with the price of each line and the total
+  key: hold.field.hold_id
   fields:
     - ref: hold.field.hold_id
     - ref: show.field.event_id
@@ -207,11 +210,19 @@ hold.error.hold_not_found:
   message: No hold {hold_id}
   fields:
     - ref: hold.field.hold_id
+hold.error.hold_not_active:
+  description: The hold is not ACTIVE, so it cannot be released
+  category: conflict
+  retryable: false
+  message: Hold {hold_id} is {hold_status}
+  fields:
+    - ref: hold.field.hold_id
+    - ref: hold.field.hold_status
 order.error.hold_expired:
-  description: The checkout came after the expiry time of the hold. No ticket is issued
+  description: The checkout came after the expiry time of the hold, or the hold is no longer ACTIVE. No ticket is issued
   category: precondition
   retryable: false
-  message: Hold {hold_id} expired at {expires_at}
+  message: Hold {hold_id} can no longer be checked out; its expiry time is {expires_at}
   fields:
     - ref: hold.field.hold_id
     - ref: hold.field.expires_at
@@ -224,9 +235,13 @@ ticket.field.ticket_code:
 ticket.field.ticket_status:
   primitive: enum
   values: [ISSUED, TRANSFER_PENDING, USED, REFUNDED, VOID]
+  moves:
+    ISSUED: [TRANSFER_PENDING, USED, REFUNDED, VOID]
+    TRANSFER_PENDING: [ISSUED]
   description: The state of a ticket. ISSUED moves to TRANSFER_PENDING, USED, REFUNDED or VOID; TRANSFER_PENDING moves back to ISSUED; USED, REFUNDED and VOID are final
 ticket.entity.ticket:
   description: An issued ticket for one seat or one standing place of an event
+  key: ticket.field.ticket_code
   fields:
     - ref: ticket.field.ticket_code
     - ref: show.field.event_id
@@ -239,6 +254,14 @@ ticket.entity.ticket:
     - ref: ticket.field.ticket_status
     - ref: money.entity.money
       as: price
+ticket.error.invalid_ticket_state:
+  description: The ticket is not in a state that allows this
+  category: conflict
+  retryable: false
+  message: Ticket {ticket_code} is {ticket_status}
+  fields:
+    - ref: ticket.field.ticket_code
+    - ref: ticket.field.ticket_status
 ticket.invariant.seated_ticket_has_seat:
   description: A ticket of a seated section names a row and a seat number
   on: ticket.entity.ticket
@@ -467,12 +490,25 @@ hold.operation.release_hold:
   description: Release a hold, so that its seats are no longer held by it
   input: hold.entity.hold_ref
   output: hold.entity.hold_state
+  changes:
+    entity: hold.entity.hold
+    from: [ACTIVE]
+    to: RELEASED
+    otherwise: hold.error.hold_not_active
+    missing: hold.error.hold_not_found
   errors:
     - hold.error.hold_not_found
+    - hold.error.hold_not_active
 order.operation.check_out:
   description: Pay for a hold and turn it into an order with its tickets
   input: order.entity.checkout_request
   output: order.entity.order
+  changes:
+    entity: hold.entity.hold
+    from: [ACTIVE]
+    to: CONVERTED
+    otherwise: order.error.hold_expired
+    missing: hold.error.hold_not_found
   errors:
     - order.error.hold_expired
     - hold.error.hold_not_found
@@ -486,6 +522,12 @@ transfer.operation.transfer_ticket:
   description: Offer one issued ticket to a recipient
   input: transfer.entity.transfer_request
   output: transfer.entity.transfer
+  changes:
+    entity: ticket.entity.ticket
+    from: [ISSUED]
+    to: TRANSFER_PENDING
+    otherwise: ticket.error.invalid_ticket_state
+  errors: [ticket.error.invalid_ticket_state]
 transfer.operation.accept_transfer:
   description: Accept a transfer, so that the recipient gets a new ticket code for the same place
   input: transfer.entity.transfer_ref
@@ -495,6 +537,12 @@ transfer.operation.cancel_transfer:
   description: Cancel a transfer, so that the ticket is ISSUED again
   input: transfer.entity.transfer_ref
   output: ticket.entity.ticket
+  changes:
+    entity: ticket.entity.ticket
+    from: [TRANSFER_PENDING]
+    to: ISSUED
+    otherwise: ticket.error.invalid_ticket_state
+  errors: [ticket.error.invalid_ticket_state]
 refund.operation.request_refund:
   description: Refund tickets of an order
   input: refund.entity.refund_request

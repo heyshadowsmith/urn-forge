@@ -12,8 +12,6 @@ const EVENT_ID = '7d3f1c2a-5b4e-4a6d-9c8b-1e2f3a4b5c6d';
 const UNKNOWN_SKU = 'NO-SUCH-SKU';
 const UNKNOWN_LOCATION = 'ZZZ-Z-9999';
 const CONFLICTING_KEY = 'conflict-key';
-const MISSING_RESERVATION = '00000000-0000-4000-8000-000000000000';
-const SHIPPED_RESERVATION = '11111111-1111-4111-8111-111111111111';
 const NEW_RESERVATION = 'c0ffee00-1234-4abc-8def-0123456789ab';
 const DEFAULT_TTL_MINUTES = 30;
 
@@ -31,16 +29,6 @@ const conflict = (idempotency_key: string) =>
   idempotency_key === CONFLICTING_KEY
     ? fail('urn:corpus:inventory:request:error:idempotency_conflict', { idempotency_key })
     : undefined;
-
-function knownReservation(reservation_id: string) {
-  if (reservation_id === MISSING_RESERVATION) {
-    return fail('urn:corpus:inventory:reservation:error:reservation_not_found', { reservation_id });
-  }
-  if (reservation_id === SHIPPED_RESERVATION) {
-    return fail('urn:corpus:inventory:reservation:error:invalid_state', { reservation_id, state: 'SHIPPED' });
-  }
-  return undefined;
-}
 
 const RESERVED_LINE = { sku: 'WIDGET-1', location: 'AMS-B-0142', quantity: RESERVED_PER_LINE };
 
@@ -109,7 +97,7 @@ export const core = {
   },
 
   'urn:corpus:inventory:reservation:operation:release_reservation': ({ idempotency_key, reservation_id }) => {
-    const refused = conflict(idempotency_key) ?? knownReservation(reservation_id);
+    const refused = conflict(idempotency_key);
     if (refused) return refused;
     const { sku, location, quantity } = RESERVED_LINE;
     return ok({ reservation_id, state: 'RELEASED' as const }, [
@@ -123,7 +111,7 @@ export const core = {
   },
 
   'urn:corpus:inventory:reservation:operation:ship_reservation': ({ idempotency_key, reservation_id, lines }) => {
-    const refused = conflict(idempotency_key) ?? knownReservation(reservation_id);
+    const refused = conflict(idempotency_key);
     if (refused) return refused;
     const shipped = lines ?? [RESERVED_LINE];
     const over = shipped.find((line) => line.quantity > RESERVED_PER_LINE);

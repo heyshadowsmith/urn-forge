@@ -8,6 +8,7 @@
  * transaction; the count triggers check at COMMIT.
  */
 import type { UniversalIR } from '../ir/types.js';
+import { schemaNames } from '../naming.js';
 import type { StoreChild, StoreRoot, StoreTable } from './postgres-tables.js';
 
 export const POSTGRES_STORE_FILE = 'domain.store.generated.ts';
@@ -66,6 +67,13 @@ function deleteRows(table: Table, key: unknown): readonly Statement[] {
   return [{ text: \`DELETE FROM \${quote(table.schema)}.\${quote(table.name)} WHERE \${quote(table.key[0]!)} = $1\`, values: [key] }];
 }`;
 
+/** Fixed text for a store with an entity that an operation changes: the DELETE that only takes a row in one of the states. */
+const RUNTIME_FROM = `
+/** One DELETE of the root row, only while its state is one of \`from\`: no row when the record moved first. */
+function deleteRowsFrom(table: Table, key: unknown, column: string, from: readonly string[]): readonly Statement[] {
+  return [{ text: \`DELETE FROM \${quote(table.schema)}.\${quote(table.name)} WHERE \${quote(table.key[0]!)} = $1 AND \${quote(column)} = ANY($2)\`, values: [key, from] }];
+}`;
+
 /** A table of the model as a TypeScript literal. */
 function tableLiteral(table: StoreTable, indent: string): string {
   const inner = `${indent}  `;
@@ -78,7 +86,11 @@ function tableLiteral(table: StoreTable, indent: string): string {
 /** The store file for the tables, or undefined when there is no table. */
 export function storeFile(ir: UniversalIR, store: readonly StoreRoot[]): string | undefined {
   if (store.length === 0) return undefined;
-  const parts = [`import type * as s from './domain.schemas.generated.js';`, '', RUNTIME];
+  // The state property of each table entity that an operation changes.
+  const states = new Map<string, string>();
+  for (const operation of Object.values(ir.operations)) if (operation.changes) states.set(operation.changes.entity, operation.changes.property);
+  const changed = store.some((root) => states.has(root.entity));
+  const parts = [`import type * as s from './domain.schemas.generated.js';`, '', changed ? RUNTIME + RUNTIME_FROM : RUNTIME];
   for (const root of store) {
     const entity = ir.entities[root.entity]!;
     const brand = entity.brandIdentifier;
@@ -105,6 +117,22 @@ export function storeFile(ir: UniversalIR, store: readonly StoreRoot[]): string 
       `  return deleteRows(${table}, key);`,
       '}',
     );
+    const property = states.get(root.entity);
+    const column = property === undefined ? undefined : root.columns.find((c) => c.property === property)?.column;
+    if (property !== undefined && column !== undefined) {
+      const ref = entity.fields.find((f) => f.name === property);
+      const stateBrand = ref && 'field' in ref ? ir.fields[ref.field]!.brandIdentifier : undefined;
+      parts.push(
+        '',
+        `/**`,
+        ` * The statements that replace one ${root.entity} while its ${property} is one of \`from\`. The first statement`,
+        ` * deletes no row when the record moved since the shell loaded it: check that it deleted one, else roll back.`,
+        ` */`,
+        `export function replace${brand}From(value: s.${brand}, from: readonly ${stateBrand ? `s.${schemaNames(stateBrand).input}` : 'string'}[]): readonly Statement[] {`,
+        `  return [...deleteRowsFrom(${table}, value[${key}], ${JSON.stringify(column)}, from), ...insertRows(${table}, ${key}, value as Readonly<Record<string, unknown>>)];`,
+        '}',
+      );
+    }
   }
   return `${parts.join('\n')}\n`;
 }

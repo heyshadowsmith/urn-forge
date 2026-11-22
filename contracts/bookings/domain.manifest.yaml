@@ -48,6 +48,9 @@ booking.field.deposit_token:
 booking.field.state:
   primitive: enum
   values: [CONFIRMED, SEATED, COMPLETED, CANCELLED, NO_SHOW]
+  moves:
+    CONFIRMED: [SEATED, CANCELLED, NO_SHOW]
+    SEATED: [COMPLETED]
   description: The state of a booking
 booking.field.confirmed_state:
   primitive: enum
@@ -169,6 +172,7 @@ booking.invariant.deposit_has_terms:
 
 booking.entity.booking:
   description: A booking as it is now
+  key: booking.field.reference
   fields:
     - ref: booking.field.reference
     - ref: booking.field.restaurant_id
@@ -342,6 +346,11 @@ booking.operation.change_booking:
   description: Change the date, the time or the party size of a booking
   input: booking.entity.change_request
   output: booking.entity.booking
+  changes:
+    entity: booking.entity.booking
+    from: [CONFIRMED]
+    otherwise: booking.error.invalid_state
+    missing: booking.error.booking_not_found
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state
@@ -352,6 +361,12 @@ booking.operation.cancel_booking:
   description: Cancel a booking, with the refund of its deposit
   input: booking.entity.booking_ref
   output: booking.entity.cancellation
+  changes:
+    entity: booking.entity.booking
+    from: [CONFIRMED, CANCELLED]
+    to: CANCELLED
+    otherwise: booking.error.invalid_state
+    missing: booking.error.booking_not_found
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state
@@ -362,6 +377,12 @@ booking.operation.seat_booking:
   description: Staff seat the party of a booking
   input: booking.entity.booking_ref
   output: booking.entity.booking
+  changes:
+    entity: booking.entity.booking
+    from: [CONFIRMED]
+    to: SEATED
+    otherwise: booking.error.invalid_state
+    missing: booking.error.booking_not_found
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state
@@ -371,6 +392,12 @@ booking.operation.complete_booking:
   description: Staff close the booking when the party leaves
   input: booking.entity.booking_ref
   output: booking.entity.booking
+  changes:
+    entity: booking.entity.booking
+    from: [SEATED]
+    to: COMPLETED
+    otherwise: booking.error.invalid_state
+    missing: booking.error.booking_not_found
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state
@@ -380,6 +407,12 @@ booking.operation.mark_no_show:
   description: Staff mark a booking whose party did not come
   input: booking.entity.booking_ref
   output: booking.entity.booking
+  changes:
+    entity: booking.entity.booking
+    from: [CONFIRMED]
+    to: NO_SHOW
+    otherwise: booking.error.invalid_state
+    missing: booking.error.booking_not_found
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state

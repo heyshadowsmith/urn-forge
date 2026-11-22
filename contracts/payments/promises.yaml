@@ -79,16 +79,14 @@ promises:
     promise: "A refund always has the same currency as the payment it refunds."
     status: not-declarable
     hole: B4
-  # The statuses and the refusal are declared; the allowed moves between them are not.
   P13:
     promise: "A payment moves only along these steps: pending to authorized or failed, authorized to captured, voided or expired, captured to partially_refunded or refunded, and partially_refunded to refunded; any other requested move is refused as \"invalid_state\"."
-    status: workaround
-    by: [payment.field.status, payment.error.invalid_state]
-    hole: C3
+    status: declared
+    by: [payment.field.status, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.error.invalid_state]
   P14:
     promise: "Only an authorized payment that has not been captured can be voided, and only a captured or partially refunded payment can be refunded."
-    status: not-declarable
-    hole: C3
+    status: declared
+    by: [payment.operation.void_payment, refund.operation.refund_payment, payment.field.status, payment.error.invalid_state]
   # The key and the conflict refusal are declared. The stored answer for a repeated request,
   # its 24 hours and the scope of one merchant are for the shell.
   P15:
@@ -97,12 +95,16 @@ promises:
     by: [payment.field.idempotency_key, payment.error.idempotency_conflict]
     hole: C2
   # Every payment carries one merchant id, and not_found is declared. That a payment of another
-  # merchant is not found depends on who calls; that a merchant exists is in another domain.
+  # merchant is not found depends on who calls; that a merchant exists is in another domain. A
+  # capture, void or refund of an unknown payment is declared: the shell finds no record, and the
+  # runtime refuses it as not_found.
   P16:
     promise: "Every payment belongs to exactly one merchant, and a request naming an unknown merchant or a payment of another merchant is refused as \"not_found\"."
     status: workaround
     by: [payment.entity.payment, payment.field.merchant_id, payment.error.not_found]
     hole: D2
+  # The move from authorized to expired is declared, and a capture starts only from authorized,
+  # so an expired payment cannot be captured. The move after 7 days, with no request, is not.
   P17:
     promise: "An authorized card payment that is not captured within 7 days moves to expired and can no longer be captured."
     status: not-declarable

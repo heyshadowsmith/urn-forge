@@ -67,18 +67,16 @@ promises:
     status: workaround
     by: [booking.error.no_availability]
     hole: A2
-  # The five states are declared; the allowed moves and the final states are not.
   P13:
     promise: "A booking is always in exactly one of the states CONFIRMED, SEATED, COMPLETED, CANCELLED or NO_SHOW, and the only allowed moves are CONFIRMED to SEATED, CANCELLED or NO_SHOW, and SEATED to COMPLETED; CANCELLED, COMPLETED and NO_SHOW are final."
-    status: workaround
-    by: [booking.field.state]
-    hole: C3
-  # The operations and both errors are declared; "only while CONFIRMED" needs states, and "at least 2 hours before" needs the current time (E2).
+    status: declared
+    by: [booking.field.state, booking.operation.seat_booking, booking.operation.complete_booking, booking.operation.cancel_booking, booking.operation.mark_no_show]
+  # "Only while CONFIRMED" is declared: both operations change a booking from CONFIRMED only (cancel also accepts a repeat on a CANCELLED booking, P18), otherwise INVALID_STATE. "At least 2 hours before" needs the current time.
   P14:
     promise: "A guest may change the date, time or party size, or cancel, only while the booking is CONFIRMED and at least 2 hours before its start time, otherwise the request is refused with CHANGE_DEADLINE_PASSED or INVALID_STATE."
     status: workaround
     by: [booking.operation.change_booking, booking.operation.cancel_booking, booking.error.change_deadline_passed, booking.error.invalid_state]
-    hole: C3
+    hole: E2
   # The refund is a declared amount; full or nothing by 24 hours before the start needs the current time, and "never more than the deposit paid" relates the answer to stored data (A2).
   P15:
     promise: "A cancellation made 24 hours or more before the start time refunds the full deposit, a later one refunds nothing, and a refund is never more than the deposit paid."
@@ -97,9 +95,11 @@ promises:
     status: workaround
     by: [booking.field.idempotency_key, booking.error.invalid_request]
     hole: C2
+  # cancel_booking accepts a CANCELLED booking, which stays CANCELLED; that the answer is the same cancellation and no second refund is made is not stated.
   P18:
     promise: "Cancelling a booking that is already CANCELLED returns success with the same cancellation details and does not refund again."
-    status: not-declarable
+    status: workaround
+    by: [booking.operation.cancel_booking]
     hole: C2
   # FORBIDDEN is declared; who may read or act on which booking, and the proof a guest presents, are not.
   P19:

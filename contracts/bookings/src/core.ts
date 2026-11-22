@@ -1,15 +1,7 @@
-// A small bookings core: a fixed set of stored bookings, enough for the scenarios.
+// A small bookings core. The operations that change a booking get it as `current`; get_booking
+// reads from a fixed set of stored bookings, enough for its scenarios.
 import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
-
-type State = 'CONFIRMED' | 'SEATED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
-
-interface Stored {
-  readonly state: State;
-  /** Hours from now to the start time. */
-  readonly startsIn: number;
-  readonly restaurant_id: string;
-  readonly deposit_amount?: string;
-}
+import type { BookingBookingInput } from './generated/domain.schemas.generated';
 
 const OWN_RESTAURANT = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
 const OTHER_RESTAURANT = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
@@ -19,31 +11,45 @@ const NOW = '2026-11-22T10:00:00Z';
 const TIME_ZONE = 'Europe/Paris';
 const DURATION = 120;
 
-const STORED: Readonly<Record<string, Stored>> = {
-  CNFRMD22: { state: 'CONFIRMED', startsIn: 48, restaurant_id: OWN_RESTAURANT, deposit_amount: '80.00' },
-  LATE3333: { state: 'CONFIRMED', startsIn: 5, restaurant_id: OWN_RESTAURANT, deposit_amount: '80.00' },
-  LATE2222: { state: 'CONFIRMED', startsIn: 1, restaurant_id: OWN_RESTAURANT },
-  PAST2222: { state: 'CONFIRMED', startsIn: -1, restaurant_id: OWN_RESTAURANT },
-  SEATED22: { state: 'SEATED', startsIn: 0, restaurant_id: OWN_RESTAURANT },
-  CANCLD22: { state: 'CANCELLED', startsIn: 48, restaurant_id: OWN_RESTAURANT, deposit_amount: '80.00' },
-  FRBDDN22: { state: 'CONFIRMED', startsIn: 48, restaurant_id: OTHER_RESTAURANT },
-};
+type Booking = BookingBookingInput;
 
-function view(reference: string, stored: Stored, state: State = stored.state) {
-  return {
-    reference,
-    restaurant_id: stored.restaurant_id,
-    state,
+const STORED: Readonly<Record<string, Booking>> = {
+  CNFRMD22: {
+    reference: 'CNFRMD22',
+    restaurant_id: OWN_RESTAURANT,
+    state: 'CONFIRMED',
     local_date: '2026-12-24',
     local_time: '19:30',
     time_zone: TIME_ZONE,
     party_size: 4,
     duration_minutes: DURATION,
-    ...(stored.deposit_amount ? { deposit_amount: stored.deposit_amount } : {}),
-  };
+    deposit_amount: '80.00',
+  },
+  FRBDDN22: {
+    reference: 'FRBDDN22',
+    restaurant_id: OTHER_RESTAURANT,
+    state: 'CONFIRMED',
+    local_date: '2026-12-24',
+    local_time: '19:30',
+    time_zone: TIME_ZONE,
+    party_size: 4,
+    duration_minutes: DURATION,
+  },
+};
+
+/** Hours from now to the start time of a booking, in the time zone of the restaurant. */
+function startsIn({ local_date, local_time, time_zone }: Booking): number {
+  const asUtc = Date.parse(`${local_date}T${local_time}:00Z`);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', { timeZone: time_zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      .formatToParts(asUtc)
+      .map((part) => [part.type, part.value]),
+  );
+  const offset = Date.parse(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:00Z`) - asUtc;
+  return (asUtc - offset - Date.parse(NOW)) / 3_600_000;
 }
 
-function eventOf(booking: ReturnType<typeof view>) {
+function eventOf(booking: Booking) {
   return {
     event_id: EVENT_ID,
     occurred_at: NOW,
@@ -58,22 +64,10 @@ function eventOf(booking: ReturnType<typeof view>) {
   };
 }
 
-/** The stored booking, or the reason the caller cannot act on it. */
-function find(reference: string) {
-  const stored = STORED[reference];
-  if (!stored) return fail('urn:corpus:bookings:booking:error:booking_not_found', { reference });
-  if (stored.restaurant_id !== OWN_RESTAURANT) return fail('urn:corpus:bookings:booking:error:forbidden', { reference });
-  return { ok: true as const, stored };
-}
-
-/** A staff move from one state to the next. */
-function move(reference: string, from: State, to: State) {
-  const found = find(reference);
-  if (!found.ok) return found;
-  if (found.stored.state !== from) {
-    return fail('urn:corpus:bookings:booking:error:invalid_state', { reference, state: found.stored.state });
-  }
-  return { ok: true as const, booking: view(reference, found.stored, to) };
+/** Whether the caller can act on the booking. */
+function check(reference: string, current: Booking) {
+  if (current.restaurant_id !== OWN_RESTAURANT) return fail('urn:corpus:bookings:booking:error:forbidden', { reference });
+  return undefined;
 }
 
 export const core = {
@@ -107,62 +101,55 @@ export const core = {
   },
 
   'urn:corpus:bookings:booking:operation:get_booking': ({ reference }) => {
-    const found = find(reference);
-    return found.ok ? ok(view(reference, found.stored)) : found;
+    const stored = STORED[reference];
+    if (!stored) return fail('urn:corpus:bookings:booking:error:booking_not_found', { reference });
+    return check(reference, stored) ?? ok(stored);
   },
 
-  'urn:corpus:bookings:booking:operation:change_booking': ({ reference, local_date, local_time, party_size }) => {
-    const found = find(reference);
-    if (!found.ok) return found;
-    const { stored } = found;
-    if (stored.state !== 'CONFIRMED') return fail('urn:corpus:bookings:booking:error:invalid_state', { reference, state: stored.state });
-    if (stored.startsIn < 2) return fail('urn:corpus:bookings:booking:error:change_deadline_passed', { reference });
-    const before = view(reference, stored);
+  'urn:corpus:bookings:booking:operation:change_booking': ({ reference, local_date, local_time, party_size }, current) => {
+    const refused = check(reference, current);
+    if (refused) return refused;
+    if (startsIn(current) < 2) return fail('urn:corpus:bookings:booking:error:change_deadline_passed', { reference });
     const booking = {
-      ...before,
-      local_date: local_date ?? before.local_date,
-      local_time: local_time ?? before.local_time,
-      party_size: party_size ?? before.party_size,
+      ...current,
+      local_date: local_date ?? current.local_date,
+      local_time: local_time ?? current.local_time,
+      party_size: party_size ?? current.party_size,
     };
     return ok(booking, [emit('urn:corpus:bookings:booking:event:booking_changed', eventOf(booking))]);
   },
 
-  'urn:corpus:bookings:booking:operation:cancel_booking': ({ reference }) => {
-    const found = find(reference);
-    if (!found.ok) return found;
-    const { stored } = found;
-    const fullRefund = stored.startsIn >= 24 ? (stored.deposit_amount ?? '0.00') : '0.00';
+  'urn:corpus:bookings:booking:operation:cancel_booking': ({ reference }, current) => {
+    const refused = check(reference, current);
+    if (refused) return refused;
+    const hours = startsIn(current);
+    const refund_amount = hours >= 24 ? (current.deposit_amount ?? '0.00') : '0.00';
     // A second cancellation gives the first answer again, and changes nothing.
-    if (stored.state === 'CANCELLED') {
-      return ok({ reference, state: 'CANCELLED' as const, refund_amount: fullRefund, cancelled_at: '2026-11-20T08:00:00Z' });
+    if (current.state === 'CANCELLED') {
+      return ok({ reference, state: 'CANCELLED' as const, refund_amount, cancelled_at: '2026-11-20T08:00:00Z' });
     }
-    if (stored.state !== 'CONFIRMED') return fail('urn:corpus:bookings:booking:error:invalid_state', { reference, state: stored.state });
-    if (stored.startsIn < 2) return fail('urn:corpus:bookings:booking:error:change_deadline_passed', { reference });
-    return ok({ reference, state: 'CANCELLED' as const, refund_amount: fullRefund, cancelled_at: NOW }, [
-      emit('urn:corpus:bookings:booking:event:booking_cancelled', eventOf(view(reference, stored, 'CANCELLED'))),
+    if (hours < 2) return fail('urn:corpus:bookings:booking:error:change_deadline_passed', { reference });
+    return ok({ reference, state: 'CANCELLED' as const, refund_amount, cancelled_at: NOW }, [
+      emit('urn:corpus:bookings:booking:event:booking_cancelled', eventOf({ ...current, state: 'CANCELLED' })),
     ]);
   },
 
-  'urn:corpus:bookings:booking:operation:seat_booking': ({ reference }) => {
-    const moved = move(reference, 'CONFIRMED', 'SEATED');
-    if (!moved.ok) return moved;
-    return ok(moved.booking, [emit('urn:corpus:bookings:booking:event:booking_seated', eventOf(moved.booking))]);
+  'urn:corpus:bookings:booking:operation:seat_booking': ({ reference }, current) => {
+    const booking = { ...current, state: 'SEATED' as const };
+    return check(reference, current) ?? ok(booking, [emit('urn:corpus:bookings:booking:event:booking_seated', eventOf(booking))]);
   },
 
-  'urn:corpus:bookings:booking:operation:complete_booking': ({ reference }) => {
-    const moved = move(reference, 'SEATED', 'COMPLETED');
-    if (!moved.ok) return moved;
-    return ok(moved.booking, [emit('urn:corpus:bookings:booking:event:booking_completed', eventOf(moved.booking))]);
+  'urn:corpus:bookings:booking:operation:complete_booking': ({ reference }, current) => {
+    const booking = { ...current, state: 'COMPLETED' as const };
+    return check(reference, current) ?? ok(booking, [emit('urn:corpus:bookings:booking:event:booking_completed', eventOf(booking))]);
   },
 
-  'urn:corpus:bookings:booking:operation:mark_no_show': ({ reference }) => {
-    const found = find(reference);
-    if (!found.ok) return found;
+  'urn:corpus:bookings:booking:operation:mark_no_show': ({ reference }, current) => {
+    const refused = check(reference, current);
+    if (refused) return refused;
     // Only from 15 minutes after the start time onward.
-    if (found.stored.state !== 'CONFIRMED' || found.stored.startsIn > -0.25) {
-      return fail('urn:corpus:bookings:booking:error:invalid_state', { reference, state: found.stored.state });
-    }
-    const booking = view(reference, found.stored, 'NO_SHOW');
+    if (startsIn(current) > -0.25) return fail('urn:corpus:bookings:booking:error:invalid_state', { reference, state: current.state });
+    const booking = { ...current, state: 'NO_SHOW' as const };
     return ok(booking, [emit('urn:corpus:bookings:booking:event:booking_no_show', eventOf(booking))]);
   },
 } satisfies DomainCoreImplementation;

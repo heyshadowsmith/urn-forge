@@ -1,0 +1,134 @@
+# Each problem that moves and changes can have, one for each atom.
+manifest:
+  namespace: demo
+  domain: states
+  version: 1.0.0
+
+door.field.key:
+  primitive: string
+  description: The key of a door
+door.field.state:
+  primitive: enum
+  values: [open, shut, locked]
+  moves:
+    open: [shut, shut]
+    shut: [open, locked, broken]
+    ajar: [shut]
+  description: The state of a door
+door.field.lock:
+  primitive: enum
+  values: [on, off]
+  moves:
+    on: [off]
+  description: A second state
+door.field.plain:
+  primitive: enum
+  values: [a, b]
+  description: An enum with no moves
+
+door.entity.door:
+  description: A door with one state
+  key: door.field.key
+  fields:
+    - ref: door.field.key
+    - ref: door.field.state
+door.entity.no_state:
+  description: A door with no state
+  fields:
+    - ref: door.field.key
+    - ref: door.field.plain
+door.entity.two_states:
+  description: A door with two states
+  fields:
+    - ref: door.field.state
+    - ref: door.field.lock
+door.entity.optional_state:
+  description: A door whose state can be absent
+  fields:
+    - ref: door.field.state
+      required: false
+
+door.field.reason:
+  primitive: string
+  description: Why
+door.error.not_now:
+  description: The door is not in a state for this
+  category: conflict
+  retryable: false
+  message: Door {key} is {state}
+  fields:
+    - ref: door.field.key
+    - ref: door.field.state
+door.error.needs_reason:
+  description: An error with a property that nothing fills
+  category: conflict
+  retryable: false
+  message: No
+  fields:
+    - ref: door.field.reason
+
+door.operation.change_no_state:
+  description: The entity has no state field
+  input: door.entity.door
+  output: door.entity.door
+  errors: [door.error.not_now]
+  changes: { entity: door.entity.no_state, from: [a], otherwise: door.error.not_now }
+door.operation.change_two_states:
+  description: The entity has two state fields
+  input: door.entity.door
+  output: door.entity.door
+  errors: [door.error.not_now]
+  changes: { entity: door.entity.two_states, from: [open], otherwise: door.error.not_now }
+door.operation.change_optional_state:
+  description: The state can be absent
+  input: door.entity.door
+  output: door.entity.door
+  errors: [door.error.not_now]
+  changes: { entity: door.entity.optional_state, from: [open], otherwise: door.error.not_now }
+door.operation.unknown_states:
+  description: A from and a to that are not states, and a from listed twice
+  input: door.entity.door
+  output: door.entity.door
+  errors: [door.error.not_now]
+  changes: { entity: door.entity.door, from: [open, open, ajar], to: broken, otherwise: door.error.not_now }
+door.operation.no_move:
+  description: A move that moves does not have
+  input: door.entity.door
+  output: door.entity.door
+  errors: [door.error.not_now]
+  changes: { entity: door.entity.door, from: [open], to: locked, otherwise: door.error.not_now }
+door.operation.undeclared_error:
+  description: An otherwise that the operation does not declare
+  input: door.entity.door
+  output: door.entity.door
+  changes: { entity: door.entity.door, from: [open], to: shut, otherwise: door.error.not_now }
+door.operation.unfilled_error:
+  description: An otherwise with a property that neither the record nor the input has
+  input: door.entity.door
+  output: door.entity.door
+  errors: [door.error.needs_reason]
+  changes: { entity: door.entity.door, from: [open], to: shut, otherwise: door.error.needs_reason }
+door.operation.wrong_kinds:
+  description: The entity and the otherwise name atoms of the wrong kind
+  input: door.entity.door
+  output: door.entity.door
+  errors: [door.error.not_now]
+  changes: { entity: door.field.state, from: [open], otherwise: door.entity.door }
+door.operation.undeclared_missing:
+  description: A missing error that the operation does not declare
+  input: door.entity.door
+  output: door.entity.door
+  errors: [door.error.not_now]
+  changes: { entity: door.entity.door, from: [open], to: shut, otherwise: door.error.not_now, missing: door.error.needs_reason }
+door.operation.unfilled_missing:
+  description: A missing error with a property that the input does not have
+  input: door.entity.no_state
+  output: door.entity.door
+  errors: [door.error.not_now]
+  changes: { entity: door.entity.door, from: [open], to: shut, otherwise: door.error.not_now, missing: door.error.not_now }
+door.operation.stay_and_list:
+  description: A to with two states, one that no from state reaches
+  input: door.entity.door
+  output: door.entity.door
+  errors: [door.error.not_now]
+  changes: { entity: door.entity.door, from: [open], to: [open, locked], otherwise: door.error.not_now }

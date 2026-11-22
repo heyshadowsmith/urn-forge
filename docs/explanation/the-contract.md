@@ -29,12 +29,12 @@ urn-forge makes sure that the business logic stays inside the contract. The core
 | Part | The promise | In the manifest |
 | --- | --- | --- |
 | Names | Each concept has one name, and the name always has one meaning | Short keys and URNs |
-| Valid values | These values, and only these, are valid | Fields and their constraints, entities, invariants on one entity |
-| Operations | These operations exist, and each takes this input | `operation` with `input` |
+| Valid values | These values, and only these, are valid; a record moves only between these states | Fields and their constraints, entities, invariants on one entity, `moves` on a state field |
+| Operations | These operations exist, each takes this input, and each changes a record only from these states | `operation` with `input` and `changes` |
 | Answers | An operation answers only with its output, its declared errors and its events | `output`, `errors`, `emits` |
 | Change | A change keeps the promises that each party relies on | `status`, `stability` and `urn-forge diff` |
 
-The six kinds of the manifest map to these parts. A `field` and an `entity` give valid values, and an `invariant` gives a rule across the fields of one entity. An `operation` names an input and its answers. An `error` is a refusal that a caller can expect, and an `event` is a fact that a success tells. For the keys, refer to [The manifest](../reference/manifest).
+The six kinds of the manifest map to these parts. A `field` and an `entity` give valid values, and an `invariant` gives a rule across the fields of one entity. An `operation` names an input and its answers, and with `changes`, the states of the record from which it can run. An `error` is a refusal that a caller can expect, and an `event` is a fact that a success tells. For the keys, refer to [The manifest](../reference/manifest).
 
 ## URNs as permanent names
 

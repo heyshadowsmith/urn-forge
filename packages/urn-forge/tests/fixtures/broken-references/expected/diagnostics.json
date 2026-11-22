@@ -50,36 +50,6 @@
     "urn": "urn:demo:broken:order:field:size"
   },
   {
-    "code": "wrong-ref-kind",
-    "location": {
-      "column": 10,
-      "line": 39
-    },
-    "message": "urn:demo:broken:order:operation:place: input \"order.field.quantity\" must name an entity, but urn:demo:broken:order:field:quantity is a field",
-    "severity": "error",
-    "urn": "urn:demo:broken:order:operation:place"
-  },
-  {
-    "code": "wrong-ref-kind",
-    "location": {
-      "column": 40,
-      "line": 45
-    },
-    "message": "urn:demo:broken:order:operation:reprice: errors[1] \"order.entity.line\" must name an error, but urn:demo:broken:order:entity:line is an entity",
-    "severity": "error",
-    "urn": "urn:demo:broken:order:operation:reprice"
-  },
-  {
-    "code": "duplicate-ref",
-    "location": {
-      "column": 59,
-      "line": 45
-    },
-    "message": "urn:demo:broken:order:operation:reprice: errors[2] lists urn:demo:broken:order:error:limit_exceeded more than once",
-    "severity": "error",
-    "urn": "urn:demo:broken:order:operation:reprice"
-  },
-  {
     "code": "unknown-placeholder",
     "location": {
       "column": 12,
@@ -118,5 +88,35 @@
     "message": "urn:demo:broken:order:error:wrong_kind: fields[0] becomes property \"kind\", which an error reserves for its URN; give it another name with as",
     "severity": "error",
     "urn": "urn:demo:broken:order:error:wrong_kind"
+  },
+  {
+    "code": "wrong-ref-kind",
+    "location": {
+      "column": 10,
+      "line": 39
+    },
+    "message": "urn:demo:broken:order:operation:place: input \"order.field.quantity\" must name an entity, but urn:demo:broken:order:field:quantity is a field",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:operation:place"
+  },
+  {
+    "code": "wrong-ref-kind",
+    "location": {
+      "column": 40,
+      "line": 45
+    },
+    "message": "urn:demo:broken:order:operation:reprice: errors[1] \"order.entity.line\" must name an error, but urn:demo:broken:order:entity:line is an entity",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:operation:reprice"
+  },
+  {
+    "code": "duplicate-ref",
+    "location": {
+      "column": 59,
+      "line": 45
+    },
+    "message": "urn:demo:broken:order:operation:reprice: errors[2] lists urn:demo:broken:order:error:limit_exceeded more than once",
+    "severity": "error",
+    "urn": "urn:demo:broken:order:operation:reprice"
   }
 ]

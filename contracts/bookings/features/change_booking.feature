@@ -2,6 +2,9 @@
 Feature: Change a booking
 
   Scenario Outline: A confirmed booking more than 2 hours away is changed
+    Given the current booking is:
+      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference | local_date   | local_time   | party_size   |
       | CNFRMD22  | <local_date> | <local_time> | <party_size> |
@@ -18,6 +21,9 @@ Feature: Change a booking
       | 2026-12-30 | 21:00      | 20         |
 
   Scenario: A change of the party size only keeps the date and the time
+    Given the current booking is:
+      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference | party_size |
       | CNFRMD22  | 6          |
@@ -26,6 +32,9 @@ Feature: Change a booking
       | CNFRMD22  | CONFIRMED | 2026-12-24 | 19:30      | 6          |
 
   Scenario Outline: A change with a value that is not valid is rejected on that field
+    Given the current booking is:
+      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference   | local_time   | party_size   |
       | <reference> | <local_time> | <party_size> |
@@ -39,6 +48,7 @@ Feature: Change a booking
       | party_size | CNFRMD22  |            | 21         |
 
   Scenario: An unknown reference is not found
+    Given there is no current booking
     When I run the operation with:
       | reference | party_size |
       | XXXXXXXX  | 2          |
@@ -46,26 +56,42 @@ Feature: Change a booking
     And the operation emits no event
 
   Scenario: A booking of another restaurant is forbidden
+    Given the current booking is:
+      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference | party_size |
       | FRBDDN22  | 2          |
     Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
     And the operation emits no event
 
-  Scenario: A booking that is no longer confirmed cannot change
+  Scenario Outline: A booking that is no longer confirmed cannot change
+    Given the current booking is:
+      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state>   | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference | party_size |
-      | SEATED22  | 2          |
+      | CNFRMD22  | 2          |
     Then the operation fails with "urn:corpus:bookings:booking:error:invalid_state":
-      | reference | state  |
-      | SEATED22  | SEATED |
+      | reference | state   |
+      | CNFRMD22  | <state> |
     And the operation emits no event
 
+    Examples:
+      | state     |
+      | SEATED    |
+      | COMPLETED |
+      | CANCELLED |
+      | NO_SHOW   |
+
   Scenario: A booking that starts in less than 2 hours cannot change
+    Given the current booking is:
+      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22 | 12:00      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference | party_size |
-      | LATE2222  | 2          |
+      | CNFRMD22  | 2          |
     Then the operation fails with "urn:corpus:bookings:booking:error:change_deadline_passed":
       | reference |
-      | LATE2222  |
+      | CNFRMD22  |
     And the operation emits no event

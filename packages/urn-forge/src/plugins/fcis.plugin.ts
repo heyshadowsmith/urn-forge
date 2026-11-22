@@ -15,7 +15,7 @@
  *   (and so brands) its output or its declared error, rendering the error's message.
  */
 import * as v from 'valibot';
-import type { IREntity, IRError, IREvent, IRPropertyRef, MessagePart, UniversalIR, Urn } from '../ir/types.js';
+import type { IRChange, IREntity, IRError, IREvent, IRPropertyRef, MessagePart, UniversalIR, Urn } from '../ir/types.js';
 import { ERROR_CATEGORIES, invariantsOf, valueField } from '../ir/types.js';
 import { handlerName, ruleName, schemaNames } from '../naming.js';
 import { PRIMITIVE_NAMES } from '../primitives/index.js';
@@ -77,8 +77,86 @@ export function fail<K extends ErrorUrn>(
   return { ok: false, error: { ...fields[0], kind } as ErrorPayloads[K] };
 }`;
 
-/** Static: the gatekeeper, identical for every manifest. */
-const SHELL = `// Shell gatekeeper
+const PLAIN_SIGNATURES = `export function executeOperation<U extends OperationUrn>(
+  urn: U,
+  rawPayload: unknown,
+  core: DomainCoreImplementation,
+): ExecuteResult<U>;
+export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation): ExecuteResult;
+export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation): ExecuteResult {`;
+
+const CHANGE_SIGNATURES = `/** For an operation that changes a record: the record as it is stored now, before the call. */
+export interface ExecuteOptions {
+  readonly current?: unknown;
+}
+
+export function executeOperation<U extends OperationUrn>(
+  urn: U,
+  rawPayload: unknown,
+  core: DomainCoreImplementation,
+  options?: ExecuteOptions,
+): ExecuteResult<U>;
+export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options?: ExecuteOptions): ExecuteResult;
+export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options: ExecuteOptions = {}): ExecuteResult {`;
+
+const PLAIN_CALL = `  const result: unknown = handler(input.output);`;
+
+const CHANGE_CALL = `  // An operation that changes a record: the record must parse, and its state must be one the
+  // operation starts from. Else the runtime answers the declared error \`otherwise\`, filled from
+  // the record and the request, and the handler does not run. With no record (\`current: null\`),
+  // it answers the declared error \`missing\`, filled from the request.
+  const change: ChangeContract | undefined = 'changes' in contract ? contract.changes : undefined;
+  let current: Readonly<Record<string, unknown>> | undefined;
+  let result: unknown;
+  if (change) {
+    const fill = (errorUrn: string, known: Readonly<Record<string, unknown>>) => {
+      const names = Object.keys(contract.errors[errorUrn]?.fields ?? {}).filter((name) => known[name] !== undefined);
+      return { ok: false, error: { ...Object.fromEntries(names.map((name) => [name, known[name]])), kind: errorUrn } };
+    };
+    if (options.current === undefined || (options.current === null && change.missing === undefined)) {
+      const message = options.current === null ? 'the shell found no record, and the operation declares no missing error' : 'pass it as { current }';
+      return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: 'current', message: \`\${urn} changes a record of \${change.entity.urn}: \${message}\` }] };
+    }
+    if (options.current === null) {
+      result = fill(change.missing!, input.output as Readonly<Record<string, unknown>>);
+    } else {
+      const stored = v.safeParse(change.entity.schema, options.current);
+      if (!stored.success) {
+        const issues = boundaryIssues(stored.issues, change.entity).map((issue) => ({ ...issue, path: issue.path === '' ? 'current' : \`current.\${issue.path}\` }));
+        return { ok: false, kind: 'ContractViolation', urn, issues };
+      }
+      current = stored.output as Readonly<Record<string, unknown>>;
+      if (!change.from.includes(current[change.property] as string)) result = fill(change.otherwise, { ...(input.output as object), ...current });
+    }
+  }
+  result ??= handler(input.output, current);`;
+
+const CHANGE_ANSWER = `
+  // An answer that holds the state of the record: one of \`to\`, reached by a move (or the same
+  // state without \`to\`). An answer that holds its key: the same key.
+  if (change && current) {
+    const answer = output.output as Readonly<Record<string, unknown>>;
+    const before = current[change.property] as string;
+    if (change.answerState !== undefined) {
+      const after = answer[change.answerState] as string;
+      const allowed = change.to === undefined ? after === before : change.to.includes(after) && (after === before || (change.moves[before] ?? []).includes(after));
+      if (!allowed) {
+        const expected =
+          change.to === undefined
+            ? \`the state stays "\${before}"\`
+            : change.to.includes(after)
+              ? \`"\${before}" cannot move to "\${after}"\`
+              : \`the operation moves to \${change.to.map((state) => \`"\${state}"\`).join(' or ')}\`;
+        return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: change.answerState, message: \`the handler for \${urn} answered \${change.answerState} "\${String(after)}", but \${expected}\` }] };
+      }
+    }
+    if (change.key !== undefined && change.answerKey !== undefined && answer[change.answerKey] !== current[change.key]) {
+      return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: change.answerKey, message: \`the handler for \${urn} answered \${change.answerKey} "\${String(answer[change.answerKey])}", but the record has "\${String(current[change.key])}"\` }] };
+    }
+  }`;
+
+/** The gatekeeper: the same for every manifest, plus the record of `changes` when an operation has one. */
+const shell = (changes: boolean) => `// Shell gatekeeper
 
 export type OperationUrn = keyof DomainCoreImplementation;
 
@@ -205,13 +283,7 @@ function renderMessage(parts: readonly MessagePart[], fields: unknown): string {
  * Parses the input, calls the handler with branded input, then parses and brands its
  * output, or its error when the error is one the operation declares.
  */
-export function executeOperation<U extends OperationUrn>(
-  urn: U,
-  rawPayload: unknown,
-  core: DomainCoreImplementation,
-): ExecuteResult<U>;
-export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation): ExecuteResult;
-export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation): ExecuteResult {
+${changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
   if (!isOperationUrn(urn)) {
     return { ok: false, kind: 'UnknownOperation', urn, issues: [{ path: '', message: \`unknown operation \${urn}\` }] };
   }
@@ -225,7 +297,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
 
   const handler: unknown = core[urn];
   if (typeof handler !== 'function') return violation(\`no handler for \${urn}\`);
-  const result: unknown = handler(input.output);
+${changes ? CHANGE_CALL : PLAIN_CALL}
   if (!isResult(result)) return violation(\`the handler for \${urn} did not return a Result; return ok(…) or fail(…)\`);
 
   // \`=== false\`, not \`!result.ok\`: without strictNullChecks, TypeScript narrows a union on
@@ -266,7 +338,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
   const output = v.safeParse(contract.output.schema, result.value);
   if (!output.success) {
     return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(output.issues, contract.output) };
-  }
+  }${changes ? CHANGE_ANSWER : ''}
   // Each event must be one the operation emits, and must parse.
   const emitted: unknown = (result as { readonly events?: unknown }).events ?? [];
   if (!Array.isArray(emitted)) return violation(\`the handler for \${urn} returned events that are not a list\`);
@@ -359,6 +431,39 @@ function eventLines(event: IREvent, ir: UniversalIR, indent: string): string[] {
   return [`${indent}schema: s.${schemaNames(event.brandIdentifier).schema},`, `${indent}fields: {`, ...fieldInfoLines(event.urn, event.fields, ir, `${indent}  `), `${indent}},`];
 }
 
+/** The `changes` entry of an operation in the dispatch map. */
+function changeLines(change: IRChange, output: Urn, ir: UniversalIR, indent: string): string[] {
+  const entity = ir.entities[change.entity];
+  if (!entity) throw new Error(`IR is not resolved: missing entity ${change.entity}`);
+  const nameOf = (owner: IREntity | undefined, fieldUrn: Urn | undefined) =>
+    fieldUrn === undefined ? undefined : owner?.fields.find((ref) => 'field' in ref && ref.field === fieldUrn && !ref.many)?.name;
+  const stateRef = entity.fields.find((ref) => ref.name === change.property);
+  const stateField = stateRef && 'field' in stateRef ? ir.fields[stateRef.field] : undefined;
+  const key = nameOf(entity, entity.key);
+  // The answer is checked when it holds the state, or the key, of the record: the whole entity or a smaller shape.
+  const answer = ir.entities[output];
+  const answerState = nameOf(answer, stateField?.urn);
+  const answerKey = key === undefined ? undefined : nameOf(answer, entity.key);
+  const moves = Object.entries(stateField?.moves ?? {}).map(([from, targets]) => `${q(from)}: [${targets.map(q).join(', ')}]`);
+  return [
+    `${indent}changes: {`,
+    `${indent}  entity: {`,
+    `${indent}    urn: ${q(entity.urn)},`,
+    ...entityContract(entity, ir, `${indent}    `),
+    `${indent}  },`,
+    `${indent}  property: ${q(change.property)},`,
+    `${indent}  from: [${change.from.map(q).join(', ')}],`,
+    ...(change.to === undefined ? [] : [`${indent}  to: [${change.to.map(q).join(', ')}],`]),
+    `${indent}  moves: { ${moves.join(', ')} },`,
+    `${indent}  otherwise: ${q(change.otherwise)},`,
+    ...(change.missing === undefined ? [] : [`${indent}  missing: ${q(change.missing)},`]),
+    ...(key === undefined ? [] : [`${indent}  key: ${q(key)},`]),
+    ...(answerState === undefined ? [] : [`${indent}  answerState: ${q(answerState)},`]),
+    ...(answerKey === undefined ? [] : [`${indent}  answerKey: ${q(answerKey)},`]),
+    `${indent}},`,
+  ];
+}
+
 export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
   name: 'fcis',
   version: '0.2.0',
@@ -404,6 +509,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
         : [`export interface EventPayloads {`, ...events.map((e) => `  readonly ${q(e.urn)}: s.${schemaNames(e.brandIdentifier).input};`), `}`].join('\n'),
     ].join('\n');
 
+    const anyChanges = operations.some((op) => op.changes !== undefined);
     const handlers = operations.map((op) => {
       const errorTypes = op.errors.map((urn) => `s.${schemaNames(error(urn).brandIdentifier).input}`);
       // Only the events of the operation: tsc refuses another.
@@ -412,6 +518,8 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
         docComment(`${op.urn} — ${op.description}`, op),
         `export type ${handlerName(op.brandIdentifier)} = (`,
         `  input: s.${schemaNames(entity(op.input).brandIdentifier).output},`,
+        // The record that the operation changes, as stored, after the runtime checked its state.
+        ...(op.changes ? [`  current: s.${schemaNames(entity(op.changes.entity).brandIdentifier).output},`] : []),
         `) => Result<s.${schemaNames(entity(op.output).brandIdentifier).input}, ${errorTypes.length > 0 ? errorTypes.join(' | ') : 'never'}${eventTypes.length > 0 ? `, ${eventTypes.join(' | ')}` : ''}>;`,
       ].join('\n');
     });
@@ -478,7 +586,34 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       `  readonly errors: Readonly<Record<string, ErrorContract>>;`,
       `  /** Keyed by event URN: the events it may return on success. */`,
       `  readonly events: Readonly<Record<string, EntityContract>>;`,
+      ...(anyChanges ? [`  /** The record that the operation changes, when it changes one. */`, `  readonly changes?: ChangeContract;`] : []),
       `}`,
+      ...(anyChanges
+        ? [
+            ``,
+            `/** The record that an operation changes, and the move it makes. */`,
+            `export interface ChangeContract {`,
+            `  readonly entity: EntityContract & { readonly urn: string };`,
+            `  /** The property that holds the state. */`,
+            `  readonly property: string;`,
+            `  /** The states that the operation starts from. */`,
+            `  readonly from: readonly string[];`,
+            `  /** The states that the record can be in after the call; absent when the state stays. */`,
+            `  readonly to?: readonly string[];`,
+            `  /** The moves of the state field: a new state must be one of the moves of the old, or the same. */`,
+            `  readonly moves: Readonly<Record<string, readonly string[]>>;`,
+            `  /** The declared error for any other state. */`,
+            `  readonly otherwise: string;`,
+            `  /** The declared error when the shell finds no record (\\\`current: null\\\`). */`,
+            `  readonly missing?: string;`,
+            `  /** The property that holds the key of the record, when it has one. */`,
+            `  readonly key?: string;`,
+            `  /** The properties of the answer that hold the new state and the key, when the answer has them. */`,
+            `  readonly answerState?: string;`,
+            `  readonly answerKey?: string;`,
+            `}`,
+          ]
+        : []),
       ``,
       `export const DispatchMap = {`,
       ...operations.flatMap((op) => [
@@ -495,6 +630,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
         ...(op.emits.length === 0
           ? [`    events: {},`]
           : [`    events: {`, ...op.emits.flatMap((urn) => [`      ${q(urn)}: {`, ...eventLines(event(urn), ir, '        '), `      },`]), `    },`]),
+        ...(op.changes ? changeLines(op.changes, op.output, ir, '    ') : []),
         `  },`,
       ]),
       `} as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;`,
@@ -511,7 +647,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       registry,
       `// Dispatch`,
       dispatch,
-      SHELL.trimEnd(),
+      shell(operations.some((op) => op.changes !== undefined)).trimEnd(),
     ];
     return {
       artifacts: [{ relativePath: FCIS_RUNTIME_FILE, content: `${sections.join('\n\n')}\n` }],

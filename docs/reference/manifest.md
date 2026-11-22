@@ -63,6 +63,7 @@ order.field.delivery: { primitive: enum, values: [standard, express, "click & co
 | --- | --- | --- | --- |
 | `primitive` | `boolean`, `date`, `decimal`, `enum`, `float`, `integer`, `string` or `timestamp` | Yes | Other values cause `unknown-primitive` |
 | `description` | string | No | Not empty |
+| `moves` | A map from each value to a list of values | No | `enum` only. The moves of a state field; a state with no moves out is final. Each state is one of `values`, each move one time, or `invalid-moves` |
 | A constraint | Refer to [Primitives and constraints](./primitives) | Only `values` of an `enum` | A constraint of the primitive of the field |
 
 - Write a `decimal` bound in quotes, for example `min: "0.01"`. Write a `timestamp` bound in quotes.
@@ -174,9 +175,22 @@ policy.operation.cancel_policy:
 | `output` | string | Yes | — | The short key of an entity. It can be the `input` entity |
 | `errors` | A list of strings | No | `[]` | Short keys of errors, each one time |
 | `emits` | A list of strings | No | `[]` | Short keys of events, each one time |
+| `changes` | A map | No | — | The stored record that the operation changes. Refer to [`changes`](#changes) |
 
 - An operation with no `errors` can only succeed. Its error type is `never`.
 - A successful operation returns zero or more events of each kind in `emits`, in any sequence.
+
+### `changes`
+
+| Property | Type | Necessary | Rule |
+| --- | --- | --- | --- |
+| `entity` | string | Yes | Short key of an entity with exactly one field that has `moves`. That property must be required and not a list |
+| `from` | A list of strings | Yes | At least one state; each one is a value of the state field, one time |
+| `to` | A string or a list of strings | No | A state, or the states that the record can end in. Each `from` state reaches a state of `to` by a move, or is that state. Leave it out when the state stays |
+| `otherwise` | string | Yes | Short key of an error in `errors`. Each required field of the error is a property of `entity` or of `input` |
+| `missing` | string | No | Short key of an error in `errors`, for no record. Each required field of the error is a property of `input` |
+
+Any other problem causes `invalid-changes`. The handler gets the record as its second parameter, `current`. `executeOperation` answers `otherwise` for a state outside `from`, and `missing` for `current: null`, without a call of the handler. When `output` has the state field, the state of the answer must be in `to` and reached by a move or the same, or stay without `to`. When `output` has the key field, the key must not change. Refer to [Declare states and moves](../how-to/declare-states).
 
 ## Event
 
