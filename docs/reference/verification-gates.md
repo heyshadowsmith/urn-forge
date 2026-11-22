@@ -120,6 +120,7 @@ For the cases of each constraint and their labels, refer to [Primitives and cons
 | `minItems` | `list of <n> item(s) (minItems)`, and `list of <n − 1> item(s) (below minItems)` if `n` is more than 0 |
 | `maxItems` | `list of <n> item(s) (maxItems)`, `list of <n + 1> item(s) (above maxItems)` |
 | `unique: true` | `list with a repeated value (unique)`, or `list with a repeated <key> (unique)` for embedded entities |
+| `unique: [a, b]` | `list with a repeated a and b (unique)`: two items with each named property present and equal |
 
 - Numbers compare with `===`. Decimals compare exactly, dates as text, timestamps as instants.
 - A text length counts Unicode code points.
@@ -218,7 +219,7 @@ If the changed aspects have different relations, the field has "neither".
 | A removed property whose target was deprecated | `lifecycle` |
 | `required: false` to `required: true` | Narrower |
 | `required: true` to `required: false` | Wider |
-| `minItems`, `maxItems` of `many` | As bounds. `unique: true` added is narrower, removed is wider |
+| `minItems`, `maxItems` of `many` | As bounds. `unique: true` added is narrower, removed is wider. In `unique: [ … ]`, fewer names are narrower, more names are wider; `true` and a list of names do not compare |
 | A different target, or one value to a list | Neither |
 | A different `key` | Neither |
 
