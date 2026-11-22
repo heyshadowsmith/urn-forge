@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 import { Description, ShortKeyRef } from '../grammar.js';
-import type { IRCallers, IRChange, IRIdempotency, IREmitRule, IREntity, IRError, IREvent, IRField, IROperation, IRRead, IRRequire, IRRule, Urn } from '../ir/types.js';
+import type { IRCallers, IRChange, IRIdempotency, IREmitRule, IREntity, IRError, IREvent, IRField, IROperation, IRRead, IRRefusal, IRRequire, IRRule, Urn } from '../ir/types.js';
 import { checkRule, namesIn, parseRule, printRule, stripColumns, TIME_NAMES, type RuleField } from '../rules/index.js';
 import { ruleFields } from './invariant.js';
 import { defineKind } from './types.js';
@@ -51,6 +51,10 @@ const OperationSchema = v.strictObject({
   requires: v.optional(v.array(v.strictObject({ rule: v.string(), otherwise: ShortKeyRef, fill: v.optional(v.record(v.string(), v.string())) }))),
   /** Rules over the request, the record and the answer that the answer must keep. */
   ensures: v.optional(v.array(v.string())),
+  /** The declared error that answers an input that does not parse. */
+  rejects: v.optional(ShortKeyRef),
+  /** For a declared error, rules that its payload keeps when the operation refuses with it. */
+  refuses: v.optional(v.array(v.strictObject({ error: ShortKeyRef, ensures: v.pipe(v.array(v.string()), v.minLength(1, 'must list at least one rule')) }))),
 });
 export type OperationDecl = v.InferOutput<typeof OperationSchema>;
 
@@ -74,6 +78,8 @@ export const operation = defineKind<OperationDecl, IROperation>()({
     { path: ['reads', 'missing'], targets: ['error'] },
     { path: ['callers', 'otherwise'], targets: ['error'] },
     { path: ['idempotency', 'otherwise'], targets: ['error'] },
+    { path: ['rejects'], targets: ['error'] },
+    { path: ['refuses', '*', 'error'], targets: ['error'] },
   ],
   // `changes` is checked against the state field of its entity and the fields of its error.
   after: ['field', 'entity', 'error', 'event'],
@@ -146,6 +152,8 @@ export const operation = defineKind<OperationDecl, IROperation>()({
       ...(conditions.requires.length > 0 ? { requires: conditions.requires } : {}),
       ...(conditions.ensures.length > 0 ? { ensures: conditions.ensures } : {}),
       ...(conditions.exactly.length > 0 ? { exactly: conditions.exactly } : {}),
+      ...(conditions.rejects ? { rejects: conditions.rejects } : {}),
+      ...(conditions.refuses.length > 0 ? { refuses: conditions.refuses } : {}),
     };
   },
 });
@@ -173,11 +181,18 @@ interface ConditionContext {
   readonly countsAll: boolean;
   readonly ref: (path: (string | number)[]) => { readonly urn: Urn } | undefined;
   readonly node: (kind: 'field' | 'entity' | 'error' | 'event', urn: Urn) => unknown;
-  readonly report: (issue: { code: 'invalid-condition' | 'invalid-callers' | 'invalid-due' | 'rule-syntax' | 'unknown-rule-field' | 'rule-type' | 'unguarded-field'; urn: string; message: string; path: (string | number)[] }) => void;
+  readonly report: (issue: {
+    code: 'invalid-condition' | 'invalid-callers' | 'invalid-due' | 'invalid-rejects' | 'invalid-refuses' | 'rule-syntax' | 'unknown-rule-field' | 'rule-type' | 'unguarded-field';
+    urn: string;
+    message: string;
+    path: (string | number)[];
+  }) => void;
 }
 
+type Conditions = { requires: IRRequire[]; ensures: IRRule[]; exactly: IREmitRule[]; callers?: IRCallers; due?: IRRule; rejects?: Urn; refuses: IRRefusal[] };
+
 /** Parses and types the requires and ensures rules; undefined after a problem. */
-function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: IRRequire[]; ensures: IRRule[]; exactly: IREmitRule[]; callers?: IRCallers; due?: IRRule } | undefined {
+function buildConditions(decl: OperationDecl, c: ConditionContext): Conditions | undefined {
   const entity = (urn: Urn) => c.node('entity', urn) as IREntity | undefined;
   const node = c.node as (kind: 'field' | 'entity', urn: Urn) => unknown;
   const [input, output, record] = [entity(c.input), entity(c.output), c.record ? entity(c.record) : undefined];
@@ -201,10 +216,11 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
   let problems = 0;
 
   /** One rule: parsed, its prefixes checked, typed against the fields of its condition. */
-  const rule = (text: string, fields: Record<string, RuleField>, where: (string | number)[], kind: 'requires' | 'ensures' | 'when' | 'callers' | 'due'): IRRule | undefined => {
+  const rule = (text: string, fields: Record<string, RuleField>, where: (string | number)[], kind: 'requires' | 'ensures' | 'when' | 'callers' | 'due' | 'refuses'): IRRule | undefined => {
     const fail = (code: Parameters<ConditionContext['report']>[0]['code'], message: string) => {
       problems += 1;
-      const at = code === 'invalid-condition' && kind === 'callers' ? 'invalid-callers' : code === 'invalid-condition' && kind === 'due' ? 'invalid-due' : code;
+      const own = { callers: 'invalid-callers', due: 'invalid-due', refuses: 'invalid-refuses' } as const;
+      const at = code === 'invalid-condition' && Object.hasOwn(own, kind) ? own[kind as keyof typeof own] : code;
       c.report({ code: at, urn: c.urn, message: `${c.urn}: ${where.join('.')}: ${message}`, path: [c.shortKey, ...where] });
     };
     const parsed = parseRule(text);
@@ -216,9 +232,11 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
       else if (name.startsWith('caller.') && kind !== 'callers') fail('invalid-condition', `"${name}" reads the caller, which only a rule of callers can`);
       else if (kind === 'callers' && (name.startsWith('output.') || name.startsWith('event.'))) fail('invalid-condition', `"${name}" reads the answer, which a rule of callers runs before`);
       else if (name.startsWith('output.') && kind === 'requires') fail('invalid-condition', `"${name}" reads the answer, which a requires rule runs before; use it in ensures`);
+      else if (kind === 'refuses' && (name.startsWith('output.') || name.startsWith('event.'))) fail('invalid-condition', `"${name}" reads the answer of a success, which a refusal does not have; read error.`);
+      else if (name.startsWith('error.') && kind !== 'refuses') fail('invalid-condition', `"${name}" reads a refusal, which only a rule of refuses can`);
       else if (name.startsWith('event.') && kind !== 'ensures') fail('invalid-condition', `"${name}" reads the event, which only an ensures rule can`);
       else if (name.startsWith('event.') && !eventFields) fail('invalid-condition', `"${name}" reads the event, so each item of emits must have the form { event } or { event, when }`);
-      else if (!/^(input|current|output|event|caller)\./.test(name) && !TIME_NAMES.includes(name)) fail('invalid-condition', `"${name}" has no prefix; write input.${name}, current.${name} or output.${name}`);
+      else if (!/^(input|current|output|event|caller|error)\./.test(name) && !TIME_NAMES.includes(name)) fail('invalid-condition', `"${name}" has no prefix; write input.${name}, current.${name} or output.${name}`);
     }
     if (problems > before) return undefined;
     for (const problem of checkRule(parsed.expr, fields, 'the condition')) fail(problem.code, `${problem.message} (at column ${problem.column} of the rule)`);
@@ -315,7 +333,39 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
       due = rule(decl.due, before, ['due'], 'due');
     }
   }
-  return problems > 0 ? undefined : { requires, ensures, exactly, ...(callers ? { callers } : {}), ...(due ? { due } : {}) };
+  // rejects: the declared error of an input that does not parse. The runtime has only the issues, so the error has no required property.
+  let rejects: Urn | undefined;
+  if (decl.rejects !== undefined) {
+    const target = c.ref(['rejects']);
+    const error = target && (c.node('error', target.urn) as IRError | undefined);
+    const fail = (message: string) => {
+      problems += 1;
+      c.report({ code: 'invalid-rejects', urn: c.urn, message: `${c.urn}: rejects: ${message}`, path: [c.shortKey, 'rejects'] });
+    };
+    if (error) {
+      const required = error.fields.filter((p) => p.required).map((p) => p.name);
+      if (!c.errors.includes(error.urn)) fail(`${error.urn} is not one of the errors of the operation; add it to errors`);
+      else if (required.length > 0) fail(`${error.urn} has the required properties ${required.join(', ')}, which an input that does not parse cannot fill; make them optional`);
+      else rejects = error.urn;
+    }
+  }
+  // refuses: for a declared error, rules over the request, the record, the time and the payload of the error.
+  const refuses: IRRefusal[] = [];
+  (decl.refuses ?? []).forEach((entry, index) => {
+    const target = c.ref(['refuses', index, 'error']);
+    const error = target && (c.node('error', target.urn) as IRError | undefined);
+    if (!error) return;
+    const fail = (message: string) => {
+      problems += 1;
+      c.report({ code: 'invalid-refuses', urn: c.urn, message: `${c.urn}: refuses.${index}.error: ${message}`, path: [c.shortKey, 'refuses', index, 'error'] });
+    };
+    if (!c.errors.includes(error.urn)) return fail(`${error.urn} is not one of the errors of the operation; add it to errors`);
+    if (refuses.some((r) => r.error === error.urn)) return fail(`${error.urn} is in refuses more than once; put its rules in one entry`);
+    const fields = { ...before, ...ruleFields(error as unknown as IREntity, node, 'error.') };
+    const built = entry.ensures.map((text, i) => rule(text, fields, ['refuses', index, 'ensures', i], 'refuses'));
+    if (built.every((r) => r !== undefined)) refuses.push({ error: error.urn, ensures: built as IRRule[] });
+  });
+  return problems > 0 ? undefined : { requires, ensures, exactly, ...(callers ? { callers } : {}), ...(due ? { due } : {}), ...(rejects ? { rejects } : {}), refuses };
 }
 
 interface ChangeContext {

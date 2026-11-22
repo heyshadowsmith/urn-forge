@@ -15,7 +15,7 @@
  *   (and so brands) its output or its declared error, rendering the error's message.
  */
 import * as v from 'valibot';
-import type { IRChange, IREntity, IRError, IREvent, IRPropertyRef, MessagePart, UniversalIR, Urn } from '../ir/types.js';
+import type { IRChange, IREntity, IRError, IREvent, IROperation, IRPropertyRef, MessagePart, UniversalIR, Urn } from '../ir/types.js';
 import { ERROR_CATEGORIES, invariantsOf, readsTime, valueField } from '../ir/types.js';
 import { conditionName, handlerName, ruleName, schemaNames } from '../naming.js';
 import { namesIn } from '../rules/index.js';
@@ -362,6 +362,65 @@ const COUNTS = `
       return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: '', message: \`the handler for \${urn} answered a value that breaks ensures: \${condition.text}\` }] };
     }
   }`;
+
+/** The lines of refuses in the DispatchMap: for each error, its rules, numbered across the operation. */
+function refusesLines(op: IROperation): string[] {
+  let index = 0;
+  return [
+    `    refuses: {`,
+    ...op.refuses!.flatMap((refusal) => [
+      `      ${q(refusal.error)}: [`,
+      ...refusal.ensures.map((r) => `        { text: ${q(r.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'refuses', index++)} },`),
+      `      ],`,
+    ]),
+    `    },`,
+  ];
+}
+
+/** An input that does not parse answers the declared error of rejects, with the issues. */
+const REJECTS = `    const issues = boundaryIssues(input.issues, contract.input);
+    // With rejects, an input that does not parse answers that declared error, with the issues.
+    const rejects = 'rejects' in contract ? contract.rejects : undefined;
+    if (rejects !== undefined) {
+      const declared = contract.errors[rejects]!;
+      const fields = v.parse(declared.schema, { kind: rejects });
+      return {
+        ok: false,
+        kind: 'DomainError',
+        urn,
+        error: { urn: rejects, category: declared.category, retryable: declared.retryable, message: renderMessage(declared.message, fields), fields },
+        issues,
+      } as ExecuteResult;
+    }
+    return { ok: false, kind: 'InputRejected', urn, issues };`;
+
+/** The rules of refuses: a refusal whose payload breaks one is a bug in the core. */
+const REFUSES = `
+    // The rules of refuses: a refusal whose payload breaks one is a bug in the core.
+    for (const condition of ('refuses' in contract ? contract.refuses?.[errorUrn as string] : undefined) ?? []) {
+      if (!(condition.check as (values: unknown) => boolean)({ input: input.output, current, error: error.output })) {
+        return violation(\`the handler for \${urn} refused with \${errorUrn}, whose payload breaks refuses: \${condition.text}\`);
+      }
+    }`;
+
+/** The runtime with rejects and refuses, where the domain has them; else the text as before. */
+function refusalRuntime(runtime: string, rejects: boolean, refuses: boolean): string {
+  let text = runtime;
+  if (rejects) {
+    const rejected = `    return { ok: false, kind: 'InputRejected', urn, issues: boundaryIssues(input.issues, contract.input) };`;
+    const domainError = `      readonly kind: 'DomainError';\n      readonly urn: U;\n      readonly error: DomainError<U>;\n`;
+    if (!text.includes(rejected) || !text.includes(domainError)) throw new Error('internal error: the runtime has no input rejection to replace');
+    text = text
+      .replace(rejected, REJECTS)
+      .replace(domainError, `${domainError}      /** With rejects: the issues of the input that did not parse. */\n      readonly issues?: readonly BoundaryIssue[];\n`);
+  }
+  if (refuses) {
+    const parsed = `      return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(error.issues, declared) };\n    }`;
+    if (!text.includes(parsed)) throw new Error('internal error: the runtime has no parse of a refusal');
+    text = text.replace(parsed, `${parsed}${REFUSES}`);
+  }
+  return text;
+}
 
 /** The parse of an event with a delivery: the id from the shell, and no sequence, which the outbox fills. */
 const DELIVERY_PARSE = `
@@ -760,7 +819,10 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
     const anyDue = operations.some((op) => op.due !== undefined);
     const anyIdempotency = operations.some((op) => op.idempotency !== undefined);
     const anyCaller = ir.meta.caller !== undefined;
-    const anyConditions = operations.some((op) => op.requires !== undefined || op.ensures !== undefined || op.exactly !== undefined || op.due !== undefined) || anyCaller;
+    const anyRejects = operations.some((op) => op.rejects !== undefined);
+    const anyRefuses = operations.some((op) => op.refuses !== undefined);
+    const anyConditions =
+      operations.some((op) => op.requires !== undefined || op.ensures !== undefined || op.exactly !== undefined || op.due !== undefined || op.refuses !== undefined) || anyCaller;
     const handlers = operations.map((op) => {
       const errorTypes = op.errors.map((urn) => `s.${schemaNames(error(urn).brandIdentifier).input}`);
       // Only the events of the operation: tsc refuses another.
@@ -859,6 +921,8 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
             ...(anyCounts ? [`  /** The events that it emits exactly once on a success where the rule holds, and never where it does not. */`, `  readonly exactly?: readonly CountInfo[];`] : []),
           ]
         : []),
+      ...(anyRejects ? [`  /** The declared error that answers an input that does not parse, with the issues. */`, `  readonly rejects?: string;`] : []),
+      ...(anyRefuses ? [`  /** Keyed by error URN: the rules that the payload of a refusal with that error keeps. */`, `  readonly refuses?: Readonly<Record<string, readonly ConditionInfo[]>>;`] : []),
       `}`,
       ...(anyReads
         ? [``, `/** The record that an operation reads, and the error when the shell finds none. */`, `export interface ReadContract {`, `  readonly entity: EntityContract & { readonly urn: string };`, `  readonly missing?: string;`, `}`]
@@ -1002,6 +1066,8 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
               `    ],`,
             ]
           : []),
+        ...(op.rejects ? [`    rejects: ${q(op.rejects)},`] : []),
+        ...(op.refuses ? refusesLines(op) : []),
         `  },`,
       ]),
       `} as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;`,
@@ -1019,6 +1085,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
 
     // Idempotency: the key of a call, and the error for the same key with another body. The store keeps the answers.
     const idempotencyHelpers = anyIdempotency ? IDEMPOTENCY : '';
+    const runtime = refusalRuntime(shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, anyTime, anyDue, anyIdempotency), anyRejects, anyRefuses);
     const sections = [
       `import * as v from 'valibot';\nimport * as s from '${schemasModule}';`,
       `// Results`,
@@ -1031,11 +1098,11 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       `// Dispatch`,
       dispatch,
       (anyTime
-        ? shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, true, anyDue, anyIdempotency)
+        ? runtime
             // The rules read the time of the call, and the handler gets it.
             .replaceAll('{ input: input.output, current', '{ input: input.output, now, today, current')
             .replace('result ??= handler(input.output, current);', 'result ??= handler(input.output, current, now);')
-        : shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, false, anyDue, anyIdempotency)
+        : runtime
       ).trimEnd() + idempotencyHelpers,
     ];
     return {

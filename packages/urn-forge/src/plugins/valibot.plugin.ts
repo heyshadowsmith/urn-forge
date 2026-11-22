@@ -254,23 +254,28 @@ function conditionDeclarations(ir: UniversalIR): string[] {
   return valuesInUrnOrder(ir.operations).flatMap((op) => {
     const whens = (op.exactly ?? []).flatMap((item, i) => (item.when ? [[item.when, i] as const] : []));
     const allows = op.callers && op.callers.allow !== 'any' ? op.callers.allow : [];
-    if (!op.requires && !op.ensures && whens.length === 0 && allows.length === 0 && !op.due) return [];
+    // The rules of refuses, numbered across the operation, each with the error it reads.
+    const refusals = (op.refuses ?? []).flatMap((refusal) => refusal.ensures.map((rule) => ({ rule, error: refusal.error })));
+    if (!op.requires && !op.ensures && whens.length === 0 && allows.length === 0 && !op.due && refusals.length === 0) return [];
     const typeOf = (urn: Urn) => schemaNames(ir.entities[urn]!.brandIdentifier).output;
     const record = op.changes?.entity ?? op.reads?.entity;
     const values = [`input: ${typeOf(op.input)}`, ...(record ? [`current: ${typeOf(record)}`] : [])];
     // An ensures rule that names the event reads the one event of the success.
     const eventType = (op.exactly ?? []).map((item) => schemaNames(ir.events[item.event]!.brandIdentifier).output).join(' | ');
-    const primitiveOf = conditionPrimitives(op, ir);
-    const propertiesOf = conditionEmbedded(op, ir);
-    const declare = (rule: IRRule, kind: 'requires' | 'ensures' | 'when' | 'caller' | 'due', index: number) => {
+    const declare = (rule: IRRule, kind: 'requires' | 'ensures' | 'when' | 'caller' | 'due' | 'refuses', index: number, error?: Urn) => {
+      // A rule of refuses reads the payload of its error as error.
+      const errorEntity = error ? { error: ir.errors[error] as unknown as IREntity } : {};
+      const primitiveOf = conditionPrimitives(op, ir, errorEntity);
+      const propertiesOf = conditionEmbedded(op, ir, errorEntity);
       const event = kind === 'ensures' && namesIn(rule.rule).some((name) => name.startsWith('event.'));
       const timeNames = namesIn(rule.rule).filter((name) => name === 'now' || name === 'today');
       const parameters = [
         ...values,
         ...timeNames.map((name) => `${name}: string`),
-        ...(kind === 'requires' || kind === 'caller' || kind === 'due' ? [] : [`output: ${typeOf(op.output)}`]),
+        ...(kind === 'requires' || kind === 'caller' || kind === 'due' || kind === 'refuses' ? [] : [`output: ${typeOf(op.output)}`]),
         ...(event ? [`event: ${eventType}`] : []),
         ...(kind === 'caller' ? [`caller: ${typeOf(ir.meta.caller!)}`] : []),
+        ...(error ? [`error: ${schemaNames(ir.errors[error]!.brandIdentifier).output}`] : []),
       ];
       return [
         `/** ${op.urn} — ${kind}: ${rule.ruleText} */`,
@@ -284,12 +289,13 @@ function conditionDeclarations(ir: UniversalIR): string[] {
       ...whens.map(([rule, i]) => declare(rule, 'when', i)),
       ...allows.map((rule, i) => declare(rule, 'caller', i)),
       ...(op.due ? [declare(op.due, 'due', 0)] : []),
+      ...refusals.map(({ rule, error }, i) => declare(rule, 'refuses', i, error)),
     ];
   });
 }
 
 /** The entity of each prefix of an operation's conditions. `event.` names properties that each of its events has, so the first event gives them. */
-function conditionEntities(op: IROperation, ir: UniversalIR): Record<string, IREntity> {
+function conditionEntities(op: IROperation, ir: UniversalIR, extra: Readonly<Record<string, IREntity>> = {}): Record<string, IREntity> {
   const event = op.exactly?.[0] && ir.events[op.exactly[0].event];
   const record = op.changes?.entity ?? op.reads?.entity;
   return {
@@ -298,12 +304,13 @@ function conditionEntities(op: IROperation, ir: UniversalIR): Record<string, IRE
     ...(record ? { current: ir.entities[record]! } : {}),
     ...(ir.meta.caller ? { caller: ir.entities[ir.meta.caller]! } : {}),
     ...(event ? { event: event as unknown as IREntity } : {}),
+    ...extra,
   };
 }
 
 /** The properties of each prefixed embedded entity of an operation's conditions. */
-function conditionEmbedded(op: IROperation, ir: UniversalIR) {
-  const entities = conditionEntities(op, ir);
+function conditionEmbedded(op: IROperation, ir: UniversalIR, extra: Readonly<Record<string, IREntity>> = {}) {
+  const entities = conditionEntities(op, ir, extra);
   return (name: string) => {
     const dot = name.indexOf('.');
     return dot < 0 ? undefined : embeddedIn(entities[name.slice(0, dot)]!, ir)(name.slice(dot + 1));
@@ -311,8 +318,8 @@ function conditionEmbedded(op: IROperation, ir: UniversalIR) {
 }
 
 /** The primitive of each prefixed name of an operation's conditions. */
-function conditionPrimitives(op: IROperation, ir: UniversalIR) {
-  const entities = conditionEntities(op, ir);
+function conditionPrimitives(op: IROperation, ir: UniversalIR, extra: Readonly<Record<string, IREntity>> = {}) {
+  const entities = conditionEntities(op, ir, extra);
   return (name: string): Primitive => {
     if (name === 'now') return 'timestamp';
     if (name === 'today') return 'date';

@@ -93,7 +93,7 @@ export interface DomainErrorLike {
 
 export type ExecuteResultLike =
   | { readonly ok: true; readonly output: unknown; readonly events?: readonly EmittedEventLike[] }
-  | { readonly ok: false; readonly kind: 'DomainError'; readonly error: DomainErrorLike }
+  | { readonly ok: false; readonly kind: 'DomainError'; readonly error: DomainErrorLike; readonly issues?: readonly BoundaryIssueLike[] }
   | { readonly ok: false; readonly kind: string; readonly issues: readonly BoundaryIssueLike[] };
 
 export interface OperationStepsOptions {
@@ -236,7 +236,10 @@ function differences(actual: Record<string, unknown>, expected: Record<string, u
 }
 
 function describeFailure(result: Extract<ExecuteResultLike, { ok: false }>): string {
-  if ('error' in result) return `DomainError ${result.error.urn} (${result.error.message})`;
+  if ('error' in result) {
+    const issues = (result.issues ?? []).map((i) => `${i.path || '(payload)'}: ${i.message}`).join('; ');
+    return `DomainError ${result.error.urn} (${result.error.message}${issues ? `; ${issues}` : ''})`;
+  }
   const issues = result.issues.map((i) => `${i.path || '(payload)'}: ${i.message}`).join('; ');
   return `${result.kind}${issues ? ` (${issues})` : ''}`;
 }
@@ -251,6 +254,12 @@ export function assertOutput(result: ExecuteResultLike, expected: Record<string,
   if (mismatches.length > 0) throw new Error(`${urn} output differs: ${mismatches.join('; ')}`);
 }
 
+/** The issues of an input that did not parse: of InputRejected, or of the declared error of rejects, which carries them. */
+function rejectionIssues(result: Extract<ExecuteResultLike, { ok: false }>): readonly BoundaryIssueLike[] | undefined {
+  if (result.kind === 'InputRejected' && 'issues' in result) return result.issues;
+  return result.kind === 'DomainError' && 'error' in result ? result.issues : undefined;
+}
+
 /** Checks the input was rejected at the boundary with an issue on the named field. */
 export function assertRejectedOn(result: ExecuteResultLike, fieldName: string, fields: FieldsLike, urn: string): void {
   const field = Object.hasOwn(fields, fieldName) ? fields[fieldName] : undefined;
@@ -258,11 +267,12 @@ export function assertRejectedOn(result: ExecuteResultLike, fieldName: string, f
     throw new Error(`"${fieldName}" is not a field of the input of ${urn} (fields: ${Object.keys(fields).join(', ')})`);
   }
   if (result.ok) throw new Error(`${urn} accepted the input; expected it to be rejected on "${fieldName}"`);
-  if (result.kind !== 'InputRejected') {
+  const issues = rejectionIssues(result);
+  if (!issues) {
     throw new Error(`${urn} failed with ${describeFailure(result)}; expected InputRejected on "${fieldName}"`);
   }
   // The property is the head of the issue's path, also when the issue is inside it (`coverages.1.limit`).
-  if (!result.issues.some((issue) => issue.path.split('.')[0] === fieldName)) {
+  if (!issues.some((issue) => issue.path.split('.')[0] === fieldName)) {
     throw new Error(`${urn} rejected the input, but not on "${fieldName}": ${describeFailure(result)}`);
   }
 }
@@ -270,10 +280,11 @@ export function assertRejectedOn(result: ExecuteResultLike, fieldName: string, f
 /** Checks the input was rejected at the boundary because the invariant `invariantUrn` does not hold. */
 export function assertRejectedBy(result: ExecuteResultLike, invariantUrn: string, urn: string): void {
   if (result.ok) throw new Error(`${urn} accepted the input; expected it to be rejected by ${invariantUrn}`);
-  if (result.kind !== 'InputRejected') {
+  const issues = rejectionIssues(result);
+  if (!issues) {
     throw new Error(`${urn} failed with ${describeFailure(result)}; expected InputRejected by ${invariantUrn}`);
   }
-  if (!result.issues.some((issue) => issue.invariantUrn === invariantUrn)) {
+  if (!issues.some((issue) => issue.invariantUrn === invariantUrn)) {
     throw new Error(`${urn} rejected the input, but not by ${invariantUrn}: ${describeFailure(result)}`);
   }
 }

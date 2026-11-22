@@ -233,7 +233,17 @@ export interface IROperation {
   readonly requires?: readonly IRRequire[];
   /** Rules that the answer must keep; one that does not is a ContractViolation. */
   readonly ensures?: readonly IRRule[];
+  /** The declared error that answers an input that does not parse, with the issues. */
+  readonly rejects?: Urn;
+  /** For a declared error, rules that its payload keeps when the operation refuses with it. */
+  readonly refuses?: readonly IRRefusal[];
   readonly lifecycle?: Lifecycle;
+}
+
+/** The rules that a refusal with one declared error keeps: over the request, the record, the time and `error.`. */
+export interface IRRefusal {
+  readonly error: Urn;
+  readonly ensures: readonly IRRule[];
 }
 
 /** Every rule of an operation: requires, ensures, the when of emits, and the rules of callers. */
@@ -244,6 +254,7 @@ export function operationRules(op: IROperation): IRRule[] {
     ...(op.exactly ?? []).flatMap((item) => (item.when ? [item.when] : [])),
     ...(op.callers && op.callers.allow !== 'any' ? op.callers.allow : []),
     ...(op.due ? [op.due] : []),
+    ...(op.refuses ?? []).flatMap((refusal) => refusal.ensures),
   ];
 }
 

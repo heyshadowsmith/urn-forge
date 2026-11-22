@@ -1,0 +1,345 @@
+{
+  "entities": {
+    "urn:demo:refusals:booking:entity:booking": {
+      "brandIdentifier": "BookingBooking",
+      "description": "A booking",
+      "fields": [
+        {
+          "field": "urn:demo:refusals:booking:field:booking_id",
+          "name": "booking_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:refusals:booking:field:status",
+          "name": "status",
+          "required": true
+        },
+        {
+          "field": "urn:demo:refusals:booking:field:date",
+          "name": "date",
+          "required": true
+        },
+        {
+          "field": "urn:demo:refusals:booking:field:starts_at",
+          "name": "starts_at",
+          "required": true
+        },
+        {
+          "field": "urn:demo:refusals:booking:field:party_size",
+          "name": "party_size",
+          "required": true
+        }
+      ],
+      "key": "urn:demo:refusals:booking:field:booking_id",
+      "urn": "urn:demo:refusals:booking:entity:booking"
+    },
+    "urn:demo:refusals:booking:entity:booking_ref": {
+      "brandIdentifier": "BookingBookingRef",
+      "description": "The booking to cancel",
+      "fields": [
+        {
+          "field": "urn:demo:refusals:booking:field:booking_id",
+          "name": "booking_id",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:refusals:booking:entity:booking_ref"
+    },
+    "urn:demo:refusals:booking:entity:booking_request": {
+      "brandIdentifier": "BookingBookingRequest",
+      "description": "A request for a table",
+      "fields": [
+        {
+          "field": "urn:demo:refusals:booking:field:date",
+          "name": "date",
+          "required": true
+        },
+        {
+          "field": "urn:demo:refusals:booking:field:starts_at",
+          "name": "starts_at",
+          "required": true
+        },
+        {
+          "field": "urn:demo:refusals:booking:field:party_size",
+          "name": "party_size",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:refusals:booking:entity:booking_request"
+    },
+    "urn:demo:refusals:booking:entity:slot": {
+      "brandIdentifier": "BookingSlot",
+      "description": "A time that has a free table",
+      "fields": [
+        {
+          "field": "urn:demo:refusals:booking:field:starts_at",
+          "name": "starts_at",
+          "required": true
+        },
+        {
+          "field": "urn:demo:refusals:booking:field:party_size",
+          "name": "party_size",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:refusals:booking:entity:slot"
+    }
+  },
+  "errors": {
+    "urn:demo:refusals:booking:error:invalid_request": {
+      "brandIdentifier": "BookingInvalidRequest",
+      "category": "validation",
+      "description": "The request does not parse",
+      "fields": [],
+      "message": [
+        {
+          "text": "The request is not valid"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:refusals:booking:error:invalid_request"
+    },
+    "urn:demo:refusals:booking:error:invalid_state": {
+      "brandIdentifier": "BookingInvalidState",
+      "category": "conflict",
+      "description": "The booking is not in a status for this",
+      "fields": [
+        {
+          "field": "urn:demo:refusals:booking:field:booking_id",
+          "name": "booking_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:refusals:booking:field:status",
+          "name": "status",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "Booking "
+        },
+        {
+          "field": "booking_id"
+        },
+        {
+          "text": " is "
+        },
+        {
+          "field": "status"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:refusals:booking:error:invalid_state"
+    },
+    "urn:demo:refusals:booking:error:no_availability": {
+      "brandIdentifier": "BookingNoAvailability",
+      "category": "conflict",
+      "description": "No table is free at the time",
+      "fields": [
+        {
+          "field": "urn:demo:refusals:booking:field:date",
+          "name": "date",
+          "required": true
+        },
+        {
+          "entity": "urn:demo:refusals:booking:entity:slot",
+          "many": {},
+          "name": "alternatives",
+          "required": false
+        }
+      ],
+      "message": [
+        {
+          "text": "No table on "
+        },
+        {
+          "field": "date"
+        }
+      ],
+      "retryable": true,
+      "urn": "urn:demo:refusals:booking:error:no_availability"
+    }
+  },
+  "events": {
+    "urn:demo:refusals:booking:event:cancelled": {
+      "brandIdentifier": "BookingCancelled",
+      "description": "A booking was cancelled",
+      "fields": [
+        {
+          "field": "urn:demo:refusals:booking:field:booking_id",
+          "name": "booking_id",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:refusals:booking:event:cancelled"
+    },
+    "urn:demo:refusals:booking:event:created": {
+      "brandIdentifier": "BookingCreated",
+      "description": "A booking was made",
+      "fields": [
+        {
+          "field": "urn:demo:refusals:booking:field:booking_id",
+          "name": "booking_id",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:refusals:booking:event:created"
+    }
+  },
+  "fields": {
+    "urn:demo:refusals:booking:field:booking_id": {
+      "brandIdentifier": "BookingBookingId",
+      "constraints": {
+        "regex": "bkg_[a-z0-9]{8}"
+      },
+      "description": "The id of a booking",
+      "primitive": "string",
+      "urn": "urn:demo:refusals:booking:field:booking_id"
+    },
+    "urn:demo:refusals:booking:field:date": {
+      "brandIdentifier": "BookingDate",
+      "constraints": {},
+      "description": "The day of the booking",
+      "primitive": "date",
+      "urn": "urn:demo:refusals:booking:field:date"
+    },
+    "urn:demo:refusals:booking:field:party_size": {
+      "brandIdentifier": "BookingPartySize",
+      "constraints": {
+        "max": 20,
+        "min": 1
+      },
+      "description": "The number of guests",
+      "primitive": "integer",
+      "urn": "urn:demo:refusals:booking:field:party_size"
+    },
+    "urn:demo:refusals:booking:field:starts_at": {
+      "brandIdentifier": "BookingStartsAt",
+      "constraints": {},
+      "description": "When the booking starts",
+      "primitive": "timestamp",
+      "urn": "urn:demo:refusals:booking:field:starts_at"
+    },
+    "urn:demo:refusals:booking:field:status": {
+      "brandIdentifier": "BookingStatus",
+      "constraints": {
+        "values": [
+          "CONFIRMED",
+          "CANCELLED"
+        ]
+      },
+      "description": "The status of a booking",
+      "moves": {
+        "CONFIRMED": [
+          "CANCELLED"
+        ]
+      },
+      "primitive": "enum",
+      "urn": "urn:demo:refusals:booking:field:status"
+    }
+  },
+  "invariants": {},
+  "meta": {
+    "domain": "refusals",
+    "irSchemaVersion": 1,
+    "manifestHash": "f941a750151468bd4f88ccb26b7018b3af5a9e6829303e6fcec5280a2c51f2ef",
+    "manifestVersion": "1.0.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {
+    "urn:demo:refusals:booking:operation:cancel_booking": {
+      "brandIdentifier": "BookingCancelBooking",
+      "changes": {
+        "entity": "urn:demo:refusals:booking:entity:booking",
+        "from": [
+          "CONFIRMED"
+        ],
+        "otherwise": "urn:demo:refusals:booking:error:invalid_state",
+        "property": "status",
+        "to": [
+          "CANCELLED"
+        ]
+      },
+      "description": "Cancel a confirmed booking",
+      "emits": [
+        "urn:demo:refusals:booking:event:cancelled"
+      ],
+      "errors": [
+        "urn:demo:refusals:booking:error:invalid_state"
+      ],
+      "exactly": [
+        {
+          "event": "urn:demo:refusals:booking:event:cancelled"
+        }
+      ],
+      "input": "urn:demo:refusals:booking:entity:booking_ref",
+      "output": "urn:demo:refusals:booking:entity:booking",
+      "urn": "urn:demo:refusals:booking:operation:cancel_booking"
+    },
+    "urn:demo:refusals:booking:operation:create_booking": {
+      "brandIdentifier": "BookingCreateBooking",
+      "description": "Book a table, or refuse with other times on the same day for the same party",
+      "emits": [
+        "urn:demo:refusals:booking:event:created"
+      ],
+      "errors": [
+        "urn:demo:refusals:booking:error:invalid_request",
+        "urn:demo:refusals:booking:error:no_availability"
+      ],
+      "input": "urn:demo:refusals:booking:entity:booking_request",
+      "output": "urn:demo:refusals:booking:entity:booking",
+      "refuses": [
+        {
+          "ensures": [
+            {
+              "rule": {
+                "item": "alt",
+                "list": "error.alternatives",
+                "op": "all",
+                "value": {
+                  "left": {
+                    "op": "date",
+                    "value": {
+                      "name": "alt.starts_at",
+                      "op": "field"
+                    }
+                  },
+                  "op": "=",
+                  "right": {
+                    "name": "input.date",
+                    "op": "field"
+                  }
+                }
+              },
+              "ruleText": "all(alt in error.alternatives: date(alt.starts_at) = input.date)"
+            },
+            {
+              "rule": {
+                "item": "alt",
+                "list": "error.alternatives",
+                "op": "all",
+                "value": {
+                  "left": {
+                    "name": "alt.party_size",
+                    "op": "field"
+                  },
+                  "op": "=",
+                  "right": {
+                    "name": "input.party_size",
+                    "op": "field"
+                  }
+                }
+              },
+              "ruleText": "all(alt in error.alternatives: alt.party_size = input.party_size)"
+            }
+          ],
+          "error": "urn:demo:refusals:booking:error:no_availability"
+        }
+      ],
+      "rejects": "urn:demo:refusals:booking:error:invalid_request",
+      "urn": "urn:demo:refusals:booking:operation:create_booking"
+    }
+  }
+}

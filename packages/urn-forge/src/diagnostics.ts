@@ -61,6 +61,8 @@ export const DIAGNOSTIC_CODES = {
   'invalid-callers': 'An operation of a domain with a caller does not state its callers, or its callers have a rule that names a value it cannot read, or an otherwise error that is not declared or cannot be filled',
   'invalid-reads': 'The reads of an operation name an entity that the operation also changes, or a missing error that is not declared or cannot be filled from the input',
   'invalid-idempotency': 'The idempotency of an operation has a key that is not a text of the input, a scope that is not the caller or the input, a window that is not a time, or an otherwise error that is not declared or cannot be filled from the input',
+  'invalid-rejects': 'The rejects error of an operation is not in its errors, or has a required property, which an input that does not parse cannot fill',
+  'invalid-refuses': 'A refuses entry of an operation names an error that is not in its errors, or names it twice, or has a rule that reads the answer of a success or a value it cannot read',
   'invalid-due': 'The due rule of an operation is on an operation with no changes, or names a value that is not the record or the time',
   'invalid-condition': 'A requires or ensures rule names a value that it cannot read, or the otherwise error of a requires rule is not declared or cannot be filled',
   // Pass 8: lifecycle

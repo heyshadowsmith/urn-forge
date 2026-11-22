@@ -196,6 +196,12 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
     manifest('a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\n' +
       'a.error.no: { description: N, category: not_found, retryable: false, message: No }\n' +
       'a.operation.o: { description: O, input: a.entity.e, output: a.entity.e, reads: { entity: a.entity.e, missing: a.error.no } }\n'),
+  'invalid-rejects': () =>
+    manifest('a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\na.error.bad: { description: B, category: validation, retryable: false, message: m }\n' +
+      'a.operation.o: { description: O, input: a.entity.e, output: a.entity.e, rejects: a.error.bad }\n'),
+  'invalid-refuses': () =>
+    manifest('a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\na.error.bad: { description: B, category: validation, retryable: false, message: m }\n' +
+      "a.operation.o: { description: O, input: a.entity.e, output: a.entity.e, errors: [a.error.bad], refuses: [{ error: a.error.bad, ensures: ['output.n > 0'] }] }\n"),
   'invalid-idempotency': () =>
     manifest('a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\n' + 'a.operation.o: { description: O, input: a.entity.e, output: a.entity.e, idempotency: { key: input.n, window: 24 hours } }\n'),
   'invalid-due': () =>
