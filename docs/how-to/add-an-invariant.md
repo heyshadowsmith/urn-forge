@@ -81,8 +81,9 @@ npx urn-forge compile --config insurance/urn-forge.config.ts
 insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
 wrote      insurance/generated/domain.runtime.generated.ts
 wrote      insurance/generated/domain.schemas.generated.ts
+wrote      insurance/generated/domain.store.generated.ts
 wrote      insurance/generated/schema.generated.sql
-fingerprint sha256:04b8be134285c63b71d20830b972a6ce13674939834448d2ee98a85c4d3f6764
+fingerprint sha256:cdd7f3a5a0f84f5f5d6d2f874a7e15be48b16ddf85506fbf72fc053a65322dd2
 ```
 
 The `deprecated-ref` warning is about the field `note`, which the insurance domain retires. It does not stop `compile`. Refer to [Retire a URN](retire-a-urn).
@@ -286,7 +287,7 @@ insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insuranc
 gate 1  completeness  PASS  tsc: 0 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 gate 3  gherkin       PASS  2 feature(s), 15 scenario(s), 2/2 operations tagged, 1/1 errors expected, 2/2 events expected, 1/1 records expected, 5/5 invariants broken, strict: 2/2 features (boundaryCoverage: error)
-gate 4  drift         PASS  3 generated file(s) compared byte for byte against insurance/generated
+gate 4  drift         PASS  4 generated file(s) compared byte for byte against insurance/generated
 verify passed with 1 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
 ```
 

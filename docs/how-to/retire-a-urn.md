@@ -111,8 +111,9 @@ npx urn-forge compile --config insurance/urn-forge.config.ts
 insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
 unchanged  insurance/generated/domain.runtime.generated.ts
 unchanged  insurance/generated/domain.schemas.generated.ts
+unchanged  insurance/generated/domain.store.generated.ts
 unchanged  insurance/generated/schema.generated.sql
-fingerprint sha256:04b8be134285c63b71d20830b972a6ce13674939834448d2ee98a85c4d3f6764
+fingerprint sha256:cdd7f3a5a0f84f5f5d6d2f874a7e15be48b16ddf85506fbf72fc053a65322dd2
 ```
 
 - The location is the reference, not the deprecated atom. Here it is the `ref` of `note` in the coverage.

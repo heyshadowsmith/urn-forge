@@ -125,13 +125,13 @@ describe('regular expressions (decision 9)', () => {
       "a.field.id: { primitive: integer }\na.field.site: { primitive: string, format: uri }\na.field.tag: { primitive: string, regex: '(?!x)[a-z]+' }\n" +
       'a.entity.e:\n  description: d\n  key: a.field.id\n  fields:\n    - ref: a.field.id\n    - ref: a.field.site\n    - ref: a.field.tag\n';
     const run = (unenforced: 'warn' | 'error') =>
-      compile(manifest, [{ plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'], unenforced } }]);
+      compile(manifest, [{ plugin: PLUGINS.valibot, config: {} }, { plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'], unenforced } }]);
     const warned = run('warn');
     expect(warned.diagnostics.map((d) => [d.code, d.severity, d.message])).toEqual([
       ['unenforced-in-sql', 'warning', 'urn:demo:math:a:field:site: format uri: Valibot checks it with the URL parser, which has no SQL form; the SQL does not enforce it, and the Valibot schema at the boundary still does'],
       ['unenforced-in-sql', 'warning', 'urn:demo:math:a:field:tag: regex (?!x)[a-z]+: lookaround and named groups have no translation; the SQL does not enforce it, and the Valibot schema at the boundary still does'],
     ]);
-    expect(warned.files[0]!.content).toContain('-- Not enforced here: format uri: Valibot checks it with the URL parser, which has no SQL form.\nCREATE DOMAIN "a"."site_value" AS TEXT;');
+    expect(warned.files.find((f) => f.relativePath === 'schema.generated.sql')!.content).toContain('-- Not enforced here: format uri: Valibot checks it with the URL parser, which has no SQL form.\nCREATE DOMAIN "a"."site_value" AS TEXT;');
     const failed = run('error');
     expect(failed.diagnostics.map((d) => d.severity)).toEqual(['error', 'error']);
     expect(failed.files).toEqual([]);
@@ -144,7 +144,7 @@ describe('the config', () => {
     'a.field.id: { primitive: integer }\na.entity.keyed:\n  description: d\n  key: a.field.id\n  fields:\n    - ref: a.field.id\n' +
     'a.entity.plain:\n  description: d\n  fields:\n    - ref: a.field.id\n';
   const messages = (tables: readonly string[]) =>
-    compile(manifest, [{ plugin: PLUGINS.postgres, config: { tables } }]).diagnostics.map((d) => `${d.code}: ${d.message}`);
+    compile(manifest, [{ plugin: PLUGINS.valibot, config: {} }, { plugin: PLUGINS.postgres, config: { tables } }]).diagnostics.map((d) => `${d.code}: ${d.message}`);
 
   it('refuses a table that is not an entity, that does not resolve, that has no key, or that is listed twice', () => {
     expect(messages(['a.field.id', 'a.entity.nope', 'a.entity.plain', 'a.entity.keyed', 'a.entity.keyed'])).toEqual([
@@ -156,7 +156,7 @@ describe('the config', () => {
   });
 
   it('refuses an unknown option', () => {
-    expect(compile(manifest, [{ plugin: PLUGINS.postgres, config: { table: [] } }]).diagnostics.map((d) => d.message)).toEqual([
+    expect(compile(manifest, [{ plugin: PLUGINS.valibot, config: {} }, { plugin: PLUGINS.postgres, config: { table: [] } }]).diagnostics.map((d) => d.message)).toEqual([
       'plugin postgres config: unknown option "table"',
     ]);
   });
@@ -178,8 +178,8 @@ describe('tables (decisions 1, 6 and 7)', () => {
     'order.entity.order:\n  description: d\n  key: order.field.order_id\n  fields:\n    - ref: order.field.order_id\n' +
     '    - { ref: order.entity.address, as: ship_to }\n' +
     '    - { ref: order.entity.line, as: lines, many: { minItems: 1, unique: true } }\n';
-  const result = compile(SHOP, [{ plugin: PLUGINS.postgres, config: { tables: ['catalog.entity.product', 'order.entity.order'] } }]);
-  const sql = result.files[0]!.content;
+  const result = compile(SHOP, [{ plugin: PLUGINS.valibot, config: {} }, { plugin: PLUGINS.postgres, config: { tables: ['catalog.entity.product', 'order.entity.order'] } }]);
+  const sql = result.files.find((f) => f.relativePath === 'schema.generated.sql')!.content;
   let db: PGlite;
 
   beforeAll(async () => {
@@ -243,6 +243,7 @@ describe('tables (decisions 1, 6 and 7)', () => {
 
   it('warns about a link to an entity that is not a table, and about an optional list', () => {
     const diagnostics = compile(SHOP.replace('    - { ref: order.field.tag, as: tags, many: { maxItems: 2, unique: true } }\n', '    - { ref: order.field.tag, as: tags, required: false, many: true }\n'), [
+      { plugin: PLUGINS.valibot, config: {} },
       { plugin: PLUGINS.postgres, config: { tables: ['order.entity.order'] } },
     ]).diagnostics;
     expect(diagnostics.map((d) => [d.code, d.message])).toEqual([
@@ -253,7 +254,7 @@ describe('tables (decisions 1, 6 and 7)', () => {
 
   it('refuses two parts of the schema with one name', () => {
     const clash = `${SHOP}order.entity.order__lines:\n  description: d\n  key: order.field.order_id\n  fields:\n    - ref: order.field.order_id\n`;
-    const diagnostics = compile(clash, [{ plugin: PLUGINS.postgres, config: { tables: ['catalog.entity.product', 'order.entity.order', 'order.entity.order__lines'] } }]).diagnostics;
+    const diagnostics = compile(clash, [{ plugin: PLUGINS.valibot, config: {} }, { plugin: PLUGINS.postgres, config: { tables: ['catalog.entity.product', 'order.entity.order', 'order.entity.order__lines'] } }]).diagnostics;
     expect(diagnostics.map((d) => [d.code, d.message])).toEqual([
       ['invalid-sql-name', 'urn:demo:shop:order:entity:order__lines: the table name "order.order__lines" is also a name that urn:demo:shop:order:entity:order uses'],
       ['invalid-sql-name', 'urn:demo:shop:order:entity:order__lines: the primary key name "order.order__lines_pkey" is also a name that urn:demo:shop:order:entity:order uses'],
@@ -315,11 +316,11 @@ describe('invariants (decision 10)', () => {
       'a.field.id: { primitive: integer }\na.field.tag: { primitive: string }\n' +
       'a.entity.e:\n  description: d\n  key: a.field.id\n  fields:\n    - ref: a.field.id\n    - { ref: a.field.tag, as: tags, many: true, required: false }\n' +
       'a.invariant.tagged:\n  description: d\n  on: a.entity.e\n  rule: tags is present\n  message: m\n';
-    const result = compile(manifest, [{ plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } }]);
+    const result = compile(manifest, [{ plugin: PLUGINS.valibot, config: {} }, { plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } }]);
     expect(result.diagnostics.map((d) => d.message)).toContain(
       'urn:demo:shop:a:invariant:tagged: the rule tags is present: "tags" is a list, which is rows of a child table, and a CHECK sees one row; the SQL does not enforce it, and the Valibot schema at the boundary still does',
     );
-    expect(result.files[0]!.content).toContain('-- Not enforced here: urn:demo:shop:a:invariant:tagged (tags is present).');
+    expect(result.files.find((f) => f.relativePath === 'schema.generated.sql')!.content).toContain('-- Not enforced here: urn:demo:shop:a:invariant:tagged (tags is present).');
   });
 });
 
@@ -331,9 +332,9 @@ describe('fixes found while writing the docs', () => {
 
   it('lets an optional list with minItems be absent: no rows pass, and a list with rows must have its count', async () => {
     const manifest = `${HEADER}${BASE}a.entity.e:\n  description: d\n  key: a.field.id\n  fields:\n    - ref: a.field.id\n    - { ref: a.field.tag, as: tags, required: false, many: { minItems: 2 } }\n`;
-    const result = compile(manifest, [{ plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } }]);
+    const result = compile(manifest, [{ plugin: PLUGINS.valibot, config: {} }, { plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } }]);
     const db = new PGlite();
-    await db.exec(result.files[0]!.content);
+    await db.exec(result.files.find((f) => f.relativePath === 'schema.generated.sql')!.content);
     await db.exec('INSERT INTO "a"."e" ("id") VALUES (1);');
     await expect(db.exec(`BEGIN; INSERT INTO "a"."e" ("id") VALUES (2); INSERT INTO "a"."e__tags" ("id", "position", "tags") VALUES (2, 0, 'x'); COMMIT;`)).rejects.toMatchObject({ constraint: 'tags_count' });
     await db.close();
@@ -341,7 +342,7 @@ describe('fixes found while writing the docs', () => {
 
   it('refuses a property with the name of a column that the plugin adds', () => {
     const manifest = `${HEADER}${BASE.replace('    - ref: a.field.tag\n', '    - ref: a.field.tag\n    - { ref: a.field.note, as: position }\n')}a.entity.e:\n  description: d\n  key: a.field.id\n  fields:\n    - ref: a.field.id\n    - { ref: a.entity.item, as: items, many: true }\n`;
-    const diagnostics = compile(manifest, [{ plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } }]).diagnostics;
+    const diagnostics = compile(manifest, [{ plugin: PLUGINS.valibot, config: {} }, { plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } }]).diagnostics;
     expect(diagnostics.map((d) => d.message)).toEqual(['urn:demo:shop:a:entity:item: the column name "e__items.position" is also a name that urn:demo:shop:a:entity:e uses']);
   });
 });
