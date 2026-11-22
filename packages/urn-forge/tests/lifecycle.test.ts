@@ -1,4 +1,4 @@
-/** The lifecycle of an atom (lifecycle plan): the keys, the IR, and pass 8. */
+/** The lifecycle of an atom: the keys, the IR, and pass 8. */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { compile, type CompileOptions } from '../src/engine.js';

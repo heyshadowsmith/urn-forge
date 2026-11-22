@@ -1,5 +1,5 @@
 /**
- * Compilation pass 1: the manifest meta-schema (spec §4, §7 pass 1; MVP scope per mvp-plan.md).
+ * Compilation pass 1: the manifest meta-schema.
  *
  * Validates the manifest header and the short-key grammar (`<context>.<kind>.<identifier>`),
  * then each entry against its kind's schema from the kind registry (src/kinds/). A field's
@@ -49,7 +49,7 @@ export const HeaderSchema = v.strictObject({
 export type ManifestHeader = v.InferOutput<typeof HeaderSchema>;
 
 // ---------------------------------------------------------------------------
-// Lifecycle (lifecycle plan): keys that every kind accepts
+// Lifecycle: keys that every kind accepts
 // ---------------------------------------------------------------------------
 
 /** The lifecycle keys, which every kind accepts next to its own keys. */
@@ -118,7 +118,7 @@ export type ParsedManifest =
 // Validation
 // ---------------------------------------------------------------------------
 
-/** Splits a top-level key into its segments, or explains why it is not a valid MVP short key. */
+/** Splits a top-level key into its segments, or explains why it is not a valid short key. */
 export function parseShortKey(
   key: string,
 ): { ok: true; value: ShortKey } | { ok: false; code: DiagnosticCode; message: string } {
@@ -145,7 +145,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Constraints that the MECE model replaced (primitives plan), with what to write now. */
+/** Constraints that the MECE model replaced, with what to write now. */
 const REPLACED_CONSTRAINTS: Readonly<Record<string, string>> = {
   oneOf: 'for a fixed set of values, use primitive: enum with values: [ … ]',
   notEqual: 'to exclude values, use notIn: [ … ]',
@@ -167,7 +167,7 @@ function describeIssue(key: string, entry: unknown, issue: v.BaseIssue<unknown>,
 
   if (issue.type === 'variant' && dotPath === 'primitive') {
     const what = issue.input === undefined ? 'a field must have a primitive' : `unknown primitive ${issue.received}`;
-    return at('unknown-primitive', `${prefix}: ${what} (MVP primitives: ${PRIMITIVE_NAMES.join(', ')})`);
+    return at('unknown-primitive', `${prefix}: ${what} (primitives: ${PRIMITIVE_NAMES.join(', ')})`);
   }
   // A key that is a constraint of another primitive is a misplaced constraint; any other key
   // is an unknown property, as on the other kinds.

@@ -1,5 +1,5 @@
 /**
- * Valibot plugin → `domain.schemas.generated.ts` (spec §7.1, MVP scope).
+ * Valibot plugin → `domain.schemas.generated.ts`.
  *
  * - One `v.pipe(…, v.brand('<field URN>'))` per field, translating its constraints.
  * - One `v.object()` per entity; `required: false` wraps the field in `v.optional`.
@@ -117,7 +117,7 @@ const TRANSLATIONS: ValibotTranslations = {
   string: {
     base: ['v.string()'],
     constraints: {
-      // A length counts Unicode code points, as Postgres does (Postgres plan, decision 5), not
+      // A length counts Unicode code points, as Postgres does, not
       // UTF-16 units as v.minLength does. The message is the one v.minLength gives.
       minLength: (n) => codePointLength('>=', n),
       maxLength: (n) => codePointLength('<=', n),
@@ -249,7 +249,7 @@ function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
       ...typeExports(entity.brandIdentifier),
     ].join('\n');
   }
-  // With invariants (spec §7.1): the object, then one exported rule for each invariant, then
+  // With invariants: the object, then one exported rule for each invariant, then
   // the schema, whose checks point at the first field each rule names (v.forward).
   const object = `${entity.brandIdentifier}Fields`;
   const primitiveOf = primitiveIn(entity, ir);
@@ -276,7 +276,7 @@ function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
 }
 
 /**
- * An error payload (spec §7.1): its fields, plus `kind`, a literal of the error URN, so
+ * An error payload: its fields, plus `kind`, a literal of the error URN, so
  * callers can switch on it exhaustively. The error kind reserves `kind` as a property name.
  */
 function errorDeclaration(error: IRError | IREvent, ir: UniversalIR): string {

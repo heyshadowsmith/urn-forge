@@ -1,5 +1,5 @@
 /**
- * Pass 5: structure across entities (spec pass 5; structure plan). It runs once every node is
+ * Pass 5: structure across entities. It runs once every node is
  * built, because each check reads another entity:
  *
  * - a link names an entity that has a `key` (the link holds the key's value);

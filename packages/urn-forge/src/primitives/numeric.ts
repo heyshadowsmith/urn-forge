@@ -1,5 +1,5 @@
 /**
- * Shared by the number primitives (primitives plan): their constraints, coherence, cell
+ * Shared by the number primitives: their constraints, coherence, cell
  * parsing and boundary cases.
  *
  * - Range: `min` and `max` (inclusive) on every number kind; `exclusiveMin` and
@@ -99,7 +99,7 @@ const isNumber = (value: unknown): value is number => typeof value === 'number';
 const is = (n: number) => (value: unknown) => isNumber(value) && value === n;
 
 /**
- * Boundary cases (spec §8). An `integer` bound needs the value at it and the value one step
+ * Boundary cases. An `integer` bound needs the value at it and the value one step
  * beyond; a `float` has no step, so it needs the value at the bound and any value beyond it.
  * An exclusive bound needs the bound itself (refused) and a value inside. `multipleOf` needs
  * a multiple and a value that is not one; `notIn` needs each excluded value.

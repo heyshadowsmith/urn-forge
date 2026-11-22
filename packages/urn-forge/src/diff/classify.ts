@@ -1,6 +1,5 @@
 /**
- * `urn-forge diff`: the class of each change between two manifests (spec §3, gate 5;
- * lifecycle plan, "The model").
+ * `urn-forge diff`: the class of each change between two manifests (gate 5).
  *
  * A change is breaking when a consumer that worked before can fail after it, and who can
  * fail depends on the direction of use:
@@ -75,7 +74,7 @@ export function usesOf(ir: UniversalIR, tables: readonly Urn[] = []): Map<Urn, S
         properties(live.events[error.recordAs]!.fields, 'out', new Set());
       }
     }
-    // An event reaches whoever the shell publishes it to (events plan, decision 9).
+    // An event reaches whoever the shell publishes it to.
     for (const urn of op.emits) {
       if (!live.events[urn]) continue;
       add(urn, 'out');
@@ -178,7 +177,7 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     for (const urn of Object.keys(after) as Urn[]) {
       if (before[urn] !== undefined) continue;
       // A new invariant narrows its entity; every other new atom is new to everyone.
-      // An invariant on a new entity narrows nothing that a caller sent or a row holds (fourth blind trial).
+      // An invariant on a new entity narrows nothing that a caller sent or a row holds.
       if (group === 'invariants') {
         const on = now.invariants[urn]!.on;
         if (old.entities[on] === undefined) compatible(urn, `is new, on the new entity ${on}`);
@@ -207,7 +206,7 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
 
   /**
    * A required list that may be empty does not break stored rows: a row with no child rows holds
-   * the empty list, which is valid (blind trial 2). Callers still have to send it.
+   * the empty list, which is valid. Callers still have to send it.
    */
   const withoutEmptyRows = (ref: IRPropertyRef, uses: ReadonlySet<Use>): ReadonlySet<Use> =>
     ref.many !== undefined && (ref.many.minItems ?? 0) === 0 ? new Set([...uses].filter((u) => u !== 'stored')) : uses;
@@ -239,7 +238,7 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
         if (rest.size === 0 && uses.size > 0) compatible(urn, `adds the required list "${b.name}", which rows already stored hold as an empty list${MIGRATION}`);
         else relate(urn, 'narrower', `the new required property "${b.name}"`, rest);
       }
-      // Compatible for callers, but a stored entity has a table that does not have it yet (fourth blind trial).
+      // Compatible for callers, but a stored entity has a table that does not have it yet.
       else compatible(urn, `adds the optional property "${b.name}"${uses.has('stored') ? MIGRATION : ''}`);
     }
   };
@@ -260,7 +259,7 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     if (a.on !== b!.on) relate(urn, 'neither', `on ${a.on} → ${b!.on}`, uses);
     else if (a.ruleText !== b!.ruleText) relate(urn, 'neither', `rule ${a.ruleText} → ${b!.ruleText}`, uses);
     if (a.message !== b!.message) compatible(urn, 'message changed');
-    // reportOn moves the issue, not the set of values that the rule accepts (reportOn plan, decision 7).
+    // reportOn moves the issue, not the set of values that the rule accepts.
     const [fromField, toField] = [a.reportOn ?? firstField(a.rule), b!.reportOn ?? firstField(b!.rule)];
     if (fromField !== toField) compatible(urn, `reports its issue on "${fromField}" → "${toField}"`);
   }

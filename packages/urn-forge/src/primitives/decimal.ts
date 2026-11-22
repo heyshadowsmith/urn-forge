@@ -14,7 +14,7 @@ const bound: ConstraintSpec<string> = { schema: literal, aspect: 'range' };
 const ENUMERATION_LIMIT = 100_000n;
 
 /**
- * An exact fraction, such as money (primitives plan, step 7). The value is a string in both
+ * An exact fraction, such as money. The value is a string in both
  * the shell and the core, so no binary float ever holds it; the core converts it with any
  * decimal library it likes. `scale` is the most digits after the point, the step of the kind.
  */

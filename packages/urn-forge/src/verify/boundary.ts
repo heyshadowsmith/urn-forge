@@ -1,5 +1,5 @@
 /**
- * Gate 2: boundary discipline (spec §8; gate 2 plan). No branded value is forged outside the
+ * Gate 2: boundary discipline. No branded value is forged outside the
  * generated parsers. Four rules run on the type checker, over the core files (the core entry
  * and the files that it imports in its own directory) and the shell files (config `shell`):
  *
@@ -69,7 +69,7 @@ export function checkBoundary(context: GateContext): GateOutcome {
   const ours = (file: ts.SourceFile) => !file.isDeclarationFile && !file.fileName.includes(`${sep}node_modules${sep}`) && !resolve(file.fileName).startsWith(generatedDir);
   const coreFiles = new Set(coreProgram.getSourceFiles().filter((f) => ours(f) && resolve(f.fileName).startsWith(coreDir)).map((f) => resolve(f.fileName)));
   const shellFiles = new Set((context.shellPaths ?? []).flatMap(sourcesUnder).filter((f) => !coreFiles.has(f) && !f.startsWith(generatedDir)));
-  // A shell path that matches no source file turns gate 2 off for it in silence, as a typo does (fourth blind trial).
+  // A shell path that matches no source file turns gate 2 off for it in silence, as a typo does.
   const unmatched: Diagnostic[] = (context.shellPaths ?? [])
     .filter((path) => sourcesUnder(path).length === 0)
     .map((path) => ({

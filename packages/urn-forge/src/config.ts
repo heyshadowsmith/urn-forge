@@ -1,5 +1,5 @@
 /**
- * `urn-forge.config.ts` (spec §7.5): project defaults for the CLI, and which plugins run.
+ * `urn-forge.config.ts`: project defaults for the CLI, and which plugins run.
  *
  *   import { defineConfig } from 'urn-forge/config';
  *   export default defineConfig({
@@ -38,7 +38,7 @@ export interface UrnForgeConfig {
   /**
    * verify: whether gate 3's coverage gaps (boundaries and declared errors) are warnings or
    * errors. Default: `warn`. A feature tagged `@urn-forge:strict` makes its operations' gaps
-   * errors either way. Switch to `error` once every feature is strict (spec §8).
+   * errors either way. Switch to `error` once every feature is strict.
    */
   readonly boundaryCoverage?: 'warn' | 'error';
   /**

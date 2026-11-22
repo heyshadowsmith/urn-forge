@@ -1,5 +1,5 @@
 /**
- * Gate 4: drift (spec §8).
+ * Gate 4: drift.
  *
  * Compiles the manifest into a fresh temp directory with the same writer `compile` uses,
  * then byte-compares every file against the committed copy under `--out`. Also fails on a

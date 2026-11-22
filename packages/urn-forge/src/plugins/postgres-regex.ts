@@ -1,5 +1,5 @@
 /**
- * JavaScript regular expressions as Postgres regular expressions (Postgres plan, decision 9).
+ * JavaScript regular expressions as Postgres regular expressions.
  *
  * The two dialects differ, so a pattern is copied only through a subset that this module can
  * rewrite to mean exactly the same: literals, `.`, bracket classes, quantifiers, anchors,

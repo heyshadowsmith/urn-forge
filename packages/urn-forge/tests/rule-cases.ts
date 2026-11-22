@@ -21,7 +21,7 @@ export const RULE_CASES: Readonly<Record<string, readonly [readonly object[], re
   'd2 - d1 >= 1': [[{ d1: '0.1', d2: '1.1' }], [{ d1: '0.11', d2: '1.1' }]],
   'dt1 < dt2': [[{ dt1: '2026-01-31', dt2: '2026-02-01' }], [{ dt1: '2026-02-01', dt2: '2026-02-01' }]],
   "dt1 >= '2026-01-01'": [[{ dt1: '2026-01-01' }], [{ dt1: '2025-12-31' }]],
-  // Days (date arithmetic plan): across a month end, a year end, 29 February, and past the years of the date primitive.
+  // Days: across a month end, a year end, 29 February, and past the years of the date primitive.
   'dt2 <= dt1 + 28': [
     [{ dt1: '2026-01-31', dt2: '2026-02-28' }, { dt1: '2028-02-01', dt2: '2028-02-29' }, { dt1: '2026-12-20', dt2: '2027-01-17' }, { dt1: '9999-12-31', dt2: '9999-12-31' }],
     [{ dt1: '2026-01-31', dt2: '2026-03-01' }, { dt1: '2028-02-01', dt2: '2028-03-01' }, { dt1: '2026-12-20', dt2: '2027-01-18' }],

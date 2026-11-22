@@ -1,5 +1,5 @@
 /**
- * Pass 8: lifecycle (spec §6; lifecycle plan, decisions 4 and 5).
+ * Pass 8: lifecycle.
  *
  * - A reference from an active atom to a deprecated atom is `deprecated-ref`, a warning.
  *   A deprecated atom that uses another deprecated atom gets none: both are retiring.
@@ -57,7 +57,7 @@ export function checkLifecycle(
 
 /**
  * The IR without its sunset atoms: what the plugins generate from and the gates check
- * (lifecycle plan, decision 6). Pass 8 refuses every live reference to a sunset atom, so the
+ *. Pass 8 refuses every live reference to a sunset atom, so the
  * live IR has no reference that dangles. It depends on `status` only, never on a date.
  */
 export function liveIr(ir: UniversalIR): UniversalIR {

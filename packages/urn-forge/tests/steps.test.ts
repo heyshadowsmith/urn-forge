@@ -159,7 +159,7 @@ describe('assertFailsWith', () => {
   });
 });
 
-describe('assertEmits and assertEmitsNone (events plan, decision 7)', () => {
+describe('assertEmits and assertEmitsNone', () => {
   const URN = 'urn:demo:shop:order:operation:place';
   const PLACED = 'urn:demo:shop:order:event:placed';
   const ok = { ok: true as const, output: {}, events: [{ urn: PLACED, fields: { kind: PLACED, order_id: 1 } }, { urn: PLACED, fields: { kind: PLACED, order_id: 2 } }] };

@@ -2,7 +2,7 @@
 @urn:urn_forge:toolchain:naming:operation:to_urn
 Feature: URNs
 
-  The compiler expands every short key to a six-segment URN (spec §3), using the
+  The compiler expands every short key to a six-segment URN, using the
   manifest's namespace and domain.
 
   Scenario Outline: Five segments become one URN

@@ -1,5 +1,5 @@
 /**
- * The plugin registry: every plugin a config can enable, by name (spec §7.5).
+ * The plugin registry: every plugin a config can enable, by name.
  */
 import type { PluginEntry } from '../engine.js';
 import type { CodegenPlugin } from './plugin.interface.js';

@@ -1,4 +1,4 @@
-# The reportOn plan: the restaurant rule of the second blind trial. A party of 7 or more with no
+# A restaurant rule. A party of 7 or more with no
 # deposit is refused, and the issue goes on deposit, the field that the caller must correct.
 manifest:
   namespace: demo

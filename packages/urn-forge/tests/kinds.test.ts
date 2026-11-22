@@ -1,5 +1,5 @@
 /**
- * The kind registry (foundations plan, phase 3): each kind declares its schema, its
+ * The kind registry: each kind declares its schema, its
  * reference slots and how its IR node is built, and passes 3–4 run generically over them.
  */
 import { describe, expect, it } from 'vitest';
@@ -52,13 +52,13 @@ describe('kind registry', () => {
     });
   });
 
-  it('accepts every kind of the spec, and refuses any other', () => {
+  it('accepts every kind, and refuses any other', () => {
     for (const kind of KIND_NAMES) expect(parseShortKey(`a.${kind}.b`).ok).toBe(true);
     expect(KIND_NAMES).toEqual(['field', 'entity', 'invariant', 'operation', 'event', 'error']);
     expect(parseShortKey('a.widget.b')).toMatchObject({ ok: false, code: 'unknown-kind' });
   });
 
-  it('matches the kinds self/ declares for naming.field.kind, so the dogfood domain stays in step', () => {
+  it('matches the kinds self/ declares for naming.field.kind, so the self domain stays in step', () => {
     const manifest = parse(readFileSync(fileURLToPath(new URL('../self/domain.manifest.yaml', import.meta.url)), 'utf8')) as Record<string, { values?: string[] }>;
     expect(manifest['naming.field.kind']?.values).toEqual(KIND_NAMES);
   });

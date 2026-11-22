@@ -1,6 +1,5 @@
 /**
- * An invariant rule as a TypeScript expression over `p`, the parsed entity (invariants plan,
- * step 3). Each comparison follows its primitive: `decimal` exactly (compareDecimal),
+ * An invariant rule as a TypeScript expression over `p`, the parsed entity. Each comparison follows its primitive: `decimal` exactly (compareDecimal),
  * `date` as text (or as day numbers when the rule counts days), `timestamp` as instants,
  * the others with === and the order operators.
  * The rule has passed pass 6, so every field exists and both sides of each operator agree.
@@ -33,7 +32,7 @@ export function emitRule(rule: RuleExpr, primitiveOf: (field: string) => Primiti
   /** The primitive of a value: a field's or an arithmetic's; undefined for a literal. */
   const typeOf = (e: RuleExpr): Primitive | undefined => valueType(e, primitiveOf);
 
-  /** A date as a day number (date arithmetic plan, decision 7): a field, a date text, or a date ± days. */
+  /** A date as a day number: a field, a date text, or a date ± days. */
   const days = (e: RuleExpr): string => {
     helpers.add('days');
     switch (e.op) {

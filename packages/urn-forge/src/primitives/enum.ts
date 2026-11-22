@@ -12,7 +12,7 @@ const values: ConstraintSpec<string[]> = {
 };
 
 /**
- * One of a fixed set of names (primitives plan, step 1), such as
+ * One of a fixed set of names, such as
  * `zone: { primitive: enum, values: [domestic, international] }`. A closed set is its own
  * kind of value, so no length or shape constraint can meet a membership constraint.
  */

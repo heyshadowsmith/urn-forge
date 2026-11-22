@@ -1,5 +1,5 @@
 /**
- * Lists on a field reference (primitives plan, step 10): the manifest form, pass 7, the
+ * Lists on a field reference: the manifest form, pass 7, the
  * generated schema, table cells, comparisons and boundary cases.
  */
 import * as v from 'valibot';

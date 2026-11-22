@@ -1,6 +1,6 @@
 /**
  * `urn-forge verify` against a throwaway copy of the example, including the three seeded
- * failures from mvp-plan.md's "Done" table. The copy symlinks the installed node_modules so
+ * failures. The copy symlinks the installed node_modules so
  * gate 1 can resolve valibot and @types/node.
  */
 import { cp, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';

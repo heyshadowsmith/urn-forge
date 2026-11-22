@@ -1,4 +1,4 @@
-/** The invariant kind (invariants plan): its IR, and later its schemas, runtime and gate 3. */
+/** The invariant kind: its IR, and later its schemas, runtime and gate 3. */
 import { readFileSync } from 'node:fs';
 import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';

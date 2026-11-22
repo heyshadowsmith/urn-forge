@@ -1,5 +1,5 @@
 /**
- * `urn-forge verify` (spec §8): compiles the manifest, builds the gate context once, then
+ * `urn-forge verify`: compiles the manifest, builds the gate context once, then
  * runs each registered gate. Gate 5 (compatibility) is the separate command `urn-forge diff`.
  */
 import { readFile } from 'node:fs/promises';

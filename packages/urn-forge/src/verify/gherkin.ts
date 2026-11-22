@@ -1,5 +1,5 @@
 /**
- * Gate 3: Gherkin traceability (spec §8: tags, headers, declared errors and boundary coverage).
+ * Gate 3: Gherkin traceability: tags, headers, declared errors and boundary coverage.
  * Reads the feature index; it does not run the features.
  *
  * 1. Tags. Every `@urn:…` tag resolves to an atom in the IR (a field, entity, operation or
@@ -7,22 +7,21 @@
  *    least one feature or scenario tagged with it.
  * 2. Headers. In a scenario tagged (directly or via its feature, rule or examples) with an
  *    operation URN, every DataTable header and every `Examples` header must be a field key
- *    of the operation's input or output entity (the plan's "Spec gaps" #2 widens spec §8,
- *    which allowed input keys only). Under an entity tag, headers must be that entity's keys.
+ *    of the operation's input or output entity. Under an entity tag, headers must be that entity's keys.
  * 3. Required headers. The table of `When I run the operation with:` must have a column for
  *    every required field of the operation's input. To test a missing value, leave its
  *    cell empty: the step then sends the payload without that key.
  * 4. Declared errors. `Then the operation fails with "<urn>"` must name an error the
  *    scenario's operation declares (`undeclared-error`), and the table of its `:` form must
- *    name fields of that error. Every declared error should have a scenario that expects it
- *    (spec §8 error coverage): `uncovered-error` is a warning until coverage is ratcheted.
- * 5. Boundary coverage (spec §8 check 3). For each constrained input field of each tagged
+ *    name fields of that error. Every declared error should have a scenario that expects it:
+ *    `uncovered-error` is a warning until coverage is ratcheted.
+ * 5. Boundary coverage. For each constrained input field of each tagged
  *    operation, the values its scenarios send must include every boundary case of the
  *    field's primitive (`boundaries` in src/primitives/). One `uncovered-boundary` warning per
  *    field and operation lists the missing cases. It shows the cases are present; the test
  *    run shows whether they pass.
  *
- * A boundary can be waived per field with a comment in a feature file (spec §8's escape
+ * A boundary can be waived per field with a comment in a feature file (an escape
  * hatch; a tag cannot hold a reason, because tags cannot contain whitespace):
  *
  *   # urn-forge:waive <field URN> <reason…>
@@ -31,7 +30,7 @@
  * as a note with its reason. A waiver for a field none of those operations constrain is an
  * error; one whose field has no gap is a warning.
  *
- * Checks 4's coverage half and 5 follow the coverage mode (spec §8, warn then ratchet): their
+ * Checks 4's coverage half and 5 follow the coverage mode (warn, then ratchet): their
  * gaps are warnings, unless `boundaryCoverage` is `error` or a feature tagged with the
  * operation carries `@urn-forge:strict`; then they are errors.
  */
@@ -281,7 +280,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     }
   }
 
-  // Event coverage: each event of a tagged operation needs a scenario that expects it (events plan, decision 8).
+  // Event coverage: each event of a tagged operation needs a scenario that expects it.
   let declaredEvents = 0;
   for (const operation of Object.values(ir.operations)) {
     for (const eventUrn of operation.emits) {
@@ -436,7 +435,7 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
     (inputInvariants > 0 ? `, ${brokenInvariants.size}/${inputInvariants} invariants broken` : '');
   const featureCount = features.features.length;
 
-  // The ratchet trigger (spec §8): once every feature is strict and the gate passes, the
+  // The ratchet trigger: once every feature is strict and the gate passes, the
   // config can say so. While the gate fails, the errors come first.
   const passes = !problems.some((p) => p.severity === 'error');
   if (passes && boundaryCoverage === 'warn' && featureCount > 0 && strictFeatures.length === featureCount) {

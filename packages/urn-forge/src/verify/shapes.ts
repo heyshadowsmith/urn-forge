@@ -1,5 +1,5 @@
 /**
- * What gate 3 needs about properties at any depth (structure plan): the shape a cell reader
+ * What gate 3 needs about properties at any depth: the shape a cell reader
  * uses, and the invariants that hold inside an entity, its embedded entities included.
  */
 import type { PropertyShape } from '../gherkin/cells.js';

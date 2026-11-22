@@ -70,7 +70,7 @@ describe('meta-schema', () => {
     ]);
   });
 
-  it('rejects a kind cut from the MVP, naming the key', () => {
+  it('rejects a kind that does not exist, naming the key', () => {
     const result = validateManifest({
       manifest: header,
       'policy.event.placed': { fields: [] },

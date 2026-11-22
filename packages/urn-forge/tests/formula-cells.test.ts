@@ -1,4 +1,4 @@
-/** Formula cells (formula cells plan): long values for strict coverage, written as =repeat(…). */
+/** Formula cells: long values for strict coverage, written as =repeat(…). */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';
@@ -9,7 +9,7 @@ import type { GateContext } from '../src/verify/types.js';
 const ir = compile(readFileSync(new URL('./fixtures/formula-cells/domain.manifest.yaml', import.meta.url), 'utf8')).ir!;
 const LINE = '{ category: travel, amount: 10.00 }';
 
-/** The feature of the target: each long value of the third blind trial is a formula cell. */
+/** The feature of the target: each long value is a formula cell. */
 export const FEATURE = `@urn:demo:expenses:claim:operation:submit
 Feature: Long values
 

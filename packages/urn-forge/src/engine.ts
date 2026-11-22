@@ -1,5 +1,5 @@
 /**
- * The compile engine (spec §6, §7): manifest source → IR → plugins → final file contents.
+ * The compile engine: manifest source → IR → plugins → final file contents.
  *
  * Pure: no file system, clock or environment. The CLI writes what this returns. Every
  * file gets the `@generated` header with one fingerprint over the canonical IR, the
@@ -109,7 +109,7 @@ export function compile(manifestSource: string, plugins: readonly PluginEntry[] 
     };
   }
   const { ir, locator } = built;
-  // The plugins see the live IR: a sunset atom generates nothing (lifecycle plan, decision 6).
+  // The plugins see the live IR: a sunset atom generates nothing.
   const live = liveIr(ir);
 
   // Pass 8 warnings (deprecated-ref) come first, in manifest order.
@@ -148,7 +148,7 @@ export function compile(manifestSource: string, plugins: readonly PluginEntry[] 
   }
   if (hasErrors(diagnostics)) return { files: [], diagnostics, ir };
 
-  // Spec §7: a plugin must handle every construct in the IR, or compilation fails naming it.
+  // A plugin must handle every construct in the IR, or compilation fails naming it.
   for (const { plugin } of plugins) {
     for (const diagnostic of unsupportedConstructs(live, plugin)) {
       const location = diagnostic.urn === undefined ? undefined : locator?.locateUrn(diagnostic.urn);

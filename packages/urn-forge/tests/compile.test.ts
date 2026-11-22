@@ -144,7 +144,7 @@ describe('urn-forge compile (CLI)', () => {
     await writeFile(join(dir, 'bad.yaml'), 'manifest: { namespace: demo, domain: math, version: 0.1.0 }\ngeometry.field.radius: { primitive: money }\n');
     expect(await main(['compile', '--manifest', 'bad.yaml'], io)).toBe(1);
     expect(err).toEqual([
-      'bad.yaml:2:37  error  unknown-primitive  geometry.field.radius.primitive: unknown primitive "money" (MVP primitives: boolean, date, decimal, enum, float, integer, string, timestamp)',
+      'bad.yaml:2:37  error  unknown-primitive  geometry.field.radius.primitive: unknown primitive "money" (primitives: boolean, date, decimal, enum, float, integer, string, timestamp)',
     ]);
     expect(out).toEqual([]);
   });

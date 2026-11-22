@@ -1,4 +1,4 @@
-/** The event kind (events plan): the manifest, the IR, and recordAs. */
+/** The event kind: the manifest, the IR, and recordAs. */
 import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';
 
@@ -124,7 +124,7 @@ describe('found while the docs were written', () => {
   });
 });
 
-describe('found in the blind trial', () => {
+describe('edge cases', () => {
   it('allows an Examples column that only an error or event table uses', async () => {
     const { checkGherkin } = await import('../src/verify/gherkin.js');
     const { indexFeatureSource } = await import('../src/verify/feature-index.js');

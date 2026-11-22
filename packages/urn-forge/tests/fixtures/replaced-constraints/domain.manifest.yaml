@@ -1,4 +1,4 @@
-# Constraints that the MECE model refuses at pass 1 (primitives plan): replaced ones, an
+# Constraints that the MECE model refuses at pass 1: replaced ones, an
 # exclusive bound on a discrete kind, and enum values that are empty or repeated.
 manifest:
   namespace: demo

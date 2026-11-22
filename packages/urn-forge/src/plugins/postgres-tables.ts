@@ -1,5 +1,5 @@
 /**
- * The tables of the Postgres plugin (Postgres plan, decisions 1, 6 and 7).
+ * The tables of the Postgres plugin.
  *
  * - An entity in `tables` is a root table, `"<context>"."<identifier>"`, keyed by its `key`.
  * - A property with a list, or with an embedded entity, is a child table,
@@ -49,7 +49,7 @@ export interface StoreColumn {
 }
 
 /**
- * A table as the store statements see it (store plan, decision 2). It is built in the same pass
+ * A table as the store statements see it. It is built in the same pass
  * that writes the CREATE statements, column by column, so the two cannot differ.
  */
 export interface StoreTable {

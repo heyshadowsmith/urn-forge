@@ -1,5 +1,4 @@
-# Each field sets constraints that conflict or admit no value (primitives plan, "The target,
-# written first"). These are pass 7 problems, so the manifest is otherwise valid.
+# Each field sets constraints that conflict or admit no value These are pass 7 problems, so the manifest is otherwise valid.
 manifest:
   namespace: demo
   domain: conflicts

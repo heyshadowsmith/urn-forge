@@ -6,17 +6,17 @@ export const STEP_PHRASES = {
   run: 'I run the operation with:',
   output: 'the output is:',
   rejected: 'the input is rejected on {string}',
-  /** The input breaks the invariant with this URN (invariants plan, decision 6). */
+  /** The input breaks the invariant with this URN. */
   rejectedBy: 'the input is rejected by {string}',
   failsWith: 'the operation fails with {string}',
   /** The same, followed by a table of the error's fields. */
   failsWithFields: 'the operation fails with {string}:',
-  /** The operation succeeded and returned this event (events plan, decision 7). */
+  /** The operation succeeded and returned this event. */
   emits: 'the operation emits {string}',
   /** The same, followed by a table of the event's fields. */
   emitsWithFields: 'the operation emits {string}:',
   emitsNone: 'the operation emits no event',
-  /** The operation refused, and the error records this event for an audit trail (recordAs; blind trial 2). */
+  /** The operation refused, and the error records this event for an audit trail. */
   recordedAs: 'the refusal is recorded as {string}',
   /** The same, followed by a table of the event's fields. */
   recordedAsWithFields: 'the refusal is recorded as {string}:',

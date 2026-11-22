@@ -12,9 +12,9 @@ const bound: ConstraintSpec<string> = {
 };
 
 /**
- * An instant: ISO 8601 in UTC with `Z` (primitives plan, step 9). Values compare as instants,
+ * An instant: ISO 8601 in UTC with `Z`. Values compare as instants,
  * so `…:00Z` equals `…:00.000Z`. No constraint can mean "now": that would make `verify`
- * depend on the clock (spec §6).
+ * depend on the clock.
  */
 export const timestamp = definePrimitive({
   name: 'timestamp',

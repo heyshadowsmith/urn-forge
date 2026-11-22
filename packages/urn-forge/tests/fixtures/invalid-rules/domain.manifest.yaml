@@ -1,4 +1,4 @@
-# Each invariant breaks one rule of pass 4 or pass 6 (invariants plan, step 2).
+# Each invariant breaks one rule of pass 4 or pass 6.
 manifest:
   namespace: acme
   domain: rules

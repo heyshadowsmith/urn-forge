@@ -6,18 +6,18 @@ import { defineKind } from './types.js';
 
 const InvariantSchema = v.strictObject({
   description: Description,
-  /** The one entity whose fields the rule names (spec §4.3: single-entity). */
+  /** The one entity whose fields the rule names. */
   on: ShortKeyRef,
   rule: v.pipe(v.string(), v.minLength(1, 'must not be empty')),
   /** The issue message when the rule does not hold. */
   message: Description,
-  /** The property that the issue goes on (reportOn plan); by default, the first one that the rule names. */
+  /** The property that the issue goes on; by default, the first one that the rule names. */
   reportOn: v.optional(v.pipe(v.string(), v.minLength(1, 'must not be empty'))),
 });
 export type InvariantDecl = v.InferOutput<typeof InvariantSchema>;
 
 /**
- * A named rule over the fields of one entity (invariants plan). The link to the entity is
+ * A named rule over the fields of one entity. The link to the entity is
  * `on` only: an entity does not list its invariants, so the two cannot disagree. The IR keeps
  * the parsed rule and its canonical text.
  */

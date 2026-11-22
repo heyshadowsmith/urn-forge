@@ -1,5 +1,5 @@
 /**
- * Codegen plugin contract (spec §7).
+ * Codegen plugin contract.
  *
  * A plugin is a pure function of `(ir, config)`: no clock, no randomness, no
  * environment reads. It returns file contents; the engine (step 7) adds the
@@ -31,8 +31,8 @@ export interface PluginOutput {
 }
 
 /**
- * What a plugin can handle (spec §7: "each must handle every IR construct or fail
- * compilation naming the construct it cannot handle"). The engine checks the IR against
+ * What a plugin can handle. A plugin handles each construct of the IR, or compilation fails
+ * and names the construct. The engine checks the IR against
  * it before `emit`, and reports anything else as `unsupported-construct` with its URN.
  */
 export interface PluginSupport {
@@ -69,7 +69,7 @@ export function valuesInUrnOrder<T>(record: Readonly<Record<Urn, T>>): T[] {
   return Object.values(record) as T[];
 }
 
-/** "deprecated: superseded by <urn>; sunset on <date>" for a deprecated node, else undefined (lifecycle plan, decision 7). */
+/** "deprecated: superseded by <urn>; sunset on <date>" for a deprecated node, else undefined. */
 export function deprecationNote(node: { readonly lifecycle?: Lifecycle }): string | undefined {
   const life = node.lifecycle;
   if (life?.status !== 'deprecated') return undefined;

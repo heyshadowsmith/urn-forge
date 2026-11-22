@@ -1,5 +1,5 @@
 /**
- * urn-forge's public surface (foundations plan, phase 6). Changing what the package
+ * urn-forge's public surface. Changing what the package
  * exports should be a deliberate, reviewed change, so this test lists every export.
  */
 import { readFileSync } from 'node:fs';

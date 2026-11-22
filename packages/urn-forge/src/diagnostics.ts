@@ -1,6 +1,6 @@
 /**
- * Structured diagnostics (spec §5 "every diagnostic carries the URN, the manifest file,
- * line and column"; spec §9 `--format json`).
+ * Structured diagnostics: each one carries the URN, the manifest file, the line and the
+ * column, in text and in `--format json`.
  *
  * Every problem urn-forge reports, from the manifest passes, the plugins or the verify
  * gates, is one `Diagnostic` with a stable `code`. The CLI renders it as text or as a JSON

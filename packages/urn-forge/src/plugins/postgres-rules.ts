@@ -1,5 +1,5 @@
 /**
- * An invariant rule as a SQL condition (Postgres plan, decision 10). The rule has passed
+ * An invariant rule as a SQL condition. The rule has passed
  * pass 6, so every field exists, both sides of each operator agree, and every optional field
  * is guarded. A guard (`x is absent or …`) makes SQL's three-valued logic give the answer of
  * the rule: `NULL` can only meet `TRUE OR …` or `FALSE AND …`.
@@ -66,7 +66,7 @@ export function ruleSql(ir: UniversalIR, rule: RuleExpr, properties: readonly IR
         return literalOf(primitive, e);
       case '+':
       case '-': {
-        // Days (date arithmetic plan, decision 8): Postgres's own date - date, date + integer and date - integer.
+        // Days: Postgres's own date - date, date + integer and date - integer.
         if (typeOf(e.left) === 'date' || typeOf(e.right) === 'date') {
           if (primitive === 'integer') return `(${value(e.left, 'date')} - ${value(e.right, 'date')})`;
           // date + integer has no form for BIGINT, so a column or a sum of days is cast to INTEGER.

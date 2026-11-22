@@ -1,4 +1,4 @@
-/** urn-forge/exact: exact decimals and days for a core (third blind trial). */
+/** urn-forge/exact: exact decimals and days for a core. */
 import { describe, expect, it } from 'vitest';
 import { addDays, addDecimal, compareDecimal, daysBetween, divideDecimal, epochDay, multiplyDecimal, roundDecimal, subtractDecimal, sumDecimal, type Rounding } from 'urn-forge/exact';
 

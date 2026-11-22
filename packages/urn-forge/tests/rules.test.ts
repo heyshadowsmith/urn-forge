@@ -1,4 +1,4 @@
-/** The invariant rule language (invariants plan, step 1): parse, print and type-check. */
+/** The invariant rule language: parse, print and type-check. */
 import { describe, expect, it } from 'vitest';
 import { checkRule, firstField, parseRule, printRule, stripColumns, type LocatedExpr, type RuleField } from '../src/rules/index.js';
 
@@ -130,7 +130,7 @@ describe('checkRule (pass 6)', () => {
   });
 });
 
-describe('days (date arithmetic plan)', () => {
+describe('days', () => {
   it('accepts a date plus or minus days, and the days between two dates', () => {
     for (const rule of [
       'expiry_date <= effective_date + 28',

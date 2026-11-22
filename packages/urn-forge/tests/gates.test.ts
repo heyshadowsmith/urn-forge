@@ -1,6 +1,6 @@
 /**
- * The gate framework and the feature index (foundations plan, phase 5), and gate 3's
- * required-column check (spec §8 "missing required fields fail").
+ * The gate framework and the feature index, and gate 3's
+ * required-column check.
  */
 import { readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';

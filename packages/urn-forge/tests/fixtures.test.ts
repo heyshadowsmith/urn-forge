@@ -1,5 +1,5 @@
 /**
- * The fixture harness (foundations plan, phase 6). Each directory under tests/fixtures/ is
+ * The fixture harness. Each directory under tests/fixtures/ is
  * one fixture: a `domain.manifest.yaml` and an `expected/` directory holding exactly what
  * `compile` produces for it.
  *

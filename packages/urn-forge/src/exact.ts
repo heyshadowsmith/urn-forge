@@ -7,7 +7,7 @@
  * so a total that the core calculates compares in the same way as a rule over it.
  *
  * Each function takes plain values (a branded value is also one) and returns a plain value. The
- * core returns it, and the shell parses and brands it (spec §7.2). Gate 2 allows this import in a
+ * core returns it, and the shell parses and brands it. Gate 2 allows this import in a
  * core: it makes no branded value. The module imports nothing else.
  */
 import { addDays as addDaysTo, compareDecimal as compare, epochDay as epochDayOf, fractionDigits, scaled, unscaled } from './primitives/exact.js';

@@ -1,5 +1,5 @@
 /**
- * The plugin host (foundations plan, phase 4): shared naming, plugin support declarations
+ * The plugin host: shared naming, plugin support declarations
  * checked by the engine, plugin requirements, and the config file.
  */
 import { readFileSync } from 'node:fs';

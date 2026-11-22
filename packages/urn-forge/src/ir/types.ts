@@ -1,9 +1,6 @@
 /**
- * The Universal IR, MVP subset (spec §5; scope per mvp-plan.md).
- *
- * Cut from the MVP and added back later: invariants, events, errors, lifecycle
- * metadata and `nullable`. Plain objects keyed by full URN, keys sorted, so the
- * canonical JSON and the fingerprint see one form.
+ * The Universal IR. Plain objects keyed by full URN, keys sorted, so the canonical JSON and
+ * the fingerprint see one form.
  */
 import type { DiagnosticCode, ManifestPath, SourceLocation } from '../diagnostics.js';
 import type { ConstraintValue, Primitive } from '../primitives/index.js';
@@ -31,7 +28,7 @@ export interface UniversalIR {
 }
 
 /**
- * A named rule over the fields of one entity (spec §4.3). The entity does not list its
+ * A named rule over the fields of one entity. The entity does not list its
  * invariants: `invariantsOf` finds them by `on`, so the link has one place.
  */
 export interface IRInvariant {
@@ -44,7 +41,7 @@ export interface IRInvariant {
   /** The canonical text of the rule (`printRule`). */
   readonly ruleText: string;
   readonly message: string;
-  /** The property that the issue goes on, when the manifest sets it (reportOn plan). Else the first that the rule names. */
+  /** The property that the issue goes on, when the manifest sets it. Else the first that the rule names. */
   readonly reportOn?: string;
   readonly lifecycle?: Lifecycle;
 }
@@ -54,7 +51,7 @@ export function invariantsOf(ir: UniversalIR, entity: Urn): IRInvariant[] {
   return Object.values(ir.invariants ?? {}).filter((i) => i.on === entity);
 }
 
-/** Where an atom is in its life (lifecycle plan). The IR has it only when the atom is not plain active. */
+/** Where an atom is in its life. The IR has it only when the atom is not plain active. */
 export interface Lifecycle {
   readonly status: 'active' | 'deprecated' | 'sunset';
   readonly supersededBy?: Urn;
@@ -78,7 +75,7 @@ export interface IRField {
 }
 
 /**
- * What one property of an entity or an error holds (structure plan): the values of a field,
+ * What one property of an entity or an error holds: the values of a field,
  * an embedded entity, or a link to an entity (its key's value). The three forms share the
  * property name, presence and count; each form has one target.
  */
@@ -106,13 +103,12 @@ export interface IRFieldRef {
   readonly field: Urn;
   /**
    * Property name of this field on the entity: the field's URN identifier
-   * (`radius` for `urn:demo:math:geometry:field:radius`). Not in spec §5; added so
-   * every plugin and gate reads the same name from the IR instead of re-deriving it.
+   * (`radius` for `urn:demo:math:geometry:field:radius`), so every plugin and gate reads the same name from the IR instead of re-deriving it.
    */
   readonly name: string;
   readonly required: boolean;
   /**
-   * Present when the property holds a list of the field's values (primitives plan, step 10):
+   * Present when the property holds a list of the field's values:
    * how many it may hold, and whether a value may repeat. A list is structure, so it is a
    * property of the reference, not of the field's primitive.
    */
@@ -145,7 +141,7 @@ export function valueField(ir: UniversalIR, ref: IRPropertyRef): Urn | undefined
 }
 
 /**
- * A fact that happened (spec §4.5): a payload with the shape of an entity, without a key.
+ * A fact that happened: a payload with the shape of an entity, without a key.
  * Operations list events under `emits` and return them only on success.
  */
 export interface IREvent {
@@ -157,14 +153,14 @@ export interface IREvent {
   readonly lifecycle?: Lifecycle;
 }
 
-/** The five error categories of spec §4.6. Metadata for the shell; the core never reads them. */
+/** The five error categories. Metadata for the shell; the core never reads them. */
 export const ERROR_CATEGORIES = ['validation', 'conflict', 'not_found', 'forbidden', 'precondition'] as const;
 export type ErrorCategory = (typeof ERROR_CATEGORIES)[number];
 
 /** One part of a parsed message template: literal text, or a placeholder naming a property of the error. */
 export type MessagePart = { readonly text: string } | { readonly field: string };
 
-/** A named, URN-addressed rejection (spec §4.6): the operation was refused and nothing changed. */
+/** A named, URN-addressed rejection: the operation was refused and nothing changed. */
 export interface IRError {
   readonly urn: Urn;
   readonly brandIdentifier: string;
@@ -175,7 +171,7 @@ export interface IRError {
   readonly message: readonly MessagePart[];
   /** Declaration order preserved; may be empty. */
   readonly fields: readonly IRPropertyRef[];
-  /** The event that the shell may record when this error is returned (spec §4.6). */
+  /** The event that the shell may record when this error is returned. */
   readonly recordAs?: Urn;
   readonly lifecycle?: Lifecycle;
 }
@@ -184,9 +180,9 @@ export interface IROperation {
   readonly urn: Urn;
   readonly brandIdentifier: string;
   readonly description: string;
-  /** An entity URN. Spec §5 also allows a field; the MVP accepts entities only. */
+  /** An entity URN. */
   readonly input: Urn;
-  /** An entity URN. Spec §5 also allows a field; the MVP accepts entities only. */
+  /** An entity URN. */
   readonly output: Urn;
   /** The declared errors (error URNs), in declaration order. */
   readonly errors: readonly Urn[];

@@ -1,5 +1,5 @@
 /**
- * The target of the Postgres plan, written first: insurance's generated SQL, applied to real
+ * Insurance's generated SQL, applied to real
  * Postgres (PGlite), accepts a correct policy and refuses each broken write by the name of the
  * rule that refuses it.
  */
@@ -77,7 +77,7 @@ describe('insurance in Postgres', () => {
     ['four coverages', { coverages: ['fire', 'flood', 'theft', 'fire'].map((peril, i) => ({ peril, limit: `${i + 1}.00` })) }, '23505', 'policy__coverages_peril_key'],
     ['a repeated peril, by its constraint', { coverages: [{ peril: 'fire', limit: '1.00' }, { peril: 'fire', limit: '2.00' }] }, '23505', 'policy__coverages_peril_key'],
     ['a premium with three decimals', { premium: '1.005' }, '23514', 'premium'],
-    // Date arithmetic plan: 2027-03-01 to 2028-03-02 is 367 days, across 29 February.
+    // 2027-03-01 to 2028-03-02 is 367 days, across 29 February.
     ['a policy of 367 days', { effective: '2027-03-01', expiry: '2028-03-02' }, '23514', 'term_at_most_a_year'],
     ['a peril that is not in the enum', { coverages: [{ peril: 'hail', limit: '1.00' }] }, '23514', 'peril'],
   ] as const)('refuses %s', async (_, options, code, constraint) => {

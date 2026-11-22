@@ -1,5 +1,5 @@
 /**
- * Postgres plugin → `schema.generated.sql` (spec §7.4; Postgres plan).
+ * Postgres plugin → `schema.generated.sql`.
  *
  * The three layers of the MECE model go to three places:
  *
@@ -190,7 +190,7 @@ function storedFields(ir: UniversalIR, entities: readonly Urn[]): Set<Urn> {
 export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof PostgresConfigSchema>> = {
   name: 'postgres',
   version: '0.2.0',
-  // The store file imports the types of the schemas (store plan).
+  // The store file imports the types of the schemas.
   requires: ['valibot'],
   configSchema: PostgresConfigSchema,
   // Operations and errors are not stored: the plugin handles them by writing nothing.

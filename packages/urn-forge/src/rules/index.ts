@@ -1,5 +1,5 @@
 /**
- * The invariant rule language (spec §4.3; invariants plan, "The rule language").
+ * The invariant rule language.
  *
  *   or      := and ('or' and)*
  *   and     := unary ('and' unary)*
@@ -384,7 +384,7 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
   };
 
   /**
-   * Days (date arithmetic plan): `date ± integer` is a date, `date - date` is an integer of days.
+   * Days: `date ± integer` is a date, `date - date` is an integer of days.
    * The date is on the left; a date text literal can stand for a date. 'not dates' when no side is a date.
    */
   const dateArithmetic = (op: '+' | '-', left: ValueType, right: ValueType, at: number): Checked | undefined | 'not dates' => {
@@ -582,7 +582,7 @@ export function namesIn(expr: RuleExpr): string[] {
   return [...new Set(names)];
 }
 
-/** The first field a rule names, in text order: where a broken invariant points (invariants plan, decision 5). */
+/** The first field a rule names, in text order: where a broken invariant points. */
 export function firstField(expr: RuleExpr): string | undefined {
   switch (expr.op) {
     case 'field':

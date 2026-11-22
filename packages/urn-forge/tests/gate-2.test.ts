@@ -1,5 +1,5 @@
 /**
- * Gate 2, boundary discipline (gate 2 plan). Each directory under tests/gate-2/ is one rule,
+ * Gate 2, boundary discipline. Each directory under tests/gate-2/ is one rule,
  * on a copy of the insurance domain: code added to its core, and maybe a shell file.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -99,7 +99,7 @@ describe('found while the docs were written', () => {
   }, 60_000);
 });
 
-describe('a shell path that matches no file (fourth blind trial)', async () => {
+describe('a shell path that matches no file', async () => {
   const { checkBoundary } = await import('../src/verify/boundary.js');
   const { mkdtemp, mkdir, rm } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');

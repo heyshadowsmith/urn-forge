@@ -1,5 +1,5 @@
 /**
- * Canonical JSON and fingerprints (spec §5, §6).
+ * Canonical JSON and fingerprints.
  *
  * Canonical JSON: object keys sorted by UTF-16 code unit (never locale), arrays in
  * their given order, no whitespace. Only plain JSON values are allowed, so a stray
@@ -41,7 +41,7 @@ export function sha256Hex(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
-/** Everything that changes generated output (spec §6). */
+/** Everything that changes generated output. */
 export interface FingerprintInputs {
   readonly ir: unknown;
   readonly config: unknown;

@@ -35,7 +35,7 @@ const regex: ConstraintSpec<string> = {
 
 
 /**
- * Named shapes that a `regex` cannot express clearly (primitives plan). A name joins the
+ * Named shapes that a `regex` cannot express clearly. A name joins the
  * list only when that is true, so `format` does not become a second `regex`.
  */
 export const FORMATS = ['uuid', 'email', 'uri'] as const;
@@ -78,7 +78,7 @@ export const string = definePrimitive({
   parseCell: (cell) => (cell === '""' ? '' : cell),
   boundaries: ({ minLength, maxLength, regex: pattern, format: shape }) => {
     const isString = (value: unknown): value is string => typeof value === 'string';
-    // A length counts Unicode code points (Postgres plan, decision 5).
+    // A length counts Unicode code points.
     const ofLength = (n: number) => (value: unknown) => isString(value) && [...value].length === n;
     const cases: BoundaryCase[] = [];
     if (minLength !== undefined) {
