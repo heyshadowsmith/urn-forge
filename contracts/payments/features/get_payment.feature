@@ -42,7 +42,7 @@ Feature: Read a payment
       | mer_1       | pay_unknown00000000000000000 |
     Then the operation fails with "urn:corpus:payments:payment:error:not_found"
 
-  Scenario Outline: A key of another merchant is refused as not found
+  Scenario Outline: A key of another merchant, or the clock, is refused as not found
     Given the caller is:
       | key_kind   | merchant_id   |
       | <key_kind> | <merchant_id> |
@@ -58,6 +58,7 @@ Feature: Read a payment
       | key_kind  | merchant_id |
       | secret    | mer_2       |
       | read_only | mer_2       |
+      | clock     |             |
 
   Scenario: A payment of another merchant is not found
     Given the caller is:

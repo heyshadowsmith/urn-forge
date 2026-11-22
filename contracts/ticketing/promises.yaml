@@ -34,12 +34,15 @@ promises:
     promise: "A caller can request: create a hold, release a hold, check out a hold, get an order, transfer a ticket, accept a transfer, cancel a transfer, request a refund, and validate a ticket at entry."
     status: declared
     by: [hold.operation.create_hold, hold.operation.release_hold, order.operation.check_out, order.operation.get_order, transfer.operation.transfer_ticket, transfer.operation.accept_transfer, transfer.operation.cancel_transfer, refund.operation.request_refund, entry.operation.validate_ticket]
-  # The answer has all its parts, but a rule has no arithmetic on timestamps: only "the expiry is after the creation" is stated, not "exactly 10 minutes after".
+  # The answer of create_hold is hold.entity.hold: a required hold id, 1 to 10 held lines (a seat, or a standing
+  # section and quantity) each with a required price, and a required total. create_hold ensures
+  # output.created_at = now (the hold is created at the time of the call, which the shell gives) and
+  # output.expires_at = output.created_at + 10 minutes, so the runtime refuses any other expiry as a ContractViolation.
+  # Scenarios at 19:00, 19:55 and 23:54:59.999 on New Year's Eve show the expiry exactly 10 minutes later.
   P07:
     promise: "A successful hold answer carries a hold id, the held seats or standing quantities, the price of each line, the order total, and an expiry time exactly 10 minutes after the hold was created."
-    status: workaround
-    by: [hold.operation.create_hold, hold.entity.hold, hold.entity.held_line, money.entity.money, hold.field.expires_at, hold.invariant.expires_after_created]
-    hole: E3
+    status: declared
+    by: [hold.operation.create_hold, hold.entity.hold, hold.field.hold_id, hold.entity.held_line, money.entity.money, hold.field.created_at, hold.field.expires_at]
   # The four refusals are declared; that the listed seats are exactly the requested seats that cannot be held is a rule between request and answer, and "a refused hold holds nothing" is not stated.
   P08:
     promise: "A hold request is refused with SEAT_UNAVAILABLE listing every requested seat that cannot be held, with SECTION_SOLD_OUT naming the standing section lacking capacity, with LIMIT_EXCEEDED if the buyer would hold more than 10 tickets for the event, or with SALES_CLOSED if the event is not on sale; a refused hold holds nothing."
@@ -81,12 +84,21 @@ promises:
     status: workaround
     by: [request.field.idempotency_key]
     hole: C2
-  # The request, "only an ISSUED ticket" and the new and void codes are declared; the 72 hours, "only the recipient" (D2) and "the same seat" (A2) are not.
+  # Declared: the request (one ticket code and a recipient email), "only an ISSUED ticket" (changes from ISSUED), and the
+  # 72 hours: transfer_ticket ensures offered_at = now and accept_until = offered_at + 72 hours, and accept_transfer
+  # requires now <= current.offered_at + 72 hours ("within": at 72 hours still), else transfer_expired; scenarios
+  # at 72 hours and a millisecond after. accept_transfer ensures a new ISSUED ticket code, and that its one
+  # TicketTransferred names the new code and the old one as void.
+  # Not declared: (1) "only by that recipient" needs a caller (D2): ticketing has no caller header, and one would make
+  # each operation state callers, while the rest of this promise still fails, so it is not added here; (2) the old
+  # ticket becoming VOID is not a change of the stored ticket: accept_transfer reads the transfer, and P12 does not allow
+  # TRANSFER_PENDING to VOID; (3) "the same seat": the transfer does not carry the place, so no rule ties the new
+  # ticket's place to the old one's (A2), and no record names the recipient as the new ticket's holder.
   P15:
     promise: "A transfer names one ISSUED ticket and a recipient email address, may be accepted only by that recipient within 72 hours, and on acceptance the old ticket code becomes VOID and the recipient receives a new ticket code for the same seat."
     status: workaround
-    by: [transfer.operation.transfer_ticket, transfer.operation.accept_transfer, transfer.entity.transfer_request, transfer.field.recipient_email, transfer.field.accept_until, ticket.event.ticket_transferred, ticket.error.invalid_ticket_state]
-    hole: E3
+    by: [transfer.operation.transfer_ticket, transfer.operation.accept_transfer, transfer.entity.transfer_request, transfer.field.recipient_email, transfer.field.offered_at, transfer.field.accept_until, transfer.error.transfer_expired, ticket.event.ticket_transferred, ticket.error.invalid_ticket_state]
+    hole: D2
   # The refusal is declared; the refund at most the amount paid is not stated, and a refund names many tickets, so the states that refuse it cannot be a change of one stored ticket.
   P16:
     promise: "A refund is never more than the amount paid for the refunded tickets, and requesting a refund for a ticket that is USED, REFUNDED or VOID is refused with TICKET_NOT_REFUNDABLE."
@@ -105,12 +117,20 @@ promises:
     status: workaround
     by: [entry.operation.validate_ticket, entry.field.verdict, ticket.event.ticket_used]
     hole: C3
-  # Each event and its fields are declared; HoldExpired happens at the expiry time without a request, so no operation emits it and no scenario shows it.
+  # Each event and its fields are declared, each has an operation that emits it, and a scenario shows each. HoldExpired
+  # is emitted by expire_hold, which the shell's clock calls (due: now > current.expires_at, after the last instant
+  # check_out allows); the hold is a Postgres table, so selectHoldExpireHoldDue finds the holds that are due.
+  # create_hold, expire_hold, accept_transfer and validate_ticket emit one event ({ event }, validate_ticket when ADMIT)
+  # and ensure that it names its hold or tickets and event, with occurred_at = now.
+  # Not declared: check_out (OrderPlaced and a TicketIssued per ticket), request_refund (a TicketRefunded per ticket) and
+  # cancel_event (EventCancelled and TicketRefunded) emit several events, and ensures with event. needs exactly one, so
+  # nothing ties their ids or their time to the change; the time of those events is a value of the core (A2).
+  # EventCancelled names no ticket.
   P19:
     promise: "The domain publishes HoldCreated, HoldExpired, OrderPlaced, TicketIssued, TicketTransferred, TicketRefunded, TicketUsed and EventCancelled events, each carrying an event id, the event's id, the affected ticket or hold ids, and the time it occurred."
     status: workaround
-    by: [hold.event.hold_created, hold.event.hold_expired, order.event.order_placed, ticket.event.ticket_issued, ticket.event.ticket_transferred, ticket.event.ticket_refunded, ticket.event.ticket_used, show.event.event_cancelled, notice.field.message_id, notice.field.occurred_at]
-    hole: E3
+    by: [hold.event.hold_created, hold.event.hold_expired, order.event.order_placed, ticket.event.ticket_issued, ticket.event.ticket_transferred, ticket.event.ticket_refunded, ticket.event.ticket_used, show.event.event_cancelled, notice.field.message_id, notice.field.occurred_at, hold.operation.create_hold, hold.operation.expire_hold, transfer.operation.accept_transfer, entry.operation.validate_ticket]
+    hole: A2
   # Each event has a delivery with id message_id, which the shell gives (newEventId), and the outbox of the Postgres
   # extra keeps the unique id (primary key), no lost event and at least once (a row stays until markPublished). The
   # order per ticket is not stated: the outbox orders by one orderBy value of each event, and OrderPlaced names

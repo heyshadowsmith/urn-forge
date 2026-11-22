@@ -8,8 +8,8 @@ Feature: Create a subscription
       | customer_id   | plan_id   | quantity   | idempotency_key   |
       | <customer_id> | <plan_id> | <quantity> | <idempotency_key> |
     Then the output is:
-      | subscription_id              | customer_id   | quantity   | status | trial_end |
-      | sub_nnnnnnnnnnnnnnnnnnnnnnnn | <customer_id> | <quantity> | active |           |
+      | subscription_id              | customer_id   | quantity   | status | trial_end | trial_will_end_sent_at |
+      | sub_nnnnnnnnnnnnnnnnnnnnnnnn | <customer_id> | <quantity> | active |           |                        |
     And the operation emits "urn:corpus:subscriptions:subscription:event:created":
       | subscription_id              | occurred_at          |
       | sub_nnnnnnnnnnnnnnnnnnnnnnnn | 2026-11-22T10:00:00Z |
@@ -64,20 +64,20 @@ Feature: Create a subscription
       | customer_id | plan_id    | quantity | trial_days |
       | cus_1       | plan_basic | 1        | 2          |
     Then the output is:
-      | status   | trial_end  |
-      | trialing | 2026-11-25 |
+      | status   | trial_end  | trial_will_end_sent_at |
+      | trialing | 2026-11-25 | 2026-11-23T00:00:00Z   |
     And the operation emits "urn:corpus:subscriptions:subscription:event:trial_will_end":
       | subscription_id              |
       | sub_nnnnnnnnnnnnnnnnnnnnnnnn |
 
-  Scenario Outline: A trial shorter than 3 days announces its end at once
+  Scenario Outline: A trial shorter than 3 days announces its end at once, and keeps the mark so that the clock does not announce it again
     Given the time is "2026-11-22T10:00:00Z"
     When I run the operation with:
       | customer_id | plan_id    | quantity | trial_days   | trial_end   |
       | cus_1       | plan_basic | 1        | <trial_days> | <trial_end> |
     Then the output is:
-      | status   |
-      | trialing |
+      | status   | trial_will_end_sent_at |
+      | trialing | 2026-11-22T10:00:00Z   |
     And the operation emits "urn:corpus:subscriptions:subscription:event:trial_will_end":
       | subscription_id              |
       | sub_nnnnnnnnnnnnnnnnnnnnnnnn |
@@ -90,14 +90,14 @@ Feature: Create a subscription
       |            | 2026-11-23 |
       |            | 2026-11-24 |
 
-  Scenario Outline: An explicit trial end in the window is accepted
+  Scenario Outline: An explicit trial end in the window is accepted; a trial of 3 days or more is left to the clock, with no mark
     Given the time is "2026-11-22T10:00:00Z"
     When I run the operation with:
       | customer_id | plan_id    | quantity | trial_end   |
       | cus_1       | plan_basic | 1        | <trial_end> |
     Then the output is:
-      | status   | trial_end   |
-      | trialing | <trial_end> |
+      | status   | trial_end   | trial_will_end_sent_at |
+      | trialing | <trial_end> |                        |
     And the operation emits "urn:corpus:subscriptions:subscription:event:created"
     And the operation emits no "urn:corpus:subscriptions:subscription:event:trial_will_end"
     And the operation emits no "urn:corpus:subscriptions:invoice:event:created"

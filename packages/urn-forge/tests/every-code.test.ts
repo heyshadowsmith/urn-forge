@@ -66,6 +66,7 @@ const strict = compile(source('tutorial/3-strict-coverage/domain.manifest.yaml')
 // States, over the states fixture: seating a booking needs its current record.
 const states = compile(source('tests/fixtures/states/domain.manifest.yaml')).ir!;
 const SEAT = '@urn:demo:states:booking:operation:seat_booking';
+const clock = compile(source('tests/fixtures/clock/domain.manifest.yaml')).ir!;
 const timed = compile(source('tests/fixtures/time/domain.manifest.yaml')).ir!;
 const callers = compile(source('tests/fixtures/callers/domain.manifest.yaml')).ir!;
 const SEAT_RUN = '    When I run the operation with:\n      | reference |\n      | KMPQXRTA |\n';
@@ -191,6 +192,8 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
     manifest('a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\n' +
       'a.error.no: { description: N, category: not_found, retryable: false, message: No }\n' +
       'a.operation.o: { description: O, input: a.entity.e, output: a.entity.e, reads: { entity: a.entity.e, missing: a.error.no } }\n'),
+  'invalid-due': () =>
+    manifest('a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\n' + 'a.operation.o: { description: O, input: a.entity.e, output: a.entity.e, due: now > now }\n'),
   'invalid-condition': () =>
     manifest(
       'a.field.n: { primitive: integer }\na.entity.e: { description: E, fields: [{ ref: a.field.n }] }\n' +
@@ -255,6 +258,15 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'uncovered-invariant': () => gate3(scenario(ISSUE_RUN, ISSUE), 'warn', insurance),
   'uncovered-state': () => gate3(scenario(CURRENT('confirmed') + SEAT_RUN, SEAT), 'warn', states),
   'invalid-current': () => gate3(scenario(SEAT_RUN, SEAT), 'warn', states),
+  'uncovered-due': () =>
+    gate3(
+      scenario(
+        '    Given the time is "2026-11-08T12:00:00Z"\n    And the current payment is:\n      | payment_id | status | authorized_at |\n      | pay_abcd1234 | authorized | 2026-11-01T12:00:00Z |\n    When I run the operation with:\n      | payment_id |\n      | pay_abcd1234 |\n',
+        '@urn:demo:clock:payment:operation:expire_payment',
+      ),
+      'warn',
+      clock,
+    ),
   'invalid-time': () => gate3(scenario('    When I run the operation with:\n      | resume_on |\n      | 2026-12-01 |\n', '@urn:demo:time:pause:operation:pause'), 'warn', timed),
   'invalid-caller': () =>
     gate3(scenario('    When I run the operation with:\n      | claim_id |\n      | CLM-0000000001 |\n', '@urn:demo:callers:claim:operation:check_claim_id'), 'warn', callers),

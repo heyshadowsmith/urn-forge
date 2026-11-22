@@ -141,6 +141,21 @@ What the contracts still could not state:
 - A rule on each item of a list (`every`), such as the start of each ticket of an order.
 - "One of" in the rule language: `status != 'a' and status != 'b' …`.
 
+## Changes on a clock (E3)
+
+Nov 22, 2026: **65 of 143 promises declared (45.5%)**, up from 61. Refer to the [clock plan](./clock-plan.md). Payments P17, claims P23, subscriptions P21 and ticketing P07 are declared. E3 goes from 9 promises to 3: ticketing P15 moves to D2 and P19 to A2, as their clock parts are now stated.
+
+The contracts found one gap, closed in the same change: `Then the output is` compared timestamps as text, so `19:00:00Z` did not match `19:00:00.000Z`.
+
+What the contracts still could not state:
+- A timed change that changes other records: "its stock becomes available again" (inventory P16).
+- Moves that no one calls and no time decides, such as a bank that authorizes a payment (payments P20).
+- A built-in caller for the clock: a domain with a caller that requires a tenant or an employee makes those fields optional, and every rule guards them.
+- An operation only for the shell, which a promise of "exactly these operations" can leave out (inventory P07 is kept declared on that reading).
+- A rule on one event of a success with several events (ticketing P19, subscriptions P19).
+- No scenario shows that a stored record breaks an invariant, or that a caller does.
+- The stored record of an operation whose answer has another shape: the shell copies `submitted_at` or `captured_at` into it.
+
 ## The phases
 
 Each item is a plan of its own, with the format of the earlier plans: a target written first, one commit for each step, sabotages at the end. The order puts first what the most contracts need, and what fits the machinery that exists.
@@ -203,7 +218,8 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 6. Event delivery (D4). Done: 36.4%.
 7. Callers (D2). Done: 39.9%.
 8. The current time (E2). Done: 42.7%.
-9. The next plan. The score now puts A2 (13), C1 (9), E3 (9) and D3 (8) first.
+9. Changes on a clock (E3). Done: 45.5%.
+10. The next plan. The score now puts A2 (14), C1 (9), D3 (8) and C2 (7) first.
 
 ## Risks
 

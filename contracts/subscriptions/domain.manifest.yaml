@@ -111,6 +111,9 @@ subscription.field.proration:
 subscription.field.resume_on:
   primitive: date
   description: The day that a paused subscription resumes
+subscription.field.trial_will_end_sent_at:
+  primitive: timestamp
+  description: When subscription.trial_will_end was published for the trial, once
 subscription.field.cancel_mode:
   primitive: enum
   values: [immediately, at_period_end]
@@ -138,6 +141,8 @@ subscription.entity.subscription:
       required: false
     - ref: subscription.field.cancel_mode
       as: cancel_at
+      required: false
+    - ref: subscription.field.trial_will_end_sent_at
       required: false
 
 subscription.entity.create_request:
@@ -412,6 +417,11 @@ subscription.operation.create_subscription:
     - input.trial_days is present and input.trial_days > 0 or input.trial_end is present or output.status = 'active'
     - input.trial_days is absent or input.trial_days = 0 or output.status = 'trialing'
     - input.trial_end is absent or output.status = 'trialing'
+    - input.trial_end is absent or output.trial_end is present and output.trial_end = input.trial_end
+    - input.trial_days is absent or input.trial_days = 0 or output.trial_end is present and output.trial_end = today + input.trial_days
+    - input.trial_end is present or input.trial_days is present and input.trial_days > 0 or output.trial_end is absent
+    - output.trial_end is absent or output.trial_end >= today + 3 or output.trial_will_end_sent_at is present and output.trial_will_end_sent_at = now
+    - output.trial_end is absent or output.trial_end < today + 3 or output.trial_will_end_sent_at is absent
   errors:
     - subscription.error.invalid_trial_end
     - subscription.error.conflict
@@ -445,6 +455,8 @@ subscription.operation.change_plan:
   ensures:
     - input.proration != 'at_period_end' or output.scheduled_plan_id is present and output.scheduled_plan_id = input.plan_id
     - input.proration != 'at_period_end' or output.plan = current.plan
+    - current.trial_will_end_sent_at is absent or output.trial_will_end_sent_at is present and output.trial_will_end_sent_at = current.trial_will_end_sent_at
+    - current.trial_end is absent or output.trial_end is present and output.trial_end = current.trial_end
     - event.subscription_id = output.subscription_id
   errors:
     - subscription.error.not_found
@@ -502,12 +514,33 @@ subscription.operation.cancel_subscription:
     otherwise: subscription.error.invalid_state_transition
     missing: subscription.error.not_found
   ensures:
+    - current.trial_will_end_sent_at is absent or output.trial_will_end_sent_at is present and output.trial_will_end_sent_at = current.trial_will_end_sent_at
+    - current.trial_end is absent or output.trial_end is present and output.trial_end = current.trial_end
     - event.subscription_id = output.subscription_id
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
   emits:
     - event: subscription.event.canceled
+subscription.operation.announce_trial_end:
+  description: Publish subscription.trial_will_end once, 3 days before the trial ends, with no change of status; the shell's clock calls it
+  input: subscription.entity.lookup
+  output: subscription.entity.subscription
+  changes:
+    entity: subscription.entity.subscription
+    from: [trialing]
+    otherwise: subscription.error.invalid_state_transition
+    missing: subscription.error.not_found
+  due: current.trial_will_end_sent_at is absent and current.trial_end is present and today >= current.trial_end - 3
+  ensures:
+    - output.trial_will_end_sent_at is present and output.trial_will_end_sent_at = now
+    - current.trial_end is absent or output.trial_end is present and output.trial_end = current.trial_end
+    - event.subscription_id = output.subscription_id
+  errors:
+    - subscription.error.not_found
+    - subscription.error.invalid_state_transition
+  emits:
+    - event: subscription.event.trial_will_end
 invoice.operation.read_invoice:
   description: Read one invoice
   input: invoice.entity.lookup

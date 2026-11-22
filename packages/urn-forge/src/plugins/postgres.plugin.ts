@@ -20,7 +20,9 @@ import type { ConstraintsOf, Primitive } from '../primitives/index.js';
 import type { Format } from '../primitives/string.js';
 import { translateRegex } from './postgres-regex.js';
 import { hasOutbox, outboxSql } from './postgres-outbox.js';
-import { POSTGRES_STORE_FILE, storeFile } from './postgres-store.js';
+import { POSTGRES_STORE_FILE, storeFile, type DueQuery } from './postgres-store.js';
+import { ruleSql } from './postgres-rules.js';
+import { renameFields } from '../rules/index.js';
 import { tablesSql } from './postgres-tables.js';
 import { deprecationNote, numberLiteral, valuesInUrnOrder, type CodegenPlugin, type PluginDiagnostic } from './plugin.interface.js';
 
@@ -260,7 +262,32 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof P
     if (hasOutbox(ir)) out.push(...outboxSql(ir).slice(out.at(-1) === '' ? 1 : 0));
 
     if (diagnostics.some((d) => d.severity === 'error')) return { artifacts: [], diagnostics };
-    const store = storeFile(ir, model.store);
+    // A timed change: the query that finds the rows that it is due for, from its due rule, with now as $1.
+    const dues: DueQuery[] = [];
+    for (const op of valuesInUrnOrder(ir.operations)) {
+      if (!op.due || !op.changes) continue;
+      const root = model.store.find((r) => r.entity === op.changes!.entity);
+      if (!root) {
+        unenforced(op.urn, `due: ${op.changes.entity} is not a table, so no query finds the records that are due`);
+        continue;
+      }
+      const rule = renameFields(op.due.rule, (name) => (name.startsWith('current.') ? name.slice('current.'.length) : name));
+      const translated = ruleSql(ir, rule, ir.entities[op.changes.entity]!.fields, { now: '$1::TIMESTAMPTZ', today: "($1::TIMESTAMPTZ AT TIME ZONE 'UTC')::DATE" });
+      const state = root.columns.find((c) => c.property === op.changes!.property)?.column;
+      if (!translated.ok || state === undefined) {
+        unenforced(op.urn, `due: ${translated.ok ? 'the state is not a column' : translated.reason}, so no query finds the records that are due`);
+        continue;
+      }
+      const key = ident(root.key[0]!);
+      dues.push({
+        name: `select${op.brandIdentifier}Due`,
+        operation: op.urn,
+        ruleText: op.due.ruleText,
+        from: op.changes.from,
+        text: `SELECT ${key} FROM ${ident(root.schema)}.${ident(root.name)} WHERE ${ident(state)} = ANY($2) AND ${translated.sql} ORDER BY ${key} LIMIT $3`,
+      });
+    }
+    const store = storeFile(ir, model.store, dues);
     return {
       artifacts: [{ relativePath: POSTGRES_SCHEMA_FILE, content: `${out.join('\n')}\n` }, ...(store === undefined ? [] : [{ relativePath: POSTGRES_STORE_FILE, content: store }])],
       diagnostics,

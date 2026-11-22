@@ -80,8 +80,8 @@ Feature: Mark a claim paid
       | role    | employee_id |
       | finance | F-4004      |
     And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state   | purpose      | currency | total  | lines                                                                                                           |
-      | CLM-0000000123 | 1       | E-1001      | M-3003     | <state> | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] |
+      | claim_id       | version | employee_id | manager_id | state   | purpose      | currency | total  | lines                                                                                                           | submitted_at         |
+      | CLM-0000000123 | 1       | E-1001      | M-3003     | <state> | Client visit | EUR      | 120.00 | [{ category: MILEAGE, expense_date: 2026-11-02, description: Drive to Lyon, amount: 120.00, distance_km: 460 }] | 2026-10-20T09:00:00Z |
     When I run the operation with:
       | claim_id       | version | actor_id |
       | CLM-0000000123 | 1       | F-4004   |

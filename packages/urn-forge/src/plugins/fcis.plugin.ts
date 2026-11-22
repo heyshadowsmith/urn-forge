@@ -115,6 +115,14 @@ export function executeOperation<U extends OperationUrn>(
 export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options?: ExecuteOptions): ExecuteResult;
 export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options: ExecuteOptions = {}): ExecuteResult {`;
 
+/** A timed change: the shell's clock calls it only for a record that is due. */
+const DUE = `
+  // A timed change: the clock calls it only for a record that is due. A call too early is a bug in the shell.
+  const due = 'due' in contract ? contract.due : undefined;
+  if (result === undefined && due && !(due.check as (values: unknown) => boolean)({ input: input.output, current })) {
+    return violation(\`\${urn} is not due for this record: \${due.text}\`);
+  }`;
+
 /** The time of the call, from the shell, for an operation whose rules read it. */
 const TIME = `  // The time of the call, from the shell: a UTC timestamp. An operation whose rules read it needs it.
   const now = options.now;
@@ -152,7 +160,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
  * \`changes\` and the requires rules. The callers are checked before the state, so a caller who may
  * not call learns nothing of the record from another refusal.
  */
-const accessCall = (changes: boolean, reads: boolean, caller: boolean, conditions: boolean, time = false) => `${time ? TIME : ''}  // The caller, the record, who may call, then the state: the handler runs only when each holds.${changes ? `
+const accessCall = (changes: boolean, reads: boolean, caller: boolean, conditions: boolean, time = false, due = false) => `${time ? TIME : ''}  // The caller, the record, who may call, then the state: the handler runs only when each holds.${changes ? `
   const change: ChangeContract | undefined = 'changes' in contract ? contract.changes : undefined;` : ''}${reads ? `
   const read: ReadContract | undefined = 'reads' in contract ? contract.reads : undefined;` : ''}
   const record = ${[...(changes ? ['change?.entity'] : []), ...(reads ? ['read?.entity'] : [])].join(' ?? ') || 'undefined'};
@@ -191,7 +199,7 @@ const accessCall = (changes: boolean, reads: boolean, caller: boolean, condition
   if (result === undefined && callers.allow !== 'any' && !callers.allow.some((rule) => (rule.check as (values: unknown) => boolean)({ input: input.output, current, caller }))) {
     result = fill(callers.otherwise!, { ...(input.output as object), ...current, ...caller });
   }` : ''}${changes ? `
-  if (result === undefined && change && current && !change.from.includes(current[change.property] as string)) result = fill(change.otherwise, { ...(input.output as object), ...current });` : ''}${conditions ? REQUIRES : ''}
+  if (result === undefined && change && current && !change.from.includes(current[change.property] as string)) result = fill(change.otherwise, { ...(input.output as object), ...current });` : ''}${due ? DUE : ''}${conditions ? REQUIRES : ''}
   result ??= handler(input.output, current);`;
 
 const PLAIN_CALL = `  const result: unknown = handler(input.output);`;
@@ -318,7 +326,7 @@ function callSnippet(changes: boolean, conditions: boolean): string {
 }
 
 /** The gatekeeper: the same for every manifest, plus the record of `changes` when an operation has one. */
-const shell = (changes: boolean, conditions = false, counts = false, delivery = false, reads = false, caller = false, time = false) => `// Shell gatekeeper
+const shell = (changes: boolean, conditions = false, counts = false, delivery = false, reads = false, caller = false, time = false, due = false) => `// Shell gatekeeper
 
 export type OperationUrn = keyof DomainCoreImplementation;
 
@@ -448,7 +456,7 @@ function renderMessage(parts: readonly MessagePart[], fields: unknown): string {
  * Parses the input, calls the handler with branded input, then parses and brands its
  * output, or its error when the error is one the operation declares.
  */
-${reads || caller || time ? accessSignatures(changes || reads, caller, delivery, time) : delivery ? deliverySignatures(changes) : changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
+${reads || caller || time || due ? accessSignatures(changes || reads, caller, delivery, time) : delivery ? deliverySignatures(changes) : changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
   if (!isOperationUrn(urn)) {
     return { ok: false, kind: 'UnknownOperation', urn, issues: [{ path: '', message: \`unknown operation \${urn}\` }] };
   }
@@ -462,7 +470,7 @@ ${reads || caller || time ? accessSignatures(changes || reads, caller, delivery,
 
   const handler: unknown = core[urn];
   if (typeof handler !== 'function') return violation(\`no handler for \${urn}\`);
-${reads || caller || time ? accessCall(changes, reads, caller, conditions || counts, time) : callSnippet(changes, conditions || counts)}
+${reads || caller || time || due ? accessCall(changes, reads, caller, conditions || counts, time, due) : callSnippet(changes, conditions || counts)}
   if (!isResult(result)) return violation(\`the handler for \${urn} did not return a Result; return ok(…) or fail(…)\`);
 
   // \`=== false\`, not \`!result.ok\`: without strictNullChecks, TypeScript narrows a union on
@@ -694,8 +702,9 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
     const anyChanges = operations.some((op) => op.changes !== undefined);
     const anyReads = operations.some((op) => op.reads !== undefined);
     const anyTime = operations.some(readsTime);
+    const anyDue = operations.some((op) => op.due !== undefined);
     const anyCaller = ir.meta.caller !== undefined;
-    const anyConditions = operations.some((op) => op.requires !== undefined || op.ensures !== undefined || op.exactly !== undefined) || anyCaller;
+    const anyConditions = operations.some((op) => op.requires !== undefined || op.ensures !== undefined || op.exactly !== undefined || op.due !== undefined) || anyCaller;
     const handlers = operations.map((op) => {
       const errorTypes = op.errors.map((urn) => `s.${schemaNames(error(urn).brandIdentifier).input}`);
       // Only the events of the operation: tsc refuses another.
@@ -778,6 +787,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       ...(anyReads ? [`  /** The record that the operation reads, when it reads one. */`, `  readonly reads?: ReadContract;`] : []),
       ...(anyCaller ? [`  /** Who may call the operation. */`, `  readonly callers: CallersContract;`] : []),
       ...(anyTime ? [`  /** The rules of the operation read the time of the call, so the shell must give it. */`, `  readonly time?: true;`] : []),
+      ...(anyDue ? [`  /** For a timed change: when the shell's clock must call it, for a record. */`, `  readonly due?: ConditionInfo;`] : []),
       ...(anyConditions
         ? [
             `  /** Rules that must hold before the handler runs, each with the error that answers when it does not. */`,
@@ -893,6 +903,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
             ]
           : []),
         ...(readsTime(op) ? [`    time: true,`] : []),
+        ...(op.due ? [`    due: { text: ${q(op.due.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'due', 0)} },`] : []),
         ...(op.callers
           ? [
               op.callers.allow === 'any'
@@ -951,11 +962,11 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       `// Dispatch`,
       dispatch,
       (anyTime
-        ? shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, true)
+        ? shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, true, anyDue)
             // The rules read the time of the call, and the handler gets it.
             .replaceAll('{ input: input.output, current', '{ input: input.output, now, today, current')
             .replace('result ??= handler(input.output, current);', 'result ??= handler(input.output, current, now);')
-        : shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller)
+        : shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, false, anyDue)
       ).trimEnd(),
     ];
     return {

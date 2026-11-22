@@ -157,6 +157,7 @@ Feature: Ship a reservation
       | purchasing_system    |
       | warehouse_staff      |
       | warehouse_supervisor |
+      | clock                |
 
   Scenario Outline: A refused caller does not learn the state of the reservation
     Given the caller is:

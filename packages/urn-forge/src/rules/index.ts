@@ -791,6 +791,29 @@ export function namesIn(expr: RuleExpr): string[] {
   return [...new Set(names)];
 }
 
+/** The same rule with each name that `rename` gives: for example, without its prefix. */
+export function renameFields(expr: RuleExpr, rename: (name: string) => string): RuleExpr {
+  switch (expr.op) {
+    case 'field':
+      return { op: 'field', name: rename(expr.name) };
+    case 'present':
+    case 'absent':
+      return { op: expr.op, field: rename(expr.field) };
+    case 'not':
+      return { op: 'not', operand: renameFields(expr.operand, rename) };
+    case 'number':
+    case 'text':
+    case 'boolean':
+      return expr;
+    case 'sum':
+      return { op: 'sum', item: expr.item, list: rename(expr.list), value: renameFields(expr.value, (n) => (n === expr.item || n.startsWith(`${expr.item}.`) ? n : rename(n))) };
+    case 'duration':
+      return { op: 'duration', value: renameFields(expr.value, rename), unit: expr.unit };
+    default:
+      return { op: expr.op, left: renameFields(expr.left, rename), right: renameFields(expr.right, rename) };
+  }
+}
+
 /** The first field a rule names, in text order: where a broken invariant points. */
 export function firstField(expr: RuleExpr): string | undefined {
   switch (expr.op) {

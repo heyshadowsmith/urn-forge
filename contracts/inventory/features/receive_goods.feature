@@ -137,3 +137,4 @@ Feature: Receive goods for a purchase order
       | role                 |
       | order_system         |
       | warehouse_supervisor |
+      | clock                |

@@ -254,7 +254,7 @@ function conditionDeclarations(ir: UniversalIR): string[] {
   return valuesInUrnOrder(ir.operations).flatMap((op) => {
     const whens = (op.exactly ?? []).flatMap((item, i) => (item.when ? [[item.when, i] as const] : []));
     const allows = op.callers && op.callers.allow !== 'any' ? op.callers.allow : [];
-    if (!op.requires && !op.ensures && whens.length === 0 && allows.length === 0) return [];
+    if (!op.requires && !op.ensures && whens.length === 0 && allows.length === 0 && !op.due) return [];
     const typeOf = (urn: Urn) => schemaNames(ir.entities[urn]!.brandIdentifier).output;
     const record = op.changes?.entity ?? op.reads?.entity;
     const values = [`input: ${typeOf(op.input)}`, ...(record ? [`current: ${typeOf(record)}`] : [])];
@@ -262,13 +262,13 @@ function conditionDeclarations(ir: UniversalIR): string[] {
     const eventType = (op.exactly ?? []).map((item) => schemaNames(ir.events[item.event]!.brandIdentifier).output).join(' | ');
     const primitiveOf = conditionPrimitives(op, ir);
     const propertiesOf = conditionEmbedded(op, ir);
-    const declare = (rule: IRRule, kind: 'requires' | 'ensures' | 'when' | 'caller', index: number) => {
+    const declare = (rule: IRRule, kind: 'requires' | 'ensures' | 'when' | 'caller' | 'due', index: number) => {
       const event = kind === 'ensures' && namesIn(rule.rule).some((name) => name.startsWith('event.'));
       const timeNames = namesIn(rule.rule).filter((name) => name === 'now' || name === 'today');
       const parameters = [
         ...values,
         ...timeNames.map((name) => `${name}: string`),
-        ...(kind === 'requires' || kind === 'caller' ? [] : [`output: ${typeOf(op.output)}`]),
+        ...(kind === 'requires' || kind === 'caller' || kind === 'due' ? [] : [`output: ${typeOf(op.output)}`]),
         ...(event ? [`event: ${eventType}`] : []),
         ...(kind === 'caller' ? [`caller: ${typeOf(ir.meta.caller!)}`] : []),
       ];
@@ -283,6 +283,7 @@ function conditionDeclarations(ir: UniversalIR): string[] {
       ...(op.ensures ?? []).map((rule, i) => declare(rule, 'ensures', i)),
       ...whens.map(([rule, i]) => declare(rule, 'when', i)),
       ...allows.map((rule, i) => declare(rule, 'caller', i)),
+      ...(op.due ? [declare(op.due, 'due', 0)] : []),
     ];
   });
 }
@@ -424,7 +425,7 @@ function helpersFor(ir: UniversalIR): ValibotHelper[] {
   }
   for (const op of Object.values(ir.operations)) {
     const allows = op.callers && op.callers.allow !== 'any' ? op.callers.allow : [];
-    for (const rule of [...(op.requires ?? []), ...(op.ensures ?? []), ...(op.exactly ?? []).flatMap((item) => (item.when ? [item.when] : [])), ...allows]) {
+    for (const rule of [...(op.requires ?? []), ...(op.ensures ?? []), ...(op.exactly ?? []).flatMap((item) => (item.when ? [item.when] : [])), ...allows, ...(op.due ? [op.due] : [])]) {
       for (const helper of emitRule(rule.rule, conditionPrimitives(op, ir), conditionEmbedded(op, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
     }
   }

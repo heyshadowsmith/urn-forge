@@ -50,17 +50,18 @@ promises:
   P10:
     promise: "A claim is in exactly one state of DRAFT, SUBMITTED, APPROVED, REJECTED, WITHDRAWN or PAID, and the only allowed moves are DRAFT to SUBMITTED, SUBMITTED to APPROVED, REJECTED or WITHDRAWN, REJECTED to DRAFT, and APPROVED to PAID."
     status: declared
-    by: [claim.field.state, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid]
+    by: [claim.field.state, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid, claim.operation.report_overdue]
   # PAID and WITHDRAWN are final by the moves of the state; that the lines and amounts cannot change once a claim leaves DRAFT is not stated.
   P11:
     promise: "PAID and WITHDRAWN are final states, and once a claim leaves DRAFT its lines and amounts cannot be changed."
     status: not-declarable
     hole: C3
-  # A create request sends no version; its answer has version 1.
+  # A create request sends no version; its answer has version 1. The answer to a submission also holds
+  # when the claim was submitted (submission_answer), which P23 counts from.
   P12:
     promise: "A successful request answers with the claim id, its new state, its total and currency, and its new version number, which is 1 higher than the version sent."
     status: declared
-    by: [claim.entity.answer, claim.entity.rejection_answer, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid]
+    by: [claim.entity.answer, claim.entity.rejection_answer, claim.entity.submission_answer, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid]
   # INVALID_REQUEST is the rejection of the input, not a declared error; the codes as names on the wire, and that a refusal changes nothing, are not stated.
   P13:
     promise: "A refused request answers with exactly one of the codes INVALID_REQUEST, NOT_FOUND, FORBIDDEN, INVALID_STATE, VERSION_CONFLICT or DUPLICATE_RECEIPT, plus a human-readable message, and changes nothing."
@@ -94,6 +95,8 @@ promises:
   # submit_claim, withdraw_claim: caller.employee_id = current.employee_id; get_claim reads the stored claim
   # (reads) and allows the owner, current.manager_id or role finance. Every rule also needs input.actor_id =
   # caller.employee_id, so the actor that the events carry is the caller. Each other caller gets forbidden.
+  # The shell's clock (role clock) has no employee_id, and each rule needs caller.employee_id is present,
+  # so the clock can call none of these; it can call only report_overdue (P23).
   # The manager is the manager_id stored with the claim, from the employee directory, as the shell gives the record.
   P18:
     promise: "Only the employee who owns a claim may create, edit, submit or withdraw it, and only that employee, their manager and finance users may read it."
@@ -122,15 +125,27 @@ promises:
   P21:
     promise: "Events are delivered at least once, carry a unique event id for deduplication, and events of one claim are delivered in the order the changes happened."
     status: declared
-    by: [event.field.event_id, claim.field.claim_id, claim.event.claim_submitted, claim.event.claim_approved, claim.event.claim_rejected, claim.event.claim_withdrawn, claim.event.claim_paid]
+    by: [event.field.event_id, claim.field.claim_id, claim.event.claim_submitted, claim.event.claim_approved, claim.event.claim_rejected, claim.event.claim_withdrawn, claim.event.claim_paid, claim.event.claim_decision_overdue]
   P22:
     promise: "All timestamps are ISO 8601 in UTC, while expense dates are calendar dates without time zone."
     status: declared
-    by: [event.field.occurred_at, line.field.expense_date]
+    by: [event.field.occurred_at, line.field.expense_date, claim.field.submitted_at, claim.field.overdue_reported_at]
+  # The record holds submitted_at: submit_claim ensures output.submitted_at = now in its answer, the shell
+  # stores it, and claim.invariant.submitted_has_time (schema and SQL CHECK) keeps it on a SUBMITTED claim.
+  # Each submission sets it again, so a claim rejected, edited and submitted again counts from its last
+  # submission. report_overdue is a timed change: changes from [SUBMITTED] with no `to` (the runtime keeps
+  # the state), due: current.submitted_at is present and (current.overdue_reported_at is absent or
+  # current.overdue_reported_at < current.submitted_at) and now >= current.submitted_at + 30 days. The mark
+  # overdue_reported_at (ensures output.overdue_reported_at = now) makes it due once per submission; a mark
+  # of an earlier submission is older than submitted_at. It emits exactly one claim_decision_overdue
+  # (ClaimDecisionOverdue), whose fields its ensures tie to the record and to now, with output.state =
+  # current.state. Only the shell's clock (caller.role = 'clock') may call it; selectClaimReportOverdueDue
+  # finds the claims that are due, from the same rule, as claim.entity.claim is a table. A call that is not
+  # due is a ContractViolation. That the shell runs its clock is the shell's, as the transport of events (P21).
   P23:
     promise: "A claim left in SUBMITTED for 30 days without a decision is reported in a ClaimDecisionOverdue event, and its state is not changed by that."
-    status: not-declarable
-    hole: E3
+    status: declared
+    by: [claim.operation.report_overdue, claim.event.claim_decision_overdue, claim.field.submitted_at, claim.field.overdue_reported_at, claim.entity.claim, claim.entity.claim_ref, claim.invariant.submitted_has_time, claim.operation.submit_claim, claim.entity.submission_answer, claim.error.clock_only, auth.field.role, auth.entity.caller]
   P24:
     promise: "Within a major version, new optional fields, event types, categories or refusal codes may be added, but existing fields, states and codes are never removed or renamed, and callers must ignore unknown fields."
     status: not-declarable

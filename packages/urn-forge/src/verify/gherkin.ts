@@ -96,6 +96,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const expectedErrors = new Set<string>();
   /** `<operation URN> <event URN>` for each event some scenario expects. */
   const expectedEvents = new Set<string>();
+  /** Each timed change that a scenario calls for a record that is not due. */
+  const notDue = new Set<string>();
   /** Each event that a scenario expects a success without: the other side of a \`when\` rule. */
   const absentEvents = new Set<string>();
   /** `<operation URN> <event URN>` for each record of a refusal some scenario expects. */
@@ -178,6 +180,12 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
       let runs: SourceLocation | undefined;
       for (const step of scenario.steps) {
         if (step.text === STEP_PHRASES.run) runs ??= step.location;
+        // `Then the operation is not due`: a timed change, called too early.
+        if (step.text === STEP_PHRASES.notDue) {
+          if (operation?.due && owner) notDue.add(owner.urn);
+          else report('uncovered-due', step.location, `"${step.text}" is for an operation with due, and ${owner?.urn ?? 'the scenario'} has none`, owner?.urn ?? '');
+          continue;
+        }
         // `Given the time is "<timestamp>"`: the time of the call, a UTC timestamp.
         if (timeOf(step.text) !== undefined) {
           hasTime = true;
@@ -454,6 +462,17 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         message: `${operation.urn} has no scenario with a ${change.property} outside ${change.from.join(', ')} that expects "${change.otherwise}"; add one with Given the current ${identifier} is: and Then the operation fails with "${change.otherwise}"`,
       });
     }
+  }
+  // A timed change: a scenario must call it for a record that is not due, the other side of its due rule.
+  for (const operation of Object.values(ir.operations)) {
+    if (!operation.due || !covered.has(operation.urn) || notDue.has(operation.urn)) continue;
+    problems.push({
+      code: 'uncovered-due',
+      severity: coverageSeverity(operation.urn),
+      file: features.directory,
+      urn: operation.urn,
+      message: `${operation.urn} runs when ${operation.due.ruleText}, and no scenario calls it for a record that is not due; add one with Then the operation is not due`,
+    });
   }
   const coveredStateCount = [...coveredStates].filter((key) => {
     const [urn, state] = key.split(' ');

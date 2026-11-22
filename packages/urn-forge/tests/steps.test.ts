@@ -95,6 +95,9 @@ describe('assertOutput', () => {
 
   it('passes when every expected column matches', () => {
     expect(() => assertOutput(ok({ quotient: 5, extra: 1 }), { quotient: 5 }, URN)).not.toThrow();
+    // Two texts of one UTC instant are equal; two instants are not.
+    expect(() => assertOutput(ok({ at: '2026-12-04T19:00:00.000Z' }), { at: '2026-12-04T19:00:00Z' }, URN)).not.toThrow();
+    expect(() => assertOutput(ok({ at: '2026-12-04T19:00:00.001Z' }), { at: '2026-12-04T19:00:00Z' }, URN)).toThrow(/at: expected/);
     expect(() => assertOutput(ok({ quotient: Number.NaN }), { quotient: Number.NaN }, URN)).not.toThrow();
   });
 

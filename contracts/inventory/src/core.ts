@@ -55,7 +55,8 @@ export const core = {
     );
   },
 
-  'urn:corpus:inventory:reservation:operation:reserve_stock': ({ idempotency_key, order_id, lines, ttl_minutes }) => {
+  // The shell gives the time of the call (now): the reservation expires ttl_minutes after it, 30 by default.
+  'urn:corpus:inventory:reservation:operation:reserve_stock': ({ idempotency_key, order_id, lines, ttl_minutes }, _current, now) => {
     const refused = conflict(idempotency_key) ?? unknown(lines);
     if (refused) return refused;
     const short = lines.filter((line) => line.quantity > AVAILABLE);
@@ -78,7 +79,7 @@ export const core = {
         ? [reserved, emit('urn:corpus:inventory:stock:event:stock_depleted', { ...event, sku, location })]
         : [reserved];
     });
-    const expires = new Date(Date.parse(NOW) + (ttl_minutes ?? DEFAULT_TTL_MINUTES) * 60_000).toISOString();
+    const expires = new Date(Date.parse(now) + (ttl_minutes ?? DEFAULT_TTL_MINUTES) * 60_000).toISOString();
     return ok(
       {
         result: 'RESERVED' as const,
@@ -106,6 +107,25 @@ export const core = {
         level: { sku, location, on_hand: ON_HAND, reserved: RESERVED - quantity, available: AVAILABLE + quantity },
       }),
     ]);
+  },
+
+  // The shell's clock calls it for an active reservation whose expiry time has come: each line gives its units back.
+  'urn:corpus:inventory:reservation:operation:expire_reservation': ({ idempotency_key, reservation_id }, current) => {
+    const refused = conflict(idempotency_key);
+    if (refused) return refused;
+    return ok(
+      { reservation_id, state: 'EXPIRED' as const },
+      current.lines.map(({ sku, location, quantity }) =>
+        emit('urn:corpus:inventory:reservation:event:reservation_expired', {
+          ...event,
+          reservation_id,
+          sku,
+          location,
+          quantity_changed: quantity,
+          level: { sku, location, on_hand: ON_HAND, reserved: RESERVED - quantity, available: AVAILABLE + quantity },
+        }),
+      ),
+    );
   },
 
   'urn:corpus:inventory:reservation:operation:ship_reservation': ({ idempotency_key, reservation_id, lines }) => {

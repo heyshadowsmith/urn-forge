@@ -9,8 +9,8 @@ manifest:
 
 auth.field.role:
   primitive: enum
-  values: [employee, manager, finance]
-  description: The role of the caller, as the shell authenticated them; finance users pay claims
+  values: [employee, manager, finance, clock]
+  description: The role of the caller, as the shell authenticated them; finance users pay claims, and clock is the shell's clock, which calls the timed changes
 
 claim.field.claim_id:
   primitive: string
@@ -57,6 +57,12 @@ claim.field.reason:
   minLength: 10
   maxLength: 500
   description: Why a manager rejected a claim
+claim.field.submitted_at:
+  primitive: timestamp
+  description: When the claim was last submitted, ISO 8601 in UTC
+claim.field.overdue_reported_at:
+  primitive: timestamp
+  description: When the claim was reported as waiting for a decision for 30 days since its last submission, ISO 8601 in UTC
 
 line.field.category:
   primitive: enum
@@ -107,10 +113,11 @@ event.field.occurred_at:
 # Entities
 
 auth.entity.caller:
-  description: Who calls, as the shell authenticated them
+  description: Who calls, as the shell authenticated them; the shell's clock has the role clock and no employee id
   fields:
     - ref: auth.field.role
     - ref: claim.field.employee_id
+      required: false
 
 receipt.entity.receipt:
   description: A receipt file for an expense
@@ -199,6 +206,19 @@ claim.entity.answer:
     - ref: claim.field.total
     - ref: claim.field.currency
     - ref: claim.field.version
+claim.entity.submission_answer:
+  description: The answer to a submission, with when the claim was submitted
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.state
+    - ref: claim.field.total
+    - ref: claim.field.currency
+    - ref: claim.field.version
+    - ref: claim.field.submitted_at
+claim.entity.claim_ref:
+  description: The claim that the shell's clock acts on
+  fields:
+    - ref: claim.field.claim_id
 claim.entity.rejection_answer:
   description: The answer to a rejection, with its reason
   fields:
@@ -225,6 +245,10 @@ claim.entity.claim:
       many: { minItems: 1, maxItems: 50 }
     - ref: claim.field.reason
       required: false
+    - ref: claim.field.submitted_at
+      required: false
+    - ref: claim.field.overdue_reported_at
+      required: false
 
 claim.invariant.total_is_sum:
   description: The total of a claim is the sum of its line amounts
@@ -232,6 +256,14 @@ claim.invariant.total_is_sum:
   rule: 'total = sum(line in lines: line.amount)'
   reportOn: total
   message: The total must be the sum of the line amounts
+# The shell stores the submitted_at of the answer of submit_claim in the record, as each submission
+# sets it, so a SUBMITTED claim holds when it was last submitted.
+claim.invariant.submitted_has_time:
+  description: A submitted claim holds when it was last submitted
+  on: claim.entity.claim
+  rule: state != 'SUBMITTED' or submitted_at is present
+  reportOn: submitted_at
+  message: A submitted claim needs the time of its submission
 
 # Refusals
 
@@ -272,6 +304,13 @@ claim.error.duplicate_receipt:
   message: The receipt {sha256} is already on a claim
   fields:
     - ref: receipt.field.sha256
+claim.error.clock_only:
+  description: Only the shell's clock may report a claim as overdue
+  category: forbidden
+  retryable: false
+  message: Only the clock may report the claim {claim_id} as overdue
+  fields:
+    - ref: claim.field.claim_id
 
 # Events
 
@@ -314,6 +353,19 @@ claim.event.claim_rejected:
     - ref: event.field.occurred_at
     - ref: claim.field.reason
   delivery: *delivery
+claim.event.claim_decision_overdue:
+  description: A claim waits in SUBMITTED for a decision for 30 days since its last submission; its state does not change
+  fields:
+    - ref: event.field.event_id
+    - ref: claim.field.claim_id
+    - ref: claim.field.employee_id
+    - ref: claim.field.manager_id
+    - ref: claim.field.total
+    - ref: claim.field.currency
+    - ref: claim.field.state
+    - ref: claim.field.submitted_at
+    - ref: event.field.occurred_at
+  delivery: *delivery
 
 # Operations
 
@@ -326,7 +378,7 @@ claim.operation.create_draft:
     - 'output.total = sum(line in input.lines: line.amount)'
   callers:
     allow:
-      - input.actor_id = caller.employee_id and caller.employee_id = input.employee_id
+      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = input.employee_id
     otherwise: claim.error.forbidden
   errors: [claim.error.forbidden, claim.error.duplicate_receipt]
 claim.operation.edit_draft:
@@ -349,13 +401,13 @@ claim.operation.edit_draft:
     - 'output.total = sum(line in input.lines: line.amount)'
   callers:
     allow:
-      - input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
+      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
     otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
 claim.operation.submit_claim:
   description: Submit a draft claim for a decision
   input: claim.entity.change
-  output: claim.entity.answer
+  output: claim.entity.submission_answer
   changes:
     entity: claim.entity.claim
     from: [DRAFT]
@@ -370,6 +422,7 @@ claim.operation.submit_claim:
     - output.version = input.version + 1
     - output.total = current.total
     - output.currency = current.currency
+    - output.submitted_at = now
     - event.claim_id = output.claim_id
     - event.employee_id = current.employee_id
     - event.total = output.total
@@ -378,7 +431,7 @@ claim.operation.submit_claim:
     - event.actor_id = input.actor_id
   callers:
     allow:
-      - input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
+      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
     otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
@@ -409,7 +462,7 @@ claim.operation.withdraw_claim:
     - event.actor_id = input.actor_id
   callers:
     allow:
-      - input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
+      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
     otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
@@ -440,7 +493,7 @@ claim.operation.approve_claim:
     - event.actor_id = input.actor_id
   callers:
     allow:
-      - input.actor_id = caller.employee_id and caller.employee_id = current.manager_id and caller.employee_id != current.employee_id
+      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.manager_id and caller.employee_id != current.employee_id
     otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
@@ -473,7 +526,7 @@ claim.operation.reject_claim:
     - event.reason = input.reason
   callers:
     allow:
-      - input.actor_id = caller.employee_id and caller.employee_id = current.manager_id
+      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.manager_id
     otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
@@ -504,7 +557,7 @@ claim.operation.mark_paid:
     - event.actor_id = input.actor_id
   callers:
     allow:
-      - input.actor_id = caller.employee_id and caller.role = 'finance'
+      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.role = 'finance'
     otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
@@ -518,8 +571,46 @@ claim.operation.get_claim:
     missing: claim.error.not_found
   callers:
     allow:
-      - input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
-      - input.actor_id = caller.employee_id and caller.employee_id = current.manager_id
-      - input.actor_id = caller.employee_id and caller.role = 'finance'
+      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
+      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.manager_id
+      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.role = 'finance'
     otherwise: claim.error.forbidden
   errors: [claim.error.not_found, claim.error.forbidden]
+# The shell's clock calls it for each claim that selectClaimReportOverdueDue gives. A claim is due
+# 30 days after its last submission, until it holds a mark of this submission: a mark older than
+# submitted_at is from an earlier submission, before a rejection and a new submission.
+claim.operation.report_overdue:
+  description: Report a claim that waits in SUBMITTED for a decision for 30 days since its last submission, once, with no change of state
+  input: claim.entity.claim_ref
+  output: claim.entity.claim
+  changes:
+    entity: claim.entity.claim
+    from: [SUBMITTED]
+    missing: claim.error.not_found
+    otherwise: claim.error.invalid_state
+  due: current.submitted_at is present and (current.overdue_reported_at is absent or current.overdue_reported_at < current.submitted_at) and now >= current.submitted_at + 30 days
+  ensures:
+    - output.state = current.state
+    - output.overdue_reported_at is present and output.overdue_reported_at = now
+    - current.submitted_at is present and output.submitted_at is present and output.submitted_at = current.submitted_at
+    - output.version = current.version
+    - output.employee_id = current.employee_id
+    - output.manager_id = current.manager_id
+    - output.total = current.total
+    - output.currency = current.currency
+    - output.purpose = current.purpose
+    - event.claim_id = current.claim_id
+    - event.employee_id = current.employee_id
+    - event.manager_id = current.manager_id
+    - event.total = current.total
+    - event.currency = current.currency
+    - event.state = current.state
+    - current.submitted_at is present and event.submitted_at = current.submitted_at
+    - event.occurred_at = now
+  callers:
+    allow:
+      - caller.role = 'clock'
+    otherwise: claim.error.clock_only
+  errors: [claim.error.not_found, claim.error.invalid_state, claim.error.clock_only]
+  emits:
+    - event: claim.event.claim_decision_overdue

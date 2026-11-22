@@ -5,10 +5,11 @@ manifest:
   caller: access.entity.caller
 
 # Who calls, as the shell authenticated them. Authentication is the shell's; who may call each
-# operation is stated in its callers.
+# operation is stated in its callers. The clock is the shell's own clock, which calls the timed
+# changes for each record that is due.
 access.field.role:
   primitive: enum
-  values: [order_system, purchasing_system, warehouse_staff, warehouse_supervisor]
+  values: [order_system, purchasing_system, warehouse_staff, warehouse_supervisor, clock]
   description: The kind of caller, as the shell authenticated it
 access.entity.caller:
   description: Who calls, as the shell authenticated them
@@ -274,6 +275,7 @@ reservation.entity.reserve_request:
       required: false
 reservation.entity.reservation:
   description: A reservation that holds every requested line in full
+  key: reservation.field.reservation_id
   fields:
     - ref: reservation.field.result
     - ref: reservation.field.reservation_id
@@ -297,6 +299,11 @@ reservation.entity.ship_request:
       as: lines
       required: false
       many: { minItems: 1, maxItems: 100 }
+reservation.entity.expire_request:
+  description: A request of the shell's clock to expire a reservation whose time has come
+  fields:
+    - ref: request.field.idempotency_key
+    - ref: reservation.field.reservation_id
 reservation.entity.reservation_status:
   description: The state of a reservation after a change
   fields:
@@ -398,6 +405,10 @@ reservation.operation.reserve_stock:
     - stock.error.insufficient_stock
     - request.error.idempotency_conflict
     - access.error.forbidden
+  # The reservation expires 30 minutes after it is made, or after the time-to-live of the request.
+  ensures:
+    - input.ttl_minutes is present or output.expires_at = now + 30 minutes
+    - input.ttl_minutes is absent or output.expires_at = now + input.ttl_minutes minutes
   emits: [reservation.event.stock_reserved, stock.event.stock_depleted]
 reservation.operation.release_reservation:
   description: Give the stock of an active or partly shipped reservation back
@@ -419,6 +430,29 @@ reservation.operation.release_reservation:
     - request.error.idempotency_conflict
     - access.error.forbidden
   emits: [reservation.event.reservation_released]
+# A timed change: the shell's clock calls it for each active reservation whose expiry time has
+# come (selectReservationExpireReservationDue in the store file finds them).
+reservation.operation.expire_reservation:
+  description: Expire an active reservation whose expiry time has come, and give its stock back
+  input: reservation.entity.expire_request
+  output: reservation.entity.reservation_status
+  changes:
+    entity: reservation.entity.reservation
+    from: [ACTIVE]
+    to: EXPIRED
+    otherwise: reservation.error.invalid_state
+    missing: reservation.error.reservation_not_found
+  due: now >= current.expires_at
+  callers:
+    allow:
+      - caller.role = 'clock'
+    otherwise: access.error.forbidden
+  errors:
+    - reservation.error.reservation_not_found
+    - reservation.error.invalid_state
+    - request.error.idempotency_conflict
+    - access.error.forbidden
+  emits: [reservation.event.reservation_expired]
 reservation.operation.ship_reservation:
   description: Ship a reservation, in full or the stated quantity per line
   input: reservation.entity.ship_request

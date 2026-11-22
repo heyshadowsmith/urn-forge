@@ -35,8 +35,9 @@ export const core = {
     duplicate(input.lines) ??
     ok({ claim_id: current.claim_id, state: 'DRAFT', total: total(input.lines), currency: input.currency, version: current.version + 1 }),
 
-  'urn:corpus:claims:claim:operation:submit_claim': (input, current) =>
-    ((m) => ok(m.answer, [emit('urn:corpus:claims:claim:event:claim_submitted', m.fields)]))(move('SUBMITTED', input, current)),
+  // The answer holds when the claim was submitted, the time of the call; the shell stores it in the record.
+  'urn:corpus:claims:claim:operation:submit_claim': (input, current, now) =>
+    ((m) => ok({ ...m.answer, submitted_at: now }, [emit('urn:corpus:claims:claim:event:claim_submitted', m.fields)]))(move('SUBMITTED', input, current)),
 
   'urn:corpus:claims:claim:operation:withdraw_claim': (input, current) =>
     ((m) => ok(m.answer, [emit('urn:corpus:claims:claim:event:claim_withdrawn', m.fields)]))(move('WITHDRAWN', input, current)),
@@ -54,4 +55,11 @@ export const core = {
   },
 
   'urn:corpus:claims:claim:operation:get_claim': (_input, current) => ok(current),
+
+  // The shell's clock calls it for a claim that is due: the claim keeps its state and holds the mark of the report.
+  'urn:corpus:claims:claim:operation:report_overdue': (_input, current, now) => {
+    const { claim_id, employee_id, manager_id, total, currency, state, submitted_at } = current;
+    const fields = { claim_id, employee_id, manager_id, total, currency, state, submitted_at: submitted_at!, occurred_at: now };
+    return ok({ ...current, overdue_reported_at: now }, [emit('urn:corpus:claims:claim:event:claim_decision_overdue', fields)]);
+  },
 } satisfies DomainCoreImplementation;

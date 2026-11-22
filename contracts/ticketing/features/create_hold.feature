@@ -3,6 +3,7 @@
 Feature: Hold seats and standing places during checkout
 
   Scenario: A hold of one seat and two standing places gives the price of each line, the total and the expiry
+    Given the time is "2026-12-01T19:00:00Z"
     When I run the operation with:
       | idempotency_key | event_id                             | lines                                                                                                                   |
       | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }, { place_kind: standing, section: FLOOR, quantity: 2 }] |
@@ -13,7 +14,25 @@ Feature: Hold seats and standing places during checkout
       | message_id                           | event_id                             | hold_id                              | occurred_at          |
       | 00000000-0000-4000-8000-000000000001 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 2026-12-01T19:00:00Z |
 
+  Scenario Outline: The hold is created at the time of the call and expires exactly 10 minutes later
+    Given the time is "<now>"
+    When I run the operation with:
+      | idempotency_key | event_id                             | lines                                                          |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
+    Then the output is:
+      | hold_id                              | created_at | expires_at   |
+      | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | <now>      | <expires_at> |
+    And the operation emits "urn:corpus:ticketing:hold:event:hold_created":
+      | message_id                           | event_id                             | hold_id                              | occurred_at |
+      | 00000000-0000-4000-8000-000000000001 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | <now>       |
+
+    Examples:
+      | now                      | expires_at               |
+      | 2026-12-01T19:55:00Z     | 2026-12-01T20:05:00Z     |
+      | 2026-12-31T23:54:59.999Z | 2027-01-01T00:04:59.999Z |
+
   Scenario Outline: Values at the edges of their limits are accepted
+    Given the time is "2026-12-01T19:00:00Z"
     When I run the operation with:
       | idempotency_key   | event_id                             | lines   |
       | <idempotency_key> | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | <lines> |
@@ -31,6 +50,7 @@ Feature: Hold seats and standing places during checkout
       | hold-key-0005    | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }, { place_kind: seated, section: A1, row: D, seat_number: 12 }] |
 
   Scenario Outline: A request outside the limits of a field is rejected at the boundary
+    Given the time is "2026-12-01T19:00:00Z"
     When I run the operation with:
       | idempotency_key   | event_id   | lines   |
       | <idempotency_key> | <event_id> | <lines> |
@@ -53,6 +73,7 @@ Feature: Hold seats and standing places during checkout
       | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }, { place_kind: seated, section: A1, row: C, seat_number: 12 }] |
 
   Scenario Outline: A seated line that does not name exactly one seat is rejected
+    Given the time is "2026-12-01T19:00:00Z"
     When I run the operation with:
       | idempotency_key | event_id                             | lines   |
       | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | <lines> |
@@ -65,6 +86,7 @@ Feature: Hold seats and standing places during checkout
       | [{ place_kind: seated, section: A1, row: C, seat_number: 12, quantity: 2 }] |
 
   Scenario Outline: A standing line with a row or a seat number, or without a quantity, is rejected
+    Given the time is "2026-12-01T19:00:00Z"
     When I run the operation with:
       | idempotency_key | event_id                             | lines   |
       | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | <lines> |
@@ -77,6 +99,7 @@ Feature: Hold seats and standing places during checkout
       | [{ place_kind: standing, section: FLOOR, quantity: 2, seat_number: 4 }] |
 
   Scenario: Seats that cannot be held are all listed, and nothing is held
+    Given the time is "2026-12-01T19:00:00Z"
     When I run the operation with:
       | idempotency_key | event_id                             | lines                                                                                                                                                    |
       | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: Q, seat_number: 3 }, { place_kind: seated, section: A1, row: C, seat_number: 12 }, { place_kind: seated, section: B, row: Q, seat_number: 4 }] |
@@ -86,6 +109,7 @@ Feature: Hold seats and standing places during checkout
     And the operation emits no event
 
   Scenario: A standing section without enough capacity is named, and nothing is held
+    Given the time is "2026-12-01T19:00:00Z"
     When I run the operation with:
       | idempotency_key | event_id                             | lines                                                  |
       | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: standing, section: SOLD, quantity: 2 }] |
@@ -95,6 +119,7 @@ Feature: Hold seats and standing places during checkout
     And the operation emits no event
 
   Scenario: More than 10 tickets in one hold is refused
+    Given the time is "2026-12-01T19:00:00Z"
     When I run the operation with:
       | idempotency_key | event_id                             | lines                                                                                                          |
       | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: standing, section: FLOOR, quantity: 6 }, { place_kind: standing, section: FLOOR, quantity: 5 }] |
@@ -102,6 +127,7 @@ Feature: Hold seats and standing places during checkout
     And the operation emits no event
 
   Scenario: An event that is not on sale is refused
+    Given the time is "2026-12-01T19:00:00Z"
     When I run the operation with:
       | idempotency_key | event_id                             | lines                                                          |
       | hold-key-0001   | 00000000-0000-4000-8000-0000000000c1 | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |

@@ -211,6 +211,16 @@ The plugin does not write an approximate rule. The Valibot schema still enforces
 
 Run the statements of one call in one transaction. The file has no reads, except `nextEvents` of the outbox.
 
+## Timed changes
+
+For each operation with `due` whose `changes` entity is a table, the store file has:
+
+| Export | Description |
+| --- | --- |
+| `select<Operation brand>Due(now, limit)` | One `SELECT` of the key of at most `limit` rows in a state of `from` where `due` holds at `now`, in key order. `now` is `$1`, a `TIMESTAMPTZ`; `today` is its date in UTC |
+
+If the entity is not a table, or the rule reads a list or an embedded entity, the plugin reports `unenforced-in-sql`, and the file has no query for the operation. Refer to [Run changes on a clock](../how-to/run-changes-on-a-clock).
+
 ## The outbox
 
 A domain with an event that has `delivery` gets one more table, also with no table in `tables`:

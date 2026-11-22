@@ -9,6 +9,7 @@
  *   Then the operation emits "<event URN>"
  *   Then the operation emits "<event URN>":        one header row of event field names + one data row
  *   Then the operation emits no event
+ *   Then the operation is not due
  *   Then the operation emits no "<event URN>"
  *
  * The operation is the feature's (or scenario's) `@urn:…:operation:…` tag. Table cells are
@@ -175,8 +176,15 @@ function sameValue(actual: unknown, expected: unknown): boolean {
     const keys = new Set([...Object.keys(actual), ...Object.keys(expected)]);
     return [...keys].every((key) => sameValue(actual[key], expected[key]));
   }
+  // Two UTC timestamps are equal when they are the same instant: 19:00:00Z is 19:00:00.000Z.
+  if (typeof actual === 'string' && typeof expected === 'string' && UTC_TIMESTAMP.test(actual) && UTC_TIMESTAMP.test(expected)) {
+    return Date.parse(actual) === Date.parse(expected);
+  }
   return actual === expected || (Number.isNaN(actual) && Number.isNaN(expected));
 }
+
+/** A UTC timestamp, as a timestamp field holds it. */
+const UTC_TIMESTAMP = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]+)?)?Z$/;
 
 /** A text longer than this is shown shortened, and so is a list with more items. */
 const SHOWN_CHARACTERS = 60;
@@ -323,6 +331,14 @@ export function assertEmitsNone(result: ExecuteResultLike, urn: string): void {
   if (!result.ok) throw new Error(`${urn} failed with ${describeFailure(result)}; expected it to emit no event`);
   const events = result.events ?? [];
   if (events.length > 0) throw new Error(`${urn} emitted ${events.map((e) => e.urn).join(', ')}; expected no event`);
+}
+
+/** Checks that a timed change refused a call for a record that is not due (a ContractViolation that says so). */
+export function assertNotDue(result: ExecuteResultLike, urn: string): void {
+  const issues = !result.ok && 'issues' in result ? result.issues : [];
+  if (result.ok || !('kind' in result) || result.kind !== 'ContractViolation' || !issues.some((issue) => issue.message.includes('is not due for this record'))) {
+    throw new Error(`${urn} ${result.ok ? 'succeeded' : `failed with ${describeFailure(result)}`}; expected it to be not due for this record`);
+  }
 }
 
 /** Checks the operation succeeded without the event \`eventUrn\`: the other side of an event that it emits only when a rule holds. */
@@ -498,6 +514,11 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     const { urn, result } = lastRun(this);
     const expected = tableToObject(table.raw(), recordedEvent(urn, eventUrn).fields, 'event', eventUrn);
     assertRecordedAs(result, eventUrn, urn, expected);
+  });
+
+  Then(STEP_PHRASES.notDue, function (this: StepsWorld) {
+    const { urn, result } = lastRun(this);
+    assertNotDue(result, urn);
   });
 
   Then(STEP_PHRASES.emitsNone, function (this: StepsWorld) {

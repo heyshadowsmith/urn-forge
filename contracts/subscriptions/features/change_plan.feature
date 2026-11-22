@@ -96,3 +96,19 @@ Feature: Change the plan of a subscription
       | status   |
       | canceled |
       | expired  |
+
+  Scenario Outline: A change keeps the mark of a trial that was announced, so the clock does not announce it again
+    Given the current subscription is:
+      | subscription_id              | customer_id | plan | quantity | status   | current_period_start | current_period_end   | trial_end  | trial_will_end_sent_at |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 | 2026-11-22T00:00:00Z   |
+    When I run the operation with:
+      | subscription_id              | plan_id  | proration   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | plan_pro | <proration> |
+    Then the output is:
+      | status   | trial_end  | trial_will_end_sent_at |
+      | trialing | 2026-11-25 | 2026-11-22T00:00:00Z   |
+
+    Examples:
+      | proration     |
+      | immediate     |
+      | at_period_end |

@@ -1,0 +1,125 @@
+# Changes on a clock: the target of clock.test.ts. A payment that expires 7 days after its
+# authorization, which a capture can no longer pass, and a claim reported once when overdue.
+manifest:
+  namespace: demo
+  domain: clock
+  version: 1.0.0
+
+payment.field.payment_id:
+  primitive: string
+  regex: 'pay_[a-z0-9]{8}'
+  description: The id of a payment
+payment.field.status:
+  primitive: enum
+  values: [authorized, captured, expired]
+  moves:
+    authorized: [captured, expired]
+  description: The status of a payment
+payment.field.authorized_at:
+  primitive: timestamp
+  description: When the payment was authorized
+payment.entity.payment:
+  description: A payment
+  key: payment.field.payment_id
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+    - ref: payment.field.authorized_at
+payment.entity.payment_ref:
+  description: The payment to act on
+  fields:
+    - ref: payment.field.payment_id
+payment.error.invalid_status:
+  description: The payment is not in a status for this
+  category: conflict
+  retryable: false
+  message: Payment {payment_id} is {status}
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+payment.event.expired:
+  description: A payment expired, as it was not captured within 7 days
+  fields:
+    - ref: payment.field.payment_id
+payment.operation.expire_payment:
+  description: Expire an authorized payment that was not captured within 7 days
+  input: payment.entity.payment_ref
+  output: payment.entity.payment
+  changes:
+    entity: payment.entity.payment
+    from: [authorized]
+    to: expired
+    otherwise: payment.error.invalid_status
+  due: now >= current.authorized_at + 8 days
+  emits:
+    - event: payment.event.expired
+  errors: [payment.error.invalid_status]
+payment.operation.capture_payment:
+  description: Capture an authorized payment within 7 days
+  input: payment.entity.payment_ref
+  output: payment.entity.payment
+  changes:
+    entity: payment.entity.payment
+    from: [authorized]
+    to: captured
+    otherwise: payment.error.invalid_status
+  requires:
+    - rule: now < current.authorized_at + 7 days
+      otherwise: payment.error.invalid_status
+  errors: [payment.error.invalid_status]
+
+claim.field.claim_id:
+  primitive: string
+  regex: 'CLM-[0-9]{10}'
+  description: The id of a claim
+claim.field.state:
+  primitive: enum
+  values: [SUBMITTED, APPROVED]
+  moves:
+    SUBMITTED: [APPROVED]
+  description: The state of a claim
+claim.field.submitted_at:
+  primitive: timestamp
+  description: When the claim was submitted
+claim.field.overdue_reported_at:
+  primitive: timestamp
+  description: When the claim was reported as overdue, once
+claim.entity.claim:
+  description: A claim
+  key: claim.field.claim_id
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.state
+    - ref: claim.field.submitted_at
+    - ref: claim.field.overdue_reported_at
+      required: false
+claim.entity.claim_ref:
+  description: The claim to act on
+  fields:
+    - ref: claim.field.claim_id
+claim.error.invalid_state:
+  description: The claim is not in a state for this
+  category: conflict
+  retryable: false
+  message: Claim {claim_id} is {state}
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.state
+claim.event.decision_overdue:
+  description: A claim waits for a decision for 30 days
+  fields:
+    - ref: claim.field.claim_id
+claim.operation.report_overdue:
+  description: Report a claim that waits for a decision for 30 days, once, with no change of state
+  input: claim.entity.claim_ref
+  output: claim.entity.claim
+  changes:
+    entity: claim.entity.claim
+    from: [SUBMITTED]
+    otherwise: claim.error.invalid_state
+  due: current.overdue_reported_at is absent and now >= current.submitted_at + 30 days
+  ensures:
+    - output.overdue_reported_at is present and output.overdue_reported_at = now
+  emits:
+    - event: claim.event.decision_overdue
+  errors: [claim.error.invalid_state]

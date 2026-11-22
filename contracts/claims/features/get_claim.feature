@@ -7,14 +7,14 @@ Feature: Get a claim
       | role   | employee_id   |
       | <role> | <employee_id> |
     And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose              | currency | total  | lines                                                                                                                                                                                                                                                                                                                |
-      | CLM-0000000123 | 3       | E-1001      | M-3003     | SUBMITTED | Client visit in Lyon | EUR      | 120.00 | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 25.00 }] |
+      | claim_id       | version | employee_id | manager_id | state     | purpose              | currency | total  | lines                                                                                                                                                                                                                                                                                                                | submitted_at         |
+      | CLM-0000000123 | 3       | E-1001      | M-3003     | SUBMITTED | Client visit in Lyon | EUR      | 120.00 | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 25.00 }] | 2026-10-20T09:00:00Z |
     When I run the operation with:
       | claim_id       | actor_id      |
       | CLM-0000000123 | <employee_id> |
     Then the output is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose              | total  | currency | lines                                                                                                                                                                                                                                                                                                                | reason |
-      | CLM-0000000123 | 3       | E-1001      | M-3003     | SUBMITTED | Client visit in Lyon | 120.00 | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 25.00 }] |        |
+      | claim_id       | version | employee_id | manager_id | state     | purpose              | total  | currency | lines                                                                                                                                                                                                                                                                                                                | reason | submitted_at         |
+      | CLM-0000000123 | 3       | E-1001      | M-3003     | SUBMITTED | Client visit in Lyon | 120.00 | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 25.00 }] |        | 2026-10-20T09:00:00Z |
 
     Examples:
       | role     | employee_id |
@@ -27,8 +27,8 @@ Feature: Get a claim
       | role     | employee_id |
       | employee | E-1001      |
     And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose              | currency | total  | lines                                                                                                                                                                                                                                                                                                                |
-      | CLM-0000000123 | 3       | E-1001      | M-3003     | SUBMITTED | Client visit in Lyon | EUR      | 120.00 | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 25.00 }] |
+      | claim_id       | version | employee_id | manager_id | state     | purpose              | currency | total  | lines                                                                                                                                                                                                                                                                                                                | submitted_at         |
+      | CLM-0000000123 | 3       | E-1001      | M-3003     | SUBMITTED | Client visit in Lyon | EUR      | 120.00 | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 25.00 }] | 2026-10-20T09:00:00Z |
     When I run the operation with:
       | claim_id | actor_id |
       | CLM-12   | E-1001   |
@@ -51,8 +51,8 @@ Feature: Get a claim
       | role   | employee_id   |
       | <role> | <employee_id> |
     And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose              | currency | total  | lines                                                                                                                                                                                                                                                                                                                |
-      | CLM-0000000123 | 3       | E-1001      | M-3003     | SUBMITTED | Client visit in Lyon | EUR      | 120.00 | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 25.00 }] |
+      | claim_id       | version | employee_id | manager_id | state     | purpose              | currency | total  | lines                                                                                                                                                                                                                                                                                                                | submitted_at         |
+      | CLM-0000000123 | 3       | E-1001      | M-3003     | SUBMITTED | Client visit in Lyon | EUR      | 120.00 | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 25.00 }] | 2026-10-20T09:00:00Z |
     When I run the operation with:
       | claim_id       | actor_id   |
       | CLM-0000000123 | <actor_id> |
