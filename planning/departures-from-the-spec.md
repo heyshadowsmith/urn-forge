@@ -2,13 +2,13 @@
 
 urn-forge follows specification v1.1, with some differences. Some rules of the specification could not work together, some could not work with the tools, and some left a question open. This page lists each place where urn-forge 0.1.0 differs, and why. The plans in the Project section record each decision when it was made.
 
-This page does not list the parts of the specification that urn-forge does not have at this time. Examples are `urn-forge graph` and the `nullable` key. [Scope](../reference/scope) lists them. It does list the places where a part that is not built changes a part that is.
+This page does not list the parts of the specification that urn-forge does not have at this time. Examples are `urn-forge graph` and the `nullable` key. [Scope](../docs/explanation/the-contract.md) lists them. It does list the places where a part that is not built changes a part that is.
 
 ## Handlers and results
 
 | Specification v1.1 | urn-forge | Why |
 | --- | --- | --- |
-| A handler returns branded output (§7.2) | A handler returns the plain output shape. `executeOperation` parses the output, which adds the brands | Gate 2 forbids the core to make brands, so a handler cannot get a branded output value. The two rules cannot both hold. Refer to [The functional core and brands](./functional-core) |
+| A handler returns branded output (§7.2) | A handler returns the plain output shape. `executeOperation` parses the output, which adds the brands | Gate 2 forbids the core to make brands, so a handler cannot get a branded output value. The two rules cannot both hold. Refer to [The functional core and brands](../docs/explanation/core-and-shell.md) |
 | Error types in a `Result` (§7.2) do not say if their fields are branded | A handler gives plain fields to `fail`. `executeOperation` parses and brands them | The same rule as for output: the core does not make brands |
 | `Result<T, E>` holds `value` and `events`, and `EmittedEvent` is a union of the `emits` of the operation (§7.2) | `Result<T, E, V = never>`. `V` is the union of the event payloads of the operation. `EmittedEvent<U>` is the parsed event that `executeOperation` gives: `{ urn, fields }` | An operation with no events keeps a type with two arguments. `tsc` refuses an event of a different operation at gate 1. The shell can switch on `urn` |
 | The fields of a `recordAs` event are a superset of the fields of the error (§4.6) | The event has each property of the error, with the same target, `required` and `many`. Each other property must be optional (`invalid-record-as`) | `executeOperation` makes the event from the fields of the error. A mandatory property that the error does not have would make that impossible |
@@ -22,7 +22,7 @@ Sources: the MVP plan, spec gap 1; the error kind plan, decisions 1 to 6 and 10;
 
 ## Primitives and constraints
 
-The primitives plan made the set of primitives and constraints MECE: one primitive for each kind of value, and one constraint for each aspect of a value. Some primitives and constraints of §4.1 do not agree with that rule, so urn-forge changes them. For the model, refer to [The MECE model of primitives](./primitives-model).
+The primitives plan made the set of primitives and constraints MECE: one primitive for each kind of value, and one constraint for each aspect of a value. Some primitives and constraints of §4.1 do not agree with that rule, so urn-forge changes them. For the model, refer to [The MECE model of primitives](../contributing/primitives-model.md).
 
 | Specification v1.1 | urn-forge | Why |
 | --- | --- | --- |
@@ -34,14 +34,14 @@ The primitives plan made the set of primitives and constraints MECE: one primiti
 | The specification does not say if a field can set two constraints for one side of a value | A field can set one constraint for each side of an aspect. `min` with `exclusiveMin`, or `regex` with `format`, gives `conflicting-constraints` | Two constraints for one side of one aspect say the same thing two times, or disagree |
 | `string` has `format: iso-date`, and there is a `timestamp` primitive (§4.1) | A `date` primitive for a calendar day. `format` has `uuid`, `email` and `uri` only | One kind of value would have two forms. `format` holds only shapes that a `regex` cannot express clearly |
 | `list` is a primitive with `of`, `minItems`, `maxItems` and `unique` (§4.1) | A list is `many: { minItems, maxItems, unique }` on a field reference. There is no `list` primitive | A primitive tells what one value is. A list tells how many values there are, which is a property of the reference, as `required` is. A list of integers would otherwise be both `list` and `integer` |
-| `record` and `ref` are primitives (§4.1) | There is no `record` or `ref` primitive. A property that holds or points at an entity is a field reference. Refer to [Structure](#structure). urn-forge does not have a `record` at this time | Structure is on the reference, as a list is. Refer to [Scope](../reference/scope) |
+| `record` and `ref` are primitives (§4.1) | There is no `record` or `ref` primitive. A property that holds or points at an entity is a field reference. Refer to [Structure](#structure). urn-forge does not have a `record` at this time | Structure is on the reference, as a list is. Refer to [Scope](../docs/explanation/the-contract.md) |
 | A changed primitive needs a new URN (§3) | `oneOf` and `notEqual` changed in place. Each field kept its URN | No consumer of urn-forge exists before version 1.0. A new URN for each field would only add noise |
 
 Sources: the primitives plan, "The problem", "The model" and decisions 1 to 3, 5 and 7.
 
 ## Structure
 
-The structure plan put entities in entities, and references between entities, on the field reference. For the model, refer to [The MECE model of primitives](./primitives-model).
+The structure plan put entities in entities, and references between entities, on the field reference. For the model, refer to [The MECE model of primitives](../contributing/primitives-model.md).
 
 | Specification v1.1 | urn-forge | Why |
 | --- | --- | --- |
@@ -110,7 +110,7 @@ Sources: the MVP plan, spec gap 2 and build step 8; the foundations plan, phase 
 | `boundaryCoverage` is in the configuration of the `gherkin` plugin (§7.5) | `boundaryCoverage` is at the top level of `urn-forge.config.ts` | urn-forge has no `gherkin` plugin, and gate 3 is not a plugin |
 | `@urn-forge:strict` makes a feature strict (§8) | It makes strict every operation that the feature tags. An operation is strict if any of its features is strict | Coverage is counted for each operation across all features. The tag must reach the gaps that it is there to fail |
 | The rules do not name `notEqual` or `mustBe` (§8) | `notIn` needs each excluded value. `mustBe` needs both `true` and `false` | An excluded value is the case that the constraint exists for |
-| The rules do not name exclusive bounds, `multipleOf`, `date` or `timestamp` (§8) | Each has its cases. Refer to [Verification gates](../reference/verification-gates) | Each constraint brings its own boundary cases |
+| The rules do not name exclusive bounds, `multipleOf`, `date` or `timestamp` (§8) | Each has its cases. Refer to [Verification gates](../docs/reference/verification-gates.md) | Each constraint brings its own boundary cases |
 | The rules give `minItems` and `maxItems` no cases (§8) | The items of a list count as values of the field. The list needs the counts at and past `minItems` and `maxItems`, and a repeated value for `unique`. In a list of an embedded entity, `unique` needs a repeated key | The rules of the field apply to each item, and the rules of the list to the list |
 | The rules name the fields of the input entity (§8) | The values in embedded objects count for their fields too, at any depth, for each operation | The rules of a field apply wherever the field is |
 | The rules give `integer` and `decimal` bounds (§8) | A `float` bound, and a `decimal` bound with no `scale`, needs the value at the bound and any value past it | A `float` has no step. A `decimal` with no `scale` has no step either |
@@ -127,7 +127,7 @@ The Postgres plan built the plugin of §7.4. It changed some rules of the specif
 | Each entity with a `key` is a table. An entity with no `key` is a compile error when the plugin is enabled (§7.4) | The option `tables` names the entities that become tables. Only these need a `key`. The entities that a table embeds become child tables | Many entities are only the input or the output of an operation, for example a cancellation. A `key` also identifies a coverage in a list, and a coverage is not a table of its own. Storage is a decision of the shell, so it goes in the configuration, not in the manifest |
 | Field constraints are named `CHECK` constraints on each table, `ck_<brandIdentifier>` (§7.4) | A field is a domain, `"<context>"."<identifier>_value"`, with one `CHECK` for all its constraints | The rules of a field are the same in each entity, so one place holds them. A domain also works for the items of a list. This is the MECE rule applied to SQL |
 | A list is `JSONB` or a child table, by the plugin option `listStorage` (§4.1, §7.5) | A list, and an embedded entity, is always a child table. There is no `listStorage` option | A child table keeps each rule in force: the domains, the links and the invariants of an embedded entity. A `JSONB` column cannot check what is in it. Two options would be two spellings for one thing |
-| `required` and `nullable` map to `NOT NULL` (§7.4) | `required` maps to `NOT NULL`. There is no `nullable` | urn-forge does not have `nullable` at this time. Refer to [Scope](../reference/scope) |
+| `required` and `nullable` map to `NOT NULL` (§7.4) | `required` maps to `NOT NULL`. There is no `nullable` | urn-forge does not have `nullable` at this time. Refer to [Scope](../docs/explanation/the-contract.md) |
 | A `string` is `VARCHAR(n)`, `UUID` or `TEXT`, and a `decimal` is `NUMERIC(p, s)` (§4.1) | A `string` is `TEXT`, also with `format: uuid`. A `decimal` is `NUMERIC` with no precision, and `scale(VALUE) <= s` | The `UUID` type writes a value back in lower case, and a string compares exactly. `VARCHAR(n)` would be a second place for `maxLength`. `scale` is the step of the model, and urn-forge has no `precision` |
 | The specification does not say how to count the length of a string | `minLength` and `maxLength` count Unicode code points, in Valibot, in gate 3 and in Postgres | Postgres `char_length` counts code points. JavaScript `length` counts UTF-16 code units, so one emoji is 2 in one and 1 in the other. One count in both places is the only way that the two checks agree. A person also counts code points |
 | The specification does not say how a `regex` goes into SQL | The plugin translates a pattern only in a subset that means the same thing in both dialects. `\d`, `\w`, `\s` and `.` become explicit ASCII classes, and the `i` flag becomes `~*`. Other patterns are `unenforced-in-sql` | In Postgres, `\w` and `\d` also match letters and digits of other scripts, and `.` matches a line break. A pattern that means something else in SQL is worse than no check. It refuses good values or lets bad values in |
@@ -138,7 +138,7 @@ Sources: the Postgres plan, decisions 1 to 9.
 
 ## Gate 2
 
-The gate 2 plan built boundary discipline of §8. Gate 2 refuses a branded value that no parser made. For the model, refer to [The functional core and brands](./functional-core).
+The gate 2 plan built boundary discipline of §8. Gate 2 refuses a branded value that no parser made. For the model, refer to [The functional core and brands](../docs/explanation/core-and-shell.md).
 
 | Specification v1.1 | urn-forge | Why |
 | --- | --- | --- |
@@ -155,7 +155,7 @@ Sources: the gate 2 plan, "The model", decisions 1 to 10 and "Risks".
 
 ## Lifecycle and compatibility
 
-The lifecycle plan built pass 8 and gate 5 of §3, §5, §6 and §8. For the model, refer to [Compatibility and the direction of use](./compatibility).
+The lifecycle plan built pass 8 and gate 5 of §3, §5, §6 and §8. For the model, refer to [Compatibility and the direction of use](../docs/explanation/compatibility.md).
 
 | Specification v1.1 | urn-forge | Why |
 | --- | --- | --- |
@@ -188,8 +188,8 @@ Sources: the foundations plan, acceptance test 1; the error kind plan, step 1 an
 
 ## Related pages
 
-- [Scope](../reference/scope)
+- [Scope](../docs/explanation/the-contract.md)
 - Specification v1.1
-- [The functional core and brands](./functional-core)
-- [Boundary coverage and the ratchet](./boundary-coverage)
+- [The functional core and brands](../docs/explanation/core-and-shell.md)
+- [Boundary coverage and the ratchet](../docs/explanation/how-urn-forge-proves-it.md)
 - Dogfooding

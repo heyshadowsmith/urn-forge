@@ -45,6 +45,6 @@ npm run verify
 npm run test:features
 ```
 
-Refer to [Install urn-forge](docs/how-to/install.md) and [Set up a project](docs/how-to/set-up-a-project.md). To retire a URN and to check each change for breaks, refer to [Retire a URN](docs/how-to/retire-a-urn.md) and [Check compatibility in CI](docs/how-to/check-compatibility.md).
+Refer to [Install urn-forge](docs/how-to/install.md) and [Set up a project](docs/how-to/set-up-a-project.md). To retire a URN and to check each change for breaks, refer to [Change the contract](docs/how-to/change-the-contract.md).
 
 Start with the docs' [first tutorial](docs/tutorials/first-domain.md). The docs follow [Diátaxis](https://diataxis.fr/): tutorials, how-to guides, reference and explanation.

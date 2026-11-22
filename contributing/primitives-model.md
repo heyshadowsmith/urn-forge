@@ -1,6 +1,6 @@
 # The MECE model of primitives
 
-The primitives and constraints of urn-forge are MECE: mutually exclusive and collectively exhaustive. Each kind of single value has exactly one primitive. Each constraint restricts exactly one aspect of a value. This page tells why the model has this form, and where its limits are. For the facts, refer to [Primitives and constraints](../reference/primitives).
+The primitives and constraints of urn-forge are MECE: mutually exclusive and collectively exhaustive. Each kind of single value has exactly one primitive. Each constraint restricts exactly one aspect of a value. This page tells why the model has this form, and where its limits are. For the facts, refer to [Primitives and constraints](../docs/reference/primitives.md).
 
 ## The problem with two spellings
 
@@ -46,7 +46,7 @@ A rule such as "the expiry date is after the effective date" is about two fields
 
 An invariant gives the rule one place in the manifest. The schema of its entity then refuses each value that breaks the rule. Gate 3 asks for a scenario that breaks each invariant of an operation input. The layers stay separate. A constraint of one field does not go into a rule, and a rule does not say if a field is present. A guard such as `deductible is absent or …` reads the presence that the field reference sets.
 
-The [rule language](../reference/rule-language) is small on purpose. It has comparisons, `+` and `-`, `and`, `or`, `not` and presence. Each operator is a decision about the types of every primitive. Thus `<` follows the order that each primitive defines: `decimal` exactly, `date` as text and `timestamp` as instants. `+` and `-` on a `date` count days, because a day is the unit that a `date` has: `expiry_date - effective_date` is an `integer`. The language has no months or years, because they have no fixed length. Function calls, rules across entities and rules over the items of a list would each need new decisions. urn-forge does not have them at this time. Refer to [Scope](../reference/scope).
+The [rule language](../docs/reference/rule-language.md) is small on purpose. It has comparisons, `+` and `-`, `and`, `or`, `not` and presence. Each operator is a decision about the types of every primitive. Thus `<` follows the order that each primitive defines: `decimal` exactly, `date` as text and `timestamp` as instants. `+` and `-` on a `date` count days, because a day is the unit that a `date` has: `expiry_date - effective_date` is an `integer`. The language has no months or years, because they have no fixed length. Function calls, rules across entities and rules over the items of a list would each need new decisions. urn-forge does not have them at this time. Refer to [Scope](../docs/explanation/the-contract.md).
 
 The rule language uses the same comparisons as the constraints. `min: "0.01"` on a `decimal` and `premium > 0` in a rule compare in the same way. A value means the same thing in both layers.
 
@@ -64,7 +64,7 @@ The specification put the constraints of a field on each table, as checks with t
 
 The layers also show where SQL stops. A `CHECK` sees one row. A count of items is about many rows, so it is a trigger on the field reference layer, not a check. A rule over a list or an embedded entity is an invariant over rows of a different table. The plugin reports it as `unenforced-in-sql` and does not write an approximate check. The Valibot schema at the boundary still enforces it.
 
-One value must mean the same thing in both checks. Thus the length of a `string` counts Unicode code points, as Postgres `char_length` does. A `regex` goes into SQL only in a subset that the two dialects read in the same way. For the details, refer to [The Postgres schema](../reference/postgres-schema).
+One value must mean the same thing in both checks. Thus the length of a `string` counts Unicode code points, as Postgres `char_length` does. A `regex` goes into SQL only in a subset that the two dialects read in the same way. For the details, refer to [The Postgres schema](../docs/reference/postgres-schema.md).
 
 ## Six aspects
 
@@ -117,7 +117,7 @@ Collectively exhaustive means exhaustive for single values that a domain sends a
 | An integer larger than 2⁵³ | A `string` with a `regex` |
 | Binary data | Not covered |
 
-A map from keys to values (`record` in the specification) is structure too. urn-forge does not have it at this time. A list of entities with a `key` covers the cases that the domains of this repository have. Refer to [Scope](../reference/scope).
+A map from keys to values (`record` in the specification) is structure too. urn-forge does not have it at this time. A list of entities with a `key` covers the cases that the domains of this repository have. Refer to [Scope](../docs/explanation/the-contract.md).
 
 ## The cost
 
@@ -125,8 +125,8 @@ Two changes broke manifests that worked before. `oneOf` on a `string` became an 
 
 ## Related pages
 
-- [Primitives and constraints](../reference/primitives)
-- [The rule language](../reference/rule-language)
-- [Add a field](../how-to/add-a-field)
-- [Departures from the specification](./departures-from-the-spec)
+- [Primitives and constraints](../docs/reference/primitives.md)
+- [The rule language](../docs/reference/rule-language.md)
+- [Add a field](../docs/how-to/add-a-field.md)
+- [Departures from the specification](../planning/departures-from-the-spec.md)
 - The primitives plan

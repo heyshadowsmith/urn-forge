@@ -9,8 +9,8 @@ The example is the real addition of `format` to `string` (commit `087c5da`, "Pri
 - You have a clone of urn-forge, and `npm ci` ran in the root folder.
 - `npm test` and `npm run typecheck` pass.
 - You know the primitive that gets the constraint. To add a primitive, refer to [Add a primitive](./add-a-primitive.md).
-- You know the aspect that the constraint restricts: `range`, `step`, `size`, `shape`, `membership` or `exclusion`. [The MECE model of primitives](../docs/explanation/primitives-model.md) gives the rules.
-- You know the boundary cases of the constraint. [Boundary coverage and the ratchet](../docs/explanation/boundary-coverage.md) gives the rules.
+- You know the aspect that the constraint restricts: `range`, `step`, `size`, `shape`, `membership` or `exclusion`. [The MECE model of primitives](primitives-model.md) gives the rules.
+- You know the boundary cases of the constraint. [Boundary coverage and the ratchet](../docs/explanation/how-urn-forge-proves-it.md) gives the rules.
 
 Commands run from `packages/urn-forge`, except where a step says the root folder.
 
@@ -156,7 +156,7 @@ The fingerprint includes the constraint keys of each primitive. Thus a new const
 
 1. Add the constraint, its value, its aspect, its coherence rules and its boundary cases to [Primitives and constraints](../docs/reference/primitives.md). Add a row to the constraint table. The test of the MECE model compares the table with the registry.
 2. Add the constraint to the primitive in [Add a field](../docs/how-to/add-a-field.md).
-3. Update [Scope](../docs/reference/scope.md).
+3. Update [Scope](../docs/explanation/the-contract.md).
 4. If you added a diagnostic code, add it to [Diagnostics](../docs/reference/diagnostics.md).
 
 ## Result
@@ -168,5 +168,5 @@ The fingerprint includes the constraint keys of each primitive. Thus a new const
 - [Add a primitive](./add-a-primitive.md)
 - [Add a test fixture](./add-a-fixture.md)
 - [Primitives and constraints](../docs/reference/primitives.md)
-- [The MECE model of primitives](../docs/explanation/primitives-model.md)
+- [The MECE model of primitives](primitives-model.md)
 - [How urn-forge is built](./architecture.md)

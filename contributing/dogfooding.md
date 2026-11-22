@@ -36,7 +36,7 @@ All errors of `self/` are in the category `validation`. The other categories, an
 
 The three tutorials build a shipping domain in three stages. Each stage is a snapshot in [`packages/urn-forge/tutorial/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/), with its own configuration, generated files, core and features. CI runs `verify` and Cucumber on each snapshot. The tutorial pages import their code from the snapshots, so the code in a tutorial is code that compiles, verifies and passes.
 
-The snapshots found a problem in the use of brands. In the shipping core, `BASE_CENTS[zone]` failed with `TS7053`: a branded value cannot index an object. The field `zone` was a `string` with `oneOf` then, and it is an `enum` now. The problem and the fix are the same. [The functional core and brands](../docs/explanation/functional-core.md) tells why, and the tutorial core shows the fix.
+The snapshots found a problem in the use of brands. In the shipping core, `BASE_CENTS[zone]` failed with `TS7053`: a branded value cannot index an object. The field `zone` was a `string` with `oneOf` then, and it is an `enum` now. The problem and the fix are the same. [The functional core and brands](../docs/explanation/core-and-shell.md) tells why, and the tutorial core shows the fix.
 
 ## The fixture harness
 
@@ -55,7 +55,7 @@ The fixtures cover different parts:
 | `conflicting-constraints` | Problems of pass 7: two constraints for one side of an aspect, and constraints that accept no value |
 | `errors-valibot` | Error schemas from the Valibot plugin alone, with its own configuration |
 
-The determinism test uses the same fixtures. Refer to [Determinism and the fingerprint](../docs/explanation/determinism.md).
+The determinism test uses the same fixtures. Refer to [Determinism and the fingerprint](../docs/explanation/how-urn-forge-proves-it.md).
 
 ## The target, written first
 
@@ -96,4 +96,4 @@ A target that is written first meets the real code early. These are some of the 
 - [Contributor: add a test fixture](./add-a-fixture.md)
 - [How urn-forge is built](./architecture.md)
 - [Tutorial: build the shipping domain](../docs/tutorials/first-domain.md)
-- [Departures from the specification](../docs/explanation/departures-from-the-spec.md)
+- [Departures from the specification](../planning/departures-from-the-spec.md)

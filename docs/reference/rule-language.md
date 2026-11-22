@@ -1,17 +1,13 @@
 # The rule language
 
-The `rule` of an invariant is text in the rule language. Pass 6 parses the rule and examines its types against the fields of the `on` entity. The Valibot plugin then translates the rule to TypeScript. This page gives the grammar, the types, the checks, the canonical text and the translation. The code is in `src/rules/index.ts` and `src/rules/emit.ts`. For the invariant entry, refer to [The manifest](./manifest).
+The `rule` of an invariant is a condition in the rule language. It names the properties of the `on` entity. For the invariant entry, refer to [The manifest](./manifest).
 
-The insurance domain has these invariants on the policy and the cancellation. Each rule is valid:
-
-| Invariant | `on` | `rule` |
-| --- | --- | --- |
-| `policy.invariant.term_is_positive` | `policy.entity.policy` | `expiry_date > effective_date` |
-| `policy.invariant.deductible_below_premium` | `policy.entity.policy` | `deductible is absent or deductible < premium` |
-| `policy.invariant.term_at_most_a_year` | `policy.entity.policy` | `expiry_date - effective_date <= 366` |
-| `policy.invariant.cancellation_within_term` | `policy.entity.cancellation` | `cancellation_date >= effective_date and cancellation_date <= expiry_date` |
-
-The full manifest is [`packages/urn-forge/insurance/domain.manifest.yaml`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/domain.manifest.yaml). CI compiles and verifies it.
+| Invariant of the insurance domain | `rule` |
+| --- | --- |
+| `policy.invariant.term_is_positive` | `expiry_date > effective_date` |
+| `policy.invariant.deductible_below_premium` | `deductible is absent or deductible < premium` |
+| `policy.invariant.term_at_most_a_year` | `expiry_date - effective_date <= 366` |
+| `policy.invariant.cancellation_within_term` | `cancellation_date >= effective_date and cancellation_date <= expiry_date` |
 
 ## Grammar
 
@@ -24,283 +20,145 @@ sum     := primary (('+' | '-') primary)*
 primary := '(' or ')' | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
 ```
 
-A rule is one `or` expression. After it, the rule must end.
-
-### Tokens
+A rule is one `or` expression, and then the end of the rule.
 
 | Token | Form | Notes |
 | --- | --- | --- |
-| Field | `[a-z][a-z0-9_]*` | A property name of the `on` entity. A keyword is not a field. An uppercase letter causes `rule-syntax`: `unexpected character "T"` |
-| Number | `[0-9]+`, with an optional `.` and digits | Examples: `0`, `120`, `0.5`, `0.10`. No exponent, no `+` and no `.` at the start |
-| Negative number | `-` and then a number, where a value starts | Examples: `-1`, `-0.5`. Only a number literal can have a `-` in front. `-present` causes `rule-syntax` |
-| Text | `'` … `'` | Single quotes. The text has no escape, so it cannot contain `'`. A text with no quote at the end causes `rule-syntax` |
-| Keyword | `and`, `or`, `not`, `is`, `present`, `absent`, `true`, `false` | A field with one of these names cannot occur in a rule |
-| Symbol | `<`, `<=`, `=`, `!=`, `>=`, `>`, `+`, `-`, `(`, `)` | Any other character causes `rule-syntax`: `unexpected character "<c>"` |
+| Field | `[a-z][a-z0-9_]*` | A property name of the `on` entity. Not a keyword |
+| Number | `[0-9]+`, with an optional `.` and digits | `0`, `0.5`, `0.10`. No exponent, no `+`, no `.` at the start |
+| Negative number | `-` and a number, where a value starts | `-1`, `-0.5` |
+| Text | `'` … `'` | No escape, so it cannot contain `'` |
+| Keyword | `and`, `or`, `not`, `is`, `present`, `absent`, `true`, `false` | |
+| Symbol | `<`, `<=`, `=`, `!=`, `>=`, `>`, `+`, `-`, `(`, `)` | Any other character causes `rule-syntax` |
 
-Spaces between tokens are optional. A space, a tab and a line break are the same.
-
-In YAML, put a rule that starts with `'` in double quotes, for example `rule: "'gold' = tier"`. Without the double quotes, YAML reads `'gold'` as the value, and the result is `yaml-syntax`.
+- Spaces, tabs and line breaks between tokens are optional.
+- In YAML, put a rule that starts with `'` in double quotes: `rule: "'gold' = tier"`.
 
 ## Elements
 
 | Element | Form | Operands | Result |
 | --- | --- | --- | --- |
-| Field | `expiry_date` | — | A value of the primitive of the field. A link is a value of the primitive of the key field of the linked entity |
-| Number literal | `0`, `-3`, `1.5` | — | A value. Its primitive comes from the other side. Refer to [Literals](#literals) |
-| Text literal | `'2026-01-01'`, `'gold'` | — | A value. Its primitive comes from the other side |
-| `true`, `false` | `true` | — | A value of a `boolean` |
-| Comparison | `a < b`, `a <= b`, `a = b`, `a != b`, `a >= b`, `a > b` | Two values of one primitive | A condition |
-| Arithmetic | `a + b`, `a - b` | Two values of one primitive: `integer` or `decimal` | A value of that primitive |
-| Days | `d + n`, `d - n`, `d1 - d2` | A `date` on the left, and an `integer` of days or (for `-`) a second `date` on the right. Refer to [Days](#days) | `d ± n` is a `date`. `d1 - d2` is an `integer` |
-| `and`, `or` | `c and d`, `c or d` | Two conditions | A condition |
+| Field | `expiry_date` | — | A value of the primitive of the field |
+| Literal | `0`, `-3`, `'gold'`, `true` | — | A value. Refer to [Literals](#literals) |
+| Comparison | `<`, `<=`, `=`, `!=`, `>=`, `>` | Two values of one primitive | A condition |
+| Arithmetic | `a + b`, `a - b` | Two `integer` or two `decimal` values | A value of that primitive |
+| Days | `d + n`, `d - n`, `d1 - d2` | Refer to [Days](#days) | A `date` or an `integer` |
+| `and`, `or` | `c and d` | Two conditions | A condition |
 | `not` | `not c` | One condition | A condition |
-| Presence | `x is present`, `x is absent` | An optional field, a list or an embedded entity | A condition |
+| Presence | `x is present`, `x is absent` | An optional property, a list or an embedded entity | A condition |
 | Parentheses | `( … )` | Any expression | The same expression |
 
-A rule must be a condition. A value alone is not a condition, also a `boolean` field. Write `flag = true`, not `flag`.
+A rule must be a condition. Write `flag = true`, not `flag`.
 
 ## Precedence
 
-The table starts with the operator that binds least tightly:
+From the operator that binds least tightly:
 
 | Level | Operators | Group |
 | --- | --- | --- |
 | 1 | `or` | From the left |
 | 2 | `and` | From the left |
-| 3 | `not` | From the right: `not not c` |
-| 4 | `<`, `<=`, `=`, `!=`, `>=`, `>` | None. A comparison cannot follow a comparison |
-| 5 | `+`, `-` | From the left: `a - b - c` is `(a - b) - c` |
-| 6 | A field, a literal, a presence condition, parentheses | — |
+| 3 | `not` | From the right |
+| 4 | `<`, `<=`, `=`, `!=`, `>=`, `>` | None. `a < b < c` causes `rule-syntax` |
+| 5 | `+`, `-` | From the left |
 
-Examples:
-
-| Rule | Reads as |
-| --- | --- |
-| `a < b or c < d and e < f` | `a < b or (c < d and e < f)` |
-| `not a < b` | `not (a < b)` |
-| `count + 1 - 2 <= 10` | `((count + 1) - 2) <= 10` |
-| `a < b < c` | `rule-syntax`: `a comparison cannot follow another comparison; use and` |
+`a < b or c < d and e < f` reads as `a < b or (c < d and e < f)`. `not a < b` reads as `not (a < b)`.
 
 ## Literals
 
-A literal has no primitive of its own. It gets the primitive of the other side of its operator. One side of each operator must be a field, or an expression with a field in it. A comparison of two literals causes `rule-type`. With days, the operator gives the primitive: in `d + 28`, `28` is an `integer`, and in `d - '2026-01-01'`, the text is a `date`. Refer to [Days](#days).
+A literal gets the primitive of the other side of its operator. One side must contain a field. Two literals cause `rule-type`.
 
-| Primitive of the other side | Literal that fits | Example | Refused, with the message |
-| --- | --- | --- | --- |
-| `integer` | A number with no fraction | `count + 1 <= 10` | `1.5 is not an integer` |
-| `float` | Any number | `ratio > 0.5` | `'1' is not a number` |
-| `decimal` | A number, or a text with a decimal in it | `premium > 0`, `premium + '0.01' > premium - 1` | `'abc' is not a decimal` |
-| `date` | A text with a calendar day `YYYY-MM-DD` | `effective_date >= '2026-01-01'` | `'2026-02-30' is not a date in quotes, such as '2026-01-31'` |
-| `timestamp` | A text with an instant in UTC, as for a field value | `at < '2027-01-01T00:00:00Z'` | `'2026-01-01' is not a timestamp in quotes, such as '2026-01-31T09:30:00Z'` |
-| `string` | A text | `note != ''` | `3 is not text in quotes` |
-| `enum` | A text that is one of the `values` of the field | `tier = 'gold'` | `'bronze' is not one of the values (gold, silver)` |
-| `boolean` | `true` or `false` | `flag = true` | `'yes' is not true or false` |
-
-The message of `rule-type` adds `, so it cannot meet a <primitive> in "<operator>"` after the text of the last column. A decimal literal follows the form of a decimal value: digits, an optional fraction and no exponent. Thus `007` is not a decimal.
+| Other side | Literal that fits | Example |
+| --- | --- | --- |
+| `integer` | A number with no fraction | `count + 1 <= 10` |
+| `float` | Any number | `ratio > 0.5` |
+| `decimal` | A number, or a decimal in quotes | `premium > 0`, `premium + '0.01' > 1` |
+| `date` | A calendar day in quotes | `effective_date >= '2026-01-01'` |
+| `timestamp` | A UTC instant in quotes | `at < '2027-01-01T00:00:00Z'` |
+| `string` | A text | `note != ''` |
+| `enum` | A text that is one of the `values` | `tier = 'gold'` |
+| `boolean` | `true` or `false` | `flag = true` |
 
 ## Operators for each primitive
 
-| Primitive | `=`, `!=` | `<`, `<=`, `>=`, `>` | `+`, `-` | How two values compare at run time |
+| Primitive | `=`, `!=` | `<`, `<=`, `>=`, `>` | `+`, `-` | Comparison at run time |
 | --- | --- | --- | --- | --- |
 | `integer` | Yes | Yes | Yes | As numbers |
 | `float` | Yes | Yes | No | As numbers |
-| `decimal` | Yes | Yes | Yes | Exactly, with `compareDecimal`. `1.10 = 1.1` is true. `+` and `-` are exact |
-| `date` | Yes | Yes | Days only. Refer to [Days](#days) | As text. A `YYYY-MM-DD` day sorts as text in calendar order. With days in the comparison, as day numbers |
-| `timestamp` | Yes | Yes | No | As instants, with `Date.parse`. `09:00:00Z` and `09:00:00.000Z` are equal |
-| `string` | Yes | No | No | As text, with `===` |
-| `enum` | Yes | No | No | As text, with `===` |
-| `boolean` | Yes | No | No | With `===` |
+| `decimal` | Yes | Yes | Yes, exact | As exact numbers. `1.10 = 1.1` is true |
+| `date` | Yes | Yes | Days only | As text, or as day numbers in a rule with days |
+| `timestamp` | Yes | Yes | No | As instants |
+| `string` | Yes | No | No | As text |
+| `enum` | Yes | No | No | As text |
+| `boolean` | Yes | No | No | As booleans |
 
-The two sides of each comparison and each `+` or `-` must have one primitive. `premium > effective_date` causes `rule-type`, because `premium` is a `decimal` and `effective_date` is a `date`.
+The two sides of each operator must have one primitive. A link has the primitive of the key field of the linked entity.
 
 ## Days
 
-A rule can count days between dates, and add days to a date. A day is a calendar day, with no time and no time zone, as a `date` value is.
+| Form | Left | Right | Result | Example |
+| --- | --- | --- | --- | --- |
+| `d + n` | `date` | `integer` | The day `n` days after `d` | `due_date <= loan_date + 28` |
+| `d - n` | `date` | `integer` | The day `n` days before `d` | `start_date - 7 < sent_date` |
+| `d1 - d2` | `date` | `date` | The days from `d2` to `d1`, an `integer` | `expiry_date - effective_date <= 366` |
 
-| Form | Left | Right | Result | Example | Meaning |
-| --- | --- | --- | --- | --- | --- |
-| `d + n` | `date` | `integer` | `date` | `due_date <= loan_date + 28` | The day `n` days after `d` |
-| `d - n` | `date` | `integer` | `date` | `start_date - 7 < sent_date` | The day `n` days before `d` |
-| `d1 - d2` | `date` | `date` | `integer` | `expiry_date - effective_date <= 366` | The days from `d2` to `d1`. Negative if `d1` is before `d2` |
+- The date is on the left. `28 + loan_date` causes `rule-type`.
+- `n` can be a number, an `integer` field or an `integer` expression.
+- In `d - '2026-01-01'`, the text is a date.
+- The unit is the day. There are no months or years. For one year, write `365` or `366`.
+- There is no "today". To compare with today, send it as a `date` field of the input.
+- A `timestamp` has no arithmetic, and a rule cannot change it to a `date`.
+- The arithmetic is exact, in the schemas and in the Postgres `CHECK`. Give an `integer` field that counts days a `max`.
 
-- The date is on the left. `28 + loan_date` causes `rule-type`: `"+" needs the date on the left and an integer of days on the right`.
-- The days can be a number, an `integer` field, or an expression of type `integer`, for example `due_date <= loan_date + max_days`. A number of days must be an integer: `loan_date + 1.5` causes `rule-type`: `1.5 is not an integer, so it cannot be the days in "+"`.
-- In `d - '2026-01-01'` and `'2027-01-01' - d`, the text is a date, and the result is an integer of days.
-- `d1 + d2` causes `rule-type`: `"+" cannot add two dates; "-" of two dates gives the days between them`. A field of a different primitive causes `"+" adds an integer of days to a date, not a decimal`.
-- The unit is the day only. The language has no months or years, because a month has no fixed number of days: `'2026-01-31'` plus one month has no single answer. For "one year", write `365` or `366`, and say which in the description of the invariant. `366` also accepts a term of 366 days in a year with no 29 February.
-- The language has no "today". A rule cannot read the clock. To compare with the date of today, the shell sends it as a `date` field of the input, for example `due_date <= today + 28`.
-- A rule cannot change a `timestamp` into a `date`, so it cannot make sure that a start time is on a given day. Put such a rule in the core, with a declared error.
-- A `timestamp` has no arithmetic: `at + 1` causes `"+" works on integer, decimal and date only, not on timestamp`.
+## Guards
 
-The arithmetic is exact. Each rule has the same result in the generated schemas and in the `CHECK` of the `postgres` plugin, on each day of the calendar. The only difference is far outside the range of the `date` primitive: in Postgres, a day after the year 5874897 is an error. A sum of days can reach it only with an `integer` field that has no `max`. Give an `integer` field that counts days a `max`.
+A rule can use the value of an optional property only after a guard. Else `unguarded-field`.
 
-## Guards for optional fields
+| Guard | Effect |
+| --- | --- |
+| `x is present and …` | The right side can use `x` |
+| `x is absent or …` | The right side can use `x`. If `x` is absent, the rule holds |
 
-A field with `required: false` in the entity can be absent. A rule can use its value only where a guard makes sure that the field is present. If not, pass 6 reports `unguarded-field`.
+- The guard is on the left. `deductible < premium or deductible is absent` causes `unguarded-field`.
+- A chain of guards is a guard: `a is present and b is present and …`.
+- A guard applies to the full right side, also in parentheses.
+- `not x is absent` is not a guard.
+- `is present` or `is absent` on a required property causes `rule-type`.
 
-| Guard | Form | Effect |
-| --- | --- | --- |
-| Present on the left of `and` | `x is present and …` | The right side can use `x`. It runs only if `x` is present |
-| Absent on the left of `or` | `x is absent or …` | The right side can use `x`. It runs only if `x` is present. If `x` is absent, the rule holds |
+## Lists and embedded entities
 
-- The guard must be on the left side. `deductible < premium or deductible is absent` causes `unguarded-field` at column 1.
-- A chain of guards is also a guard: `a is present and b is present and …`, and `a is absent or b is absent or …`.
-- A guard is in effect in the full right side, also in parentheses: `x is present and (x > 1 or y > 2)`.
-- `not x is absent` is not a guard. `x is present or x = 'a'` is not a guard either: the right side runs if `x` is absent.
-- `x is present` and `x is absent` on a required field cause `rule-type`, because the result is always the same.
+- A rule can use a list or an embedded entity only in `is present` and `is absent`.
+- A rule cannot name a property inside an embedded entity. Put the invariant on the embedded entity.
+- A rule cannot compare a property with a property inside a list item. Put such a rule in the core, with a declared error.
+- A rule compares the key value of a link. It does not read the linked object.
 
-A list is a field reference with `many`. A rule can use a list only in `x is present` and `x is absent`. The language has no functions, so a rule cannot count the items of a list or examine one item. Any other use of a list causes `rule-type`.
+## Diagnostics
 
-## Links and embedded entities
-
-A rule names only the properties of its `on` entity. The rule language has no path, so a rule cannot name a property inside an embedded entity.
-
-| Property | Use in a rule | Example |
-| --- | --- | --- |
-| A link, `link: <entity>` | A value of the primitive of the key field of the linked entity. A rule can compare it as a value of that primitive | `holder != '9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d'`, for a link to `customer`, whose key `customer_id` is a `string`. The TypeScript is `(p.holder as string) !== "9b2f0c1e-4d3a-4f5b-8c6d-7e8f9a0b1c2d"` |
-| An embedded entity, `ref: <entity>` | Only in `x is present` and `x is absent`. Any other use causes `rule-type` | `coverage is present or premium > 100`, for an optional embedded `coverage`. The TypeScript of `coverage is present` is `p.coverage !== undefined` |
-
-- A rule compares the value of a link. It does not read the linked object.
-- The invariants of an embedded entity apply inside each embedded object. To restrict a value in an embedded object, put an invariant on the embedded entity. In the insurance domain, `limit_is_positive` is on `coverage`, not on `policy`.
-- `x is present` on a required embedded entity causes `rule-type`, as on a required field.
-- A rule cannot compare a property of the entity with a property inside an embedded entity or a list item. For example, "each receipt date is at most 90 days before the claim date" names `claim_date` of the claim and `receipt_date` of each line. Put such a rule in the core, with a declared error. Gate 3 then asks for a scenario that expects the error, but not for the values at its edges, such as 90 and 91 days. Add those scenarios yourself.
-
-## What pass 6 refuses
-
-Pass 6 parses the rule and then examines its types. The parser stops at the first syntax problem. The type checker reports each type problem that it finds.
-
-Each message has this form:
+Each message has this form. The column starts at 1, in the rule as the manifest writes it:
 
 ```
 <invariant URN>: rule: <problem> (at column <n> of the rule)
 ```
 
-The column starts at 1. It counts the characters of the rule as the manifest writes it, not the canonical text. The position of the diagnostic is the `rule` value in the manifest.
-
-| Code | Cause | Problems from real runs |
+| Code | Cause | Example problem |
 | --- | --- | --- |
-| `rule-syntax` | The rule does not agree with the grammar | `expected a field, a literal or "(", found the end of the rule`<br>`a comparison cannot follow another comparison; use and`<br>`a text literal has no closing quote`<br>`unexpected character "*"`<br>`expected "present" or "absent", found "here"`<br>`expected "and", "or" or the end of the rule, found "count"`<br>`expected ")", found the end of the rule` |
-| `unknown-rule-field` | A field name is not a property of the `on` entity | `"expiry" is not a field of the entity (fields: effective_date, expiry_date, premium, deductible, riders)` |
-| `rule-type` | The primitives or the parts of the rule do not agree | `">" has a decimal on the left and a date on the right; both sides must have one primitive`<br>`"<" compares two literals; one side must be a field`<br>`"<" needs an order, which string does not have; use = or !=`<br>`"+" works on integer, decimal and date only, not on float`<br>`"+" needs the date on the left and an integer of days on the right`<br>`"+" cannot add two dates; "-" of two dates gives the days between them`<br>`1.5 is not an integer, so it cannot be the days in "+"`<br>`"+" needs a value on each side, not a condition`<br>`a rule needs a condition, such as a comparison, not an integer`<br>`not needs a condition, such as a comparison, not an integer`<br>`"riders" is a list; a rule can use it only in "riders is present" or "riders is absent"`<br>`"item" is an embedded entity; a rule can use it only in "item is present" or "item is absent"`<br>`"start" is required, so "start is present" is always true`<br>The literal messages in [Literals](#literals) |
-| `unguarded-field` | An optional field is used where no guard is in effect | `"deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …"` |
+| `rule-syntax` | The rule does not agree with the grammar. `compile` stops at the first one | `a comparison cannot follow another comparison; use and` |
+| `unknown-rule-field` | A name is not a property of the `on` entity | `"expiry" is not a field of the entity (fields: effective_date, expiry_date, premium, deductible, riders)` |
+| `rule-type` | The primitives or the parts do not agree | `">" has a decimal on the left and a date on the right; both sides must have one primitive` |
+| `unguarded-field` | An optional property with no guard | `"deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …"` |
 
-Pass 6 examines the types only if `on` resolves to an entity. A field reference of the entity that does not resolve is not a field for the rule, so a rule that names it also gets `unknown-rule-field`. Correct the `unresolved-ref` first, and compile again. Pass 6 parses the rule also if `on` does not resolve, so a `rule-syntax` problem always shows.
+## Canonical text
 
-This fixture has one problem in each invariant:
-
-<<< @/../packages/urn-forge/tests/fixtures/invalid-rules/domain.manifest.yaml{yaml}
-
-`urn-forge compile --manifest tests/fixtures/invalid-rules/domain.manifest.yaml` writes these diagnostics:
-
-```
-tests/fixtures/invalid-rules/domain.manifest.yaml:25:9  error  rule-syntax  urn:acme:rules:policy:invariant:incomplete: rule: expected a field, a literal or "(", found the end of the rule (at column 14 of the rule)
-tests/fixtures/invalid-rules/domain.manifest.yaml:45:9  error  rule-type  urn:acme:rules:policy:invariant:list_value: rule: "riders" is a list; a rule can use it only in "riders is present" or "riders is absent" (at column 1 of the rule)
-tests/fixtures/invalid-rules/domain.manifest.yaml:35:9  error  rule-type  urn:acme:rules:policy:invariant:mixed_types: rule: ">" has a decimal on the left and a date on the right; both sides must have one primitive (at column 1 of the rule)
-tests/fixtures/invalid-rules/domain.manifest.yaml:49:7  error  wrong-ref-kind  urn:acme:rules:policy:invariant:on_a_field: on "policy.field.premium" must name an entity, but urn:acme:rules:policy:field:premium is a field
-tests/fixtures/invalid-rules/domain.manifest.yaml:40:9  error  unguarded-field  urn:acme:rules:policy:invariant:unguarded: rule: "deductible" is optional, so the rule must guard it: write "deductible is present and …" or "deductible is absent or …" (at column 1 of the rule)
-tests/fixtures/invalid-rules/domain.manifest.yaml:30:9  error  unknown-rule-field  urn:acme:rules:policy:invariant:unknown_field: rule: "expiry" is not a field of the entity (fields: effective_date, expiry_date, premium, deductible, riders) (at column 1 of the rule)
-```
-
-`wrong-ref-kind` comes from pass 4, not from pass 6. Refer to [Compiler passes](./compiler-passes).
-
-## The IR form and the canonical text
-
-The IR keeps each rule in two forms. Both are part of the fingerprint.
-
-| Property of `IRInvariant` | Contents |
-| --- | --- |
-| `rule` | The parsed rule, as a `RuleExpr` tree, with no columns |
-| `ruleText` | The canonical text of the rule |
-
-The `RuleExpr` nodes:
-
-| `op` | Other properties |
-| --- | --- |
-| `field` | `name` |
-| `number` | `value`, the text of the literal. Thus `0.10` stays `0.10`, and a decimal stays exact |
-| `text` | `value`, without the quotes |
-| `boolean` | `value`, `true` or `false` |
-| `present`, `absent` | `field` |
-| `not` | `operand` |
-| `and`, `or`, `<`, `<=`, `=`, `!=`, `>=`, `>`, `+`, `-` | `left`, `right` |
-
-The rule `opt is absent or opt < d1` of the rules test fixture is this node in the IR:
-
-```json
-{
-  "left": { "field": "opt", "op": "absent" },
-  "op": "or",
-  "right": {
-    "left": { "name": "opt", "op": "field" },
-    "op": "<",
-    "right": { "name": "d1", "op": "field" }
-  }
-}
-```
-
-The canonical text follows these rules:
-
-- One space comes before and after each operator, and after `not`.
-- Parentheses are there only if the tree needs them. `and`, `or`, `+` and `-` group from the left, so a right side of the same level keeps its parentheses.
-- A number literal keeps its text. A text literal is in single quotes.
+The generated rule function has the canonical text of the rule in its comment. The canonical text has one space around each operator and after `not`, and only the parentheses that the tree needs.
 
 | Rule in the manifest | Canonical text |
 | --- | --- |
 | `((a < b)) or (c < d and e < f)` | `a < b or c < d and e < f` |
-| `(a < b or c < d) and e < f` | `(a < b or c < d) and e < f` |
 | `not (a < b)` | `not a < b` |
 | `not (a < b and c < d)` | `not (a < b and c < d)` |
-| `((count > -1)) and (price - 0.5 >= 0 or at < '2027-01-01T00:00:00Z')` | `count > -1 and (price - 0.5 >= 0 or at < '2027-01-01T00:00:00Z')` |
-
-The canonical text is in the comment of each rule function in the generated schemas. The parse of the canonical text gives the same tree.
-
-## The translation to TypeScript
-
-The Valibot plugin writes one exported function for each invariant, `<Brand>Rule`. The function gets `p`, the parsed object of the entity, and returns a `boolean`. For the place of the function in the file, refer to [The generated schemas](./generated-schemas).
-
-| Element | TypeScript |
-| --- | --- |
-| A field `x` | `(p.x as <type>)`, with `number`, `string` or `boolean` for the primitive |
-| A number literal | The number. For a `decimal`, the text in double quotes, for example `"0.5"` |
-| A text literal | The text in double quotes |
-| `true`, `false` | `true`, `false` |
-| `x is present` | `p.x !== undefined` |
-| `x is absent` | `p.x === undefined` |
-| `not c` | `!(c)` |
-| `c and d`, `c or d` | `(c && d)`, `(c \|\| d)` |
-| `=`, `!=` | `===`, `!==` |
-| `<`, `<=`, `>=`, `>` | The same operator |
-| A `decimal` comparison | `compareDecimal(a, b) <op> 0` |
-| A `timestamp` comparison | `Date.parse(a) <op> Date.parse(b)` |
-| `+`, `-` on an `integer` | `(a + b)`, `(a - b)` |
-| `+`, `-` on a `decimal` | `addDecimal(a, b)`, `subtractDecimal(a, b)` |
-| A date in a rule with days | `epochDay(d)`, the number of days from `1970-01-01`. `d + n` is `(epochDay(d) + n)`, and `d1 - d2` is `(epochDay(d1) - epochDay(d2))` |
-| A comparison of dates with days in it | The same operator, on day numbers |
-
-- The `as` cast removes the brand of the field. TypeScript does not compare two values with different brands. Pass 6 has already made sure that both sides have one primitive.
-- `addDecimal` and `subtractDecimal` are exact. The result has the larger number of digits after the point of the two values.
-- `epochDay` is exact for each `YYYY-MM-DD`. It uses UTC, so a time zone or a change of clock time does not change a count of days. A comparison of two dates with no days in it stays a comparison of text.
-
-The rules of the insurance domain, from `insurance/generated/domain.schemas.generated.ts`:
-
-```ts
-/** urn:acme:insurance:policy:invariant:deductible_below_premium — A deductible, when there is one, is less than the premium: deductible is absent or deductible < premium */
-export const PolicyDeductibleBelowPremiumRule = (p: v.InferOutput<typeof PolicyPolicyFields>): boolean =>
-  (p.deductible === undefined || compareDecimal((p.deductible as string), (p.premium as string)) < 0);
-/** urn:acme:insurance:policy:invariant:term_at_most_a_year — A policy lasts one year at most, also in a leap year: expiry_date - effective_date <= 366 */
-export const PolicyTermAtMostAYearRule = (p: v.InferOutput<typeof PolicyPolicyFields>): boolean =>
-  (epochDay((p.expiry_date as string)) - epochDay((p.effective_date as string))) <= 366;
-/** urn:acme:insurance:policy:invariant:term_is_positive — A policy ends after it starts: expiry_date > effective_date */
-export const PolicyTermIsPositiveRule = (p: v.InferOutput<typeof PolicyPolicyFields>): boolean =>
-  (p.expiry_date as string) > (p.effective_date as string);
-```
-
-The rules test fixture has one invariant for each operator on each primitive. Its generated file is `tests/fixtures/rules/expected/domain.schemas.generated.ts`.
 
 ## Related pages
 
 - [The manifest](./manifest)
-- [Compiler passes](./compiler-passes)
-- [The generated schemas](./generated-schemas)
-- [Diagnostics](./diagnostics)
-- [The MECE model of primitives](../explanation/primitives-model)
+- [Add an invariant](../how-to/add-an-invariant)
+- [Generated code](./generated-code)

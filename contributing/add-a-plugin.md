@@ -159,8 +159,8 @@ If the config is not correct, `compile` stops before any plugin runs:
 ## Document the plugin
 
 1. Add the plugin and its options to [The configuration file](../docs/reference/configuration.md).
-2. Describe the files that it makes on a reference page, as [The generated schemas](../docs/reference/generated-schemas.md) does for Valibot.
-3. Update [Scope](../docs/reference/scope.md).
+2. Describe the files that it makes on a reference page, as [The generated schemas](../docs/reference/generated-code.md) does for Valibot.
+3. Update [Scope](../docs/explanation/the-contract.md).
 
 ## Result
 
@@ -172,4 +172,4 @@ If the config is not correct, `compile` stops before any plugin runs:
 - [Add a kind](./add-a-kind.md)
 - [The configuration file](../docs/reference/configuration.md)
 - [How urn-forge is built](./architecture.md)
-- [Determinism and the fingerprint](../docs/explanation/determinism.md)
+- [Determinism and the fingerprint](../docs/explanation/how-urn-forge-proves-it.md)

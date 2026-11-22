@@ -1,18 +1,24 @@
 # Declare an error
 
-A declared error is a named rejection: the operation refuses the input, and nothing changes. This guide declares an error, lists it on an operation, returns it from the handler and tests it with a scenario.
-
-The examples come from [`packages/urn-forge/tutorial/2-declared-errors/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/2-declared-errors/), which CI tests. The operation `quote_shipping` refuses an express parcel over 5000 grams.
+Give an operation a declared error: a named rejection that the handler returns, and after which nothing changes.
 
 ## Before you start
 
 - You have an operation with a handler and a feature. Refer to [Add an operation](add-an-operation).
 - Declare the fields that the error carries. Refer to [Add a field](add-a-field).
-- Use a declared error only for a rule of the domain. If the input does not match the schema, the shell rejects it before the handler runs. Refer to [Results and declared errors](../explanation/results-and-errors).
+- Use a declared error only for a rule of the domain. The shell rejects an input that does not match the schema before the handler runs.
 
-## 1. Write the error entry
+## Steps
 
-Add an entry with the short key `<context>.error.<identifier>`:
+1. Add an entry with the short key `<context>.error.<identifier>`. Give `description`, `category`, `retryable` and `message`. Add `fields` if the error carries values. Each `{placeholder}` in `message` must name a required field of the error.
+2. Add the short key of the error to `errors` on the operation.
+3. Run `npx urn-forge compile`. The error type of the handler becomes the payload of the error.
+4. In the handler, return `fail(…)` with the URN of the error and its fields. `fail` adds `kind` itself.
+5. Add a scenario that ends with `Then the operation fails with "<error URN>"`. To check the fields of the error, end the step with a colon and add a table.
+
+## Example
+
+The shipping domain of `packages/urn-forge/tutorial/2-declared-errors/` refuses an express parcel over 5000 grams:
 
 ```yaml
 quote.error.too_heavy_for_express:
@@ -24,82 +30,24 @@ quote.error.too_heavy_for_express:
     - ref: parcel.field.weight_grams
 ```
 
-| Key | Value |
-| --- | --- |
-| `description` | Necessary. What the error means |
-| `category` | Necessary. One of `validation`, `conflict`, `not_found`, `forbidden`, `precondition` |
-| `retryable` | Necessary. `true` if the same call can succeed later |
-| `message` | Necessary. A template. Each `{placeholder}` names a field of the error |
-| `fields` | Optional. Field references, as in an entity. The default is no fields |
-| `recordAs` | Optional. The short key of an event. The runtime makes this event from the fields of the error, so the shell can keep the refusal in an audit trail |
-
-Each value in `fields` must pass all the constraints of its field. The runtime parses the error with the schema of each field, as it parses the input. If the handler gives a value that the field refuses, the result is `ContractViolation`, not the error. `tsc` does not find this mistake, because the value is a plain value until the parse.
-
-Thus, choose the field of each error property for the values that the error carries, not for the values that the input carries. For example, a field `loan_days` with `max: 28` cannot report a loan of 29 days. To report the days that a caller asked for, declare a different field, for example `requested_days` with no `max`, and use it in the error. A scenario that expects the error with the edge value finds this mistake: refer to step 6.
-
-For the full rules, refer to [The manifest](../reference/manifest). For `recordAs`, refer to [Emit an event](emit-an-event).
-
-## 2. Obey the placeholder and `kind` rules
-
-- **A placeholder must name a required field of the error.** Then the message is always complete.
-- **No property of the error can have the name `kind`.** The error payload uses the property `kind` for the URN of the error. A field with the identifier `kind` is correct if `as` gives it another name.
-
-If you do not obey these rules, `compile` stops:
-
+```yaml
+  errors:
+    - quote.error.too_heavy_for_express
 ```
-bad-error.yaml:20:12  error  reserved-property  urn:demo:shop:order:error:price_unavailable: fields[1] becomes property "kind", which an error reserves for its URN; give it another name with as
-bad-error.yaml:17:12  error  unknown-placeholder  urn:demo:shop:order:error:price_unavailable: message placeholder {note} names an optional field; placeholders must name required fields (required fields: sku, kind)
-bad-error.yaml:17:12  error  unknown-placeholder  urn:demo:shop:order:error:price_unavailable: message placeholder {region} names no field of the error (required fields: sku, kind)
-```
-
-## 3. List the error on the operation
-
-Add the short key of the error to `errors` on the operation:
-
-<<< @/../packages/urn-forge/tutorial/2-declared-errors/domain.manifest.yaml{yaml}
-
-An operation can list more than one error. One error can be on more than one operation.
-
-## 4. Compile
-
-Run this command:
-
-```bash
-npx urn-forge compile
-```
-
-The error type of the handler is now the payload of `too_heavy_for_express`. If an operation lists no errors, the error type is `never`, and the handler can only return `ok(…)`.
-
-## 5. Return the error from the handler
-
-Import `fail` from the generated runtime. Call it with the URN of the error and its fields:
 
 <<< @/../packages/urn-forge/tutorial/2-declared-errors/src/core.ts
 
-- `fail` does not take `kind`. It adds `kind` itself.
-- If the error has no fields, call `fail` with the URN only, for example `fail('urn:demo:shop:order:error:pricing_offline')`.
-- If the operation does not list the error, gate 1 fails with `TS2322`. The type of `fail(…)` is not assignable to the result type of the handler.
-
-To choose between more than one error, use a `switch`, as in [`packages/urn-forge/self/core.ts`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/self/core.ts):
-
-<<< @/../packages/urn-forge/self/core.ts
-
-## 6. Write a scenario that expects the error
-
-Add a scenario that ends with `Then the operation fails with "<error URN>"`. To check the fields of the error, add a table after a colon:
-
 <<< @/../packages/urn-forge/tutorial/2-declared-errors/features/quote_shipping.feature{gherkin}
 
-- The step must name an error that the operation lists. If not, gate 3 fails with `undeclared-error`.
-- The table columns must be fields of the error. A field that is not in the table is not checked. An empty cell means that the field must be absent.
+The runtime parses each field of the error with its schema. If the handler gives a value that the field refuses, the result is `ContractViolation`, not the error. Thus, choose a field that accepts each value that the error can carry.
 
-If no scenario expects an error, gate 3 shows a warning:
+If no scenario expects the error, gate 3 shows a warning:
 
 ```
 features  warning  uncovered-error  error urn:demo:shipping:quote:error:too_heavy_for_express of urn:demo:shipping:quote:operation:quote_shipping has no scenario that expects it; add one with Then the operation fails with "urn:demo:shipping:quote:error:too_heavy_for_express"
 ```
 
-In a strict feature, this warning is an error. Refer to [Adopt strict coverage](adopt-strict-coverage).
+To keep a refusal as an event, refer to [Emit an event](emit-an-event).
 
 ## Result
 
@@ -109,12 +57,8 @@ In a strict feature, this warning is an error. Refer to [Adopt strict coverage](
 gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
 ```
 
-To show the error to a caller, refer to [Call an operation from the shell](call-an-operation). An operation that returns a declared error emits no event. To expect this in a scenario, add `Then the operation emits no event`. Refer to [Emit an event](emit-an-event).
-
 ## Related pages
 
 - [Tutorial: add a declared error](../tutorials/declared-errors)
-- [Results and declared errors](../explanation/results-and-errors)
 - [The manifest](../reference/manifest)
-- [The generated runtime](../reference/generated-runtime)
-- [Gherkin steps](../reference/gherkin-steps)
+- [Call an operation from the shell](call-an-operation)

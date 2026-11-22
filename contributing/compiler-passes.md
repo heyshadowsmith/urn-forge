@@ -21,7 +21,7 @@ The `compile` and `verify` commands send the manifest through a sequence of pass
 - Each step reports all the problems that it finds, not only the first problem.
 - Passes 2, 3, 4, 6 and 7 run together, and urn-forge reports their diagnostics together. Pass 5 runs after them, only if they find no error. Pass 8 runs after pass 5, only if pass 5 finds no error.
 - Each diagnostic has a position in the manifest, except `manifest-unreadable`, `not-a-mapping`, `missing-header`, `plugin-config`, `missing-plugin` and `output-conflict`. A diagnostic of the `postgres` configuration that names no URN also has no position.
-- For the message, the cause and the correction of each code, refer to [Diagnostics](./diagnostics).
+- For the message, the cause and the correction of each code, refer to [Diagnostics](../docs/reference/diagnostics.md).
 
 ## Pass 1: meta-schema
 
@@ -45,11 +45,11 @@ Pass 1 examines the parsed YAML with Valibot schemas. It examines these items, i
 | A `status` that is not `active`, `deprecated` or `sunset`, a `supersededBy` that is not a short key, or a `sunsetDate` that is not a date `YYYY-MM-DD` | `invalid-value` | The value |
 | A `supersededBy` or a `sunsetDate` on an atom whose `status` is `active`, or that has no `status` | `invalid-lifecycle` | The key |
 
-The schema of each kind is on [The manifest](./manifest). The rules for constraint values are on [Primitives and constraints](./primitives).
+The schema of each kind is on [The manifest](../docs/reference/manifest.md). The rules for constraint values are on [Primitives and constraints](../docs/reference/primitives.md).
 
 ## Pass 2: expansion
 
-Pass 2 changes each short key to a URN with the `namespace` and `domain` of the header. It also makes the brand identifier of each atom. It reports no diagnostics. Refer to [URNs and names](./naming).
+Pass 2 changes each short key to a URN with the `namespace` and `domain` of the header. It also makes the brand identifier of each atom. It reports no diagnostics. Refer to [URNs and names](../docs/reference/generated-code.md).
 
 ## Pass 3: uniqueness
 
@@ -123,7 +123,7 @@ Pass 6 examines the text of invariant rules and error messages, and the `recordA
 
 For each invariant, pass 6 does these steps:
 
-1. It parses the `rule` with the grammar of the [rule language](./rule-language). If the parse fails, it reports `rule-syntax` and stops for this invariant.
+1. It parses the `rule` with the grammar of the [rule language](../docs/reference/rule-language.md). If the parse fails, it reports `rule-syntax` and stops for this invariant.
 2. If `on` resolves to an entity, it examines the rule against the property names of the entity. It gives each property the primitive of its field, `required` and `many`. A link gets the primitive of the key field of the linked entity. An embedded entity has no primitive: a rule can use it only in `is present` or `is absent`.
 3. It reports each problem that it finds: `unknown-rule-field`, `rule-type` or `unguarded-field`.
 
@@ -134,11 +134,11 @@ For each invariant, pass 6 does these steps:
 | The two sides of each operator have one primitive. Each literal fits the primitive of the other side. An order operator is on an ordered primitive. `+` and `-` are on `integer` or `decimal`. `and`, `or`, `not` and the rule itself have conditions. A list or an embedded entity is only in `is present` or `is absent`. `is present` and `is absent` are not on a required field | `rule-type` |
 | Each optional field is used only after a guard | `unguarded-field` |
 
-The position of each diagnostic is the `rule` value. The message gives the column in the rule, for example `(at column 14 of the rule)`. If pass 6 finds no problem, the IR keeps the parsed rule and its canonical text. For each check and its messages, refer to [The rule language](./rule-language).
+The position of each diagnostic is the `rule` value. The message gives the column in the rule, for example `(at column 14 of the rule)`. If pass 6 finds no problem, the IR keeps the parsed rule and its canonical text. For each check and its messages, refer to [The rule language](../docs/reference/rule-language.md).
 
 ### Message templates
 
-Pass 6 parses the `message` of each error into text and placeholders. Each placeholder must name a property of the error with `required: true` and no `many`. The property cannot be an embedded entity. If not, pass 6 reports `unknown-placeholder` at the `message`, one time for each placeholder. For the form of a placeholder, refer to [The manifest](./manifest).
+Pass 6 parses the `message` of each error into text and placeholders. Each placeholder must name a property of the error with `required: true` and no `many`. The property cannot be an embedded entity. If not, pass 6 reports `unknown-placeholder` at the `message`, one time for each placeholder. For the form of a placeholder, refer to [The manifest](../docs/reference/manifest.md).
 
 ### `recordAs` events
 
@@ -161,7 +161,7 @@ Pass 7 examines the constraints of each field together, in two steps:
 
 Pass 7 also examines the `many` of each field reference in an entity, an event or an error, also of a link and of an embedded entity. If `minItems` is greater than `maxItems`, pass 7 reports `incoherent-constraints` at `many`, with the URN of the atom.
 
-Pass 1, not pass 7, examines that a `values` list is not empty and has no value two times. For the rules of each primitive, refer to [Primitives and constraints](./primitives). For the aspects, refer to [The MECE model of primitives](../explanation/primitives-model).
+Pass 1, not pass 7, examines that a `values` list is not empty and has no value two times. For the rules of each primitive, refer to [Primitives and constraints](../docs/reference/primitives.md). For the aspects, refer to [The MECE model of primitives](primitives-model.md).
 
 This fixture has problems from pass 7 only:
 
@@ -303,9 +303,9 @@ These nodes refer to events:
 
 Because each operation has `emits`, the IR and the fingerprint of each manifest changed one time when urn-forge added events.
 
-An `IREntity` does not list its invariants. The function `invariantsOf(ir, entityUrn)` finds them by their `on`, in URN order. An `IRInvariant` has `urn`, `brandIdentifier`, `description`, `on`, `rule` (the parsed rule), `ruleText` (the canonical text) and `message`. Refer to [The rule language](./rule-language).
+An `IREntity` does not list its invariants. The function `invariantsOf(ir, entityUrn)` finds them by their `on`, in URN order. An `IRInvariant` has `urn`, `brandIdentifier`, `description`, `on`, `rule` (the parsed rule), `ruleText` (the canonical text) and `message`. Refer to [The rule language](../docs/reference/rule-language.md).
 
-The plugins read only the IR. They get the live IR: the IR with no sunset atoms. The function `liveIr(ir)` makes it. The gates of `verify` also read the live IR. `CompileResult.ir` is the full IR. The IR types are exports of the [package API](./public-api).
+The plugins read only the IR. They get the live IR: the IR with no sunset atoms. The function `liveIr(ir)` makes it. The gates of `verify` also read the live IR. `CompileResult.ir` is the full IR. The IR types are exports of the [package API](../docs/reference/public-api.md).
 
 ## Plugin checks
 
@@ -329,7 +329,7 @@ The Postgres plugin examines its configuration in step 4. Only the IR can tell i
 | A name is longer than 63 bytes, or two parts have one name | `invalid-sql-name` | The atom |
 | A rule has no exact SQL form | `unenforced-in-sql`, a warning or an error | The field, the entity or the invariant |
 
-For each check, refer to [The Postgres schema](./postgres-schema).
+For each check, refer to [The Postgres schema](../docs/reference/postgres-schema.md).
 
 | `unsupported-construct` message after `<URN>: the <plugin> plugin ` | Cause |
 | --- | --- |
@@ -339,8 +339,8 @@ For each check, refer to [The Postgres schema](./postgres-schema).
 
 ## Related pages
 
-- [Diagnostics](./diagnostics)
-- [The manifest](./manifest)
-- [The Postgres schema](./postgres-schema)
+- [Diagnostics](../docs/reference/diagnostics.md)
+- [The manifest](../docs/reference/manifest.md)
+- [The Postgres schema](../docs/reference/postgres-schema.md)
 - How urn-forge is built
-- [Departures from the specification](../explanation/departures-from-the-spec)
+- [Departures from the specification](../planning/departures-from-the-spec.md)

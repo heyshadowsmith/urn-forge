@@ -38,7 +38,7 @@ All four types use STE. These are the rules that this site applies.
 - **Links** go to other pages with relative paths, for example `[Diagnostics](../docs/reference/diagnostics.md)`. Link to a page, not to a heading on a page that someone else writes.
 - **Headings** use sentence case. A how-to title is the goal. A reference title is the name of the thing.
 - **Terms** follow [the glossary](../docs/reference/glossary.md). Use *atom* for a field, entity, operation or error. Use *operation*, not *use case* or *command*. Use *the core* for the handlers and *the shell* for the code that calls `executeOperation`.
-- **Versions:** urn-forge 0.1.0. Do not promise future work. To say that a part is not built, write "urn-forge does not have … at this time", and link to [Scope](../docs/reference/scope.md).
+- **Versions:** urn-forge 0.1.0. Do not promise future work. To say that a part is not built, write "urn-forge does not have … at this time", and link to [Scope](../docs/explanation/the-contract.md).
 - **Every page** ends with a short "Related pages" list of two to five links, to other Diátaxis types where possible.
 
 ## 4. The pages

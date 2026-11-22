@@ -153,7 +153,7 @@ All steps are in one PR (decision 8), one commit each. Each step left the reposi
 - [x] **5. `format`** on `string`: `uuid`, `email`, `uri` (`v.uuid`, `v.email`, `v.url`), in conflict with `regex`. *Check:* each format refuses a bad value; `regex` with `format` is `conflicting-constraints`.
   - *Done.* A `uuid` whose length constraints exclude 36 characters is `incoherent-constraints`. A field with `conflicting-constraints` skips the rest of pass 7.
 - [x] **6. The explanation.** A page in *Explanation* about the MECE model: the layers, the aspects, the rules and what is not covered. *Check:* the docs test of decision 6 passes against the reference table.
-  - *Done* with the docs, after Parts B and C, so the page and the table describe the whole model: [The MECE model of primitives](../docs/explanation/primitives-model.md), and a rewritten [Primitives and constraints](../docs/reference/primitives.md). Removing a row from that table fails the test.
+  - *Done* with the docs, after Parts B and C, so the page and the table describe the whole model: [The MECE model of primitives](../contributing/primitives-model.md), and a rewritten [Primitives and constraints](../docs/reference/primitives.md). Removing a row from that table fails the test.
 
 ### Part B: new kinds of value
 

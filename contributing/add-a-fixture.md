@@ -125,4 +125,4 @@ A fixture fails if `compile` gives one error or more. A plugin error, such as `u
 - [Add a primitive](./add-a-primitive.md)
 - [Add a plugin](./add-a-plugin.md)
 - [Diagnostics](../docs/reference/diagnostics.md)
-- [Determinism and the fingerprint](../docs/explanation/determinism.md)
+- [Determinism and the fingerprint](../docs/explanation/how-urn-forge-proves-it.md)

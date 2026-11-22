@@ -8,9 +8,9 @@ The example is the real addition of `date` with its constraints `min` and `max` 
 
 - You have a clone of urn-forge, and `npm ci` ran in the root folder.
 - `npm test` and `npm run typecheck` pass.
-- You read `src/primitives/README.md`, [Primitives and constraints](../docs/reference/primitives.md) and [The MECE model of primitives](../docs/explanation/primitives-model.md).
+- You read `src/primitives/README.md`, [Primitives and constraints](../docs/reference/primitives.md) and [The MECE model of primitives](primitives-model.md).
 - You know that the new kind of value needs a primitive. A kind is new only if its value space or its comparison is different from that of each primitive. For example, a duration is an `integer` with the unit in its name.
-- You know which constraints the primitive accepts, the aspect of each one, and the boundary cases of each one. [Boundary coverage and the ratchet](../docs/explanation/boundary-coverage.md) gives the rules.
+- You know which constraints the primitive accepts, the aspect of each one, and the boundary cases of each one. [Boundary coverage and the ratchet](../docs/explanation/how-urn-forge-proves-it.md) gives the rules.
 
 Commands run from `packages/urn-forge`, except where a step says the root folder.
 
@@ -165,8 +165,8 @@ The generated runtime lists every primitive in `FieldInfo`. The fingerprint also
 1. Add the primitive and its constraints to [Primitives and constraints](../docs/reference/primitives.md), with its boundary cases. Add a row to the constraint table for each constraint. The test of the MECE model compares the table with the registry.
 2. Add the primitive to [The manifest](../docs/reference/manifest.md).
 3. Add its cell conversion to [Gherkin steps](../docs/reference/gherkin-steps.md).
-4. If the primitive changes the table of primitives and aspects, update [The MECE model of primitives](../docs/explanation/primitives-model.md).
-5. Update [Scope](../docs/reference/scope.md).
+4. If the primitive changes the table of primitives and aspects, update [The MECE model of primitives](primitives-model.md).
+5. Update [Scope](../docs/explanation/the-contract.md).
 6. If you added a diagnostic code, add it to [Diagnostics](../docs/reference/diagnostics.md). A test in `tests/diagnostics.test.ts` fails until the page lists each code.
 
 ## Result
@@ -188,5 +188,5 @@ Each command passes. A manifest field with `primitive: <name>` compiles, and its
 - [Add a constraint](./add-a-constraint.md)
 - [Add a test fixture](./add-a-fixture.md)
 - [Primitives and constraints](../docs/reference/primitives.md)
-- [The MECE model of primitives](../docs/explanation/primitives-model.md)
+- [The MECE model of primitives](primitives-model.md)
 - [How urn-forge is built](./architecture.md)

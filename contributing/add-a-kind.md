@@ -30,7 +30,7 @@ Commands run from `packages/urn-forge`, except where a step says the root folder
 
    The error says that `KINDS` has no `widget`. The other errors of the run come from it.
 
-`widget` is only an example. urn-forge has each kind of the specification at this time. Refer to [Scope](../docs/reference/scope.md).
+`widget` is only an example. urn-forge has each kind of the specification at this time. Refer to [Scope](../docs/explanation/the-contract.md).
 
 ## Write the descriptor
 
@@ -148,7 +148,7 @@ The fingerprint includes the kind names. Thus a new kind changes the fingerprint
 
 1. Add the kind, its properties and its references to [The manifest](../docs/reference/manifest.md).
 2. Add each new code to `DIAGNOSTIC_CODES` and to [Diagnostics](../docs/reference/diagnostics.md). A test in `tests/diagnostics.test.ts` fails until the page lists each code.
-3. Update [Scope](../docs/reference/scope.md).
+3. Update [Scope](../docs/explanation/the-contract.md).
 
 ## Result
 
@@ -159,5 +159,5 @@ The fingerprint includes the kind names. Thus a new kind changes the fingerprint
 - [Add a plugin](./add-a-plugin.md)
 - [Add a test fixture](./add-a-fixture.md)
 - [The manifest](../docs/reference/manifest.md)
-- [Compiler passes](../docs/reference/compiler-passes.md)
+- [Compiler passes](compiler-passes.md)
 - [How urn-forge is built](./architecture.md)

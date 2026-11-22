@@ -45,7 +45,7 @@ The stages have these jobs:
 7. **The plugins** each turn the IR into file contents. They do not read the YAML, and they do not read the output of a different plugin.
 8. **The engine** adds the `@generated` header with the fingerprint, sets the line endings and sorts the files by path. The header uses the line comment of the file: `--` for a `.sql` file, and `//` for each other file. `commentMarker` in `src/engine.ts` picks it from the file extension.
 
-The engine has no access to the file system, the clock or the environment. The CLI writes what the engine returns. `src/write.ts` knows the two forms of the header, so `compile` and gate 4 find an orphan SQL file as well as an orphan TypeScript file. This keeps the engine deterministic. Refer to [Determinism and the fingerprint](../docs/explanation/determinism.md).
+The engine has no access to the file system, the clock or the environment. The CLI writes what the engine returns. `src/write.ts` knows the two forms of the header, so `compile` and gate 4 find an orphan SQL file as well as an orphan TypeScript file. This keeps the engine deterministic. Refer to [Determinism and the fingerprint](../docs/explanation/how-urn-forge-proves-it.md).
 
 `verify` compiles in memory, then builds one context for all gates: the live IR, the fresh files, the paths and the feature index. Each gate is an entry in the `GATES` registry, with a number, a name and a `run` function. A gate passes when none of its problems is an error. Thus a gate can give warnings and notes and still pass. Boundary coverage needs this for its warn-then-ratchet mode.
 
@@ -63,7 +63,7 @@ Each rule is a small visit of the syntax tree:
 
 A type carries a brand if it has the property of the unique symbol `BrandSymbol` of Valibot. The test looks into unions, intersections, arrays, tuples and object properties, to a fixed depth, so a recursive type cannot make it run forever.
 
-The specification gives gate 2 to an ESLint profile with typescript-eslint. urn-forge uses the checker that gate 1 already has, with no new dependency and no second configuration. The cost is four rules that urn-forge must keep itself. Each rule has a case in `tests/gate-2/`. Refer to [Departures from the specification](../docs/explanation/departures-from-the-spec.md).
+The specification gives gate 2 to an ESLint profile with typescript-eslint. urn-forge uses the checker that gate 1 already has, with no new dependency and no second configuration. The cost is four rules that urn-forge must keep itself. Each rule has a case in `tests/gate-2/`. Refer to [Departures from the specification](../planning/departures-from-the-spec.md).
 
 ## The diff
 
@@ -112,7 +112,7 @@ The foundations plan used the idea of urn-forge on urn-forge itself. Gate 1 uses
 - A type-level check compares the groups of the kind registry with the records of `UniversalIR`. If the two disagree, `tsc` fails.
 - Each member of a descriptor is necessary. When `boundaries` became a member of the primitive descriptor, `tsc` named all four primitives of that time until each had its rules.
 
-Some rules are not types, so tests keep them. Each constraint declares its aspect, for example `range` or `shape`. A test makes sure that one constraint name has the same aspect on each primitive, and that the constraints of one exclusive group share one aspect. A second test compares the constraint table of [Primitives and constraints](../docs/reference/primitives.md) with the registry, row for row. For the model behind the aspects, refer to [The MECE model of primitives](../docs/explanation/primitives-model.md).
+Some rules are not types, so tests keep them. Each constraint declares its aspect, for example `range` or `shape`. A test makes sure that one constraint name has the same aspect on each primitive, and that the constraints of one exclusive group share one aspect. A second test compares the constraint table of [Primitives and constraints](../docs/reference/primitives.md) with the registry, row for row. For the model behind the aspects, refer to [The MECE model of primitives](primitives-model.md).
 
 CI runs `npm run typecheck`, so these checks fail the build, and not only the editor.
 
@@ -188,7 +188,7 @@ The registries do not hold speculative properties. A property goes into a descri
 
 ## Related pages
 
-- [Compiler passes](../docs/reference/compiler-passes.md)
+- [Compiler passes](compiler-passes.md)
 - [Contributor: add a primitive](./add-a-primitive.md)
 - [Contributor: add a kind](./add-a-kind.md)
 - [Contributor: add a plugin](./add-a-plugin.md)

@@ -60,7 +60,7 @@ A shell that writes a policy with a limit of 0 gets the Postgres error `23514` w
 
 ## The model
 
-The three layers of the [MECE model](../docs/explanation/primitives-model.md) go to three places in SQL:
+The three layers of the [MECE model](../contributing/primitives-model.md) go to three places in SQL:
 
 | Layer | In SQL |
 | --- | --- |
