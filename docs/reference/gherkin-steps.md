@@ -14,13 +14,14 @@ The module `urn-forge/cucumber` has generic Cucumber steps for all domains. The 
 | `I run the operation again with:` | Input fields | After a run. With `idempotency` in `registerOperationSteps`, a repeat in the window gets the first answer, as `runOnce` gives it |
 | `the answer is the first answer` | None | The output of the last run is the output of the first run of the scenario that succeeded |
 | `the output is:` | Output fields | The operation succeeded, and the output agrees with the table |
-| `the input is rejected on "<field>"` | None | The result is `InputRejected`, with an issue on the property or inside it |
-| `the input is rejected by "<invariant URN>"` | None | The invariant is an input invariant, and the result is `InputRejected` with an issue of it |
+| `the input is rejected on "<field>"` | None | The result is `InputRejected`, or the declared error of `rejects`, with an issue on the property or inside it |
+| `the input is rejected by "<invariant URN>"` | None | The invariant is an input invariant, and the result is `InputRejected`, or the declared error of `rejects`, with an issue of it |
 | `the operation fails with "<error URN>"` | None | The result is the declared error with this URN |
 | `the operation fails with "<error URN>":` | Error fields | The same, and the error fields agree with the table |
 | `the operation emits "<event URN>"` | None | The operation emits the event, and the result is a success with one or more events with this URN |
 | `the operation emits "<event URN>":` | Event fields | The same, and one event with this URN agrees with the table |
 | `the operation emits no event` | None | The result is a success with no events, or a `DomainError` |
+| `nothing changes` | None | The result is a refusal: a `DomainError` or `InputRejected`. With the `commit` option, `commit` gives no statement for it |
 | `the operation is not due` | None | The operation has `due`, and the result is the `ContractViolation` of a call for a record that is not due |
 | `the operation emits no "<event URN>"` | None | The operation emits the event, and the result is a success with no event with this URN |
 | `the refusal is recorded as "<event URN>"` | None | The result is a `DomainError` whose `record` is this event |
@@ -146,6 +147,9 @@ A cell that starts with `=` is a formula. A value inside a list or object cell c
 | `emits` | Not in `emits` | `<event URN> is not an event of <operation URN> (emits: <event URNs>)` |
 | `emits` | No success | `<operation URN> did not succeed: <failure>; expected it to emit <event URN>` |
 | `emits` | No such event | `<operation URN> did not emit <event URN> (emitted: <event URNs>)` |
+| `nothing changes` | A success | `<operation URN> succeeded; expected it to refuse and change nothing` |
+| `nothing changes` | Not a refusal | `<operation URN> failed with <failure>; expected a refusal` |
+| `nothing changes` | Statements | `<operation URN> refused, but commit gave <n> statement(s) for it` |
 | `emits no event` | Not a success or a `DomainError` | `<operation URN> failed with <failure>; expected it to emit no event` |
 | `emits no event` | Events | `<operation URN> emitted <event URNs>; expected no event` |
 | `is recorded as` | Not a `recordAs` event | `<event URN> records no declared error of <operation URN> (records: <event URNs>)` |

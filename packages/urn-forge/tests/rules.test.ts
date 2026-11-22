@@ -325,6 +325,15 @@ describe('all, any and date', () => {
     expect(run('any(s in slots: s.size = size)', { size: 2 })).toBe(false);
   });
 
+  it('pairs the items of two lists with all and any', () => {
+    const rule = 'all(s in slots: any(c in codes: s.note is present and s.note = c))';
+    expect(problems(rule)).toEqual([]);
+    const slots = [{ starts_at: '2026-11-22T00:00:00Z', size: 2, note: 'A' }];
+    expect(run(rule, { slots, codes: ['B', 'A'] })).toBe(true);
+    expect(run(rule, { slots, codes: ['B'] })).toBe(false);
+    expect(run(rule, { slots: [], codes: [] })).toBe(true);
+  });
+
   it('keeps the item out of the names of the rule', () => {
     expect(namesIn(stripColumns(parsed('all(s in slots: s.size = size)')))).toEqual(['slots', 'size']);
   });

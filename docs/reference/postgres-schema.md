@@ -221,6 +221,17 @@ For each operation with `due` whose `changes` entity is a table, the store file 
 
 If the entity is not a table, or the rule reads a list or an embedded entity, the plugin reports `unenforced-in-sql`, and the file has no query for the operation. Refer to [Run changes on a clock](../how-to/run-changes-on-a-clock).
 
+## What a call writes
+
+For a domain with an operation that changes a table entity, or with an outbox, the store file has:
+
+| Export | Description |
+| --- | --- |
+| `CommitResult` | A result of `executeOperation`, as `commit` reads it |
+| `commit(result, writes?)` | The statements of a call. A refusal gives none. A success gives `replace<Entity>From` for an operation whose `changes` entity is a table and is its output, then the statements of `writes(output)`, then `insertEvents` of the events that the outbox holds |
+
+Run them in the transaction of the call. Refer to [Declare what a refusal carries](../how-to/declare-refusals#_3-write-nothing-for-a-refusal).
+
 ## Answers of idempotent operations
 
 For a domain with an operation that has `idempotency`, the schema has the table `"idempotency"."<domain>"`: `operation`, `scope` (the owners of the key, as JSON), `key`, `body_hash` (SHA-256 of the canonical body), `answer` (`JSONB`) and `created_at`. The operation, the scope and the key are the primary key. The store file has:

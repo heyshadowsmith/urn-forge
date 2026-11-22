@@ -19,8 +19,9 @@ compare := sum (('<' | '<=' | '=' | '!=' | '>=' | '>') sum)?
 sum     := product (('+' | '-') product)*
 product := timed ('*' timed)*
 timed   := primary ('minutes' | 'hours' | 'days')?
-primary := '(' or ')' | total | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
-total   := 'sum' '(' field 'in' field ':' sum ')'
+primary := '(' or ')' | over | day | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
+over    := 'sum' '(' field 'in' field ':' sum ')' | ('all' | 'any') '(' field 'in' field ':' or ')'
+day     := 'date' '(' sum ')'
 ```
 
 A rule is one `or` expression, and then the end of the rule.
@@ -31,7 +32,7 @@ A rule is one `or` expression, and then the end of the rule.
 | Number | `[0-9]+`, with an optional `.` and digits | `0`, `0.5`, `0.10`. No exponent, no `+`, no `.` at the start |
 | Negative number | `-` and a number, where a value starts | `-1`, `-0.5` |
 | Text | `'` … `'` | No escape, so it cannot contain `'` |
-| Keyword | `and`, `or`, `not`, `is`, `present`, `absent`, `true`, `false` | `sum` is a keyword only before `(`, and `in` only inside a total |
+| Keyword | `and`, `or`, `not`, `is`, `present`, `absent`, `true`, `false` | `sum`, `all`, `any` and `date` are keywords only before `(`, and `in` only inside `sum`, `all` and `any` |
 | Symbol | `<`, `<=`, `=`, `!=`, `>=`, `>`, `+`, `-`, `*`, `(`, `)`, `:` | Any other character causes `rule-syntax` |
 
 - Spaces, tabs and line breaks between tokens are optional.
@@ -47,7 +48,10 @@ A rule is one `or` expression, and then the end of the rule.
 | Arithmetic | `a + b`, `a - b` | Two `integer` or two `decimal` values | A value of that primitive |
 | Product | `a * b` | Two `integer` values, or an `integer` and a `decimal` | An `integer`, or an exact `decimal` |
 | Total | `sum(line in lines: line.amount)` | A list, and an `integer` or `decimal` value of each item | A value of that primitive. Refer to [Lists and embedded entities](#lists-and-embedded-entities) |
+| Every item | `all(line in lines: line.amount > 0)` | A list, and a condition on each item | A condition: true when the condition holds for each item. Refer to [Lists and embedded entities](#lists-and-embedded-entities) |
+| One item | `any(line in lines: line.sku = 'A1')` | A list, and a condition on each item | A condition: true when the condition holds for one item or more |
 | Days | `d + n`, `d - n`, `d1 - d2` | Refer to [Days](#days) | A `date` or an `integer` |
+| Date of a time | `date(starts_at)` | A `timestamp` | Its date in UTC, a `date`. Refer to [Time](#time) |
 | Time | `t + 2 hours`, `t - 15 minutes`, `t + n days` | A `timestamp`, and an `integer` with a unit. Refer to [Time](#time) | A `timestamp` |
 | `and`, `or` | `c and d` | Two conditions | A condition |
 | `not` | `not c` | One condition | A condition |
@@ -128,7 +132,7 @@ The two sides of each operator must have one primitive. A link has the primitive
 - In `d - '2026-01-01'`, the text is a date.
 - The unit is the day. There are no months or years. For one year, write `365` or `366`.
 - In a rule of an operation, `today` is the date of the call: `input.resume_on <= today + 90`.
-- A rule cannot change a `timestamp` to a `date`, or a `date` to a `timestamp`.
+- `date(t)` changes a `timestamp` to its date in UTC. A rule cannot change a `date` to a `timestamp`.
 - The arithmetic is exact, in the schemas and in the Postgres `CHECK`. Give an `integer` field that counts days a `max`.
 
 ## Time
@@ -143,6 +147,7 @@ The two sides of each operator must have one primitive. A link has the primitive
 - A `timestamp` with no unit causes `rule-type`: `"+" on a timestamp needs a unit: write 2 hours, 15 minutes or 180 days`.
 - A unit on a `date` causes `rule-type`. A date counts days: write `today + 1`.
 - There is no time between two timestamps, and no months or years.
+- `date(t)` is the date of `t` in UTC: `date(alt.starts_at) = input.date`. It can count days: `date(t) + 1`. A date in another time zone is not in the language.
 - `now` and `today` come from the shell. Refer to [Declare preconditions and postconditions](../how-to/declare-conditions#a-window-of-time).
 
 ## Guards
@@ -165,19 +170,21 @@ A rule can use the value of an optional property only after a guard. Else `ungua
 | Form | Example | Result |
 | --- | --- | --- |
 | A total | `sum(line in lines: line.amount)` | The total of the value over the items of the list: `integer` or `decimal`, exact. An absent list adds up to 0 |
+| Every item | `all(alt in error.alternatives: alt.party_size = input.party_size)` | A condition: true when it holds for each item. It is true for an empty or absent list |
+| One item | `any(line in input.lines: line.sku = 'A1')` | A condition: true when it holds for one item or more. It is false for an empty or absent list |
 | A product | `item.quantity * item.unit_amount` | `integer × integer` is an `integer`; `integer × decimal` is an exact `decimal`. `decimal × decimal` causes `rule-type` |
 | A path | `total.amount_minor`, `line.amount.amount_minor` | The property of an embedded entity that is not a list. It is optional when the entity or the property is optional |
 | Presence | `lines is present` | A condition |
 | Equality of two embedded entities | `output.plan = current.plan` | A condition: each property, with the comparison of its primitive. An optional property is equal when both are absent |
 
-- Inside a sum, the item has the name before `in`. For a list of embedded entities, write `<item>.<property>`; for a list of values, write `<item>`. The name of the item must not be a name of the rule.
+- Inside `sum`, `all` and `any`, the item has the name before `in`. For a list of embedded entities, write `<item>.<property>`; for a list of values, write `<item>`. The name of the item must not be a name of the rule.
 - `*` binds tighter than `+` and `-`.
 - `=` and `!=` compare two embedded entities of one entity only. An entity that holds a list causes `rule-type`.
 - A path reads into an embedded entity that is not a list, at any depth. It cannot read into a list: use a sum.
 - A rule cannot use a list or an embedded entity in any other way.
-- A rule cannot pair the items of two lists, for example "one answer line for each requested line". Put such a rule in the core, with a declared error.
+- `all` and `any` can pair the items of two lists: `all(s in error.lines: any(l in input.lines: l.sku = s.sku))` says that each listed line is a line of the request. They cannot count the pairs, for example "exactly one answer line for each requested line".
 - A rule compares the key value of a link. It does not read the linked object.
-- In SQL, a rule with a sum or an equality of embedded entities is not a `CHECK`: `unenforced-in-sql`, because the items are rows of a child table.
+- In SQL, a rule with `sum`, `all`, `any` or an equality of embedded entities is not a `CHECK`: `unenforced-in-sql`, because the items are rows of a child table. `date(t)` is: `(t AT TIME ZONE 'UTC')::DATE`.
 
 ## Diagnostics
 
