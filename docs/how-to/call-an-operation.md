@@ -1,45 +1,44 @@
 # Call an operation from the shell
 
-The shell is the code that calls the core, for example an HTTP handler. It calls `executeOperation` from the generated runtime. `executeOperation` parses the input, calls the handler, and parses the output and the events, or the declared error. This guide calls an operation and turns each result into an HTTP response. It also parses a single value, and lets gate 2 examine the shell.
-
-The examples use the shipping domain of [`packages/urn-forge/tutorial/2-declared-errors/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/2-declared-errors/).
+Call an operation from the shell, for example from an HTTP handler, and turn each result into a response.
 
 ## Before you start
 
 - You have a core that uses `satisfies DomainCoreImplementation`. Refer to [Add an operation](add-an-operation).
 - You have compiled the manifest. The shell imports `executeOperation` from `domain.runtime.generated.ts`.
 
-## 1. Call `executeOperation`
+## Steps
 
-Give `executeOperation` three arguments:
+1. Call `executeOperation` with the URN of the operation, the raw payload and the core. It does not throw for a bad payload. It always returns a result.
+2. Check `ok`. If it is `true`, use `result.output`.
+3. If `ok` is `false`, switch on `kind`. TypeScript narrows the type in each `case`:
 
-1. The URN of the operation.
-2. The raw payload, for example the parsed JSON body of a request. Its type is `unknown`.
-3. The core.
+   | `kind` | Meaning |
+   | --- | --- |
+   | `UnknownOperation` | The URN names no operation of the domain |
+   | `InputRejected` | The payload does not match the input schema. The handler did not run. `issues` gives each `path`, `fieldUrn` and `message` |
+   | `DomainError` | The handler returned a declared error. `error` gives its `urn`, `category`, `retryable`, `message` and `fields` |
+   | `ContractViolation` | The core has a bug, for example an output that does not match its schema. Write it to the log. Do not show it to the caller |
 
-```ts
-const result = executeOperation(urn, body, core);
-```
+4. Set `shell` in `urn-forge.config.ts`, so that gate 2 examines the shell files too:
 
-`executeOperation` does not throw for a bad payload. It always returns a result object.
+   ```ts
+   import { defineConfig } from 'urn-forge/config';
 
-## 2. Switch on `ok` and `kind`
+   export default defineConfig({
+     shell: ['./src/shell.ts', './src/server.ts'],
+   });
+   ```
 
-The result has one of five forms:
+5. Run `npx urn-forge verify`. Gate 1 type-checks only the core, so also run `npx tsc --noEmit -p .` over the whole project.
 
-| `ok` | `kind` | Meaning | Data |
-| --- | --- | --- | --- |
-| `true` | | The handler returned `ok(…)`, and the output and the events are valid | `output`, parsed and branded. `events`, each with `urn` and `fields` |
-| `false` | `UnknownOperation` | The URN names no operation of the domain | `issues` |
-| `false` | `InputRejected` | The payload does not match the input schema. The handler did not run | `issues`, each with `path`, `fieldUrn` and `message` |
-| `false` | `DomainError` | The handler returned a declared error | `error`. If the error has `recordAs`, `error.record` has the event |
-| `false` | `ContractViolation` | The core has a bug: no handler, no `Result`, an undeclared error or event, or an output or event that does not match its schema | `issues` |
+To parse a single value outside an operation, parse it with its generated schema, for example `v.safeParse(ParcelWeightGramsSchema, Number(text))`. Do not use a type assertion such as `as ParcelWeightGrams`. Gate 2 refuses it.
 
-First check `ok`. Then switch on `kind`. TypeScript narrows the type in each `case`.
+To publish events after a success, refer to [Emit an event](emit-an-event). To keep the output in Postgres, refer to [Store entities in Postgres](store-in-postgres).
 
-## 3. Map each result to a response
+## Example
 
-Make the file `src/shell.ts`, next to the core. This function turns each result into an HTTP status and a body:
+`src/shell.ts` maps each result of the shipping domain of tutorial 2 to an HTTP status:
 
 ```ts
 import { core } from './core';
@@ -77,65 +76,9 @@ export function handle(urn: string, body: unknown): HttpResponse {
 }
 ```
 
-- **The category** of a declared error comes from the manifest. Choose one status for each category. A `Record<ErrorCategory, number>` makes `tsc` find a category that has no status.
-- **`retryable`** tells the caller if the same call can succeed later. Send it to the caller, or use it to set a retry policy.
-- **`message`** is the template of the error, with the field values in the placeholders. You can show it to a person.
-- **`ContractViolation`** is a bug in the core, not an error of the caller. Write it to the log, and do not show the issues to the caller.
+A `Record<ErrorCategory, number>` makes `tsc` find a category that has no status.
 
-If the shell keeps the output in Postgres, write it after `ok` is `true`, with the generated statements, for example `insertPolicyPolicy(result.output)`. Do not write the `INSERT` by hand: a new property would not get to its column. Refer to [Store entities in Postgres](store-in-postgres).
-
-## 4. Publish the events and the records
-
-If the operation lists events under `emits`, publish `result.events` after a success. If a declared error has `recordAs`, publish `result.error.record` after the refusal. The shipping domain has no events, so this example uses the insurance domain of [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/):
-
-```ts
-import { core } from './core';
-import { executeOperation } from './generated/domain.runtime.generated';
-
-/** Your publisher, for example a message queue or an outbox table. */
-declare function publish(urn: string, fields: unknown): void;
-
-export function cancel(body: unknown): unknown {
-  const result = executeOperation('urn:acme:insurance:policy:operation:cancel_policy', body, core);
-  if (result.ok) {
-    for (const event of result.events) publish(event.urn, event.fields);
-    return result.output;
-  }
-  if (result.kind === 'DomainError' && result.error.record) {
-    publish(result.error.record.urn, result.error.record.fields);
-  }
-  return result;
-}
-```
-
-- **`events`** has the events in the order that the handler gave them. Each event is parsed and branded, and its `fields` include `kind`.
-- **`record`** is there only if the error has `recordAs`. It is not an event of the operation. Keep it apart, for example in an audit trail.
-- If an event is not correct, the result is `ContractViolation`, and the shell gets no output and no event.
-
-[Emit an event](emit-an-event) shows the real values of `events` and `record`.
-
-## 5. Parse a value outside an operation
-
-The shell can read a value that is not the input of an operation, for example a weight from a query string. Parse the value with its generated schema. The schema gives the branded value. Add this function at the end of `src/shell.ts`, the file of step 3:
-
-```ts
-import * as v from 'valibot';
-import { ParcelWeightGramsSchema } from './generated/domain.schemas.generated';
-
-/** A weight from a query string, for example `?weight_grams=2500`. */
-export function weightFrom(text: string) {
-  const parsed = v.safeParse(ParcelWeightGramsSchema, Number(text));
-  return parsed.success ? parsed.output : undefined;
-}
-```
-
-- `weightFrom('2500')` gives `2500`, with the brand of `weight_grams`. `weightFrom('0')` and `weightFrom('abc')` give `undefined`.
-- The shell can import `valibot` and the generated schemas, because the shell parses values. The core cannot. Gate 2 refuses it with `core-parser-import`.
-- Do not use a type assertion, such as `Number(text) as ParcelWeightGrams`. The value then has a brand, but no schema parsed it.
-
-## 6. Connect the function to a server
-
-Make the file `src/server.ts`. This example uses `node:http`. The path of the request is the URN of the operation:
+`src/server.ts` uses the path of the request as the URN of the operation:
 
 ```ts
 import { createServer } from 'node:http';
@@ -161,50 +104,13 @@ createServer((request, response) => {
 
 Start it with `npx tsx src/server.ts`.
 
-## 7. Let gate 2 examine the shell
-
-Gate 2 makes sure that no code makes a branded value without a parse. By default, it examines only the core. To make it examine the shell too, set `shell` in the config. Give a list of files or folders, relative to the config file:
-
-```ts
-import { defineConfig } from 'urn-forge/config';
-
-export default defineConfig({
-  shell: ['./src/shell.ts', './src/server.ts'],
-});
-```
-
-A folder adds each TypeScript file in it, at all depths. Gate 2 does not examine the generated files.
-
-Run `verify`. The output that follows comes from a project with the files of [tutorial 2](../tutorials/declared-errors), `src/shell.ts`, `src/server.ts` and this config. The gate 2 summary counts the shell files:
-
-```bash
-npx urn-forge verify
-```
-
-```
-gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
-gate 2  boundary      PASS  1 core file(s), 2 shell file(s): 0 problem(s)
-gate 3  gherkin       PASS  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 0/1 features
-    features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-    features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
-verify passed with 2 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
-```
-
-If `weightFrom` returns `Number(text) as ParcelWeightGrams`, gate 2 fails:
-
-```
-gate 2  boundary      FAIL  1 core file(s), 2 shell file(s): 1 problem(s)
-    src/shell.ts:41:10  error  brand-assertion  Number(text) as ParcelWeightGrams asserts the branded type ParcelWeightGrams; only a generated parser makes a branded value
-```
-
-In the shell, gate 2 refuses a type assertion to a branded type, an `any` where a branded type belongs, and a comment that turns off a type check. For each code, refer to [Fix a gate that fails](fix-a-failing-gate).
-
-Gate 2 examines the brands in the shell, but gate 1 type-checks only the core and the files that it imports. A type error in the shell does not make `verify` fail. Run `tsc` over the whole project too, for example `npx tsc --noEmit -p .` in CI.
-
 ## Result
 
-Send a request for each case. The commands run from a second terminal.
+The gate 2 summary counts the shell files:
+
+```
+gate 2  boundary      PASS  1 core file(s), 2 shell file(s): 0 problem(s)
+```
 
 A valid parcel gives the output:
 
@@ -237,21 +143,10 @@ content-type: application/json
 {"error":"urn:demo:shipping:quote:error:too_heavy_for_express","message":"An express parcel can weigh 5000 grams at most, not 6000","retryable":false,"fields":{"kind":"urn:demo:shipping:quote:error:too_heavy_for_express","weight_grams":6000}}
 ```
 
-A URN that is not an operation of the domain:
-
-```
-HTTP/1.1 404 Not Found
-content-type: application/json
-
-{"issues":[{"path":"","message":"unknown operation urn:demo:shipping:quote:operation:nothing"}]}
-```
-
 The response headers above do not show `date`, `connection`, `keep-alive` and `content-length`.
 
 ## Related pages
 
-- [The generated runtime](../reference/generated-runtime)
-- [Results and declared errors](../explanation/results-and-errors)
-- [The functional core and brands](../explanation/functional-core)
+- [The generated code](../reference/generated-code)
+- [The core and the shell](../explanation/core-and-shell)
 - [Declare an error](declare-an-error)
-- [Store entities in Postgres](store-in-postgres)

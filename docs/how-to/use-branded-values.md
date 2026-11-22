@@ -1,120 +1,33 @@
 # Use branded values in the core
 
-The input of a handler is branded. Each value has its plain type and a brand, for example `number & Brand<"urn:demo:shipping:parcel:field:weight_grams">`. The brand shows that the shell parsed the value. This guide shows how to read branded values and use them as object keys. It also shows how to use links and embedded entities, and what to return.
+Read and compare the branded input of a handler, and return plain output.
 
 ## Before you start
 
 - You have a handler in a core that uses `satisfies DomainCoreImplementation`. Refer to [Add an operation](add-an-operation).
-- To know why the input has brands, read [The functional core and brands](../explanation/functional-core).
 
-## 1. Read and compare the values
+## Steps
 
-A branded value is also a value of its plain type. Thus, you can use it as the plain type. Arithmetic, comparisons, `===` and `switch` work with no change:
+1. Use a branded value as its plain type. Arithmetic, comparisons, `===` and `switch` work with no change.
+2. To use an `enum` value as an object key, assign it to a constant with the plain union type first. Then use the constant as the key.
+3. To calculate with a `decimal` or a `date`, import `urn-forge/exact`. These values are strings, so `+` and `<` work on them as text.
+4. Give a link to a function that takes the type of the key field of its target, for example `CustomerCustomerId`. `tsc` refuses the identifier of a different entity.
+5. Give plain values to `ok(…)` and `fail(…)`. `executeOperation` parses them and adds the brands.
+6. Do not make a branded value in the core. Use the plain type for a fixed value, for example `const LIGHT = 1000;`. Parse a value from outside in the shell.
 
-```ts
-import type { ParcelParcel } from './generated/domain.schemas.generated';
+## Example
 
-export function examples({ weight_grams, zone, express }: ParcelParcel) {
-  const heavy = weight_grams > 5000;
-  const kilograms = Math.ceil(weight_grams / 1000);
-  const abroad = zone === 'international';
-  let base = 0;
-  switch (zone) {
-    case 'domestic':
-      base = 500;
-      break;
-    case 'international':
-      base = 1500;
-      break;
-  }
-  const fast = express === true;
-  return { heavy, kilograms, abroad, base, fast };
-}
-```
+The core of tutorial 1 uses `zone` as an object key (highlighted):
 
-In a handler, you do not write the input type. `satisfies DomainCoreImplementation` gives it.
+<<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts{8,9,11}
 
-A `decimal` and a `date` are strings, so `+` joins them as text and `<` compares them as text. To calculate with them, import `urn-forge/exact`. It is exact, and it uses the rules of the schemas:
-
-```ts
-import { compareDecimal, daysBetween, sumDecimal } from 'urn-forge/exact';
-
-const total = sumDecimal(lines.map((line) => line.amount)); // an exact decimal string
-const overLimit = compareDecimal(total, approval_limit) > 0;
-const tooOld = daysBetween(receipt_date, claim_date) > 90;
-```
-
-Gate 2 allows this import in the core, because the functions return plain values. For each function, refer to [The package API](../reference/public-api#urn-forge-exact).
-
-## 2. Use an `enum` value as an object key
-
-An `enum` field has a union type of its `values`, with a brand, for example `("domestic" | "international") & Brand<…>`. TypeScript does not let this type index an object. If you write `BASE_CENTS[zone]`, gate 1 fails:
+Without the constant, `BASE_CENTS[zone]` fails gate 1:
 
 ```
 core.ts:9:19  error  type-error  TS7053: Element implicitly has an 'any' type because expression of type '("domestic" | "international") & Brand<"urn:demo:shipping:parcel:field:zone">' can't be used to index type '{ readonly domestic: 500; readonly international: 1500; }'.
 ```
 
-To correct it, do these steps:
-
-1. Assign the value to a constant with the plain union type.
-2. Use that constant as the key.
-
-<<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts{8,9,11}
-
-The assignment is correct, because a branded value is also a value of its plain type. It does not change the value at run time.
-
-## 3. Use a link and an embedded entity
-
-A link holds the value of the key of its target. Thus, it has the type and the brand of the key field. In the insurance domain, `holder` links to a customer, and the key of a customer is `customer.field.customer_id`. The generated schema uses the key field schema:
-
-```ts
-  holder: CustomerCustomerIdSchema,
-```
-
-Thus, `holder` has the type `CustomerCustomerId`. A function of the core that takes a customer identifier accepts it with no cast:
-
-```ts
-import type { CustomerCustomerId } from './generated/domain.schemas.generated';
-
-function isBlocked(customer: CustomerCustomerId): boolean {
-  return customer === '00000000-0000-0000-0000-000000000000';
-}
-```
-
-`isBlocked(policy.holder)` passes gate 1. The identifier of a different entity has a different brand, so `tsc` refuses it. Here the handler of `issue_policy` calls `isBlocked(policy.policy_id)`:
-
-```
-gate 1  completeness  FAIL  tsc: 1 error(s) over insurance/core.ts; `core` satisfies DomainCoreImplementation
-    insurance/core.ts:29:33  error  type-error  TS2345: Argument of type 'string & Brand<"urn:acme:insurance:policy:field:policy_id">' is not assignable to parameter of type 'string & Brand<"urn:acme:insurance:customer:field:customer_id">'.
-      Type 'string & Brand<"urn:acme:insurance:policy:field:policy_id">' is not assignable to type 'Brand<"urn:acme:insurance:customer:field:customer_id">'.
-        Types of property '[BrandSymbol]' are incompatible.
-          Property '"urn:acme:insurance:customer:field:customer_id"' is missing in type '{ "urn:acme:insurance:policy:field:policy_id": "urn:acme:insurance:policy:field:policy_id"; }' but required in type '{ "urn:acme:insurance:customer:field:customer_id": "urn:acme:insurance:customer:field:customer_id"; }'.
-```
-
-Both values are UUID strings, but only the brand of the key field is correct for a link to a customer.
-
-An embedded entity has the parsed type of its entity. Each object of `coverages` is a `PolicyCoverage`, so its fields have their brands too. For example, each `limit` in `policy.coverages.map((c) => c.limit)` is a branded decimal string.
-
-## 4. Do not make branded values in the core
-
-The core gets branded values. It does not make them. A plain value is not assignable to a branded type:
-
-```ts
-const limit: ParcelWeightGrams = 5000;
-```
-
-```
-error TS2322: Type 'number' is not assignable to type 'number & Brand<"urn:demo:shipping:parcel:field:weight_grams">'.
-```
-
-A brand must mean that a generated schema parsed the value. Gate 2 makes sure of this. In a core file, it refuses these things:
-
-- A type assertion to a branded type, for example `1000 as ParcelWeightGrams`. Gate 2 also refuses an assertion through `unknown`, and an assertion to an object with branded fields.
-- A value of type `any` where a branded type belongs, for example the result of `JSON.parse`.
-- A comment that turns off a type check: `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`.
-- A value import of the generated schemas or of `valibot`. Use `import type` for the branded types.
-
-Here, two new lines in the core of `tutorial/1-first-domain` make two weights without a parse:
+A core that makes branded values without a parse passes gate 1, but fails gate 2:
 
 ```ts
 import type { ParcelWeightGrams } from './generated/domain.schemas.generated';
@@ -123,33 +36,17 @@ const LIGHT = 1000 as ParcelWeightGrams;
 const HEAVY: ParcelWeightGrams = JSON.parse('30000');
 ```
 
-`tsc` accepts both lines, so gate 1 passes. Gate 2 fails:
-
 ```
 gate 2  boundary      FAIL  1 core file(s), 0 shell file(s): 2 problem(s)
     tutorial/1-first-domain/src/core.ts:6:15  error  brand-assertion  1000 as ParcelWeightGrams asserts the branded type ParcelWeightGrams; only a generated parser makes a branded value
     tutorial/1-first-domain/src/core.ts:7:34  error  brand-from-any  JSON.parse('30000') is any where the branded type ParcelWeightGrams belongs; parse the value with a generated schema in the shell
 ```
 
-To correct it, do one of these:
-
-- If the core needs a fixed number, use the plain type: `const LIGHT = 1000;`. A branded value compares with a plain value.
-- If the value comes from outside, parse it in the shell with its generated schema, or give it to `executeOperation`. Refer to [Call an operation from the shell](call-an-operation).
-
-`as const` is not a problem, as `BASE_CENTS` in the core of tutorial 1 shows. An assertion to a type with no brand is not a problem. For each code and its fix, refer to [Fix a gate that fails](fix-a-failing-gate).
-
-## 5. Return plain output
-
-The output type and the error types of a handler are plain. They have no brands:
-
-- Give plain values to `ok(…)` and to `fail(…)`.
-- A branded input value is also permitted, because it is also a plain value. For example, the core in `tutorial/2-declared-errors` gives the branded `weight_grams` to `fail(…)`.
-
-`executeOperation` parses the output, or the error, with its schema. The parse adds the brands. If the output does not match the schema, the result is `ContractViolation`. Refer to [Call an operation from the shell](call-an-operation).
+Gate 2 also refuses `@ts-ignore`, `@ts-expect-error` and `@ts-nocheck`, and a value import of the generated schemas or of `valibot` in the core. Use `import type` for the branded types. `as const` is not a problem.
 
 ## Result
 
-Run `npx urn-forge verify`. Gate 1 shows no type errors, and gate 2 shows no problems. For the core of tutorial 1, the output starts with these lines:
+`npx urn-forge verify` shows no type errors at gate 1 and no problems at gate 2:
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over tutorial/1-first-domain/src/core.ts; `core` satisfies DomainCoreImplementation
@@ -158,7 +55,6 @@ gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
 
 ## Related pages
 
-- [The functional core and brands](../explanation/functional-core)
-- [The generated schemas](../reference/generated-schemas)
-- [Add an entity](add-an-entity)
+- [The core and the shell](../explanation/core-and-shell)
+- [The package API](../reference/public-api)
 - [Fix a gate that fails](fix-a-failing-gate)

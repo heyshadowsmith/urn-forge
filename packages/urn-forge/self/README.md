@@ -24,10 +24,10 @@ Each row is a declaration this domain needs and the MVP cannot express. Together
 | Declaration | Blocked on | Notes |
 | --- | --- | --- |
 | ~~`naming.field.context` and `naming.field.identifier` must be lowercase snake_case~~ | ~~`regex` constraint~~ | Done: every segment field uses the grammar's pattern (a test keeps them equal), so `Policy` is rejected. `brand_identifier` and `urn` outputs are checked too |
-| ~~`naming.field.kind`~~ | ~~`oneOf` constraint~~ | Done: `naming.operation.to_urn` uses it, now as `primitive: enum` with `values` (`docs/project/primitives-plan.md`). A test keeps its list equal to the kind registry |
-| ~~`naming.operation.parse_short_key` refuses a malformed key~~ | ~~`error` kind and `Result`~~ | Done: three declared errors, one scenario each, written before the compiler supported them (`docs/project/error-kind-plan.md`, step 0) |
+| ~~`naming.field.kind`~~ | ~~`oneOf` constraint~~ | Done: `naming.operation.to_urn` uses it, now as `primitive: enum` with `values` (`planning/primitives-plan.md`). A test keeps its list equal to the kind registry |
+| ~~`naming.operation.parse_short_key` refuses a malformed key~~ | ~~`error` kind and `Result`~~ | Done: three declared errors, one scenario each, written before the compiler supported them (`planning/error-kind-plan.md`, step 0) |
 | `naming.field.required`, `naming.field.nullable` | ~~`boolean` primitive~~ available; no operation needs them yet | Field references in the manifest |
 | `manifest.version` is semver | No operation needs it yet (`regex` is available) | Also needed by a future version comparison |
 | `gherkin.operation.coerce_cell` | A value of more than one type (`enum` is available for the primitive name) | `coerceCell` returns a number, a string, a boolean or nothing |
-| `errors.operation.render_message` (fills an error's `{placeholders}`) | `record` primitive (its input is a map of field values) | Part of the error kind work; see `docs/project/error-kind-plan.md` |
+| `errors.operation.render_message` (fills an error's `{placeholders}`) | `record` primitive (its input is a map of field values) | Part of the error kind work; see `planning/error-kind-plan.md` |
 | `compatibility.operation.classify_constraint_change` (gate 5) | A value of more than one type (a constraint value is a number, a string, a boolean or a list); gate 5 itself | The core of `urn-forge diff`. The `error` kind and `enum` it also needs are available, and lists (`many` on a field reference) can hold a list value |

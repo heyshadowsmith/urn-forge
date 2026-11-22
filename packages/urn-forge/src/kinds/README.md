@@ -16,6 +16,6 @@ One module per kind of atom. Each exports a descriptor made with `defineKind<Dec
 1. Add its name to `KindName` in `types.ts`. `tsc` then fails until the registry in `index.ts` has a descriptor for it, and, if the spec named it, until it leaves `NOT_YET_SUPPORTED_KINDS`.
 2. Write `src/kinds/<name>.ts`, declaring every reference the kind makes in `references`, and add it to `KINDS`.
 3. Add its group to `UniversalIR`. `tsc` fails until the registry's groups and the IR's records match. `ValidManifest` is derived from the registry, so it needs no change.
-4. Decide what each plugin does with it, and document the kind in `docs/reference/manifest.md`. The how-to guide `docs/how-to/add-a-kind.md` gives the full procedure.
+4. Decide what each plugin does with it, and document the kind in `docs/reference/manifest.md`. The how-to guide `contributing/add-a-kind.md` gives the full procedure.
 
 Pass 4 needs no new code for a new kind: its reference slots are enough.

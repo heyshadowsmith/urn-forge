@@ -1,195 +1,114 @@
 # The configuration file
 
-The configuration file `urn-forge.config.ts` gives the settings of a project. The `compile` and `verify` commands read it. The `diff` command reads only the `tables` of the `postgres` plugin from it. A command-line option overrides the setting with the same name.
+The configuration file `urn-forge.config.ts` gives the settings of a project. `compile` and `verify` read it. `diff` reads only the `tables` of the `postgres` plugin. A command-line option overrides the setting with the same name.
 
-This is the configuration file of the math example:
-
-<<< @/../packages/urn-forge/example/urn-forge.config.ts
+<<< @/../packages/urn-forge/tutorial/3-strict-coverage/urn-forge.config.ts
 
 ## The file
 
-| Item | Value |
-| --- | --- |
-| Default name | `urn-forge.config.ts` |
-| Language | TypeScript or JavaScript. urn-forge loads the file with a dynamic `import()` through tsx. tsx removes the types and does not type-check the file |
-| Content | A `export default` of a configuration object |
-| Type helper | `defineConfig` from `urn-forge/config`. It returns the object without a change and only gives it the type `UrnForgeConfig`. A plain object is also correct |
-| Validation | urn-forge examines the object with a Valibot schema when it loads the file. Refer to [Errors](#errors) |
-
-### How urn-forge finds the file
-
-The `compile`, `verify` and `diff` commands use the first applicable item:
-
-| Sequence | Condition | Result |
-| --- | --- | --- |
-| 1 | The command has `--config <file>` | urn-forge loads this file. If it cannot load the file, the command fails with `config-unreadable` |
-| 2 | The file `urn-forge.config.ts` is in the current directory | urn-forge loads this file |
-| 3 | Neither | urn-forge uses no configuration file. Each setting uses its default |
-
-urn-forge does not look for `urn-forge.config.ts` in the parent directories.
+- The file is TypeScript or JavaScript, with an `export default` of a configuration object. urn-forge loads it through tsx, which does not type-check it.
+- `defineConfig` from `urn-forge/config` gives the object the type `UrnForgeConfig`. A plain object is also correct.
+- With `--config <file>`, urn-forge loads that file. Else it loads `urn-forge.config.ts` from the current directory, if it is there. It does not look in the parent directories. With no file, each setting uses its default.
 
 ## Settings
 
-All settings are optional. The configuration object cannot have other properties.
+All settings are optional. Other properties cause `config-invalid`.
 
-| Setting | Type | Default | Option | Command |
+| Setting | Type | Default | Option | Used by |
 | --- | --- | --- | --- | --- |
-| `manifest` | `string`, not empty | `domain.manifest.yaml` | `--manifest` | `compile` and `verify` |
-| `out` | `string`, not empty | `src/generated` | `--out` | `compile` and `verify` |
-| `core` | `string`, not empty | `src/core.ts` | `--core` | `verify` (gates 1 and 2) |
-| `features` | `string`, not empty | `features` | `--features` | `verify` (gate 3) |
-| `tsconfig` | `string`, not empty | `tsconfig.json` | `--tsconfig` | `verify` (gates 1 and 2) |
-| `shell` | An array of `string`, each not empty | None: no shell files | None | `verify` (gate 2) |
-| `boundaryCoverage` | `'warn'` or `'error'` | `'warn'` | None | `verify` (gate 3) |
-| `referenceDate` | A date `'YYYY-MM-DD'` | None | `--reference-date` | `compile` and `verify` (pass 8) |
-| `plugins` | An array of plugin entries | `['valibot', 'fcis']`, each with `{}` | None | `compile` and `verify` (gate 4). `diff` reads the `tables` of `postgres` |
+| `manifest` | string | `domain.manifest.yaml` | `--manifest` | `compile`, `verify` |
+| `out` | string | `src/generated` | `--out` | `compile`; `verify` gates 1 and 4 |
+| `core` | string | `src/core.ts` | `--core` | `verify` gates 1 and 2 |
+| `features` | string | `features` | `--features` | `verify` gate 3 |
+| `tsconfig` | string | `tsconfig.json` | `--tsconfig` | `verify` gates 1 and 2 |
+| `shell` | string array | None | None | `verify` gate 2 |
+| `boundaryCoverage` | `'warn'` or `'error'` | `'warn'` | None | `verify` gate 3 |
+| `referenceDate` | `'YYYY-MM-DD'` | None | `--reference-date` | `compile`, `verify` |
+| `plugins` | An array of plugin entries | `['valibot', 'fcis']` | None | `compile`, `verify` gate 4. `diff` reads `postgres` `tables` |
 
-### `manifest`
-
-The manifest file to compile. Refer to [The manifest](./manifest).
-
-### `out`
-
-The directory of the generated files. `compile` writes the files in this directory. Gate 4 compares the files in this directory with a new compile. Gate 1 reads the generated runtime from this directory.
-
-### `core`
-
-The core entry file. One export of this file must use `satisfies DomainCoreImplementation`. Gate 1 type-checks this file. Gate 2 examines this file and the files that it imports in its directory.
-
-### `features`
-
-The directory of the `.feature` files. Gate 3 reads this directory and its subdirectories.
-
-### `tsconfig`
-
-The TypeScript configuration file. Gate 1 uses its compiler options for the type check. Gate 2 uses the same program.
+- `out` is the directory of the generated files.
+- `core` is the core entry file. One export must use `satisfies DomainCoreImplementation`.
+- `features` is the directory of the `.feature` files, with its subdirectories.
+- A path setting cannot be an empty string.
 
 ### `shell`
 
-The files and directories of the shell. Gate 2 examines them with three of its rules, in addition to the core files. Each item is a file or a directory. For a directory, gate 2 examines each `.ts`, `.tsx`, `.mts` and `.cts` file in it and in its subdirectories.
+The files and directories of the shell, for example `shell: ['./src/shell', './src/server.ts']`. Gate 2 examines each `.ts`, `.tsx`, `.mts` and `.cts` file in them. It does not examine as shell files:
 
-Gate 2 does not examine these files as shell files:
+- a core file,
+- a file in the `out` directory,
+- a `.d.ts` file,
+- a file in `node_modules` or in a directory whose name starts with `.`.
 
-- A core file. Gate 2 examines it as a core file.
-- A file in the `out` directory.
-- A declaration file (`.d.ts`).
-- A file in a `node_modules` directory, or in a directory whose name starts with `.`.
-
-An item that is not there, or a directory with no TypeScript file, adds no file. Gate 2 then gives the warning `shell-not-found`, because a misspelled path would turn off its checks for that path. An empty string causes `config-invalid`. There is no command-line option for this setting. For the rules, refer to [Verification gates](./verification-gates).
-
-```ts
-shell: ['./src/shell', './src/server.ts']
-```
+An item that adds no file gives the warning `shell-not-found`.
 
 ### `boundaryCoverage`
 
-The severity of the coverage gaps of gate 3. A coverage gap is an `uncovered-boundary` or an `uncovered-error` diagnostic.
+The severity of the coverage gaps of gate 3: `uncovered-boundary`, `uncovered-error`, `uncovered-event`, `uncovered-record` and `uncovered-invariant`.
 
-| Value | Coverage gap in a feature with the tag `@urn-forge:strict` | Coverage gap in a different feature |
+| Value | Gap in a feature with `@urn-forge:strict` | Gap in a different feature |
 | --- | --- | --- |
 | `'warn'` | Error | Warning |
 | `'error'` | Error | Error |
 
-If the value is `'warn'`, each feature has the tag `@urn-forge:strict` and gate 3 passes, gate 3 shows the note `ratchet-ready`. For the reasons, refer to [Boundary coverage and the ratchet](../explanation/boundary-coverage).
+With `'warn'`, if each feature is strict and gate 3 passes, gate 3 shows the note `ratchet-ready`.
 
 ### `referenceDate`
 
-The day that pass 8 compares each `sunsetDate` with. If an atom has a `sunsetDate` on or before this day, a reference to it from an active or a deprecated atom is `sunset-ref`, an error. The option `--reference-date` overrides the setting.
-
-urn-forge never uses the clock for this check. Thus one commit always gives one result. If there is no reference date, pass 8 does not compare sunset dates. `verify` then writes a note line, if the manifest has a `sunsetDate`. For the lifecycle keys, refer to [The manifest](./manifest).
-
-The value must be a day of the calendar, for example `'2027-06-30'`. A value such as `'2027-13-01'` causes `config-invalid`.
-
-### `plugins`
-
-The plugins to run, in sequence. Refer to [Plugins](#plugins).
+The day that urn-forge compares each `sunsetDate` with. If a `sunsetDate` is on or before this day, a reference to the atom from an active or a deprecated atom is `sunset-ref`. urn-forge never reads the clock. Without a reference date, it does not compare sunset dates.
 
 ## Paths
 
 | Source of the path | A relative path starts from |
 | --- | --- |
 | A setting in the configuration file | The directory of the configuration file |
+| A default, with a configuration file | The directory of the configuration file |
 | An option on the command line | The current directory |
-| A default, when urn-forge loads a configuration file | The directory of the configuration file |
 | A default, with no configuration file | The current directory |
-
-Example: the configuration file `example/urn-forge.config.ts` has `out: './generated'`. As a result, the output directory is `example/generated`, also if you run the command from a different directory. The same is true for a default: with `--config my-shipping/urn-forge.config.ts` and no `core` setting, the core is `my-shipping/src/core.ts`.
 
 ## Plugins
 
-### The plugins
+| Name | Makes | Needs | Configuration |
+| --- | --- | --- | --- |
+| `valibot` | `domain.schemas.generated.ts` | None | `{}` |
+| `fcis` | `domain.runtime.generated.ts` | `valibot` | `{}` |
+| `postgres` | `schema.generated.sql`, and `domain.store.generated.ts` if `tables` is not empty | `valibot` | `tables`: short keys of entities with a `key`, default `[]`. `unenforced`: `'warn'` (default) or `'error'` |
 
-| Name | Version | Makes | Needs (`requires`) | Configuration |
-| --- | --- | --- | --- | --- |
-| `valibot` | `0.1.0` | `domain.schemas.generated.ts`. Refer to [The generated schemas](./generated-schemas) | None | `{}` only |
-| `fcis` | `0.2.0` | `domain.runtime.generated.ts`. Refer to [The generated runtime](./generated-runtime) | `valibot`, because the runtime imports the schemas | `{}` only |
-| `postgres` | `0.2.0` | `schema.generated.sql`, and `domain.store.generated.ts` if `tables` is not empty. Refer to [The Postgres schema](./postgres-schema) | `valibot`, because the store file imports the types of the schemas | `tables`: the short keys of the entities that become tables. Default `[]`. `unenforced`: `'warn'` (the default) or `'error'` |
-
-urn-forge 0.1.0 does not have the `gherkin` plugin of the specification. Refer to [Scope](./scope).
-
-The configuration file of the insurance domain adds `postgres` after the two default plugins:
-
-<<< @/../packages/urn-forge/insurance/urn-forge.config.ts
-
-### The forms of an entry
-
-Each entry of the `plugins` array has one of these forms:
-
-| Form | Example | Result |
-| --- | --- | --- |
-| A name | `'valibot'` | The plugin with the configuration `{}` |
-| A pair of a name and a configuration | `['valibot', {}]` | The plugin with this configuration |
-
-The two forms are equal. You can use the two forms in one array.
+An entry is a name, or a pair of a name and a configuration. The two forms are equal:
 
 ```ts
 plugins: ['valibot', 'fcis']
 plugins: [['valibot', {}], ['fcis', {}]]
 ```
 
-A plugin with options needs the pair form, for example `['postgres', { tables: ['policy.entity.policy'] }]`. `defineConfig` types the configuration of each plugin. Options that have a default are optional.
+- A plugin with options needs the pair form: `['postgres', { tables: ['policy.entity.policy'] }]`.
+- Each name occurs one time. A needed plugin must also be in the array, at any position.
+- The array cannot be empty.
+- A change to `plugins` changes the generated files. Run `urn-forge compile` again.
 
-### Rules
-
-- Each name must be `valibot`, `fcis` or `postgres`.
-- A name can occur only one time.
-- If a plugin needs a different plugin (its `requires` list), that plugin must also be in the array. The position in the array is not important.
-- The configuration of each plugin must agree with the schema of the plugin. `valibot` and `fcis` accept only `{}`. `postgres` accepts `tables` and `unenforced`.
-- If the `plugins` setting is not there, urn-forge runs `valibot` and then `fcis`, each with `{}`. It does not run `postgres` unless the list names it.
-- The array cannot be empty (`config-invalid`).
-
-### Plugins and the fingerprint
-
-The fingerprint in the header of each generated file includes the names, the versions, the configurations and the sequence of the plugins. If you change the `plugins` setting, the generated files change. Then gate 4 fails until you run `urn-forge compile` again. For the fingerprint, refer to [Determinism and the fingerprint](../explanation/determinism).
+For the `postgres` plugin, refer to [The Postgres schema](./postgres-schema).
 
 ## Errors
 
-urn-forge reports these errors against the configuration file. Each error stops the command with exit code `1`.
+Each error stops the command with exit code `1`.
 
 | Problem | Code | Example message |
 | --- | --- | --- |
-| urn-forge cannot load the file: the file is not there, or it has a syntax error | `config-unreadable` | `cannot load config: <reason>` |
-| The file has no default export | `config-invalid` | ``config: the file must `export default` the config`` |
-| The default export is not an object | `config-invalid` | `config: Invalid type: Expected Object but received 5` |
+| The file cannot load | `config-unreadable` | `cannot load config: <reason>` |
+| No default export | `config-invalid` | ``config: the file must `export default` the config`` |
 | An unknown setting | `config-invalid` | `config.foo: unknown option "foo"` |
-| A path setting that is an empty string | `config-invalid` | `config.core: must not be empty`<br>`config.shell[0]: must not be empty` |
-| A `shell` that is not an array | `config-invalid` | `config.shell: Invalid type: Expected Array but received "./shell"` |
-| A value of the incorrect type | `config-invalid` | `config.boundaryCoverage: Invalid type: Expected ("warn" \| "error") but received "strict"` |
-| A `referenceDate` that is not a day of the calendar | `config-invalid` | `config.referenceDate: must be a date YYYY-MM-DD` |
+| An empty path | `config-invalid` | `config.core: must not be empty` |
+| A value of the wrong type | `config-invalid` | `config.boundaryCoverage: Invalid type: Expected ("warn" \| "error") but received "strict"` |
+| A `referenceDate` that is not a calendar day | `config-invalid` | `config.referenceDate: must be a date YYYY-MM-DD` |
 | An unknown plugin | `config-invalid` | `config.plugins[1]: unknown plugin "mysql" (plugins: valibot, fcis, postgres)` |
-| A plugin that occurs two times | `config-invalid` | `config.plugins[2]: plugin "valibot" is listed more than once` |
-| An empty `plugins` list | `config-invalid` | `config.plugins: must list one or more plugins` |
-| A plugin entry with more than two items, for example `['valibot', {}, 'extra']` | `config-invalid` | `config.plugins[0]: must be a plugin name or [name, config]` |
-| A plugin configuration that does not agree with the schema of the plugin | `plugin-config` | `plugin valibot config: unknown option "strict"`<br>`plugin postgres config: unenforced: Invalid type: Expected ("warn" \| "error") but received "strict"` |
-| A `tables` item of `postgres` that is not an entity with a `key` in the manifest | `wrong-ref-kind`, `unresolved-ref` or `missing-key` | `urn:demo:store:shop:entity:plain: is a table in the postgres config, so it needs a key: one of its own required, single-valued fields` |
-| A plugin needs a plugin that is not in the array | `missing-plugin` | `plugin fcis requires plugin valibot, which is not enabled` |
-
-The `wrong-ref-kind`, `unresolved-ref` and `missing-key` errors of `postgres` have the manifest as their file. urn-forge reports all the `config-invalid` errors of the file together. For each code, refer to [Diagnostics](./diagnostics).
+| A plugin two times | `config-invalid` | `config.plugins[2]: plugin "valibot" is listed more than once` |
+| An empty `plugins` | `config-invalid` | `config.plugins: must list one or more plugins` |
+| A plugin configuration that is not correct | `plugin-config` | `plugin valibot config: unknown option "strict"` |
+| A needed plugin is not there | `missing-plugin` | `plugin fcis requires plugin valibot, which is not enabled` |
+| A `tables` item that is not an entity with a `key` | `wrong-ref-kind`, `unresolved-ref` or `missing-key` | `urn:demo:store:shop:entity:plain: is a table in the postgres config, so it needs a key: one of its own required, single-valued fields` |
 
 ## Related pages
 
 - [The CLI](./cli)
 - [Set up a project](../how-to/set-up-a-project)
-- [Adopt strict coverage](../how-to/adopt-strict-coverage)
-- [The Postgres schema](./postgres-schema)
-- [Boundary coverage and the ratchet](../explanation/boundary-coverage)
+- [Close boundary gaps](../how-to/close-boundary-gaps)

@@ -11,7 +11,9 @@ This is an npm-workspaces monorepo:
 | [`packages/urn-forge`](packages/urn-forge) | The CLI (`urn-forge compile`, `urn-forge verify`, `urn-forge diff`), the Cucumber step library, tests, and the math example |
 | [`packages/urn-forge/self`](packages/urn-forge/self) | urn-forge's own domain: the toolchain's pure functions, declared and traced with urn-forge |
 | [`packages/urn-forge/insurance`](packages/urn-forge/insurance) | The insurance domain: dates, exact decimals, an optional field, invariants, a link to a customer and an embedded list of coverages, strict from the start, with a Postgres schema for its customers and policies, a deprecated field that a replacement supersedes, events that its operations emit, and a declared error that records as an event |
-| [`docs`](docs) | The VitePress documentation site, including the [MVP plan](docs/project/mvp-plan.md) and [spec v1.1](docs/project/spec-v1-1.md) |
+| [`docs`](docs) | The VitePress documentation site, for users |
+| [`contributing`](contributing) | The guides for persons who change urn-forge; start at [CONTRIBUTING.md](CONTRIBUTING.md) |
+| [`planning`](planning) | The plans, the scope charter and the roadmap; not published |
 
 ## Commands
 
@@ -43,6 +45,6 @@ npm run verify
 npm run test:features
 ```
 
-Refer to [Install urn-forge](docs/how-to/install.md) and [Set up a project](docs/how-to/set-up-a-project.md). To retire a URN and to check each change for breaks, refer to [Retire a URN](docs/how-to/retire-a-urn.md) and [Check compatibility in CI](docs/how-to/check-compatibility.md).
+Refer to [Install urn-forge](docs/how-to/install.md) and [Set up a project](docs/how-to/set-up-a-project.md). To retire a URN and to check each change for breaks, refer to [Change the contract](docs/how-to/change-the-contract.md).
 
 Start with the docs' [first tutorial](docs/tutorials/first-domain.md). The docs follow [Diátaxis](https://diataxis.fr/): tutorials, how-to guides, reference and explanation.
