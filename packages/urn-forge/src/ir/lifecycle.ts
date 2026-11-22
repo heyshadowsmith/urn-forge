@@ -70,3 +70,63 @@ export function liveIr(ir: UniversalIR): UniversalIR {
 export function hasSunsetDates(ir: UniversalIR): boolean {
   return [ir.fields, ir.entities, ir.invariants, ir.operations, ir.events, ir.errors].some((group) => Object.values(group).some((node) => node.lifecycle?.sunsetDate !== undefined));
 }
+
+/** A notice: a number of days or months. */
+export interface Notice {
+  readonly count: number;
+  readonly unit: 'days' | 'months';
+}
+
+/** The notice of `6 months` or `180 days`, or undefined for any other text. */
+export function parseNotice(text: string): Notice | undefined {
+  const match = /^([1-9]\d*) (days?|months?)$/.exec(text);
+  if (!match) return undefined;
+  return { count: Number(match[1]), unit: match[2]!.startsWith('day') ? 'days' : 'months' };
+}
+
+/** The date `notice` after `date`, on the calendar: a month from a day that the next month lacks is that month's last day. */
+export function addNotice(date: string, notice: Notice): string {
+  const [year, month, day] = date.split('-').map(Number) as [number, number, number];
+  if (notice.unit === 'days') return new Date(Date.UTC(year, month - 1, day + notice.count)).toISOString().slice(0, 10);
+  const target = month - 1 + notice.count;
+  const last = new Date(Date.UTC(year, target + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, target, Math.min(day, last))).toISOString().slice(0, 10);
+}
+
+/**
+ * The notice before a removal, for each atom with a lifecycle.
+ *
+ * - With a notice: a sunset date is at least the notice after `deprecatedOn`, which it needs,
+ *   and a sunset atom has a sunset date (`short-notice`).
+ * - With a reference date: a sunset atom is not sunset before its sunset date (`early-sunset`).
+ */
+export function checkNotice(
+  atoms: ReadonlyMap<Urn, { readonly lifecycle: Lifecycle; readonly path: ManifestPath }>,
+  notice: { readonly text: string; readonly value: Notice } | undefined,
+  referenceDate: string | undefined,
+): IRIssue[] {
+  const issues: IRIssue[] = [];
+  for (const [urn, { lifecycle, path }] of atoms) {
+    const { status, deprecatedOn, sunsetDate } = lifecycle;
+    if (notice !== undefined) {
+      const fail = (message: string) => issues.push({ code: 'short-notice', urn, path, message: `${urn}: ${message}` });
+      if (sunsetDate === undefined) {
+        if (status === 'sunset') fail(`a sunset atom has no sunsetDate; the notice of ${notice.text} ends on it`);
+      } else if (deprecatedOn === undefined) {
+        fail(`sunsetDate ${sunsetDate} has no deprecatedOn; the notice of ${notice.text} counts from the day the deprecation is announced`);
+      } else {
+        const earliest = addNotice(deprecatedOn, notice.value);
+        if (sunsetDate < earliest) fail(`sunsetDate ${sunsetDate} is less than ${notice.text} after deprecatedOn ${deprecatedOn}; set it on or after ${earliest}`);
+      }
+    }
+    if (status === 'sunset' && sunsetDate !== undefined && referenceDate !== undefined && sunsetDate > referenceDate) {
+      issues.push({
+        code: 'early-sunset',
+        urn,
+        path,
+        message: `${urn}: status sunset before its sunset date ${sunsetDate} (the reference date is ${referenceDate}); keep it deprecated until then`,
+      });
+    }
+  }
+  return issues;
+}

@@ -17,6 +17,8 @@ export interface UniversalIR {
     readonly stability: 'experimental' | 'stable';
     /** The entity of the caller, when the header names one: every operation then has callers. */
     readonly caller?: Urn;
+    /** How the contract changes, when the header states it. */
+    readonly compatibility?: Compatibility;
     /** SHA-256 (hex) of the canonical JSON of the validated manifest. */
     readonly manifestHash: string;
     readonly irSchemaVersion: 1;
@@ -57,8 +59,18 @@ export function invariantsOf(ir: UniversalIR, entity: Urn): IRInvariant[] {
 export interface Lifecycle {
   readonly status: 'active' | 'deprecated' | 'sunset';
   readonly supersededBy?: Urn;
+  /** YYYY-MM-DD: the day the deprecation was announced. */
+  readonly deprecatedOn?: string;
   /** YYYY-MM-DD. */
   readonly sunsetDate?: string;
+}
+
+/** How the contract changes. */
+export interface Compatibility {
+  /** Callers ignore a property, a value or a kind of answer that they do not know. */
+  readonly callers?: 'ignore-unknown';
+  /** The least time from the announcement of a deprecation to its sunset date: `6 months`, `180 days`. */
+  readonly notice?: string;
 }
 
 /** The status of a node: `active` when it has no lifecycle. */

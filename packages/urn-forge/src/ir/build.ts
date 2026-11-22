@@ -18,8 +18,8 @@ import { parseManifest, parseShortKey, splitLifecycle, type LifecycleDecl, type 
 import { toBrandIdentifier, toUrn } from '../naming.js';
 import { canonicalJson, compareCodeUnits, sha256Hex } from './canonical.js';
 import { checkStructure } from './structure.js';
-import type { IRBuildResult, IRIssue, Lifecycle, UniversalIR, Urn } from './types.js';
-import { checkLifecycle, type Reference } from './lifecycle.js';
+import type { Compatibility, IRBuildResult, IRIssue, Lifecycle, UniversalIR, Urn } from './types.js';
+import { checkLifecycle, checkNotice, parseNotice, type Notice, type Reference } from './lifecycle.js';
 
 function sortedByUrn<T>(record: Map<Urn, T>): Record<Urn, T> {
   const out = {} as Record<Urn, T>;
@@ -92,9 +92,24 @@ export function buildIr(manifest: ValidManifest, options: BuildOptions = {}): IR
     else caller = atom.urn;
   }
 
+  // How the contract changes.
+  let compatibility: Compatibility | undefined;
+  let notice: { text: string; value: Notice } | undefined;
+  if (header.compatibility !== undefined) {
+    const { callers, notice: text } = header.compatibility;
+    const problem = (key: string, message: string) => issues.push({ code: 'invalid-compatibility', message: `manifest: compatibility.${key}: ${message}`, path: ['manifest', 'compatibility', key] });
+    if (callers !== undefined && callers !== 'ignore-unknown') problem('callers', `"${callers}" is not a rule; write ignore-unknown`);
+    const value = text === undefined ? undefined : parseNotice(text);
+    if (text !== undefined && value === undefined) problem('notice', `"${text}" is not a time; write one such as 6 months or 180 days`);
+    if (text !== undefined && value !== undefined) notice = { text, value };
+    compatibility = { ...(callers === 'ignore-unknown' ? { callers } : {}), ...(notice ? { notice: notice.text } : {}) };
+  }
+
   const nodes = new Map<KindName, Map<Urn, unknown>>(KIND_NAMES.map((name) => [name, new Map()]));
   /** Every resolved reference, for pass 8. */
   const references: Reference[] = [];
+  /** Every atom with a lifecycle, for the notice. */
+  const retiring = new Map<Urn, { lifecycle: Lifecycle; path: ManifestPath }>();
 
   // A kind that reads other nodes (`after`) builds once those kinds have built: its stage is one
   // more than the highest stage of the kinds it reads. An operation reads errors, which read events.
@@ -166,7 +181,10 @@ export function buildIr(manifest: ValidManifest, options: BuildOptions = {}): IR
     // The IR has a lifecycle only for an atom that is not plain active.
     const status = life.status ?? 'active';
     const lifecycle: Lifecycle | undefined =
-      status === 'active' ? undefined : { status, ...(supersededBy ? { supersededBy } : {}), ...(life.sunsetDate ? { sunsetDate: life.sunsetDate } : {}) };
+      status === 'active'
+        ? undefined
+        : { status, ...(supersededBy ? { supersededBy } : {}), ...(life.deprecatedOn ? { deprecatedOn: life.deprecatedOn } : {}), ...(life.sunsetDate ? { sunsetDate: life.sunsetDate } : {}) };
+    if (lifecycle) retiring.set(atom.urn, { lifecycle, path: [shortKey, lifecycle.sunsetDate === undefined ? 'status' : 'sunsetDate'] });
     nodes.get(atom.kind)!.set(atom.urn, lifecycle ? { ...(node as object), lifecycle } : node);
   }
 
@@ -184,7 +202,7 @@ export function buildIr(manifest: ValidManifest, options: BuildOptions = {}): IR
   // Pass 8: lifecycle, over every reference that pass 4 resolved.
   const statuses = new Map<Urn, Lifecycle | undefined>();
   for (const group of nodes.values()) for (const [urn, node] of group) statuses.set(urn, (node as { lifecycle?: Lifecycle }).lifecycle);
-  const lifecycleIssues = checkLifecycle(references, statuses, options.referenceDate);
+  const lifecycleIssues = [...checkLifecycle(references, statuses, options.referenceDate), ...checkNotice(retiring, notice, options.referenceDate)];
   if (lifecycleIssues.some((issue) => issue.severity !== 'warning')) return { success: false, issues: lifecycleIssues };
 
   const ir = {
@@ -194,6 +212,7 @@ export function buildIr(manifest: ValidManifest, options: BuildOptions = {}): IR
       manifestVersion: header.version,
       stability: header.stability ?? 'stable',
       ...(caller ? { caller } : {}),
+      ...(compatibility ? { compatibility } : {}),
       // Empty kind groups are left out, so the hash depends only on what the manifest says:
       // a kind added to urn-forge does not change the hash of a manifest that does not use it.
       manifestHash: sha256Hex(canonicalJson(Object.fromEntries(Object.entries(manifest).filter(([, group]) => Object.keys(group).length > 0)))),

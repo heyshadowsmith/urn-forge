@@ -47,6 +47,8 @@ export const HeaderSchema = v.strictObject({
   stability: v.optional(v.picklist(['experimental', 'stable'])),
   /** The entity of the caller, as the shell authenticated them: every operation then states who may call it. */
   caller: v.optional(v.pipe(v.string(), v.regex(/^[a-z][a-z0-9_]*\.entity\.[a-z][a-z0-9_]*$/, 'must be the short key of an entity, such as auth.entity.caller'))),
+  /** How the contract changes: what callers do with what they do not know, and the notice before a removal. */
+  compatibility: v.optional(v.strictObject({ callers: v.optional(v.string()), notice: v.optional(v.string()) })),
 });
 export type ManifestHeader = v.InferOutput<typeof HeaderSchema>;
 
@@ -55,12 +57,13 @@ export type ManifestHeader = v.InferOutput<typeof HeaderSchema>;
 // ---------------------------------------------------------------------------
 
 /** The lifecycle keys, which every kind accepts next to its own keys. */
-export const LIFECYCLE_KEYS = ['status', 'supersededBy', 'sunsetDate'] as const;
+export const LIFECYCLE_KEYS = ['status', 'supersededBy', 'deprecatedOn', 'sunsetDate'] as const;
 
 const LifecycleSchema = v.pipe(
   v.strictObject({
     status: v.optional(v.picklist(['active', 'deprecated', 'sunset'], 'must be active, deprecated or sunset')),
     supersededBy: v.optional(v.pipe(v.string(), v.regex(SHORT_KEY_PATTERN, 'must be a short key such as policy.field.remark'))),
+    deprecatedOn: v.optional(v.pipe(v.string('must be a date YYYY-MM-DD'), v.check((value: string) => isCalendarDate(value), 'must be a date YYYY-MM-DD'))),
     sunsetDate: v.optional(v.pipe(v.string('must be a date YYYY-MM-DD'), v.check((value: string) => isCalendarDate(value), 'must be a date YYYY-MM-DD'))),
   }),
 );
@@ -68,6 +71,7 @@ const LifecycleSchema = v.pipe(
 export interface LifecycleDecl {
   readonly status?: 'active' | 'deprecated' | 'sunset';
   readonly supersededBy?: string;
+  readonly deprecatedOn?: string;
   readonly sunsetDate?: string;
 }
 
@@ -249,7 +253,7 @@ export function validateManifest(doc: unknown): MetaSchemaResult {
     const output = collect(key, KINDS[kind].schema, rest, issues, urn);
     const life = collect(key, LifecycleSchema, lifecycle, issues, urn) as LifecycleDecl | undefined;
     if (life && (life.status ?? 'active') === 'active') {
-      for (const name of ['supersededBy', 'sunsetDate'] as const) {
+      for (const name of ['supersededBy', 'deprecatedOn', 'sunsetDate'] as const) {
         if (life[name] === undefined) continue;
         issues.push({
           code: 'invalid-lifecycle',
