@@ -111,6 +111,23 @@ What the contracts still could not state:
 - A rule on one event of a success with several events: `event.` needs one event.
 - A contract can make a change with no event that its promise does not allow: claims P20, where `edit_draft` moves a rejected claim back to DRAFT.
 
+## Callers (D2)
+
+Nov 22, 2026: **57 of 143 promises declared (39.9%)**, up from 52. Refer to the [callers plan](./callers-plan.md). Bookings P19, claims P18 and P19, inventory P21 and payments P16 are declared. D2 goes from 10 promises to 4; bookings P16 moved to E2.
+
+The contracts found two gaps, each closed in the same change:
+- An operation whose `otherwise` error sorted after it in URN order built without its callers, with no diagnostic. Each kind now builds after the kinds it reads.
+- `allow: any` needed an `otherwise`, which no caller can get, so gate 3 asked for a scenario that cannot exist. It now takes none.
+
+What the contracts still could not state:
+- Gate 3 does not show that each rule of `allow` is covered, or each part of a rule. A scenario that refuses a manager who approves their own claim can be removed with verify still green. Decision 8 of the plan is not built.
+- One `otherwise` for each operation: a read-only key and a key of another merchant cannot get different refusals (payments P22).
+- Authentication refusals, such as "unauthorized", are the shell's: a missing caller is a `ContractViolation`.
+- Membership in a list of the caller, such as "staff assigned to the event" (ticketing P21).
+- A rule that reads a second record, such as the organizer of the event of a ticket.
+- Filters on lists: "may list their own subscriptions" (subscriptions P22).
+- The core and the events do not get the caller, so each claims rule ties the actor of the request to the caller.
+
 ## The phases
 
 Each item is a plan of its own, with the format of the earlier plans: a target written first, one commit for each step, sabotages at the end. The order puts first what the most contracts need, and what fits the machinery that exists.
@@ -171,7 +188,8 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 4. Conditions (part of A2). Done: 28.0%.
 5. Lists (A1). Done: 31.5%.
 6. Event delivery (D4). Done: 36.4%.
-7. The next plan. The score now puts A2 (12), D2 (10), C1 (9) and E2 (9) first.
+7. Callers (D2). Done: 39.9%.
+8. The next plan. The score now puts A2 (12), E2 (10), C1 (9) and E3 (8) first.
 
 ## Risks
 
