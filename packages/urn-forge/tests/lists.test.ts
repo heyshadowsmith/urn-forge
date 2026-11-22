@@ -125,6 +125,14 @@ describe('the gate 3 boundary of a unique list of properties', () => {
     expect(repeated?.covers([{ sku: 'A' }, { sku: 'A' }])).toBe(false);
   });
 
+  it('counts only a list of an allowed length, so a list refused for its length does not cover it', () => {
+    const unique = listBoundaries({ minItems: 1, maxItems: 2, unique: ['sku'] }).at(-1);
+    expect(unique?.label).toBe('list with a repeated sku (unique)');
+    expect(unique?.covers([{ sku: 'A' }, { sku: 'A' }])).toBe(true);
+    expect(unique?.covers([{ sku: 'A' }, { sku: 'A' }, { sku: 'A' }])).toBe(false);
+    const single = listBoundaries({ minItems: 1, maxItems: 2, unique: true }).at(-1);
+    expect(single?.covers(['a', 'a', 'a'])).toBe(false);
+  });
 });
 
 describe('paths into embedded entities (fixture: sums)', async () => {

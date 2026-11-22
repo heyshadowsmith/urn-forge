@@ -109,6 +109,8 @@ export function buildFieldRefs(context: BuildContext<unknown>, fields: readonly 
  */
 export function listBoundaries(rule: ListRule, key?: string | readonly string[]): BoundaryCase[] {
   const isList = (value: unknown): value is readonly unknown[] => Array.isArray(value);
+  // A repeated item counts only in a list of an allowed length, which the count cases do not refuse first.
+  const counted = (value: readonly unknown[]) => (rule.minItems === undefined || value.length >= rule.minItems) && (rule.maxItems === undefined || value.length <= rule.maxItems);
   const ofLength = (n: number) => (value: unknown) => isList(value) && value.length === n;
   const cases: BoundaryCase[] = [];
   if (rule.minItems !== undefined) {
@@ -125,7 +127,7 @@ export function listBoundaries(rule: ListRule, key?: string | readonly string[])
     cases.push({
       label: `list with a repeated ${names.join(' and ')} (unique)`,
       covers: (value) => {
-        if (!isList(value)) return false;
+        if (!isList(value) || !counted(value)) return false;
         const tuples = value.map((item) => names.map((n) => (item as Record<string, unknown> | null)?.[n])).filter((t) => t.every((x) => x !== undefined));
         return new Set(tuples.map((t) => JSON.stringify(t))).size < tuples.length;
       },
@@ -136,7 +138,7 @@ export function listBoundaries(rule: ListRule, key?: string | readonly string[])
     const values = (list: readonly unknown[]) => (single === undefined ? list : list.map((item) => (item as Record<string, unknown> | null)?.[single]));
     cases.push({
       label: single === undefined ? 'list with a repeated value (unique)' : `list with a repeated ${single} (unique)`,
-      covers: (value) => isList(value) && new Set(values(value)).size < value.length,
+      covers: (value) => isList(value) && counted(value) && new Set(values(value)).size < value.length,
     });
   }
   return cases;
