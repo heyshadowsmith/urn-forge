@@ -115,6 +115,63 @@ export function executeOperation<U extends OperationUrn>(
 export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options?: ExecuteOptions): ExecuteResult;
 export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options: ExecuteOptions = {}): ExecuteResult {`;
 
+/** The helpers of idempotency: the store of the answers calls them. */
+const IDEMPOTENCY = `
+
+// Idempotency
+
+/** A value as JSON with the properties of each object in sorted order: one text for one value. */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return \`[\${value.map(canonical).join(',')}]\`;
+  if (typeof value === 'object' && value !== null) {
+    return \`{\${Object.keys(value).sort().filter((key) => (value as Record<string, unknown>)[key] !== undefined).map((key) => \`\${JSON.stringify(key)}:\${canonical((value as Record<string, unknown>)[key])}\`).join(',')}}\`;
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * The key of a call of an operation with idempotency: the values that own the key (as JSON),
+ * the key, and the parsed input as canonical JSON. Undefined when the operation has none, or the
+ * call has no key or an input that does not parse: then the call runs as any call.
+ */
+export function idempotencyOf(urn: string, rawPayload: unknown, options: { readonly caller?: unknown } = {}): { readonly scope: string; readonly key: string; readonly body: string; readonly windowMs: number } | undefined {
+  if (!isOperationUrn(urn)) return undefined;
+  const contract: OperationContract = DispatchMap[urn];
+  const rule = 'idempotency' in contract ? contract.idempotency : undefined;
+  if (!rule) return undefined;
+  const input = v.safeParse(contract.input.schema, rawPayload);
+  if (!input.success) return undefined;
+  const values = input.output as Readonly<Record<string, unknown>>;
+  const key = values[rule.key];
+  if (typeof key !== 'string') return undefined;
+  const caller = (typeof options.caller === 'object' && options.caller !== null ? options.caller : {}) as Readonly<Record<string, unknown>>;
+  const owners = (rule.scope ?? []).map((name) => {
+    const [prefix, property] = name.split('.') as [string, string];
+    return (prefix === 'caller' ? caller : values)[property] ?? null;
+  });
+  return { scope: JSON.stringify(owners), key, body: canonical(input.output), windowMs: rule.windowMs };
+}
+
+/** The declared error for the same key with another body, filled from the input; undefined when the operation names none. */
+export function idempotencyConflict(urn: string, rawPayload: unknown): ExecuteResult | undefined {
+  if (!isOperationUrn(urn)) return undefined;
+  const contract: OperationContract = DispatchMap[urn];
+  const errorUrn = 'idempotency' in contract ? contract.idempotency?.otherwise : undefined;
+  const declared = errorUrn === undefined ? undefined : contract.errors[errorUrn];
+  const input = v.safeParse(contract.input.schema, rawPayload);
+  if (!declared || !input.success) return undefined;
+  const known = input.output as Readonly<Record<string, unknown>>;
+  const names = Object.keys(declared.fields).filter((name) => known[name] !== undefined);
+  const error = v.safeParse(declared.schema, { ...Object.fromEntries(names.map((name) => [name, known[name]])), kind: errorUrn });
+  if (!error.success) return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(error.issues, declared) };
+  return {
+    ok: false,
+    kind: 'DomainError',
+    urn,
+    error: { urn: errorUrn, category: declared.category, retryable: declared.retryable, message: renderMessage(declared.message, error.output), fields: error.output },
+  } as ExecuteResult;
+}`;
+
 /** A timed change: the shell's clock calls it only for a record that is due. */
 const DUE = `
   // A timed change: the clock calls it only for a record that is due. A call too early is a bug in the shell.
@@ -162,9 +219,9 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
  */
 const accessCall = (changes: boolean, reads: boolean, caller: boolean, conditions: boolean, time = false, due = false) => `${time ? TIME : ''}  // The caller, the record, who may call, then the state: the handler runs only when each holds.${changes ? `
   const change: ChangeContract | undefined = 'changes' in contract ? contract.changes : undefined;` : ''}${reads ? `
-  const read: ReadContract | undefined = 'reads' in contract ? contract.reads : undefined;` : ''}
-  const record = ${[...(changes ? ['change?.entity'] : []), ...(reads ? ['read?.entity'] : [])].join(' ?? ') || 'undefined'};
-  const missing = ${[...(changes ? ['change?.missing'] : []), ...(reads ? ['read?.missing'] : [])].join(' ?? ') || 'undefined'};
+  const read: ReadContract | undefined = 'reads' in contract ? contract.reads : undefined;` : ''}${changes || reads ? `
+  const record = ${[...(changes ? ['change?.entity'] : []), ...(reads ? ['read?.entity'] : [])].join(' ?? ')};
+  const missing = ${[...(changes ? ['change?.missing'] : []), ...(reads ? ['read?.missing'] : [])].join(' ?? ')};` : ''}
   let current: Readonly<Record<string, unknown>> | undefined;
   let result: unknown;
   const fill = (errorUrn: string, known: Readonly<Record<string, unknown>>) => {
@@ -178,7 +235,7 @@ const accessCall = (changes: boolean, reads: boolean, caller: boolean, condition
     return { ok: false, kind: 'ContractViolation', urn, issues };
   }
   const caller = who.output as Readonly<Record<string, unknown>>;` : ''}
-  if (record) {
+${changes || reads ? `  if (record) {
     if (options.current === undefined || (options.current === null && missing === undefined)) {
       const message = options.current === null ? 'the shell found no record, and the operation declares no missing error' : 'pass it as { current }';
       return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: 'current', message: \`\${urn} \${'changes' in contract ? 'changes' : 'reads'} a record of \${record.urn}: \${message}\` }] };
@@ -193,7 +250,7 @@ const accessCall = (changes: boolean, reads: boolean, caller: boolean, condition
       }
       current = stored.output as Readonly<Record<string, unknown>>;
     }
-  }${caller ? `
+  }` : ''}${caller ? `
   // Who may call: any caller, or one for whom a rule holds. Else \`otherwise\`, filled from the caller, the record and the request.
   const callers = contract.callers;
   if (result === undefined && callers.allow !== 'any' && !callers.allow.some((rule) => (rule.check as (values: unknown) => boolean)({ input: input.output, current, caller }))) {
@@ -703,6 +760,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
     const anyReads = operations.some((op) => op.reads !== undefined);
     const anyTime = operations.some(readsTime);
     const anyDue = operations.some((op) => op.due !== undefined);
+    const anyIdempotency = operations.some((op) => op.idempotency !== undefined);
     const anyCaller = ir.meta.caller !== undefined;
     const anyConditions = operations.some((op) => op.requires !== undefined || op.ensures !== undefined || op.exactly !== undefined || op.due !== undefined) || anyCaller;
     const handlers = operations.map((op) => {
@@ -788,6 +846,12 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       ...(anyCaller ? [`  /** Who may call the operation. */`, `  readonly callers: CallersContract;`] : []),
       ...(anyTime ? [`  /** The rules of the operation read the time of the call, so the shell must give it. */`, `  readonly time?: true;`] : []),
       ...(anyDue ? [`  /** For a timed change: when the shell's clock must call it, for a record. */`, `  readonly due?: ConditionInfo;`] : []),
+      ...(anyIdempotency
+        ? [
+            `  /** A repeat with the same key in the window returns the first answer: the key, its owners, the window, and the error for another body. */`,
+            `  readonly idempotency?: { readonly key: string; readonly scope?: readonly string[]; readonly windowMs: number; readonly otherwise?: string };`,
+          ]
+        : []),
       ...(anyConditions
         ? [
             `  /** Rules that must hold before the handler runs, each with the error that answers when it does not. */`,
@@ -904,6 +968,11 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
           : []),
         ...(readsTime(op) ? [`    time: true,`] : []),
         ...(op.due ? [`    due: { text: ${q(op.due.ruleText)}, check: s.${conditionName(op.brandIdentifier, 'due', 0)} },`] : []),
+        ...(op.idempotency
+          ? [
+              `    idempotency: { key: ${q(op.idempotency.key)}${op.idempotency.scope ? `, scope: [${op.idempotency.scope.map(q).join(', ')}]` : ''}, windowMs: ${op.idempotency.windowMs}${op.idempotency.otherwise ? `, otherwise: ${q(op.idempotency.otherwise)}` : ''} },`,
+            ]
+          : []),
         ...(op.callers
           ? [
               op.callers.allow === 'any'
@@ -950,6 +1019,8 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
         : []),
     ].join('\n');
 
+    // Idempotency: the key of a call, and the error for the same key with another body. The store keeps the answers.
+    const idempotencyHelpers = anyIdempotency ? IDEMPOTENCY : '';
     const sections = [
       `import * as v from 'valibot';\nimport * as s from '${schemasModule}';`,
       `// Results`,
@@ -967,7 +1038,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
             .replaceAll('{ input: input.output, current', '{ input: input.output, now, today, current')
             .replace('result ??= handler(input.output, current);', 'result ??= handler(input.output, current, now);')
         : shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, false, anyDue)
-      ).trimEnd(),
+      ).trimEnd() + idempotencyHelpers,
     ];
     return {
       artifacts: [{ relativePath: FCIS_RUNTIME_FILE, content: `${sections.join('\n\n')}\n` }],

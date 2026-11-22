@@ -9,6 +9,7 @@
  */
 import type { UniversalIR } from '../ir/types.js';
 import { schemaNames } from '../naming.js';
+import { answersImports, answersStore, hasAnswers } from './postgres-idempotency.js';
 import { hasOutbox, outboxStore } from './postgres-outbox.js';
 import type { StoreChild, StoreRoot, StoreTable } from './postgres-tables.js';
 
@@ -98,12 +99,13 @@ export interface DueQuery {
 /** The store file for the tables and the outbox, or undefined when there is neither. */
 export function storeFile(ir: UniversalIR, store: readonly StoreRoot[], dues: readonly DueQuery[] = []): string | undefined {
   const outbox = hasOutbox(ir);
-  if (store.length === 0 && !outbox) return undefined;
+  const answers = hasAnswers(ir);
+  if (store.length === 0 && !outbox && !answers) return undefined;
   // The state property of each table entity that an operation changes.
   const states = new Map<string, string>();
   for (const operation of Object.values(ir.operations)) if (operation.changes) states.set(operation.changes.entity, operation.changes.property);
   const changed = store.some((root) => states.has(root.entity));
-  const parts = [`import type * as s from './domain.schemas.generated.js';`, '', changed ? RUNTIME + RUNTIME_FROM : RUNTIME];
+  const parts = [`import type * as s from './domain.schemas.generated.js';`, ...(answers ? [answersImports()] : []), '', changed ? RUNTIME + RUNTIME_FROM : RUNTIME];
   for (const root of store) {
     const entity = ir.entities[root.entity]!;
     const brand = entity.brandIdentifier;
@@ -160,5 +162,6 @@ export function storeFile(ir: UniversalIR, store: readonly StoreRoot[], dues: re
     );
   }
   if (outbox) parts.push(outboxStore(ir));
+  if (answers) parts.push(answersStore(ir));
   return `${parts.join('\n')}\n`;
 }

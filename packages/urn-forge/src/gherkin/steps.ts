@@ -105,6 +105,14 @@ export interface OperationStepsOptions {
   readonly execute: (urn: string, payload: unknown, options: { readonly current?: unknown; readonly caller?: unknown; readonly now?: string }) => ExecuteResultLike;
   /** The caller entity of a domain with a caller (the generated CallerContract), for `Given the caller is:`. */
   readonly caller?: { readonly urn: string; readonly fields: FieldsLike };
+  /**
+   * For a domain with idempotency: the generated idempotencyOf and idempotencyConflict. The steps
+   * then keep the answers of a scenario with the rules of runOnce, so a repeat returns the first answer.
+   */
+  readonly idempotency?: {
+    readonly idempotencyOf: (urn: string, payload: unknown, options: { readonly caller?: unknown }) => { readonly scope: string; readonly key: string; readonly body: string; readonly windowMs: number } | undefined;
+    readonly idempotencyConflict: (urn: string, payload: unknown) => ExecuteResultLike | undefined;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -360,6 +368,10 @@ interface ScenarioState {
   caller?: unknown;
   /** The time of `Given the time is "<timestamp>"`, as the shell's clock would give it. */
   now?: string;
+  /** The answers of the idempotent calls of the scenario, by operation, owners and key, as runOnce keeps them. */
+  answers?: Map<string, { readonly body: string; readonly output: unknown; readonly at: number }>;
+  /** The output of the first run of the scenario that succeeded. */
+  firstOutput?: { readonly value: unknown };
   urn?: string;
   result?: ExecuteResultLike;
 }
@@ -449,16 +461,47 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     s.current = null;
   });
 
-  When(STEP_PHRASES.run, function (this: StepsWorld, table: DataTable) {
-    const s = state(this);
+  /** One run, with the rules of runOnce when the domain has idempotency: a repeat in the window returns the first answer. */
+  const run = (s: ScenarioState, table: DataTable) => {
     const urn = operationUrnFromTags(s.tags);
     const payload = tableToObject(table.raw(), contract(urn).input.fields, 'input', urn);
+    const execute = () =>
+      options.execute(urn, payload, {
+        ...(s.current === undefined ? {} : { current: s.current }),
+        ...(s.caller === undefined ? {} : { caller: s.caller }),
+        ...(s.now === undefined ? {} : { now: s.now }),
+      });
     s.urn = urn;
-    s.result = options.execute(urn, payload, {
-      ...(s.current === undefined ? {} : { current: s.current }),
-      ...(s.caller === undefined ? {} : { caller: s.caller }),
-      ...(s.now === undefined ? {} : { now: s.now }),
-    });
+    const call = options.idempotency?.idempotencyOf(urn, payload, { caller: s.caller });
+    const at = s.now === undefined ? 0 : Date.parse(s.now);
+    const id = call && JSON.stringify([urn, call.scope, call.key]);
+    const found = id === undefined ? undefined : s.answers?.get(id);
+    if (call && found && at < found.at + call.windowMs) {
+      const first: ExecuteResultLike = { ok: true, output: found.output, events: [] };
+      s.result = found.body === call.body ? first : (options.idempotency!.idempotencyConflict(urn, payload) ?? first);
+    } else {
+      s.result = execute();
+      if (call && id !== undefined && s.result.ok) (s.answers ??= new Map()).set(id, { body: call.body, output: s.result.output, at });
+    }
+    if (s.result.ok) s.firstOutput ??= { value: s.result.output };
+  };
+
+  When(STEP_PHRASES.run, function (this: StepsWorld, table: DataTable) {
+    run(state(this), table);
+  });
+
+  When(STEP_PHRASES.runAgain, function (this: StepsWorld, table: DataTable) {
+    const s = state(this);
+    if (s.urn === undefined) throw new Error('"I run the operation again with:" repeats a call; start with "When I run the operation with:"');
+    if (!options.idempotency) throw new Error('"I run the operation again with:" needs the idempotency helpers: pass idempotency: { idempotencyOf, idempotencyConflict } to registerOperationSteps');
+    run(s, table);
+  });
+
+  Then(STEP_PHRASES.firstAnswer, function (this: StepsWorld) {
+    const s = state(this);
+    const { urn, result } = lastRun(this);
+    if (!s.firstOutput) throw new Error('no run of the scenario succeeded, so there is no first answer');
+    assertOutput(result, s.firstOutput.value as Record<string, unknown>, urn);
   });
 
   Then(STEP_PHRASES.output, function (this: StepsWorld, table: DataTable) {

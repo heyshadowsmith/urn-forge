@@ -1,0 +1,77 @@
+# Idempotency: the target of idempotency.test.ts. A repeat with the same key in 24 hours returns
+# the first answer: a payment with a key that the merchant owns, and a refund with no conflict error.
+manifest:
+  namespace: demo
+  domain: idempotency
+  version: 1.0.0
+  caller: auth.entity.caller
+
+auth.field.merchant_id:
+  primitive: string
+  regex: 'mer_[a-z0-9]{6}'
+  description: The merchant of the key that calls
+auth.entity.caller:
+  description: The merchant that calls, as the shell authenticated its key
+  fields:
+    - ref: auth.field.merchant_id
+
+request.field.idempotency_key:
+  primitive: string
+  minLength: 8
+  maxLength: 64
+  description: A key that the caller chooses, so a repeat is safe
+payment.field.payment_id:
+  primitive: string
+  regex: 'pay_[a-z0-9]{8}'
+  description: The id of a payment
+payment.field.amount:
+  primitive: integer
+  min: 1
+  description: An amount in minor units
+payment.entity.create_request:
+  description: A request for a payment
+  fields:
+    - ref: request.field.idempotency_key
+      required: false
+    - ref: payment.field.amount
+payment.entity.payment:
+  description: A payment
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.amount
+payment.entity.refund_request:
+  description: A request for a refund
+  fields:
+    - ref: request.field.idempotency_key
+    - ref: payment.field.payment_id
+    - ref: payment.field.amount
+payment.error.idempotency_conflict:
+  description: The key was used before with another request
+  category: conflict
+  retryable: false
+  message: The key {idempotency_key} belongs to another request
+  fields:
+    - ref: request.field.idempotency_key
+payment.event.created:
+  description: A payment was created
+  fields:
+    - ref: payment.field.payment_id
+payment.operation.create_payment:
+  description: Create a payment, once for each key of the merchant in 24 hours
+  input: payment.entity.create_request
+  output: payment.entity.payment
+  idempotency:
+    key: input.idempotency_key
+    scope: caller.merchant_id
+    window: 24 hours
+    otherwise: payment.error.idempotency_conflict
+  callers:
+    allow: any
+  emits: [payment.event.created]
+  errors: [payment.error.idempotency_conflict]
+payment.operation.refund_payment:
+  description: Refund a payment, once for each key in 24 hours, whatever the body of a repeat
+  input: payment.entity.refund_request
+  output: payment.entity.payment
+  callers:
+    allow: any

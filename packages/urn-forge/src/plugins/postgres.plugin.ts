@@ -20,6 +20,7 @@ import type { ConstraintsOf, Primitive } from '../primitives/index.js';
 import type { Format } from '../primitives/string.js';
 import { translateRegex } from './postgres-regex.js';
 import { hasOutbox, outboxSql } from './postgres-outbox.js';
+import { answersSql, hasAnswers } from './postgres-idempotency.js';
 import { POSTGRES_STORE_FILE, storeFile, type DueQuery } from './postgres-store.js';
 import { ruleSql } from './postgres-rules.js';
 import { renameFields } from '../rules/index.js';
@@ -260,6 +261,7 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof P
     out.push(...model.lines);
     // The outbox starts with a blank line; a schema with no table already ends with one.
     if (hasOutbox(ir)) out.push(...outboxSql(ir).slice(out.at(-1) === '' ? 1 : 0));
+    if (hasAnswers(ir)) out.push(...answersSql(ir).slice(out.at(-1) === '' ? 1 : 0));
 
     if (diagnostics.some((d) => d.severity === 'error')) return { artifacts: [], diagnostics };
     // A timed change: the query that finds the rows that it is due for, from its due rule, with now as $1.
