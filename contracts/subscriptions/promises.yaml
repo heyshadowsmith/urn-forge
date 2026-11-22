@@ -23,12 +23,11 @@ promises:
     promise: "A create-subscription request must contain a customer id, a plan id and a quantity that is a whole number from 1 to 10000, and may contain trial days from 0 to 730."
     status: declared
     by: [subscription.operation.create_subscription, subscription.entity.create_request, customer.field.customer_id, plan.field.plan_id, subscription.field.quantity, subscription.field.trial_days]
-  # The window is checked against a request day that the shell sends, not against the clock. Trial days and trial end are two optional fields, not a union type (B1).
+  # Never both: the invariant trial_days_or_trial_end on the request (trial days and trial end are two optional fields, and the rule refuses both). The window: a requires on create_subscription, input.trial_end is absent or input.trial_end > today and input.trial_end <= today + 730, answers invalid_trial_end; today is the UTC date of now, the time of the call that the shell gives (no more requested_on in the request). trial_end is a date, so "in the future" is a day after today. Scenarios at each edge, at 10:00, just before and at midnight UTC.
   P06:
     promise: "A create-subscription request may contain either trial days or an explicit trial end date but never both, and an explicit trial end must be in the future and at most 730 days after the request."
-    status: workaround
-    by: [subscription.invariant.trial_days_or_trial_end, subscription.invariant.trial_end_in_window, request.field.requested_on]
-    hole: E2
+    status: declared
+    by: [subscription.invariant.trial_days_or_trial_end, subscription.operation.create_subscription, subscription.field.trial_end, subscription.error.invalid_trial_end]
   P07:
     promise: "Callers can create, read, list, change plan, pause, resume and cancel a subscription, and read and list its invoices."
     status: declared
@@ -39,7 +38,7 @@ promises:
     status: workaround
     by: [subscription.operation.create_subscription, subscription.entity.subscription, subscription.field.status]
     hole: A2
-  # Only the errors that the core returns are declared, each with a message. invalid_request, forbidden and rate_limited come from the shell, and no refusal carries the request id.
+  # Only the errors that the core or a requires rule returns are declared, each with a message; invalid_trial_end and invalid_resume_date are validation errors, which the shell answers as invalid_request. The other invalid_request answers, forbidden and rate_limited come from the shell, and no refusal carries the request id.
   P09:
     promise: "Every refused request returns one named error code from \"invalid_request\", \"not_found\", \"forbidden\", \"conflict\", \"invalid_state_transition\", \"currency_mismatch\" or \"rate_limited\" together with a human-readable message and the request id."
     status: workaround
@@ -56,12 +55,11 @@ promises:
     promise: "A change-plan request must state a proration mode of \"immediate\", \"none\" or \"at_period_end\", and with \"at_period_end\" the answer shows the new plan as scheduled and the current plan as unchanged."
     status: declared
     by: [subscription.field.proration, subscription.entity.change_plan_request, subscription.entity.subscription, subscription.operation.change_plan]
-  # Pausing only from active or trialing, and the refusal of any other status, are declared. The resume window is checked against a request day that the shell sends, not the clock.
+  # The resume window: a requires on pause_subscription, input.resume_on is absent or input.resume_on >= today + 1 and input.resume_on <= today + 90, answers invalid_resume_date; today is the UTC date of now, the time of the call that the shell gives (no more requested_on in the request). Pausing only from active or trialing: changes from [active, trialing] to paused, otherwise invalid_state_transition. Scenarios at each edge, at 10:00, just before and at midnight UTC.
   P12:
     promise: "A pause request may contain a resume date that is at least 1 day and at most 90 days after the request, and a subscription may only be paused while \"active\" or \"trialing\"."
-    status: workaround
-    by: [subscription.invariant.resume_in_window, request.field.requested_on, subscription.operation.pause_subscription, subscription.field.status, subscription.error.invalid_state_transition]
-    hole: E2
+    status: declared
+    by: [subscription.operation.pause_subscription, subscription.field.resume_on, subscription.error.invalid_resume_date, subscription.field.status, subscription.error.invalid_state_transition]
   P13:
     promise: "A cancel request states either \"immediately\" or \"at_period_end\", and a canceled or expired subscription can never move to any other status, so any further change request on it is refused with \"invalid_state_transition\"."
     status: declared

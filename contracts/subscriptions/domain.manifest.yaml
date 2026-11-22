@@ -68,9 +68,6 @@ plan.invariant.yearly_interval_is_one:
 
 # Requests in common
 
-request.field.requested_on:
-  primitive: date
-  description: The day of the request, which the shell sets from its clock
 request.field.idempotency_key:
   primitive: string
   minLength: 1
@@ -153,7 +150,6 @@ subscription.entity.create_request:
       required: false
     - ref: subscription.field.trial_end
       required: false
-    - ref: request.field.requested_on
     - ref: request.field.idempotency_key
       required: false
 subscription.invariant.trial_days_or_trial_end:
@@ -162,12 +158,6 @@ subscription.invariant.trial_days_or_trial_end:
   rule: trial_days is absent or trial_end is absent
   reportOn: trial_end
   message: Send trial days or a trial end, not both
-subscription.invariant.trial_end_in_window:
-  description: An explicit trial end is after the day of the request and at most 730 days after it
-  on: subscription.entity.create_request
-  rule: trial_end is absent or trial_end > requested_on and trial_end - requested_on <= 730
-  reportOn: trial_end
-  message: A trial end must be in the future and at most 730 days after the request
 
 subscription.entity.lookup:
   description: The subscription to read
@@ -200,17 +190,10 @@ subscription.entity.pause_request:
   description: A request to pause a subscription, optionally until a resume day
   fields:
     - ref: subscription.field.subscription_id
-    - ref: request.field.requested_on
     - ref: subscription.field.resume_on
       required: false
     - ref: request.field.idempotency_key
       required: false
-subscription.invariant.resume_in_window:
-  description: A resume day is at least 1 day and at most 90 days after the day of the request
-  on: subscription.entity.pause_request
-  rule: resume_on is absent or resume_on - requested_on >= 1 and resume_on - requested_on <= 90
-  reportOn: resume_on
-  message: A resume day must be 1 to 90 days after the request
 
 subscription.entity.resume_request:
   description: A request to resume a paused subscription
@@ -292,6 +275,21 @@ invoice.entity.invoice_list:
       many: { unique: true }
 
 # Errors
+
+subscription.error.invalid_trial_end:
+  description: The explicit trial end is not after the day of the request, or is more than 730 days after it
+  category: validation
+  retryable: false
+  message: A trial end of {trial_end} must be after the day of the request and at most 730 days after it
+  fields:
+    - ref: subscription.field.trial_end
+subscription.error.invalid_resume_date:
+  description: The resume day is not from 1 to 90 days after the day of the request
+  category: validation
+  retryable: false
+  message: A resume day of {resume_on} must be from 1 to 90 days after the day of the request
+  fields:
+    - ref: subscription.field.resume_on
 
 subscription.error.not_found:
   description: No subscription has this id
@@ -407,16 +405,20 @@ subscription.operation.create_subscription:
   description: Subscribe a customer to a plan, with an optional trial
   input: subscription.entity.create_request
   output: subscription.entity.subscription
+  requires:
+    - rule: input.trial_end is absent or input.trial_end > today and input.trial_end <= today + 730
+      otherwise: subscription.error.invalid_trial_end
   ensures:
     - input.trial_days is present and input.trial_days > 0 or input.trial_end is present or output.status = 'active'
     - input.trial_days is absent or input.trial_days = 0 or output.status = 'trialing'
     - input.trial_end is absent or output.status = 'trialing'
   errors:
+    - subscription.error.invalid_trial_end
     - subscription.error.conflict
   emits:
     - event: subscription.event.created
     - event: subscription.event.trial_will_end
-      when: output.trial_end is present and output.trial_end - input.requested_on < 3
+      when: output.trial_end is present and output.trial_end < today + 3
     - event: invoice.event.created
       when: output.trial_end is absent
     - event: invoice.event.paid
@@ -460,11 +462,16 @@ subscription.operation.pause_subscription:
     to: paused
     otherwise: subscription.error.invalid_state_transition
     missing: subscription.error.not_found
+  requires:
+    - rule: input.resume_on is absent or input.resume_on >= today + 1 and input.resume_on <= today + 90
+      otherwise: subscription.error.invalid_resume_date
+      fill: { resume_on: input.resume_on }
   ensures:
     - event.subscription_id = output.subscription_id
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
+    - subscription.error.invalid_resume_date
   emits:
     - event: subscription.event.updated
 subscription.operation.resume_subscription:
