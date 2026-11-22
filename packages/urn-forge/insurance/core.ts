@@ -19,7 +19,7 @@ function refundOf(premium: string, effective: string, expiry: string, cancelled:
 }
 
 export const core = {
-  // A policy is issued as requested, and the event says so (events plan).
+  // A policy is issued as requested, and the event says so.
   'urn:acme:insurance:policy:operation:issue_policy': (policy) =>
     ok({ ...policy }, [
       emit('urn:acme:insurance:policy:event:policy_issued', { policy_id: policy.policy_id, holder: policy.holder, premium: policy.premium }),

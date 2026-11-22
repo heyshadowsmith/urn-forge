@@ -78,7 +78,7 @@ export function addDays(value: string, days: number): string {
   return `${String(y).padStart(4, '0')}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 }
 
-/** The days from 1970-01-01 to a calendar date (date arithmetic plan): exact, with no time zone. */
+/** The days from 1970-01-01 to a calendar date: exact, with no time zone. */
 export function epochDay(value: string): number {
   const date = new Date(0);
   date.setUTCFullYear(Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1, Number(value.slice(8, 10)));

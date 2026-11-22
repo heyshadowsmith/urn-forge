@@ -3,7 +3,7 @@
 Feature: Short keys
 
   Every manifest entry is written with a short key, <context>.<kind>.<identifier>. The
-  compiler splits it before expanding it to a URN (spec §3), and refuses a key it cannot
+  compiler splits it before expanding it to a URN, and refuses a key it cannot
   use with one of three declared errors.
 
   Scenario Outline: A valid key splits into its three segments

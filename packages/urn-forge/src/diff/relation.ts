@@ -1,5 +1,5 @@
 /**
- * How a change moves a set of valid values (lifecycle plan, decision 9): the new set is
+ * How a change moves a set of valid values: the new set is
  * equal to the old one, smaller (narrower), larger (wider), or neither.
  *
  * The MECE model gives each constraint one aspect, so each aspect has one comparison: a bound

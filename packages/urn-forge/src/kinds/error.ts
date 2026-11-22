@@ -10,7 +10,7 @@ const ErrorSchema = v.strictObject({
   retryable: v.boolean(),
   message: v.pipe(v.string(), v.minLength(1, 'must not be empty')),
   fields: v.optional(v.array(FieldRef), []),
-  /** An event that the shell may record when this error is returned, for an audit trail (spec §4.6). */
+  /** An event that the shell may record when this error is returned, for an audit trail. */
   recordAs: v.optional(ShortKeyRef),
 });
 export type ErrorDecl = v.InferOutput<typeof ErrorSchema>;
@@ -38,7 +38,7 @@ export function parseMessage(template: string): MessagePart[] {
 }
 
 /**
- * A named rejection: the operation was refused and nothing changed (spec §4.6). Its fields
+ * A named rejection: the operation was refused and nothing changed. Its fields
  * are entity-shaped and may be empty. Its message is a template whose placeholders must
  * name required fields, so a rendered message is always complete (pass 6).
  */
@@ -55,7 +55,7 @@ export const error = defineKind<ErrorDecl, IRError>()({
     const fields = buildFieldRefs(context as never, decl.fields);
     const message = parseMessage(decl.message);
 
-    // The payload carries `kind: '<error URN>'` (spec §7.1), so no field may become `kind`.
+    // The payload carries `kind: '<error URN>'`, so no field may become `kind`.
     checkReservedProperty(context as never, decl, 'an error');
 
     // Pass 6: every placeholder names a required field of this error.

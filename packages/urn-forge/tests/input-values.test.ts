@@ -1,6 +1,5 @@
 /**
- * Each operation's input values, as boundary coverage reads them (boundary coverage plan,
- * step 2). On the real features they must match the values the plan's target was built from.
+ * Each operation's input values, as boundary coverage reads them. On the real features they must match the expected values.
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

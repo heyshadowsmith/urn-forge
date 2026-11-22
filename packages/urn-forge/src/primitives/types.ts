@@ -1,5 +1,5 @@
 /**
- * The shape of a primitive descriptor (foundations plan, phase 2).
+ * The shape of a primitive descriptor.
  *
  * A descriptor holds the facts about a primitive that every part of urn-forge shares,
  * independent of any plugin: which constraints it accepts and their value schemas, which
@@ -13,7 +13,7 @@ import type * as v from 'valibot';
 export type ConstraintValue = number | string | boolean | null | readonly ConstraintValue[];
 
 /**
- * The aspect of a value a constraint restricts (primitives plan, "Aspects"). Each constraint
+ * The aspect of a value a constraint restricts. Each constraint
  * restricts exactly one, and a constraint name has the same aspect on every primitive.
  */
 export type Aspect = 'range' | 'step' | 'size' | 'shape' | 'membership' | 'exclusion';
@@ -46,7 +46,7 @@ export interface CoherenceProblem {
 }
 
 /**
- * One value that boundary coverage requires a field's examples to include (spec §8, gate 3
+ * One value that boundary coverage requires a field's examples to include (gate 3
  * check 3). Coverage only shows the case is present; the test run shows whether it passes.
  */
 export interface BoundaryCase {

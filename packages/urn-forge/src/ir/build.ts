@@ -1,5 +1,5 @@
 /**
- * IR builder: compilation passes 2–4 and 7 over a manifest that passed the meta-schema (spec §5).
+ * IR builder: compilation passes 2–4 and 7 over a manifest that passed the meta-schema.
  *
  *   2. Expansion: short keys become full URNs; brandIdentifier is derived.
  *   3. Uniqueness: no two atoms share a URN or a brandIdentifier.
@@ -149,7 +149,7 @@ export function buildIr(manifest: ValidManifest, options: BuildOptions = {}): IR
       node: (name, urn) => nodes.get(name)!.get(urn),
     });
     if (node === undefined) continue;
-    // The IR has a lifecycle only for an atom that is not plain active (lifecycle plan, decision 2).
+    // The IR has a lifecycle only for an atom that is not plain active.
     const status = life.status ?? 'active';
     const lifecycle: Lifecycle | undefined =
       status === 'active' ? undefined : { status, ...(supersededBy ? { supersededBy } : {}), ...(life.sunsetDate ? { sunsetDate: life.sunsetDate } : {}) };

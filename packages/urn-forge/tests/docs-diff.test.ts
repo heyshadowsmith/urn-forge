@@ -32,7 +32,7 @@ const CANCEL_ERRORS = '    - policy.error.refund_below_minimum\n  emits: [policy
 const EXAMPLES: Record<string, { old: (m: string) => string; now: (m: string) => string; config?: false; pages: readonly string[] }> = {
   // Insurance before remark: note active, no remark. The change that change-the-contract shows.
   'deprecate note for remark': {
-    old: (m) => edit(m, ['  # Retired for remark, which is limited in length (lifecycle plan). Callers receive both until the sunset.\n' + NOTE_DEPRECATED + '  sunsetDate: 2027-06-30\n', ''], [REMARK, ''], [REMARK_REF, '']),
+    old: (m) => edit(m, ['  # Retired for remark, which is limited in length. Callers receive both until the sunset.\n' + NOTE_DEPRECATED + '  sunsetDate: 2027-06-30\n', ''], [REMARK, ''], [REMARK_REF, '']),
     now: (m) => m,
     pages: ['change-the-contract', 'reference/cli'],
   },
@@ -58,7 +58,7 @@ const EXAMPLES: Record<string, { old: (m: string) => string; now: (m: string) =>
       edit(
         m,
         [NOTE_REF, ''],
-        ['policy.field.note:\n  primitive: string\n  description: Free text about a coverage\n  # Retired for remark, which is limited in length (lifecycle plan). Callers receive both until the sunset.\n' + NOTE_DEPRECATED + '  sunsetDate: 2027-06-30\n', ''],
+        ['policy.field.note:\n  primitive: string\n  description: Free text about a coverage\n  # Retired for remark, which is limited in length. Callers receive both until the sunset.\n' + NOTE_DEPRECATED + '  sunsetDate: 2027-06-30\n', ''],
       ),
     pages: ['change-the-contract'],
   },

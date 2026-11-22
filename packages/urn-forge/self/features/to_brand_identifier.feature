@@ -3,7 +3,7 @@
 Feature: Brand identifiers
 
   The compiler names every generated export after an atom's brand identifier: the
-  PascalCase of its context and identifier (spec §3).
+  PascalCase of its context and identifier.
 
   Scenario Outline: Context and identifier become one PascalCase name
     When I run the operation with:

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Runs the TypeScript sources through tsx, so the CLI needs no build step in the MVP.
+// Runs the TypeScript sources through tsx, so the CLI needs no build step.
 import { register } from 'tsx/esm/api';
 
 // When the reader of the output stops early (`urn-forge verify | head`), the next write

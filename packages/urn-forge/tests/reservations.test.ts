@@ -1,4 +1,4 @@
-/** Findings of the second blind trial (restaurant reservations). */
+/** Restaurant reservations: an optional list, a refusal recorded as an event, and a deposit rule. */
 import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';
 import { assertRecordedAs } from '../src/gherkin/steps.js';

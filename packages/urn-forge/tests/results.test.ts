@@ -1,5 +1,5 @@
 /**
- * Results and declared errors in the generated runtime (error kind plan, step 3), on
+ * Results and declared errors in the generated runtime, on
  * urn-forge's own domain: `parse_short_key` and its real core.
  */
 import { describe, expect, it } from 'vitest';

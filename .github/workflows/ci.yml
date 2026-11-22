@@ -1,4 +1,4 @@
-# The traceability chain, end to end (mvp-plan.md, build step 10). Any broken link turns
+# The traceability chain, end to end. Any broken link turns
 # the build red: a missing handler (gate 1), a feature table header that is not a field
 # (gate 3), a hand-edited generated file (gate 4), or a failing scenario. A second job
 # builds the docs site, so a broken page or dead link fails too. The same checks also run
@@ -68,7 +68,7 @@ jobs:
         working-directory: packages/urn-forge
         run: npx cucumber-js --profile self
 
-      # The insurance domain (invariants plan): dates, exact decimals, an optional field and
+      # The insurance domain: dates, exact decimals, an optional field and
       # invariants, strict from the start.
       - name: urn-forge verify (insurance)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -93,7 +93,7 @@ jobs:
         working-directory: packages/urn-forge
         run: npm run test:features:tutorial
 
-  # Spec §6 and §9: the same inputs give the same bytes and the same verdict in any locale
+  # The same inputs give the same bytes and the same verdict in any locale
   # and time zone. Turkish changes case mapping and collation; Chatham is UTC+12:45.
   determinism:
     runs-on: ubuntu-latest
@@ -130,7 +130,7 @@ jobs:
           npm run verify:self
           npm run verify:insurance
 
-  # Gate 5 (lifecycle plan), as a report. A pull request is checked out as its merge commit, so
+  # Gate 5, as a report. A pull request is checked out as its merge commit, so
   # HEAD^1 is the tip of the base branch, and the diff shows what the pull request changes in
   # each domain. The domains here are test domains, which change on purpose to exercise new
   # features, so a breaking change is reported, not a failure (--report). tests/diff.test.ts

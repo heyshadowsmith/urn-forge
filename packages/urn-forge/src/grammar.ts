@@ -1,4 +1,4 @@
-/** The URN and short-key grammar (spec §3), shared by the meta-schema and the kind descriptors. */
+/** The URN and short-key grammar, shared by the meta-schema and the kind descriptors. */
 import * as v from 'valibot';
 
 /** Every non-kind URN segment: lowercase snake_case, starts with a letter, at most 63 chars. */

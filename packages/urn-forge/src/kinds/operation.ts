@@ -7,9 +7,9 @@ const OperationSchema = v.strictObject({
   description: Description,
   input: ShortKeyRef,
   output: ShortKeyRef,
-  /** Expected domain rejections (spec §4.4). Absent means none. */
+  /** Expected domain rejections. Absent means none. */
   errors: v.optional(v.array(ShortKeyRef)),
-  /** The events produced on success (spec §4.4, §4.5). Absent means none. */
+  /** The events produced on success. Absent means none. */
   emits: v.optional(v.array(ShortKeyRef)),
 });
 export type OperationDecl = v.InferOutput<typeof OperationSchema>;

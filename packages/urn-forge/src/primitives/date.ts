@@ -8,7 +8,7 @@ const bound: ConstraintSpec<string> = {
 };
 
 /**
- * A calendar day, `YYYY-MM-DD`, with no time and no time zone (primitives plan, step 8). Days
+ * A calendar day, `YYYY-MM-DD`, with no time and no time zone. Days
  * are discrete, so the bounds are inclusive only. The value is a string; in this form, text
  * order is date order.
  */

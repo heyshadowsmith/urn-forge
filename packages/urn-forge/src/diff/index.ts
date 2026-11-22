@@ -1,5 +1,5 @@
 /**
- * `urn-forge diff <old> <new>` (spec §3, gate 5; lifecycle plan, step 4): compiles both
+ * `urn-forge diff <old> <new>` (gate 5): compiles both
  * manifests and classifies each change. A breaking change to a live URN is the diagnostic
  * `breaking-change`: an error, or a warning while the old manifest is experimental.
  */
@@ -47,7 +47,7 @@ export function diffManifests(oldSource: string, newSource: string, options: Dif
     return toUrn({ namespace: old.ir.meta.namespace, domain: old.ir.meta.domain, context, kind, identifier }) as Urn;
   });
   const changes = classify(old.ir, now.ir, { tables });
-  // While the old manifest is experimental, a breaking change is a warning (spec §3).
+  // While the old manifest is experimental, a breaking change is a warning.
   const experimental = old.ir.meta.stability === 'experimental';
   const breaking = changes
     .filter((c) => c.class === 'breaking')

@@ -1,11 +1,10 @@
 /**
- * FCIS plugin → `domain.runtime.generated.ts` (spec §7.2).
+ * FCIS plugin → `domain.runtime.generated.ts`.
  *
- * - `Result`, `ok` and `fail`: every handler returns a `Result` (error kind plan, decision 1).
+ * - `Result`, `ok` and `fail`: every handler returns a `Result`.
  *   `fail(errorUrn, fields)` is typed by a generated map from error URN to its payload.
  * - One handler type per operation: branded input in, `Result<plain output, plain error
- *   payloads>` out. The core never mints brands (Gate 2), so per the MVP plan's "Spec
- *   gaps" #1 handlers return `v.InferInput` shapes and the shell's parse does the branding,
+ *   payloads>` out. The core never mints brands (Gate 2), so handlers return `v.InferInput` shapes and the shell's parse does the branding,
  *   for output and errors alike.
  * - `DomainCoreImplementation` maps every operation URN to its handler type, so
  *   `satisfies DomainCoreImplementation` makes `tsc` reject missing or mistyped handlers.
@@ -35,7 +34,7 @@ const q = (text: string) => `'${JSON.stringify(text).slice(1, -1).replace(/\\"/g
 const RESULTS = `export interface Success<T, V = never> {
   readonly ok: true;
   readonly value: T;
-  /** The events of the operation, in the order the handler gives them (events plan). */
+  /** The events of the operation, in the order the handler gives them. */
   readonly events: readonly V[];
 }
 
@@ -268,7 +267,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
   if (!output.success) {
     return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(output.issues, contract.output) };
   }
-  // Each event must be one the operation emits, and must parse (spec §7.2, step 5).
+  // Each event must be one the operation emits, and must parse.
   const emitted: unknown = (result as { readonly events?: unknown }).events ?? [];
   if (!Array.isArray(emitted)) return violation(\`the handler for \${urn} returned events that are not a list\`);
   const events: { readonly urn: string; readonly fields: unknown }[] = [];
@@ -407,7 +406,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
 
     const handlers = operations.map((op) => {
       const errorTypes = op.errors.map((urn) => `s.${schemaNames(error(urn).brandIdentifier).input}`);
-      // Only the events of the operation: tsc refuses another (events plan, decision 4).
+      // Only the events of the operation: tsc refuses another.
       const eventTypes = op.emits.map((urn) => `s.${schemaNames(event(urn).brandIdentifier).input}`);
       return [
         docComment(`${op.urn} — ${op.description}`, op),

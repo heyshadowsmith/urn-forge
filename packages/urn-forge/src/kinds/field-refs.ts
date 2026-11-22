@@ -95,7 +95,7 @@ export function buildFieldRefs(context: BuildContext<unknown>, fields: readonly 
 }
 
 /**
- * Boundary cases of a list (gate 3, primitives plan step 10): the item counts at and just
+ * Boundary cases of a list (gate 3): the item counts at and just
  * outside `minItems` and `maxItems`, and a repeated value for `unique`. The items count as
  * values of the field for its own cases.
  */
@@ -125,7 +125,7 @@ export function listBoundaries(rule: ListRule, key?: string): BoundaryCase[] {
 /** The property that an error or an event payload uses for its URN, so no field of either may have this name. */
 export const RESERVED_PROPERTY = 'kind';
 
-/** Reports each property of an error or an event that would be named `kind` (spec §7.1). */
+/** Reports each property of an error or an event that would be named `kind`. */
 export function checkReservedProperty(
   context: { readonly atom: { readonly urn: string }; readonly shortKey: string; ref(path: readonly (string | number)[]): { readonly identifier: string } | undefined; report(issue: never): void },
   decl: { readonly fields: readonly FieldRefDecl[] },

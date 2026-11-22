@@ -1,5 +1,5 @@
 /**
- * urn-forge CLI (spec §9): `compile`, `verify` and `diff`, plus `init` for a new project.
+ * urn-forge CLI: `compile`, `verify` and `diff`, plus `init` for a new project.
  *
  *   urn-forge init    [--namespace <name>] [--domain <name>]
  *   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--reference-date <YYYY-MM-DD>] [--format text|json]

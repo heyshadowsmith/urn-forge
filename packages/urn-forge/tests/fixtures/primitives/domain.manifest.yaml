@@ -1,4 +1,4 @@
-# One field for each primitive and each constraint of the MECE model (primitives plan).
+# One field for each primitive and each constraint of the MECE model.
 # tests/primitives.test.ts parses values through the generated schemas.
 manifest:
   namespace: demo

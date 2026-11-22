@@ -1,5 +1,5 @@
 /**
- * The input values each operation's scenarios send (boundary coverage plan, step 2).
+ * The input values each operation's scenarios send.
  *
  * For every scenario tagged with one operation, the tables of `When I run the operation
  * with:` give the values of the operation's input fields. A `<placeholder>` takes each value

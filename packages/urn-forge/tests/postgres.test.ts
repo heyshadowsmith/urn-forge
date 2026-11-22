@@ -1,5 +1,5 @@
 /**
- * The Postgres plugin (Postgres plan). The SQL and the Valibot schema are two translations of
+ * The Postgres plugin. The SQL and the Valibot schema are two translations of
  * one rule, so the tests give both the same values and expect the same answer (decision 12).
  */
 import { readFileSync } from 'node:fs';

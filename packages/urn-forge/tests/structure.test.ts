@@ -1,4 +1,4 @@
-/** Structure (structure plan): the reference forms in the IR, and the cell reader. */
+/** Structure: the reference forms in the IR, and the cell reader. */
 import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';
 import { CellSyntaxError, readCell, type PropertyShape } from '../src/gherkin/cells.js';

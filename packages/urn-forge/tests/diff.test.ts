@@ -1,5 +1,5 @@
 /**
- * The classifier of `urn-forge diff` (lifecycle plan, step 3). Each directory under
+ * The classifier of `urn-forge diff`. Each directory under
  * tests/diff/ is one rule: an old and a new manifest, and the class of each change.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';

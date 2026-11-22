@@ -1,5 +1,5 @@
 /**
- * The feature index (foundations plan, phase 5): every `.feature` file under a directory,
+ * The feature index: every `.feature` file under a directory,
  * parsed once into scenarios with their tags, steps, tables and `Examples` values.
  *
  * It only reads: it reports files it cannot read or parse, and leaves every rule to the

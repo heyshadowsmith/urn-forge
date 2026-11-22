@@ -1,5 +1,5 @@
 /**
- * The primitive registry (foundations plan, phase 2): the meta-schema, the coherence pass,
+ * The primitive registry: the meta-schema, the coherence pass,
  * the Valibot translations and the step library all read each primitive from one place.
  */
 import { readFileSync } from 'node:fs';
@@ -246,7 +246,7 @@ describe('regex', () => {
   });
 });
 
-describe('string length (Postgres plan, decision 5)', () => {
+describe('string length', () => {
   // One emoji is one code point and two UTF-16 units.
   it('counts Unicode code points in the generated schema, as Postgres char_length does', () => {
     expect(v.safeParse(kinds.ValueCodeSchema, '😀😀😀😀').success).toBe(true);
@@ -265,7 +265,7 @@ describe('string length (Postgres plan, decision 5)', () => {
   });
 });
 
-describe('boundary cases (boundary coverage plan, step 1)', () => {
+describe('boundary cases', () => {
   /** Each case's label, with the sample values that cover it. */
   const covered = (primitive: Primitive, constraints: Record<string, unknown>, samples: readonly unknown[]) =>
     boundaryCases(primitive, constraints as never).map((c) => [c.label, samples.filter((s) => c.covers(s))]);
@@ -349,7 +349,7 @@ describe('boundary cases (boundary coverage plan, step 1)', () => {
   });
 });
 
-describe('the MECE model (primitives plan)', () => {
+describe('the MECE model', () => {
   const specs = PRIMITIVE_NAMES.flatMap((p) =>
     Object.entries(PRIMITIVES[p].constraints as Record<string, { aspect: string }>).map(([key, spec]) => ({ primitive: p, key, aspect: spec.aspect })),
   );

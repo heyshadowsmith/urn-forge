@@ -1,4 +1,4 @@
-# The insurance domain (MVP plan, Milestone 3; invariants plan, step 0). It uses dates, exact
+# The insurance domain. It uses dates, exact
 # decimals, an optional field and invariants, so each part of the rule language has a real use.
 manifest:
   namespace: acme
@@ -32,7 +32,7 @@ policy.field.limit:
 policy.field.note:
   primitive: string
   description: Free text about a coverage
-  # Retired for remark, which is limited in length (lifecycle plan). Callers receive both until the sunset.
+  # Retired for remark, which is limited in length. Callers receive both until the sunset.
   status: deprecated
   supersededBy: policy.field.remark
   sunsetDate: 2027-06-30
@@ -83,7 +83,7 @@ policy.entity.coverage:
 
 policy.entity.policy:
   description: An issued insurance policy
-  # What a link to a policy holds, and the primary key of its table (Postgres plan).
+  # What a link to a policy holds, and the primary key of its table.
   key: policy.field.policy_id
   fields:
     - ref: policy.field.policy_id
@@ -132,7 +132,7 @@ policy.invariant.cancellation_within_term:
   rule: cancellation_date >= effective_date and cancellation_date <= expiry_date
   message: The cancellation date must be inside the term of the policy
 
-# Events (events plan): the facts that the operations return on success, and the audit record of a refusal.
+# Events: the facts that the operations return on success, and the audit record of a refusal.
 policy.event.policy_issued:
   description: A policy was issued
   fields:
@@ -149,7 +149,7 @@ policy.event.refund_refused:
   description: A cancellation was refused because its refund was below the minimum, for an audit trail
   fields:
     - ref: policy.field.refund
-    # Optional, so the error's fields can build the event (events plan, decision 6).
+    # Optional, so the error's fields can build the event.
     - ref: policy.field.cancellation_date
       required: false
 
@@ -175,7 +175,7 @@ policy.operation.cancel_policy:
     - policy.error.refund_below_minimum
   emits: [policy.event.policy_cancelled]
 
-# Days (date arithmetic plan): at the end, so the line numbers that the docs quote do not move.
+# Days: at the end, so the line numbers that the docs quote do not move.
 policy.invariant.term_at_most_a_year:
   description: A policy lasts one year at most, also in a leap year
   on: policy.entity.policy

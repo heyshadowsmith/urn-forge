@@ -1,5 +1,5 @@
 /**
- * The determinism contract (spec §6): the same manifest, config and urn-forge version give
+ * The determinism contract: the same manifest, config and urn-forge version give
  * byte-identical output on any machine, in any locale and time zone. This compiles every
  * passing fixture in a child process with an unusual locale (Turkish, where case mapping
  * and collation differ) and time zone (UTC+12:45), and compares against `expected/`. CI

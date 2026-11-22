@@ -1,5 +1,5 @@
 /**
- * The shape of a kind descriptor (foundations plan, phase 3).
+ * The shape of a kind descriptor.
  *
  * A descriptor holds everything urn-forge knows about one kind of atom: its meta-schema
  * (pass 1), the references it makes and which kinds they may name (pass 4), and how its

@@ -1,5 +1,5 @@
 /**
- * `domain.store.generated.ts` (store plan): for each table entity, the statements that insert,
+ * `domain.store.generated.ts`: for each table entity, the statements that insert,
  * replace and delete one value. The tables are the model that tablesSql builds in the same pass
  * as the CREATE statements, so a column of the schema cannot be missing from an insert.
  *

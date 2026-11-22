@@ -1,5 +1,5 @@
 /**
- * Gate 1: implementation completeness (spec §8).
+ * Gate 1: implementation completeness.
  *
  * 1. `tsc --noEmit` over the core entry, using the project's tsconfig options. Because the
  *    core uses `satisfies DomainCoreImplementation`, a missing or mistyped handler is a

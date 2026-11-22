@@ -1,4 +1,4 @@
-/** reportOn (reportOn plan): the property that the issue of an invariant goes on. */
+/** reportOn: the property that the issue of an invariant goes on. */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';

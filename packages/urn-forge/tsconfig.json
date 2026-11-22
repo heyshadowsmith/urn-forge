@@ -2,9 +2,8 @@
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
-    // Bundler resolution allows the extensionless import in example/core.ts (written as in
-    // mvp-plan.md). src/ and generated code still use explicit `.js` specifiers, which also
-    // resolve under NodeNext, so generated files work in either kind of project.
+    // Bundler resolution allows the extensionless import in example/core.ts. src/ and generated
+    // code still use explicit `.js` specifiers, which also resolve under NodeNext, so generated files work in either kind of project.
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,

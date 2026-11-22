@@ -6,7 +6,7 @@ import { defineKind } from './types.js';
 
 const EntitySchema = v.strictObject({
   description: Description,
-  /** The field whose value a link to this entity holds (structure plan, decision 2). */
+  /** The field whose value a link to this entity holds. */
   key: v.optional(ShortKeyRef),
   fields: v.pipe(v.array(FieldRef), v.minLength(1, 'must list at least one field')),
 });

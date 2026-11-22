@@ -15,7 +15,7 @@ export interface EventPayloads {}
 export interface Success<T, V = never> {
   readonly ok: true;
   readonly value: T;
-  /** The events of the operation, in the order the handler gives them (events plan). */
+  /** The events of the operation, in the order the handler gives them. */
   readonly events: readonly V[];
 }
 
@@ -316,7 +316,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
   if (!output.success) {
     return { ok: false, kind: 'ContractViolation', urn, issues: boundaryIssues(output.issues, contract.output) };
   }
-  // Each event must be one the operation emits, and must parse (spec §7.2, step 5).
+  // Each event must be one the operation emits, and must parse.
   const emitted: unknown = (result as { readonly events?: unknown }).events ?? [];
   if (!Array.isArray(emitted)) return violation(`the handler for ${urn} returned events that are not a list`);
   const events: { readonly urn: string; readonly fields: unknown }[] = [];

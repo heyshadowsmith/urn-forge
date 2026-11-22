@@ -1,5 +1,5 @@
 /**
- * Gherkin table cells for lists and embedded entities (structure plan, decisions 7 and 7a).
+ * Gherkin table cells for lists and embedded entities.
  *
  *   value  := list | object | quoted | bare
  *   list   := '[' (value (',' value)*)? ']'
@@ -11,7 +11,7 @@
  * one. Each value is then read by the primitive of its field, as a plain cell is. A plain cell
  * of a single-valued field is not read here: it means what it meant before.
  *
- * A formula (formula cells plan) makes a long value: a cell, or a value in a list or an object,
+ * A formula makes a long value: a cell, or a value in a list or an object,
  * that starts with `=`.
  *
  *   formula := '=' term ('+' term)*

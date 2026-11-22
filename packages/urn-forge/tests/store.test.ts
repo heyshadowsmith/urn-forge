@@ -1,6 +1,5 @@
 /**
- * The store plan: the target, written first. In the fourth blind trial, v2 added an optional
- * property to a stored entity, and the shell's hand-written INSERT never stored it. Here the
+ * A hand-written INSERT can miss a property that a new version of the manifest adds. Here the
  * insurance policy gets an optional `agent_code`, and a policy is stored and read back.
  */
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -29,7 +28,7 @@ interface Statement {
 }
 type Policy = Record<string, unknown> & { readonly coverages: readonly Record<string, unknown>[] };
 
-/** The shell of the trial: a hand-written insert that names its columns, written before agent_code existed. */
+/** A shell with a hand-written insert that names its columns, written before agent_code existed. */
 function handWrittenInsert(policy: Policy): Statement[] {
   return [
     {
@@ -65,7 +64,7 @@ const policy: Policy = {
   ],
 };
 
-describe('the store target (store plan, decision 12)', () => {
+describe('the store target', () => {
   let db: PGlite;
   const run = async (statements: readonly Statement[]) => {
     await db.exec('BEGIN');
@@ -80,11 +79,11 @@ describe('the store target (store plan, decision 12)', () => {
     await db.exec(`INSERT INTO "customer"."customer" ("customer_id", "name") VALUES ('${CUSTOMER}', 'Ada Smith')`);
   });
 
-  it('stores the new optional property, which the hand-written insert of the trial drops', async () => {
+  it('stores the new optional property, which the hand-written insert drops', async () => {
     await run(insertPolicy(policy));
     const rows = await db.query<{ agent_code: string | null }>('SELECT "agent_code" FROM "policy"."policy"');
     expect(rows.rows).toEqual([{ agent_code: 'AB12' }]);
-    // The fault of the trial, kept as a check that this test can fail.
+    // The fault of the hand-written insert, kept as a check that this test can fail.
     await db.exec('DELETE FROM "policy"."policy"');
     await run(handWrittenInsert(policy));
     expect((await db.query('SELECT "agent_code" FROM "policy"."policy"')).rows).toEqual([{ agent_code: null }]);
@@ -120,7 +119,7 @@ describe('the store target (store plan, decision 12)', () => {
   });
 });
 
-describe('the store functions take only the parsed entity (store plan, decision 5)', async () => {
+describe('the store functions take only the parsed entity', async () => {
   const { insertPolicyPolicy, deletePolicyPolicy } = await import('../insurance/generated/domain.store.generated.js');
   it('refuses a hand-made object and a plain key at compile time (checked by tsc)', () => {
     // @ts-expect-error a plain object is not a parsed PolicyPolicy

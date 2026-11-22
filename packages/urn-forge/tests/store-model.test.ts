@@ -1,4 +1,4 @@
-/** The store model (store plan, decision 2): each table's columns in the model are the columns of its CREATE TABLE. */
+/** The store model: each table's columns in the model are the columns of its CREATE TABLE. */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';

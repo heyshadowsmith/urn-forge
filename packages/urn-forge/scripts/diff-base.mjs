@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Gate 5 for this repository (lifecycle plan, step 5): `urn-forge diff` for each domain, from
+// Gate 5 for this repository: `urn-forge diff` for each domain, from
 // its manifest at a git ref (the base of a pull request) to the manifest in the working tree.
 //
 //   node scripts/diff-base.mjs <git ref> [--report]      for example HEAD^1 in CI, origin/main locally

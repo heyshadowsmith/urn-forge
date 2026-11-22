@@ -11,7 +11,7 @@ const EventSchema = v.strictObject({
 export type EventDecl = v.InferOutput<typeof EventSchema>;
 
 /**
- * A fact that happened (spec §4.5; events plan): a named payload, declared like an entity,
+ * A fact that happened: a named payload, declared like an entity,
  * that operations return on success when they list it under `emits`. An event never
  * describes a refusal. Its payload carries `kind: '<event URN>'`, as an error's does.
  */

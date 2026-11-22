@@ -1,5 +1,5 @@
 /**
- * Generic, domain-independent Cucumber steps (mvp-plan.md, build step 8).
+ * Generic, domain-independent Cucumber steps.
  *
  *   When I run the operation with:          one header row of input field names + one data row
  *   Then the output is:                     one header row of output field names + one data row
@@ -167,7 +167,7 @@ function sameValue(actual: unknown, expected: unknown): boolean {
   return actual === expected || (Number.isNaN(actual) && Number.isNaN(expected));
 }
 
-/** A text longer than this is shown shortened, and so is a list with more items (formula cells plan, decision 11). */
+/** A text longer than this is shown shortened, and so is a list with more items. */
 const SHOWN_CHARACTERS = 60;
 const SHOWN_ITEMS = 10;
 
@@ -305,7 +305,7 @@ export function assertRecordedAs(result: ExecuteResultLike, eventUrn: string, ur
 
 /**
  * Checks the operation returned no event: it succeeded with none, or refused with a declared
- * error, which never has events (spec §4.5). Any other failure is not "no event".
+ * error, which never has events. Any other failure is not "no event".
  */
 export function assertEmitsNone(result: ExecuteResultLike, urn: string): void {
   if (!result.ok && 'error' in result) return;

@@ -1,5 +1,5 @@
 /**
- * The gate framework for `urn-forge verify` (spec §8; foundations plan, phase 5).
+ * The gate framework for `urn-forge verify`.
  *
  * A gate is a number, a name and a `run` that returns a summary and its problems. A gate
  * passes when none of its problems is an error, so a gate can report warnings and still
@@ -10,7 +10,7 @@ import type { GeneratedArtifact } from '../plugins/plugin.interface.js';
 import type { UniversalIR } from '../ir/types.js';
 import type { FeatureIndex } from './feature-index.js';
 
-/** The five gates of spec §8. */
+/** The five gates. */
 export type GateNumber = 1 | 2 | 3 | 4 | 5;
 
 /** What every gate may read. Built once per `verify`. */

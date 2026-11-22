@@ -1,10 +1,10 @@
 /**
- * Names derived from an atom (spec §3, §7): its brand identifier and the exports generated
+ * Names derived from an atom: its brand identifier and the exports generated
  * from it. Plugins read names from here, never from each other, so the Valibot and FCIS
  * output agree on type names without one plugin importing the other's internals.
  */
 
-/** The six segments of a URN (spec §3). */
+/** The six segments of a URN. */
 export interface UrnParts {
   readonly namespace: string;
   readonly domain: string;
@@ -36,7 +36,7 @@ export function schemaNames(brandIdentifier: string) {
   } as const;
 }
 
-/** The exported function of an invariant's rule: `<Brand>Rule` (invariants plan, step 3). */
+/** The exported function of an invariant's rule: `<Brand>Rule`. */
 export function ruleName(brandIdentifier: string): string {
   return `${brandIdentifier}Rule`;
 }
