@@ -1,0 +1,181 @@
+# Conditions on operations: the target of conditions.test.ts.
+manifest:
+  namespace: demo
+  domain: conditions
+  version: 1.0.0
+
+booking.field.reference:
+  primitive: string
+  regex: '[A-Z]{8}'
+  description: The reference of a booking
+booking.field.party_size:
+  primitive: integer
+  min: 1
+  max: 20
+  description: The number of guests
+booking.field.deposit_token:
+  primitive: string
+  minLength: 1
+  description: A token that pays the deposit
+booking.entity.request:
+  description: A request for a table
+  fields:
+    - ref: booking.field.party_size
+    - ref: booking.field.deposit_token
+      required: false
+booking.entity.booking:
+  description: A booking
+  fields:
+    - ref: booking.field.reference
+    - ref: booking.field.party_size
+booking.error.party_too_large_for_online:
+  description: A party of 13 or more books by phone
+  category: validation
+  retryable: false
+  message: A party of {party_size} books by phone
+  fields:
+    - ref: booking.field.party_size
+booking.error.deposit_required:
+  description: A party of 7 or more pays a deposit
+  category: validation
+  retryable: false
+  message: A party of {party_size} needs a deposit
+  fields:
+    - ref: booking.field.party_size
+booking.operation.create_booking:
+  description: Make a booking
+  input: booking.entity.request
+  output: booking.entity.booking
+  requires:
+    - rule: input.party_size < 13
+      otherwise: booking.error.party_too_large_for_online
+    - rule: input.party_size < 7 or input.deposit_token is present
+      otherwise: booking.error.deposit_required
+  errors: [booking.error.party_too_large_for_online, booking.error.deposit_required]
+
+claim.field.claim_id:
+  primitive: string
+  regex: 'CLM-[0-9]{10}'
+  description: The id of a claim
+claim.field.state:
+  primitive: enum
+  values: [DRAFT, SUBMITTED]
+  moves:
+    DRAFT: [SUBMITTED]
+  description: The state of a claim
+claim.field.version:
+  primitive: integer
+  min: 1
+  description: The version of a claim
+claim.entity.claim:
+  description: A stored claim
+  key: claim.field.claim_id
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.state
+    - ref: claim.field.version
+claim.entity.change:
+  description: A change to a claim, with the version that the caller read
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.version
+claim.error.invalid_state:
+  description: The claim is not in a state for this
+  category: conflict
+  retryable: false
+  message: Claim {claim_id} is {state}
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.state
+claim.error.version_conflict:
+  description: The claim changed since the caller read it
+  category: conflict
+  retryable: true
+  message: Claim {claim_id} is at version {version}
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.version
+claim.operation.submit_claim:
+  description: Submit a draft claim
+  input: claim.entity.change
+  output: claim.entity.claim
+  changes:
+    entity: claim.entity.claim
+    from: [DRAFT]
+    to: SUBMITTED
+    otherwise: claim.error.invalid_state
+  requires:
+    - rule: input.version = current.version
+      otherwise: claim.error.version_conflict
+  ensures:
+    - output.version = input.version + 1
+  errors: [claim.error.invalid_state, claim.error.version_conflict]
+
+payment.field.payment_id:
+  primitive: string
+  regex: 'pay_[a-z0-9]{8}'
+  description: The id of a payment
+payment.field.status:
+  primitive: enum
+  values: [captured]
+  moves: {}
+  description: The status of a payment
+payment.field.amount:
+  primitive: decimal
+  scale: 2
+  min: '0.01'
+  description: An amount
+payment.field.captured_amount:
+  primitive: decimal
+  scale: 2
+  min: '0.00'
+  description: The amount captured
+payment.field.refunded_amount:
+  primitive: decimal
+  scale: 2
+  min: '0.00'
+  description: The amount refunded so far
+payment.entity.payment:
+  description: A stored payment
+  key: payment.field.payment_id
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+    - ref: payment.field.captured_amount
+    - ref: payment.field.refunded_amount
+payment.entity.refund_request:
+  description: A refund of part of a payment
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.amount
+payment.error.amount_exceeds_captured:
+  description: The refunds would exceed the captured amount
+  category: validation
+  retryable: false
+  message: Payment {payment_id} has {captured_amount} captured and {refunded_amount} refunded
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.captured_amount
+    - ref: payment.field.refunded_amount
+payment.error.not_captured:
+  description: The payment is not captured
+  category: conflict
+  retryable: false
+  message: Payment {payment_id} is {status}
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.status
+payment.operation.refund_payment:
+  description: Refund part of a payment
+  input: payment.entity.refund_request
+  output: payment.entity.payment
+  changes:
+    entity: payment.entity.payment
+    from: [captured]
+    otherwise: payment.error.not_captured
+  requires:
+    - rule: current.refunded_amount + input.amount <= current.captured_amount
+      otherwise: payment.error.amount_exceeds_captured
+  ensures:
+    - output.refunded_amount = current.refunded_amount + input.amount
+  errors: [payment.error.not_captured, payment.error.amount_exceeds_captured]

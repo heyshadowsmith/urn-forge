@@ -1,0 +1,32 @@
+[
+  {
+    "code": "unknown-property",
+    "location": {
+      "column": 3,
+      "line": 49
+    },
+    "message": "booking.operation.create_booking.requires: unknown property \"requires\"",
+    "severity": "error",
+    "urn": "urn:demo:conditions:booking:operation:create_booking"
+  },
+  {
+    "code": "unknown-property",
+    "location": {
+      "column": 3,
+      "line": 107
+    },
+    "message": "claim.operation.submit_claim.requires: unknown property \"requires\"",
+    "severity": "error",
+    "urn": "urn:demo:conditions:claim:operation:submit_claim"
+  },
+  {
+    "code": "unknown-property",
+    "location": {
+      "column": 3,
+      "line": 176
+    },
+    "message": "payment.operation.refund_payment.requires: unknown property \"requires\"",
+    "severity": "error",
+    "urn": "urn:demo:conditions:payment:operation:refund_payment"
+  }
+]
