@@ -93,6 +93,46 @@ jobs:
         working-directory: packages/urn-forge
         run: npm run test:features:tutorial
 
+  # The contract corpus (contracts/): each contract must verify with strict coverage and pass
+  # its scenarios, so a declared promise is enforced. Then the score, which fails below the
+  # minimum of contracts/corpus.yaml.
+  corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: npm ci
+        id: install
+        run: npm ci
+
+      - name: urn-forge verify and cucumber-js (each contract)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          status=0
+          for dir in contracts/*/; do
+            name=$(basename "$dir")
+            echo "::group::$name"
+            node packages/urn-forge/bin/urn-forge.js verify --config "$dir/urn-forge.config.ts" || status=1
+            (cd "$dir" && npx cucumber-js --import ../../packages/urn-forge/src/gherkin/register-tsx.mjs --import 'features/support/**/*.ts' 'features/**/*.feature') || status=1
+            echo "::endgroup::"
+          done
+          exit $status
+
+      - name: The score
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          status=0
+          npm run -s corpus > corpus.txt 2>&1 || status=$?
+          cat corpus.txt
+          { echo '```text'; cat corpus.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
   # The same inputs give the same bytes and the same verdict in any locale
   # and time zone. Turkish changes case mapping and collation; Chatham is UTC+12:45.
   determinism:

@@ -1,0 +1,447 @@
+manifest:
+  namespace: corpus
+  domain: payments
+  version: 1.0.0
+
+# Values
+
+payment.field.payment_id:
+  primitive: string
+  regex: 'pay_[a-z0-9]{24}'
+  description: The id of a payment
+refund.field.refund_id:
+  primitive: string
+  regex: 're_[a-z0-9]{24}'
+  description: The id of a refund
+payment.field.merchant_id:
+  primitive: string
+  description: The id of the merchant that the payment belongs to
+payment.field.amount:
+  primitive: integer
+  min: 1
+  max: 99999999
+  description: An amount in minor units of its currency, for example cents
+payment.field.currency:
+  primitive: string
+  regex: '[A-Z]{3}'
+  description: An ISO 4217 currency code
+payment.field.method:
+  primitive: enum
+  values: [card, bank_transfer]
+  description: How the buyer pays
+payment.field.idempotency_key:
+  primitive: string
+  minLength: 1
+  maxLength: 64
+  regex: '\P{C}*'
+  description: A key that the caller chooses, so that a repeated request has the effect of one
+payment.field.description:
+  primitive: string
+  maxLength: 255
+  description: Free text about the payment
+payment.field.metadata_key:
+  primitive: string
+  description: The key of a metadata entry
+payment.field.metadata_value:
+  primitive: string
+  description: The value of a metadata entry
+payment.field.quantity:
+  primitive: integer
+  min: 1
+  description: How many units a line item has
+payment.field.unit_amount:
+  primitive: integer
+  min: 0
+  description: The amount of one unit of a line item, in minor units
+payment.field.iban:
+  primitive: string
+  regex: '[A-Z]{2}[0-9]{2}[A-Z0-9]{1,30}'
+  description: The IBAN of the account that pays by bank transfer
+payment.field.status:
+  primitive: enum
+  values: [pending, authorized, failed, captured, voided, expired, partially_refunded, refunded]
+  description: Where a payment is in its life
+payment.field.initial_status:
+  primitive: enum
+  values: [authorized, pending]
+  description: The status of a payment that was just created
+payment.field.authorized_amount:
+  primitive: integer
+  min: 1
+  max: 99999999
+  description: The amount that the buyer authorized, in minor units
+payment.field.captured_amount:
+  primitive: integer
+  min: 0
+  max: 99999999
+  description: The amount captured from the buyer, in minor units
+payment.field.refunded_amount:
+  primitive: integer
+  min: 0
+  max: 99999999
+  description: The sum of all refunds of a payment, in minor units
+payment.field.created_at:
+  primitive: timestamp
+  description: When the payment or refund was created
+payment.field.event_id:
+  primitive: string
+  format: uuid
+  description: The id of an event, so that a consumer can discard a duplicate
+payment.field.occurred_at:
+  primitive: timestamp
+  description: When the status of the payment changed
+
+card.field.card_number:
+  primitive: string
+  regex: '[0-9]{12,19}'
+  description: The number of a card
+card.field.exp_month:
+  primitive: integer
+  min: 1
+  max: 12
+  description: The month in which a card expires
+card.field.exp_year:
+  primitive: integer
+  min: 1000
+  max: 9999
+  description: The year in which a card expires, four digits
+card.field.security_code:
+  primitive: string
+  regex: '[0-9]{3,4}'
+  description: The security code of a card
+card.field.brand:
+  primitive: enum
+  values: [visa, mastercard, amex, other]
+  description: The brand of a card
+card.field.last4:
+  primitive: string
+  regex: '[0-9]{4}'
+  description: The last 4 digits of a card number
+
+# Shapes
+
+card.entity.card_details:
+  description: The details of a card that pays
+  fields:
+    - ref: card.field.card_number
+    - ref: card.field.exp_month
+    - ref: card.field.exp_year
+    - ref: card.field.security_code
+card.entity.card_summary:
+  description: What an answer or an event shows of a card
+  fields:
+    - ref: card.field.brand
+    - ref: card.field.last4
+    - ref: card.field.exp_month
+    - ref: card.field.exp_year
+
+payment.entity.metadata_entry:
+  description: One entry of the metadata of a payment
+  key: payment.field.metadata_key
+  fields:
+    - ref: payment.field.metadata_key
+      as: key
+    - ref: payment.field.metadata_value
+      as: value
+payment.entity.line_item:
+  description: One line of what the buyer pays for
+  fields:
+    - ref: payment.field.quantity
+    - ref: payment.field.unit_amount
+
+payment.entity.create_payment_request:
+  description: A request to take a payment from a buyer
+  fields:
+    - ref: payment.field.merchant_id
+    - ref: payment.field.amount
+    - ref: payment.field.currency
+    - ref: payment.field.method
+    - ref: payment.field.idempotency_key
+    - ref: payment.field.description
+      required: false
+    - ref: payment.entity.metadata_entry
+      as: metadata
+      required: false
+      many: { maxItems: 20, unique: true }
+    - ref: payment.entity.line_item
+      as: line_items
+      required: false
+      many: { minItems: 1, maxItems: 100 }
+    - ref: card.entity.card_details
+      as: card
+      required: false
+    - ref: payment.field.iban
+      required: false
+payment.invariant.card_payment_has_card:
+  description: A card payment carries card details
+  on: payment.entity.create_payment_request
+  rule: method != 'card' or card is present
+  reportOn: card
+  message: A card payment needs card details
+payment.invariant.bank_transfer_has_iban_and_no_card:
+  description: A bank transfer payment carries an IBAN and no card details
+  on: payment.entity.create_payment_request
+  rule: method != 'bank_transfer' or iban is present and card is absent
+  reportOn: iban
+  message: A bank transfer payment needs an IBAN and no card details
+
+payment.entity.created_payment:
+  description: A payment that was just created
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.merchant_id
+    - ref: payment.field.amount
+    - ref: payment.field.currency
+    - ref: payment.field.method
+    - ref: payment.field.initial_status
+      as: status
+    - ref: card.entity.card_summary
+      as: card
+      required: false
+    - ref: payment.field.created_at
+payment.invariant.pending_only_for_bank_transfer:
+  description: Only a bank transfer payment can be pending
+  on: payment.entity.created_payment
+  rule: status != 'pending' or method = 'bank_transfer'
+  reportOn: status
+  message: Only a bank transfer payment can be pending
+
+payment.entity.payment_lookup:
+  description: A request that names one payment of a merchant
+  fields:
+    - ref: payment.field.merchant_id
+    - ref: payment.field.payment_id
+
+payment.entity.payment:
+  description: A payment as a caller can read it
+  key: payment.field.payment_id
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.merchant_id
+    - ref: payment.field.amount
+    - ref: payment.field.currency
+    - ref: payment.field.method
+    - ref: payment.field.status
+    - ref: payment.field.captured_amount
+    - ref: payment.field.refunded_amount
+    - ref: card.entity.card_summary
+      as: card
+      required: false
+    - ref: payment.field.created_at
+
+payment.entity.capture_request:
+  description: A request to capture an authorized payment, in full when it has no amount
+  fields:
+    - ref: payment.field.merchant_id
+    - ref: payment.field.payment_id
+    - ref: payment.field.amount
+      required: false
+payment.entity.capture_result:
+  description: A payment that was captured
+  fields:
+    - ref: payment.field.payment_id
+    - ref: payment.field.currency
+    - ref: payment.field.authorized_amount
+    - ref: payment.field.captured_amount
+    - ref: payment.field.status
+payment.invariant.captured_within_authorized:
+  description: A capture takes at least 1 and at most the authorized amount
+  on: payment.entity.capture_result
+  rule: captured_amount >= 1 and captured_amount <= authorized_amount
+  message: The captured amount must be from 1 to the authorized amount
+
+refund.entity.refund_request:
+  description: A request to give back a part or all of a captured payment
+  fields:
+    - ref: payment.field.merchant_id
+    - ref: payment.field.payment_id
+    - ref: payment.field.amount
+    - ref: payment.field.idempotency_key
+refund.entity.refund_lookup:
+  description: A request that names one refund of a merchant
+  fields:
+    - ref: payment.field.merchant_id
+    - ref: refund.field.refund_id
+refund.entity.refund:
+  description: A refund of a payment
+  key: refund.field.refund_id
+  fields:
+    - ref: refund.field.refund_id
+    - ref: payment.field.payment_id
+    - ref: payment.field.merchant_id
+    - ref: payment.field.amount
+    - ref: payment.field.currency
+    - ref: payment.field.captured_amount
+    - ref: payment.field.refunded_amount
+      as: refunded_total
+    - ref: payment.field.created_at
+refund.invariant.refunds_within_captured:
+  description: The sum of all refunds of a payment, this one included, is at most the captured amount
+  on: refund.entity.refund
+  rule: amount <= refunded_total and refunded_total <= captured_amount
+  message: The refunds of a payment must not exceed the captured amount
+
+# Refusals
+
+payment.error.invalid_request:
+  description: The request breaks a rule that its fields alone do not show, such as line items that do not add up to the amount
+  category: validation
+  retryable: false
+  message: The request is not valid
+payment.error.card_declined:
+  description: The issuer of the card declined the payment
+  category: precondition
+  retryable: false
+  message: The card was declined
+payment.error.insufficient_funds:
+  description: The account of the card does not hold enough money
+  category: precondition
+  retryable: true
+  message: The card has insufficient funds
+payment.error.expired_card:
+  description: The card has expired
+  category: precondition
+  retryable: false
+  message: The card has expired
+payment.error.unsupported_currency:
+  description: The currency is not one that the merchant can take
+  category: validation
+  retryable: false
+  message: The currency {currency} is not supported
+  fields:
+    - ref: payment.field.currency
+payment.error.fraud_suspected:
+  description: The payment looks like fraud
+  category: forbidden
+  retryable: false
+  message: The payment was refused as suspected fraud
+payment.error.idempotency_conflict:
+  description: The idempotency key was used before with a different request
+  category: conflict
+  retryable: false
+  message: The idempotency key {idempotency_key} was used with a different request
+  fields:
+    - ref: payment.field.idempotency_key
+payment.error.not_found:
+  description: The merchant is unknown, or the payment or refund does not exist or belongs to another merchant
+  category: not_found
+  retryable: false
+  message: Not found
+payment.error.invalid_state:
+  description: The payment is in a status that does not allow the requested move
+  category: conflict
+  retryable: false
+  message: A payment in status {status} cannot make this move
+  fields:
+    - ref: payment.field.status
+payment.error.capture_exceeds_authorized:
+  description: The capture amount is more than the authorized amount
+  category: validation
+  retryable: false
+  message: A capture of {amount} is more than the authorized amount of {authorized_amount}
+  fields:
+    - ref: payment.field.amount
+    - ref: payment.field.authorized_amount
+refund.error.amount_exceeds_captured:
+  description: The refund would make the refunds of the payment more than its captured amount
+  category: precondition
+  retryable: false
+  message: A refund of {amount} is more than the {available} that is left of the captured amount
+  fields:
+    - ref: payment.field.amount
+    - ref: payment.field.captured_amount
+      as: available
+refund.error.refund_window_closed:
+  description: The payment was captured more than 180 days ago
+  category: precondition
+  retryable: false
+  message: The payment can no longer be refunded
+
+# Events: one for each status that a call can make
+
+payment.event.pending:
+  description: A payment became pending
+  fields: &status_change
+    - ref: payment.field.event_id
+    - ref: payment.field.payment_id
+    - ref: payment.field.merchant_id
+    - ref: payment.field.amount
+    - ref: payment.field.currency
+    - ref: payment.field.status
+      as: previous_status
+      required: false
+    - ref: payment.field.status
+      as: new_status
+    - ref: payment.field.occurred_at
+payment.event.authorized:
+  description: A payment became authorized
+  fields: *status_change
+payment.event.captured:
+  description: A payment became captured
+  fields: *status_change
+payment.event.voided:
+  description: A payment became voided
+  fields: *status_change
+payment.event.partially_refunded:
+  description: A payment became partially refunded
+  fields: *status_change
+payment.event.refunded:
+  description: A payment became refunded in full
+  fields: *status_change
+
+# Calls
+
+payment.operation.create_payment:
+  description: Create a payment and ask the buyer's bank to authorize it
+  input: payment.entity.create_payment_request
+  output: payment.entity.created_payment
+  errors:
+    - payment.error.invalid_request
+    - payment.error.card_declined
+    - payment.error.insufficient_funds
+    - payment.error.expired_card
+    - payment.error.unsupported_currency
+    - payment.error.fraud_suspected
+    - payment.error.idempotency_conflict
+    - payment.error.not_found
+  emits: [payment.event.authorized, payment.event.pending]
+payment.operation.capture_payment:
+  description: Capture an authorized payment, in full or in part
+  input: payment.entity.capture_request
+  output: payment.entity.capture_result
+  errors:
+    - payment.error.not_found
+    - payment.error.invalid_state
+    - payment.error.capture_exceeds_authorized
+  emits: [payment.event.captured]
+payment.operation.void_payment:
+  description: Cancel an authorized payment that was not captured
+  input: payment.entity.payment_lookup
+  output: payment.entity.payment
+  errors:
+    - payment.error.not_found
+    - payment.error.invalid_state
+  emits: [payment.event.voided]
+payment.operation.get_payment:
+  description: Read a payment by its id
+  input: payment.entity.payment_lookup
+  output: payment.entity.payment
+  errors:
+    - payment.error.not_found
+refund.operation.refund_payment:
+  description: Give back a part or all of a captured payment
+  input: refund.entity.refund_request
+  output: refund.entity.refund
+  errors:
+    - payment.error.not_found
+    - payment.error.invalid_state
+    - payment.error.idempotency_conflict
+    - refund.error.amount_exceeds_captured
+    - refund.error.refund_window_closed
+  emits: [payment.event.partially_refunded, payment.event.refunded]
+refund.operation.get_refund:
+  description: Read a refund by its id
+  input: refund.entity.refund_lookup
+  output: refund.entity.refund
+  errors:
+    - payment.error.not_found

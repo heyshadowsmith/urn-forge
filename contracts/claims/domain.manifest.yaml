@@ -1,0 +1,329 @@
+# Expense claims: employees claim expenses with receipt lines, managers decide, finance pays.
+manifest:
+  namespace: corpus
+  domain: claims
+  version: 1.0.0
+
+# Values
+
+claim.field.claim_id:
+  primitive: string
+  regex: 'CLM-[0-9]{10}'
+  description: The identifier of a claim, which the domain assigns on creation
+claim.field.version:
+  primitive: integer
+  min: 1
+  description: The version of a claim; each change makes it 1 higher
+claim.field.state:
+  primitive: enum
+  values: [DRAFT, SUBMITTED, APPROVED, REJECTED, WITHDRAWN, PAID]
+  description: The state of a claim
+claim.field.currency:
+  primitive: string
+  regex: '[A-Z]{3}'
+  description: An ISO 4217 currency code, three capital letters
+claim.field.total:
+  primitive: decimal
+  exclusiveMin: "0"
+  scale: 2
+  description: The sum of the line amounts of a claim, in the currency of the claim
+claim.field.purpose:
+  primitive: string
+  minLength: 1
+  maxLength: 500
+  description: Why the employee spent the money
+claim.field.employee_id:
+  primitive: string
+  description: The employee who owns a claim
+claim.field.actor_id:
+  primitive: string
+  description: The user who makes a request
+claim.field.reason:
+  primitive: string
+  minLength: 10
+  maxLength: 500
+  description: Why a manager rejected a claim
+
+line.field.category:
+  primitive: enum
+  values: [TRAVEL, LODGING, MEALS, MILEAGE, SUPPLIES, TRAINING, OTHER]
+  description: The kind of an expense
+line.field.expense_date:
+  primitive: date
+  description: The calendar day of an expense, with no time zone
+line.field.description:
+  primitive: string
+  minLength: 1
+  maxLength: 200
+  description: What an expense was
+line.field.amount:
+  primitive: decimal
+  exclusiveMin: "0"
+  max: "10000.00"
+  scale: 2
+  description: The amount of one expense, in the currency of the claim
+line.field.distance_km:
+  primitive: decimal
+  min: "1"
+  max: "2000"
+  description: The distance of a MILEAGE expense, in kilometres
+
+receipt.field.sha256:
+  primitive: string
+  regex: '[0-9a-f]{64}'
+  description: The SHA-256 hash of a receipt file, which identifies the file
+receipt.field.media_type:
+  primitive: enum
+  values: [application/pdf, image/jpeg, image/png]
+  description: The type of a receipt file, PDF, JPEG or PNG
+receipt.field.size_bytes:
+  primitive: integer
+  min: 1
+  max: 10485760
+  description: The size of a receipt file in bytes, at most 10 MB
+
+event.field.event_id:
+  primitive: string
+  format: uuid
+  description: The unique identifier of an event, for deduplication
+event.field.occurred_at:
+  primitive: timestamp
+  description: When a change happened, ISO 8601 in UTC
+
+# Entities
+
+receipt.entity.receipt:
+  description: A receipt file for an expense
+  key: receipt.field.sha256
+  fields:
+    - ref: receipt.field.sha256
+    - ref: receipt.field.media_type
+    - ref: receipt.field.size_bytes
+
+line.entity.line:
+  description: One expense of a claim
+  fields:
+    - ref: line.field.category
+    - ref: line.field.expense_date
+    - ref: line.field.description
+    - ref: line.field.amount
+    - ref: receipt.entity.receipt
+      required: false
+    - ref: line.field.distance_km
+      required: false
+
+line.invariant.receipt_above_25:
+  description: A line other than MILEAGE with an amount above 25.00 carries a receipt
+  on: line.entity.line
+  rule: category = 'MILEAGE' or amount <= 25 or receipt is present
+  reportOn: receipt
+  message: A line with an amount above 25.00 needs a receipt
+line.invariant.mileage_has_distance:
+  description: A MILEAGE line carries a distance and no receipt
+  on: line.entity.line
+  rule: category != 'MILEAGE' or distance_km is present and receipt is absent
+  reportOn: distance_km
+  message: A MILEAGE line needs a distance and no receipt
+line.invariant.distance_only_for_mileage:
+  description: Only a MILEAGE line carries a distance
+  on: line.entity.line
+  rule: category = 'MILEAGE' or distance_km is absent
+  reportOn: distance_km
+  message: Only a MILEAGE line can have a distance
+
+claim.entity.draft:
+  description: A request to create a draft claim
+  fields:
+    - ref: claim.field.actor_id
+    - ref: claim.field.employee_id
+    - ref: claim.field.purpose
+    - ref: claim.field.currency
+    - ref: line.entity.line
+      as: lines
+      many: { minItems: 1, maxItems: 50 }
+claim.entity.draft_edit:
+  description: A request to replace the purpose, currency and lines of a draft or rejected claim
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.version
+    - ref: claim.field.actor_id
+    - ref: claim.field.purpose
+    - ref: claim.field.currency
+    - ref: line.entity.line
+      as: lines
+      many: { minItems: 1, maxItems: 50 }
+claim.entity.change:
+  description: A request to move a claim to its next state, with the version the caller last read
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.version
+    - ref: claim.field.actor_id
+claim.entity.rejection:
+  description: A request to reject a claim, with the reason
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.version
+    - ref: claim.field.actor_id
+    - ref: claim.field.reason
+claim.entity.lookup:
+  description: A request to read a claim
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.actor_id
+
+claim.entity.answer:
+  description: The answer to a change of a claim
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.state
+    - ref: claim.field.total
+    - ref: claim.field.currency
+    - ref: claim.field.version
+claim.entity.rejection_answer:
+  description: The answer to a rejection, with its reason
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.state
+    - ref: claim.field.total
+    - ref: claim.field.currency
+    - ref: claim.field.version
+    - ref: claim.field.reason
+claim.entity.claim:
+  description: A claim as it is stored
+  key: claim.field.claim_id
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.version
+    - ref: claim.field.employee_id
+    - ref: claim.field.state
+    - ref: claim.field.purpose
+    - ref: claim.field.currency
+    - ref: claim.field.total
+    - ref: line.entity.line
+      as: lines
+      many: { minItems: 1, maxItems: 50 }
+    - ref: claim.field.reason
+      required: false
+
+# Refusals
+
+claim.error.not_found:
+  description: No claim has this id
+  category: not_found
+  retryable: false
+  message: No claim {claim_id}
+  fields:
+    - ref: claim.field.claim_id
+claim.error.forbidden:
+  description: The caller may not make this request
+  category: forbidden
+  retryable: false
+  message: The user {actor_id} may not make this request
+  fields:
+    - ref: claim.field.actor_id
+claim.error.invalid_state:
+  description: The claim is in a state that does not allow this request
+  category: precondition
+  retryable: false
+  message: The claim {claim_id} is {state}
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.state
+claim.error.version_conflict:
+  description: The claim changed after the caller read it
+  category: conflict
+  retryable: false
+  message: The claim {claim_id} is no longer at version {version}
+  fields:
+    - ref: claim.field.claim_id
+    - ref: claim.field.version
+claim.error.duplicate_receipt:
+  description: The receipt file is already on a line of a claim that is not rejected or withdrawn
+  category: conflict
+  retryable: false
+  message: The receipt {sha256} is already on a claim
+  fields:
+    - ref: receipt.field.sha256
+
+# Events
+
+claim.event.claim_submitted:
+  description: A claim moved to SUBMITTED
+  fields: &change_fields
+    - ref: event.field.event_id
+    - ref: claim.field.claim_id
+    - ref: claim.field.employee_id
+    - ref: claim.field.total
+    - ref: claim.field.currency
+    - ref: claim.field.state
+    - ref: claim.field.actor_id
+    - ref: event.field.occurred_at
+claim.event.claim_approved:
+  description: A claim moved to APPROVED
+  fields: *change_fields
+claim.event.claim_withdrawn:
+  description: A claim moved to WITHDRAWN
+  fields: *change_fields
+claim.event.claim_paid:
+  description: A claim moved to PAID
+  fields: *change_fields
+claim.event.claim_rejected:
+  description: A claim moved to REJECTED, with the reason
+  fields:
+    - ref: event.field.event_id
+    - ref: claim.field.claim_id
+    - ref: claim.field.employee_id
+    - ref: claim.field.total
+    - ref: claim.field.currency
+    - ref: claim.field.state
+    - ref: claim.field.actor_id
+    - ref: event.field.occurred_at
+    - ref: claim.field.reason
+
+# Operations
+
+claim.operation.create_draft:
+  description: Create a draft claim for the employee who calls
+  input: claim.entity.draft
+  output: claim.entity.answer
+  errors: [claim.error.forbidden, claim.error.duplicate_receipt]
+claim.operation.edit_draft:
+  description: Replace the purpose, currency and lines of a draft claim; a rejected claim goes back to DRAFT
+  input: claim.entity.draft_edit
+  output: claim.entity.answer
+  errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
+claim.operation.submit_claim:
+  description: Submit a draft claim for a decision
+  input: claim.entity.change
+  output: claim.entity.answer
+  errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
+  emits: [claim.event.claim_submitted]
+claim.operation.withdraw_claim:
+  description: Withdraw a submitted claim
+  input: claim.entity.change
+  output: claim.entity.answer
+  errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
+  emits: [claim.event.claim_withdrawn]
+claim.operation.approve_claim:
+  description: Approve a submitted claim
+  input: claim.entity.change
+  output: claim.entity.answer
+  errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
+  emits: [claim.event.claim_approved]
+claim.operation.reject_claim:
+  description: Reject a submitted claim with a reason
+  input: claim.entity.rejection
+  output: claim.entity.rejection_answer
+  errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
+  emits: [claim.event.claim_rejected]
+claim.operation.mark_paid:
+  description: Mark an approved claim paid
+  input: claim.entity.change
+  output: claim.entity.answer
+  errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
+  emits: [claim.event.claim_paid]
+claim.operation.get_claim:
+  description: Read a claim by its id
+  input: claim.entity.lookup
+  output: claim.entity.claim
+  errors: [claim.error.not_found, claim.error.forbidden]

@@ -1,0 +1,133 @@
+contract: bookings
+description: "Lets guests and restaurant staff book, change and cancel tables at a restaurant for a given date, time and party size, with deposits for larger parties."
+promises:
+  # The shape of the reference is declared; that a reference is never reused is not.
+  P01:
+    promise: "A booking reference is exactly 8 characters drawn from upper-case letters A-Z (excluding I and O) and digits 2-9, and is never reused for another booking."
+    status: workaround
+    by: [booking.field.reference]
+    hole: C1
+  # The range 1 to 20 and the error are declared; that 13 or more gives this error lives in the core.
+  P02:
+    promise: "A party size is a whole number from 1 to 20, and requests for 13 or more guests are refused with PARTY_TOO_LARGE_FOR_ONLINE so they can be handled by phone."
+    status: workaround
+    by: [booking.field.party_size, booking.error.party_too_large_for_online]
+    hole: A2
+  # The 15-minute boundary and the time zone in each answer are declared; that the time is in the restaurant's zone, and that the name is a real IANA zone, are not.
+  P03:
+    promise: "A booking time is given as a local date and time on a 15-minute boundary (minutes 00, 15, 30 or 45) in the restaurant's IANA time zone, and every answer carries that time zone name alongside the time."
+    status: workaround
+    by: [booking.field.local_date, booking.field.local_time, booking.field.time_zone, booking.entity.confirmation, booking.entity.booking]
+    hole: D3
+  # The invariant states "email or phone", but the generated type has both as optional, not a union.
+  P04:
+    promise: "A guest's contact must include a name of 1 to 100 characters and at least one of an email address or an E.164 phone number of at most 15 digits."
+    status: workaround
+    by: [guest.entity.contact, guest.field.name, guest.field.email, guest.field.phone, guest.invariant.email_or_phone]
+    hole: B1
+  P05:
+    promise: "Special requests are free text of at most 500 characters, and dietary tags, if given, are a list of at most 10 distinct values from a fixed published set such as vegetarian, vegan, gluten_free, nut_allergy and halal."
+    status: declared
+    by: [booking.field.special_requests, booking.field.dietary_tag, booking.entity.create_request]
+  P06:
+    promise: "A create-booking request must contain the restaurant id, local date and time, party size, guest contact and a client-generated idempotency key of 16 to 64 characters."
+    status: declared
+    by: [booking.entity.create_request, booking.field.restaurant_id, booking.field.local_date, booking.field.local_time, booking.field.party_size, guest.entity.contact, booking.field.idempotency_key]
+  # The error is declared; the window of 2 hours to 90 days before the start needs the current time.
+  P07:
+    promise: "A booking can be made no earlier than 2 hours and no later than 90 days before its start time, and requests outside that window are refused with OUTSIDE_BOOKING_WINDOW."
+    status: workaround
+    by: [booking.error.outside_booking_window]
+    hole: E2
+  # The token and the error are declared; that 7 or more guests with no token gives this error lives in the core (an invariant could state the rule, but would answer with an input rejection, not DEPOSIT_REQUIRED).
+  P08:
+    promise: "A party of 7 or more guests must include a deposit payment token in the request, otherwise the request is refused with DEPOSIT_REQUIRED."
+    status: workaround
+    by: [booking.field.deposit_token, booking.error.deposit_required]
+    hole: A2
+  # Positive with 2 decimals is declared; the single currency of the restaurant is not, and a rule cannot multiply the per-guest amount by the party size.
+  P09:
+    promise: "A deposit, when taken, is in the restaurant's single published currency, is a positive amount with at most 2 decimal places, and equals the per-guest deposit amount stated in the answer times the party size."
+    status: workaround
+    by: [booking.field.deposit_amount, booking.field.deposit_per_guest, booking.field.currency, booking.invariant.deposit_has_terms]
+    hole: B4
+  P10:
+    promise: "A successful create returns status CONFIRMED with the booking reference, restaurant id, local start time, time zone, party size, booked duration in minutes and any deposit amount charged."
+    status: declared
+    by: [booking.operation.create_booking, booking.entity.confirmation, booking.field.confirmed_state, booking.field.reference, booking.field.time_zone, booking.field.duration_minutes, booking.field.deposit_amount]
+  # Each code is a declared error with a message; a malformed request is an input rejection, not the code INVALID_REQUEST, and that a refusal creates or changes nothing is not stated.
+  P11:
+    promise: "Every refusal carries exactly one error code from the published list (INVALID_REQUEST, OUTSIDE_BOOKING_WINDOW, NO_AVAILABILITY, DEPOSIT_REQUIRED, PAYMENT_DECLINED, PARTY_TOO_LARGE_FOR_ONLINE, BOOKING_NOT_FOUND, INVALID_STATE, CHANGE_DEADLINE_PASSED, FORBIDDEN) and a human-readable message, and a refused request creates or changes nothing."
+    status: workaround
+    by: [booking.error.invalid_request, booking.error.outside_booking_window, booking.error.no_availability, booking.error.deposit_required, booking.error.payment_declined, booking.error.party_too_large_for_online, booking.error.booking_not_found, booking.error.invalid_state, booking.error.change_deadline_passed, booking.error.forbidden]
+    hole: C3
+  # Up to 5 alternative times are declared; that each is on the same date, within 2 hours of the requested time and for the same party size relates the answer to the request.
+  P12:
+    promise: "A NO_AVAILABILITY refusal may carry up to 5 alternative start times, each on the same date, within 2 hours of the requested time and for the same party size."
+    status: workaround
+    by: [booking.error.no_availability]
+    hole: A2
+  # The five states are declared; the allowed moves and the final states are not.
+  P13:
+    promise: "A booking is always in exactly one of the states CONFIRMED, SEATED, COMPLETED, CANCELLED or NO_SHOW, and the only allowed moves are CONFIRMED to SEATED, CANCELLED or NO_SHOW, and SEATED to COMPLETED; CANCELLED, COMPLETED and NO_SHOW are final."
+    status: workaround
+    by: [booking.field.state]
+    hole: C3
+  # The operations and both errors are declared; "only while CONFIRMED" needs states, and "at least 2 hours before" needs the current time (E2).
+  P14:
+    promise: "A guest may change the date, time or party size, or cancel, only while the booking is CONFIRMED and at least 2 hours before its start time, otherwise the request is refused with CHANGE_DEADLINE_PASSED or INVALID_STATE."
+    status: workaround
+    by: [booking.operation.change_booking, booking.operation.cancel_booking, booking.error.change_deadline_passed, booking.error.invalid_state]
+    hole: C3
+  # The refund is a declared amount; full or nothing by 24 hours before the start needs the current time, and "never more than the deposit paid" relates the answer to stored data (A2).
+  P15:
+    promise: "A cancellation made 24 hours or more before the start time refunds the full deposit, a later one refunds nothing, and a refund is never more than the deposit paid."
+    status: workaround
+    by: [booking.operation.cancel_booking, booking.field.refund_amount]
+    hole: E2
+  # The operation and its refusals are declared; "only staff" is who can call, and "from 15 minutes after the start" needs the current time (E2).
+  P16:
+    promise: "A booking can be marked NO_SHOW only by restaurant staff and only from 15 minutes after its start time onward."
+    status: workaround
+    by: [booking.operation.mark_no_show, booking.error.forbidden, booking.error.invalid_state]
+    hole: D2
+  # The key and the refusal of a reused key are declared; that a repeat within 24 hours gives the first answer and no second booking or deposit is not.
+  P17:
+    promise: "Repeating a create request with the same idempotency key within 24 hours returns the original answer and booking reference without creating a second booking or charging a second deposit, and reusing a key with a different request body is refused with INVALID_REQUEST."
+    status: workaround
+    by: [booking.field.idempotency_key, booking.error.invalid_request]
+    hole: C2
+  P18:
+    promise: "Cancelling a booking that is already CANCELLED returns success with the same cancellation details and does not refund again."
+    status: not-declarable
+    hole: C2
+  # FORBIDDEN is declared; who may read or act on which booking, and the proof a guest presents, are not.
+  P19:
+    promise: "A guest can read, change or cancel only bookings whose reference and contact email or phone they present, while restaurant staff can read and act on any booking of their own restaurant and never on another restaurant's bookings."
+    status: workaround
+    by: [booking.error.forbidden]
+    hole: D2
+  # The six events and their fields are declared on the operations; emits allows zero or more events, so "exactly one per state change" is not stated.
+  P20:
+    promise: "Every state change publishes exactly one event (BookingCreated, BookingChanged, BookingCancelled, BookingSeated, BookingCompleted or BookingNoShow) carrying the booking reference, restaurant id, new state, party size, local start time with time zone and an event timestamp in UTC."
+    status: workaround
+    by: [booking.event.booking_created, booking.event.booking_changed, booking.event.booking_cancelled, booking.event.booking_seated, booking.event.booking_completed, booking.event.booking_no_show, booking.field.state, event.field.occurred_at]
+    hole: D4
+  # Each event carries an event id; at-least-once delivery, unique ids and the order of delivery are not stated.
+  P21:
+    promise: "Events are delivered at least once, each carries a unique event id for de-duplication, and events for the same booking are delivered in the order the changes happened."
+    status: workaround
+    by: [event.field.event_id]
+    hole: D4
+  P22:
+    promise: "Personal guest contact details are never included in published events, which refer to the guest only by an opaque guest id."
+    status: declared
+    by: [booking.event.booking_created, booking.event.booking_changed, booking.event.booking_cancelled, booking.event.booking_seated, booking.event.booking_completed, booking.event.booking_no_show, guest.field.guest_id]
+  P23:
+    promise: "All timestamps other than the booking's local start time are given in UTC in ISO 8601 format with a trailing Z."
+    status: declared
+    by: [event.field.occurred_at, booking.field.cancelled_at]
+  P24:
+    promise: "Within a major version the contract only adds optional request fields, new answer fields and new event fields, callers must ignore fields they do not know, and a removed or changed field or error code requires a new major version announced at least 6 months before the old one is withdrawn."
+    status: not-declarable
+    hole: E4

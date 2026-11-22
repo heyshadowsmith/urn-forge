@@ -1,0 +1,514 @@
+manifest:
+  namespace: corpus
+  domain: ticketing
+  version: 1.0.0
+
+# Values shared by many requests and answers.
+request.field.idempotency_key:
+  primitive: string
+  minLength: 8
+  maxLength: 64
+  description: A key that the caller chooses for one request, so that a repeated request gives the original answer
+show.field.event_id:
+  primitive: string
+  format: uuid
+  description: The identifier of a concert or other event that sells tickets
+show.field.cancelled_at:
+  primitive: timestamp
+  description: When the organizer cancelled the event, in UTC
+notice.field.message_id:
+  primitive: string
+  format: uuid
+  description: The unique identifier of one published event message, so that consumers can discard duplicates
+notice.field.occurred_at:
+  primitive: timestamp
+  description: When the published fact occurred, in UTC
+
+money.field.amount_minor:
+  primitive: integer
+  min: 0
+  description: An amount of money as a whole number of minor units of its currency, for example cents
+money.field.currency:
+  primitive: string
+  regex: '[A-Z]{3}'
+  description: A three-letter ISO 4217 currency code
+money.entity.money:
+  description: An amount of money in minor units, with its currency
+  fields:
+    - ref: money.field.amount_minor
+    - ref: money.field.currency
+
+# A place in a venue: a seat in a seated section, or a place in a standing section.
+seat.field.place_kind:
+  primitive: enum
+  values: [seated, standing]
+  description: Whether a line or a ticket is for one seat of a seated section or for places in a standing section
+seat.field.section:
+  primitive: string
+  regex: '[A-Z0-9]{1,6}'
+  description: The code of a section of the venue, 1 to 6 uppercase letters or digits
+seat.field.row:
+  primitive: string
+  regex: '[A-Z]{1,2}'
+  description: The row of a seat, 1 to 2 uppercase letters
+seat.field.seat_number:
+  primitive: integer
+  min: 1
+  max: 150
+  description: The number of a seat in its row, from 1 to 150
+seat.field.quantity:
+  primitive: integer
+  min: 1
+  max: 10
+  description: The number of standing places in one line
+seat.entity.seat:
+  description: One seat of a seated section
+  fields:
+    - ref: seat.field.section
+    - ref: seat.field.row
+    - ref: seat.field.seat_number
+
+# Holds.
+hold.field.hold_id:
+  primitive: string
+  format: uuid
+  description: The identifier of a hold
+hold.field.hold_status:
+  primitive: enum
+  values: [ACTIVE, CONVERTED, RELEASED, EXPIRED]
+  description: The state of a hold. A hold starts ACTIVE and moves only to CONVERTED, RELEASED or EXPIRED
+hold.field.created_at:
+  primitive: timestamp
+  description: When the hold was created, in UTC
+hold.field.expires_at:
+  primitive: timestamp
+  description: When the hold expires, in UTC, 10 minutes after it was created
+
+hold.entity.hold_line:
+  description: One line of a hold request, for one seat or for a quantity of standing places in one section
+  fields:
+    - ref: seat.field.place_kind
+    - ref: seat.field.section
+    - ref: seat.field.row
+      required: false
+    - ref: seat.field.seat_number
+      required: false
+    - ref: seat.field.quantity
+      required: false
+hold.invariant.seated_line_names_one_seat:
+  description: A seated line names exactly one seat, with a row and a seat number, and no quantity
+  on: hold.entity.hold_line
+  rule: place_kind != 'seated' or row is present and seat_number is present and quantity is absent
+  reportOn: seat_number
+  message: A seated line needs a row and a seat number, and no quantity
+hold.invariant.standing_line_names_quantity:
+  description: A standing line names a section and a quantity, and no row or seat number
+  on: hold.entity.hold_line
+  rule: place_kind != 'standing' or quantity is present and row is absent and seat_number is absent
+  reportOn: quantity
+  message: A standing line needs a quantity, and no row or seat number
+
+hold.entity.hold_request:
+  description: A request to hold seats or standing places of one event during checkout
+  fields:
+    - ref: request.field.idempotency_key
+    - ref: show.field.event_id
+    - ref: hold.entity.hold_line
+      as: lines
+      many: { minItems: 1, maxItems: 10 }
+
+hold.entity.held_line:
+  description: One line of a hold, with its price
+  fields:
+    - ref: seat.field.place_kind
+    - ref: seat.field.section
+    - ref: seat.field.row
+      required: false
+    - ref: seat.field.seat_number
+      required: false
+    - ref: seat.field.quantity
+      required: false
+    - ref: money.entity.money
+      as: price
+hold.invariant.seated_held_line_has_seat:
+  description: A seated held line names exactly one seat, and no quantity
+  on: hold.entity.held_line
+  rule: place_kind != 'seated' or row is present and seat_number is present and quantity is absent
+  reportOn: seat_number
+  message: A seated line needs a row and a seat number, and no quantity
+hold.invariant.standing_held_line_has_quantity:
+  description: A standing held line has a quantity, and no row or seat number
+  on: hold.entity.held_line
+  rule: place_kind != 'standing' or quantity is present and row is absent and seat_number is absent
+  reportOn: quantity
+  message: A standing line needs a quantity, and no row or seat number
+
+hold.entity.hold:
+  description: A hold of seats or standing places, with the price of each line and the total
+  fields:
+    - ref: hold.field.hold_id
+    - ref: show.field.event_id
+    - ref: hold.field.hold_status
+    - ref: hold.entity.held_line
+      as: lines
+      many: { minItems: 1, maxItems: 10 }
+    - ref: money.entity.money
+      as: total
+    - ref: hold.field.created_at
+    - ref: hold.field.expires_at
+hold.invariant.expires_after_created:
+  description: A hold expires after it was created
+  on: hold.entity.hold
+  rule: expires_at > created_at
+  message: A hold must expire after it was created
+
+hold.entity.hold_ref:
+  description: A request that names one hold
+  fields:
+    - ref: hold.field.hold_id
+hold.entity.hold_state:
+  description: The state of one hold
+  fields:
+    - ref: hold.field.hold_id
+    - ref: hold.field.hold_status
+
+hold.error.seat_unavailable:
+  description: One or more requested seats cannot be held. The hold holds nothing
+  category: conflict
+  retryable: true
+  message: One or more requested seats cannot be held
+  fields:
+    - ref: seat.entity.seat
+      as: seats
+      many: { minItems: 1, maxItems: 10 }
+hold.error.section_sold_out:
+  description: A standing section has not enough capacity left for the requested quantity. The hold holds nothing
+  category: conflict
+  retryable: true
+  message: Section {section} has not enough standing places left
+  fields:
+    - ref: seat.field.section
+hold.error.limit_exceeded:
+  description: The buyer would hold more than 10 tickets for the event. The hold holds nothing
+  category: precondition
+  retryable: false
+  message: A buyer can hold at most 10 tickets for one event
+hold.error.sales_closed:
+  description: The event is not on sale. The hold holds nothing
+  category: precondition
+  retryable: true
+  message: Event {event_id} is not on sale
+  fields:
+    - ref: show.field.event_id
+hold.error.hold_not_found:
+  description: No hold has this identifier
+  category: not_found
+  retryable: false
+  message: No hold {hold_id}
+  fields:
+    - ref: hold.field.hold_id
+order.error.hold_expired:
+  description: The checkout came after the expiry time of the hold. No ticket is issued
+  category: precondition
+  retryable: false
+  message: Hold {hold_id} expired at {expires_at}
+  fields:
+    - ref: hold.field.hold_id
+    - ref: hold.field.expires_at
+
+# Tickets.
+ticket.field.ticket_code:
+  primitive: string
+  regex: '[A-HJ-NP-Z2-9]{16}'
+  description: The code of a ticket, 16 characters from A-Z without I and O, and the digits 2-9
+ticket.field.ticket_status:
+  primitive: enum
+  values: [ISSUED, TRANSFER_PENDING, USED, REFUNDED, VOID]
+  description: The state of a ticket. ISSUED moves to TRANSFER_PENDING, USED, REFUNDED or VOID; TRANSFER_PENDING moves back to ISSUED; USED, REFUNDED and VOID are final
+ticket.entity.ticket:
+  description: An issued ticket for one seat or one standing place of an event
+  fields:
+    - ref: ticket.field.ticket_code
+    - ref: show.field.event_id
+    - ref: seat.field.place_kind
+    - ref: seat.field.section
+    - ref: seat.field.row
+      required: false
+    - ref: seat.field.seat_number
+      required: false
+    - ref: ticket.field.ticket_status
+    - ref: money.entity.money
+      as: price
+ticket.invariant.seated_ticket_has_seat:
+  description: A ticket of a seated section names a row and a seat number
+  on: ticket.entity.ticket
+  rule: place_kind != 'seated' or row is present and seat_number is present
+  reportOn: seat_number
+  message: A seated ticket needs a row and a seat number
+ticket.invariant.standing_ticket_has_no_seat:
+  description: A ticket of a standing section has no row and no seat number
+  on: ticket.entity.ticket
+  rule: place_kind != 'standing' or row is absent and seat_number is absent
+  reportOn: row
+  message: A standing ticket has no row and no seat number
+
+# Orders.
+order.field.order_id:
+  primitive: string
+  format: uuid
+  description: The identifier of an order
+order.field.payment_reference:
+  primitive: string
+  minLength: 1
+  description: The reference of the payment that pays for the hold
+order.entity.checkout_request:
+  description: A request to pay for a hold and turn it into an order
+  fields:
+    - ref: request.field.idempotency_key
+    - ref: hold.field.hold_id
+    - ref: order.field.payment_reference
+order.entity.order:
+  description: A paid order, with one ticket per held seat or standing place
+  fields:
+    - ref: order.field.order_id
+    - ref: show.field.event_id
+    - ref: ticket.entity.ticket
+      as: tickets
+      many: { minItems: 1, maxItems: 10 }
+    - ref: money.entity.money
+      as: fees
+    - ref: money.entity.money
+      as: total
+order.entity.order_ref:
+  description: A request that names one order
+  fields:
+    - ref: order.field.order_id
+order.error.payment_declined:
+  description: The payment failed. No ticket is issued
+  category: precondition
+  retryable: true
+  message: The payment {payment_reference} was declined
+  fields:
+    - ref: order.field.payment_reference
+
+# Transfers.
+transfer.field.transfer_id:
+  primitive: string
+  format: uuid
+  description: The identifier of a transfer
+transfer.field.recipient_email:
+  primitive: string
+  format: email
+  description: The email address of the person who receives a transferred ticket
+transfer.field.offered_at:
+  primitive: timestamp
+  description: When the transfer was offered, in UTC
+transfer.field.accept_until:
+  primitive: timestamp
+  description: The last time the recipient can accept the transfer, in UTC, 72 hours after the offer
+transfer.entity.transfer_request:
+  description: A request to transfer one issued ticket to a recipient
+  fields:
+    - ref: ticket.field.ticket_code
+    - ref: transfer.field.recipient_email
+transfer.entity.transfer:
+  description: A transfer that waits for the recipient
+  fields:
+    - ref: transfer.field.transfer_id
+    - ref: ticket.field.ticket_code
+    - ref: transfer.field.recipient_email
+    - ref: transfer.field.offered_at
+    - ref: transfer.field.accept_until
+transfer.invariant.accept_after_offer:
+  description: A transfer can be accepted only after it was offered
+  on: transfer.entity.transfer
+  rule: accept_until > offered_at
+  message: The end of the acceptance window must be after the offer
+transfer.entity.transfer_ref:
+  description: A request that names one transfer
+  fields:
+    - ref: transfer.field.transfer_id
+
+# Refunds.
+refund.field.refund_id:
+  primitive: string
+  format: uuid
+  description: The identifier of a refund
+refund.entity.refund_request:
+  description: A request to refund tickets of an order
+  fields:
+    - ref: request.field.idempotency_key
+    - ref: order.field.order_id
+    - ref: ticket.field.ticket_code
+      as: ticket_codes
+      many: { minItems: 1, unique: true }
+refund.entity.refund:
+  description: A refund of tickets of an order
+  fields:
+    - ref: refund.field.refund_id
+    - ref: order.field.order_id
+    - ref: ticket.field.ticket_code
+      as: ticket_codes
+      many: { minItems: 1, unique: true }
+    - ref: money.entity.money
+      as: amount
+refund.error.ticket_not_refundable:
+  description: The ticket is USED, REFUNDED or VOID, so it cannot be refunded
+  category: precondition
+  retryable: false
+  message: Ticket {ticket_code} cannot be refunded
+  fields:
+    - ref: ticket.field.ticket_code
+
+# Entry.
+entry.field.verdict:
+  primitive: enum
+  values: [ADMIT, ALREADY_USED, NOT_VALID, WRONG_EVENT]
+  description: The answer to a ticket at the entry of an event
+entry.entity.entry_scan:
+  description: A ticket presented at the entry of an event
+  fields:
+    - ref: ticket.field.ticket_code
+    - ref: show.field.event_id
+entry.entity.entry_result:
+  description: The answer to a ticket presented at the entry
+  fields:
+    - ref: ticket.field.ticket_code
+    - ref: show.field.event_id
+    - ref: entry.field.verdict
+
+# The cancellation of an event.
+show.entity.event_cancellation:
+  description: A request of the organizer to cancel an event
+  fields:
+    - ref: show.field.event_id
+show.entity.cancelled_event:
+  description: An event that the organizer cancelled
+  fields:
+    - ref: show.field.event_id
+    - ref: show.field.cancelled_at
+
+# Published events. Each has a unique message id, the id of the event that sells the tickets,
+# the affected hold or tickets, and the time it occurred.
+hold.event.hold_created:
+  description: A hold was created
+  fields:
+    - ref: notice.field.message_id
+    - ref: show.field.event_id
+    - ref: hold.field.hold_id
+    - ref: notice.field.occurred_at
+hold.event.hold_expired:
+  description: A hold reached its expiry time without a checkout
+  fields:
+    - ref: notice.field.message_id
+    - ref: show.field.event_id
+    - ref: hold.field.hold_id
+    - ref: notice.field.occurred_at
+order.event.order_placed:
+  description: An order was placed and paid
+  fields:
+    - ref: notice.field.message_id
+    - ref: show.field.event_id
+    - ref: order.field.order_id
+    - ref: hold.field.hold_id
+    - ref: ticket.field.ticket_code
+      as: ticket_codes
+      many: { minItems: 1, maxItems: 10 }
+    - ref: notice.field.occurred_at
+ticket.event.ticket_issued:
+  description: A ticket was issued
+  fields:
+    - ref: notice.field.message_id
+    - ref: show.field.event_id
+    - ref: ticket.field.ticket_code
+    - ref: notice.field.occurred_at
+ticket.event.ticket_transferred:
+  description: A transfer was accepted. The old ticket code is VOID and the recipient has a new ticket code for the same place
+  fields:
+    - ref: notice.field.message_id
+    - ref: show.field.event_id
+    - ref: ticket.field.ticket_code
+    - ref: ticket.field.ticket_code
+      as: void_ticket_code
+    - ref: notice.field.occurred_at
+ticket.event.ticket_refunded:
+  description: A ticket was refunded
+  fields:
+    - ref: notice.field.message_id
+    - ref: show.field.event_id
+    - ref: ticket.field.ticket_code
+    - ref: notice.field.occurred_at
+ticket.event.ticket_used:
+  description: A ticket was admitted at the entry
+  fields:
+    - ref: notice.field.message_id
+    - ref: show.field.event_id
+    - ref: ticket.field.ticket_code
+    - ref: notice.field.occurred_at
+show.event.event_cancelled:
+  description: The organizer cancelled an event
+  fields:
+    - ref: notice.field.message_id
+    - ref: show.field.event_id
+    - ref: notice.field.occurred_at
+
+# Operations: one for each caller action.
+hold.operation.create_hold:
+  description: Hold seats or standing places of one event during checkout
+  input: hold.entity.hold_request
+  output: hold.entity.hold
+  errors:
+    - hold.error.seat_unavailable
+    - hold.error.section_sold_out
+    - hold.error.limit_exceeded
+    - hold.error.sales_closed
+  emits: [hold.event.hold_created]
+hold.operation.release_hold:
+  description: Release a hold, so that its seats are no longer held by it
+  input: hold.entity.hold_ref
+  output: hold.entity.hold_state
+  errors:
+    - hold.error.hold_not_found
+order.operation.check_out:
+  description: Pay for a hold and turn it into an order with its tickets
+  input: order.entity.checkout_request
+  output: order.entity.order
+  errors:
+    - order.error.hold_expired
+    - hold.error.hold_not_found
+    - order.error.payment_declined
+  emits: [order.event.order_placed, ticket.event.ticket_issued]
+order.operation.get_order:
+  description: Get an order with its tickets
+  input: order.entity.order_ref
+  output: order.entity.order
+transfer.operation.transfer_ticket:
+  description: Offer one issued ticket to a recipient
+  input: transfer.entity.transfer_request
+  output: transfer.entity.transfer
+transfer.operation.accept_transfer:
+  description: Accept a transfer, so that the recipient gets a new ticket code for the same place
+  input: transfer.entity.transfer_ref
+  output: ticket.entity.ticket
+  emits: [ticket.event.ticket_transferred]
+transfer.operation.cancel_transfer:
+  description: Cancel a transfer, so that the ticket is ISSUED again
+  input: transfer.entity.transfer_ref
+  output: ticket.entity.ticket
+refund.operation.request_refund:
+  description: Refund tickets of an order
+  input: refund.entity.refund_request
+  output: refund.entity.refund
+  errors:
+    - refund.error.ticket_not_refundable
+  emits: [ticket.event.ticket_refunded]
+entry.operation.validate_ticket:
+  description: Validate a ticket at the entry of an event
+  input: entry.entity.entry_scan
+  output: entry.entity.entry_result
+  emits: [ticket.event.ticket_used]
+show.operation.cancel_event:
+  description: Cancel an event and refund its tickets
+  input: show.entity.event_cancellation
+  output: show.entity.cancelled_event
+  emits: [show.event.event_cancelled, ticket.event.ticket_refunded]

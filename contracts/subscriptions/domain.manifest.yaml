@@ -1,0 +1,442 @@
+manifest:
+  namespace: corpus
+  domain: subscriptions
+  version: 1.0.0
+
+# Identifiers
+
+subscription.field.subscription_id:
+  primitive: string
+  regex: 'sub_[a-z0-9]{24}'
+  description: The id of a subscription, "sub_" and 24 lowercase letters or digits
+plan.field.plan_id:
+  primitive: string
+  regex: 'plan_[a-z0-9-]{1,40}'
+  description: The id of a plan, "plan_" and 1 to 40 lowercase letters, digits or hyphens
+customer.field.customer_id:
+  primitive: string
+  minLength: 1
+  description: The id of the customer who holds the subscription
+invoice.field.invoice_id:
+  primitive: string
+  minLength: 1
+  description: The id of an invoice
+
+# Money
+
+money.field.amount_minor:
+  primitive: integer
+  min: 0
+  max: 99999999
+  description: An amount in minor units of its currency, for example cents
+money.field.currency:
+  primitive: string
+  regex: '[A-Z]{3}'
+  description: A three-letter uppercase ISO 4217 currency code
+money.entity.money:
+  description: A money amount and its currency
+  fields:
+    - ref: money.field.amount_minor
+    - ref: money.field.currency
+
+# Plans
+
+plan.field.billing_period:
+  primitive: enum
+  values: [month, year]
+  description: The unit of the billing period of a plan
+plan.field.interval_count:
+  primitive: integer
+  min: 1
+  max: 12
+  description: The number of billing period units between two invoices
+plan.entity.plan:
+  description: A priced plan that a customer can subscribe to
+  key: plan.field.plan_id
+  fields:
+    - ref: plan.field.plan_id
+    - ref: plan.field.billing_period
+    - ref: plan.field.interval_count
+    - ref: money.entity.money
+      as: price
+plan.invariant.yearly_interval_is_one:
+  description: A yearly plan has an interval count of exactly 1
+  on: plan.entity.plan
+  rule: billing_period != 'year' or interval_count = 1
+  reportOn: interval_count
+  message: A yearly plan has an interval count of 1
+
+# Requests in common
+
+request.field.requested_on:
+  primitive: date
+  description: The day of the request, which the shell sets from its clock
+request.field.idempotency_key:
+  primitive: string
+  minLength: 1
+  maxLength: 255
+  description: A key that the caller can send so that a repeat of the same request has no second effect
+
+# Subscriptions
+
+subscription.field.quantity:
+  primitive: integer
+  min: 1
+  max: 10000
+  description: The number of units of the plan
+subscription.field.trial_days:
+  primitive: integer
+  min: 0
+  max: 730
+  description: The number of days of the trial
+subscription.field.trial_end:
+  primitive: date
+  description: The day that the trial ends
+subscription.field.status:
+  primitive: enum
+  values: [trialing, active, past_due, paused, canceled, expired]
+  description: The status of a subscription
+billing.field.period_start:
+  primitive: timestamp
+  description: The start of a billing period, ISO 8601 in UTC
+billing.field.period_end:
+  primitive: timestamp
+  description: The end of a billing period, ISO 8601 in UTC
+subscription.field.proration:
+  primitive: enum
+  values: [immediate, none, at_period_end]
+  description: How a plan change is billed and when it takes effect
+subscription.field.resume_on:
+  primitive: date
+  description: The day that a paused subscription resumes
+subscription.field.cancel_mode:
+  primitive: enum
+  values: [immediately, at_period_end]
+  description: When a cancellation takes effect
+
+subscription.entity.subscription:
+  description: A customer's subscription to a plan
+  key: subscription.field.subscription_id
+  fields:
+    - ref: subscription.field.subscription_id
+    - ref: customer.field.customer_id
+    - ref: plan.entity.plan
+    - ref: subscription.field.quantity
+    - ref: subscription.field.status
+    - ref: billing.field.period_start
+      as: current_period_start
+    - ref: billing.field.period_end
+      as: current_period_end
+    - ref: subscription.field.trial_end
+      required: false
+    - ref: plan.field.plan_id
+      as: scheduled_plan_id
+      required: false
+    - ref: subscription.field.resume_on
+      required: false
+    - ref: subscription.field.cancel_mode
+      as: cancel_at
+      required: false
+
+subscription.entity.create_request:
+  description: A request to subscribe a customer to a plan
+  fields:
+    - ref: customer.field.customer_id
+    - ref: plan.field.plan_id
+    - ref: subscription.field.quantity
+    - ref: subscription.field.trial_days
+      required: false
+    - ref: subscription.field.trial_end
+      required: false
+    - ref: request.field.requested_on
+    - ref: request.field.idempotency_key
+      required: false
+subscription.invariant.trial_days_or_trial_end:
+  description: A create request has trial days or a trial end, never both
+  on: subscription.entity.create_request
+  rule: trial_days is absent or trial_end is absent
+  reportOn: trial_end
+  message: Send trial days or a trial end, not both
+subscription.invariant.trial_end_in_window:
+  description: An explicit trial end is after the day of the request and at most 730 days after it
+  on: subscription.entity.create_request
+  rule: trial_end is absent or trial_end > requested_on and trial_end - requested_on <= 730
+  reportOn: trial_end
+  message: A trial end must be in the future and at most 730 days after the request
+
+subscription.entity.lookup:
+  description: The subscription to read
+  fields:
+    - ref: subscription.field.subscription_id
+
+subscription.entity.list_request:
+  description: The subscriptions of a customer to list, optionally with one status only
+  fields:
+    - ref: customer.field.customer_id
+    - ref: subscription.field.status
+      required: false
+subscription.entity.subscription_list:
+  description: A list of subscriptions
+  fields:
+    - ref: subscription.entity.subscription
+      as: subscriptions
+      many: { unique: true }
+
+subscription.entity.change_plan_request:
+  description: A request to move a subscription to a different plan
+  fields:
+    - ref: subscription.field.subscription_id
+    - ref: plan.field.plan_id
+    - ref: subscription.field.proration
+    - ref: request.field.idempotency_key
+      required: false
+
+subscription.entity.pause_request:
+  description: A request to pause a subscription, optionally until a resume day
+  fields:
+    - ref: subscription.field.subscription_id
+    - ref: request.field.requested_on
+    - ref: subscription.field.resume_on
+      required: false
+    - ref: request.field.idempotency_key
+      required: false
+subscription.invariant.resume_in_window:
+  description: A resume day is at least 1 day and at most 90 days after the day of the request
+  on: subscription.entity.pause_request
+  rule: resume_on is absent or resume_on - requested_on >= 1 and resume_on - requested_on <= 90
+  reportOn: resume_on
+  message: A resume day must be 1 to 90 days after the request
+
+subscription.entity.resume_request:
+  description: A request to resume a paused subscription
+  fields:
+    - ref: subscription.field.subscription_id
+    - ref: request.field.idempotency_key
+      required: false
+
+subscription.entity.cancel_request:
+  description: A request to cancel a subscription
+  fields:
+    - ref: subscription.field.subscription_id
+    - ref: subscription.field.cancel_mode
+    - ref: request.field.idempotency_key
+      required: false
+
+# Invoices
+
+invoice.field.status:
+  primitive: enum
+  values: [draft, open, paid, void, uncollectible]
+  description: The status of an invoice
+invoice.field.line_quantity:
+  primitive: integer
+  min: 1
+  description: The number of units on an invoice line
+invoice.entity.line:
+  description: One line of an invoice
+  fields:
+    - ref: invoice.field.line_quantity
+      as: quantity
+    - ref: money.entity.money
+      as: amount
+invoice.entity.invoice:
+  description: The invoice of one billing period of a subscription
+  key: invoice.field.invoice_id
+  fields:
+    - ref: invoice.field.invoice_id
+    - ref: subscription.field.subscription_id
+    - ref: invoice.field.status
+    - ref: billing.field.period_start
+    - ref: billing.field.period_end
+    - ref: invoice.entity.line
+      as: lines
+      many: true
+    - ref: money.entity.money
+      as: total
+invoice.invariant.period_end_after_start:
+  description: An invoice's period ends after it starts
+  on: invoice.entity.invoice
+  rule: period_end > period_start
+  message: An invoice period must end after it starts
+
+invoice.entity.lookup:
+  description: The invoice to read
+  fields:
+    - ref: invoice.field.invoice_id
+invoice.entity.list_request:
+  description: The invoices of a subscription to list, optionally with one status only
+  fields:
+    - ref: subscription.field.subscription_id
+    - ref: invoice.field.status
+      required: false
+invoice.entity.invoice_list:
+  description: A list of invoices
+  fields:
+    - ref: invoice.entity.invoice
+      as: invoices
+      many: { unique: true }
+
+# Errors
+
+subscription.error.not_found:
+  description: No subscription has this id
+  category: not_found
+  retryable: false
+  message: No subscription {subscription_id}
+  fields:
+    - ref: subscription.field.subscription_id
+invoice.error.not_found:
+  description: No invoice has this id
+  category: not_found
+  retryable: false
+  message: No invoice {invoice_id}
+  fields:
+    - ref: invoice.field.invoice_id
+subscription.error.conflict:
+  description: The customer already has a subscription to this plan that is not canceled or expired
+  category: conflict
+  retryable: false
+  message: Customer {customer_id} already has a subscription to {plan_id}
+  fields:
+    - ref: customer.field.customer_id
+    - ref: plan.field.plan_id
+subscription.error.invalid_state_transition:
+  description: The subscription cannot make this change from its current status
+  category: precondition
+  retryable: false
+  message: A subscription that is {status} cannot make this change
+  fields:
+    - ref: subscription.field.subscription_id
+    - ref: subscription.field.status
+subscription.error.currency_mismatch:
+  description: The new plan has a different currency than the subscription
+  category: precondition
+  retryable: false
+  message: The plan is in {plan_currency}, the subscription is in {subscription_currency}
+  fields:
+    - ref: money.field.currency
+      as: plan_currency
+    - ref: money.field.currency
+      as: subscription_currency
+
+# Events
+
+event.field.event_id:
+  primitive: string
+  format: uuid
+  description: The unique id of an event
+event.field.occurred_at:
+  primitive: timestamp
+  description: The time the event occurred, ISO 8601 in UTC
+
+subscription.event.created:
+  description: A subscription was created
+  fields:
+    - ref: event.field.event_id
+    - ref: subscription.field.subscription_id
+    - ref: event.field.occurred_at
+subscription.event.updated:
+  description: A subscription changed its plan, paused or resumed
+  fields:
+    - ref: event.field.event_id
+    - ref: subscription.field.subscription_id
+    - ref: event.field.occurred_at
+subscription.event.canceled:
+  description: A subscription was canceled
+  fields:
+    - ref: event.field.event_id
+    - ref: subscription.field.subscription_id
+    - ref: event.field.occurred_at
+subscription.event.trial_will_end:
+  description: The trial of a subscription ends within 3 days
+  fields:
+    - ref: event.field.event_id
+    - ref: subscription.field.subscription_id
+    - ref: event.field.occurred_at
+invoice.event.created:
+  description: An invoice was created
+  fields:
+    - ref: event.field.event_id
+    - ref: subscription.field.subscription_id
+    - ref: invoice.field.invoice_id
+    - ref: event.field.occurred_at
+invoice.event.paid:
+  description: An invoice was paid
+  fields:
+    - ref: event.field.event_id
+    - ref: subscription.field.subscription_id
+    - ref: invoice.field.invoice_id
+    - ref: event.field.occurred_at
+
+# Operations
+
+subscription.operation.create_subscription:
+  description: Subscribe a customer to a plan, with an optional trial
+  input: subscription.entity.create_request
+  output: subscription.entity.subscription
+  errors:
+    - subscription.error.conflict
+  emits:
+    - subscription.event.created
+    - subscription.event.trial_will_end
+    - invoice.event.created
+    - invoice.event.paid
+subscription.operation.read_subscription:
+  description: Read one subscription
+  input: subscription.entity.lookup
+  output: subscription.entity.subscription
+  errors:
+    - subscription.error.not_found
+subscription.operation.list_subscriptions:
+  description: List the subscriptions of a customer
+  input: subscription.entity.list_request
+  output: subscription.entity.subscription_list
+subscription.operation.change_plan:
+  description: Move a subscription to a different plan of the same currency
+  input: subscription.entity.change_plan_request
+  output: subscription.entity.subscription
+  errors:
+    - subscription.error.not_found
+    - subscription.error.currency_mismatch
+    - subscription.error.invalid_state_transition
+  emits:
+    - subscription.event.updated
+subscription.operation.pause_subscription:
+  description: Pause an active or trialing subscription
+  input: subscription.entity.pause_request
+  output: subscription.entity.subscription
+  errors:
+    - subscription.error.not_found
+    - subscription.error.invalid_state_transition
+  emits:
+    - subscription.event.updated
+subscription.operation.resume_subscription:
+  description: Resume a paused subscription
+  input: subscription.entity.resume_request
+  output: subscription.entity.subscription
+  errors:
+    - subscription.error.not_found
+    - subscription.error.invalid_state_transition
+  emits:
+    - subscription.event.updated
+subscription.operation.cancel_subscription:
+  description: Cancel a subscription now or at the end of its period
+  input: subscription.entity.cancel_request
+  output: subscription.entity.subscription
+  errors:
+    - subscription.error.not_found
+    - subscription.error.invalid_state_transition
+  emits:
+    - subscription.event.canceled
+invoice.operation.read_invoice:
+  description: Read one invoice
+  input: invoice.entity.lookup
+  output: invoice.entity.invoice
+  errors:
+    - invoice.error.not_found
+invoice.operation.list_invoices:
+  description: List the invoices of a subscription
+  input: invoice.entity.list_request
+  output: invoice.entity.invoice_list
+  errors:
+    - subscription.error.not_found
