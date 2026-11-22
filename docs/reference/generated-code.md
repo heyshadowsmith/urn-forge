@@ -243,7 +243,7 @@ export type QuoteQuoteShippingHandler = (
 
 ### Conditions
 
-For each rule of an operation, the schemas file exports `<Operation brand>Requires<n>`, `<Operation brand>Ensures<n>`, `<Operation brand>When<n>` (the `when` rule of item `n` of `emits`) or `<Operation brand>Caller<n>` (rule `n` of `callers.allow`), from 1: a function from `{ input, current?, output?, event?, caller? }`, parsed, to `boolean`. The runtime calls it.
+For each rule of an operation, the schemas file exports `<Operation brand>Requires<n>`, `<Operation brand>Ensures<n>`, `<Operation brand>When<n>` (the `when` rule of item `n` of `emits`) or `<Operation brand>Caller<n>` (rule `n` of `callers.allow`), or `<Operation brand>Due1` (the rule of `due`), from 1: a function from `{ input, current?, output?, event?, caller? }`, parsed, to `boolean`. The runtime calls it.
 
 ### `DispatchMap`
 
@@ -304,6 +304,7 @@ In a domain with `changes` or `delivery`, `executeOperation` has a fourth parame
 | 3a. With `changes` or `reads`: parse `current`; with `changes`, examine its state | `ContractViolation` on `current`: `<urn> changes a record of <entity>: pass it as { current }`, `…: the shell found no record, and the operation declares no missing error`, or the parse issues. `current: null`: the `missing` error, filled from the input. A state outside `from`: the `otherwise` error, filled from the record and the input. The handler is not called |
 | 3c. With a `caller`: parse `caller`, before the record. Then, after the record, the rules of `callers`, before the state of `changes` | `ContractViolation`: `<urn> needs the caller, as the shell authenticated them: pass it as { caller }`, or the parse issues on `caller`. No rule holds: the `otherwise` error, filled from the caller, the record and the input. The handler is not called |
 | 3d. When a rule reads `now` or `today`: the time, first | `ContractViolation`: `<urn> reads the time of the call: pass it as { now }, a UTC timestamp such as 2026-11-22T18:00:00Z` |
+| 3e. With `due`: the rule, after the state of `changes` and before `requires` | `ContractViolation`: `<urn> is not due for this record: <rule>` |
 | 4. Call the handler | `ContractViolation`: `the handler for <urn> did not return a Result; return ok(…) or fail(…)` |
 | 5. For a failure: find the error in `errors`, parse it, and parse its `recordAs` event | `ContractViolation`: `<urn> failed with <kind>, which it does not declare`, or the parse issues. Else `DomainError` |
 | 6. For a success: parse the output, then each event | `ContractViolation`: the parse issues, `the handler for <urn> returned events that are not a list`, or `<urn> emitted <kind>, which it does not emit`. For an event with `delivery`: the id from `newEventId`, or `<urn> emitted <kind>, whose delivery needs an event id: pass newEventId to executeOperation` |
