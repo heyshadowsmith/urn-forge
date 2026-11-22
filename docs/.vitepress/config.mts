@@ -136,6 +136,7 @@ export default defineConfig({
           { text: 'reportOn plan', link: '/project/report-on-plan' },
           { text: 'Formula cells plan', link: '/project/formula-cells-plan' },
           { text: 'Store plan', link: '/project/store-plan' },
+          { text: 'Scope charter', link: '/project/scope-charter' },
           { text: 'Spec v1.1', link: '/project/spec-v1-1' },
         ],
       },
