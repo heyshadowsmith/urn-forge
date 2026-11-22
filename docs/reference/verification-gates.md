@@ -613,7 +613,7 @@ A new name with `as` is a removal and an addition. A removed property with a dep
 
 | Change | Class |
 | --- | --- |
-| A new invariant | Narrower, on the uses of its entity in the old manifest |
+| A new invariant | Narrower, on the uses of its entity in the old manifest. On an entity that is new, `compatible`: `is new, on the new entity <urn>` |
 | A changed `rule` or `on` of an invariant | Neither |
 | A changed `message` of an invariant or an error | `compatible` |
 | A changed `reportOn` of an invariant, or a new or removed one, that moves the issue to a different field | `compatible`: `reports its issue on "<a>" → "<b>"` |

@@ -175,8 +175,12 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     for (const urn of Object.keys(after) as Urn[]) {
       if (before[urn] !== undefined) continue;
       // A new invariant narrows its entity; every other new atom is new to everyone.
-      if (group === 'invariants') relate(urn, 'narrower', 'a new invariant', usesFor(now.invariants[urn]!.on, old.entities[now.invariants[urn]!.on] !== undefined));
-      else compatible(urn, 'is new');
+      // An invariant on a new entity narrows nothing that a caller sent or a row holds (fourth blind trial).
+      if (group === 'invariants') {
+        const on = now.invariants[urn]!.on;
+        if (old.entities[on] === undefined) compatible(urn, `is new, on the new entity ${on}`);
+        else relate(urn, 'narrower', 'a new invariant', usesFor(on, true));
+      } else compatible(urn, 'is new');
     }
   }
 

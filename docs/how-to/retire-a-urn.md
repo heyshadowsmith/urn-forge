@@ -208,6 +208,56 @@ breaking    urn:acme:insurance:policy:field:note  is removed; keep a sunset atom
 diff failed: 1 breaking, 0 compatible, 0 lifecycle change(s)
 ```
 
+## Rename a required input field
+
+Steps 1 to 8 retire an optional field. A required field of an input is different: while it is required, callers must send it, so a caller cannot move to its replacement. Do not rename it in place. A new required property is a breaking change, and so is the changed rule of an invariant that names it. Here `cancellation_date` of `cancel_policy` becomes `stop_date` in place:
+
+```
+compatible  urn:acme:insurance:policy:entity:cancellation  removing the required property "cancellation_date" widens a value that callers send
+breaking    urn:acme:insurance:policy:entity:cancellation  the new required property "stop_date" narrows a value that callers send, which breaks callers that send it
+compatible  urn:acme:insurance:policy:field:stop_date  is new
+breaking    urn:acme:insurance:policy:invariant:cancellation_within_term  rule cancellation_date >= effective_date and cancellation_date <= expiry_date → stop_date >= effective_date and stop_date <= expiry_date changes a value that callers send, which breaks callers that send it
+compatible  urn:acme:insurance:policy:invariant:cancellation_within_term  reports its issue on "cancellation_date" → "stop_date"
+diff failed: 2 breaking, 3 compatible, 0 lifecycle change(s)
+```
+
+Declare a new operation in its place, and retire the old operation:
+
+1. Declare the new field, `policy.field.stop_date`.
+2. Declare a new input entity with the new field, `policy.entity.stop_request`, and its invariants, here `policy.invariant.stop_within_term`.
+3. Declare a new operation, `policy.operation.stop_policy`, with the new input. Give it the same output, errors and events as the old operation.
+4. Deprecate the old operation: `status: deprecated`, `supersededBy: policy.operation.stop_policy` and a `sunsetDate`.
+5. Write the handler and the scenarios of the new operation. The old operation keeps its handler until its sunset.
+
+```yaml
+policy.operation.cancel_policy:
+  description: Stop a policy and calculate the refund for the days it does not cover
+  status: deprecated
+  supersededBy: policy.operation.stop_policy
+  sunsetDate: 2027-12-31
+  # …
+policy.operation.stop_policy:
+  description: Stop a policy and calculate the refund for the days it does not cover
+  input: policy.entity.stop_request
+  output: policy.entity.refund_quote
+  errors:
+    - policy.error.refund_below_minimum
+  emits: [policy.event.policy_cancelled]
+```
+
+Each caller moves to the new operation before the sunset date. `diff` shows no breaking change:
+
+```
+compatible  urn:acme:insurance:policy:entity:stop_request  is new
+compatible  urn:acme:insurance:policy:field:stop_date  is new
+compatible  urn:acme:insurance:policy:invariant:stop_within_term  is new, on the new entity urn:acme:insurance:policy:entity:stop_request
+lifecycle   urn:acme:insurance:policy:operation:cancel_policy  status active → deprecated
+compatible  urn:acme:insurance:policy:operation:stop_policy  is new
+diff passed: 0 breaking, 4 compatible, 1 lifecycle change(s)
+```
+
+An invariant on a new entity is compatible, because no caller sent that entity before. At the sunset date, set the old operation, and the old entity and field if nothing else uses them, to `status: sunset`, as in step 7.
+
 ## Result
 
 - The new atom has its own URN, and callers use it.
