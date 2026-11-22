@@ -1,0 +1,387 @@
+manifest:
+  namespace: corpus
+  domain: bookings
+  version: 1.0.0
+
+# Values
+
+booking.field.reference:
+  primitive: string
+  regex: '[A-HJ-NP-Z2-9]{8}'
+  description: The booking reference, 8 characters from A-Z without I and O, and digits 2-9
+booking.field.restaurant_id:
+  primitive: string
+  format: uuid
+  description: The identifier of the restaurant
+booking.field.local_date:
+  primitive: date
+  description: The day of the booking, in the time zone of the restaurant
+booking.field.local_time:
+  primitive: string
+  regex: '([01][0-9]|2[0-3]):(00|15|30|45)'
+  description: The start time of the booking, HH:MM on a 15-minute boundary, in the time zone of the restaurant
+booking.field.time_zone:
+  primitive: string
+  regex: 'UTC|[A-Z][A-Za-z_]+(/[A-Za-z0-9_+-]+){1,2}'
+  description: The IANA time zone name of the restaurant, for example Europe/Paris
+booking.field.party_size:
+  primitive: integer
+  min: 1
+  max: 20
+  description: The number of guests, a whole number from 1 to 20
+booking.field.special_requests:
+  primitive: string
+  maxLength: 500
+  description: Free text from the guest, at most 500 characters
+booking.field.dietary_tag:
+  primitive: enum
+  values: [vegetarian, vegan, gluten_free, nut_allergy, halal, kosher, dairy_free, shellfish_allergy, egg_allergy, soy_allergy, pescatarian]
+  description: A dietary need from the published set
+booking.field.idempotency_key:
+  primitive: string
+  minLength: 16
+  maxLength: 64
+  description: A key that the client makes for one create request, 16 to 64 characters
+booking.field.deposit_token:
+  primitive: string
+  description: A token from the payment provider that pays the deposit
+booking.field.state:
+  primitive: enum
+  values: [CONFIRMED, SEATED, COMPLETED, CANCELLED, NO_SHOW]
+  description: The state of a booking
+booking.field.confirmed_state:
+  primitive: enum
+  values: [CONFIRMED]
+  description: The state of a booking that was just made
+booking.field.duration_minutes:
+  primitive: integer
+  min: 1
+  description: How long the table is booked, in minutes
+booking.field.deposit_amount:
+  primitive: decimal
+  exclusiveMin: "0"
+  scale: 2
+  description: The deposit charged for the booking, in the currency of the restaurant
+booking.field.deposit_per_guest:
+  primitive: decimal
+  exclusiveMin: "0"
+  scale: 2
+  description: The deposit for each guest, in the currency of the restaurant
+booking.field.currency:
+  primitive: string
+  regex: '[A-Z]{3}'
+  description: The ISO 4217 code of the single currency that the restaurant publishes
+booking.field.refund_amount:
+  primitive: decimal
+  min: "0"
+  scale: 2
+  description: The part of the deposit that goes back to the guest
+booking.field.cancelled_at:
+  primitive: timestamp
+  description: When the booking was cancelled, in UTC
+
+guest.field.name:
+  primitive: string
+  minLength: 1
+  maxLength: 100
+  description: The name of the guest, 1 to 100 characters
+guest.field.email:
+  primitive: string
+  format: email
+  description: The email address of the guest
+guest.field.phone:
+  primitive: string
+  regex: '\+[1-9][0-9]{0,14}'
+  description: The phone number of the guest in E.164 form, at most 15 digits
+guest.field.guest_id:
+  primitive: string
+  format: uuid
+  description: An opaque identifier of the guest, with no personal detail in it
+
+event.field.event_id:
+  primitive: string
+  format: uuid
+  description: The identifier of one event, for de-duplication
+event.field.occurred_at:
+  primitive: timestamp
+  description: When the change happened, in UTC
+
+# Entities
+
+guest.entity.contact:
+  description: How the restaurant reaches the guest
+  fields:
+    - ref: guest.field.name
+    - ref: guest.field.email
+      required: false
+    - ref: guest.field.phone
+      required: false
+
+guest.invariant.email_or_phone:
+  description: A contact has an email address, a phone number, or both
+  on: guest.entity.contact
+  rule: email is present or phone is present
+  reportOn: email
+  message: A contact needs an email address or a phone number
+
+booking.entity.create_request:
+  description: A request to book a table
+  fields:
+    - ref: booking.field.restaurant_id
+    - ref: booking.field.local_date
+    - ref: booking.field.local_time
+    - ref: booking.field.party_size
+    - ref: guest.entity.contact
+    - ref: booking.field.idempotency_key
+    - ref: booking.field.special_requests
+      required: false
+    - ref: booking.field.dietary_tag
+      as: dietary_tags
+      required: false
+      many: { maxItems: 10, unique: true }
+    - ref: booking.field.deposit_token
+      required: false
+
+booking.entity.confirmation:
+  description: The answer to a booking that was made
+  fields:
+    - ref: booking.field.reference
+    - ref: booking.field.restaurant_id
+    - ref: booking.field.confirmed_state
+      as: status
+    - ref: booking.field.local_date
+    - ref: booking.field.local_time
+    - ref: booking.field.time_zone
+    - ref: booking.field.party_size
+    - ref: booking.field.duration_minutes
+    - ref: booking.field.deposit_amount
+      required: false
+    - ref: booking.field.deposit_per_guest
+      required: false
+    - ref: booking.field.currency
+      required: false
+
+booking.invariant.deposit_has_terms:
+  description: A deposit comes with the amount for each guest and the currency
+  on: booking.entity.confirmation
+  rule: deposit_amount is absent or deposit_per_guest is present and currency is present
+  message: A deposit needs the amount for each guest and the currency
+
+booking.entity.booking:
+  description: A booking as it is now
+  fields:
+    - ref: booking.field.reference
+    - ref: booking.field.restaurant_id
+    - ref: booking.field.state
+    - ref: booking.field.local_date
+    - ref: booking.field.local_time
+    - ref: booking.field.time_zone
+    - ref: booking.field.party_size
+    - ref: booking.field.duration_minutes
+    - ref: booking.field.deposit_amount
+      required: false
+
+booking.entity.booking_ref:
+  description: The booking that a call is about
+  fields:
+    - ref: booking.field.reference
+
+booking.entity.change_request:
+  description: A request to move a booking or change its party size
+  fields:
+    - ref: booking.field.reference
+    - ref: booking.field.local_date
+      required: false
+    - ref: booking.field.local_time
+      required: false
+    - ref: booking.field.party_size
+      required: false
+
+booking.entity.cancellation:
+  description: The answer to a cancellation
+  fields:
+    - ref: booking.field.reference
+    - ref: booking.field.state
+    - ref: booking.field.refund_amount
+    - ref: booking.field.cancelled_at
+
+# Errors
+
+booking.error.invalid_request:
+  description: The idempotency key was used before with a different request
+  category: conflict
+  retryable: false
+  message: The idempotency key {idempotency_key} belongs to a different request
+  fields:
+    - ref: booking.field.idempotency_key
+booking.error.outside_booking_window:
+  description: The start time is less than 2 hours or more than 90 days away
+  category: precondition
+  retryable: false
+  message: A booking on {local_date} at {local_time} ({time_zone}) is outside the booking window
+  fields:
+    - ref: booking.field.local_date
+    - ref: booking.field.local_time
+    - ref: booking.field.time_zone
+booking.error.no_availability:
+  description: No table is free for the party at that time; up to 5 other start times on the same day may be offered
+  category: conflict
+  retryable: true
+  message: No table for {party_size} at {local_time} ({time_zone}) on {local_date}
+  fields:
+    - ref: booking.field.local_date
+    - ref: booking.field.local_time
+    - ref: booking.field.time_zone
+    - ref: booking.field.party_size
+    - ref: booking.field.local_time
+      as: alternatives
+      required: false
+      many: { maxItems: 5, unique: true }
+booking.error.deposit_required:
+  description: A party of 7 or more needs a deposit payment token
+  category: validation
+  retryable: false
+  message: A party of {party_size} needs a deposit
+  fields:
+    - ref: booking.field.party_size
+booking.error.payment_declined:
+  description: The payment provider declined the deposit
+  category: precondition
+  retryable: true
+  message: The deposit payment was declined
+booking.error.party_too_large_for_online:
+  description: A party of 13 or more books by phone
+  category: validation
+  retryable: false
+  message: A party of {party_size} must book by phone
+  fields:
+    - ref: booking.field.party_size
+booking.error.booking_not_found:
+  description: No booking has this reference
+  category: not_found
+  retryable: false
+  message: No booking {reference}
+  fields:
+    - ref: booking.field.reference
+booking.error.invalid_state:
+  description: The booking is not in a state that allows this change
+  category: precondition
+  retryable: false
+  message: Booking {reference} is {state}
+  fields:
+    - ref: booking.field.reference
+    - ref: booking.field.state
+booking.error.change_deadline_passed:
+  description: The booking starts in less than 2 hours, so the guest can no longer change or cancel it
+  category: precondition
+  retryable: false
+  message: Booking {reference} can no longer be changed
+  fields:
+    - ref: booking.field.reference
+booking.error.forbidden:
+  description: The caller may not act on this booking
+  category: forbidden
+  retryable: false
+  message: You may not act on booking {reference}
+  fields:
+    - ref: booking.field.reference
+
+# Events
+
+booking.event.booking_created:
+  description: A booking was made
+  fields: &event_fields
+    - ref: event.field.event_id
+    - ref: event.field.occurred_at
+    - ref: booking.field.reference
+    - ref: booking.field.restaurant_id
+    - ref: booking.field.state
+    - ref: booking.field.party_size
+    - ref: booking.field.local_date
+    - ref: booking.field.local_time
+    - ref: booking.field.time_zone
+    - ref: guest.field.guest_id
+booking.event.booking_changed:
+  description: The date, the time or the party size of a booking changed
+  fields: *event_fields
+booking.event.booking_cancelled:
+  description: A booking was cancelled
+  fields: *event_fields
+booking.event.booking_seated:
+  description: The party of a booking was seated
+  fields: *event_fields
+booking.event.booking_completed:
+  description: The party of a booking left
+  fields: *event_fields
+booking.event.booking_no_show:
+  description: The party of a booking did not come
+  fields: *event_fields
+
+# Operations
+
+booking.operation.create_booking:
+  description: Book a table
+  input: booking.entity.create_request
+  output: booking.entity.confirmation
+  errors:
+    - booking.error.invalid_request
+    - booking.error.outside_booking_window
+    - booking.error.no_availability
+    - booking.error.deposit_required
+    - booking.error.payment_declined
+    - booking.error.party_too_large_for_online
+  emits: [booking.event.booking_created]
+booking.operation.get_booking:
+  description: Read a booking
+  input: booking.entity.booking_ref
+  output: booking.entity.booking
+  errors:
+    - booking.error.booking_not_found
+    - booking.error.forbidden
+booking.operation.change_booking:
+  description: Change the date, the time or the party size of a booking
+  input: booking.entity.change_request
+  output: booking.entity.booking
+  errors:
+    - booking.error.booking_not_found
+    - booking.error.invalid_state
+    - booking.error.change_deadline_passed
+    - booking.error.forbidden
+  emits: [booking.event.booking_changed]
+booking.operation.cancel_booking:
+  description: Cancel a booking, with the refund of its deposit
+  input: booking.entity.booking_ref
+  output: booking.entity.cancellation
+  errors:
+    - booking.error.booking_not_found
+    - booking.error.invalid_state
+    - booking.error.change_deadline_passed
+    - booking.error.forbidden
+  emits: [booking.event.booking_cancelled]
+booking.operation.seat_booking:
+  description: Staff seat the party of a booking
+  input: booking.entity.booking_ref
+  output: booking.entity.booking
+  errors:
+    - booking.error.booking_not_found
+    - booking.error.invalid_state
+    - booking.error.forbidden
+  emits: [booking.event.booking_seated]
+booking.operation.complete_booking:
+  description: Staff close the booking when the party leaves
+  input: booking.entity.booking_ref
+  output: booking.entity.booking
+  errors:
+    - booking.error.booking_not_found
+    - booking.error.invalid_state
+    - booking.error.forbidden
+  emits: [booking.event.booking_completed]
+booking.operation.mark_no_show:
+  description: Staff mark a booking whose party did not come
+  input: booking.entity.booking_ref
+  output: booking.entity.booking
+  errors:
+    - booking.error.booking_not_found
+    - booking.error.invalid_state
+    - booking.error.forbidden
+  emits: [booking.event.booking_no_show]
