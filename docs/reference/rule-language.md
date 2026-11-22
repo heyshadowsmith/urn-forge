@@ -16,20 +16,22 @@ or      := and ('or' and)*
 and     := unary ('and' unary)*
 unary   := 'not' unary | compare
 compare := sum (('<' | '<=' | '=' | '!=' | '>=' | '>') sum)?
-sum     := primary (('+' | '-') primary)*
-primary := '(' or ')' | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
+sum     := product (('+' | '-') product)*
+product := primary ('*' primary)*
+primary := '(' or ')' | total | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
+total   := 'sum' '(' field 'in' field ':' sum ')'
 ```
 
 A rule is one `or` expression, and then the end of the rule.
 
 | Token | Form | Notes |
 | --- | --- | --- |
-| Field | `[a-z][a-z0-9_]*` | A property name of the `on` entity. Not a keyword |
+| Field | `[a-z][a-z0-9_]*`, and `.` and another name for each step of a path | A property name of the `on` entity, or a path into an embedded entity: `total.amount_minor`. Not a keyword |
 | Number | `[0-9]+`, with an optional `.` and digits | `0`, `0.5`, `0.10`. No exponent, no `+`, no `.` at the start |
 | Negative number | `-` and a number, where a value starts | `-1`, `-0.5` |
 | Text | `'` … `'` | No escape, so it cannot contain `'` |
-| Keyword | `and`, `or`, `not`, `is`, `present`, `absent`, `true`, `false` | |
-| Symbol | `<`, `<=`, `=`, `!=`, `>=`, `>`, `+`, `-`, `(`, `)` | Any other character causes `rule-syntax` |
+| Keyword | `and`, `or`, `not`, `is`, `present`, `absent`, `true`, `false` | `sum` is a keyword only before `(`, and `in` only inside a total |
+| Symbol | `<`, `<=`, `=`, `!=`, `>=`, `>`, `+`, `-`, `*`, `(`, `)`, `:` | Any other character causes `rule-syntax` |
 
 - Spaces, tabs and line breaks between tokens are optional.
 - In YAML, put a rule that starts with `'` in double quotes: `rule: "'gold' = tier"`.
@@ -146,13 +148,15 @@ A rule can use the value of an optional property only after a guard. Else `ungua
 | --- | --- | --- |
 | A total | `sum(line in lines: line.amount)` | The total of the value over the items of the list: `integer` or `decimal`, exact. An absent list adds up to 0 |
 | A product | `item.quantity * item.unit_amount` | `integer × integer` is an `integer`; `integer × decimal` is an exact `decimal`. `decimal × decimal` causes `rule-type` |
+| A path | `total.amount_minor`, `line.amount.amount_minor` | The property of an embedded entity that is not a list. It is optional when the entity or the property is optional |
 | Presence | `lines is present` | A condition |
 | Equality of two embedded entities | `output.plan = current.plan` | A condition: each property, with the comparison of its primitive. An optional property is equal when both are absent |
 
 - Inside a sum, the item has the name before `in`. For a list of embedded entities, write `<item>.<property>`; for a list of values, write `<item>`. The name of the item must not be a name of the rule.
 - `*` binds tighter than `+` and `-`.
 - `=` and `!=` compare two embedded entities of one entity only. An entity that holds a list causes `rule-type`.
-- A rule cannot use a list or an embedded entity in any other way, and cannot name a property inside an embedded entity that is not a list. Put such a rule on the embedded entity.
+- A path reads into an embedded entity that is not a list, at any depth. It cannot read into a list: use a sum.
+- A rule cannot use a list or an embedded entity in any other way.
 - A rule cannot pair the items of two lists, for example "one answer line for each requested line". Put such a rule in the core, with a declared error.
 - A rule compares the key value of a link. It does not read the linked object.
 - In SQL, a rule with a sum or an equality of embedded entities is not a `CHECK`: `unenforced-in-sql`, because the items are rows of a child table.

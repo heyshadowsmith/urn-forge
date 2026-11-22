@@ -81,6 +81,20 @@ The contracts found that filling a refusal by property name is too weak when the
 - A rule that names an emitted event (claims P14: "the published event carries the reason").
 - `requires` runs before the core, so a refusal can carry values of the record. Who may call (D2) must be examined in the shell first.
 
+## Lists (A1)
+
+Nov 22, 2026: **45 of 143 promises declared (31.5%)**, up from 40. Refer to the [lists plan](./lists-plan.md). Claims P04, payments P07, inventory P06, ticketing P05 and subscriptions P11 are declared. A1 goes from 10 promises to 5.
+
+Moving the contracts onto lists found two gaps, each closed in the same change:
+- Paths into embedded entities, such as `total.amount_minor`, for money as an amount and a currency.
+- A repeated item covered the gate 3 boundary of `unique` even in a list that the schema refused for its length first.
+
+What the contracts still could not state:
+- A rule on each item (`every`), such as "each line is in the currency of the total" (subscriptions P15) or "a line's date is at most 90 days before submission" (claims P05).
+- A pairing of the items of two lists, such as "one ticket for each held place" (ticketing P10) or "one answer line for each requested line" (inventory P10).
+- A sum with a condition, such as "1 ticket for a seated line, the quantity for a standing line" (ticketing P04).
+- An invariant on an entity that is only an answer needs no breaking scenario in gate 3. Each success scenario checks it, but no scenario shows that it refuses.
+
 ## The phases
 
 Each item is a plan of its own, with the format of the earlier plans: a target written first, one commit for each step, sabotages at the end. The order puts first what the most contracts need, and what fits the machinery that exists.
@@ -139,7 +153,8 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 2. The corpus, with its score in CI (decision 6). Done: 18.2%.
 3. States and moves (C3). Done: 23.8%.
 4. Conditions (part of A2). Done: 28.0%.
-5. The next plan. The score now puts A2 (13), D4 (11), A1 (10) and D2 (10) first.
+5. Lists (A1). Done: 31.5%.
+6. The next plan. The score now puts A2 (13), D4 (11), D2 (10) and C1 (9) first.
 
 ## Risks
 
