@@ -139,6 +139,7 @@ export default defineConfig({
           { text: 'Store plan', link: '/project/store-plan' },
           { text: 'Scope charter', link: '/project/scope-charter' },
           { text: 'Feature audit', link: '/project/feature-audit' },
+          { text: 'Contract completeness roadmap', link: '/project/contract-completeness-roadmap' },
           { text: 'Spec v1.1', link: '/project/spec-v1-1' },
         ],
       },
