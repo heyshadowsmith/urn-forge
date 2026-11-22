@@ -91,6 +91,14 @@ export const core = {
     );
   },
 
+  // The shell's clock calls it for a card payment that is due; the runtime refuses one that is not.
+  'urn:corpus:payments:payment:operation:expire_payment': ({ payment_id }, current, now) => {
+    return ok(
+      { ...current, status: 'expired' as const },
+      [emit('urn:corpus:payments:payment:event:expired', change(payment_id, current, current.status, 'expired', now))],
+    );
+  },
+
   'urn:corpus:payments:payment:operation:get_payment': (_lookup, current) => ok(current),
 
   'urn:corpus:payments:refund:operation:refund_payment': ({ payment_id, amount, idempotency_key }, current, now) => {

@@ -129,16 +129,23 @@ card.field.last4:
 
 auth.field.key_kind:
   primitive: enum
-  values: [secret, read_only]
-  description: The kind of the API key that the caller presented, a secret key or a read-only key
+  values: [secret, read_only, clock]
+  description: The kind of the API key that the caller presented, a secret key or a read-only key, or clock for the shell's clock, which presents no key
 
 # Shapes
 
 auth.entity.caller:
-  description: Who calls, as the shell authenticated them from their API key; a key belongs to one merchant
+  description: Who calls, as the shell authenticated them from their API key; a key belongs to one merchant, and the shell's clock to none
   fields:
     - ref: auth.field.key_kind
     - ref: payment.field.merchant_id
+      required: false
+auth.invariant.key_has_merchant:
+  description: A key belongs to one merchant, and the shell's clock to none
+  on: auth.entity.caller
+  rule: key_kind = 'clock' and merchant_id is absent or key_kind != 'clock' and merchant_id is present
+  reportOn: merchant_id
+  message: A key belongs to one merchant, and the clock to none
 
 card.entity.card_details:
   description: The details of a card that pays
@@ -225,6 +232,11 @@ payment.invariant.pending_only_for_bank_transfer:
   rule: status != 'pending' or method = 'bank_transfer'
   reportOn: status
   message: Only a bank transfer payment can be pending
+
+payment.entity.payment_ref:
+  description: The payment that the shell's clock acts on
+  fields:
+    - ref: payment.field.payment_id
 
 payment.entity.payment_lookup:
   description: A request that names one payment of a merchant
@@ -428,6 +440,10 @@ payment.event.refunded:
   description: A payment became refunded in full
   fields: *status_change
   delivery: *delivery
+payment.event.expired:
+  description: A card payment became expired, as it was not captured within 7 days of its authorization
+  fields: *status_change
+  delivery: *delivery
 
 # Calls
 
@@ -439,7 +455,7 @@ payment.operation.create_payment:
   # merchant other than the one of the key is not found (P16): a key belongs to a known merchant.
   callers:
     allow:
-      - caller.key_kind = 'secret' and caller.merchant_id = input.merchant_id
+      - caller.key_kind = 'secret' and caller.merchant_id is present and caller.merchant_id = input.merchant_id
     otherwise: payment.error.not_found
   requires:
     - rule: 'input.line_items is absent or input.amount = sum(item in input.line_items: item.quantity * item.unit_amount)'
@@ -466,6 +482,7 @@ payment.operation.create_payment:
     - event.previous_status is absent
     - event.new_status = output.status
     - event.occurred_at = now
+    - output.created_at = now
 payment.operation.capture_payment:
   description: Capture an authorized payment, in full or in part
   input: payment.entity.capture_request
@@ -480,9 +497,14 @@ payment.operation.capture_payment:
   # merchant, or a request that names a merchant other than the key's, is not found (P16).
   callers:
     allow:
-      - caller.key_kind = 'secret' and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
+      - caller.key_kind = 'secret' and caller.merchant_id is present and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
     otherwise: payment.error.not_found
+  # A card payment is authorized when it is created (only a bank transfer can be pending), so its
+  # created_at is the time of its authorization. From 7 days after it, to the millisecond, it can
+  # no longer be captured, even before the clock expires it.
   requires:
+    - rule: current.method != 'card' or now < current.created_at + 7 days
+      otherwise: payment.error.invalid_state
     - rule: input.amount is absent or input.amount <= current.amount
       otherwise: payment.error.capture_exceeds_authorized
       fill: { amount: input.amount, authorized_amount: current.amount }
@@ -518,8 +540,13 @@ payment.operation.void_payment:
   # merchant, or a request that names a merchant other than the key's, is not found (P16).
   callers:
     allow:
-      - caller.key_kind = 'secret' and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
+      - caller.key_kind = 'secret' and caller.merchant_id is present and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
     otherwise: payment.error.not_found
+  # From 7 days after its authorization, a card payment is due to expire, so it can no longer be
+  # voided: it moves to expired, as the clock is the only one to move it.
+  requires:
+    - rule: current.method != 'card' or now < current.created_at + 7 days
+      otherwise: payment.error.invalid_state
   ensures:
     - event.payment_id = output.payment_id
     - event.merchant_id = current.merchant_id
@@ -533,6 +560,38 @@ payment.operation.void_payment:
     - payment.error.invalid_state
   emits:
     - event: payment.event.voided
+# A timed change: the shell's clock calls it for each payment that selectPaymentExpirePaymentDue
+# finds. A card payment is authorized when it is created, so created_at is the time of its
+# authorization; a bank transfer payment does not expire.
+payment.operation.expire_payment:
+  description: Expire an authorized card payment that was not captured within 7 days of its authorization
+  input: payment.entity.payment_ref
+  output: payment.entity.payment
+  changes:
+    entity: payment.entity.payment
+    from: [authorized]
+    to: expired
+    otherwise: payment.error.invalid_state
+    missing: payment.error.not_found
+  due: current.method = 'card' and now >= current.created_at + 7 days
+  # Only the shell's clock calls it; a merchant's key is refused as not found.
+  callers:
+    allow:
+      - caller.key_kind = 'clock'
+    otherwise: payment.error.not_found
+  ensures:
+    - event.payment_id = output.payment_id
+    - event.merchant_id = current.merchant_id
+    - event.amount = current.amount
+    - event.currency = current.currency
+    - event.previous_status is present and event.previous_status = current.status
+    - event.new_status = output.status
+    - event.occurred_at = now
+  errors:
+    - payment.error.not_found
+    - payment.error.invalid_state
+  emits:
+    - event: payment.event.expired
 payment.operation.get_payment:
   description: Read a payment by its id
   input: payment.entity.payment_lookup
@@ -544,7 +603,7 @@ payment.operation.get_payment:
   # merchant, or a request that names a merchant other than the key's, is not found (P16).
   callers:
     allow:
-      - caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
+      - caller.merchant_id is present and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
     otherwise: payment.error.not_found
   errors:
     - payment.error.not_found
@@ -562,7 +621,7 @@ refund.operation.refund_payment:
   # merchant, or a request that names a merchant other than the key's, is not found (P16).
   callers:
     allow:
-      - caller.key_kind = 'secret' and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
+      - caller.key_kind = 'secret' and caller.merchant_id is present and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
     otherwise: payment.error.not_found
   # At most 180 days after the capture, to the millisecond: on day 180 itself a refund is allowed.
   requires:
@@ -606,7 +665,7 @@ refund.operation.get_refund:
   # merchant, or a request that names a merchant other than the key's, is not found (P16).
   callers:
     allow:
-      - caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
+      - caller.merchant_id is present and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
     otherwise: payment.error.not_found
   errors:
     - payment.error.not_found

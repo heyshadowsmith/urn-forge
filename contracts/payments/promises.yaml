@@ -102,12 +102,29 @@ promises:
     promise: "Every payment belongs to exactly one merchant, and a request naming an unknown merchant or a payment of another merchant is refused as \"not_found\"."
     status: declared
     by: [payment.entity.payment, refund.entity.refund, payment.field.merchant_id, auth.entity.caller, payment.operation.create_payment, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.operation.get_payment, refund.operation.get_refund, payment.error.not_found]
-  # The move from authorized to expired is declared, and a capture starts only from authorized,
-  # so an expired payment cannot be captured. The move after 7 days, with no request, is not.
+  # The time of the authorization: a card payment is authorized when it is created (its
+  # initial_status is authorized or pending, and pending_only_for_bank_transfer allows pending
+  # only for a bank transfer; a card that the bank refuses is an error, not a payment), and
+  # create_payment ensures output.created_at = now, so the created_at of a card payment is the
+  # time of its authorization. The move: expire_payment changes a payment from authorized to
+  # expired, with due: current.method = 'card' and now >= current.created_at + 7 days, so a bank
+  # transfer payment never expires, and a card payment is due from the instant 7 days after its
+  # authorization, to the millisecond. The shell's clock calls it (callers allow only
+  # caller.key_kind = 'clock', a caller with no merchant, auth.invariant.key_has_merchant); the
+  # payment is a table of the Postgres extra, so selectPaymentExpirePaymentDue(now, limit) gives
+  # the keys of the authorized card payments that are due, from the same rule, and the runtime
+  # refuses a call for one that is not due (ContractViolation). It emits payment.expired (P20).
+  # "Can no longer be captured": capture_payment requires current.method != 'card' or
+  # now < current.created_at + 7 days (otherwise invalid_state), so a capture is refused from the
+  # same instant, even before the clock runs; after the move, a capture starts only from
+  # authorized. void_payment has the same requires, so that nothing but the clock moves a due card
+  # payment, and it moves to expired. The scenarios show the day-7 edge both ways (capture, void,
+  # expire, not due), bank transfer payments, every other status, and a merchant's key refused.
+  # Left to the shell, as for any timed change: that its clock runs, and stores the answer.
   P17:
     promise: "An authorized card payment that is not captured within 7 days moves to expired and can no longer be captured."
-    status: not-declarable
-    hole: E3
+    status: declared
+    by: [payment.operation.expire_payment, payment.operation.capture_payment, payment.operation.void_payment, payment.operation.create_payment, payment.field.status, payment.field.method, payment.field.created_at, payment.entity.payment, payment.invariant.pending_only_for_bank_transfer, payment.event.expired, auth.field.key_kind, auth.entity.caller, auth.invariant.key_has_merchant, payment.error.invalid_state]
   # The stored payment holds when it was captured (captured_at; an invariant makes it present in
   # captured, partially_refunded and refunded), and capture_payment ensures output.captured_at =
   # now, the time of the capture that the shell gives. refund_payment requires
@@ -135,13 +152,16 @@ promises:
   # stored status (absent on create, which has no earlier status), and the event id comes from
   # the shell (delivery.id, newEventId), and event.occurred_at = now in each of the four
   # operations: the time of the change is the time of the call, which the shell gives (E2 is
-  # met). Lost: the moves pending to authorized, pending to failed and authorized to expired
-  # have no call, so no event is stated for them: payment.failed and payment.expired do not
-  # exist, and nothing can state that such a move publishes one (E3, see P17).
+  # met). The move authorized to expired now has a call, expire_payment, the timed change of
+  # P17, which emits exactly one payment.expired with the same ensures. Lost: the moves pending to
+  # authorized and pending to failed (a bank transfer that arrives, or does not) still have no
+  # call: they come from the bank, not from a merchant nor from a time that the contract knows,
+  # so no event is stated for them, payment.failed does not exist, and nothing states that such a
+  # move publishes one (E3).
   P20:
     promise: "Each change of payment status publishes exactly one event named \"payment.<new_status>\" carrying the event id, payment id, merchant id, amount, currency, previous status, new status and the time of the change."
     status: workaround
-    by: [payment.operation.create_payment, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.event.pending, payment.event.authorized, payment.event.captured, payment.event.voided, payment.event.partially_refunded, payment.event.refunded, payment.field.event_id, payment.field.occurred_at]
+    by: [payment.operation.create_payment, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.operation.expire_payment, payment.event.pending, payment.event.authorized, payment.event.captured, payment.event.voided, payment.event.partially_refunded, payment.event.refunded, payment.event.expired, payment.field.event_id, payment.field.occurred_at]
     hole: E3
   # Each event has delivery { id: event_id, orderBy: payment_id }, and the contract uses the
   # Postgres plugin, so the outbox keeps the delivery: insertEvents writes the events in the
@@ -153,11 +173,14 @@ promises:
   P21:
     promise: "Events are delivered at least once, in the order of the changes for any one payment, and a consumer can discard duplicates by event id."
     status: declared
-    by: [payment.event.pending, payment.event.authorized, payment.event.captured, payment.event.voided, payment.event.partially_refunded, payment.event.refunded, payment.field.event_id, payment.field.payment_id]
+    by: [payment.event.pending, payment.event.authorized, payment.event.captured, payment.event.voided, payment.event.partially_refunded, payment.event.refunded, payment.event.expired, payment.field.event_id, payment.field.payment_id]
   # Stated: the caller carries the kind of its key (secret or read_only) and its merchant;
   # create, capture, void and refund allow only caller.key_kind = 'secret' of the merchant of the
   # request and of the payment; get_payment and get_refund allow either kind of that merchant.
   # So a read-only key cannot write, and a key of another merchant can do nothing to a payment.
+  # The shell's clock is a caller too (key_kind clock, with no merchant): each of these rules
+  # needs caller.merchant_id is present, so the clock can do none of these, and only it may call
+  # expire_payment (P17).
   # Lost: the names of the refusals. An operation has one callers.otherwise, and P16 needs it to
   # be not_found, so a read-only key that tries to write is answered not_found, not "forbidden";
   # callers cannot answer forbidden for one failed condition and not_found for another, and no

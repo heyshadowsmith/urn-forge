@@ -200,3 +200,14 @@ Feature: Create a payment
       | secret    | mer_unknown |
       | secret    | mer_2       |
       | read_only | mer_1       |
+
+  Scenario: The clock, which belongs to no merchant, is refused as not found
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
+      | key_kind |
+      | clock    |
+    When I run the operation with:
+      | merchant_id | amount | currency | method        | idempotency_key | iban                   |
+      | mer_1       | 5000   | EUR      | bank_transfer | order-52        | DE89370400440532013000 |
+    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
+    And the operation emits no event

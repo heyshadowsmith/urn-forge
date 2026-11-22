@@ -266,7 +266,7 @@ Feature: Refund a payment
       | idempotency_key |
       | used-key        |
 
-  Scenario Outline: A key of another merchant, or a read-only key, is refused as not found
+  Scenario Outline: A key of another merchant, a read-only key, or the clock is refused as not found
     Given the time is "2026-11-22T10:00:00Z"
     And the caller is:
       | key_kind   | merchant_id   |
@@ -284,6 +284,7 @@ Feature: Refund a payment
       | key_kind  | merchant_id |
       | secret    | mer_2       |
       | read_only | mer_1       |
+      | clock     |             |
 
   Scenario: A payment of another merchant is not found
     Given the time is "2026-11-22T10:00:00Z"

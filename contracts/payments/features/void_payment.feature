@@ -20,6 +20,49 @@ Feature: Void a payment
       | payment_id                   | merchant_id | amount | currency | previous_status | new_status | occurred_at          |
       | pay_authorized00000000000000 | mer_1       | 5000   | EUR      | authorized      | voided     | 2026-11-22T10:00:00Z |
 
+  Scenario Outline: An authorized card payment is voided until 7 days after its authorization, and a bank transfer payment later too
+    Given the time is "<now>"
+    And the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
+      | payment_id                   | merchant_id | amount | currency | method   | status     | captured_amount | refunded_amount | created_at           |
+      | pay_authorized00000000000000 | mer_1       | 5000   | EUR      | <method> | authorized | 0               | 0               | 2026-11-01T12:00:00Z |
+    When I run the operation with:
+      | merchant_id | payment_id                   |
+      | mer_1       | pay_authorized00000000000000 |
+    Then the output is:
+      | payment_id                   | method   | status |
+      | pay_authorized00000000000000 | <method> | voided |
+    And the operation emits "urn:corpus:payments:payment:event:voided"
+
+    Examples:
+      | method        | now                      |
+      | card          | 2026-11-08T11:59:59.999Z |
+      | bank_transfer | 2026-11-08T12:00:00Z     |
+      | bank_transfer | 2027-01-01T00:00:00Z     |
+
+  Scenario Outline: An authorized card payment can no longer be voided from 7 days after its authorization, as it is due to expire
+    Given the time is "<now>"
+    And the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
+      | payment_id                   | merchant_id | amount | currency | method | status     | captured_amount | refunded_amount | created_at           |
+      | pay_authorized00000000000000 | mer_1       | 5000   | EUR      | card   | authorized | 0               | 0               | 2026-11-01T12:00:00Z |
+    When I run the operation with:
+      | merchant_id | payment_id                   |
+      | mer_1       | pay_authorized00000000000000 |
+    Then the operation fails with "urn:corpus:payments:payment:error:invalid_state":
+      | status     |
+      | authorized |
+    And the operation emits no event
+
+    Examples:
+      | now                  |
+      | 2026-11-08T12:00:00Z |
+      | 2027-01-01T00:00:00Z |
+
   Scenario Outline: A payment that is not authorized cannot be voided
     Given the time is "2026-11-22T10:00:00Z"
     And the caller is:
@@ -57,7 +100,7 @@ Feature: Void a payment
       | mer_1       | py_authorized1 |
     Then the input is rejected on "payment_id"
 
-  Scenario Outline: A key of another merchant, or a read-only key, is refused as not found
+  Scenario Outline: A key of another merchant, a read-only key, or the clock is refused as not found
     Given the time is "2026-11-22T10:00:00Z"
     And the caller is:
       | key_kind   | merchant_id   |
@@ -75,6 +118,7 @@ Feature: Void a payment
       | key_kind  | merchant_id |
       | secret    | mer_2       |
       | read_only | mer_1       |
+      | clock     |             |
 
   Scenario: A payment of another merchant is not found
     Given the time is "2026-11-22T10:00:00Z"
