@@ -365,7 +365,7 @@ The tables of the insurance domain give these results. Each line is the `code`, 
 ```
 
 - An invariant gives the URN of the invariant, and a field constraint gives the URN of the field.
-- A link, a `unique` list and a count give the URN of the entity of the table. Read the `constraint` for the property.
+- A link, a `unique` list and a count give the URN in the comment of their table. For the table of an entity, or of a list of an embedded entity, this is the URN of the entity. For the table of a list of values, such as a list of names, it is the URN of the field. Read the `constraint` for the property.
 - The query reads the catalog. The comments change only with a migration, so you can keep the results in memory.
 
 A broken value that gets to Postgres shows a bug in the shell, or a writer that does not use the core. Write the URN to the log. Do not send the Postgres message to the caller.

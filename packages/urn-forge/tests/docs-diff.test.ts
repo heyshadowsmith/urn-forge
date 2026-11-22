@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
 
 const repo = (path: string) => fileURLToPath(new URL(`../${path}`, import.meta.url));
-const page = (name: string) => readFile(repo(`../../docs/how-to/${name}.md`), 'utf8');
+const page = (name: string) => readFile(repo(`../../docs/${name.includes('/') ? name : `how-to/${name}`}.md`), 'utf8');
 
 /** `text` with each `[from, to]` replaced once; a `from` that is not there fails the test. */
 function edit(text: string, ...pairs: (readonly [string, string])[]): string {
@@ -34,7 +34,7 @@ const EXAMPLES: Record<string, { old: (m: string) => string; now: (m: string) =>
   'deprecate note for remark': {
     old: (m) => edit(m, ['  # Retired for remark, which is limited in length (lifecycle plan). Callers receive both until the sunset.\n' + NOTE_DEPRECATED + '  sunsetDate: 2027-06-30\n', ''], [REMARK, ''], [REMARK_REF, '']),
     now: (m) => m,
-    pages: ['check-compatibility', 'retire-a-urn'],
+    pages: ['check-compatibility', 'retire-a-urn', 'reference/cli'],
   },
   'a tighter maxLength': { old: (m) => m, now: (m) => edit(m, ['  maxLength: 40\n', '  maxLength: 30\n']), pages: ['check-compatibility'] },
   'a looser maxLength': { old: (m) => m, now: (m) => edit(m, ['  maxLength: 40\n', '  maxLength: 50\n']), pages: ['check-compatibility'] },

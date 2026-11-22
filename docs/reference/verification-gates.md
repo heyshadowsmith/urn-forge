@@ -598,7 +598,7 @@ A change of `primitive` is "neither". For the same primitive, `diff` compares ea
 | --- | --- | --- |
 | A new required property | Narrower | `the new required property "<name>"` |
 | A new required list with no `minItems`, or with `minItems: 0`, on an atom that is only stored | Compatible: a row that is already stored has no items, which is the empty list | `adds the required list "<name>", which rows already stored hold as an empty list` |
-| A new optional property | Compatible for each use | `adds the optional property "<name>"` |
+| A new optional property | Compatible for each use | `adds the optional property "<name>"`. If the database stores the atom, `; the database needs a migration for it` follows: the table does not have the column or the child table yet |
 | A property that is not there any more | Wider | `removing the <required \| optional> property "<name>"` |
 | A property that is not there any more, whose target was deprecated in the old manifest | `lifecycle` | `removes the property "<name>", whose target <urn> was deprecated` |
 | `required: false` becomes `required: true` | Narrower. For a list that can be empty, not for the Stored use | `the property "<name>" (optional → required)` |

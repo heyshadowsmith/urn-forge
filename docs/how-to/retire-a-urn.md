@@ -91,7 +91,7 @@ npx urn-forge diff old.manifest.yaml insurance/domain.manifest.yaml --config ins
 ```
 
 ```
-compatible  urn:acme:insurance:policy:entity:coverage  adds the optional property "remark"
+compatible  urn:acme:insurance:policy:entity:coverage  adds the optional property "remark"; the database needs a migration for it
 lifecycle   urn:acme:insurance:policy:field:note  status active → deprecated
 compatible  urn:acme:insurance:policy:field:remark  is new
 diff passed: 0 breaking, 2 compatible, 1 lifecycle change(s)
