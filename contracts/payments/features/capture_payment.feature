@@ -13,8 +13,8 @@ Feature: Capture a payment
       | payment_id                   | currency | authorized_amount | captured_amount   | status   |
       | pay_authorized00000000000000 | EUR      | 5000              | <captured_amount> | captured |
     And the operation emits "urn:corpus:payments:payment:event:captured":
-      | payment_id                   | merchant_id | amount | currency | previous_status | new_status |
-      | pay_authorized00000000000000 | mer_1       | 5000   | EUR      | authorized      | captured   |
+      | event_id                             | payment_id                   | merchant_id | amount | currency | previous_status | new_status |
+      | 00000000-0000-4000-8000-000000000001 | pay_authorized00000000000000 | mer_1       | 5000   | EUR      | authorized      | captured   |
 
     Examples:
       | amount | captured_amount |
