@@ -59,26 +59,20 @@ promises:
     status: workaround
     by: [payment.operation.create_payment, payment.entity.created_payment, payment.field.initial_status, payment.invariant.pending_only_for_bank_transfer, payment.error.invalid_request, payment.error.card_declined, payment.error.insufficient_funds, payment.error.expired_card, payment.error.unsupported_currency, payment.error.fraud_suspected]
     hole: A3
-  # The optional amount of at least 1, the answer's "captured is at most authorized" and the
-  # refusal are declared. That an omitted amount captures the full authorized amount links the
-  # request to the answer, and the check against the stored authorized amount is in the core.
+  # The authorized amount is the amount of the stored payment.
   P10:
     promise: "A capture request may carry an amount, which must be at least 1 and at most the authorized amount, and if it is omitted the full authorized amount is captured."
-    status: workaround
-    by: [payment.entity.capture_request, payment.field.amount, payment.entity.capture_result, payment.invariant.captured_within_authorized, payment.error.capture_exceeds_authorized]
-    hole: A2
-  # The refund amount of at least 1, the refusal, and the answer's "refunded total is at most
-  # the captured amount" are declared. That the refunded total holds the earlier refunds of the
-  # payment and this one is in the core: no rule links the request to the stored refunds.
+    status: declared
+    by: [payment.operation.capture_payment, payment.entity.capture_request, payment.field.amount, payment.entity.capture_result, payment.invariant.captured_within_authorized, payment.error.capture_exceeds_authorized]
+  # The stored payment holds the sum of its refunds as refunded_amount.
   P11:
     promise: "A refund request carries an amount of at least 1, and the sum of all refunds on a payment never exceeds the captured amount, otherwise the refund is refused as \"amount_exceeds_captured\"."
-    status: workaround
-    by: [refund.entity.refund_request, payment.field.amount, refund.entity.refund, refund.invariant.refunds_within_captured, refund.error.amount_exceeds_captured]
-    hole: A2
+    status: declared
+    by: [refund.operation.refund_payment, refund.entity.refund_request, payment.field.amount, payment.entity.payment, payment.field.refunded_amount, refund.entity.refund, refund.invariant.refunds_within_captured, refund.error.amount_exceeds_captured]
   P12:
     promise: "A refund always has the same currency as the payment it refunds."
-    status: not-declarable
-    hole: B4
+    status: declared
+    by: [refund.operation.refund_payment, refund.entity.refund, payment.field.currency]
   P13:
     promise: "A payment moves only along these steps: pending to authorized or failed, authorized to captured, voided or expired, captured to partially_refunded or refunded, and partially_refunded to refunded; any other requested move is refused as \"invalid_state\"."
     status: declared

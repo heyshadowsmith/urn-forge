@@ -97,9 +97,6 @@ export const core = {
 
   'urn:corpus:payments:payment:operation:capture_payment': ({ merchant_id, payment_id, amount }, current) => {
     if (current.merchant_id !== merchant_id) return fail('urn:corpus:payments:payment:error:not_found', {});
-    if (amount !== undefined && amount > current.amount) {
-      return fail('urn:corpus:payments:payment:error:capture_exceeds_authorized', { amount, authorized_amount: current.amount });
-    }
     const captured = amount ?? current.amount;
     return ok(
       { payment_id, currency: current.currency, authorized_amount: current.amount, captured_amount: captured, status: 'captured' as const },
@@ -136,8 +133,6 @@ export const core = {
     if (current.merchant_id !== merchant_id) return fail('urn:corpus:payments:payment:error:not_found', {});
     if (idempotency_key === USED_KEY) return fail('urn:corpus:payments:payment:error:idempotency_conflict', { idempotency_key });
     if (payment_id === CAPTURED_LONG_AGO) return fail('urn:corpus:payments:refund:error:refund_window_closed', {});
-    const available = current.captured_amount - current.refunded_amount;
-    if (amount > available) return fail('urn:corpus:payments:refund:error:amount_exceeds_captured', { amount, available });
 
     const refunded_total = current.refunded_amount + amount;
     const next = refunded_total === current.captured_amount ? 'refunded' : 'partially_refunded';
