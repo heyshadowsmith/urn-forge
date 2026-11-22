@@ -264,8 +264,10 @@ function conditionDeclarations(ir: UniversalIR): string[] {
     const propertiesOf = conditionEmbedded(op, ir);
     const declare = (rule: IRRule, kind: 'requires' | 'ensures' | 'when' | 'caller', index: number) => {
       const event = kind === 'ensures' && namesIn(rule.rule).some((name) => name.startsWith('event.'));
+      const timeNames = namesIn(rule.rule).filter((name) => name === 'now' || name === 'today');
       const parameters = [
         ...values,
+        ...timeNames.map((name) => `${name}: string`),
         ...(kind === 'requires' || kind === 'caller' ? [] : [`output: ${typeOf(op.output)}`]),
         ...(event ? [`event: ${eventType}`] : []),
         ...(kind === 'caller' ? [`caller: ${typeOf(ir.meta.caller!)}`] : []),
@@ -310,7 +312,9 @@ function conditionEmbedded(op: IROperation, ir: UniversalIR) {
 /** The primitive of each prefixed name of an operation's conditions. */
 function conditionPrimitives(op: IROperation, ir: UniversalIR) {
   const entities = conditionEntities(op, ir);
-  return (name: string) => {
+  return (name: string): Primitive => {
+    if (name === 'now') return 'timestamp';
+    if (name === 'today') return 'date';
     const dot = name.indexOf('.');
     return primitiveIn(entities[name.slice(0, dot)]!, ir)(name.slice(dot + 1));
   };

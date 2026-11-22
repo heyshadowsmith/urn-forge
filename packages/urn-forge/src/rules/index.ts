@@ -5,8 +5,10 @@
  *   and     := unary ('and' unary)*
  *   unary   := 'not' unary | compare
  *   compare := sum (('<' | '<=' | '=' | '!=' | '>=' | '>') sum)?
- *   sum     := primary (('+' | '-') primary)*
- *   primary := '(' or ')' | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
+ *   sum     := product (('+' | '-') product)*
+ *   product := timed ('*' timed)*
+ *   timed   := primary ('minutes' | 'hours' | 'days')?
+ *   primary := '(' or ')' | total | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
  *
  * `parseRule` gives an AST whose nodes carry their column in the rule text; `stripColumns`
  * gives the form the IR keeps; `printRule` gives the canonical text. `checkRule` (pass 6)
@@ -17,6 +19,13 @@ import type { Primitive } from '../primitives/index.js';
 
 export type Comparison = '<' | '<=' | '=' | '!=' | '>=' | '>';
 export type Arithmetic = '+' | '-';
+/** The units of a time added to or taken from a timestamp. */
+export type TimeUnit = 'minutes' | 'hours' | 'days';
+export const TIME_UNITS: readonly TimeUnit[] = ['minutes', 'hours', 'days'];
+/** The milliseconds of one unit: exact, as a timestamp is UTC. */
+export const UNIT_MS: Readonly<Record<TimeUnit, number>> = { minutes: 60_000, hours: 3_600_000, days: 86_400_000 };
+/** The time of the call, in a condition: `now` (a timestamp) and `today` (its UTC date). */
+export const TIME_NAMES: readonly string[] = ['now', 'today'];
 
 /** A rule as the IR keeps it: JSON, no positions. Number literals keep their text, so a decimal stays exact. */
 export type RuleExpr =
@@ -28,6 +37,8 @@ export type RuleExpr =
   | { readonly op: 'not'; readonly operand: RuleExpr }
   /** The total of `value` over the items of `list`; `item` names one item inside `value`. */
   | { readonly op: 'sum'; readonly item: string; readonly list: string; readonly value: RuleExpr }
+  /** A time: an integer of minutes, hours or days, on the right of `+` or `-` on a timestamp. */
+  | { readonly op: 'duration'; readonly value: RuleExpr; readonly unit: TimeUnit }
   | { readonly op: 'and' | 'or' | Comparison | Arithmetic | '*'; readonly left: RuleExpr; readonly right: RuleExpr };
 
 /** The same AST, with the 1-based column of each node in the rule text. */
@@ -39,6 +50,7 @@ export type LocatedExpr = (
   | { readonly op: 'present' | 'absent'; readonly field: string }
   | { readonly op: 'not'; readonly operand: LocatedExpr }
   | { readonly op: 'sum'; readonly item: string; readonly list: string; readonly value: LocatedExpr }
+  | { readonly op: 'duration'; readonly value: LocatedExpr; readonly unit: TimeUnit }
   | { readonly op: 'and' | 'or' | Comparison | Arithmetic | '*'; readonly left: LocatedExpr; readonly right: LocatedExpr }
 ) & { readonly at: number };
 
@@ -180,12 +192,22 @@ export function parseRule(source: string): ParseResult {
       return left;
     };
     const product = (): LocatedExpr => {
-      let left = primary();
+      let left = timed();
       while (isSymbol('*')) {
         take();
-        left = { op: '*', left, right: primary(), at: left.at };
+        left = { op: '*', left, right: timed(), at: left.at };
       }
       return left;
+    };
+    /** A value, and a unit of time after it: `2 hours`, `input.days days`. */
+    const timed = (): LocatedExpr => {
+      const value = primary();
+      const t = peek();
+      if (t.kind === 'name' && (TIME_UNITS as readonly string[]).includes(t.text)) {
+        take();
+        return { op: 'duration', value, unit: t.text as TimeUnit, at: value.at };
+      }
+      return value;
     };
     /** `sum(<item> in <list>: <value>)`; `sum` is a word of the language only before "(". */
     const total = (at: number): LocatedExpr => {
@@ -264,6 +286,8 @@ export function stripColumns(expr: LocatedExpr): RuleExpr {
       return { op: 'not', operand: stripColumns(expr.operand) };
     case 'sum':
       return { op: 'sum', item: expr.item, list: expr.list, value: stripColumns(expr.value) };
+    case 'duration':
+      return { op: 'duration', value: stripColumns(expr.value), unit: expr.unit };
     default:
       return { op: expr.op, left: stripColumns(expr.left), right: stripColumns(expr.right) };
   }
@@ -318,6 +342,8 @@ export function printRule(expr: RuleExpr): string {
       return `not ${wrap(expr.operand, 3)}`;
     case 'sum':
       return `sum(${expr.item} in ${expr.list}: ${printRule(expr.value)})`;
+    case 'duration':
+      return `${wrap(expr.value, 7)} ${expr.unit}`;
     default: {
       const p = precedence(expr);
       // and, or, + and - group to the left, so a right child of equal strength needs parentheses.
@@ -354,7 +380,7 @@ export interface RuleField {
 }
 
 type ValueType = { readonly kind: 'value'; readonly primitive: Primitive } | { readonly kind: 'literal'; readonly literal: 'number' | 'text' | 'boolean'; readonly text: string };
-type Checked = ValueType | { readonly kind: 'condition' };
+type Checked = ValueType | { readonly kind: 'condition' } | { readonly kind: 'duration'; readonly unit: TimeUnit };
 
 const ORDERED: ReadonlySet<Primitive> = new Set(['integer', 'float', 'decimal', 'date', 'timestamp']);
 const ARITHMETIC: ReadonlySet<Primitive> = new Set(['integer', 'decimal']);
@@ -487,6 +513,10 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
     switch (e.op) {
       case 'field': {
         const field = Object.hasOwn(scope, e.name) ? scope[e.name] : undefined;
+        if (!field && TIME_NAMES.includes(e.name)) {
+          problem('rule-type', e.at, `"${e.name}" is the time of a call, which a rule on a value alone cannot read: an invariant must hold at any time; use ${e.name} in requires or ensures`);
+          return undefined;
+        }
         if (!field) {
           problem('unknown-rule-field', e.at, `"${e.name}" is not a field of ${owner} (fields: ${Object.keys(fields).join(', ')})`);
           return undefined;
@@ -531,11 +561,41 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
         condition(e.left, present, 'or');
         condition(e.right, new Set([...present, ...provesAbsentIfFalse(e.left)]), 'or');
         return { kind: 'condition' };
+      case 'duration': {
+        const n = value(e.value, present, e.unit);
+        if (!n) return undefined;
+        const why = n.kind === 'literal' ? literalProblem(n, 'integer') : n.primitive === 'integer' ? undefined : `${article(n.primitive)} is not an integer`;
+        if (why) {
+          problem('rule-type', e.at, `${why}, so it cannot count ${e.unit}`);
+          return undefined;
+        }
+        return { kind: 'duration', unit: e.unit };
+      }
       case '+':
       case '-': {
+        // A time: a timestamp on the left, minutes, hours or days on the right.
+        if (e.right.op === 'duration' || e.left.op === 'duration') {
+          const time = check(e.right, present);
+          const left = e.left.op === 'duration' ? undefined : value(e.left, present, e.op);
+          if (e.left.op === 'duration') {
+            problem('rule-type', e.at, `"${e.op}" needs the timestamp on the left and the ${e.left.unit} on the right`);
+            return undefined;
+          }
+          if (!time || !left) return undefined;
+          if (left.kind !== 'value' || left.primitive !== 'timestamp') {
+            const what = left.kind === 'value' ? left.primitive : `${left.literal} literal`;
+            problem('rule-type', e.at, `"${e.op} ${(e.right as Extract<LocatedExpr, { op: 'duration' }>).unit}" works on a timestamp, not on ${article(what)}${what === 'date' ? '; a date counts days: write today + 1' : ''}`);
+            return undefined;
+          }
+          return { kind: 'value', primitive: 'timestamp' };
+        }
         const left = value(e.left, present, e.op);
         const right = value(e.right, present, e.op);
         if (!left || !right) return undefined;
+        if ([left, right].some((t) => t.kind === 'value' && t.primitive === 'timestamp')) {
+          problem('rule-type', e.at, `"${e.op}" on a timestamp needs a unit: write 2 hours, 15 minutes or 180 days`);
+          return undefined;
+        }
         const days = dateArithmetic(e.op, left, right, e.at);
         if (days !== 'not dates') return days;
         // Name the primitive that has no arithmetic before the literal that does not fit it.
@@ -632,7 +692,9 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
   };
   const condition = (e: LocatedExpr, present: ReadonlySet<string>, where: string) => {
     const result = check(e, present);
-    if (result && result.kind !== 'condition') {
+    if (result?.kind === 'duration') {
+      problem('rule-type', e.at, `${where} needs a condition, not a time of ${result.unit}`);
+    } else if (result && result.kind !== 'condition') {
       problem('rule-type', e.at, `${where} needs a condition, such as a comparison, not ${article(result.kind === 'value' ? result.primitive : `${result.literal} literal`)}`);
     }
   };
@@ -640,6 +702,10 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
     const result = check(e, present);
     if (result?.kind === 'condition') {
       problem('rule-type', e.at, `"${where}" needs a value on each side, not a condition`);
+      return undefined;
+    }
+    if (result?.kind === 'duration') {
+      problem('rule-type', e.at, `a time of ${result.unit} is only the right side of + or - on a timestamp`);
       return undefined;
     }
     return result;
@@ -661,6 +727,7 @@ export function valueType(e: RuleExpr, primitiveOf: (field: string) => Primitive
     return side(e.left) === 'decimal' || side(e.right) === 'decimal' ? 'decimal' : 'integer';
   }
   if (e.op !== '+' && e.op !== '-') return undefined;
+  if (e.right.op === 'duration') return 'timestamp';
   const [left, right] = [valueType(e.left, primitiveOf), valueType(e.right, primitiveOf)];
   if (left === 'date') return right === 'date' || (e.op === '-' && e.right.op === 'text') ? 'integer' : 'date';
   if (right === 'date') return 'integer'; // a date text minus a date (pass 6 allows nothing else)
@@ -679,6 +746,7 @@ export function itemPrimitives(e: Extract<RuleExpr, { op: 'sum' }>, primitiveOf:
 export function hasDateArithmetic(e: RuleExpr, primitiveOf: (field: string) => Primitive): boolean {
   if (e.op === 'sum') return hasDateArithmetic(e.value, itemPrimitives(e, primitiveOf));
   if (e.op !== '+' && e.op !== '-') return false;
+  if (e.right.op === 'duration') return false;
   return valueType(e.left, primitiveOf) === 'date' || valueType(e.right, primitiveOf) === 'date' || hasDateArithmetic(e.left, primitiveOf) || hasDateArithmetic(e.right, primitiveOf);
 }
 
@@ -700,6 +768,9 @@ export function namesIn(expr: RuleExpr): string[] {
       case 'number':
       case 'text':
       case 'boolean':
+        return;
+      case 'duration':
+        visit(e.value);
         return;
       case 'sum': {
         // The list, and the names of the value that are not the item.
@@ -736,6 +807,8 @@ export function firstField(expr: RuleExpr): string | undefined {
       return undefined;
     case 'sum':
       return expr.list;
+    case 'duration':
+      return firstField(expr.value);
     default:
       return firstField(expr.left) ?? firstField(expr.right);
   }

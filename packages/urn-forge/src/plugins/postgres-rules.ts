@@ -70,6 +70,11 @@ export function ruleSql(ir: UniversalIR, rule: RuleExpr, properties: readonly IR
         return literalOf(primitive, e);
       case '+':
       case '-': {
+        // A time on a timestamp: an interval, exact on a TIMESTAMPTZ.
+        if (e.right.op === 'duration') {
+          const unit = { minutes: 'minute', hours: 'hour', days: 'day' }[e.right.unit];
+          return `(${value(e.left, 'timestamp')} ${e.op} ${value(e.right.value, 'integer')} * INTERVAL '1 ${unit}')`;
+        }
         // Days: Postgres's own date - date, date + integer and date - integer.
         if (typeOf(e.left) === 'date' || typeOf(e.right) === 'date') {
           if (primitive === 'integer') return `(${value(e.left, 'date')} - ${value(e.right, 'date')})`;

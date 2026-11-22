@@ -5,7 +5,7 @@
  * The rule has passed pass 6, so every field exists and both sides of each operator agree.
  */
 import type { Primitive } from '../primitives/index.js';
-import { hasDateArithmetic, itemPrimitives, valueType, type RuleExpr } from './index.js';
+import { hasDateArithmetic, itemPrimitives, UNIT_MS, valueType, type RuleExpr } from './index.js';
 
 export interface EmittedRule {
   readonly code: string;
@@ -74,6 +74,14 @@ export function emitRule(
     }
   };
 
+  /** A timestamp as milliseconds since the epoch: a field, a timestamp text, or a timestamp ± a time. Exact, as each is UTC. */
+  const instant = (e: RuleExpr): string => {
+    if ((e.op === '+' || e.op === '-') && e.right.op === 'duration') {
+      return `(${instant(e.left)} ${e.op} ${value(e.right.value, 'integer')} * ${UNIT_MS[e.right.unit]})`;
+    }
+    return `Date.parse(${value(e, 'timestamp')})`;
+  };
+
   const value = (e: RuleExpr, primitive: Primitive): string => {
     switch (e.op) {
       case 'field':
@@ -88,6 +96,8 @@ export function emitRule(
         return String(e.value);
       case '+':
       case '-':
+        // A timestamp ± a time: compared as instants, so its value here is the instant as text.
+        if (e.right.op === 'duration') return `new Date(${instant(e)}).toISOString()`;
         // The days between two dates: a date (or a date text) minus a date.
         if (primitive === 'integer' && (typeOf(e.left) === 'date' || typeOf(e.right) === 'date')) return `(${days(e.left)} - ${days(e.right)})`;
         if (primitive === 'decimal') {
@@ -158,7 +168,12 @@ export function emitRule(
           helpers.add('decimal');
           return `compareDecimal(${left}, ${right}) ${op} 0`;
         }
-        if (primitive === 'timestamp') return `Date.parse(${left}) ${op} Date.parse(${right})`;
+        if (primitive === 'timestamp') {
+          // A time added to a timestamp compares as milliseconds; plain timestamps as before.
+          const timed = (x: RuleExpr) => (x.op === '+' || x.op === '-') && x.right.op === 'duration';
+          if (timed(e.left) || timed(e.right)) return `${instant(e.left)} ${op} ${instant(e.right)}`;
+          return `Date.parse(${left}) ${op} Date.parse(${right})`;
+        }
         return `${left} ${op} ${right}`;
       }
       default:

@@ -35,10 +35,10 @@
  * operation carries `@urn-forge:strict`; then they are errors.
  */
 
-import { currentWord, emitsNoneOfUrn, emitsUrn, failsWithUrn, recordedAsUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
+import { currentWord, emitsNoneOfUrn, emitsUrn, failsWithUrn, timeOf, recordedAsUrn, rejectedByUrn, STEP_PHRASES } from '../gherkin/phrases.js';
 import { substitute } from './input-values.js';
 import type { Diagnostic, DiagnosticCode, Severity, SourceLocation } from '../diagnostics.js';
-import { valueField, type UniversalIR, type Urn } from '../ir/types.js';
+import { readsTime, valueField, type UniversalIR, type Urn } from '../ir/types.js';
 import { invariantsWithin, keyName } from './shapes.js';
 import { listBoundaries } from '../kinds/field-refs.js';
 import { boundaryCases } from '../primitives/index.js';
@@ -173,10 +173,20 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
       const states = new Set<string>();
       let hasCurrent = false;
       let hasCaller = false;
+      let hasTime = false;
       let expectsOtherwise = false;
       let runs: SourceLocation | undefined;
       for (const step of scenario.steps) {
         if (step.text === STEP_PHRASES.run) runs ??= step.location;
+        // `Given the time is "<timestamp>"`: the time of the call, a UTC timestamp.
+        const time = timeOf(step.text);
+        if (time !== undefined) {
+          hasTime = true;
+          if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$/.test(time) || Number.isNaN(Date.parse(time))) {
+            report('invalid-time', step.location, `"${time}" is not a UTC timestamp; write one such as 2026-11-22T18:00:00Z`, owner?.urn ?? '');
+          }
+          continue;
+        }
         // `Given the caller is:`: who calls, in a domain whose manifest names the caller.
         if (step.text === STEP_PHRASES.caller) {
           hasCaller = true;
@@ -303,6 +313,9 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
         if (!step.table) continue;
         checkHeader(step.table.header, owner);
         if (step.text === STEP_PHRASES.run) checkRequired(step.table, owner);
+      }
+      if (operation && readsTime(operation) && owner && runs && !hasTime) {
+        report('invalid-time', runs, `${owner.urn} has rules that read the time; give it with Given the time is "<timestamp>" before the operation runs`, owner.urn);
       }
       if (operation?.callers && owner && runs && !hasCaller) {
         report('invalid-caller', runs, `${owner.urn} states who may call it; give the caller with "Given the caller is:" before the operation runs`, owner.urn);

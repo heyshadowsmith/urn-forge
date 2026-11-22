@@ -16,7 +16,7 @@
  */
 import * as v from 'valibot';
 import type { IRChange, IREntity, IRError, IREvent, IRPropertyRef, MessagePart, UniversalIR, Urn } from '../ir/types.js';
-import { ERROR_CATEGORIES, invariantsOf, valueField } from '../ir/types.js';
+import { ERROR_CATEGORIES, invariantsOf, readsTime, valueField } from '../ir/types.js';
 import { conditionName, handlerName, ruleName, schemaNames } from '../naming.js';
 import { namesIn } from '../rules/index.js';
 import { PRIMITIVE_NAMES } from '../primitives/index.js';
@@ -115,15 +115,26 @@ export function executeOperation<U extends OperationUrn>(
 export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options?: ExecuteOptions): ExecuteResult;
 export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation, options: ExecuteOptions = {}): ExecuteResult {`;
 
+/** The time of the call, from the shell, for an operation whose rules read it. */
+const TIME = `  // The time of the call, from the shell: a UTC timestamp. An operation whose rules read it needs it.
+  const now = options.now;
+  if ('time' in contract && (typeof now !== 'string' || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$/.test(now) || Number.isNaN(Date.parse(now)))) {
+    return violation(\`\${urn} reads the time of the call: pass it as { now }, a UTC timestamp such as 2026-11-22T18:00:00Z\`);
+  }
+  const today = now?.slice(0, 10);
+`;
+
 /** The options of a domain with a caller or a read: the record, the caller, and the ids of events, as the domain uses them. */
-const accessSignatures = (record: boolean, caller: boolean, delivery: boolean) => `/** What the shell knows of the call, besides the payload. */
+const accessSignatures = (record: boolean, caller: boolean, delivery: boolean, time = false) => `/** What the shell knows of the call, besides the payload. */
 export interface ExecuteOptions {${record ? `
   /** For an operation that changes or reads a record: the record as it is stored now, or null when there is none. */
   readonly current?: unknown;` : ''}${caller ? `
   /** Who calls, as the shell authenticated them. */
   readonly caller?: unknown;` : ''}${delivery ? `
   /** For an event with a delivery: a new, unique id for each event. */
-  readonly newEventId?: () => string;` : ''}
+  readonly newEventId?: () => string;` : ''}${time ? `
+  /** For an operation whose rules read the time: the time of the call, a UTC timestamp such as 2026-11-22T18:00:00Z. */
+  readonly now?: string;` : ''}
 }
 
 export function executeOperation<U extends OperationUrn>(
@@ -141,7 +152,7 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
  * \`changes\` and the requires rules. The callers are checked before the state, so a caller who may
  * not call learns nothing of the record from another refusal.
  */
-const accessCall = (changes: boolean, reads: boolean, caller: boolean, conditions: boolean) => `  // The caller, the record, who may call, then the state: the handler runs only when each holds.${changes ? `
+const accessCall = (changes: boolean, reads: boolean, caller: boolean, conditions: boolean, time = false) => `${time ? TIME : ''}  // The caller, the record, who may call, then the state: the handler runs only when each holds.${changes ? `
   const change: ChangeContract | undefined = 'changes' in contract ? contract.changes : undefined;` : ''}${reads ? `
   const read: ReadContract | undefined = 'reads' in contract ? contract.reads : undefined;` : ''}
   const record = ${[...(changes ? ['change?.entity'] : []), ...(reads ? ['read?.entity'] : [])].join(' ?? ') || 'undefined'};
@@ -307,7 +318,7 @@ function callSnippet(changes: boolean, conditions: boolean): string {
 }
 
 /** The gatekeeper: the same for every manifest, plus the record of `changes` when an operation has one. */
-const shell = (changes: boolean, conditions = false, counts = false, delivery = false, reads = false, caller = false) => `// Shell gatekeeper
+const shell = (changes: boolean, conditions = false, counts = false, delivery = false, reads = false, caller = false, time = false) => `// Shell gatekeeper
 
 export type OperationUrn = keyof DomainCoreImplementation;
 
@@ -437,7 +448,7 @@ function renderMessage(parts: readonly MessagePart[], fields: unknown): string {
  * Parses the input, calls the handler with branded input, then parses and brands its
  * output, or its error when the error is one the operation declares.
  */
-${reads || caller ? accessSignatures(changes || reads, caller, delivery) : delivery ? deliverySignatures(changes) : changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
+${reads || caller || time ? accessSignatures(changes || reads, caller, delivery, time) : delivery ? deliverySignatures(changes) : changes ? CHANGE_SIGNATURES : PLAIN_SIGNATURES}
   if (!isOperationUrn(urn)) {
     return { ok: false, kind: 'UnknownOperation', urn, issues: [{ path: '', message: \`unknown operation \${urn}\` }] };
   }
@@ -451,7 +462,7 @@ ${reads || caller ? accessSignatures(changes || reads, caller, delivery) : deliv
 
   const handler: unknown = core[urn];
   if (typeof handler !== 'function') return violation(\`no handler for \${urn}\`);
-${reads || caller ? accessCall(changes, reads, caller, conditions || counts) : callSnippet(changes, conditions || counts)}
+${reads || caller || time ? accessCall(changes, reads, caller, conditions || counts, time) : callSnippet(changes, conditions || counts)}
   if (!isResult(result)) return violation(\`the handler for \${urn} did not return a Result; return ok(…) or fail(…)\`);
 
   // \`=== false\`, not \`!result.ok\`: without strictNullChecks, TypeScript narrows a union on
@@ -682,6 +693,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
 
     const anyChanges = operations.some((op) => op.changes !== undefined);
     const anyReads = operations.some((op) => op.reads !== undefined);
+    const anyTime = operations.some(readsTime);
     const anyCaller = ir.meta.caller !== undefined;
     const anyConditions = operations.some((op) => op.requires !== undefined || op.ensures !== undefined || op.exactly !== undefined) || anyCaller;
     const handlers = operations.map((op) => {
@@ -693,7 +705,9 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
         `export type ${handlerName(op.brandIdentifier)} = (`,
         `  input: s.${schemaNames(entity(op.input).brandIdentifier).output},`,
         // The record that the operation changes, as stored, after the runtime checked its state.
-        ...(op.changes || op.reads ? [`  current: s.${schemaNames(entity((op.changes ?? op.reads)!.entity).brandIdentifier).output},`] : []),
+        ...(op.changes || op.reads ? [`  current: s.${schemaNames(entity((op.changes ?? op.reads)!.entity).brandIdentifier).output},`] : readsTime(op) ? [`  current: undefined,`] : []),
+        // The time of the call, for an operation whose rules read it: the shell gives it.
+        ...(readsTime(op) ? [`  now: string,`] : []),
         `) => Result<s.${schemaNames(entity(op.output).brandIdentifier).input}, ${errorTypes.length > 0 ? errorTypes.join(' | ') : 'never'}${eventTypes.length > 0 ? `, ${eventTypes.join(' | ')}` : ''}>;`,
       ].join('\n');
     });
@@ -763,6 +777,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       ...(anyChanges ? [`  /** The record that the operation changes, when it changes one. */`, `  readonly changes?: ChangeContract;`] : []),
       ...(anyReads ? [`  /** The record that the operation reads, when it reads one. */`, `  readonly reads?: ReadContract;`] : []),
       ...(anyCaller ? [`  /** Who may call the operation. */`, `  readonly callers: CallersContract;`] : []),
+      ...(anyTime ? [`  /** The rules of the operation read the time of the call, so the shell must give it. */`, `  readonly time?: true;`] : []),
       ...(anyConditions
         ? [
             `  /** Rules that must hold before the handler runs, each with the error that answers when it does not. */`,
@@ -877,6 +892,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
               `    },`,
             ]
           : []),
+        ...(readsTime(op) ? [`    time: true,`] : []),
         ...(op.callers
           ? [
               op.callers.allow === 'any'
@@ -934,7 +950,13 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
       registry,
       `// Dispatch`,
       dispatch,
-      shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller).trimEnd(),
+      (anyTime
+        ? shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, true)
+            // The rules read the time of the call, and the handler gets it.
+            .replaceAll('{ input: input.output, current', '{ input: input.output, now, today, current')
+            .replace('result ??= handler(input.output, current);', 'result ??= handler(input.output, current, now);')
+        : shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller)
+      ).trimEnd(),
     ];
     return {
       artifacts: [{ relativePath: FCIS_RUNTIME_FILE, content: `${sections.join('\n\n')}\n` }],

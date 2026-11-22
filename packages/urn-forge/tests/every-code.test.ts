@@ -66,6 +66,7 @@ const strict = compile(source('tutorial/3-strict-coverage/domain.manifest.yaml')
 // States, over the states fixture: seating a booking needs its current record.
 const states = compile(source('tests/fixtures/states/domain.manifest.yaml')).ir!;
 const SEAT = '@urn:demo:states:booking:operation:seat_booking';
+const timed = compile(source('tests/fixtures/time/domain.manifest.yaml')).ir!;
 const callers = compile(source('tests/fixtures/callers/domain.manifest.yaml')).ir!;
 const SEAT_RUN = '    When I run the operation with:\n      | reference |\n      | KMPQXRTA |\n';
 const CURRENT = (state: string) => `    Given the current booking is:\n      | reference | state | party_size |\n      | KMPQXRTA | ${state} | 4 |\n`;
@@ -254,6 +255,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'uncovered-invariant': () => gate3(scenario(ISSUE_RUN, ISSUE), 'warn', insurance),
   'uncovered-state': () => gate3(scenario(CURRENT('confirmed') + SEAT_RUN, SEAT), 'warn', states),
   'invalid-current': () => gate3(scenario(SEAT_RUN, SEAT), 'warn', states),
+  'invalid-time': () => gate3(scenario('    When I run the operation with:\n      | resume_on |\n      | 2026-12-01 |\n', '@urn:demo:time:pause:operation:pause'), 'warn', timed),
   'invalid-caller': () =>
     gate3(scenario('    When I run the operation with:\n      | claim_id |\n      | CLM-0000000001 |\n', '@urn:demo:callers:claim:operation:check_claim_id'), 'warn', callers),
   'undeclared-event': () =>

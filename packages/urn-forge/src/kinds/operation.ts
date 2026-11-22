@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { Description, ShortKeyRef } from '../grammar.js';
 import type { IRCallers, IRChange, IREmitRule, IREntity, IRError, IREvent, IRField, IROperation, IRRead, IRRequire, IRRule, Urn } from '../ir/types.js';
-import { checkRule, namesIn, parseRule, printRule, stripColumns, type RuleField } from '../rules/index.js';
+import { checkRule, namesIn, parseRule, printRule, stripColumns, TIME_NAMES, type RuleField } from '../rules/index.js';
 import { ruleFields } from './invariant.js';
 import { defineKind } from './types.js';
 
@@ -164,7 +164,11 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
   const [input, output, record] = [entity(c.input), entity(c.output), c.record ? entity(c.record) : undefined];
   const callerEntity = c.caller ? entity(c.caller) : undefined;
   if (!input || !output) return undefined;
-  const before: Record<string, RuleField> = { ...ruleFields(input, node, 'input.'), ...(record ? ruleFields(record, node, 'current.') : {}) };
+  // The time of the call, which the shell gives: now, and its UTC date.
+  const time: Record<string, RuleField> = { now: { primitive: 'timestamp', required: true, many: false }, today: { primitive: 'date', required: true, many: false } };
+  // The values that fill a refusal: the request and the record, not the time.
+  const stored: Record<string, RuleField> = { ...ruleFields(input, node, 'input.'), ...(record ? ruleFields(record, node, 'current.') : {}) };
+  const before: Record<string, RuleField> = { ...stored, ...time };
   const after: Record<string, RuleField> = { ...before, ...ruleFields(output, node, 'output.') };
   // `event.`: the properties that every counted event has, with one primitive and count.
   const events = c.counted.map((item) => c.node('event', item.event) as IREvent | undefined);
@@ -194,7 +198,7 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
       else if (name.startsWith('output.') && kind === 'requires') fail('invalid-condition', `"${name}" reads the answer, which a requires rule runs before; use it in ensures`);
       else if (name.startsWith('event.') && kind !== 'ensures') fail('invalid-condition', `"${name}" reads the event, which only an ensures rule can`);
       else if (name.startsWith('event.') && !eventFields) fail('invalid-condition', `"${name}" reads the event, so each item of emits must have the form { event } or { event, when }`);
-      else if (!/^(input|current|output|event|caller)\./.test(name)) fail('invalid-condition', `"${name}" has no prefix; write input.${name}, current.${name} or output.${name}`);
+      else if (!/^(input|current|output|event|caller)\./.test(name) && !TIME_NAMES.includes(name)) fail('invalid-condition', `"${name}" has no prefix; write input.${name}, current.${name} or output.${name}`);
     }
     if (problems > before) return undefined;
     for (const problem of checkRule(parsed.expr, fields, 'the condition')) fail(problem.code, `${problem.message} (at column ${problem.column} of the rule)`);
@@ -220,9 +224,9 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
     const errorFields = ruleFields(error as unknown as IREntity, node);
     for (const [property, source] of Object.entries(fill)) {
       const target = Object.hasOwn(errorFields, property) ? errorFields[property] : undefined;
-      const from = Object.hasOwn(before, source) ? before[source] : undefined;
+      const from = Object.hasOwn(stored, source) ? stored[source] : undefined;
       if (!target) fail(`fill: "${property}" is not a property of ${error.urn} (properties: ${Object.keys(errorFields).join(', ')})`);
-      else if (!from) fail(`fill.${property}: "${source}" is not a value of the request or the record (values: ${Object.keys(before).join(', ')})`);
+      else if (!from) fail(`fill.${property}: "${source}" is not a value of the request or the record (values: ${Object.keys(stored).join(', ')})`);
       else if (from.primitive !== target.primitive || from.many !== target.many) fail(`fill.${property}: "${source}" is ${from.primitive}${from.many ? ' (a list)' : ''}, but ${property} is ${target.primitive}${target.many ? ' (a list)' : ''}`);
     }
     // The other properties are filled by name, from the request and the record.

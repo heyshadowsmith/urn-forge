@@ -4,7 +4,7 @@
  */
 import type { DiagnosticCode, ManifestPath, SourceLocation } from '../diagnostics.js';
 import type { ConstraintValue, Primitive } from '../primitives/index.js';
-import type { RuleExpr } from '../rules/index.js';
+import { namesIn, type RuleExpr } from '../rules/index.js';
 
 export type Urn = string & { readonly __urn: unique symbol };
 
@@ -218,6 +218,21 @@ export interface IROperation {
   /** Rules that the answer must keep; one that does not is a ContractViolation. */
   readonly ensures?: readonly IRRule[];
   readonly lifecycle?: Lifecycle;
+}
+
+/** Every rule of an operation: requires, ensures, the when of emits, and the rules of callers. */
+export function operationRules(op: IROperation): IRRule[] {
+  return [
+    ...(op.requires ?? []),
+    ...(op.ensures ?? []),
+    ...(op.exactly ?? []).flatMap((item) => (item.when ? [item.when] : [])),
+    ...(op.callers && op.callers.allow !== 'any' ? op.callers.allow : []),
+  ];
+}
+
+/** Whether a rule of the operation reads the time of the call (`now` or `today`): the shell must then give it. */
+export function readsTime(op: IROperation): boolean {
+  return operationRules(op).some((rule) => namesIn(rule.rule).some((name) => name === 'now' || name === 'today'));
 }
 
 /** A rule of a condition over `input.`, `current.` and `output.`, parsed, and as text. */
