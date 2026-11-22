@@ -1,4 +1,5 @@
-// A small subscriptions core. It holds no store: a few fixed ids stand for the stored records
+// A small subscriptions core. It holds no store. An operation that changes a subscription gets
+// the stored record from the shell; for the others, a few fixed ids stand for the stored records
 // that the scenarios need, and every other id is an active subscription.
 import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
 import { addDays, daysBetween } from 'urn-forge/exact';
@@ -82,12 +83,7 @@ export const core = {
     return ok({ subscriptions: all.filter((s) => status === undefined || s.status === status).map((s) => ({ ...s, customer_id })) });
   },
 
-  'urn:corpus:subscriptions:subscription:operation:change_plan': ({ subscription_id, plan_id, proration }) => {
-    if (subscription_id === MISSING) return fail('urn:corpus:subscriptions:subscription:error:not_found', { subscription_id });
-    if (subscription_id === CANCELED) {
-      return fail('urn:corpus:subscriptions:subscription:error:invalid_state_transition', { subscription_id, status: 'canceled' });
-    }
-    const current = subscription(subscription_id);
+  'urn:corpus:subscriptions:subscription:operation:change_plan': ({ subscription_id, plan_id, proration }, current) => {
     const next = planOf(plan_id);
     if (next.price.currency !== current.plan.price.currency) {
       return fail('urn:corpus:subscriptions:subscription:error:currency_mismatch', {
@@ -99,30 +95,18 @@ export const core = {
     return ok(changed, [emit('urn:corpus:subscriptions:subscription:event:updated', meta(subscription_id))]);
   },
 
-  'urn:corpus:subscriptions:subscription:operation:pause_subscription': ({ subscription_id, resume_on }) => {
-    if (subscription_id === MISSING) return fail('urn:corpus:subscriptions:subscription:error:not_found', { subscription_id });
-    const status = statusOf(subscription_id);
-    if (status !== 'active') return fail('urn:corpus:subscriptions:subscription:error:invalid_state_transition', { subscription_id, status });
-    const paused = { ...subscription(subscription_id, 'paused'), ...(resume_on ? { resume_on } : {}) };
+  'urn:corpus:subscriptions:subscription:operation:pause_subscription': ({ subscription_id, resume_on }, current) => {
+    const paused = { ...current, status: 'paused' as const, ...(resume_on ? { resume_on } : {}) };
     return ok(paused, [emit('urn:corpus:subscriptions:subscription:event:updated', meta(subscription_id))]);
   },
 
-  'urn:corpus:subscriptions:subscription:operation:resume_subscription': ({ subscription_id }) => {
-    if (subscription_id === MISSING) return fail('urn:corpus:subscriptions:subscription:error:not_found', { subscription_id });
-    const status = statusOf(subscription_id);
-    if (status !== 'paused') return fail('urn:corpus:subscriptions:subscription:error:invalid_state_transition', { subscription_id, status });
-    return ok(subscription(subscription_id), [emit('urn:corpus:subscriptions:subscription:event:updated', meta(subscription_id))]);
+  'urn:corpus:subscriptions:subscription:operation:resume_subscription': ({ subscription_id }, current) => {
+    const { resume_on: _resumed, ...rest } = current;
+    return ok({ ...rest, status: 'active' as const }, [emit('urn:corpus:subscriptions:subscription:event:updated', meta(subscription_id))]);
   },
 
-  'urn:corpus:subscriptions:subscription:operation:cancel_subscription': ({ subscription_id, cancel_mode }) => {
-    if (subscription_id === MISSING) return fail('urn:corpus:subscriptions:subscription:error:not_found', { subscription_id });
-    if (subscription_id === CANCELED) {
-      return fail('urn:corpus:subscriptions:subscription:error:invalid_state_transition', { subscription_id, status: 'canceled' });
-    }
-    const canceled =
-      cancel_mode === 'immediately'
-        ? subscription(subscription_id, 'canceled')
-        : { ...subscription(subscription_id, statusOf(subscription_id)), cancel_at: cancel_mode };
+  'urn:corpus:subscriptions:subscription:operation:cancel_subscription': ({ subscription_id, cancel_mode }, current) => {
+    const canceled = cancel_mode === 'immediately' ? { ...current, status: 'canceled' as const } : { ...current, cancel_at: cancel_mode };
     return ok(canceled, [emit('urn:corpus:subscriptions:subscription:event:canceled', meta(subscription_id))]);
   },
 

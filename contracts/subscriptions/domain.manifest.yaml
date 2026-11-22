@@ -95,6 +95,11 @@ subscription.field.trial_end:
 subscription.field.status:
   primitive: enum
   values: [trialing, active, past_due, paused, canceled, expired]
+  moves:
+    trialing: [active, past_due, paused, canceled, expired]
+    active: [trialing, past_due, paused, canceled, expired]
+    past_due: [trialing, active, paused, canceled, expired]
+    paused: [trialing, active, past_due, canceled, expired]
   description: The status of a subscription
 billing.field.period_start:
   primitive: timestamp
@@ -227,6 +232,10 @@ subscription.entity.cancel_request:
 invoice.field.status:
   primitive: enum
   values: [draft, open, paid, void, uncollectible]
+  moves:
+    draft: [open, paid, void, uncollectible]
+    open: [draft, paid, void, uncollectible]
+    uncollectible: [draft, open, paid, void]
   description: The status of an invoice
 invoice.field.line_quantity:
   primitive: integer
@@ -395,6 +404,11 @@ subscription.operation.change_plan:
   description: Move a subscription to a different plan of the same currency
   input: subscription.entity.change_plan_request
   output: subscription.entity.subscription
+  changes:
+    entity: subscription.entity.subscription
+    from: [trialing, active, past_due, paused]
+    otherwise: subscription.error.invalid_state_transition
+    missing: subscription.error.not_found
   errors:
     - subscription.error.not_found
     - subscription.error.currency_mismatch
@@ -405,6 +419,12 @@ subscription.operation.pause_subscription:
   description: Pause an active or trialing subscription
   input: subscription.entity.pause_request
   output: subscription.entity.subscription
+  changes:
+    entity: subscription.entity.subscription
+    from: [active, trialing]
+    to: paused
+    otherwise: subscription.error.invalid_state_transition
+    missing: subscription.error.not_found
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
@@ -414,6 +434,12 @@ subscription.operation.resume_subscription:
   description: Resume a paused subscription
   input: subscription.entity.resume_request
   output: subscription.entity.subscription
+  changes:
+    entity: subscription.entity.subscription
+    from: [paused]
+    to: active
+    otherwise: subscription.error.invalid_state_transition
+    missing: subscription.error.not_found
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
@@ -423,6 +449,12 @@ subscription.operation.cancel_subscription:
   description: Cancel a subscription now or at the end of its period
   input: subscription.entity.cancel_request
   output: subscription.entity.subscription
+  changes:
+    entity: subscription.entity.subscription
+    from: [trialing, active, past_due, paused]
+    to: [canceled, trialing, active, past_due, paused]
+    otherwise: subscription.error.invalid_state_transition
+    missing: subscription.error.not_found
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
