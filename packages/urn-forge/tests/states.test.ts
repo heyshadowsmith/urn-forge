@@ -4,6 +4,7 @@
  * changed or cancelled only while it is confirmed.
  */
 import { readFileSync } from 'node:fs';
+import { PGlite } from '@electric-sql/pglite';
 import { describe, expect, it } from 'vitest';
 import { compile } from '../src/engine.js';
 import type { Urn } from '../src/ir/types.js';
@@ -165,5 +166,45 @@ describe('gate 3 for the states target', () => {
     expect(gate3(`Feature: f\n${SEAT_COVERED}${extra}`).problems.filter((p) => p.code === 'unknown-header').map((p) => p.message)).toEqual([
       'table header "refund" is not a field key of urn:demo:states:booking:entity:booking (allowed: reference, state, party_size)',
     ]);
+  });
+});
+
+describe('the store of the states target, on PGlite', async () => {
+  const { insertBookingBooking, replaceBookingBookingFrom } = await import('./fixtures/states/expected/domain.store.generated.js');
+  const schema = readFileSync(new URL('./fixtures/states/expected/schema.generated.sql', import.meta.url), 'utf8');
+  type Statement = { readonly text: string; readonly values: readonly unknown[] };
+  type Booking = Parameters<typeof insertBookingBooking>[0];
+  const stored = (state: string) => ({ reference: 'KMPQXRTA', state, party_size: 4 }) as unknown as Booking;
+
+  /** A shell that runs one move in a transaction: it rolls back when the DELETE took no row. Gives that count. */
+  async function move(db: PGlite, statements: readonly Statement[]): Promise<number> {
+    await db.exec('BEGIN');
+    const [first, ...rest] = statements;
+    const deleted = (await db.query(first!.text, first!.values as unknown[])).affectedRows ?? 0;
+    if (deleted !== 1) {
+      await db.exec('ROLLBACK');
+      return deleted;
+    }
+    for (const { text, values } of rest) await db.query(text, values as unknown[]);
+    await db.exec('COMMIT');
+    return deleted;
+  }
+
+  it('moves a record from a state in from, and the second of two moves of one record deletes no row', async () => {
+    const db = new PGlite();
+    await db.exec(schema);
+    for (const { text, values } of insertBookingBooking(stored('confirmed'))) await db.query(text, values as unknown[]);
+    // Two shells loaded the confirmed booking: one seats it, then the other cancels it.
+    expect(await move(db, replaceBookingBookingFrom(stored('seated'), ['confirmed']))).toBe(1);
+    expect(await move(db, replaceBookingBookingFrom(stored('cancelled'), ['confirmed']))).toBe(0);
+    // A shell that does not check still cannot win: the INSERT finds the row of the first move.
+    await db.exec('BEGIN');
+    const statements = replaceBookingBookingFrom(stored('cancelled'), ['confirmed']);
+    await expect((async () => {
+      for (const { text, values } of statements) await db.query(text, values as unknown[]);
+    })()).rejects.toThrow(/duplicate key/);
+    await db.exec('ROLLBACK');
+    expect((await db.query('SELECT "state" FROM "booking"."booking"')).rows).toEqual([{ state: 'seated' }]);
+    await db.close();
   });
 });
