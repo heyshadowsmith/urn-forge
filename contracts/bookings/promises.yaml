@@ -81,12 +81,14 @@ promises:
     status: workaround
     by: [booking.operation.cancel_booking, booking.field.refund_amount]
     hole: E2
-  # The operation and its refusals are declared; "only staff" is who can call, and "from 15 minutes after the start" needs the current time (E2).
+  # "Only by restaurant staff" is declared: mark_no_show allows only a caller with role staff of the booking's restaurant,
+  # otherwise FORBIDDEN, and a guest is refused in a scenario. "From 15 minutes after its start time" needs the current
+  # time (E2); the core refuses earlier with INVALID_STATE.
   P16:
     promise: "A booking can be marked NO_SHOW only by restaurant staff and only from 15 minutes after its start time onward."
     status: workaround
-    by: [booking.operation.mark_no_show, booking.error.forbidden, booking.error.invalid_state]
-    hole: D2
+    by: [booking.operation.mark_no_show, auth.entity.caller, auth.field.role, booking.error.forbidden, booking.error.invalid_state]
+    hole: E2
   # The key and the refusal of a reused key are declared; that a repeat within 24 hours gives the first answer and no second booking or deposit is not.
   P17:
     promise: "Repeating a create request with the same idempotency key within 24 hours returns the original answer and booking reference without creating a second booking or charging a second deposit, and reusing a key with a different request body is refused with INVALID_REQUEST."
@@ -99,12 +101,21 @@ promises:
     status: workaround
     by: [booking.operation.cancel_booking]
     hole: C2
-  # FORBIDDEN is declared; who may read or act on which booking, and the proof a guest presents, are not.
+  # The caller is a guest or staff, with the restaurant of staff (auth.entity.caller). The stored booking holds the email
+  # and the phone of its contact, and a request on a booking (booking_ref, change_request) carries the reference and the
+  # email or the phone that a guest presents. get_booking reads the booking (reads), so each operation on a booking has
+  # it as current, and each states callers, otherwise FORBIDDEN, checked before the state and before the core:
+  # - get_booking, change_booking, cancel_booking allow a guest whose input.reference = current.reference and whose
+  #   presented email (or phone) is present and equals the stored one, or staff whose restaurant_id is present and
+  #   equals current.restaurant_id;
+  # - seat_booking, complete_booking, mark_no_show allow only that staff rule, so a guest only reads, changes or cancels.
+  # Scenarios show each rule alone, a guest with no, a wrong or another contact, a guest on a staff operation, staff of
+  # another restaurant and staff with no restaurant, all refused. create_booking makes a booking rather than acting on
+  # one, so it allows any caller. The core does not check the caller.
   P19:
     promise: "A guest can read, change or cancel only bookings whose reference and contact email or phone they present, while restaurant staff can read and act on any booking of their own restaurant and never on another restaurant's bookings."
-    status: workaround
-    by: [booking.error.forbidden]
-    hole: D2
+    status: declared
+    by: [auth.entity.caller, auth.field.role, booking.entity.booking, booking.entity.booking_ref, booking.entity.change_request, booking.operation.get_booking, booking.operation.change_booking, booking.operation.cancel_booking, booking.operation.seat_booking, booking.operation.complete_booking, booking.operation.mark_no_show, booking.error.forbidden]
   # Each changing operation lists its event as { event }, so a success publishes exactly one; cancel_booking only when
   # current.state = 'CONFIRMED' (a repeat changes nothing and publishes none). Each operation ensures the event carries the
   # reference, restaurant id, new state, party size, local date, time and time zone of the change (cancel_booking reads the

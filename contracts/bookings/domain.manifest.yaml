@@ -2,6 +2,7 @@ manifest:
   namespace: corpus
   domain: bookings
   version: 1.0.0
+  caller: auth.entity.caller
 
 # Values
 
@@ -101,6 +102,11 @@ guest.field.guest_id:
   format: uuid
   description: An opaque identifier of the guest, with no personal detail in it
 
+auth.field.role:
+  primitive: enum
+  values: [guest, staff]
+  description: Who calls, as the shell authenticated them; a guest presents the reference and the contact of a booking
+
 event.field.event_id:
   primitive: string
   format: uuid
@@ -110,6 +116,13 @@ event.field.occurred_at:
   description: When the change happened, in UTC
 
 # Entities
+
+auth.entity.caller:
+  description: Who calls, as the shell authenticated them; staff carry the restaurant they work for
+  fields:
+    - ref: auth.field.role
+    - ref: booking.field.restaurant_id
+      required: false
 
 guest.entity.contact:
   description: How the restaurant reaches the guest
@@ -184,16 +197,28 @@ booking.entity.booking:
     - ref: booking.field.duration_minutes
     - ref: booking.field.deposit_amount
       required: false
+    - ref: guest.field.email
+      required: false
+    - ref: guest.field.phone
+      required: false
 
 booking.entity.booking_ref:
-  description: The booking that a call is about
+  description: The booking that a call is about; a guest also presents the email or the phone of its contact
   fields:
     - ref: booking.field.reference
+    - ref: guest.field.email
+      required: false
+    - ref: guest.field.phone
+      required: false
 
 booking.entity.change_request:
-  description: A request to move a booking or change its party size
+  description: A request to move a booking or change its party size; a guest also presents the email or the phone of its contact
   fields:
     - ref: booking.field.reference
+    - ref: guest.field.email
+      required: false
+    - ref: guest.field.phone
+      required: false
     - ref: booking.field.local_date
       required: false
     - ref: booking.field.local_time
@@ -335,6 +360,9 @@ booking.operation.create_booking:
   description: Book a table
   input: booking.entity.create_request
   output: booking.entity.confirmation
+  # Any caller may book: P19 is about the bookings that exist.
+  callers:
+    allow: any
   requires:
     - rule: input.party_size < 13
       otherwise: booking.error.party_too_large_for_online
@@ -361,6 +389,15 @@ booking.operation.get_booking:
   description: Read a booking
   input: booking.entity.booking_ref
   output: booking.entity.booking
+  reads:
+    entity: booking.entity.booking
+    missing: booking.error.booking_not_found
+  callers:
+    allow:
+      - caller.role = 'guest' and input.reference = current.reference and input.email is present and current.email is present and input.email = current.email
+      - caller.role = 'guest' and input.reference = current.reference and input.phone is present and current.phone is present and input.phone = current.phone
+      - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
+    otherwise: booking.error.forbidden
   errors:
     - booking.error.booking_not_found
     - booking.error.forbidden
@@ -373,6 +410,12 @@ booking.operation.change_booking:
     from: [CONFIRMED]
     otherwise: booking.error.invalid_state
     missing: booking.error.booking_not_found
+  callers:
+    allow:
+      - caller.role = 'guest' and input.reference = current.reference and input.email is present and current.email is present and input.email = current.email
+      - caller.role = 'guest' and input.reference = current.reference and input.phone is present and current.phone is present and input.phone = current.phone
+      - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
+    otherwise: booking.error.forbidden
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state
@@ -398,6 +441,12 @@ booking.operation.cancel_booking:
     to: CANCELLED
     otherwise: booking.error.invalid_state
     missing: booking.error.booking_not_found
+  callers:
+    allow:
+      - caller.role = 'guest' and input.reference = current.reference and input.email is present and current.email is present and input.email = current.email
+      - caller.role = 'guest' and input.reference = current.reference and input.phone is present and current.phone is present and input.phone = current.phone
+      - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
+    otherwise: booking.error.forbidden
   ensures:
     - output.refund_amount = 0 or current.deposit_amount is present and output.refund_amount <= current.deposit_amount
     - event.reference = output.reference
@@ -427,6 +476,10 @@ booking.operation.seat_booking:
     to: SEATED
     otherwise: booking.error.invalid_state
     missing: booking.error.booking_not_found
+  callers:
+    allow:
+      - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
+    otherwise: booking.error.forbidden
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state
@@ -451,6 +504,10 @@ booking.operation.complete_booking:
     to: COMPLETED
     otherwise: booking.error.invalid_state
     missing: booking.error.booking_not_found
+  callers:
+    allow:
+      - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
+    otherwise: booking.error.forbidden
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state
@@ -475,6 +532,10 @@ booking.operation.mark_no_show:
     to: NO_SHOW
     otherwise: booking.error.invalid_state
     missing: booking.error.booking_not_found
+  callers:
+    allow:
+      - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
+    otherwise: booking.error.forbidden
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state
