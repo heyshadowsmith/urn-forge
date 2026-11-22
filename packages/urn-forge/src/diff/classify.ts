@@ -360,6 +360,12 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     for (const rule of requires(a).filter((r) => !requires(b!).includes(r))) compatible(urn, `the requires rule ${rule} is removed`);
     for (const rule of ensures(b!).filter((r) => !ensures(a).includes(r))) compatible(urn, `the new ensures rule ${rule}`);
     for (const rule of ensures(a).filter((r) => !ensures(b!).includes(r))) breaking(urn, `the ensures rule ${rule} is removed, which breaks callers that rely on it`);
+    // A rule of refuses is an ensures rule on a refusal: a new one promises more, a removed one less.
+    const refuses = (op: typeof a) => (op.refuses ?? []).flatMap((r) => r.ensures.map((rule) => `${rule.ruleText} (on ${r.error})`));
+    for (const rule of refuses(b!).filter((r) => !refuses(a).includes(r))) compatible(urn, `the new refuses rule ${rule}`);
+    for (const rule of refuses(a).filter((r) => !refuses(b!).includes(r))) breaking(urn, `the refuses rule ${rule} is removed, which breaks callers that rely on it`);
+    // rejects: which answer an input that does not parse gets. Callers handle that answer, so any change breaks them.
+    if (a.rejects !== b!.rejects) breaking(urn, `rejects ${a.rejects ?? 'none (InputRejected)'} → ${b!.rejects ?? 'none (InputRejected)'}: callers get another answer for an input that does not parse`);
     // Idempotency: callers rely on safe retries. Adding it, or a longer window, is safe; the rest is not.
     const once = (op: typeof a) => op.idempotency;
     const [ia, ib] = [once(a), once(b!)];
