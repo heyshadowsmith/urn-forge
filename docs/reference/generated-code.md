@@ -228,6 +228,8 @@ export type <Operation brand>Handler = (
 ) => Result<s.<Output entity brand>Input, <error types>[, <event types>]>;
 ```
 
+For an operation with `changes`, the handler has a second parameter, `current: s.<Entity brand>`: the stored record, parsed and branded.
+
 The input is parsed and branded. The output, the errors and the events are plain. The error type is the union of the declared errors, or `never`. The event type is the union of the events in `emits`. A handler is synchronous.
 
 ```ts
@@ -245,7 +247,8 @@ export type QuoteQuoteShippingHandler = (
 
 | Type | Properties |
 | --- | --- |
-| `OperationContract` | `input`, `output`: `EntityContract`. `errors`: `ErrorContract` by error URN. `events`: `EntityContract` by event URN |
+| `OperationContract` | `input`, `output`: `EntityContract`. `errors`: `ErrorContract` by error URN. `events`: `EntityContract` by event URN. `changes?`: `ChangeContract` |
+| `ChangeContract` | `entity`: `EntityContract` with `urn`. `property` (the state), `from`, `to?`, `otherwise`, `key?`, `answer` (the output is the changed record). Only in a domain with `changes` |
 | `EntityContract` | `schema`. `fields`: `PropertyInfo` by property name. `invariants?`: `InvariantInfo[]`, also those of embedded entities |
 | `ErrorContract` | `EntityContract`, and `category`, `retryable`, `message: MessagePart[]`, `recordAs?` |
 | `FieldInfo` | `urn` (for a link, the key field), `primitive`, `required`, `many?: true`, `link?` (the linked entity) |
@@ -266,6 +269,8 @@ export function executeOperation<U extends OperationUrn>(
 export function executeOperation(urn: string, rawPayload: unknown, core: DomainCoreImplementation): ExecuteResult;
 ```
 
+In a domain with `changes`, `executeOperation` has a fourth parameter, `options?: ExecuteOptions`, with `current`: the record that the operation changes, as the shell loaded it.
+
 | `ok` | `kind` | Other properties | Meaning |
 | --- | --- | --- | --- |
 | `true` | None | `urn`, `output`, `events` | Success. `output` and each event `{ urn, fields }` are parsed and branded |
@@ -285,9 +290,11 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
 | 1. Find the URN in `DispatchMap` | `UnknownOperation`: `unknown operation <urn>` |
 | 2. Parse the payload with the input schema | `InputRejected`. The handler is not called |
 | 3. Find `core[urn]` | `ContractViolation`: `no handler for <urn>` |
+| 3a. With `changes`: parse `current`, and examine its state | `ContractViolation` on `current`: `<urn> changes a record of <entity>: pass it as { current }`, or the parse issues. A state outside `from`: the `otherwise` error, filled from the record and the input, without a call of the handler |
 | 4. Call the handler | `ContractViolation`: `the handler for <urn> did not return a Result; return ok(…) or fail(…)` |
 | 5. For a failure: find the error in `errors`, parse it, and parse its `recordAs` event | `ContractViolation`: `<urn> failed with <kind>, which it does not declare`, or the parse issues. Else `DomainError` |
 | 6. For a success: parse the output, then each event | `ContractViolation`: the parse issues, `the handler for <urn> returned events that are not a list`, or `<urn> emitted <kind>, which it does not emit` |
+| 6a. With `changes`, when the output is the changed record: examine its state and key | `ContractViolation`: `the handler for <urn> answered <state property> "<value>", but the operation moves to "<to>"` (or `the state stays`), or `… answered <key> "<value>", but the record has "<value>"` |
 
 `executeOperation` does not catch an exception from the handler, and does not make sure that a link points at an object that exists.
 

@@ -6,6 +6,7 @@ The module `urn-forge/cucumber` has generic Cucumber steps for all domains. The 
 
 | Step text | Table | Passes if |
 | --- | --- | --- |
+| `the current <entity> is:` | Fields of the entity that the operation changes | The operation has `changes` on this entity. The record goes to `execute` as `{ current }` |
 | `I run the operation with:` | Input fields | Always. It calls `execute` and keeps the result |
 | `the output is:` | Output fields | The operation succeeded, and the output agrees with the table |
 | `the input is rejected on "<field>"` | None | The result is `InputRejected`, with an issue on the property or inside it |
@@ -18,9 +19,10 @@ The module `urn-forge/cucumber` has generic Cucumber steps for all domains. The 
 | `the refusal is recorded as "<event URN>"` | None | The result is a `DomainError` whose `record` is this event |
 | `the refusal is recorded as "<event URN>":` | Event fields | The same, and the record agrees with the table |
 
-- The first step is registered with `When`, the others with `Then`. Cucumber also matches `Given`, `And` and `But`.
+- `the current <entity> is:` is registered with `Given`, `I run the operation with:` with `When`, the others with `Then`. Cucumber also matches `Given`, `And` and `But`.
 - A quoted value can use double or single quotes.
 - `<field>` is a property of the input entity, not of an embedded entity.
+- `<entity>` is the identifier of the entity in `changes`, for example `booking`. Each scenario of an operation with `changes` gives the record before the operation runs. Refer to [Declare states and moves](../how-to/declare-states).
 - `<error URN>`, `<event URN>` and `<invariant URN>` are full URNs.
 - An issue of an invariant is on its `reportOn` property, else on the first field of its rule. Use `the input is rejected by` to name the rule.
 - `the operation emits` does not examine the count or the sequence of the events.
@@ -159,14 +161,14 @@ function registerOperationSteps(options: OperationStepsOptions): void;
 
 interface OperationStepsOptions {
   readonly dispatch: Readonly<Record<string, OperationContractLike>>;
-  readonly execute: (urn: string, payload: unknown) => ExecuteResultLike;
+  readonly execute: (urn: string, payload: unknown, options: { readonly current?: unknown }) => ExecuteResultLike;
 }
 ```
 
 | Option | Description |
 | --- | --- |
 | `dispatch` | The generated `DispatchMap` |
-| `execute` | The function that runs an operation, usually `executeOperation` with your core |
+| `execute` | The function that runs an operation, usually `executeOperation` with your core. `options.current` is the record of `the current <entity> is:`. A domain with `changes` passes `options` on: `executeOperation(urn, payload, core, options)` |
 
 Call it one time, in a support file that Cucumber loads. It registers one `Before` hook and the steps. The support file of tutorial 2:
 

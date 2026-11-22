@@ -30,7 +30,7 @@ For the JSON form, refer to [The CLI](./cli).
 
 These codes change their severity:
 
-- `uncovered-error`, `uncovered-event`, `uncovered-record`, `uncovered-invariant` and `uncovered-boundary`: the coverage mode. Refer to [Verification gates](./verification-gates).
+- `uncovered-error`, `uncovered-event`, `uncovered-record`, `uncovered-invariant`, `uncovered-state` and `uncovered-boundary`: the coverage mode. Refer to [Verification gates](./verification-gates).
 - `unenforced-in-sql`: the `unenforced` option of the `postgres` plugin.
 - `breaking-change`: `warning` if the old manifest has `stability: experimental`.
 
