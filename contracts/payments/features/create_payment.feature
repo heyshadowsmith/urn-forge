@@ -172,6 +172,72 @@ Feature: Create a payment
       | [{ quantity: 2, unit_amount: 2000 }, { quantity: 1, unit_amount: 1001 }] |
       | [{ quantity: 1, unit_amount: 5000 }, { quantity: 3, unit_amount: 0 }, { quantity: 1, unit_amount: 1 }] |
 
+  Scenario: A repeat with the same key and the same body within 24 hours gets the first answer, and creates no second payment
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    When I run the operation with:
+      | merchant_id | amount | currency | method        | idempotency_key | iban                   |
+      | mer_1       | 5000   | EUR      | bank_transfer | order-60        | DE89370400440532013000 |
+    And the time is "2026-11-23T09:59:59.999Z"
+    And I run the operation again with:
+      | merchant_id | amount | currency | method        | idempotency_key | iban                   |
+      | mer_1       | 5000   | EUR      | bank_transfer | order-60        | DE89370400440532013000 |
+    Then the answer is the first answer
+    And the operation emits no event
+
+  Scenario: A repeat with the same key and the same body after 24 hours creates a new payment
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    When I run the operation with:
+      | merchant_id | amount | currency | method        | idempotency_key | iban                   |
+      | mer_1       | 5000   | EUR      | bank_transfer | order-61        | DE89370400440532013000 |
+    And the time is "2026-11-23T10:00:00Z"
+    And I run the operation again with:
+      | merchant_id | amount | currency | method        | idempotency_key | iban                   |
+      | mer_1       | 5000   | EUR      | bank_transfer | order-61        | DE89370400440532013000 |
+    Then the operation emits "urn:corpus:payments:payment:event:pending":
+      | payment_id                   | merchant_id | new_status | occurred_at          |
+      | pay_new000000000000000000000 | mer_1       | pending    | 2026-11-23T10:00:00Z |
+
+  Scenario: The same key from another merchant is that merchant's own, and creates its payment
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    When I run the operation with:
+      | merchant_id | amount | currency | method        | idempotency_key | iban                   |
+      | mer_1       | 5000   | EUR      | bank_transfer | order-62        | DE89370400440532013000 |
+    And the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_2       |
+    And I run the operation again with:
+      | merchant_id | amount | currency | method        | idempotency_key | iban                   |
+      | mer_2       | 5000   | EUR      | bank_transfer | order-62        | DE89370400440532013000 |
+    Then the operation emits "urn:corpus:payments:payment:event:pending":
+      | payment_id                   | merchant_id | new_status | occurred_at          |
+      | pay_new000000000000000000000 | mer_2       | pending    | 2026-11-22T10:00:00Z |
+
+  Scenario: A repeat with a read-only key of the same merchant does not get the first answer: it is refused as not found
+    Given the time is "2026-11-22T10:00:00Z"
+    And the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    When I run the operation with:
+      | merchant_id | amount | currency | method        | idempotency_key | iban                   |
+      | mer_1       | 5000   | EUR      | bank_transfer | order-63        | DE89370400440532013000 |
+    And the caller is:
+      | key_kind  | merchant_id |
+      | read_only | mer_1       |
+    And I run the operation again with:
+      | merchant_id | amount | currency | method        | idempotency_key | iban                   |
+      | mer_1       | 5000   | EUR      | bank_transfer | order-63        | DE89370400440532013000 |
+    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
+    And the operation emits no event
+
   Scenario: An idempotency key that an earlier, different request used is refused
     Given the time is "2026-11-22T10:00:00Z"
     And the caller is:
@@ -180,9 +246,14 @@ Feature: Create a payment
     When I run the operation with:
       | merchant_id | amount | currency | method        | idempotency_key | iban                   |
       | mer_1       | 5000   | EUR      | bank_transfer | used-key        | DE89370400440532013000 |
+    And the time is "2026-11-23T09:59:59.999Z"
+    And I run the operation again with:
+      | merchant_id | amount | currency | method        | idempotency_key | iban                   |
+      | mer_1       | 5001   | EUR      | bank_transfer | used-key        | DE89370400440532013000 |
     Then the operation fails with "urn:corpus:payments:payment:error:idempotency_conflict":
       | idempotency_key |
       | used-key        |
+    And the operation emits no event
 
   Scenario Outline: A request that names a merchant other than the key's, known or unknown, or a read-only key is refused as not found
     Given the time is "2026-11-22T10:00:00Z"

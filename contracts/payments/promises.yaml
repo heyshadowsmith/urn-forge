@@ -79,13 +79,23 @@ promises:
     promise: "Only an authorized payment that has not been captured can be voided, and only a captured or partially refunded payment can be refunded."
     status: declared
     by: [payment.operation.void_payment, refund.operation.refund_payment, payment.field.status, payment.error.invalid_state]
-  # The key and the conflict refusal are declared. The stored answer for a repeated request,
-  # its 24 hours and the scope of one merchant are for the shell.
+  # Stated: create_payment and refund_payment, the two writes that create a payment or a refund,
+  # have idempotency: key input.idempotency_key, scope caller.merchant_id (with caller.key_kind,
+  # below), window 24 hours, otherwise idempotency_conflict. The Postgres plugin generates the
+  # answers table "idempotency"."payments" and runOnce: a repeat with the same key, merchant and
+  # body before 24 hours have passed gets the stored first answer and runs nothing (no second
+  # payment or refund, no event); the same key with another body is idempotency_conflict; the key
+  # of another merchant is another scope. The core keeps no keys. Scenarios show the repeat at
+  # 24 hours less a millisecond, the new call at 24 hours, the key of another merchant, and the
+  # conflict. The key kind is in the scope because runOnce answers before the callers are
+  # checked; only a secret key can succeed, so the merchant still has one scope for its writes,
+  # and a read-only key that repeats a write is still refused (P22). A refusal is not stored, so
+  # a repeat of a refused request runs again and is refused again on the same rules. The shell
+  # must call runOnce in the transaction of the call, as it must call insertEvents.
   P15:
     promise: "A second request with the same idempotency key and the same body from the same merchant within 24 hours returns the original answer without creating a second payment or refund, and one with the same key but a different body is refused as \"idempotency_conflict\"."
-    status: workaround
-    by: [payment.field.idempotency_key, payment.error.idempotency_conflict]
-    hole: C2
+    status: declared
+    by: [payment.operation.create_payment, refund.operation.refund_payment, payment.field.idempotency_key, payment.field.merchant_id, auth.entity.caller, payment.error.idempotency_conflict]
   # Every payment (and refund) carries exactly one, required merchant id. The manifest names the
   # caller (auth.entity.caller: the merchant and the kind of the API key that the shell
   # authenticated), and each operation has callers with otherwise: not_found. Create allows only

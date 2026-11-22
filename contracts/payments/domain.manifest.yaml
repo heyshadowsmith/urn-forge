@@ -451,6 +451,16 @@ payment.operation.create_payment:
   description: Create a payment and ask the buyer's bank to authorize it
   input: payment.entity.create_payment_request
   output: payment.entity.created_payment
+  # P15: a repeat with the same key from the same merchant within 24 hours gets the first answer,
+  # and no second payment or event; the same key with another body is idempotency_conflict.
+  # The kind of the key is in the scope too: only a secret key succeeds, so it is the merchant's
+  # one scope, and a repeat with a read-only key runs and is refused by callers (P22), as the
+  # first answer is found before the callers are checked.
+  idempotency:
+    key: input.idempotency_key
+    scope: [caller.merchant_id, caller.key_kind]
+    window: 24 hours
+    otherwise: payment.error.idempotency_conflict
   # Authentication (a valid key) is the shell's; who may call is here. A request that names a
   # merchant other than the one of the key is not found (P16): a key belongs to a known merchant.
   callers:
@@ -611,6 +621,16 @@ refund.operation.refund_payment:
   description: Give back a part or all of a captured payment
   input: refund.entity.refund_request
   output: refund.entity.refund
+  # P15: a repeat with the same key from the same merchant within 24 hours gets the first answer,
+  # and no second refund or event; the same key with another body is idempotency_conflict.
+  # The kind of the key is in the scope too: only a secret key succeeds, so it is the merchant's
+  # one scope, and a repeat with a read-only key runs and is refused by callers (P22), as the
+  # first answer is found before the callers are checked.
+  idempotency:
+    key: input.idempotency_key
+    scope: [caller.merchant_id, caller.key_kind]
+    window: 24 hours
+    otherwise: payment.error.idempotency_conflict
   changes:
     entity: payment.entity.payment
     from: [captured, partially_refunded]
