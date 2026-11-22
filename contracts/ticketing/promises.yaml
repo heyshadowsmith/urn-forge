@@ -46,7 +46,7 @@ promises:
     status: workaround
     by: [hold.operation.create_hold, hold.error.seat_unavailable, hold.error.section_sold_out, hold.error.limit_exceeded, hold.error.sales_closed]
     hole: A2
-  # The required fields and the three refusals are declared; "received after the expiry time" compares with the current time, and "no ticket is issued" is shown only as no event.
+  # The required fields and the three refusals are declared, and a hold that is not ACTIVE is refused with HOLD_EXPIRED before the handler runs; "received after the expiry time" of an ACTIVE hold compares with the current time, and "no ticket is issued" is shown only as no event.
   P09:
     promise: "A checkout request must carry the hold id and a payment reference, and is refused with HOLD_EXPIRED if received after the hold's expiry time, with HOLD_NOT_FOUND for an unknown hold, or with PAYMENT_DECLINED if the payment fails, in which case no ticket is issued."
     status: workaround
@@ -58,18 +58,18 @@ promises:
     status: workaround
     by: [order.operation.check_out, order.entity.order, order.field.order_id]
     hole: A1
-  # The states are an enum; the allowed transitions and the release of the seats are not stated.
+  # The moves and the final states are declared, and release and checkout start only from ACTIVE; that the seats of a hold that left ACTIVE are no longer held is a rule across the stored holds and tickets.
   P11:
     promise: "A hold moves only from ACTIVE to CONVERTED, RELEASED or EXPIRED, and once it leaves ACTIVE its seats are no longer held by it."
     status: workaround
-    by: [hold.field.hold_status]
-    hole: C3
-  # The states are an enum; the allowed transitions and the final states are not stated.
+    by: [hold.field.hold_status, hold.operation.release_hold, order.operation.check_out, hold.error.hold_not_active]
+    hole: C1
+  # P12 conflicts with P15 and P17 as written: accepting a transfer voids, and an event cancellation refunds, a
+  # TRANSFER_PENDING ticket, which P12 does not allow. The moves state P12 exactly; P15 and P17 keep their holes.
   P12:
     promise: "A ticket moves only from ISSUED to TRANSFER_PENDING, USED, REFUNDED or VOID, from TRANSFER_PENDING back to ISSUED, and no ticket ever leaves USED, REFUNDED or VOID."
-    status: workaround
-    by: [ticket.field.ticket_status]
-    hole: C3
+    status: declared
+    by: [ticket.field.ticket_status, transfer.operation.transfer_ticket, transfer.operation.cancel_transfer, ticket.error.invalid_ticket_state]
   # A rule across all stored holds and tickets of an event, and the capacity of a section.
   P13:
     promise: "At any moment a given seat of an event belongs to at most one active hold or one ISSUED, TRANSFER_PENDING or USED ticket, and a standing section never has more held and issued tickets than its stated capacity."
@@ -81,13 +81,13 @@ promises:
     status: workaround
     by: [request.field.idempotency_key]
     hole: C2
-  # The request and the new and void codes are declared; the 72 hours, "only an ISSUED ticket" (C3), "only the recipient" (D2) and "the same seat" (A2) are not.
+  # The request, "only an ISSUED ticket" and the new and void codes are declared; the 72 hours, "only the recipient" (D2) and "the same seat" (A2) are not.
   P15:
     promise: "A transfer names one ISSUED ticket and a recipient email address, may be accepted only by that recipient within 72 hours, and on acceptance the old ticket code becomes VOID and the recipient receives a new ticket code for the same seat."
     status: workaround
-    by: [transfer.operation.transfer_ticket, transfer.operation.accept_transfer, transfer.entity.transfer_request, transfer.field.recipient_email, transfer.field.accept_until, ticket.event.ticket_transferred]
+    by: [transfer.operation.transfer_ticket, transfer.operation.accept_transfer, transfer.entity.transfer_request, transfer.field.recipient_email, transfer.field.accept_until, ticket.event.ticket_transferred, ticket.error.invalid_ticket_state]
     hole: E3
-  # The refusal is declared; the refund at most the amount paid, and the states that refuse it (C3), are not stated.
+  # The refusal is declared; the refund at most the amount paid is not stated, and a refund names many tickets, so the states that refuse it cannot be a change of one stored ticket.
   P16:
     promise: "A refund is never more than the amount paid for the refunded tickets, and requesting a refund for a ticket that is USED, REFUNDED or VOID is refused with TICKET_NOT_REFUNDABLE."
     status: workaround
@@ -99,7 +99,7 @@ promises:
     status: workaround
     by: [show.operation.cancel_event, show.event.event_cancelled, ticket.event.ticket_refunded]
     hole: D4
-  # The four answers are an enum; "ADMIT exactly once, for an ISSUED ticket" depends on the state of the ticket.
+  # The four answers are an enum and the moves of a ticket are declared; "ADMIT exactly once, for an ISSUED ticket" answers the other states with a verdict, not with a refusal, so no change of the ticket states it.
   P18:
     promise: "Validating a ticket at entry answers ADMIT exactly once for an ISSUED ticket, and answers ALREADY_USED, NOT_VALID or WRONG_EVENT otherwise."
     status: workaround
