@@ -266,6 +266,57 @@
       "ruleText": "dt1 - 7 < dt2",
       "urn": "urn:demo:rules:r:invariant:date_minus_days"
     },
+    "urn:demo:rules:r:invariant:date_of_timestamp": {
+      "brandIdentifier": "RDateOfTimestamp",
+      "description": "date_of_timestamp",
+      "message": "date_of_timestamp does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "op": "date",
+          "value": {
+            "name": "t1",
+            "op": "field"
+          }
+        },
+        "op": "=",
+        "right": {
+          "name": "dt1",
+          "op": "field"
+        }
+      },
+      "ruleText": "date(t1) = dt1",
+      "urn": "urn:demo:rules:r:invariant:date_of_timestamp"
+    },
+    "urn:demo:rules:r:invariant:date_of_timestamp_plus_days": {
+      "brandIdentifier": "RDateOfTimestampPlusDays",
+      "description": "date_of_timestamp_plus_days",
+      "message": "date_of_timestamp_plus_days does not hold",
+      "on": "urn:demo:rules:r:entity:sample",
+      "rule": {
+        "left": {
+          "left": {
+            "op": "date",
+            "value": {
+              "name": "t1",
+              "op": "field"
+            }
+          },
+          "op": "+",
+          "right": {
+            "op": "number",
+            "value": "1"
+          }
+        },
+        "op": "=",
+        "right": {
+          "name": "dt2",
+          "op": "field"
+        }
+      },
+      "ruleText": "date(t1) + 1 = dt2",
+      "urn": "urn:demo:rules:r:invariant:date_of_timestamp_plus_days"
+    },
     "urn:demo:rules:r:invariant:date_plus_days": {
       "brandIdentifier": "RDatePlusDays",
       "description": "date_plus_days",
@@ -852,7 +903,7 @@
   "meta": {
     "domain": "rules",
     "irSchemaVersion": 1,
-    "manifestHash": "2634b37e19956b4447ac134fba1dc59323144850249aaff5fa8443f7fd2450e5",
+    "manifestHash": "82656c4a96d0ff8fa0fde362b26d99763891665048fe394bae64c86797205d41",
     "manifestVersion": "0.1.0",
     "namespace": "demo",
     "stability": "stable"

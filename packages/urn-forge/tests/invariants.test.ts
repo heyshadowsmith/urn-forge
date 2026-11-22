@@ -63,6 +63,8 @@ describe('the generated rule of each operator on each primitive (fixture: rules)
     'dt2 - dt1 >= 1': r.RDaysBetweenRule,
     'dt2 <= dt1 + i1': r.RDaysFromFieldRule,
     "dt1 - '2026-01-01' >= 0": r.RDaysBetweenLiteralRule,
+    'date(t1) = dt1': r.RDateOfTimestampRule,
+    'date(t1) + 1 = dt2': r.RDateOfTimestampPlusDaysRule,
     't1 < t2': r.RTsLtRule,
     't1 = t2': r.RTsEqRule,
     's1 != s2': r.RStrNeRule,

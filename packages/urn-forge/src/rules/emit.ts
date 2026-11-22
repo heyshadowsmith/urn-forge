@@ -66,6 +66,8 @@ export function emitRule(
         return `epochDay((${ref(e.name)} as string))`;
       case 'text':
         return `epochDay(${JSON.stringify(e.value)})`;
+      case 'date':
+        return `epochDay(${value(e, 'date')})`;
       case '+':
       case '-':
         return `(${days(e.left)} ${e.op} ${value(e.right, 'integer')})`;
@@ -94,6 +96,9 @@ export function emitRule(
         return JSON.stringify(e.value);
       case 'boolean':
         return String(e.value);
+      case 'date':
+        // The UTC date of a timestamp, as the text YYYY-MM-DD.
+        return `new Date(Date.parse(${value(e.value, 'timestamp')})).toISOString().slice(0, 10)`;
       case '+':
       case '-':
         // A timestamp ± a time: compared as instants, so its value here is the instant as text.
@@ -118,12 +123,7 @@ export function emitRule(
       case 'sum': {
         // The total over the items; an absent list adds up to 0.
         const list = `((${ref(e.list)} ?? []) as readonly any[])`;
-        const outer = primitiveOf;
-        primitiveOf = itemPrimitives(e, outer);
-        bound.add(e.item);
-        const item = value(e.value, primitive);
-        bound.delete(e.item);
-        primitiveOf = outer;
+        const item = overItems(e, () => value(e.value, primitive));
         if (primitive === 'decimal') {
           helpers.add('decimalArithmetic');
           return `${list}.reduce((total: string, ${e.item}) => addDecimal(total, ${item}), '0')`;
@@ -135,8 +135,25 @@ export function emitRule(
     }
   };
 
+  /** A rule inside a function over the items of a list: the item is a local name, with the primitives of the list's items. */
+  const overItems = <T,>(e: Extract<RuleExpr, { op: 'sum' | 'all' | 'any' }>, body: () => T): T => {
+    const outer = primitiveOf;
+    primitiveOf = itemPrimitives(e, outer);
+    bound.add(e.item);
+    const result = body();
+    bound.delete(e.item);
+    primitiveOf = outer;
+    return result;
+  };
+
   const condition = (e: RuleExpr): string => {
     switch (e.op) {
+      case 'all':
+      case 'any': {
+        // Every item, or one: an absent list has no item, so all holds and any does not.
+        const list = `((${ref(e.list)} ?? []) as readonly any[])`;
+        return `${list}.${e.op === 'all' ? 'every' : 'some'}((${e.item}) => ${overItems(e, () => condition(e.value))})`;
+      }
       case 'present':
         return `${ref(e.field)} !== undefined`;
       case 'absent':

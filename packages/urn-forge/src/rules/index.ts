@@ -8,7 +8,9 @@
  *   sum     := product (('+' | '-') product)*
  *   product := timed ('*' timed)*
  *   timed   := primary ('minutes' | 'hours' | 'days')?
- *   primary := '(' or ')' | total | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
+ *   primary := '(' or ')' | over | day | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
+ *   over    := ('sum' | 'all' | 'any') '(' name 'in' field ':' or ')'
+ *   day     := 'date' '(' sum ')'
  *
  * `parseRule` gives an AST whose nodes carry their column in the rule text; `stripColumns`
  * gives the form the IR keeps; `printRule` gives the canonical text. `checkRule` (pass 6)
@@ -24,6 +26,10 @@ export type TimeUnit = 'minutes' | 'hours' | 'days';
 export const TIME_UNITS: readonly TimeUnit[] = ['minutes', 'hours', 'days'];
 /** The milliseconds of one unit: exact, as a timestamp is UTC. */
 export const UNIT_MS: Readonly<Record<TimeUnit, number>> = { minutes: 60_000, hours: 3_600_000, days: 86_400_000 };
+/** A rule over the items of a list: `sum`, `all` and `any`. */
+export type OverItems = Extract<RuleExpr, { op: 'sum' | 'all' | 'any' }>;
+/** The words that start a function: a word of the language only before "(". */
+const FUNCTIONS = ['sum', 'all', 'any', 'date'];
 /** The time of the call, in a condition: `now` (a timestamp) and `today` (its UTC date). */
 export const TIME_NAMES: readonly string[] = ['now', 'today'];
 
@@ -35,8 +41,13 @@ export type RuleExpr =
   | { readonly op: 'boolean'; readonly value: boolean }
   | { readonly op: 'present' | 'absent'; readonly field: string }
   | { readonly op: 'not'; readonly operand: RuleExpr }
-  /** The total of `value` over the items of `list`; `item` names one item inside `value`. */
-  | { readonly op: 'sum'; readonly item: string; readonly list: string; readonly value: RuleExpr }
+  /**
+   * Over the items of `list`, with `item` naming one item inside `value`: the total of `value`
+   * (`sum`), or whether `value`, a condition, holds for every item (`all`) or for one (`any`).
+   */
+  | { readonly op: 'sum' | 'all' | 'any'; readonly item: string; readonly list: string; readonly value: RuleExpr }
+  /** The UTC date of a timestamp. */
+  | { readonly op: 'date'; readonly value: RuleExpr }
   /** A time: an integer of minutes, hours or days, on the right of `+` or `-` on a timestamp. */
   | { readonly op: 'duration'; readonly value: RuleExpr; readonly unit: TimeUnit }
   | { readonly op: 'and' | 'or' | Comparison | Arithmetic | '*'; readonly left: RuleExpr; readonly right: RuleExpr };
@@ -49,7 +60,8 @@ export type LocatedExpr = (
   | { readonly op: 'boolean'; readonly value: boolean }
   | { readonly op: 'present' | 'absent'; readonly field: string }
   | { readonly op: 'not'; readonly operand: LocatedExpr }
-  | { readonly op: 'sum'; readonly item: string; readonly list: string; readonly value: LocatedExpr }
+  | { readonly op: 'sum' | 'all' | 'any'; readonly item: string; readonly list: string; readonly value: LocatedExpr }
+  | { readonly op: 'date'; readonly value: LocatedExpr }
   | { readonly op: 'duration'; readonly value: LocatedExpr; readonly unit: TimeUnit }
   | { readonly op: 'and' | 'or' | Comparison | Arithmetic | '*'; readonly left: LocatedExpr; readonly right: LocatedExpr }
 ) & { readonly at: number };
@@ -209,8 +221,8 @@ export function parseRule(source: string): ParseResult {
       }
       return value;
     };
-    /** `sum(<item> in <list>: <value>)`; `sum` is a word of the language only before "(". */
-    const total = (at: number): LocatedExpr => {
+    /** `sum(<item> in <list>: <value>)`, `all(…: <condition>)` and `any(…: <condition>)`. */
+    const over = (op: 'sum' | 'all' | 'any', at: number): LocatedExpr => {
       take(); // (
       const item = peek();
       if (item.kind !== 'name' || KEYWORDS.has(item.text) || item.text.includes('.')) expected('a name for one item, such as "line"');
@@ -218,14 +230,22 @@ export function parseRule(source: string): ParseResult {
       if (!isWord('in')) expected('"in"');
       take();
       const list = peek();
-      if (list.kind !== 'name' || KEYWORDS.has(list.text)) expected('the list to add up');
+      if (list.kind !== 'name' || KEYWORDS.has(list.text)) expected(op === 'sum' ? 'the list to add up' : 'the list');
       take();
       if (!isSymbol(':')) expected('":"');
       take();
+      const value = op === 'sum' ? sum() : or();
+      if (!isSymbol(')')) expected('")"');
+      take();
+      return { op, item: item.text, list: list.text, value, at };
+    };
+    /** `date(<timestamp>)`. */
+    const day = (at: number): LocatedExpr => {
+      take(); // (
       const value = sum();
       if (!isSymbol(')')) expected('")"');
       take();
-      return { op: 'sum', item: item.text, list: list.text, value, at };
+      return { op: 'date', value, at };
     };
     const primary = (): LocatedExpr => {
       const t = peek();
@@ -244,9 +264,9 @@ export function parseRule(source: string): ParseResult {
       if (t.kind === 'number') return { op: 'number', value: take().text, at: t.at };
       if (t.kind === 'text') return { op: 'text', value: take().text, at: t.at };
       if (t.kind === 'name' && (t.text === 'true' || t.text === 'false')) return { op: 'boolean', value: take().text === 'true', at: t.at };
-      if (t.kind === 'name' && t.text === 'sum' && tokens[pos + 1]?.kind === 'symbol' && tokens[pos + 1]?.text === '(') {
+      if (t.kind === 'name' && FUNCTIONS.includes(t.text) && tokens[pos + 1]?.kind === 'symbol' && tokens[pos + 1]?.text === '(') {
         take();
-        return total(t.at);
+        return t.text === 'date' ? day(t.at) : over(t.text as 'sum' | 'all' | 'any', t.at);
       }
       if (t.kind === 'name' && !KEYWORDS.has(t.text)) {
         take();
@@ -285,7 +305,11 @@ export function stripColumns(expr: LocatedExpr): RuleExpr {
     case 'not':
       return { op: 'not', operand: stripColumns(expr.operand) };
     case 'sum':
-      return { op: 'sum', item: expr.item, list: expr.list, value: stripColumns(expr.value) };
+    case 'all':
+    case 'any':
+      return { op: expr.op, item: expr.item, list: expr.list, value: stripColumns(expr.value) };
+    case 'date':
+      return { op: 'date', value: stripColumns(expr.value) };
     case 'duration':
       return { op: 'duration', value: stripColumns(expr.value), unit: expr.unit };
     default:
@@ -341,7 +365,11 @@ export function printRule(expr: RuleExpr): string {
     case 'not':
       return `not ${wrap(expr.operand, 3)}`;
     case 'sum':
-      return `sum(${expr.item} in ${expr.list}: ${printRule(expr.value)})`;
+    case 'all':
+    case 'any':
+      return `${expr.op}(${expr.item} in ${expr.list}: ${printRule(expr.value)})`;
+    case 'date':
+      return `date(${printRule(expr.value)})`;
     case 'duration':
       return `${wrap(expr.value, 7)} ${expr.unit}`;
     default: {
@@ -629,6 +657,17 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
         }
         return { kind: 'value', primitive: kinds.includes('decimal') ? 'decimal' : 'integer' };
       }
+      case 'date': {
+        const t = value(e.value, present, 'date');
+        if (!t) return undefined;
+        if (t.kind !== 'value' || t.primitive !== 'timestamp') {
+          problem('rule-type', e.at, `date gives the date of a timestamp, not of ${article(t.kind === 'value' ? t.primitive : `${t.literal} literal`)}`);
+          return undefined;
+        }
+        return { kind: 'value', primitive: 'date' };
+      }
+      case 'all':
+      case 'any':
       case 'sum': {
         const list = Object.hasOwn(scope, e.list) ? scope[e.list] : undefined;
         if (!list) {
@@ -636,7 +675,7 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
           return undefined;
         }
         if (!list.many) {
-          problem('rule-type', e.at, `sum adds up the items of a list, and "${e.list}" is not a list`);
+          problem('rule-type', e.at, e.op === 'sum' ? `sum adds up the items of a list, and "${e.list}" is not a list` : `${e.op} reads the items of a list, and "${e.list}" is not a list`);
           return undefined;
         }
         if (Object.hasOwn(scope, e.item) || Object.keys(scope).some((n) => n.startsWith(`${e.item}.`))) {
@@ -649,6 +688,11 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
           : { [e.item]: { primitive: list.primitive, required: true, many: false, ...(list.values ? { values: list.values } : {}) } };
         const outer = scope;
         scope = { ...scope, ...itemFields };
+        if (e.op !== 'sum') {
+          condition(e.value, present, e.op);
+          scope = outer;
+          return { kind: 'condition' };
+        }
         const total = value(e.value, present, 'sum');
         scope = outer;
         if (!total) return undefined;
@@ -722,6 +766,7 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
 export function valueType(e: RuleExpr, primitiveOf: (field: string) => Primitive): Primitive | undefined {
   if (e.op === 'field') return primitiveOf(e.name);
   if (e.op === 'sum') return valueType(e.value, itemPrimitives(e, primitiveOf));
+  if (e.op === 'date') return 'date';
   if (e.op === '*') {
     const side = (x: RuleExpr) => (x.op === 'number' ? (x.value.includes('.') ? 'decimal' : 'integer') : valueType(x, primitiveOf));
     return side(e.left) === 'decimal' || side(e.right) === 'decimal' ? 'decimal' : 'integer';
@@ -738,7 +783,7 @@ export function valueType(e: RuleExpr, primitiveOf: (field: string) => Primitive
  * Inside a sum, the primitive of a name: the item's properties are the list's (`line.amount` is
  * `lines.amount`), and the item of a list of values is the list's value.
  */
-export function itemPrimitives(e: Extract<RuleExpr, { op: 'sum' }>, primitiveOf: (field: string) => Primitive): (field: string) => Primitive {
+export function itemPrimitives(e: OverItems, primitiveOf: (field: string) => Primitive): (field: string) => Primitive {
   return (name) => (name === e.item ? primitiveOf(e.list) : name.startsWith(`${e.item}.`) ? primitiveOf(`${e.list}.${name.slice(e.item.length + 1)}`) : primitiveOf(name));
 }
 
@@ -772,7 +817,12 @@ export function namesIn(expr: RuleExpr): string[] {
       case 'duration':
         visit(e.value);
         return;
-      case 'sum': {
+      case 'date':
+        visit(e.value);
+        return;
+      case 'sum':
+      case 'all':
+      case 'any': {
         // The list, and the names of the value that are not the item.
         names.push(e.list);
         const inner: string[] = [];
@@ -806,7 +856,11 @@ export function renameFields(expr: RuleExpr, rename: (name: string) => string): 
     case 'boolean':
       return expr;
     case 'sum':
-      return { op: 'sum', item: expr.item, list: rename(expr.list), value: renameFields(expr.value, (n) => (n === expr.item || n.startsWith(`${expr.item}.`) ? n : rename(n))) };
+    case 'all':
+    case 'any':
+      return { op: expr.op, item: expr.item, list: rename(expr.list), value: renameFields(expr.value, (n) => (n === expr.item || n.startsWith(`${expr.item}.`) ? n : rename(n))) };
+    case 'date':
+      return { op: 'date', value: renameFields(expr.value, rename) };
     case 'duration':
       return { op: 'duration', value: renameFields(expr.value, rename), unit: expr.unit };
     default:
@@ -829,7 +883,10 @@ export function firstField(expr: RuleExpr): string | undefined {
     case 'boolean':
       return undefined;
     case 'sum':
+    case 'all':
+    case 'any':
       return expr.list;
+    case 'date':
     case 'duration':
       return firstField(expr.value);
     default:
