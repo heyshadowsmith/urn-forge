@@ -32,12 +32,17 @@ promises:
     promise: "A create-booking request must contain the restaurant id, local date and time, party size, guest contact and a client-generated idempotency key of 16 to 64 characters."
     status: declared
     by: [booking.entity.create_request, booking.field.restaurant_id, booking.field.local_date, booking.field.local_time, booking.field.party_size, guest.entity.contact, booking.field.idempotency_key]
-  # The error is declared; the window of 2 hours to 90 days before the start needs the current time.
+  # The error is declared. The window is not, even with now: the start is a local date and time in the restaurant's
+  # IANA zone (P03), and a rule cannot turn a date, a local time and a zone into an instant, nor a timestamp into a date
+  # (D3). A UTC starts_at that the shell computes would let `now >= input.starts_at - 90 days and now <= input.starts_at
+  # - 2 hours` hold, but nothing would tie starts_at to local_date, local_time and time_zone, so a wrong starts_at would
+  # break the promise with every check green. A bound on local_date with today (e.g. local_date >= today + 2) is safe for
+  # any zone but refuses valid bookings, so it is not this window.
   P07:
     promise: "A booking can be made no earlier than 2 hours and no later than 90 days before its start time, and requests outside that window are refused with OUTSIDE_BOOKING_WINDOW."
     status: workaround
     by: [booking.error.outside_booking_window]
-    hole: E2
+    hole: D3
   # create_booking requires fewer than 7 guests or a deposit token, otherwise DEPOSIT_REQUIRED.
   P08:
     promise: "A party of 7 or more guests must include a deposit payment token in the request, otherwise the request is refused with DEPOSIT_REQUIRED."
@@ -69,26 +74,32 @@ promises:
     promise: "A booking is always in exactly one of the states CONFIRMED, SEATED, COMPLETED, CANCELLED or NO_SHOW, and the only allowed moves are CONFIRMED to SEATED, CANCELLED or NO_SHOW, and SEATED to COMPLETED; CANCELLED, COMPLETED and NO_SHOW are final."
     status: declared
     by: [booking.field.state, booking.operation.seat_booking, booking.operation.complete_booking, booking.operation.cancel_booking, booking.operation.mark_no_show]
-  # "Only while CONFIRMED" is declared: both operations change a booking from CONFIRMED only (cancel also accepts a repeat on a CANCELLED booking, P18), otherwise INVALID_STATE. "At least 2 hours before" needs the current time.
+  # "Only while CONFIRMED" is declared: both operations change a booking from CONFIRMED only (cancel also accepts a repeat on a CANCELLED booking, P18), otherwise INVALID_STATE. "At least 2 hours before" is not, even with now: the
+  # start is local to the restaurant's zone, and `now <= current.starts_at - 2 hours` on a stored UTC starts_at would hold
+  # on a value that no rule ties to local_date, local_time and time_zone (D3). The core converts the zone and refuses.
   P14:
     promise: "A guest may change the date, time or party size, or cancel, only while the booking is CONFIRMED and at least 2 hours before its start time, otherwise the request is refused with CHANGE_DEADLINE_PASSED or INVALID_STATE."
     status: workaround
     by: [booking.operation.change_booking, booking.operation.cancel_booking, booking.error.change_deadline_passed, booking.error.invalid_state]
-    hole: E2
-  # cancel_booking ensures the refund is zero or at most the stored deposit; full or nothing by 24 hours before the start needs the current time.
+    hole: D3
+  # cancel_booking ensures the refund is zero or at most the stored deposit. Full or nothing at 24 hours before the start
+  # is not declared, even with now: the start is local to the restaurant's zone, and an ensures on `now` against a stored
+  # UTC starts_at would hold on a value that no rule ties to local_date, local_time and time_zone (D3).
   P15:
     promise: "A cancellation made 24 hours or more before the start time refunds the full deposit, a later one refunds nothing, and a refund is never more than the deposit paid."
     status: workaround
     by: [booking.operation.cancel_booking, booking.field.refund_amount]
-    hole: E2
+    hole: D3
   # "Only by restaurant staff" is declared: mark_no_show allows only a caller with role staff of the booking's restaurant,
   # otherwise FORBIDDEN, and a guest is refused in a scenario. "From 15 minutes after its start time" needs the current
-  # time (E2); the core refuses earlier with INVALID_STATE.
+  # time and the start as an instant: the start is local to the restaurant's zone, and `now >= current.starts_at + 15
+  # minutes` on a stored UTC starts_at would hold on a value that no rule ties to local_date, local_time and time_zone
+  # (D3). The core converts the zone and refuses earlier with INVALID_STATE.
   P16:
     promise: "A booking can be marked NO_SHOW only by restaurant staff and only from 15 minutes after its start time onward."
     status: workaround
     by: [booking.operation.mark_no_show, auth.entity.caller, auth.field.role, booking.error.forbidden, booking.error.invalid_state]
-    hole: E2
+    hole: D3
   # The key and the refusal of a reused key are declared; that a repeat within 24 hours gives the first answer and no second booking or deposit is not.
   P17:
     promise: "Repeating a create request with the same idempotency key within 24 hours returns the original answer and booking reference without creating a second booking or charging a second deposit, and reusing a key with a different request body is refused with INVALID_REQUEST."
