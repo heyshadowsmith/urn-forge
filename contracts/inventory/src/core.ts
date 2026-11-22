@@ -58,12 +58,6 @@ export const core = {
   'urn:corpus:inventory:reservation:operation:reserve_stock': ({ idempotency_key, order_id, lines, ttl_minutes }) => {
     const refused = conflict(idempotency_key) ?? unknown(lines);
     if (refused) return refused;
-    const pairs = new Set(lines.map((line) => `${line.sku}@${line.location}`));
-    if (pairs.size < lines.length) {
-      return fail('urn:corpus:inventory:request:error:invalid_request', {
-        detail: 'a SKU and location appear on two lines',
-      });
-    }
     const short = lines.filter((line) => line.quantity > AVAILABLE);
     if (short.length > 0) {
       return fail('urn:corpus:inventory:stock:error:insufficient_stock', {

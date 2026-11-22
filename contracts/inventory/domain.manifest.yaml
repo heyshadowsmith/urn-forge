@@ -229,7 +229,7 @@ reservation.entity.reserve_request:
     - ref: reservation.field.order_id
     - ref: stock.entity.line
       as: lines
-      many: { minItems: 1, maxItems: 100 }
+      many: { minItems: 1, maxItems: 100, unique: [sku, location] }
     - ref: reservation.field.ttl_minutes
       required: false
 reservation.entity.reservation:
@@ -325,7 +325,6 @@ reservation.operation.reserve_stock:
   input: reservation.entity.reserve_request
   output: reservation.entity.reservation
   errors:
-    - request.error.invalid_request
     - stock.error.unknown_sku
     - stock.error.unknown_location
     - stock.error.insufficient_stock
