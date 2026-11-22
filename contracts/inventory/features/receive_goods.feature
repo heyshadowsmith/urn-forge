@@ -2,6 +2,12 @@
 @urn:corpus:inventory:receipt:operation:receive_goods
 Feature: Receive goods for a purchase order
 
+  # Only warehouse staff and the purchasing system may receive goods; the scenarios below run as warehouse staff.
+  Background:
+    Given the caller is:
+      | role            |
+      | warehouse_staff |
+
   Scenario: Receiving 1 of WIDGET-1 reports the new on-hand count of the line
     When I run the operation with:
       | idempotency_key | purchase_order_id | lines                                                  |
@@ -103,3 +109,31 @@ Feature: Receive goods for a purchase order
       | idempotency_key |
       | conflict-key    |
     And the operation emits no event
+
+  Scenario: The purchasing system may receive goods
+    Given the caller is:
+      | role              |
+      | purchasing_system |
+    When I run the operation with:
+      | idempotency_key | purchase_order_id | lines                                                  |
+      | rcv-0101        | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    Then the output is:
+      | purchase_order_id | lines                                                                                  |
+      | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, on_hand: 501, reserved: 100, available: 401 }] |
+
+  Scenario Outline: Any caller other than warehouse staff and the purchasing system is refused
+    Given the caller is:
+      | role                 |
+      | <role>               |
+    When I run the operation with:
+      | idempotency_key | purchase_order_id | lines                                                  |
+      | rcv-0102        | PO-1              | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 1 }] |
+    Then the operation fails with "urn:corpus:inventory:access:error:forbidden":
+      | role   |
+      | <role> |
+    And the operation emits no event
+
+    Examples:
+      | role                 |
+      | order_system         |
+      | warehouse_supervisor |
