@@ -3,7 +3,10 @@
 Feature: Refund a payment
 
   Scenario: A part of a captured payment is refunded, and the payment becomes partially refunded
-    Given the current payment is:
+    Given the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
       | payment_id                   | merchant_id | amount | currency | method | status             | captured_amount | refunded_amount | created_at           |
       | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured           | 5000            | 0               | 2026-11-22T10:00:00Z |
     When I run the operation with:
@@ -18,7 +21,10 @@ Feature: Refund a payment
     And the operation emits no "urn:corpus:payments:payment:event:refunded"
 
   Scenario: A part of what is left of a partially refunded payment is refunded, and the payment stays partially refunded
-    Given the current payment is:
+    Given the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
       | payment_id                   | merchant_id | amount | currency | method | status             | captured_amount | refunded_amount | created_at           |
       | pay_partiallyrefunded0000000 | mer_1       | 5000   | EUR      | card   | partially_refunded | 5000            | 2000            | 2026-11-22T10:00:00Z |
     When I run the operation with:
@@ -32,7 +38,10 @@ Feature: Refund a payment
       | pay_partiallyrefunded0000000 | mer_1       | 5000   | EUR      | partially_refunded | partially_refunded |
 
   Scenario: A refund of all of a captured payment makes the payment refunded
-    Given the current payment is:
+    Given the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
       | payment_id                   | merchant_id | amount | currency | method | status             | captured_amount | refunded_amount | created_at           |
       | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured           | 5000            | 0               | 2026-11-22T10:00:00Z |
     When I run the operation with:
@@ -47,7 +56,10 @@ Feature: Refund a payment
     And the operation emits no "urn:corpus:payments:payment:event:partially_refunded"
 
   Scenario: A refund of all that is left of a partially refunded payment makes the payment refunded
-    Given the current payment is:
+    Given the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
       | payment_id                   | merchant_id | amount | currency | method | status             | captured_amount | refunded_amount | created_at           |
       | pay_partiallyrefunded0000000 | mer_1       | 5000   | EUR      | card   | partially_refunded | 5000            | 2000            | 2026-11-22T10:00:00Z |
     When I run the operation with:
@@ -61,7 +73,10 @@ Feature: Refund a payment
       | pay_partiallyrefunded0000000 | partially_refunded | refunded   |
 
   Scenario Outline: A refund that would take more than the captured amount is refused
-    Given the current payment is:
+    Given the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
       | payment_id                   | merchant_id | amount | currency | method | status             | captured_amount | refunded_amount | created_at           |
       | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured           | 5000            | 0               | 2026-11-22T10:00:00Z |
     When I run the operation with:
@@ -78,7 +93,10 @@ Feature: Refund a payment
       | 99999999 |
 
   Scenario: A refund that would take more than is left of a partially refunded payment is refused
-    Given the current payment is:
+    Given the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
       | payment_id                   | merchant_id | amount | currency | method | status             | captured_amount | refunded_amount | created_at           |
       | pay_partiallyrefunded0000000 | mer_1       | 5000   | EUR      | card   | partially_refunded | 5000            | 2000            | 2026-11-22T10:00:00Z |
     When I run the operation with:
@@ -90,7 +108,10 @@ Feature: Refund a payment
     And the operation emits no event
 
   Scenario Outline: A request with a value out of its limits is rejected on that value
-    Given the current payment is:
+    Given the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
       | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           |
       | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z |
     When I run the operation with:
@@ -108,7 +129,10 @@ Feature: Refund a payment
       | idempotency_key | pay_captured0000000000000000 | 1         | ="a\u0007b"      |
 
   Scenario Outline: A payment that is not captured cannot be refunded
-    Given the current payment is:
+    Given the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
       | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           |
       | pay_payment00000000000000000 | mer_1       | 5000   | EUR      | card   | <status> | 0               | 0               | 2026-11-22T10:00:00Z |
     When I run the operation with:
@@ -126,7 +150,10 @@ Feature: Refund a payment
       | voided     |
 
   Scenario: A payment refunded in full cannot be refunded again
-    Given the current payment is:
+    Given the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
       | payment_id                   | merchant_id | amount | currency | method | status             | captured_amount | refunded_amount | created_at           |
       | pay_payment00000000000000000 | mer_1       | 5000   | EUR      | card   | refunded           | 5000            | 5000            | 2026-11-22T10:00:00Z |
     When I run the operation with:
@@ -138,7 +165,10 @@ Feature: Refund a payment
     And the operation emits no event
 
   Scenario: A payment captured more than 180 days ago can no longer be refunded
-    Given the current payment is:
+    Given the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
       | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           |
       | pay_capturedlongago000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z |
     When I run the operation with:
@@ -147,7 +177,10 @@ Feature: Refund a payment
     Then the operation fails with "urn:corpus:payments:refund:error:refund_window_closed"
 
   Scenario: An idempotency key that an earlier, different request used is refused
-    Given the current payment is:
+    Given the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And the current payment is:
       | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           |
       | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z |
     When I run the operation with:
@@ -157,17 +190,55 @@ Feature: Refund a payment
       | idempotency_key |
       | used-key        |
 
+  Scenario Outline: A key of another merchant, or a read-only key, is refused as not found
+    Given the caller is:
+      | key_kind   | merchant_id   |
+      | <key_kind> | <merchant_id> |
+    And the current payment is:
+      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           |
+      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z |
+    When I run the operation with:
+      | merchant_id | payment_id                   | amount | idempotency_key |
+      | mer_1       | pay_captured0000000000000000 | 100    | refund-6        |
+    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
+    And the operation emits no event
+
+    Examples:
+      | key_kind  | merchant_id |
+      | secret    | mer_2       |
+      | read_only | mer_1       |
+
   Scenario: A payment of another merchant is not found
-    Given the current payment is:
+    Given the caller is:
+      | key_kind   | merchant_id   |
+      | secret     | mer_2         |
+    And the current payment is:
       | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           |
       | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z |
     When I run the operation with:
       | merchant_id | payment_id                   | amount | idempotency_key |
       | mer_2       | pay_captured0000000000000000 | 100    | refund-6        |
     Then the operation fails with "urn:corpus:payments:payment:error:not_found"
+    And the operation emits no event
+
+  Scenario: A request that names a merchant other than the one of the key is not found
+    Given the caller is:
+      | key_kind   | merchant_id   |
+      | secret     | mer_1         |
+    And the current payment is:
+      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           |
+      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z |
+    When I run the operation with:
+      | merchant_id | payment_id                   | amount | idempotency_key |
+      | mer_2       | pay_captured0000000000000000 | 100    | refund-6        |
+    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
+    And the operation emits no event
 
   Scenario: An unknown payment is not found
-    Given there is no current payment
+    Given the caller is:
+      | key_kind | merchant_id |
+      | secret   | mer_1       |
+    And there is no current payment
     When I run the operation with:
       | merchant_id | payment_id                   | amount | idempotency_key |
       | mer_1       | pay_unknown00000000000000000 | 100    | refund-7        |

@@ -2,6 +2,7 @@ manifest:
   namespace: corpus
   domain: payments
   version: 1.0.0
+  caller: auth.entity.caller
 
 # Values
 
@@ -123,7 +124,18 @@ card.field.last4:
   regex: '[0-9]{4}'
   description: The last 4 digits of a card number
 
+auth.field.key_kind:
+  primitive: enum
+  values: [secret, read_only]
+  description: The kind of the API key that the caller presented, a secret key or a read-only key
+
 # Shapes
+
+auth.entity.caller:
+  description: Who calls, as the shell authenticated them from their API key; a key belongs to one merchant
+  fields:
+    - ref: auth.field.key_kind
+    - ref: payment.field.merchant_id
 
 card.entity.card_details:
   description: The details of a card that pays
@@ -409,6 +421,12 @@ payment.operation.create_payment:
   description: Create a payment and ask the buyer's bank to authorize it
   input: payment.entity.create_payment_request
   output: payment.entity.created_payment
+  # Authentication (a valid key) is the shell's; who may call is here. A request that names a
+  # merchant other than the one of the key is not found (P16): a key belongs to a known merchant.
+  callers:
+    allow:
+      - caller.key_kind = 'secret' and caller.merchant_id = input.merchant_id
+    otherwise: payment.error.not_found
   requires:
     - rule: 'input.line_items is absent or input.amount = sum(item in input.line_items: item.quantity * item.unit_amount)'
       otherwise: payment.error.invalid_request
@@ -443,6 +461,12 @@ payment.operation.capture_payment:
     to: captured
     otherwise: payment.error.invalid_state
     missing: payment.error.not_found
+  # Authentication (a valid key) is the shell's; who may call is here. A payment of another
+  # merchant, or a request that names a merchant other than the key's, is not found (P16).
+  callers:
+    allow:
+      - caller.key_kind = 'secret' and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
+    otherwise: payment.error.not_found
   requires:
     - rule: input.amount is absent or input.amount <= current.amount
       otherwise: payment.error.capture_exceeds_authorized
@@ -473,6 +497,12 @@ payment.operation.void_payment:
     to: voided
     otherwise: payment.error.invalid_state
     missing: payment.error.not_found
+  # Authentication (a valid key) is the shell's; who may call is here. A payment of another
+  # merchant, or a request that names a merchant other than the key's, is not found (P16).
+  callers:
+    allow:
+      - caller.key_kind = 'secret' and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
+    otherwise: payment.error.not_found
   ensures:
     - event.payment_id = output.payment_id
     - event.merchant_id = current.merchant_id
@@ -489,6 +519,15 @@ payment.operation.get_payment:
   description: Read a payment by its id
   input: payment.entity.payment_lookup
   output: payment.entity.payment
+  reads:
+    entity: payment.entity.payment
+    missing: payment.error.not_found
+  # Authentication (a valid key) is the shell's; who may call is here. A payment of another
+  # merchant, or a request that names a merchant other than the key's, is not found (P16).
+  callers:
+    allow:
+      - caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
+    otherwise: payment.error.not_found
   errors:
     - payment.error.not_found
 refund.operation.refund_payment:
@@ -501,6 +540,12 @@ refund.operation.refund_payment:
     to: [partially_refunded, refunded]
     otherwise: payment.error.invalid_state
     missing: payment.error.not_found
+  # Authentication (a valid key) is the shell's; who may call is here. A payment of another
+  # merchant, or a request that names a merchant other than the key's, is not found (P16).
+  callers:
+    allow:
+      - caller.key_kind = 'secret' and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
+    otherwise: payment.error.not_found
   requires:
     - rule: current.refunded_amount + input.amount <= current.captured_amount
       otherwise: refund.error.amount_exceeds_captured
@@ -532,5 +577,14 @@ refund.operation.get_refund:
   description: Read a refund by its id
   input: refund.entity.refund_lookup
   output: refund.entity.refund
+  reads:
+    entity: refund.entity.refund
+    missing: payment.error.not_found
+  # Authentication (a valid key) is the shell's; who may call is here. A refund of another
+  # merchant, or a request that names a merchant other than the key's, is not found (P16).
+  callers:
+    allow:
+      - caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
+    otherwise: payment.error.not_found
   errors:
     - payment.error.not_found
