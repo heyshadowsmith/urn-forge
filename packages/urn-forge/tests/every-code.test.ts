@@ -199,6 +199,7 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
   'brand-assertion': () => shell("import type { ParcelWeightGrams } from './src/generated/domain.schemas.generated';\nexport const w = 1 as ParcelWeightGrams;\n"),
   'brand-from-any': () => shell("import type { ParcelWeightGrams } from './src/generated/domain.schemas.generated';\nexport const w: ParcelWeightGrams = JSON.parse('1');\n"),
   'suppressed-check': () => shell('// @ts-ignore\nexport const n: number = 1;\n'),
+  'shell-not-found': () => project({ shellPaths: [at('src/shel.ts')] }),
   'core-parser-import': () =>
     project({ corePath: at('parser.ts') }, () => writeFile(at('parser.ts'), "import { ParcelWeightGramsSchema } from './src/generated/domain.schemas.generated';\nexport const s = ParcelWeightGramsSchema;\n"), () => rm(at('parser.ts'))),
   // Gate 3

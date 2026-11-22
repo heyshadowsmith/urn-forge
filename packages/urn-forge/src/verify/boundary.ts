@@ -69,11 +69,20 @@ export function checkBoundary(context: GateContext): GateOutcome {
   const ours = (file: ts.SourceFile) => !file.isDeclarationFile && !file.fileName.includes(`${sep}node_modules${sep}`) && !resolve(file.fileName).startsWith(generatedDir);
   const coreFiles = new Set(coreProgram.getSourceFiles().filter((f) => ours(f) && resolve(f.fileName).startsWith(coreDir)).map((f) => resolve(f.fileName)));
   const shellFiles = new Set((context.shellPaths ?? []).flatMap(sourcesUnder).filter((f) => !coreFiles.has(f) && !f.startsWith(generatedDir)));
+  // A shell path that matches no source file turns gate 2 off for it in silence, as a typo does (fourth blind trial).
+  const unmatched: Diagnostic[] = (context.shellPaths ?? [])
+    .filter((path) => sourcesUnder(path).length === 0)
+    .map((path) => ({
+      code: 'shell-not-found',
+      severity: 'warning',
+      file: show(path),
+      message: existsSync(path) ? 'the shell path has no TypeScript file, so gate 2 examines nothing here' : 'the shell path does not exist, so gate 2 examines nothing here; correct the path in shell',
+    }));
 
   // One program for both sets, built on gate 1's, so the core files are not checked twice.
   const program = shellFiles.size === 0 ? coreProgram : ts.createProgram([...coreProgram.getRootFileNames(), ...shellFiles], coreProgram.getCompilerOptions(), undefined, coreProgram);
   const checker = program.getTypeChecker();
-  const problems: Diagnostic[] = [];
+  const problems: Diagnostic[] = [...unmatched];
 
   for (const fileName of [...coreFiles, ...shellFiles]) {
     const source = program.getSourceFile(fileName);

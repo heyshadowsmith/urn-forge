@@ -156,6 +156,7 @@ For example, `PolicyLimit` carries a brand. `PolicyLimit[]` and `PolicyPolicy`, 
 | Type assertions | No type assertion, `x as T` or `<T>x`, has a target type that carries a brand. `as const` is permitted. An assertion to a type with no brand is permitted. For `x as unknown as T`, the gate gives one problem, for the outer assertion | `brand-assertion` | Core and shell |
 | Values of type `any` | No expression of type `any` is in a place whose type carries a brand. Such a place is a variable with a type annotation, a return, an argument or a property | `brand-from-any` | Core and shell |
 | Suppressed checks | No comment has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` after `//` or `/*`. Only comments count: the same text in a string is not a problem | `suppressed-check` | Core and shell |
+| Shell paths | Each item of the `shell` setting matches one TypeScript file or more. This is a warning: the gate passes | `shell-not-found` | Shell |
 | Parser imports | No import declaration imports the generated schemas module or `valibot` as a value. `import type` is permitted. An import in which each name has `type` is permitted. An import with no names, for example `import 'valibot'`, is permitted | `core-parser-import` | Core only |
 
 All four codes have the severity `error`. There is no waiver for gate 2. For the messages, refer to [Diagnostics](./diagnostics).
@@ -178,6 +179,7 @@ The shell can import the generated schemas and `valibot` as values, because the 
 | `brand-assertion` | The core or shell file | The start of the assertion expression |
 | `brand-from-any` | The core or shell file | The start of the expression of type `any`. For a property of an object literal, the problem is at the value, one time |
 | `suppressed-check` | The core or shell file | The `//` or `/*` of the comment |
+| `shell-not-found` | The path of the item, from the current directory | None |
 | `core-parser-import` | The core file | The `import` keyword |
 
 The gate examines the core files first, then the shell files. In each file, the `suppressed-check` problems come first. The other problems follow in the sequence of the text.

@@ -98,3 +98,30 @@ describe('found while the docs were written', () => {
     expect(result.gates.flatMap((g) => g.problems).map((p) => p.code)).toEqual(['brand-from-any']);
   }, 60_000);
 });
+
+describe('a shell path that matches no file (fourth blind trial)', async () => {
+  const { checkBoundary } = await import('../src/verify/boundary.js');
+  const { mkdtemp, mkdir, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  it('warns for a path that does not exist and for a folder with no TypeScript file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'urn-forge-shell-'));
+    try {
+      await mkdir(join(dir, 'empty'));
+      const repo = (p: string) => new URL(`../${p}`, import.meta.url).pathname;
+      const outcome = checkBoundary({
+        cwd: dir,
+        corePath: repo('tutorial/1-first-domain/src/core.ts'),
+        outDir: repo('tutorial/1-first-domain/src/generated'),
+        tsconfigPath: repo('tutorial/1-first-domain/tsconfig.json'),
+        shellPaths: [join(dir, 'src/nope.ts'), join(dir, 'empty')],
+      } as never);
+      expect(outcome.problems.map((p) => `${p.severity} ${p.code} ${p.file}: ${p.message}`)).toEqual([
+        'warning shell-not-found src/nope.ts: the shell path does not exist, so gate 2 examines nothing here; correct the path in shell',
+        'warning shell-not-found empty: the shell path has no TypeScript file, so gate 2 examines nothing here',
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

@@ -77,6 +77,7 @@ export const DIAGNOSTIC_CODES = {
   'brand-assertion': 'A type assertion makes a branded type without a parse',
   'brand-from-any': 'A value of type any is used where a branded type belongs',
   'suppressed-check': 'A @ts-ignore, @ts-expect-error or @ts-nocheck comment turns off a type check in a core or shell file',
+  'shell-not-found': 'A path in the shell setting matches no TypeScript file, so gate 2 examines nothing there (a warning)',
   'core-parser-import': 'A core file imports the generated schemas or valibot as a value',
   // Gate 3: Gherkin traceability
   'features-unreadable': 'The features directory cannot be read',
