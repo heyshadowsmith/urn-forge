@@ -151,6 +151,21 @@ export interface OperationContract {
   readonly events: Readonly<Record<string, EntityContract>>;
   /** The record that the operation changes, when it changes one. */
   readonly changes?: ChangeContract;
+  /** Rules that must hold before the handler runs, each with the error that answers when it does not. */
+  readonly requires?: readonly RequireInfo[];
+  /** Rules that the answer must keep. */
+  readonly ensures?: readonly ConditionInfo[];
+}
+
+/** A rule of a condition: its text, and the generated function that checks it. */
+export interface ConditionInfo {
+  readonly text: string;
+  readonly check: (values: never) => boolean;
+}
+
+export interface RequireInfo extends ConditionInfo {
+  /** The declared error that answers when the rule does not hold. */
+  readonly otherwise: string;
 }
 
 /** The record that an operation changes, and the move it makes. */
@@ -212,6 +227,10 @@ export const DispatchMap = {
       },
     },
     events: {},
+    requires: [
+      { text: 'input.party_size < 13', check: s.BookingCreateBookingRequires1, otherwise: 'urn:demo:conditions:booking:error:party_too_large_for_online' },
+      { text: 'input.party_size < 7 or input.deposit_token is present', check: s.BookingCreateBookingRequires2, otherwise: 'urn:demo:conditions:booking:error:deposit_required' },
+    ],
   },
   'urn:demo:conditions:claim:operation:submit_claim': {
     input: {
@@ -271,6 +290,12 @@ export const DispatchMap = {
       answerState: 'state',
       answerKey: 'claim_id',
     },
+    requires: [
+      { text: 'input.version = current.version', check: s.ClaimSubmitClaimRequires1, otherwise: 'urn:demo:conditions:claim:error:version_conflict' },
+    ],
+    ensures: [
+      { text: 'output.version = input.version + 1', check: s.ClaimSubmitClaimEnsures1 },
+    ],
   },
   'urn:demo:conditions:payment:operation:refund_payment': {
     input: {
@@ -332,6 +357,12 @@ export const DispatchMap = {
       answerState: 'status',
       answerKey: 'payment_id',
     },
+    requires: [
+      { text: 'current.refunded_amount + input.amount <= current.captured_amount', check: s.PaymentRefundPaymentRequires1, otherwise: 'urn:demo:conditions:payment:error:amount_exceeds_captured' },
+    ],
+    ensures: [
+      { text: 'output.refunded_amount = current.refunded_amount + input.amount', check: s.PaymentRefundPaymentEnsures1 },
+    ],
   },
 } as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;
 
@@ -516,6 +547,17 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
       if (!change.from.includes(current[change.property] as string)) result = fill(change.otherwise, { ...(input.output as object), ...current });
     }
   }
+  // The requires rules, in order, after the state of `changes`: the first that does not hold
+  // answers its declared error, filled from the request and the record, and the handler does not run.
+  if (result === undefined) {
+    for (const condition of ('requires' in contract ? contract.requires : undefined) ?? []) {
+      if ((condition.check as (values: unknown) => boolean)({ input: input.output, current })) continue;
+      const known: Readonly<Record<string, unknown>> = { ...(input.output as object), ...current };
+      const names = Object.keys(contract.errors[condition.otherwise]?.fields ?? {}).filter((name) => known[name] !== undefined);
+      result = { ok: false, error: { ...Object.fromEntries(names.map((name) => [name, known[name]])), kind: condition.otherwise } };
+      break;
+    }
+  }
   result ??= handler(input.output, current);
   if (!isResult(result)) return violation(`the handler for ${urn} did not return a Result; return ok(…) or fail(…)`);
 
@@ -578,6 +620,12 @@ export function executeOperation(urn: string, rawPayload: unknown, core: DomainC
     }
     if (change.key !== undefined && change.answerKey !== undefined && answer[change.answerKey] !== current[change.key]) {
       return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: change.answerKey, message: `the handler for ${urn} answered ${change.answerKey} "${String(answer[change.answerKey])}", but the record has "${String(current[change.key])}"` }] };
+    }
+  }
+  // The ensures rules: an answer that breaks one is a bug in the core.
+  for (const condition of ('ensures' in contract ? contract.ensures : undefined) ?? []) {
+    if (!(condition.check as (values: unknown) => boolean)({ input: input.output, current, output: output.output })) {
+      return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: '', message: `the handler for ${urn} answered a value that breaks ensures: ${condition.text}` }] };
     }
   }
   // Each event must be one the operation emits, and must parse.

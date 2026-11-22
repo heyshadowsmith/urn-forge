@@ -33,6 +33,26 @@ function compareDecimal(a: string, b: string): number {
   return x < y ? -1 : x > y ? 1 : 0;
 }
 
+/** The integer n divided by 10^scale, written with exactly `scale` digits after the point. */
+function unscaledDecimal(n: bigint, scale: number): string {
+  const negative = n < 0n;
+  const digits = (negative ? -n : n).toString().padStart(scale + 1, '0');
+  const text = scale === 0 ? digits : `${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
+  return negative ? `-${text}` : text;
+}
+
+/** a + b, exactly, with the digits after the point of the longer one. */
+function addDecimal(a: string, b: string): string {
+  const scale = Math.max(decimalFraction(a), decimalFraction(b));
+  return unscaledDecimal(decimalScaled(a, scale) + decimalScaled(b, scale), scale);
+}
+
+/** a − b, exactly. */
+function subtractDecimal(a: string, b: string): string {
+  const scale = Math.max(decimalFraction(a), decimalFraction(b));
+  return unscaledDecimal(decimalScaled(a, scale) - decimalScaled(b, scale), scale);
+}
+
 // Fields
 
 /** urn:demo:conditions:booking:field:deposit_token — A token that pays the deposit */
@@ -248,3 +268,29 @@ export const PaymentNotCapturedSchema = v.object({
 });
 export type PaymentNotCaptured = v.InferOutput<typeof PaymentNotCapturedSchema>;
 export type PaymentNotCapturedInput = v.InferInput<typeof PaymentNotCapturedSchema>;
+
+// Conditions
+
+/** urn:demo:conditions:booking:operation:create_booking — requires: input.party_size < 13 */
+export const BookingCreateBookingRequires1 = (p: { input: BookingRequest }): boolean =>
+  (p.input.party_size as number) < 13;
+
+/** urn:demo:conditions:booking:operation:create_booking — requires: input.party_size < 7 or input.deposit_token is present */
+export const BookingCreateBookingRequires2 = (p: { input: BookingRequest }): boolean =>
+  ((p.input.party_size as number) < 7 || p.input.deposit_token !== undefined);
+
+/** urn:demo:conditions:claim:operation:submit_claim — requires: input.version = current.version */
+export const ClaimSubmitClaimRequires1 = (p: { input: ClaimChange; current: ClaimClaim }): boolean =>
+  (p.input.version as number) === (p.current.version as number);
+
+/** urn:demo:conditions:claim:operation:submit_claim — ensures: output.version = input.version + 1 */
+export const ClaimSubmitClaimEnsures1 = (p: { input: ClaimChange; current: ClaimClaim; output: ClaimClaim }): boolean =>
+  (p.output.version as number) === ((p.input.version as number) + 1);
+
+/** urn:demo:conditions:payment:operation:refund_payment — requires: current.refunded_amount + input.amount <= current.captured_amount */
+export const PaymentRefundPaymentRequires1 = (p: { input: PaymentRefundRequest; current: PaymentPayment }): boolean =>
+  compareDecimal(addDecimal((p.current.refunded_amount as string), (p.input.amount as string)), (p.current.captured_amount as string)) <= 0;
+
+/** urn:demo:conditions:payment:operation:refund_payment — ensures: output.refunded_amount = current.refunded_amount + input.amount */
+export const PaymentRefundPaymentEnsures1 = (p: { input: PaymentRefundRequest; current: PaymentPayment; output: PaymentPayment }): boolean =>
+  compareDecimal((p.output.refunded_amount as string), addDecimal((p.current.refunded_amount as string), (p.input.amount as string))) === 0;
