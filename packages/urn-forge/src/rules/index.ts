@@ -348,6 +348,9 @@ export interface RuleField {
   readonly embedded?: boolean;
   /** For a list of embedded entities: the properties of one item, which `sum` can name. */
   readonly items?: Readonly<Record<string, RuleField>>;
+  /** For an embedded entity: its URN, so `=` can compare two of one entity; and whether it holds a list. */
+  readonly entity?: string;
+  readonly holdsList?: boolean;
 }
 
 type ValueType = { readonly kind: 'value'; readonly primitive: Primitive } | { readonly kind: 'literal'; readonly literal: 'number' | 'text' | 'boolean'; readonly text: string };
@@ -597,6 +600,25 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
         return { kind: 'value', primitive };
       }
       default: {
+        // Two embedded entities of one entity: equal property by property.
+        if ((e.op === '=' || e.op === '!=') && e.left.op === 'field' && e.right.op === 'field') {
+          const sides = [e.left.name, e.right.name].map((name) => (Object.hasOwn(scope, name) ? scope[name] : undefined));
+          if (sides.some((f) => f?.embedded && !f.many)) {
+            const [l, r] = sides;
+            if (!l?.embedded || !r?.embedded || l.many || r.many) {
+              problem('rule-type', e.at, `"${e.op}" compares an embedded entity with something that is not an embedded entity`);
+            } else if (l.entity !== r.entity) {
+              problem('rule-type', e.at, `"${e.op}" compares two embedded entities of different entities (${l.entity} and ${r.entity})`);
+            } else if (l.holdsList) {
+              problem('rule-type', e.at, `"${e.op}" cannot compare ${l.entity}, which holds a list`);
+            } else {
+              for (const [name, field] of [[e.left.name, l], [e.right.name, r]] as const) {
+                if (!field.required && !present.has(name)) problem('unguarded-field', e.at, `"${name}" is optional, so the rule must guard it: write "${name} is present and …" or "${name} is absent or …"`);
+              }
+            }
+            return { kind: 'condition' };
+          }
+        }
         const left = value(e.left, present, e.op);
         const right = value(e.right, present, e.op);
         if (!left || !right) return { kind: 'condition' };

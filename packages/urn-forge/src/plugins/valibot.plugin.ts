@@ -13,7 +13,7 @@ import * as v from 'valibot';
 import { invariantsOf, valueField, type IREntity, type IRError, type IREvent, type IRField, type IROperation, type IRPropertyRef, type IRRule, type ListRule, type UniversalIR, type Urn } from '../ir/types.js';
 import { conditionName, ruleName, schemaNames } from '../naming.js';
 import { firstField } from '../rules/index.js';
-import { emitRule } from '../rules/emit.js';
+import { emitRule, type EmbeddedProperty } from '../rules/emit.js';
 import {
   constraintKeys,
   type ConstraintKey,
@@ -256,14 +256,24 @@ function conditionDeclarations(ir: UniversalIR): string[] {
     const typeOf = (urn: Urn) => schemaNames(ir.entities[urn]!.brandIdentifier).output;
     const values = [`input: ${typeOf(op.input)}`, ...(op.changes ? [`current: ${typeOf(op.changes.entity)}`] : [])];
     const primitiveOf = conditionPrimitives(op, ir);
+    const propertiesOf = conditionEmbedded(op, ir);
     const declare = (rule: IRRule, kind: 'requires' | 'ensures', index: number) =>
       [
         `/** ${op.urn} — ${kind}: ${rule.ruleText} */`,
         `export const ${conditionName(op.brandIdentifier, kind, index)} = (p: { ${[...values, ...(kind === 'ensures' ? [`output: ${typeOf(op.output)}`] : [])].join('; ')} }): boolean =>`,
-        `  ${emitRule(rule.rule, primitiveOf).code};`,
+        `  ${emitRule(rule.rule, primitiveOf, propertiesOf).code};`,
       ].join('\n');
     return [...(op.requires ?? []).map((rule, i) => declare(rule, 'requires', i)), ...(op.ensures ?? []).map((rule, i) => declare(rule, 'ensures', i))];
   });
+}
+
+/** The properties of each prefixed embedded entity of an operation's conditions. */
+function conditionEmbedded(op: IROperation, ir: UniversalIR) {
+  const entities: Record<string, IREntity> = { input: ir.entities[op.input]!, output: ir.entities[op.output]!, ...(op.changes ? { current: ir.entities[op.changes.entity]! } : {}) };
+  return (name: string) => {
+    const dot = name.indexOf('.');
+    return dot < 0 ? undefined : embeddedIn(entities[name.slice(0, dot)]!, ir)(name.slice(dot + 1));
+  };
 }
 
 /** The primitive of each prefixed name of an operation's conditions. */
@@ -272,6 +282,18 @@ function conditionPrimitives(op: IROperation, ir: UniversalIR) {
   return (name: string) => {
     const dot = name.indexOf('.');
     return primitiveIn(entities[name.slice(0, dot)]!, ir)(name.slice(dot + 1));
+  };
+}
+
+/** The properties of the embedded entity that a property (or a path, `plan.limits`) holds; undefined for a value. */
+function embeddedIn(entity: IREntity, ir: UniversalIR): (name: string) => EmbeddedProperty[] | undefined {
+  return (name: string) => {
+    const dot = name.indexOf('.');
+    const ref = entity.fields.find((f) => f.name === (dot < 0 ? name : name.slice(0, dot)));
+    if (!ref || !('entity' in ref) || ref.many) return undefined;
+    const inner = ir.entities[ref.entity]!;
+    if (dot >= 0) return embeddedIn(inner, ir)(name.slice(dot + 1));
+    return inner.fields.map((p) => ({ name: p.name, required: p.required, embedded: 'entity' in p }));
   };
 }
 
@@ -323,7 +345,7 @@ function entityDeclaration(entity: IREntity, ir: UniversalIR): string {
       [
         docComment(`${invariant.urn} — ${invariant.description}: ${invariant.ruleText}`, invariant),
         `export const ${ruleName(invariant.brandIdentifier)} = (p: v.InferOutput<typeof ${object}>): boolean =>`,
-        `  ${emitRule(invariant.rule, primitiveOf).code};`,
+        `  ${emitRule(invariant.rule, primitiveOf, embeddedIn(entity, ir)).code};`,
       ].join('\n'),
     ),
     docComment(`${entity.urn} — ${entity.description}`, entity),
@@ -361,11 +383,11 @@ function helpersFor(ir: UniversalIR): ValibotHelper[] {
   }
   for (const invariant of Object.values(ir.invariants ?? {})) {
     const primitiveOf = primitiveIn(ir.entities[invariant.on]!, ir);
-    for (const helper of emitRule(invariant.rule, primitiveOf).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
+    for (const helper of emitRule(invariant.rule, primitiveOf, embeddedIn(ir.entities[invariant.on]!, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
   }
   for (const op of Object.values(ir.operations)) {
     for (const rule of [...(op.requires ?? []), ...(op.ensures ?? [])]) {
-      for (const helper of emitRule(rule.rule, conditionPrimitives(op, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
+      for (const helper of emitRule(rule.rule, conditionPrimitives(op, ir), conditionEmbedded(op, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
     }
   }
   return (Object.keys(VALIBOT_HELPERS) as ValibotHelper[]).filter((name) => needed.has(name));

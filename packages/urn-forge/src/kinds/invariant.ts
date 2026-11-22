@@ -28,12 +28,15 @@ export function ruleFields(entity: IREntity, node: (kind: 'field' | 'entity', ur
     if ('entity' in ref) {
       // An embedded object has no value to compare; a rule can only ask whether it is there, or add
       // up a property of the items of a list of them (sum). Embedding cycles are a pass 5 error.
-      const child = depth < 8 && ref.many !== undefined ? (node('entity', ref.entity) as IREntity | undefined) : undefined;
+      const entity = node('entity', ref.entity) as IREntity | undefined;
+      const child = depth < 8 && ref.many !== undefined ? entity : undefined;
       fields[prefix + ref.name] = {
         primitive: 'string',
         required: ref.required,
         many: ref.many !== undefined,
         embedded: true,
+        entity: ref.entity,
+        holdsList: entity !== undefined && holdsList(entity, node),
         ...(child ? { items: ruleFields(child, node, '', depth + 1) } : {}),
       };
       continue;
@@ -46,6 +49,11 @@ export function ruleFields(entity: IREntity, node: (kind: 'field' | 'entity', ur
     fields[prefix + ref.name] = { primitive: field.primitive, required: ref.required, many: ref.many !== undefined, ...(values ? { values } : {}) };
   }
   return fields;
+}
+
+/** Whether an entity, or an entity that it embeds, holds a list. */
+function holdsList(entity: IREntity, node: (kind: 'field' | 'entity', urn: Urn) => unknown, depth = 0): boolean {
+  return entity.fields.some((ref) => ref.many !== undefined || ('entity' in ref && depth < 8 && holdsList(node('entity', ref.entity) as IREntity, node, depth + 1)));
 }
 
 export const invariant = defineKind<InvariantDecl, IRInvariant>()({

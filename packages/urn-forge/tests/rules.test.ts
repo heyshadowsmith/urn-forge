@@ -259,3 +259,34 @@ describe('sum and *', () => {
     expect(stripColumns(parsed('sum > 1'))).toEqual({ op: '>', left: { op: 'field', name: 'sum' }, right: { op: 'number', value: '1' } });
   });
 });
+
+describe('equality of embedded entities', () => {
+  const plan = (entity: string, holdsList = false, required = true): RuleField => ({ primitive: 'string', required, many: false, embedded: true, entity, holdsList });
+  const fields: Record<string, RuleField> = {
+    'output.plan': plan('urn:a:b:plan:entity:plan'),
+    'current.plan': plan('urn:a:b:plan:entity:plan'),
+    'current.card': plan('urn:a:b:pay:entity:card'),
+    'current.basket': plan('urn:a:b:shop:entity:basket', true),
+    'output.basket': plan('urn:a:b:shop:entity:basket', true),
+    'current.extra': plan('urn:a:b:plan:entity:plan', false, false),
+    'current.amount': { primitive: 'decimal', required: true, many: false },
+  };
+  const problems = (source: string) => {
+    const parsed = parseRule(source);
+    if (!parsed.ok) throw new Error(parsed.problem.message);
+    return checkRule(parsed.expr, fields, 'the condition').map((p) => p.message);
+  };
+
+  it('compares two embedded entities of one entity with = and !=', () => {
+    expect(problems('output.plan = current.plan')).toEqual([]);
+    expect(problems('output.plan != current.plan')).toEqual([]);
+  });
+
+  it('refuses another entity, a value, an entity that holds a list, and an unguarded optional entity', () => {
+    expect(problems('output.plan = current.card')).toEqual(['"=" compares two embedded entities of different entities (urn:a:b:plan:entity:plan and urn:a:b:pay:entity:card)']);
+    expect(problems('output.plan = current.amount')).toEqual(['"=" compares an embedded entity with something that is not an embedded entity']);
+    expect(problems('output.basket = current.basket')).toEqual(['"=" cannot compare urn:a:b:shop:entity:basket, which holds a list']);
+    expect(problems('output.plan = current.extra')).toEqual(['"current.extra" is optional, so the rule must guard it: write "current.extra is present and …" or "current.extra is absent or …"']);
+    expect(problems('current.extra is present and output.plan = current.extra')).toEqual([]);
+  });
+});
