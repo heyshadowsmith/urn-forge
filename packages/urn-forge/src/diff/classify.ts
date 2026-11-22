@@ -342,6 +342,8 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     for (const rule of requires(a).filter((r) => !requires(b!).includes(r))) compatible(urn, `the requires rule ${rule} is removed`);
     for (const rule of ensures(b!).filter((r) => !ensures(a).includes(r))) compatible(urn, `the new ensures rule ${rule}`);
     for (const rule of ensures(a).filter((r) => !ensures(b!).includes(r))) breaking(urn, `the ensures rule ${rule} is removed, which breaks callers that rely on it`);
+    // A timed change: when it happens by itself is a promise to consumers.
+    if (a.due?.ruleText !== b!.due?.ruleText) breaking(urn, `due ${a.due?.ruleText ?? 'none'} → ${b!.due?.ruleText ?? 'none'}: the change happens at another time, or no longer by itself`);
     // Who may call: a new allow rule lets more callers in; a removed one, or new callers, shuts some out.
     const allow = (op: typeof a): 'any' | readonly string[] | undefined => (op.callers === undefined ? undefined : op.callers.allow === 'any' ? 'any' : op.callers.allow.map((r) => r.ruleText));
     const [before, after] = [allow(a), allow(b!)];

@@ -9,6 +9,7 @@
  *   Then the operation emits "<event URN>"
  *   Then the operation emits "<event URN>":        one header row of event field names + one data row
  *   Then the operation emits no event
+ *   Then the operation is not due
  *   Then the operation emits no "<event URN>"
  *
  * The operation is the feature's (or scenario's) `@urn:…:operation:…` tag. Table cells are
@@ -325,6 +326,14 @@ export function assertEmitsNone(result: ExecuteResultLike, urn: string): void {
   if (events.length > 0) throw new Error(`${urn} emitted ${events.map((e) => e.urn).join(', ')}; expected no event`);
 }
 
+/** Checks that a timed change refused a call for a record that is not due (a ContractViolation that says so). */
+export function assertNotDue(result: ExecuteResultLike, urn: string): void {
+  const issues = !result.ok && 'issues' in result ? result.issues : [];
+  if (result.ok || !('kind' in result) || result.kind !== 'ContractViolation' || !issues.some((issue) => issue.message.includes('is not due for this record'))) {
+    throw new Error(`${urn} ${result.ok ? 'succeeded' : `failed with ${describeFailure(result)}`}; expected it to be not due for this record`);
+  }
+}
+
 /** Checks the operation succeeded without the event \`eventUrn\`: the other side of an event that it emits only when a rule holds. */
 export function assertEmitsNoneOf(result: ExecuteResultLike, eventUrn: string, urn: string): void {
   if (!result.ok) throw new Error(`${urn} did not succeed: ${describeFailure(result)}; expected a success without ${eventUrn}`);
@@ -498,6 +507,11 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     const { urn, result } = lastRun(this);
     const expected = tableToObject(table.raw(), recordedEvent(urn, eventUrn).fields, 'event', eventUrn);
     assertRecordedAs(result, eventUrn, urn, expected);
+  });
+
+  Then(STEP_PHRASES.notDue, function (this: StepsWorld) {
+    const { urn, result } = lastRun(this);
+    assertNotDue(result, urn);
   });
 
   Then(STEP_PHRASES.emitsNone, function (this: StepsWorld) {

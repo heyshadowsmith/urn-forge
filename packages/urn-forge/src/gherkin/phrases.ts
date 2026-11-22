@@ -24,6 +24,8 @@ export const STEP_PHRASES = {
   /** The same, followed by a table of the event's fields. */
   emitsWithFields: 'the operation emits {string}:',
   emitsNone: 'the operation emits no event',
+  /** A timed change, called for a record that is not due: the shell's clock must not call it. */
+  notDue: 'the operation is not due',
   /** The operation succeeded without this event. */
   emitsNoneOf: 'the operation emits no {string}',
   /** The operation refused, and the error records this event for an audit trail. */

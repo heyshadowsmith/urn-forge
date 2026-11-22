@@ -36,6 +36,8 @@ const OperationSchema = v.strictObject({
       otherwise: v.optional(ShortKeyRef),
     }),
   ),
+  /** When the shell's clock must call the operation, for a record: a rule over the record and now. */
+  due: v.optional(v.string()),
   /** Rules over the request and the record that must hold before the handler runs, each with the error that answers when it does not. */
   requires: v.optional(v.array(v.strictObject({ rule: v.string(), otherwise: ShortKeyRef, fill: v.optional(v.record(v.string(), v.string())) }))),
   /** Rules over the request, the record and the answer that the answer must keep. */
@@ -124,6 +126,7 @@ export const operation = defineKind<OperationDecl, IROperation>()({
       ...(changes ? { changes } : {}),
       ...(reads ? { reads } : {}),
       ...(conditions.callers ? { callers: conditions.callers } : {}),
+      ...(conditions.due ? { due: conditions.due } : {}),
       ...(conditions.requires.length > 0 ? { requires: conditions.requires } : {}),
       ...(conditions.ensures.length > 0 ? { ensures: conditions.ensures } : {}),
       ...(conditions.exactly.length > 0 ? { exactly: conditions.exactly } : {}),
@@ -154,11 +157,11 @@ interface ConditionContext {
   readonly countsAll: boolean;
   readonly ref: (path: (string | number)[]) => { readonly urn: Urn } | undefined;
   readonly node: (kind: 'field' | 'entity' | 'error' | 'event', urn: Urn) => unknown;
-  readonly report: (issue: { code: 'invalid-condition' | 'invalid-callers' | 'rule-syntax' | 'unknown-rule-field' | 'rule-type' | 'unguarded-field'; urn: string; message: string; path: (string | number)[] }) => void;
+  readonly report: (issue: { code: 'invalid-condition' | 'invalid-callers' | 'invalid-due' | 'rule-syntax' | 'unknown-rule-field' | 'rule-type' | 'unguarded-field'; urn: string; message: string; path: (string | number)[] }) => void;
 }
 
 /** Parses and types the requires and ensures rules; undefined after a problem. */
-function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: IRRequire[]; ensures: IRRule[]; exactly: IREmitRule[]; callers?: IRCallers } | undefined {
+function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: IRRequire[]; ensures: IRRule[]; exactly: IREmitRule[]; callers?: IRCallers; due?: IRRule } | undefined {
   const entity = (urn: Urn) => c.node('entity', urn) as IREntity | undefined;
   const node = c.node as (kind: 'field' | 'entity', urn: Urn) => unknown;
   const [input, output, record] = [entity(c.input), entity(c.output), c.record ? entity(c.record) : undefined];
@@ -182,17 +185,18 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
   let problems = 0;
 
   /** One rule: parsed, its prefixes checked, typed against the fields of its condition. */
-  const rule = (text: string, fields: Record<string, RuleField>, where: (string | number)[], kind: 'requires' | 'ensures' | 'when' | 'callers'): IRRule | undefined => {
+  const rule = (text: string, fields: Record<string, RuleField>, where: (string | number)[], kind: 'requires' | 'ensures' | 'when' | 'callers' | 'due'): IRRule | undefined => {
     const fail = (code: Parameters<ConditionContext['report']>[0]['code'], message: string) => {
       problems += 1;
-      const at = code === 'invalid-condition' && kind === 'callers' ? 'invalid-callers' : code;
+      const at = code === 'invalid-condition' && kind === 'callers' ? 'invalid-callers' : code === 'invalid-condition' && kind === 'due' ? 'invalid-due' : code;
       c.report({ code: at, urn: c.urn, message: `${c.urn}: ${where.join('.')}: ${message}`, path: [c.shortKey, ...where] });
     };
     const parsed = parseRule(text);
     if (!parsed.ok) return void fail('rule-syntax', `${parsed.problem.message} (at column ${parsed.problem.column} of the rule)`);
     const before = problems;
     for (const name of namesIn(stripColumns(parsed.expr))) {
-      if (name.startsWith('current.') && !c.record) fail('invalid-condition', `"${name}" reads the record that the operation changes or reads, but the operation has no changes or reads`);
+      if (kind === 'due' && !name.startsWith('current.') && !TIME_NAMES.includes(name)) fail('invalid-condition', `"${name}" is not the record or the time; a due rule reads current. and now, as no request starts the call`);
+      else if (name.startsWith('current.') && !c.record) fail('invalid-condition', `"${name}" reads the record that the operation changes or reads, but the operation has no changes or reads`);
       else if (name.startsWith('caller.') && kind !== 'callers') fail('invalid-condition', `"${name}" reads the caller, which only a rule of callers can`);
       else if (kind === 'callers' && (name.startsWith('output.') || name.startsWith('event.'))) fail('invalid-condition', `"${name}" reads the answer, which a rule of callers runs before`);
       else if (name.startsWith('output.') && kind === 'requires') fail('invalid-condition', `"${name}" reads the answer, which a requires rule runs before; use it in ensures`);
@@ -285,7 +289,17 @@ function buildConditions(decl: OperationDecl, c: ConditionContext): { requires: 
       if (allow === 'any' || allow.every((r) => r !== undefined)) callers = { allow: allow as IRCallers['allow'], otherwise: error.urn };
     }
   }
-  return problems > 0 ? undefined : { requires, ensures, exactly, ...(callers ? { callers } : {}) };
+  // due: when the clock must call the operation, for a record of changes.
+  let due: IRRule | undefined;
+  if (decl.due !== undefined) {
+    if (!c.changes) {
+      problems += 1;
+      c.report({ code: 'invalid-due', urn: c.urn, message: `${c.urn}: due: the clock calls the operation for a record that it changes; add changes`, path: [c.shortKey, 'due'] });
+    } else {
+      due = rule(decl.due, before, ['due'], 'due');
+    }
+  }
+  return problems > 0 ? undefined : { requires, ensures, exactly, ...(callers ? { callers } : {}), ...(due ? { due } : {}) };
 }
 
 interface ChangeContext {

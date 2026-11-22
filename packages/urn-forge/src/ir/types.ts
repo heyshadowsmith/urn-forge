@@ -213,6 +213,8 @@ export interface IROperation {
   readonly reads?: IRRead;
   /** Who may call: any caller, or a caller for whom one rule holds; else the runtime answers `otherwise`. */
   readonly callers?: IRCallers;
+  /** When the shell's clock must call the operation, for a record of `changes`: a rule over `current.` and `now`. */
+  readonly due?: IRRule;
   /** Rules that must hold before the handler runs; the first that does not answers its error. */
   readonly requires?: readonly IRRequire[];
   /** Rules that the answer must keep; one that does not is a ContractViolation. */
@@ -227,6 +229,7 @@ export function operationRules(op: IROperation): IRRule[] {
     ...(op.ensures ?? []),
     ...(op.exactly ?? []).flatMap((item) => (item.when ? [item.when] : [])),
     ...(op.callers && op.callers.allow !== 'any' ? op.callers.allow : []),
+    ...(op.due ? [op.due] : []),
   ];
 }
 

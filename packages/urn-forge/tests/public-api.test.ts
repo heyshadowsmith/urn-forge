@@ -72,6 +72,7 @@ describe('public API', () => {
       'assertEmitsNone',
       'assertEmitsNoneOf',
       'assertFailsWith',
+      'assertNotDue',
       'assertOutput',
       'assertRecordedAs',
       'assertRejectedBy',

@@ -84,8 +84,19 @@ function tableLiteral(table: StoreTable, indent: string): string {
   return `${indent}{\n${inner}schema: ${JSON.stringify(table.schema)},\n${inner}name: ${JSON.stringify(table.name)},\n${inner}key: [${table.key.map((k) => JSON.stringify(k)).join(', ')}],\n${inner}columns: [${columns}],\n${child}${inner}children: ${children},\n${indent}}`;
 }
 
+/** The query of a timed change: the keys of the rows that it is due for. */
+export interface DueQuery {
+  /** The export: select<Operation brand>Due. */
+  readonly name: string;
+  readonly operation: string;
+  readonly ruleText: string;
+  readonly from: readonly string[];
+  /** The SELECT, with now as $1, the states of from as $2 and the limit as $3. */
+  readonly text: string;
+}
+
 /** The store file for the tables and the outbox, or undefined when there is neither. */
-export function storeFile(ir: UniversalIR, store: readonly StoreRoot[]): string | undefined {
+export function storeFile(ir: UniversalIR, store: readonly StoreRoot[], dues: readonly DueQuery[] = []): string | undefined {
   const outbox = hasOutbox(ir);
   if (store.length === 0 && !outbox) return undefined;
   // The state property of each table entity that an operation changes.
@@ -135,6 +146,18 @@ export function storeFile(ir: UniversalIR, store: readonly StoreRoot[]): string 
         '}',
       );
     }
+  }
+  for (const due of dues) {
+    parts.push(
+      '',
+      `/**`,
+      ` * The keys of the rows that ${due.operation} is due for at \`now\`: in a state of ${due.from.join(', ')}, where ${due.ruleText}.`,
+      ` * The shell's clock runs the operation for each, in its own transaction.`,
+      ` */`,
+      `export function ${due.name}(now: string, limit: number): Statement {`,
+      `  return { text: ${JSON.stringify(due.text)}, values: [now, ${JSON.stringify(due.from)}, limit] };`,
+      '}',
+    );
   }
   if (outbox) parts.push(outboxStore(ir));
   return `${parts.join('\n')}\n`;

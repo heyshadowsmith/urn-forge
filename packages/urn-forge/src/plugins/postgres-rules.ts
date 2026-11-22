@@ -37,17 +37,26 @@ function literalOf(primitive: Primitive, e: RuleExpr): string {
   }
 }
 
-/** The rule over the properties of an entity, as a condition on the columns of its table. */
-export function ruleSql(ir: UniversalIR, rule: RuleExpr, properties: readonly IRPropertyRef[]): RuleSql {
+/** The SQL of the time of a call, where a rule may read it: `now` and `today`. */
+export interface TimeSql {
+  readonly now: string;
+  readonly today: string;
+}
+
+/** The rule over the properties of an entity, as a condition on the columns of its table. With `time`, the rule may read now and today. */
+export function ruleSql(ir: UniversalIR, rule: RuleExpr, properties: readonly IRPropertyRef[], time?: TimeSql): RuleSql {
   const byName = new Map(properties.map((p) => [p.name, p]));
 
   const primitiveOf = (name: string): Primitive => {
+    if (time && name === 'now') return 'timestamp';
+    if (time && name === 'today') return 'date';
     const ref = byName.get(name)!;
     const field = 'field' in ref ? ref.field : 'link' in ref ? ir.entities[ref.link]!.key! : undefined;
     return ir.fields[field!]!.primitive;
   };
   /** A property in a row: a column. A list or an embedded entity is rows of another table. */
   const column = (name: string): string => {
+    if (time && (name === 'now' || name === 'today')) return time[name];
     const ref = byName.get(name)!;
     if ('entity' in ref || ref.many !== undefined) {
       throw new Untranslatable(`"${name}" is ${'entity' in ref ? 'an embedded entity' : 'a list'}, which is rows of a child table, and a CHECK sees one row`);
