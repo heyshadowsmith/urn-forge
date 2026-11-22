@@ -95,6 +95,22 @@ What the contracts still could not state:
 - A sum with a condition, such as "1 ticket for a seated line, the quantity for a standing line" (ticketing P04).
 - An invariant on an entity that is only an answer needs no breaking scenario in gate 3. Each success scenario checks it, but no scenario shows that it refuses.
 
+## Event delivery (D4)
+
+Nov 22, 2026: **52 of 143 promises declared (36.4%)**, up from 45. Refer to the [event delivery plan](./event-delivery-plan.md). Bookings P20 and P21, claims P14 and P21, payments P21, subscriptions P20 and inventory P19 are declared. D4 goes from 11 promises to 3.
+
+The contracts found two gaps, each closed in the same change:
+- `nextEvents` gave every unpublished row, so a publisher that skipped a failed event could send a later event of the same order first. It now gives only the oldest unpublished event of each order.
+- An `ensures` rule that reads `event.` failed on a success that its `when` rules allow to have no event, such as a repeat cancel. It is now not checked when there is no event.
+
+What the contracts still could not state:
+- The time of a change. Each `occurred_at` is a value of the core, not a clock (E2): payments P20, inventory P18.
+- Events with no operation: a trial that ends, an expired reservation, a status that the bank changes (E3).
+- One event for each item of a list: "one StockReserved for each line" (inventory P18, P20).
+- An order for each item of a list in an event, or an event in two orders: an OrderPlaced that names several tickets (ticketing P20). `orderBy` names top-level properties only, not paths.
+- A rule on one event of a success with several events: `event.` needs one event.
+- A contract can make a change with no event that its promise does not allow: claims P20, where `edit_draft` moves a rejected claim back to DRAFT.
+
 ## The phases
 
 Each item is a plan of its own, with the format of the earlier plans: a target written first, one commit for each step, sabotages at the end. The order puts first what the most contracts need, and what fits the machinery that exists.
@@ -154,7 +170,8 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 3. States and moves (C3). Done: 23.8%.
 4. Conditions (part of A2). Done: 28.0%.
 5. Lists (A1). Done: 31.5%.
-6. The next plan. The score now puts A2 (13), D4 (11), D2 (10) and C1 (9) first.
+6. Event delivery (D4). Done: 36.4%.
+7. The next plan. The score now puts A2 (12), D2 (10), C1 (9) and E2 (9) first.
 
 ## Risks
 
