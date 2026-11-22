@@ -134,17 +134,21 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
   /** The uses of a URN: the old manifest's, or for a new URN the new manifest's. */
   const usesFor = (urn: Urn, existed: boolean): Set<Use> => (existed ? oldUses.get(urn) : newUses.get(urn)) ?? new Set();
 
-  /** A change with a relation: breaking if a use breaks, else compatible. */
-  const relate = (urn: Urn, relation: Relation, what: string, uses: ReadonlySet<Use>) => {
+  // Callers that ignore what they do not know are not broken by a new kind of answer.
+  const ignoresUnknown = old.meta.compatibility?.callers === 'ignore-unknown';
+  /**
+   * A change with a relation: breaking if a use breaks, else compatible. `unknown`: the change
+   * only adds a kind of answer (an error, an event, an enum value), which a caller that ignores
+   * what it does not know is not broken by.
+   */
+  const relate = (urn: Urn, relation: Relation, what: string, uses: ReadonlySet<Use>, unknown = false) => {
     if (relation === 'equal') return;
-    const broken = breaks(relation, uses);
+    const ignored = ignoresUnknown && unknown && relation === 'wider' && uses.has('out');
+    const broken = breaks(relation, uses).filter((use) => !(ignored && use === 'out'));
     const used = [...uses].sort().map((u) => USE_TEXT[u]);
     const whom = used.length === 0 ? 'nothing uses' : used.join(' and ');
-    changes.push({
-      class: broken.length > 0 ? 'breaking' : 'compatible',
-      urn,
-      message: `${what} ${VERB[relation]} a value that ${whom}${broken.length > 0 ? `, which breaks ${broken.map((u) => BROKEN_TEXT[u]).join(' and ')}` : ''}`,
-    });
+    const why = broken.length > 0 ? `, which breaks ${broken.map((u) => BROKEN_TEXT[u]).join(' and ')}` : ignored ? ', which callers ignore when they do not know it (compatibility.callers)' : '';
+    changes.push({ class: broken.length > 0 ? 'breaking' : 'compatible', urn, message: `${what} ${VERB[relation]} a value that ${whom}${why}` });
   };
   const compatible = (urn: Urn, message: string) => changes.push({ class: 'compatible', urn, message });
   const breaking = (urn: Urn, message: string) => changes.push({ class: 'breaking', urn, message });
@@ -169,7 +173,16 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
         breaking(urn, `status ${from} → ${to}: a status only moves forward; declare a new URN instead`);
         continue;
       }
+      // With a notice, a removal is announced first: the old manifest deprecates the atom with a sunset date.
+      const notice = old.meta.compatibility?.notice;
+      if (notice !== undefined && to === 'sunset' && !(from === 'deprecated' && a.lifecycle?.sunsetDate !== undefined)) {
+        breaking(urn, `status ${from} → sunset with no notice; compatibility.notice is ${notice}, so deprecate it with deprecatedOn and sunsetDate first`);
+        continue;
+      }
       if (from !== to) changes.push({ class: 'lifecycle', urn, message: `status ${from} → ${to}` });
+      // The notice counts from the announcement, so its day does not move.
+      const [announced, now] = [a.lifecycle?.deprecatedOn, b.lifecycle?.deprecatedOn];
+      if (announced !== undefined && announced !== now) breaking(urn, `deprecatedOn ${announced} → ${now ?? 'none'}: the day a deprecation was announced does not change`);
       if (to === 'sunset') continue;
       if (JSON.stringify(a.lifecycle?.supersededBy) !== JSON.stringify(b.lifecycle?.supersededBy) || a.lifecycle?.sunsetDate !== b.lifecycle?.sunsetDate) {
         if (from === to) changes.push({ class: 'lifecycle', urn, message: changedKeys({ supersededBy: a.lifecycle?.supersededBy, sunsetDate: a.lifecycle?.sunsetDate }, { supersededBy: b.lifecycle?.supersededBy, sunsetDate: b.lifecycle?.sunsetDate }) });
@@ -196,7 +209,12 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     if (!live(a) || !live(b)) continue;
     const uses = usesFor(urn, true);
     if (a.primitive !== b!.primitive) relate(urn, 'neither', `primitive ${a.primitive} → ${b!.primitive}`, uses);
-    else relate(urn, constraintRelation(a.primitive, a.constraints, b!.constraints), changedKeys(a.constraints, b!.constraints), uses);
+    else {
+      // A new enum value, and nothing else: a value that a caller that ignores what it does not know is not broken by.
+      const others = (c: Readonly<Record<string, unknown>>) => JSON.stringify({ ...c, values: undefined });
+      const onlyValues = a.primitive === 'enum' && others(a.constraints) === others(b!.constraints);
+      relate(urn, constraintRelation(a.primitive, a.constraints, b!.constraints), changedKeys(a.constraints, b!.constraints), uses, onlyValues);
+    }
   }
 
   /** The target of a property in the old manifest, if that target was deprecated there. */
@@ -297,10 +315,10 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     const added = b!.errors.filter((e) => !a.errors.includes(e));
     const removed = a.errors.filter((e) => !b!.errors.includes(e));
     // A new declared error is a new kind of result, which a caller that handles each kind does not know.
-    for (const e of added) relate(urn, 'wider', `the new declared error ${e}`, new Set<Use>(['out']));
+    for (const e of added) relate(urn, 'wider', `the new declared error ${e}`, new Set<Use>(['out']), true);
     for (const e of removed) relate(urn, 'narrower', `removing the declared error ${e}`, new Set<Use>(['out']));
     // A new event is a new kind of fact, which a consumer that handles each kind does not know.
-    for (const e of b!.emits.filter((x) => !a.emits.includes(x))) relate(urn, 'wider', `the new event ${e}`, new Set<Use>(['out']));
+    for (const e of b!.emits.filter((x) => !a.emits.includes(x))) relate(urn, 'wider', `the new event ${e}`, new Set<Use>(['out']), true);
     for (const e of a.emits.filter((x) => !b!.emits.includes(x))) relate(urn, 'narrower', `removing the event ${e}`, new Set<Use>(['out']));
     // A count promises how many of an event a success has: a new count promises more, a removed or changed one breaks.
     const count = (op: typeof a, e: Urn) => {
