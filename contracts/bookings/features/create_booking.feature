@@ -165,7 +165,19 @@ Feature: Book a table
       | 2026-11-21 | 19:30      | Europe/Paris |
     And the operation emits no event
 
-  Scenario: A full time is refused, with other start times on the same day
+  Scenario: A full time is refused, with up to 5 other start times on the same day for the same party, from exactly 2 hours before to exactly 2 hours after
+    Given the caller is:
+      | role  |
+      | guest |
+    When I run the operation with:
+      | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key  |
+      | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 20:00      | 4          | { name: Ada, email: ada@example.com } | 0123456789abcdef |
+    Then the operation fails with "urn:corpus:bookings:booking:error:no_availability":
+      | local_date | local_time | time_zone    | party_size | alternatives                                                                                                                                                                                                                                                                  |
+      | 2026-12-24 | 20:00      | Europe/Paris | 4          | [{ local_date: 2026-12-24, local_time: 18:00, party_size: 4 }, { local_date: 2026-12-24, local_time: 19:00, party_size: 4 }, { local_date: 2026-12-24, local_time: 19:45, party_size: 4 }, { local_date: 2026-12-24, local_time: 20:15, party_size: 4 }, { local_date: 2026-12-24, local_time: 22:00, party_size: 4 }] |
+    And the operation emits no event
+
+  Scenario: A full time late in the evening is offered only earlier start times on the same day
     Given the caller is:
       | role  |
       | guest |
@@ -173,8 +185,8 @@ Feature: Book a table
       | restaurant_id                        | local_date | local_time | party_size | contact                               | idempotency_key  |
       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24 | 23:45      | 2          | { name: Ada, email: ada@example.com } | 0123456789abcdef |
     Then the operation fails with "urn:corpus:bookings:booking:error:no_availability":
-      | local_date | local_time | time_zone    | party_size | alternatives   |
-      | 2026-12-24 | 23:45      | Europe/Paris | 2          | [22:00, 22:15] |
+      | local_date | local_time | time_zone    | party_size | alternatives                                                                                                                                         |
+      | 2026-12-24 | 23:45      | Europe/Paris | 2          | [{ local_date: 2026-12-24, local_time: 21:45, party_size: 2 }, { local_date: 2026-12-24, local_time: 22:45, party_size: 2 }, { local_date: 2026-12-24, local_time: 23:30, party_size: 2 }] |
     And the operation emits no event
 
   Scenario: A contact with neither an email address nor a phone number is rejected

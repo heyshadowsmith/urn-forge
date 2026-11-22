@@ -23,6 +23,22 @@ function startsIn({ local_date, local_time, time_zone }: Booking): number {
   return (asUtc - offset - Date.parse(NOW)) / 3_600_000;
 }
 
+/** The start times that have no free table in this small core. */
+const FULL = ['20:00', '23:45'];
+
+/**
+ * Up to 5 other start times for a full one: on the same date, at most 2 hours before or after it,
+ * for the same party.
+ */
+function alternativesTo(local_date: string, local_time: string, party_size: number) {
+  const [hours, minutes] = local_time.split(':').map(Number) as [number, number];
+  const requested = hours * 60 + minutes;
+  return [-120, -60, -15, 15, 120]
+    .map((offset) => requested + offset)
+    .filter((start) => start >= 0 && start < 24 * 60)
+    .map((start) => ({ local_date, local_time: `${String(Math.floor(start / 60)).padStart(2, '0')}:${String(start % 60).padStart(2, '0')}`, party_size }));
+}
+
 /** The event of a change; the shell gives its event_id (newEventId), and the outbox its order. */
 function eventOf(booking: Booking) {
   return {
@@ -46,8 +62,8 @@ export const core = {
     if (local_date < '2026-11-22' || local_date > '2027-02-20') {
       return fail('urn:corpus:bookings:booking:error:outside_booking_window', { local_date, local_time, time_zone: TIME_ZONE });
     }
-    if (local_time === '23:45') {
-      return fail('urn:corpus:bookings:booking:error:no_availability', { local_date, local_time, time_zone: TIME_ZONE, party_size, alternatives: ['22:00', '22:15'] });
+    if (FULL.includes(local_time)) {
+      return fail('urn:corpus:bookings:booking:error:no_availability', { local_date, local_time, time_zone: TIME_ZONE, party_size, alternatives: alternativesTo(local_date, local_time, party_size) });
     }
     const deposit = party_size >= 7 ? { deposit_amount: `${party_size * 20}.00`, deposit_per_guest: '20.00', currency: 'EUR' } : {};
     const confirmation = {

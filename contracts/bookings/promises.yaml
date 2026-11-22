@@ -64,11 +64,11 @@ promises:
     status: workaround
     by: [booking.error.invalid_request, booking.error.outside_booking_window, booking.error.no_availability, booking.error.deposit_required, booking.error.payment_declined, booking.error.party_too_large_for_online, booking.error.booking_not_found, booking.error.invalid_state, booking.error.change_deadline_passed, booking.error.forbidden]
     hole: C3
-  # Up to 5 alternative times are declared; that each is on the same date, within 2 hours of the requested time and for the same party size is a rule over the items of a list (A1), and in an error, which conditions do not read.
+  # Up to 5 is maxItems: 5 on the alternatives of no_availability (schema, checked on every refusal); each one's date and party size are refuses rules of create_booking (all(alt in error.alternatives: …) = input.…), checked at runtime and shown by the scenarios of no_availability. Within 2 hours of the requested time is not stated: a start time is a local HH:MM string, which the rule language can only compare with = (hours are added to a timestamp, not to a string), so the core keeps it.
   P12:
     promise: "A NO_AVAILABILITY refusal may carry up to 5 alternative start times, each on the same date, within 2 hours of the requested time and for the same party size."
     status: workaround
-    by: [booking.error.no_availability]
+    by: [booking.error.no_availability, booking.entity.alternative, booking.operation.create_booking]
     hole: A2
   P13:
     promise: "A booking is always in exactly one of the states CONFIRMED, SEATED, COMPLETED, CANCELLED or NO_SHOW, and the only allowed moves are CONFIRMED to SEATED, CANCELLED or NO_SHOW, and SEATED to COMPLETED; CANCELLED, COMPLETED and NO_SHOW are final."

@@ -283,6 +283,12 @@ claim.invariant.submitted_has_time:
 
 # Refusals
 
+# Each operation rejects an input that does not parse with invalid_request, with the issues.
+claim.error.invalid_request:
+  description: The request does not parse, or breaks a rule of its values
+  category: validation
+  retryable: false
+  message: The request is not valid
 claim.error.not_found:
   description: No claim has this id
   category: not_found
@@ -400,7 +406,8 @@ claim.operation.create_draft:
     allow:
       - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = input.employee_id
     otherwise: claim.error.forbidden
-  errors: [claim.error.forbidden, claim.error.duplicate_receipt]
+  rejects: claim.error.invalid_request
+  errors: [claim.error.invalid_request, claim.error.forbidden, claim.error.duplicate_receipt]
 claim.operation.edit_draft:
   description: Replace the purpose, currency and lines of a draft claim; a rejected claim goes back to DRAFT
   input: claim.entity.draft_edit
@@ -427,7 +434,8 @@ claim.operation.edit_draft:
     allow:
       - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
     otherwise: claim.error.forbidden
-  errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
+  rejects: claim.error.invalid_request
+  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
 claim.operation.submit_claim:
   description: Submit a draft claim for a decision
   input: claim.entity.change
@@ -461,7 +469,8 @@ claim.operation.submit_claim:
     allow:
       - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
     otherwise: claim.error.forbidden
-  errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
+  rejects: claim.error.invalid_request
+  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
     - event: claim.event.claim_submitted
 claim.operation.withdraw_claim:
@@ -496,7 +505,8 @@ claim.operation.withdraw_claim:
     allow:
       - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
     otherwise: claim.error.forbidden
-  errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
+  rejects: claim.error.invalid_request
+  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
     - event: claim.event.claim_withdrawn
 claim.operation.approve_claim:
@@ -531,7 +541,8 @@ claim.operation.approve_claim:
     allow:
       - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.manager_id and caller.employee_id != current.employee_id
     otherwise: claim.error.forbidden
-  errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
+  rejects: claim.error.invalid_request
+  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
     - event: claim.event.claim_approved
 claim.operation.reject_claim:
@@ -568,7 +579,8 @@ claim.operation.reject_claim:
     allow:
       - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.manager_id
     otherwise: claim.error.forbidden
-  errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
+  rejects: claim.error.invalid_request
+  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
     - event: claim.event.claim_rejected
 claim.operation.mark_paid:
@@ -603,7 +615,8 @@ claim.operation.mark_paid:
     allow:
       - caller.employee_id is present and input.actor_id = caller.employee_id and caller.role = 'finance'
     otherwise: claim.error.forbidden
-  errors: [claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
+  rejects: claim.error.invalid_request
+  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
   emits:
     - event: claim.event.claim_paid
 claim.operation.get_claim:
@@ -619,7 +632,8 @@ claim.operation.get_claim:
       - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.manager_id
       - caller.employee_id is present and input.actor_id = caller.employee_id and caller.role = 'finance'
     otherwise: claim.error.forbidden
-  errors: [claim.error.not_found, claim.error.forbidden]
+  rejects: claim.error.invalid_request
+  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden]
 # The shell's clock calls it for each claim that selectClaimReportOverdueDue gives. A claim is due
 # 30 days after its last submission, until it holds a mark of this submission: a mark older than
 # submitted_at is from an earlier submission, before a rejection and a new submission.
@@ -659,6 +673,7 @@ claim.operation.report_overdue:
     allow:
       - caller.role = 'clock'
     otherwise: claim.error.clock_only
-  errors: [claim.error.not_found, claim.error.invalid_state, claim.error.clock_only]
+  rejects: claim.error.invalid_request
+  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.invalid_state, claim.error.clock_only]
   emits:
     - event: claim.event.claim_decision_overdue

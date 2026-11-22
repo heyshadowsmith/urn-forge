@@ -78,6 +78,25 @@ Feature: Reserve stock for an order
       | short_lines                                                                                                                                          |
       | [{ sku: GADGET-2, location: AMS-B-0142, requested: 401, available: 400 }, { sku: GIZMO-3, location: AMS-B-0142, requested: 100000, available: 400 }] |
     And the operation emits no event
+    And nothing changes
+
+  Scenario: One unit over the available stock on the only line is refused, and nothing is reserved
+    When I run the operation with:
+      | idempotency_key | order_id | lines                                                    |
+      | res-0014        | ORD-14   | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 401 }] |
+    Then the operation fails with "urn:corpus:inventory:stock:error:insufficient_stock":
+      | short_lines                                                               |
+      | [{ sku: WIDGET-1, location: AMS-B-0142, requested: 401, available: 400 }] |
+    And nothing changes
+
+  Scenario: When every line is short, the refusal lists every line, and nothing is reserved
+    When I run the operation with:
+      | idempotency_key | order_id | lines                                                                                                            |
+      | res-0015        | ORD-15   | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 401 }, { sku: GADGET-2, location: ROT-A-0001, quantity: 500 }] |
+    Then the operation fails with "urn:corpus:inventory:stock:error:insufficient_stock":
+      | short_lines                                                                                                                                       |
+      | [{ sku: WIDGET-1, location: AMS-B-0142, requested: 401, available: 400 }, { sku: GADGET-2, location: ROT-A-0001, requested: 500, available: 400 }] |
+    And nothing changes
 
   Scenario: A SKU and location that appear on two lines are refused
     When I run the operation with:
