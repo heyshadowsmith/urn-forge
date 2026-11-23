@@ -310,6 +310,19 @@ describe('invariants (decision 10)', () => {
     for (const p of breaks) expect(await check(translated.sql, { ...defaults, ...p }), JSON.stringify(p)).toBe(false);
   });
 
+  it('reports a rule over a path into an embedded entity as unenforced-in-sql, and does not crash', () => {
+    const manifest =
+      'manifest:\n  namespace: demo\n  domain: shop\n  version: 1.0.0\n' +
+      'a.field.id: { primitive: integer }\na.field.kind: { primitive: enum, values: [x, y] }\na.field.n: { primitive: integer }\n' +
+      'a.entity.inner: { description: I, fields: [{ ref: a.field.kind }] }\n' +
+      'a.entity.e:\n  description: d\n  key: a.field.id\n  fields:\n    - ref: a.field.id\n    - ref: a.field.n\n    - { ref: a.entity.inner, as: plan }\n' +
+      "a.invariant.kinded:\n  description: d\n  on: a.entity.e\n  rule: \"plan.kind != 'x' or n > 0\"\n  message: m\n";
+    const result = compile(manifest, [{ plugin: PLUGINS.valibot, config: {} }, { plugin: PLUGINS.postgres, config: { tables: ['a.entity.e'] } }]);
+    expect(result.diagnostics.map((d) => d.message)).toEqual([
+      `urn:demo:shop:a:invariant:kinded: the rule plan.kind != 'x' or n > 0: "plan.kind" reads into an embedded entity, which is rows of a child table, and a CHECK sees one row; the SQL does not enforce it, and the Valibot schema at the boundary still does`,
+    ]);
+  });
+
   it('reports a rule over a list or an embedded entity as unenforced-in-sql', () => {
     const manifest =
       'manifest:\n  namespace: demo\n  domain: shop\n  version: 1.0.0\n' +
