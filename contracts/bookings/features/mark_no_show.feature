@@ -1,30 +1,42 @@
 @urn:corpus:bookings:booking:operation:mark_no_show
 Feature: Mark a booking whose party did not come
 
-  Scenario: A CONFIRMED booking moves to NO_SHOW
+  # The shell gives the time of each call; a scenario that needs another one says so.
+  Background:
+    Given the time is "2026-11-22T10:00:00Z"
+
+  # The booking starts at 2026-11-22T09:00:00Z (10:00 in Paris): NO_SHOW from 09:15:00Z onward, that instant included.
+  Scenario Outline: A CONFIRMED booking moves to NO_SHOW from 15 minutes after its start
     Given the caller is:
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
+    And the time is "<now>"
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
     Then the output is:
-      | reference | state |
+      | reference | state   |
       | CNFRMD22  | NO_SHOW |
     And the operation emits "urn:corpus:bookings:booking:event:booking_no_show":
-      | event_id                             | reference | restaurant_id                        | state     | party_size | local_date | local_time | time_zone    | occurred_at          | guest_id                             |
-      | 16fd2706-8baf-433b-82eb-8c7fed5c9b0e | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | NO_SHOW   | 4          | 2026-11-22 | 10:00      | Europe/Paris | 2026-11-22T10:00:00Z | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
+      | event_id                             | reference | restaurant_id                        | state   | party_size | local_date | local_time | time_zone    | occurred_at | guest_id                             |
+      | 16fd2706-8baf-433b-82eb-8c7fed5c9b0e | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | NO_SHOW | 4          | 2026-11-22 | 10:00      | Europe/Paris | <now>       | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
+
+    Examples:
+      | now                      |
+      | 2026-11-22T09:15:00Z     |
+      | 2026-11-22T09:15:00.001Z |
+      | 2026-11-22T10:00:00Z     |
 
   Scenario Outline: A booking in another state cannot move
     Given the caller is:
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state>   | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state   | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state> | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
@@ -40,13 +52,14 @@ Feature: Mark a booking whose party did not come
       | CANCELLED |
       | NO_SHOW |
 
-  Scenario: A confirmed booking cannot be marked NO_SHOW before 15 minutes after its start
+  Scenario Outline: A confirmed booking cannot be marked NO_SHOW before 15 minutes after its start
     Given the caller is:
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
+    And the time is "<now>"
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22 | 11:00      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
@@ -55,13 +68,19 @@ Feature: Mark a booking whose party did not come
       | CNFRMD22  | CONFIRMED |
     And the operation emits no event
 
+    Examples:
+      | now                      |
+      | 2026-11-22T09:14:59.999Z |
+      | 2026-11-22T09:00:00Z     |
+      | 2026-11-22T08:00:00Z     |
+
   Scenario: A reference that is not valid is rejected
     Given the caller is:
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | BOOKING1  |
@@ -83,8 +102,8 @@ Feature: Mark a booking whose party did not come
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | CONFIRMED | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | CONFIRMED | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | FRBDDN22  |
@@ -96,8 +115,8 @@ Feature: Mark a booking whose party did not come
       | role  | restaurant_id                        |
       | guest | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | email           | phone        |
       | CNFRMD22  | ada@example.com | +33612345678 |
@@ -111,8 +130,8 @@ Feature: Mark a booking whose party did not come
       | role  |
       | staff |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
@@ -124,8 +143,8 @@ Feature: Mark a booking whose party did not come
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
     When I run the operation with:
       | reference | email   | phone   |
       | CNFRMD22  | <email> | <phone> |

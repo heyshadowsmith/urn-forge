@@ -1,37 +1,47 @@
 @urn:corpus:bookings:booking:operation:cancel_booking
 Feature: Cancel a booking
 
+  # The shell gives the time of each call; a scenario that needs another one says so.
+  Background:
+    Given the time is "2026-11-22T10:00:00Z"
+
+  # The booking starts at 2026-12-24T18:30:00Z (19:30 in Paris). The full refund runs to 24 hours before it,
+  # 2026-12-23T18:30:00Z included; a cancellation runs to 2 hours before it, 2026-12-24T16:30:00Z included.
   Scenario Outline: A confirmed booking is cancelled; the deposit comes back in full only 24 hours or more before the start
     Given the caller is:
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
+    And the time is "<now>"
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | <local_date> | <local_time> | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount   |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | <deposit_amount> |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
     Then the output is:
-      | reference | state     | refund_amount   | cancelled_at         |
-      | CNFRMD22  | CANCELLED | <refund_amount> | 2026-11-22T10:00:00Z |
+      | reference | state     | refund_amount   | cancelled_at |
+      | CNFRMD22  | CANCELLED | <refund_amount> | <now>        |
     And the operation emits "urn:corpus:bookings:booking:event:booking_cancelled":
-      | event_id                             | reference | restaurant_id                        | state     | party_size | local_date | local_time | time_zone    | occurred_at          | guest_id                             |
-      | 16fd2706-8baf-433b-82eb-8c7fed5c9b0e | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CANCELLED | 4          | <local_date> | <local_time> | Europe/Paris | 2026-11-22T10:00:00Z | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
+      | event_id                             | reference | restaurant_id                        | state     | party_size | local_date | local_time | time_zone    | occurred_at | guest_id                             |
+      | 16fd2706-8baf-433b-82eb-8c7fed5c9b0e | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CANCELLED | 4          | 2026-12-24 | 19:30      | Europe/Paris | <now>       | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
 
     Examples:
-      | local_date | local_time | refund_amount |
-      | 2026-12-24 | 19:30      | 80.00         |
-      | 2026-11-23 | 11:00      | 80.00         |
-      | 2026-11-23 | 10:45      | 0.00          |
-      | 2026-11-22 | 16:00      | 0.00          |
+      | now                      | deposit_amount | refund_amount |
+      | 2026-11-22T10:00:00Z     | 80.00          | 80.00         |
+      | 2026-12-23T18:29:59.999Z | 80.00          | 80.00         |
+      | 2026-12-23T18:30:00Z     | 80.00          | 80.00         |
+      | 2026-12-23T18:30:00.001Z | 80.00          | 0.00          |
+      | 2026-12-24T16:29:59.999Z | 80.00          | 0.00          |
+      | 2026-12-24T16:30:00Z     | 80.00          | 0.00          |
+      | 2026-11-22T10:00:00Z     |                | 0.00          |
 
   Scenario: A reference that is not valid is rejected
     Given the caller is:
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | abc       |
@@ -53,21 +63,22 @@ Feature: Cancel a booking
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | FRBDDN22  |
     Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
     And the operation emits no event
 
-  Scenario: A second cancellation gives the first answer again, with no new event
+  Scenario: A second cancellation gives the first answer again, with no new event, even after the deadline
     Given the caller is:
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
+    And the time is "2026-12-24T18:00:00Z"
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CANCELLED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CANCELLED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
@@ -82,8 +93,8 @@ Feature: Cancel a booking
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state>   | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state   | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state> | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
@@ -98,26 +109,36 @@ Feature: Cancel a booking
       | COMPLETED |
       | NO_SHOW   |
 
-  Scenario: A booking that starts in less than 2 hours cannot be cancelled
+  Scenario Outline: A booking that starts in less than 2 hours cannot be cancelled
     Given the caller is:
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
+    And the time is "<now>"
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22 | 12:00      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:change_deadline_passed"
+    Then the operation fails with "urn:corpus:bookings:booking:error:change_deadline_passed":
+      | reference |
+      | CNFRMD22  |
     And the operation emits no event
+
+    Examples:
+      | now                      |
+      | 2026-12-24T16:30:00.001Z |
+      | 2026-12-24T17:30:00Z     |
+      | 2026-12-24T18:30:00Z     |
+      | 2026-12-24T20:00:00Z     |
 
   Scenario: A guest cancels a booking whose reference and email they present
     Given the caller is:
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | email |
       | CNFRMD22  | ada@example.com |
@@ -130,8 +151,8 @@ Feature: Cancel a booking
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | phone |
       | CNFRMD22  | +33612345678 |
@@ -144,8 +165,8 @@ Feature: Cancel a booking
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | email   | phone   |
       | CNFRMD22  | <email> | <phone> |
@@ -165,8 +186,8 @@ Feature: Cancel a booking
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED    | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state  | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | email           |
       | CNFRMD22  | eve@example.com |
@@ -178,8 +199,8 @@ Feature: Cancel a booking
       | role  |
       | staff |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
@@ -191,8 +212,8 @@ Feature: Cancel a booking
       | role  | restaurant_id                        |
       | staff | 7c9e6679-7425-40de-944b-e07fc1f90ae7 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | email           | phone        |
       | CNFRMD22  | ada@example.com | +33612345678 |
@@ -204,8 +225,8 @@ Feature: Cancel a booking
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | FRBDDN22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
+      | FRBDDN22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | email           | phone        |
       | CNFRMD22  | ada@example.com | +33612345678 |
@@ -217,8 +238,8 @@ Feature: Cancel a booking
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
     When I run the operation with:
       | reference | email   | phone   |
       | CNFRMD22  | <email> | <phone> |
