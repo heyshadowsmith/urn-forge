@@ -3,16 +3,16 @@
 // the callers of the manifest before a handler runs, so no handler reads the merchant to refuse.
 // The shell gives the time of the call (`now`) to each operation whose rules read it, and the
 // core puts it in each event and in each new record.
-// A few fixed card numbers and currencies stand in for the answers of banks. The answers of earlier
+// A few fixed card numbers and a currency stand in for the answers of banks. The answers of earlier
 // requests with an idempotency key are kept by the store (runOnce), not here.
-import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
+import { emit, fail, ok, type DomainCoreImplementation, type EventFields } from './generated/domain.runtime.generated';
 
 type Status = 'pending' | 'authorized' | 'failed' | 'captured' | 'voided' | 'expired' | 'partially_refunded' | 'refunded';
 
 interface Stored {
   readonly merchant_id: string;
   readonly amount: number;
-  readonly currency: string;
+  readonly currency: EventFields<'urn:corpus:payments:payment:event:captured'>['currency'];
   readonly status: Status;
   readonly captured_amount: number;
   readonly refunded_amount: number;
@@ -27,7 +27,8 @@ const REFUSING_CARDS = {
   '4000000000000069': 'urn:corpus:payments:payment:error:expired_card',
   '4100000000000019': 'urn:corpus:payments:payment:error:fraud_suspected',
 } as const;
-const UNSUPPORTED_CURRENCY = 'XXX';
+/** A currency of the domain that the test merchant cannot take. */
+const UNSUPPORTED_CURRENCY = 'JPY';
 
 const brandOf = (number: string) =>
   number.startsWith('4') ? 'visa' : /^5[1-5]/.test(number) ? 'mastercard' : /^3[47]/.test(number) ? 'amex' : 'other';

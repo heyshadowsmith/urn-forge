@@ -1,13 +1,19 @@
 contract: payments
 description: "Takes payments from buyers on behalf of merchants by card or bank transfer, captures or voids them, and refunds them."
 promises:
-  # The amount and its currency are two fields: no type pairs them. The currency is checked
-  # for its form only (three uppercase letters), not against the list of ISO 4217 codes.
+  # The currencies are an enum of the active ISO 4217 codes that the domain takes, listed in the
+  # contract itself (roadmap decision 9): the schema, the Postgres CHECK, gate 3 and diff check
+  # it, and "XYZ" is rejected. A merchant may take fewer (unsupported_currency, P09). Each amount
+  # (1 to 99999999 minor units) is paired with the one currency of its record: the request, the
+  # payment, its events and the refund each carry both; a capture or a refund request names its
+  # payment, whose stored currency it is in, and its answer and refusals carry that currency
+  # (ensures output.currency = current.currency, filled from current.currency). captured_amount,
+  # refunded_amount and unit_amount are sums and unit prices that may be 0, not amounts of a
+  # movement; each is in the currency of the same record.
   P01:
     promise: "An amount is a whole number of minor currency units (for example cents) from 1 to 99999999, paired with an ISO 4217 currency code of three uppercase letters."
-    status: workaround
-    by: [payment.field.amount, payment.field.currency]
-    hole: B4
+    status: declared
+    by: [payment.field.amount, payment.field.currency, payment.entity.create_payment_request, payment.entity.payment, payment.entity.capture_result, refund.entity.refund, payment.operation.capture_payment, refund.operation.refund_payment]
   P02:
     promise: "A payment id is the prefix \"pay_\" followed by 24 lowercase letters or digits, and a refund id is the prefix \"re_\" followed by 24 lowercase letters or digits."
     status: declared

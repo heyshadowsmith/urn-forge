@@ -88,8 +88,8 @@ Feature: Refund a payment
       | merchant_id | payment_id                   | amount   | idempotency_key |
       | mer_1       | pay_captured0000000000000000 | <amount> | refund-2        |
     Then the operation fails with "urn:corpus:payments:refund:error:amount_exceeds_captured":
-      | amount   | captured_amount | refunded_amount |
-      | <amount> | 5000            | 0               |
+      | amount   | currency | captured_amount | refunded_amount |
+      | <amount> | EUR      | 5000            | 0               |
     And the operation emits no event
 
     Examples:
@@ -109,8 +109,8 @@ Feature: Refund a payment
       | merchant_id | payment_id                   | amount | idempotency_key |
       | mer_1       | pay_partiallyrefunded0000000 | 3001   | refund-2        |
     Then the operation fails with "urn:corpus:payments:refund:error:amount_exceeds_captured":
-      | amount | captured_amount | refunded_amount |
-      | 3001   | 5000            | 2000            |
+      | amount | currency | captured_amount | refunded_amount |
+      | 3001   | EUR      | 5000            | 2000            |
     And the operation emits no event
 
   Scenario Outline: A request with a value out of its limits is rejected on that value

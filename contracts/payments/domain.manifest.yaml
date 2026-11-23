@@ -22,10 +22,12 @@ payment.field.amount:
   min: 1
   max: 99999999
   description: An amount in minor units of its currency, for example cents
+# The currencies that the domain takes, each an active ISO 4217 code; urn-forge keeps no list of
+# its own (roadmap decision 9). A merchant may take fewer of them (unsupported_currency).
 payment.field.currency:
-  primitive: string
-  regex: '[A-Z]{3}'
-  description: An ISO 4217 currency code
+  primitive: enum
+  values: [AUD, CAD, CHF, DKK, EUR, GBP, JPY, NOK, SEK, USD]
+  description: The ISO 4217 code of the currency of an amount, one of those that the domain takes
 payment.field.method:
   primitive: enum
   values: [card, bank_transfer]
@@ -381,17 +383,19 @@ payment.error.capture_exceeds_authorized:
   description: The capture amount is more than the authorized amount
   category: validation
   retryable: false
-  message: A capture of {amount} is more than the authorized amount of {authorized_amount}
+  message: A capture of {amount} {currency} is more than the authorized amount of {authorized_amount} {currency}
   fields:
     - ref: payment.field.amount
+    - ref: payment.field.currency
     - ref: payment.field.authorized_amount
 refund.error.amount_exceeds_captured:
   description: The refund would make the refunds of the payment more than its captured amount
   category: precondition
   retryable: false
-  message: A refund of {amount} is more than is left of the captured amount of {captured_amount}, of which {refunded_amount} is refunded
+  message: A refund of {amount} {currency} is more than is left of the captured amount of {captured_amount}, of which {refunded_amount} is refunded
   fields:
     - ref: payment.field.amount
+    - ref: payment.field.currency
     - ref: payment.field.captured_amount
     - ref: payment.field.refunded_amount
 refund.error.refund_window_closed:
@@ -517,8 +521,9 @@ payment.operation.capture_payment:
       otherwise: payment.error.invalid_state
     - rule: input.amount is absent or input.amount <= current.amount
       otherwise: payment.error.capture_exceeds_authorized
-      fill: { amount: input.amount, authorized_amount: current.amount }
+      fill: { amount: input.amount, currency: current.currency, authorized_amount: current.amount }
   ensures:
+    - output.currency = current.currency
     - output.authorized_amount = current.amount
     - input.amount is present or output.captured_amount = current.amount
     - input.amount is absent or output.captured_amount = input.amount
@@ -649,7 +654,7 @@ refund.operation.refund_payment:
       otherwise: refund.error.refund_window_closed
     - rule: current.refunded_amount + input.amount <= current.captured_amount
       otherwise: refund.error.amount_exceeds_captured
-      fill: { amount: input.amount }
+      fill: { amount: input.amount, currency: current.currency }
   ensures:
     - output.amount = input.amount
     - output.currency = current.currency
