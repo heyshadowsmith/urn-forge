@@ -43,7 +43,7 @@ const periodFrom = (start: string, period: { billing_period: 'month' | 'year'; i
 const planOf = (plan_id: string) => ({
   plan_id,
   ...periodOf(plan_id),
-  price: { amount_minor: 1500, currency: plan_id.includes('usd') ? 'USD' : 'EUR' },
+  price: { amount_minor: 1500, currency: plan_id.includes('usd') ? ('USD' as const) : ('EUR' as const) },
 });
 
 const subscription = (subscription_id: string, status: 'active' | 'paused' | 'canceled' = 'active') => ({
@@ -82,8 +82,8 @@ const invoice = (invoice_id: string, subscription_id: string) => ({
   subscription_id,
   status: 'paid' as const,
   ...invoicePeriod(invoice_id),
-  lines: [{ quantity: 2, amount: { amount_minor: 3000, currency: 'EUR' } }],
-  total: { amount_minor: 3000, currency: 'EUR' },
+  lines: [{ quantity: 2, amount: { amount_minor: 3000, currency: 'EUR' as const } }],
+  total: { amount_minor: 3000, currency: 'EUR' as const },
 });
 
 // The shell gives each event its id (newEventId), so the core sets only the subscription and the time.
