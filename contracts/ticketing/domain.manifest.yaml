@@ -261,6 +261,9 @@ ticket.entity.ticket:
     - ref: money.entity.money
       as: price
     - ref: show.field.starts_at
+  # A ticket code is unique across all events: no two stored tickets share one, whatever their event.
+  unique:
+    - by: [ticket_code]
 ticket.error.invalid_ticket_state:
   description: The ticket is not in a state that allows this
   category: conflict

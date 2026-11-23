@@ -298,6 +298,15 @@ reservation.entity.reservation:
       as: lines
       many: { minItems: 1, maxItems: 100 }
     - ref: reservation.field.expires_at
+  # A reservation id is used once: the store keeps each in "used"."reservation" and never gives it
+  # to another reservation, also after the first is gone. An order has at most one open (active or
+  # partly shipped) reservation: a second is refused with open_reservation_exists (commitOnce).
+  unique:
+    - by: [reservation_id]
+      forever: true
+    - by: [order_id]
+      when: state = 'ACTIVE' or state = 'PARTIALLY_SHIPPED'
+      otherwise: reservation.error.open_reservation_exists
 reservation.entity.release_request:
   description: A request to give the stock of a reservation back
   fields:
@@ -330,6 +339,13 @@ reservation.error.reservation_not_found:
   message: No reservation {reservation_id}
   fields:
     - ref: reservation.field.reservation_id
+reservation.error.open_reservation_exists:
+  description: The order already has an open (active or partly shipped) reservation, so nothing was reserved
+  category: conflict
+  retryable: false
+  message: The order {order_id} already has an open reservation
+  fields:
+    - ref: reservation.field.order_id
 reservation.error.invalid_state:
   description: The reservation is in a state that does not allow the change
   category: precondition
@@ -422,6 +438,7 @@ reservation.operation.reserve_stock:
     - stock.error.unknown_sku
     - stock.error.unknown_location
     - stock.error.insufficient_stock
+    - reservation.error.open_reservation_exists
     - request.error.idempotency_conflict
     - access.error.forbidden
   # The reservation expires 30 minutes after it is made, or after the time-to-live of the request.

@@ -1,12 +1,14 @@
 contract: claims
 description: "Lets employees submit expense claims with receipt lines for reimbursement, managers approve or reject them, and finance pay them."
 promises:
-  # The id is never reused: nothing states uniqueness among stored claims.
+  # The shape is the regex of claim.field.claim_id. The request of create_draft (claim.entity.draft) has
+  # no claim id and its answer (claim.entity.answer) has one, checked against the regex, so the core assigns
+  # it. The claim table has unique [claim_id] forever: true, so insertClaimClaim claims the id in
+  # "used"."claim", which nothing deletes from, and no other claim can take it, also after the first is gone.
   P01:
     promise: "A claim id is the prefix \"CLM-\" followed by exactly 10 digits, is assigned by the domain on creation, and is never reused for another claim."
-    status: workaround
-    by: [claim.field.claim_id, claim.entity.draft, claim.entity.answer]
-    hole: C1
+    status: declared
+    by: [claim.field.claim_id, claim.entity.draft, claim.entity.answer, claim.entity.claim, claim.operation.create_draft]
   # The currency is only three capital letters, not a code of ISO 4217, and no amount is tied to its currency.
   P02:
     promise: "Every money amount is a decimal with at most 2 fraction digits in an ISO 4217 three-letter currency code, and every line amount is greater than 0.00 and at most 10000.00."
@@ -100,7 +102,8 @@ promises:
     promise: "A request carrying an idempotency key already used by the same caller within 24 hours returns the original answer without making a second change."
     status: declared
     by: [claim.field.idempotency_key, auth.entity.caller, claim.entity.draft, claim.entity.draft_edit, claim.entity.change, claim.entity.rejection, claim.entity.claim_ref, claim.operation.create_draft, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid, claim.operation.report_overdue]
-  # The refusal is declared; the rule across the receipts of stored claims is not.
+  # The refusal is declared; the rule across the receipts of stored claims is not. unique cannot state it:
+  # the receipts are child rows of the lines, and a partial index on them cannot read the state of the claim.
   P17:
     promise: "The same receipt file, by its SHA-256 hash, cannot appear on two lines of claims that are not REJECTED or WITHDRAWN, and an attempt is refused with DUPLICATE_RECEIPT."
     status: workaround

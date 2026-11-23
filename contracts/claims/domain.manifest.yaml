@@ -265,6 +265,11 @@ claim.entity.claim:
       required: false
     - ref: claim.field.overdue_reported_at
       required: false
+  # A claim id is never used by another claim, also after the claim is gone: the Postgres extra keeps
+  # each id in "used"."claim", which insertClaimClaim adds to and nothing deletes from.
+  unique:
+    - by: [claim_id]
+      forever: true
 
 claim.invariant.total_is_sum:
   description: The total of a claim is the sum of its line amounts

@@ -1,12 +1,12 @@
 contract: bookings
 description: "Lets guests and restaurant staff book, change and cancel tables at a restaurant for a given date, time and party size, with deposits for larger parties."
 promises:
-  # The shape of the reference is declared; that a reference is never reused is not.
+  # The shape is the regex of the field. The booking is a table with `unique: forever` on its reference, so the
+  # database refuses a reused reference, also after the booking is gone, through the table of used values.
   P01:
     promise: "A booking reference is exactly 8 characters drawn from upper-case letters A-Z (excluding I and O) and digits 2-9, and is never reused for another booking."
-    status: workaround
-    by: [booking.field.reference]
-    hole: C1
+    status: declared
+    by: [booking.field.reference, booking.entity.booking]
   # The range 1 to 20 is on the field; create_booking requires fewer than 13 guests, otherwise PARTY_TOO_LARGE_FOR_ONLINE.
   P02:
     promise: "A party size is a whole number from 1 to 20, and requests for 13 or more guests are refused with PARTY_TOO_LARGE_FOR_ONLINE so they can be handled by phone."
