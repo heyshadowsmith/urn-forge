@@ -71,3 +71,9 @@ export const SubscriptionConflictSchema = v.object({
 });
 export type SubscriptionConflict = v.InferOutput<typeof SubscriptionConflictSchema>;
 export type SubscriptionConflictInput = v.InferInput<typeof SubscriptionConflictSchema>;
+
+// Unique values
+
+/** urn:demo:unique:subscription:entity:subscription — unique by customer_id, plan_id where status = 'active' */
+export const SubscriptionSubscriptionUnique1When = (p: SubscriptionSubscription): boolean =>
+  (p.status as string) === "active";

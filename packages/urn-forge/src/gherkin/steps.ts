@@ -97,6 +97,36 @@ export type ExecuteResultLike =
   | { readonly ok: false; readonly kind: 'DomainError'; readonly error: DomainErrorLike; readonly issues?: readonly BoundaryIssueLike[] }
   | { readonly ok: false; readonly kind: string; readonly issues: readonly BoundaryIssueLike[] };
 
+/** An entity with unique values, as the generated UniqueContract gives it. */
+export interface UniqueEntityLike {
+  readonly key?: string;
+  readonly fields: FieldsLike;
+  readonly unique: readonly { readonly by: readonly string[]; readonly when?: (record: never) => boolean; readonly otherwise?: string; readonly forever?: true }[];
+}
+
+/**
+ * The first clash of \`record\` with a stored record of its entity, as the indexes of the store find
+ * it: the same values \`by\`, both where \`when\` holds (a forever entry: any stored record), and another
+ * key. Undefined when there is none.
+ */
+export function uniqueClash(
+  entity: UniqueEntityLike,
+  record: Readonly<Record<string, unknown>>,
+  stored: readonly Readonly<Record<string, unknown>>[],
+): { readonly by: readonly string[]; readonly otherwise?: string } | undefined {
+  const other = (row: Readonly<Record<string, unknown>>) => entity.key === undefined || row[entity.key] !== record[entity.key];
+  for (const entry of entity.unique) {
+    const takesPart = (row: Readonly<Record<string, unknown>>) => entry.forever || entry.when === undefined || entry.when(row as never);
+    if (!takesPart(record)) continue;
+    const same = (row: Readonly<Record<string, unknown>>) => entry.by.every((name) => sameValue(row[name], record[name]));
+    const clash = entry.forever
+      ? stored.find((row) => same(row) && (entity.key === undefined || other(row) || entry.by.includes(entity.key)))
+      : stored.find((row) => other(row) && takesPart(row) && same(row));
+    if (clash) return { by: entry.by, ...(entry.otherwise === undefined ? {} : { otherwise: entry.otherwise }) };
+  }
+  return undefined;
+}
+
 export interface OperationStepsOptions {
   readonly dispatch: Readonly<Record<string, OperationContractLike>>;
   /**
@@ -119,6 +149,15 @@ export interface OperationStepsOptions {
    * checks that it gives no statement for the refusal.
    */
   readonly commit?: (result: never) => readonly unknown[];
+  /**
+   * For a domain with unique values: the generated UniqueContract and refusalOf. After a success, the
+   * steps check the answer against the stored records of the scenario, as the indexes of the store
+   * do, and give a clash with \`otherwise\` as commitOnce gives it.
+   */
+  readonly unique?: {
+    readonly contract: Readonly<Record<string, UniqueEntityLike>>;
+    readonly refusalOf: (urn: string, errorUrn: string, known: Readonly<Record<string, unknown>>) => ExecuteResultLike | undefined;
+  };
   readonly idempotency?: {
     readonly idempotencyOf: (
       urn: string,
@@ -165,7 +204,7 @@ export function coerceCell(cell: string, field: PropertyInfoLike): unknown {
 export function tableToObject(
   rows: readonly (readonly string[])[],
   fields: FieldsLike,
-  side: 'input' | 'output' | 'error' | 'event' | 'current record' | 'caller',
+  side: 'input' | 'output' | 'error' | 'event' | 'current record' | 'caller' | 'stored record',
   urn: string,
 ): Record<string, unknown> {
   if (rows.length !== 2) {
@@ -403,6 +442,8 @@ interface ScenarioState {
   caller?: unknown;
   /** The time of `Given the time is "<timestamp>"`, as the shell's clock would give it. */
   now?: string;
+  /** The records of `Given these <entity> records are stored:`, by entity URN, as the store holds them. */
+  stored?: Map<string, readonly Record<string, unknown>[]>;
   /** The answers of the idempotent calls of the scenario, by operation, owners and key, as runOnce keeps them. */
   answers?: Map<string, { readonly body: string; readonly output: unknown; readonly at: number }>;
   /** The output of the first run of the scenario that succeeded. */
@@ -485,6 +526,18 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     s.current = tableToObject(table.raw(), change.entity.fields, 'current record', change.entity.urn);
   });
 
+  Given(STEP_PHRASES.stored, function (this: StepsWorld, word: string, table: DataTable) {
+    const s = state(this);
+    const entries = Object.entries(options.unique?.contract ?? {});
+    const found = entries.find(([urn]) => urn.split(':').at(-1) === word);
+    if (!found) {
+      throw new Error(`"${word}" is not an entity with unique values (entities: ${entries.map(([urn]) => urn.split(':').at(-1)).join(', ') || 'none; give registerOperationSteps the unique option'})`);
+    }
+    const [urn, entity] = found;
+    const [headers, ...rows] = table.raw();
+    (s.stored ??= new Map()).set(urn, rows.map((row) => tableToObject([headers!, row], entity.fields, 'stored record', urn)));
+  });
+
   Given(STEP_PHRASES.noCurrent, function (this: StepsWorld, word: string) {
     const s = state(this);
     const urn = operationUrnFromTags(s.tags);
@@ -518,6 +571,20 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
     } else {
       s.result = execute();
       if (call && id !== undefined && s.result.ok) (s.answers ??= new Map()).set(id, { body: call.body, output: s.result.output, at });
+    }
+    // A success that clashes with a stored record: the index refuses it, and commitOnce gives otherwise.
+    if (s.result.ok && options.unique && s.stored) {
+      for (const [entityUrn, rows] of s.stored) {
+        const entity = options.unique.contract[entityUrn]!;
+        const output = s.result.output as Readonly<Record<string, unknown>>;
+        if (!entity.unique.every((entry) => entry.by.every((name) => Object.hasOwn(output, name)))) continue;
+        const clash = uniqueClash(entity, output, rows);
+        if (!clash) continue;
+        const refusal = clash.otherwise === undefined ? undefined : options.unique.refusalOf(urn, clash.otherwise, output);
+        if (!refusal) throw new Error(`${urn} answered a record whose ${clash.by.join(', ')} a stored ${entityUrn.split(':').at(-1)} has; the store refuses it, and no declared error answers it`);
+        s.result = refusal;
+        break;
+      }
     }
     if (s.result.ok) s.firstOutput ??= { value: s.result.output };
   };

@@ -116,6 +116,7 @@ export const DIAGNOSTIC_CODES = {
   'invalid-time': 'A scenario of an operation whose rules read the time runs it without Given the time is, or the time is not a UTC timestamp',
   'invalid-caller': 'A scenario of an operation with callers runs it without Given the caller is:, or the step is in a domain whose manifest names no caller',
   'uncovered-idempotency': 'No scenario repeats a call of an operation with idempotency',
+  'uncovered-unique': 'A unique entry of an entity with otherwise has no scenario that stores a record and fails with the error of the clash, or a stored-records step names an entity with no unique values',
   'uncovered-due': 'No scenario calls a timed change for a record that is not due, or the step is on an operation with no due',
   'uncovered-boundary': 'The examples of an input field do not include every boundary case of its constraints (a warning)',
   'ratchet-ready': 'Every feature is strict, so boundaryCoverage can be set to error (a note)',

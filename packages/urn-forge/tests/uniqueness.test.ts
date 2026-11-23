@@ -114,3 +114,33 @@ describe('commitOnce, on PGlite', () => {
     await expect(db.transaction(async (tx) => { for (const s of second) await tx.query(s.text, s.values as unknown[]); })).rejects.toThrow(/subscription_customer_id_plan_id_unique/);
   });
 });
+
+describe('the Gherkin steps and gate 3', () => {
+  const entity = runtime.UniqueContract['urn:demo:unique:subscription:entity:subscription'];
+  const live = { subscription_id: 'sub_00000001', customer_id: 'cus_0001', plan_id: 'pln_gold', status: 'active' };
+
+  it('find a clash with a live stored record, as the index does, and none with a canceled one or the record itself', async () => {
+    const { uniqueClash } = await import('../src/gherkin/steps.js');
+    const next = { ...live, subscription_id: 'sub_00000002' };
+    expect(uniqueClash(entity, next, [live])).toEqual({ by: ['customer_id', 'plan_id'], otherwise: CONFLICT });
+    expect(uniqueClash(entity, next, [{ ...live, status: 'canceled' }])).toBeUndefined();
+    expect(uniqueClash(entity, live, [live])).toEqual({ by: ['subscription_id'] });
+    expect(uniqueClash(entity, { ...next, customer_id: 'cus_0002' }, [{ ...live, status: 'canceled' }])).toBeUndefined();
+  });
+
+  it('asks for a scenario of each clash with otherwise', async () => {
+    const { checkGherkin } = await import('../src/verify/gherkin.js');
+    const { indexFeatureSource } = await import('../src/verify/feature-index.js');
+    const ir = compile(source).ir!;
+    const gate3 = (steps: string) =>
+      checkGherkin({ ir, features: { directory: 'features', features: [indexFeatureSource(`Feature: f\n  @${CREATE}\n  Scenario: s\n${steps}`, 'f.feature')!], problems: [] }, boundaryCoverage: 'warn' } as never)
+        .problems.filter((p) => p.code === 'uncovered-unique')
+        .map((p) => p.message);
+    const run = '    When I run the operation with:\n      | subscription_id | customer_id | plan_id |\n      | sub_00000002 | cus_0001 | pln_gold |\n';
+    expect(gate3(run)).toEqual([
+      `urn:demo:unique:subscription:entity:subscription refuses a second record with the same customer_id, plan_id where status = 'active' with ${CONFLICT}, and no scenario shows it; add one with Given these subscription records are stored: and Then the operation fails with "${CONFLICT}"`,
+    ]);
+    const stored = '    Given these subscription records are stored:\n      | subscription_id | customer_id | plan_id | status |\n      | sub_00000001 | cus_0001 | pln_gold | active |\n';
+    expect(gate3(stored + run + `    Then the operation fails with "${CONFLICT}"\n`)).toEqual([]);
+  });
+});

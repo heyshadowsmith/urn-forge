@@ -82,6 +82,7 @@ describe('public API', () => {
       'operationUrnFromTags',
       'registerOperationSteps',
       'tableToObject',
+      'uniqueClash',
     ]);
   });
 

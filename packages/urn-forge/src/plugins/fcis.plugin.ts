@@ -21,7 +21,7 @@ import { conditionName, handlerName, ruleName, schemaNames } from '../naming.js'
 import { namesIn } from '../rules/index.js';
 import { PRIMITIVE_NAMES } from '../primitives/index.js';
 import { docComment, valuesInUrnOrder, type CodegenPlugin } from './plugin.interface.js';
-import { VALIBOT_SCHEMAS_FILE } from './valibot.plugin.js';
+import { uniqueWhenName, VALIBOT_SCHEMAS_FILE } from './valibot.plugin.js';
 
 export const FCIS_RUNTIME_FILE = 'domain.runtime.generated.ts';
 
@@ -362,6 +362,38 @@ const COUNTS = `
       return { ok: false, kind: 'ContractViolation', urn, issues: [{ path: '', message: \`the handler for \${urn} answered a value that breaks ensures: \${condition.text}\` }] };
     }
   }`;
+
+/**
+ * For the Gherkin steps: each entity with unique, by URN, with its key, its properties, and each
+ * entry, so that the steps check a new record against the stored records of a scenario.
+ */
+function uniqueContractLines(ir: UniversalIR): string[] {
+  const entities = valuesInUrnOrder(ir.entities).filter((e) => (e.unique ?? []).length > 0);
+  if (entities.length === 0) return [];
+  return [
+    ``,
+    `/** Each entity with unique values: its key, its properties, and the values that no two stored records share. */`,
+    `export const UniqueContract = {`,
+    ...entities.flatMap((entity) => {
+      const key = entity.fields.find((f) => 'field' in f && f.field === entity.key)?.name;
+      return [
+        `  ${q(entity.urn)}: {`,
+        ...(key === undefined ? [] : [`    key: ${q(key)},`]),
+        `    fields: {`,
+        ...fieldInfoLines(entity.urn, entity.fields, ir, '      '),
+        `    },`,
+        `    unique: [`,
+        ...entity.unique!.map(
+          (entry, index) =>
+            `      { by: [${entry.by.map(q).join(', ')}]${entry.when ? `, when: s.${uniqueWhenName(entity.brandIdentifier, index)}` : ''}${entry.otherwise ? `, otherwise: ${q(entry.otherwise)}` : ''}${entry.forever ? ', forever: true' : ''} },`,
+        ),
+        `    ],`,
+        `  },`,
+      ];
+    }),
+    `} as const;`,
+  ];
+}
 
 /** The lines of refuses in the DispatchMap: for each error, its rules, numbered across the operation. */
 function refusesLines(op: IROperation): string[] {
@@ -1095,6 +1127,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
         `  },`,
       ]),
       `} as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;`,
+      ...uniqueContractLines(ir),
       ...(anyCaller
         ? [
             ``,

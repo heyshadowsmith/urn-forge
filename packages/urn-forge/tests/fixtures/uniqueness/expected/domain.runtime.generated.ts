@@ -167,6 +167,23 @@ export const DispatchMap = {
   },
 } as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;
 
+/** Each entity with unique values: its key, its properties, and the values that no two stored records share. */
+export const UniqueContract = {
+  'urn:demo:unique:subscription:entity:subscription': {
+    key: 'subscription_id',
+    fields: {
+      subscription_id: { urn: 'urn:demo:unique:subscription:field:subscription_id', primitive: 'string', required: true },
+      customer_id: { urn: 'urn:demo:unique:subscription:field:customer_id', primitive: 'string', required: true },
+      plan_id: { urn: 'urn:demo:unique:subscription:field:plan_id', primitive: 'string', required: true },
+      status: { urn: 'urn:demo:unique:subscription:field:status', primitive: 'enum', required: true },
+    },
+    unique: [
+      { by: ['customer_id', 'plan_id'], when: s.SubscriptionSubscriptionUnique1When, otherwise: 'urn:demo:unique:subscription:error:conflict' },
+      { by: ['subscription_id'], forever: true },
+    ],
+  },
+} as const;
+
 // Shell gatekeeper
 
 export type OperationUrn = keyof DomainCoreImplementation;
