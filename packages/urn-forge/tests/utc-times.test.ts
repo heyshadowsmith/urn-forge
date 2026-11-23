@@ -107,7 +107,8 @@ describe('a day in SQL', () => {
     const due = (await import(new URL('./fixtures/clock/expected/domain.store.generated.ts', import.meta.url).href)) as Record<string, (now: string, limit: number) => { text: string }>;
     const text = Object.entries(due).find(([name]) => name.startsWith('selectPayment'))![1]('2026-11-23T00:00:00Z', 10).text;
     expect(text).toContain("7 * INTERVAL '24 hours'");
-    const at = (await db.query<{ t: string }>("SELECT (TIMESTAMPTZ '2026-03-25T12:00:00Z' + 7 * INTERVAL '24 hours') AT TIME ZONE 'UTC' AS t")).rows[0]!.t;
-    expect(new Date(at).toISOString()).toBe('2026-04-01T12:00:00.000Z');
+    // The instant as milliseconds since the epoch: no time zone in the comparison, of the session or of this process.
+    const ms = (await db.query<{ ms: string }>("SELECT (EXTRACT(EPOCH FROM TIMESTAMPTZ '2026-03-25T12:00:00Z' + 7 * INTERVAL '24 hours') * 1000)::BIGINT::TEXT AS ms")).rows[0]!.ms;
+    expect(new Date(Number(ms)).toISOString()).toBe('2026-04-01T12:00:00.000Z');
   });
 });
