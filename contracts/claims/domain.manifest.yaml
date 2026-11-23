@@ -32,10 +32,12 @@ claim.field.state:
     REJECTED: [DRAFT]
     APPROVED: [PAID]
   description: The state of a claim
+# The currencies the domain pays claims in, each an active ISO 4217 code with 2 minor units, so an
+# amount of scale 2 fits each of them (roadmap decision 9: urn-forge ships no ISO 4217 list).
 claim.field.currency:
-  primitive: string
-  regex: '[A-Z]{3}'
-  description: An ISO 4217 currency code, three capital letters
+  primitive: enum
+  values: [CHF, EUR, GBP, USD]
+  description: The ISO 4217 code of the currency of a claim, one of CHF, EUR, GBP or USD; the lines and the total of the claim are in it
 claim.field.total:
   primitive: decimal
   exclusiveMin: "0"
