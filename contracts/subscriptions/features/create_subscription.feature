@@ -195,15 +195,60 @@ Feature: Create a subscription
       | 2026-11-24 |
       | 2028-11-22 |
 
-  Scenario: A second subscription of a customer to the same plan is a conflict
-    Given the time is "2026-11-22T10:00:00Z"
+  Scenario Outline: A second subscription of a customer to a plan that it has a live subscription to is a conflict, and nothing changes
+    Given these subscription records are stored:
+      | subscription_id              | customer_id | plan_id    | status   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | plan_basic | <status> |
+    And the time is "2026-11-22T10:00:00Z"
     When I run the operation with:
       | customer_id | plan_id    | quantity |
-      | cus_taken   | plan_basic | 1        |
+      | cus_1       | plan_basic | 1        |
     Then the operation fails with "urn:corpus:subscriptions:subscription:error:conflict":
       | customer_id | plan_id    |
-      | cus_taken   | plan_basic |
-    And the operation emits no event
+      | cus_1       | plan_basic |
+    And nothing changes
+
+    Examples:
+      | status   |
+      | trialing |
+      | active   |
+      | past_due |
+      | paused   |
+
+  Scenario Outline: A canceled or expired subscription of the customer to the plan does not stop a new one
+    Given these subscription records are stored:
+      | subscription_id              | customer_id | plan_id    | status   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | plan_basic | <status> |
+    And the time is "2026-11-22T10:00:00Z"
+    When I run the operation with:
+      | customer_id | plan_id    | quantity |
+      | cus_1       | plan_basic | 1        |
+    Then the output is:
+      | subscription_id              | customer_id | plan_id    | status |
+      | sub_nnnnnnnnnnnnnnnnnnnnnnnn | cus_1       | plan_basic | active |
+    And the operation emits "urn:corpus:subscriptions:subscription:event:created"
+
+    Examples:
+      | status   |
+      | canceled |
+      | expired  |
+
+  Scenario Outline: A live subscription to another plan, or of another customer, does not stop a new one
+    Given these subscription records are stored:
+      | subscription_id              | customer_id   | plan_id   | status |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <customer_id> | <plan_id> | active |
+    And the time is "2026-11-22T10:00:00Z"
+    When I run the operation with:
+      | customer_id | plan_id    | quantity |
+      | cus_1       | plan_basic | 1        |
+    Then the output is:
+      | subscription_id              | customer_id | plan_id    | status |
+      | sub_nnnnnnnnnnnnnnnnnnnnnnnn | cus_1       | plan_basic | active |
+
+    Examples:
+      | customer_id | plan_id         |
+      | cus_1       | plan_pro-yearly |
+      | cus_2       | plan_basic      |
 
   Scenario: A repeat of the same key and the same body within 24 hours returns the first answer and has no second effect
     Given the time is "2026-11-22T10:00:00Z"

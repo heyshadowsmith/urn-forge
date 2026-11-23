@@ -10,7 +10,6 @@ export const MISSING = ID_24('0');
 export const CANCELED = ID_24('c');
 export const PAUSED = ID_24('p');
 const CREATED = ID_24('n');
-const TAKEN_CUSTOMER = 'cus_taken';
 const MISSING_INVOICE = 'in_missing';
 const NOW = '2026-11-22T10:00:00Z';
 
@@ -51,6 +50,7 @@ const subscription = (subscription_id: string, status: 'active' | 'paused' | 'ca
   subscription_id,
   customer_id: 'cus_1',
   plan: planOf('plan_basic'),
+  plan_id: 'plan_basic',
   quantity: 1,
   status,
   current_period_start: '2026-11-01T00:00:00Z',
@@ -93,14 +93,14 @@ export const core = {
   // The shell gives the time of the call (now); the day of the request is its UTC date.
   'urn:corpus:subscriptions:subscription:operation:create_subscription': (req, _current, now) => {
     const today = now.slice(0, 10);
-    if (req.customer_id === TAKEN_CUSTOMER) {
-      return fail('urn:corpus:subscriptions:subscription:error:conflict', { customer_id: req.customer_id, plan_id: req.plan_id });
-    }
+    // The core sees one call, not the stored subscriptions: a second live subscription of the
+    // customer to the plan is refused by the unique entry of the subscription (the store's index,
+    // and commitOnce answers conflict).
     const trialEnd =
       req.trial_end ?? (req.trial_days !== undefined && req.trial_days > 0 ? addDays(today, req.trial_days) : undefined);
     const plan = planOf(req.plan_id);
     // The first period starts now and lasts the plan's period.
-    const base = { ...subscription(CREATED), customer_id: req.customer_id, plan, quantity: req.quantity, ...periodFrom(now, plan) };
+    const base = { ...subscription(CREATED), customer_id: req.customer_id, plan, plan_id: req.plan_id, quantity: req.quantity, ...periodFrom(now, plan) };
     const created = emit('urn:corpus:subscriptions:subscription:event:created', meta(CREATED));
     if (trialEnd === undefined) {
       return ok(base, [
@@ -141,7 +141,7 @@ export const core = {
     const changed =
       proration === 'at_period_end'
         ? { ...current, scheduled_plan_id: plan_id }
-        : { ...current, plan: next, ...(samePeriod ? {} : periodFrom(now, next)) };
+        : { ...current, plan: next, plan_id, ...(samePeriod ? {} : periodFrom(now, next)) };
     return ok(changed, [emit('urn:corpus:subscriptions:subscription:event:updated', meta(subscription_id))]);
   },
 

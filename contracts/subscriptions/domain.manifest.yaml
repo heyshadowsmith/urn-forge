@@ -129,6 +129,8 @@ subscription.entity.subscription:
     - ref: subscription.field.subscription_id
     - ref: customer.field.customer_id
     - ref: plan.entity.plan
+    # The id of the plan, as a column of the record, so that the unique entry below can name it.
+    - ref: plan.field.plan_id
     - ref: subscription.field.quantity
     - ref: subscription.field.status
     - ref: billing.field.period_start
@@ -147,6 +149,18 @@ subscription.entity.subscription:
       required: false
     - ref: subscription.field.trial_will_end_sent_at
       required: false
+  # A customer has at most one live (not canceled, not expired) subscription to a plan. The postgres
+  # plugin makes a partial unique index of it; commitOnce answers a clash with conflict, and writes nothing.
+  unique:
+    - by: [customer_id, plan_id]
+      when: status != 'canceled' and status != 'expired'
+      otherwise: subscription.error.conflict
+subscription.invariant.plan_id_is_plan:
+  description: The plan id of a subscription is the id of its plan
+  on: subscription.entity.subscription
+  rule: plan_id = plan.plan_id
+  reportOn: plan_id
+  message: The plan id must be the id of the plan
 
 subscription.entity.create_request:
   description: A request to subscribe a customer to a plan
@@ -446,6 +460,8 @@ subscription.operation.create_subscription:
     - input.trial_days is absent or input.trial_days = 0 or output.status = 'trialing'
     - input.trial_end is absent or output.status = 'trialing'
     - output.current_period_start = now
+    - output.customer_id = input.customer_id
+    - output.plan_id = input.plan_id
     - input.trial_end is absent or output.trial_end is present and output.trial_end = input.trial_end
     - input.trial_days is absent or input.trial_days = 0 or output.trial_end is present and output.trial_end = today + input.trial_days
     - input.trial_end is present or input.trial_days is present and input.trial_days > 0 or output.trial_end is absent
@@ -494,6 +510,7 @@ subscription.operation.change_plan:
   ensures:
     - input.proration != 'at_period_end' or output.scheduled_plan_id is present and output.scheduled_plan_id = input.plan_id
     - input.proration != 'at_period_end' or output.plan = current.plan
+    - input.proration = 'at_period_end' or output.plan_id = input.plan_id
     - output.current_period_start = current.current_period_start or output.current_period_start = now
     - output.plan.billing_period != current.plan.billing_period or output.plan.interval_count != current.plan.interval_count or output.current_period_start = current.current_period_start
     - output.plan.billing_period = current.plan.billing_period and output.plan.interval_count = current.plan.interval_count or output.current_period_start = now
@@ -505,6 +522,8 @@ subscription.operation.change_plan:
     - subscription.error.not_found
     - subscription.error.currency_mismatch
     - subscription.error.invalid_state_transition
+    # The customer has a live subscription to the new plan already: the unique entry of the subscription.
+    - subscription.error.conflict
     - request.error.conflict
   emits:
     - event: subscription.event.updated

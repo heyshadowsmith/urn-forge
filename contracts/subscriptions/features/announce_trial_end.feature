@@ -9,8 +9,8 @@ Feature: Announce the end of a trial, 3 days before it ends
   Scenario Outline: A trialing subscription is due from the day 3 days before its trial ends
     Given the time is "<now>"
     And the current subscription is:
-      | subscription_id              | customer_id | plan | quantity | status   | current_period_start | current_period_end   | trial_end  |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
+      | subscription_id              | customer_id | plan | plan_id | quantity | status   | current_period_start | current_period_end   | trial_end  |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
     When I run the operation with:
       | subscription_id              |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa |
@@ -31,8 +31,8 @@ Feature: Announce the end of a trial, 3 days before it ends
   Scenario Outline: A trialing subscription is not due before the day 3 days before its trial ends
     Given the time is "<now>"
     And the current subscription is:
-      | subscription_id              | customer_id | plan | quantity | status   | current_period_start | current_period_end   | trial_end  |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
+      | subscription_id              | customer_id | plan | plan_id | quantity | status   | current_period_start | current_period_end   | trial_end  |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
     When I run the operation with:
       | subscription_id              |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa |
@@ -46,8 +46,8 @@ Feature: Announce the end of a trial, 3 days before it ends
   Scenario Outline: A trial that was announced already is not due again
     Given the time is "<now>"
     And the current subscription is:
-      | subscription_id              | customer_id | plan | quantity | status   | current_period_start | current_period_end   | trial_end  | trial_will_end_sent_at |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 | <trial_will_end_sent_at> |
+      | subscription_id              | customer_id | plan | plan_id | quantity | status   | current_period_start | current_period_end   | trial_end  | trial_will_end_sent_at |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 | <trial_will_end_sent_at> |
     When I run the operation with:
       | subscription_id              |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa |
@@ -62,8 +62,8 @@ Feature: Announce the end of a trial, 3 days before it ends
   Scenario: A trialing subscription with no trial end is never due
     Given the time is "2026-11-22T10:00:00Z"
     And the current subscription is:
-      | subscription_id              | customer_id | plan | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id              | customer_id | plan | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id              |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa |
@@ -72,8 +72,8 @@ Feature: Announce the end of a trial, 3 days before it ends
   Scenario Outline: A subscription that is no longer trialing is not announced, even when its trial end is near
     Given the time is "2026-11-23T10:00:00Z"
     And the current subscription is:
-      | subscription_id              | customer_id | plan | quantity | status   | current_period_start | current_period_end   | trial_end  |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
+      | subscription_id              | customer_id | plan | plan_id | quantity | status   | current_period_start | current_period_end   | trial_end  |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
     When I run the operation with:
       | subscription_id              |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa |
@@ -102,8 +102,8 @@ Feature: Announce the end of a trial, 3 days before it ends
   Scenario Outline: A request that breaks a field limit is rejected
     Given the time is "2026-11-23T10:00:00Z"
     And the current subscription is:
-      | subscription_id              | customer_id | plan | quantity | status   | current_period_start | current_period_end   | trial_end  |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
+      | subscription_id              | customer_id | plan | plan_id | quantity | status   | current_period_start | current_period_end   | trial_end  |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
     When I run the operation with:
       | subscription_id   |
       | <subscription_id> |
