@@ -37,7 +37,7 @@ The command shows this output:
 ```
 wrote      src/generated/domain.runtime.generated.ts
 wrote      src/generated/domain.schemas.generated.ts
-fingerprint sha256:492eef5cf4429536322062da365f080ff6cc4091bb6ae5563c713a73570b3b10
+fingerprint sha256:946a89ed820523e6ee237101cb26f2332131af62556b47d3d4f042cf267b1e80
 ```
 
 Open `src/generated/domain.runtime.generated.ts`. Find the handler type:

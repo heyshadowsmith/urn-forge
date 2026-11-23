@@ -135,6 +135,11 @@ const TRANSLATIONS: ValibotTranslations = {
       max: (t) => instantCheck(`Date.parse(value) <= Date.parse(${text(t)})`, `Invalid value: Expected <=${t}`),
       exclusiveMin: (t) => instantCheck(`Date.parse(value) > Date.parse(${text(t)})`, `Invalid value: Expected >${t}`),
       exclusiveMax: (t) => instantCheck(`Date.parse(value) < Date.parse(${text(t)})`, `Invalid value: Expected <${t}`),
+      // Exactly n digits after the second: none for 0.
+      precision: (n) =>
+        n === 0
+          ? `v.regex(/:[0-9]{2}Z$/u, 'Invalid timestamp: Expected no digits after the second')`
+          : `v.regex(/\\.[0-9]{${n}}Z$/u, 'Invalid timestamp: Expected exactly ${n} digit${n === 1 ? '' : 's'} after the second')`,
     },
   },
 };

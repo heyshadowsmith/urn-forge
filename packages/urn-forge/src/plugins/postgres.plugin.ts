@@ -110,7 +110,15 @@ export const DOMAIN_TRANSLATIONS: DomainTranslations = {
   boolean: (c) => ({ type: 'BOOLEAN', conditions: c.mustBe === undefined ? [] : [`VALUE = ${c.mustBe ? 'TRUE' : 'FALSE'}`], unenforced: [] }),
   enum: (c) => ({ type: 'TEXT', conditions: [`VALUE IN (${(c.values ?? []).map(literal).join(', ')})`], unenforced: [] }),
   date: (c) => ({ type: 'DATE', conditions: bounds(c, (day: string) => `DATE ${literal(day)}`), unenforced: [] }),
-  timestamp: (c) => ({ type: 'TIMESTAMPTZ', conditions: bounds(c, (t: string) => `TIMESTAMPTZ ${literal(t)}`), unenforced: [] }),
+  timestamp: (c) => ({
+    type: 'TIMESTAMPTZ',
+    conditions: [
+      ...bounds(c, (t: string) => `TIMESTAMPTZ ${literal(t)}`),
+      // An instant keeps no text, so the column holds no finer part of a second than the precision.
+      ...(c.precision === undefined ? [] : [`EXTRACT(MICROSECONDS FROM VALUE)::BIGINT % ${10 ** (6 - c.precision)} = 0`]),
+    ],
+    unenforced: [],
+  }),
   decimal: (c) => ({
     // No precision: NUMERIC keeps the digits it gets, and `scale` is the step (decision 4).
     type: 'NUMERIC',

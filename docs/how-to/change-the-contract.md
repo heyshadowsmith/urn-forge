@@ -231,7 +231,7 @@ unchanged  insurance/generated/domain.runtime.generated.ts
 unchanged  insurance/generated/domain.schemas.generated.ts
 unchanged  insurance/generated/domain.store.generated.ts
 unchanged  insurance/generated/schema.generated.sql
-fingerprint sha256:cdd7f3a5a0f84f5f5d6d2f874a7e15be48b16ddf85506fbf72fc053a65322dd2
+fingerprint sha256:ed22ead4fea76af5e6bc9939fd5184c0200f48513c8138dee4e88936bfd9aeb2
 ```
 
 - The location is the reference, not the deprecated atom.

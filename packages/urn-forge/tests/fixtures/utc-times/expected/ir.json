@@ -1,0 +1,64 @@
+{
+  "entities": {
+    "urn:demo:utc:stock:entity:receipt": {
+      "brandIdentifier": "StockReceipt",
+      "description": "Goods that arrived",
+      "fields": [
+        {
+          "field": "urn:demo:utc:stock:field:sku",
+          "name": "sku",
+          "required": true
+        },
+        {
+          "field": "urn:demo:utc:stock:field:received_at",
+          "name": "received_at",
+          "required": true
+        }
+      ],
+      "key": "urn:demo:utc:stock:field:sku",
+      "urn": "urn:demo:utc:stock:entity:receipt"
+    }
+  },
+  "errors": {},
+  "events": {},
+  "fields": {
+    "urn:demo:utc:stock:field:received_at": {
+      "brandIdentifier": "StockReceivedAt",
+      "constraints": {
+        "precision": 3
+      },
+      "description": "When the goods arrived, in UTC, with milliseconds",
+      "primitive": "timestamp",
+      "urn": "urn:demo:utc:stock:field:received_at"
+    },
+    "urn:demo:utc:stock:field:sku": {
+      "brandIdentifier": "StockSku",
+      "constraints": {
+        "regex": "[A-Z0-9-]{1,12}"
+      },
+      "description": "A stock code",
+      "primitive": "string",
+      "urn": "urn:demo:utc:stock:field:sku"
+    }
+  },
+  "invariants": {},
+  "meta": {
+    "domain": "utc",
+    "irSchemaVersion": 1,
+    "manifestHash": "0ff2e854827fa5023198c9512e270264481c0d0b5e827843a28f6aea05149a2a",
+    "manifestVersion": "1.0.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {
+    "urn:demo:utc:stock:operation:receive": {
+      "brandIdentifier": "StockReceive",
+      "description": "Record goods that arrived",
+      "emits": [],
+      "errors": [],
+      "input": "urn:demo:utc:stock:entity:receipt",
+      "output": "urn:demo:utc:stock:entity:receipt",
+      "urn": "urn:demo:utc:stock:operation:receive"
+    }
+  }
+}

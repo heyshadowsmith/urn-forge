@@ -1,0 +1,26 @@
+# UTC times: the target of utc-times.test.ts. A receipt time with exactly 3 digits after the
+# second, a billing period of one calendar month, and a cancel deadline of 2 hours before a UTC
+# start. Every instant is UTC; the contract has no time zone.
+manifest:
+  namespace: demo
+  domain: utc
+  version: 1.0.0
+
+stock.field.sku:
+  primitive: string
+  regex: '[A-Z0-9-]{1,12}'
+  description: A stock code
+stock.field.received_at:
+  primitive: timestamp
+  precision: 3
+  description: When the goods arrived, in UTC, with milliseconds
+stock.entity.receipt:
+  description: Goods that arrived
+  key: stock.field.sku
+  fields:
+    - ref: stock.field.sku
+    - ref: stock.field.received_at
+stock.operation.receive:
+  description: Record goods that arrived
+  input: stock.entity.receipt
+  output: stock.entity.receipt
