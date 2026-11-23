@@ -22,6 +22,18 @@ Feature: Refund tickets
       | =repeat(8, "k")  | [ABCDEFGH23456789]                   | { amount_minor: 5000, currency: EUR }  |
       | =repeat(64, "k") | [ABCDEFGH23456789, ZYXWVUTS98765432] | { amount_minor: 10000, currency: EUR } |
 
+  Scenario: A refund is in the currency of its order
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current order is:
+      | order_id                             | event_id                             | starts_at            | tickets                                                                                                                                                                                                                                                                                                                                                                                                                       | fees                                 | total                                 |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-12T20:00:00Z | [{ ticket_code: ABCDEFGH23456789, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: seated, section: A1, row: C, seat_number: 12, ticket_status: ISSUED, price: { amount_minor: 5000, currency: GBP }, starts_at: 2026-12-12T20:00:00Z }, { ticket_code: ZYXWVUTS98765432, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: standing, section: FLOOR, ticket_status: ISSUED, price: { amount_minor: 3000, currency: GBP }, starts_at: 2026-12-12T20:00:00Z }] | { amount_minor: 500, currency: GBP } | { amount_minor: 8500, currency: GBP } |
+    When I run the operation with:
+      | idempotency_key | order_id                             | ticket_codes       |
+      | refund-gbp-0001 | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789] |
+    Then the output is:
+      | order_id                             | ticket_codes       | amount                                |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [ABCDEFGH23456789] | { amount_minor: 5000, currency: GBP } |
+
   Scenario Outline: A request outside the limits of a field is rejected at the boundary
     Given the time is "2026-12-01T19:00:00Z"
     And the current order is:

@@ -7,12 +7,19 @@ promises:
     status: workaround
     by: [seat.field.place_kind, seat.field.section, seat.field.row, seat.field.seat_number, hold.invariant.seated_line_names_one_seat, hold.invariant.standing_line_names_quantity, ticket.invariant.seated_ticket_has_seat, ticket.invariant.standing_ticket_has_no_seat]
     hole: B1
-  # The currency is any three uppercase letters, not a code of ISO 4217, and nothing states that all amounts of one order share one currency.
+  # Every amount is money.entity.money: a required integer amount_minor with min 0, and a required currency. urn-forge
+  # ships no ISO 4217 list (roadmap decision 9), so the currency is an enum of the ISO 4217 codes the service sells in,
+  # EUR, GBP and USD: a narrower promise than "any ISO 4217 code", checked by the schema, the Postgres CHECK and diff.
+  # order.invariant.amounts_share_currency states that the fees and each ticket price are in the currency of the total,
+  # on every answer with an order (check_out, get_order) and on the stored order that request_refund reads;
+  # hold.invariant.amounts_share_currency does the same for the hold the order pays for. check_out ensures the order is in
+  # the currency of its hold, and request_refund that the refund is in the currency of its order. A core that answers
+  # otherwise is a ContractViolation. Scenarios check every amount of an order in USD and a refund in GBP. The Postgres
+  # CHECK does not see the items of a list (unenforced-in-sql on the hold); the generated schema does.
   P02:
     promise: "Every money amount is a non-negative integer number of minor units (for example cents) together with a three-letter ISO 4217 currency code, and all amounts in one order share the same currency."
-    status: workaround
-    by: [money.entity.money, money.field.amount_minor, money.field.currency]
-    hole: B4
+    status: declared
+    by: [money.entity.money, money.field.amount_minor, money.field.currency, order.invariant.amounts_share_currency, hold.invariant.amounts_share_currency, order.operation.check_out, refund.operation.request_refund]
   # The form is the regex of the code. The ticket is the stored record (transfer_ticket and cancel_transfer change it,
   # check_out and accept_transfer issue new ones), a table of the Postgres extra keyed by its code, and its
   # unique: [{ by: [ticket_code] }] is a unique index over every stored ticket, whatever its event.

@@ -21,7 +21,7 @@ const STANDING_PRICE = 3000;
 const FEE_PER_TICKET = 250;
 const MAX_TICKETS = 10;
 
-const eur = (amount_minor: number) => ({ amount_minor, currency: 'EUR' });
+const eur = (amount_minor: number) => ({ amount_minor, currency: 'EUR' as const });
 /** The instant a number of minutes after a UTC timestamp, as a UTC timestamp; whole seconds without milliseconds. */
 const after = (at: string, minutes: number) => new Date(Date.parse(at) + minutes * 60_000).toISOString().replace('.000Z', 'Z');
 const HOLD_MINUTES = 10;
@@ -91,8 +91,11 @@ export const core = {
   // The runtime refuses a checkout after the expiry of the hold before this runs; the events carry the time of the call.
   'urn:corpus:ticketing:order:operation:check_out': ({ hold_id, payment_reference }, current, now) => {
     if (payment_reference === DECLINED) return fail('urn:corpus:ticketing:order:error:payment_declined', { payment_reference });
+    // The order is in the currency of the hold.
     const { event_id } = current;
-    return ok({ ...order, event_id, tickets: order.tickets.map((t) => ({ ...t, event_id })) }, [
+    const { currency } = current.total;
+    const tickets = order.tickets.map((t) => ({ ...t, event_id, price: { ...t.price, currency } }));
+    return ok({ ...order, event_id, tickets, fees: { ...order.fees, currency }, total: { ...order.total, currency } }, [
       emit('urn:corpus:ticketing:order:event:order_placed', {
         event_id,
         order_id: ORDER,
@@ -129,11 +132,12 @@ export const core = {
   'urn:corpus:ticketing:transfer:operation:cancel_transfer': (_input, current) => ok({ ...current, ticket_status: 'ISSUED' }),
 
   // The runtime refuses a refund 48 hours or less before the start of the event before this runs.
+  // The refund is in the currency of the order.
   'urn:corpus:ticketing:refund:operation:request_refund': ({ order_id, ticket_codes }, current, now) => {
     const used = ticket_codes.find((code) => code === USED_TICKET);
     if (used) return fail('urn:corpus:ticketing:refund:error:ticket_not_refundable', { ticket_code: used });
     return ok(
-      { refund_id: REFUND, order_id, ticket_codes: [...ticket_codes], amount: eur(SEATED_PRICE * ticket_codes.length) },
+      { refund_id: REFUND, order_id, ticket_codes: [...ticket_codes], amount: { amount_minor: SEATED_PRICE * ticket_codes.length, currency: current.total.currency } },
       ticket_codes.map((ticket_code) =>
         emit('urn:corpus:ticketing:ticket:event:ticket_refunded', { event_id: current.event_id, ticket_code, occurred_at: now }),
       ),
