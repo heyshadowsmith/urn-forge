@@ -56,15 +56,18 @@ promises:
     promise: "A change-plan request must state a proration mode of \"immediate\", \"none\" or \"at_period_end\", and with \"at_period_end\" the answer shows the new plan as scheduled and the current plan as unchanged."
     status: declared
     by: [subscription.field.proration, subscription.entity.change_plan_request, subscription.entity.subscription, subscription.operation.change_plan]
-  # The resume window: a requires on pause_subscription, input.resume_on is absent or input.resume_on >= today + 1 and input.resume_on <= today + 90, answers invalid_resume_date; today is the UTC date of now, the time of the call that the shell gives (no more requested_on in the request). Pausing only from active or trialing: changes from [active, trialing] to paused, otherwise invalid_state_transition. Scenarios at each edge, at 10:00, just before and at midnight UTC.
+  # Workaround: cancel_subscription can move past_due to paused, so a cancel can pause a subscription that was not active or trialing. to cannot tie the end state to cancel_mode.
   P12:
     promise: "A pause request may contain a resume date that is at least 1 day and at most 90 days after the request, and a subscription may only be paused while \"active\" or \"trialing\"."
-    status: declared
+    status: workaround
     by: [subscription.operation.pause_subscription, subscription.field.resume_on, subscription.error.invalid_resume_date, subscription.field.status, subscription.error.invalid_state_transition]
+    hole: C3
+  # Workaround: Nothing checks that the loaded record is the one that the request names: the shell can load an active record for a request on a canceled one, and the cancel succeeds. Fixable with requires current.subscription_id = input.subscription_id.
   P13:
     promise: "A cancel request states either \"immediately\" or \"at_period_end\", and a canceled or expired subscription can never move to any other status, so any further change request on it is refused with \"invalid_state_transition\"."
-    status: declared
+    status: workaround
     by: [subscription.field.cancel_mode, subscription.field.status, subscription.operation.change_plan, subscription.operation.pause_subscription, subscription.operation.resume_subscription, subscription.operation.cancel_subscription, subscription.error.invalid_state_transition]
+    hole: A2
   # Only "the period end is after the period start" is declared. No overlap and no gap between the invoices of one subscription are rules across stored records.
   P14:
     promise: "Within one subscription, invoice periods never overlap, each invoice's period end is after its period start, and each invoice's period start equals the previous invoice's period end."
@@ -77,20 +80,23 @@ promises:
     status: workaround
     by: [invoice.entity.invoice, invoice.invariant.total_is_sum, invoice.field.line_quantity, money.field.amount_minor]
     hole: A1
+  # Workaround: No operation and no table changes an invoice, so the moves of the invoice status are in no generated code: read_invoice can answer paid, then open, for one invoice.
   P16:
     promise: "An invoice's status is exactly one of \"draft\", \"open\", \"paid\", \"void\" or \"uncollectible\", and a \"paid\" or \"void\" invoice never changes status again."
-    status: declared
+    status: workaround
     by: [invoice.field.status]
+    hole: C3
   # Declared: the subscription (a table of the postgres plugin) has plan_id as its own column (plan.field.plan_id, with the invariant plan_id_is_plan: plan_id = plan.plan_id) and unique [{ by: [customer_id, plan_id], when: status != 'canceled' and status != 'expired', otherwise: subscription.error.conflict }]. The schema has the partial unique index subscription_customer_id_plan_id_unique, and commitOnce answers a clash with conflict, filled by name (customer_id, plan_id) from the answer, and writes nothing. create_subscription ensures output.customer_id = input.customer_id and output.plan_id = input.plan_id, so a second create for the same customer and plan is the clash. The core has no check of its own (it sees one call). Scenarios: a stored trialing, active, past_due or paused subscription of the customer to the plan → conflict, nothing changes; a stored canceled or expired one → created; another plan or another customer → created. change_plan also declares conflict, for a move to a plan that the customer has a live subscription to. Readings: the invariant plan_id = plan.plan_id reads the child table of the plan, so the SQL does not check it (unenforced-in-sql); the Valibot schema of the output does, before commitOnce.
   P17:
     promise: "A customer has at most one non-canceled, non-expired subscription per plan, and a second create for the same customer and plan is refused with \"conflict\"."
     status: declared
     by: [subscription.entity.subscription, plan.field.plan_id, subscription.invariant.plan_id_is_plan, subscription.operation.create_subscription, subscription.error.conflict]
-  # Declared: request.field.idempotency_key (1 to 255 characters) is an optional field of every write request (create, change_plan, pause, resume and cancel), and each of these operations has idempotency with that key, a window of 24 hours and otherwise request.error.conflict (category conflict). With the postgres plugin the store file has runOnce and the table "idempotency"."subscriptions": a repeat with the same key and body in 24 hours returns the stored answer and runs nothing (no change, no event); another body gets the conflict; a refusal is not stored. The scenarios repeat each write with the same body (the first answer, no event), with another body (conflict), after 24 hours (runs again), and without a key (runs again). Readings: announce_trial_end is not a write request that a client sends but the shell's clock, with the read-only lookup as input; it runs once by its due rule (P21), so it has no key. A key is owned by its operation, as each repeat is of one request: the same key on another operation is another request.
+  # Workaround: runOnce gives a repeat as a plain success, and commitOnce writes it again: a repeated change_plan undoes a later one, and a repeated create throws a duplicate key. A refusal is not stored, so a repeat after a refusal can succeed.
   P18:
     promise: "Every write request may carry an idempotency key of 1 to 255 characters, and a repeat of the same key with the same body within 24 hours returns the original answer without a second effect, while the same key with a different body is refused with \"conflict\"."
-    status: declared
+    status: workaround
     by: [request.field.idempotency_key, request.error.conflict, subscription.operation.create_subscription, subscription.operation.change_plan, subscription.operation.pause_subscription, subscription.operation.resume_subscription, subscription.operation.cancel_subscription]
+    hole: C2
   # Each operation now publishes counted events: create_subscription exactly one created, one trial_will_end when the trial ends less than 3 days after the request, and one invoice.created and one invoice.paid when there is no trial; change_plan, pause and resume exactly one updated; cancel exactly one canceled. The shell gives each event id (newEventId), and the outbox's primary key refuses an id twice. ensures state that the event of change_plan, pause, resume and cancel carries the subscription's id. trial_will_end for a trial of 3 days or more is now published by the timed operation announce_trial_end (due 3 days before the trial end, see P21), exactly one, with an ensures that it carries the subscription's id. Still missing: (1) invoice.created for each later period and invoice.paid when a customer pays have no operation either: the only invoices published are the first, at create; (2) create_subscription emits two or three events, and an ensures that reads event. needs exactly one, so nothing ties the subscription id of its events to the new subscription; (3) the occurrence time is a value of the core, not a clock (E2); and the type is the kind URN (urn:corpus:subscriptions:subscription:event:created), not the name subscription.created.
   P19:
     promise: "The domain publishes the events subscription.created, subscription.updated, subscription.canceled, subscription.trial_will_end, invoice.created and invoice.paid, each carrying a unique event id, the event type, the subscription id and the occurrence time."
@@ -102,11 +108,12 @@ promises:
     promise: "Events are delivered at least once and in order per subscription, so consumers must ignore an event id they have already processed."
     status: declared
     by: [subscription.event.created, subscription.event.updated, subscription.event.canceled, subscription.event.trial_will_end, invoice.event.created, invoice.event.paid, event.field.event_id, subscription.field.subscription_id]
-  # On creation: create_subscription emits exactly one trial_will_end when output.trial_end < today + 3 (none otherwise), and ensures tie trial_end to the request (input.trial_end, or today + input.trial_days) so the length of the trial is stated, not computed in the core. Later: the timed operation announce_trial_end (changes from [trialing] with no to, so the status stays) has due: current.trial_will_end_sent_at is absent and current.trial_end is present and today >= current.trial_end - 3; the runtime refuses a call that is not due, it emits exactly one trial_will_end carrying the subscription's id, and ensures set the mark trial_will_end_sent_at = now and keep trial_end. Published once: create sets the mark when it publishes at creation and leaves it absent otherwise (two ensures), and change_plan and cancel_subscription, which keep a trialing status, ensure they keep the mark and the trial end. The subscription is a Postgres table, so the store file has selectSubscriptionAnnounceTrialEndDue(now, limit), from the same rule, that the shell's clock runs (urn-forge does not run the clock; a sweep that runs late publishes late). Scenarios at the edge (00:00 of trial_end - 3, just before, the last instant of the day before the end, after), not due before, not due after the mark, never due with no trial end, not trialing, the mark kept by create, change_plan and cancel.
+  # Workaround: Nothing stops an operation from setting trial_will_end_sent_at, after which the notice is never due; due has no upper bound, so a notice 20 days late passes.
   P21:
     promise: "subscription.trial_will_end is published 3 days before a trial ends, or immediately on creation if the trial is shorter than 3 days."
-    status: declared
+    status: workaround
     by: [subscription.event.trial_will_end, subscription.operation.create_subscription, subscription.operation.announce_trial_end, subscription.field.trial_will_end_sent_at, subscription.field.trial_end, subscription.operation.change_plan, subscription.operation.cancel_subscription]
+    hole: E3
   P22:
     promise: "A customer may only read, list, pause, resume and cancel their own subscriptions, while only merchant staff with the billing-admin role may create subscriptions, change plans or void invoices."
     status: not-declarable
