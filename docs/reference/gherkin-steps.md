@@ -7,6 +7,7 @@ The module `urn-forge/cucumber` has generic Cucumber steps for all domains. The 
 | Step text | Table | Passes if |
 | --- | --- | --- |
 | `the current <entity> is:` | Fields of the entity that the operation changes | The operation has `changes` on this entity. The record goes to `execute` as `{ current }` |
+| `these <entity> records are stored:` | Records of the entity, one row each | The entity has `unique`. After a success, the answer is checked against the records as the indexes do: a clash with `otherwise` is that error. Needs the `unique` option |
 | `the time is "<timestamp>"` | None | Always. The time goes to `execute` as `{ now }` |
 | `the caller is:` | Fields of the caller entity | The domain has a `caller`. The caller goes to `execute` as `{ caller }`. `registerOperationSteps` must have `caller: CallerContract` |
 | `there is no current <entity>` | None | The same. `execute` gets `{ current: null }`: the shell found no record |
@@ -27,7 +28,7 @@ The module `urn-forge/cucumber` has generic Cucumber steps for all domains. The 
 | `the refusal is recorded as "<event URN>"` | None | The result is a `DomainError` whose `record` is this event |
 | `the refusal is recorded as "<event URN>":` | Event fields | The same, and the record agrees with the table |
 
-- `the current <entity> is:` and `there is no current <entity>` are registered with `Given`, `I run the operation with:` with `When`, the others with `Then`. Cucumber also matches `Given`, `And` and `But`.
+- `the current <entity> is:`, `there is no current <entity>` and `these <entity> records are stored:` are registered with `Given`, `I run the operation with:` with `When`, the others with `Then`. Cucumber also matches `Given`, `And` and `But`.
 - A quoted value can use double or single quotes.
 - `<field>` is a property of the input entity, not of an embedded entity.
 - `<entity>` is the identifier of the entity in `changes`, for example `booking`. Each scenario of an operation with `changes` gives the record before the operation runs. Refer to [Declare states and moves](../how-to/declare-states).
