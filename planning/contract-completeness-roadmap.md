@@ -239,7 +239,7 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 12. Refusals (part of A2). Done: 51.7%. Ticketing P09 is declared. Bookings P12, claims P13 and inventory P08 state more, and stay workarounds: a window over a local time (D3), a seventh refusal code, and the stored stock (group 3).
 13. UTC times (most of D3). Done: 55.9%. Bookings P07, P14, P15 and P16, inventory P17 and subscriptions P23 are declared. D3 keeps 3 promises that need zone data: bookings P03 and P12, and ticketing P22.
 14. Uniqueness (C1). Done: 59.4%. Bookings P01, claims P01, inventory P13, subscriptions P17 and ticketing P03 are declared. C1 keeps 4: a seat across holds and tickets, a capacity, a receipt on child rows of two claims, and the order of invoice periods.
-15. The next plan. The score now puts A2 (12) and A1, B4, C3, D2 (5 each) first.
+15. Currencies (B4). [Plan](./currencies-plan.md).
 
 ## Risks
 
