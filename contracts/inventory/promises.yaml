@@ -81,12 +81,11 @@ promises:
     status: workaround
     by: [reservation.field.ttl_minutes, reservation.field.expires_at, reservation.operation.reserve_stock, reservation.operation.expire_reservation, reservation.event.reservation_expired, access.field.role]
     hole: E3
-  # A timestamp is UTC with a trailing Z. It allows 0 to 3 digits after the second, so "millisecond precision" (exactly 3) is not stated.
+  # The two timestamps are occurred_at (in every event) and expires_at (in the answers about a reservation); no request has one. Each is a timestamp with precision: 3: UTC with a trailing Z and exactly 3 digits after the second. The generated schema refuses another form in an answer or an event (a ContractViolation), and the scenarios check the 3-digit values of both.
   P17:
     promise: "All timestamps in requests, answers and events are UTC in ISO 8601 format with a trailing \"Z\" and millisecond precision."
-    status: workaround
+    status: declared
     by: [event.field.occurred_at, reservation.field.expires_at]
-    hole: D3
   # The six events and their fields are declared: an event id (from the shell), the SKU, the location, the quantity changed, the stock level and a time. AdjustStock counts its event: exactly one stock_adjusted on each success. The rest is not stated:
   # - ReceiveGoods, ReserveStock and ShipReservation change several SKU-locations, one event per line; ReleaseReservation and ExpireReservation (the shell's clock) give back each line of the reservation. A count { event } is one per success, so "one event per changed line" cannot be stated, and these keep emits of zero or more.
   # - The values are not tied to the change: an ensures with event. needs exactly one event per success, and AdjustStock also emits StockDepleted when the count drops to 0 (P20), so it cannot read the event; the other operations have one event per line.
