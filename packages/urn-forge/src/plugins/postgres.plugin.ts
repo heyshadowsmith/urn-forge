@@ -267,6 +267,7 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof P
       unenforced,
     });
     out.push(...model.lines);
+    out.push(...uniqueSql(ir, model.store, report, checkName));
     // The outbox starts with a blank line; a schema with no table already ends with one.
     if (hasOutbox(ir)) out.push(...outboxSql(ir).slice(out.at(-1) === '' ? 1 : 0));
     if (hasAnswers(ir)) out.push(...answersSql(ir).slice(out.at(-1) === '' ? 1 : 0));
@@ -309,4 +310,71 @@ export const postgresPlugin: CodegenPlugin<PostgresConfig, v.InferInput<typeof P
 export function describe(urn: Urn, description: string | undefined, node: { readonly lifecycle?: Lifecycle } = {}): string {
   const note = deprecationNote(node);
   return `${description === undefined ? urn : `${urn} — ${description}`}${note ? ` (${note})` : ''}`;
+}
+
+/** The schema of the tables of used values: one table for each entity with a forever unique. */
+export const USED_SCHEMA = 'used';
+
+/** The name of the unique index of an entry of `unique`. */
+export function uniqueIndexName(table: string, by: readonly string[]): string {
+  return `${table}_${by.join('_')}_unique`;
+}
+
+/**
+ * The SQL of each `unique` of a table entity: a unique index, partial with WHERE for `when`; and for
+ * the forever entries, a table of used values, whose rows are never deleted. Its primary key lets
+ * the same record write a value again; its unique constraint refuses the value to another record.
+ */
+function uniqueSql(
+  ir: UniversalIR,
+  store: readonly { readonly entity: Urn; readonly schema: string; readonly name: string; readonly columns: readonly { readonly column: string; readonly property: string }[] }[],
+  report: (code: 'invalid-unique', message: string, urn: Urn) => void,
+  checkName: (name: string, urn: Urn, what: string) => void,
+): string[] {
+  const out: string[] = [];
+  for (const entity of valuesInUrnOrder(ir.entities)) {
+    if (!entity.unique) continue;
+    const root = store.find((r) => r.entity === entity.urn);
+    if (!root) {
+      report('invalid-unique', `${entity.urn}: unique: the entity is not a table of the postgres plugin, so nothing keeps its values unique; add it to tables`, entity.urn);
+      continue;
+    }
+    const table = `${ident(root.schema)}.${ident(root.name)}`;
+    const column = (property: string) => ident(root.columns.find((c) => c.property === property)?.column ?? property);
+    entity.unique.forEach((entry, index) => {
+      if (entry.forever) return;
+      const name = uniqueIndexName(root.name, entry.by);
+      checkName(name, entity.urn, 'index');
+      let where = '';
+      if (entry.when) {
+        const translated = ruleSql(ir, entry.when.rule, entity.fields);
+        if (!translated.ok) {
+          report('invalid-unique', `${entity.urn}: unique.${index}.when: ${translated.reason}; the index needs the rule in SQL`, entity.urn);
+          return;
+        }
+        where = ` WHERE ${translated.sql}`;
+      }
+      out.push('', `CREATE UNIQUE INDEX ${ident(name)} ON ${table} (${entry.by.map(column).join(', ')})${where};`);
+      out.push(`COMMENT ON INDEX ${ident(root.schema)}.${ident(name)} IS ${literal(`${entity.urn}: no two records${entry.when ? ` where ${entry.when.ruleText}` : ''} share ${entry.by.join(', ')}`)};`);
+    });
+    if (entity.unique.some((entry) => entry.forever)) {
+      const used = `${ident(USED_SCHEMA)}.${ident(root.name)}`;
+      checkName(`${root.name}_once`, entity.urn, 'constraint');
+      checkName(`${root.name}_used`, entity.urn, 'constraint');
+      out.push(
+        '',
+        `CREATE SCHEMA IF NOT EXISTS ${ident(USED_SCHEMA)};`,
+        '',
+        `CREATE TABLE ${used} (`,
+        `  "by" TEXT NOT NULL,`,
+        `  "value" TEXT NOT NULL,`,
+        `  "owner" TEXT NOT NULL,`,
+        `  CONSTRAINT ${ident(`${root.name}_used`)} PRIMARY KEY ("by", "value", "owner"),`,
+        `  CONSTRAINT ${ident(`${root.name}_once`)} UNIQUE ("by", "value")`,
+        `);`,
+        `COMMENT ON TABLE ${used} IS ${literal(`The values of ${entity.urn} that are never used again: a row stays when its record is gone`)};`,
+      );
+    }
+  }
+  return out;
 }

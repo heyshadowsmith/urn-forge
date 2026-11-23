@@ -32,6 +32,7 @@ describe('kind registry', () => {
         { path: ['fields', '*', 'ref'], targets: ['field', 'entity'] },
         { path: ['fields', '*', 'link'], targets: ['entity'] },
         { path: ['key'], targets: ['field'] },
+        { path: ['unique', '*', 'otherwise'], targets: ['error'] },
       ],
       invariant: [{ path: ['on'], targets: ['entity'] }],
       operation: [

@@ -422,6 +422,30 @@ function refusalRuntime(runtime: string, rejects: boolean, refuses: boolean): st
   return text;
 }
 
+/** The declared refusal of a clash that the store found: for commitOnce. */
+const REFUSAL_OF = `
+
+/**
+ * The declared error \`errorUrn\` of the operation \`urn\`, filled by name from \`known\` and parsed: the
+ * answer to a clash with a unique value, which the store finds. Undefined when the operation does
+ * not declare the error, or the values do not fill it.
+ */
+export function refusalOf(urn: string, errorUrn: string, known: Readonly<Record<string, unknown>>): ExecuteResult | undefined {
+  if (!isOperationUrn(urn)) return undefined;
+  const contract: OperationContract = DispatchMap[urn];
+  const declared = Object.hasOwn(contract.errors, errorUrn) ? contract.errors[errorUrn] : undefined;
+  if (!declared) return undefined;
+  const names = Object.keys(declared.fields).filter((name) => known[name] !== undefined);
+  const error = v.safeParse(declared.schema, { ...Object.fromEntries(names.map((name) => [name, known[name]])), kind: errorUrn });
+  if (!error.success) return undefined;
+  return {
+    ok: false,
+    kind: 'DomainError',
+    urn,
+    error: { urn: errorUrn, category: declared.category, retryable: declared.retryable, message: renderMessage(declared.message, error.output), fields: error.output },
+  } as ExecuteResult;
+}`;
+
 /** The parse of an event with a delivery: the id from the shell, and no sequence, which the outbox fills. */
 const DELIVERY_PARSE = `
     const delivery = 'delivery' in declared ? declared.delivery : undefined;
@@ -1084,7 +1108,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
     ].join('\n');
 
     // Idempotency: the key of a call, and the error for the same key with another body. The store keeps the answers.
-    const idempotencyHelpers = anyIdempotency ? IDEMPOTENCY : '';
+    const idempotencyHelpers = (anyIdempotency ? IDEMPOTENCY : '') + (Object.values(ir.entities).some((e) => (e.unique ?? []).length > 0) ? REFUSAL_OF : '');
     const runtime = refusalRuntime(shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, anyTime, anyDue, anyIdempotency), anyRejects, anyRefuses);
     const sections = [
       `import * as v from 'valibot';\nimport * as s from '${schemasModule}';`,

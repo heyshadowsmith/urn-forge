@@ -18,7 +18,10 @@ import { parseManifest, parseShortKey, splitLifecycle, type LifecycleDecl, type 
 import { toBrandIdentifier, toUrn } from '../naming.js';
 import { canonicalJson, compareCodeUnits, sha256Hex } from './canonical.js';
 import { checkStructure } from './structure.js';
-import type { Compatibility, IRBuildResult, IRIssue, Lifecycle, UniversalIR, Urn } from './types.js';
+import type { Compatibility, IRBuildResult, IREntity, IRError, IRIssue, IRRule, IRUnique, Lifecycle, UniversalIR, Urn } from './types.js';
+import { ruleFields } from '../kinds/invariant.js';
+import type { IRUniqueDraft } from '../kinds/entity.js';
+import { checkRule, parseRule, printRule, stripColumns } from '../rules/index.js';
 import { checkLifecycle, checkNotice, parseNotice, type Notice, type Reference } from './lifecycle.js';
 
 function sortedByUrn<T>(record: Map<Urn, T>): Record<Urn, T> {
@@ -188,6 +191,9 @@ export function buildIr(manifest: ValidManifest, options: BuildOptions = {}): IR
     nodes.get(atom.kind)!.set(atom.urn, lifecycle ? { ...(node as object), lifecycle } : node);
   }
 
+  // unique on an entity: its rule `when` over the entity's own fields, and its error, which the record fills by name.
+  if (issues.length === 0) issues.push(...finishUnique(nodes));
+
   if (issues.length > 0) return { success: false, issues };
 
   // Pass 5: structure across entities, once every node exists.
@@ -242,4 +248,50 @@ export function buildIrFromSource(source: string, options: BuildOptions = {}): I
   const result = buildIr(validated.manifest, options);
   if (result.success) return { ...result, warnings: locateIssues(result.warnings ?? [], validated.locator), locator: validated.locator };
   return { success: false, issues: locateIssues(result.issues, validated.locator), locator: validated.locator };
+}
+
+/**
+ * Finishes each `unique` of an entity, once every node exists: its rule `when` is typed over the
+ * entity's own fields, and its error `otherwise` must be one that the record fills by name.
+ */
+function finishUnique(nodes: Map<KindName, Map<Urn, unknown>>): IRIssue[] {
+  const issues: IRIssue[] = [];
+  const node = (kind: 'field' | 'entity', urn: Urn) => nodes.get(kind)!.get(urn);
+  for (const [urn, value] of nodes.get('entity')!) {
+    const entity = value as IREntity;
+    const drafts = entity.unique as readonly IRUniqueDraft[] | undefined;
+    if (!drafts) continue;
+    const [, , , context, kindName, identifier] = urn.split(':');
+    const shortKey = `${context}.${kindName}.${identifier}`;
+    const finished: IRUnique[] = [];
+    drafts.forEach((draft, index) => {
+      const at = (key: string) => [shortKey, 'unique', index, key];
+      let when: IRRule | undefined;
+      if (draft.whenText !== undefined) {
+        const parsed = parseRule(draft.whenText);
+        if (!parsed.ok) {
+          issues.push({ code: 'rule-syntax', urn, message: `${urn}: unique.${index}.when: ${parsed.problem.message} (at column ${parsed.problem.column} of the rule)`, path: at('when') });
+          return;
+        }
+        const problems = checkRule(parsed.expr, ruleFields(entity, node));
+        for (const problem of problems) issues.push({ code: problem.code, urn, message: `${urn}: unique.${index}.when: ${problem.message} (at column ${problem.column} of the rule)`, path: at('when') });
+        if (problems.length > 0) return;
+        const rule = stripColumns(parsed.expr);
+        when = { rule, ruleText: printRule(rule) };
+      }
+      if (draft.otherwise !== undefined) {
+        const error = nodes.get('error')!.get(draft.otherwise) as IRError | undefined;
+        const names = new Set(entity.fields.map((f) => f.name));
+        const missing = (error?.fields ?? []).filter((p) => p.required && !names.has(p.name)).map((p) => p.name);
+        if (missing.length > 0) {
+          issues.push({ code: 'invalid-unique', urn, message: `${urn}: unique.${index}.otherwise: ${draft.otherwise} needs ${missing.join(', ')}, which the record does not have; the error is filled by name from the record`, path: at('otherwise') });
+          return;
+        }
+      }
+      const { whenText: _, ...rest } = draft;
+      finished.push({ ...rest, ...(when ? { when } : {}) });
+    });
+    nodes.get('entity')!.set(urn, { ...entity, unique: finished });
+  }
+  return issues;
 }

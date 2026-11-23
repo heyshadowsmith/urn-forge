@@ -147,7 +147,21 @@ export interface IREntity {
   readonly key?: Urn;
   /** Declaration order preserved. */
   readonly fields: readonly IRPropertyRef[];
+  /** Values that no two stored records share. */
+  readonly unique?: readonly IRUnique[];
   readonly lifecycle?: Lifecycle;
+}
+
+/** Values that no two stored records of an entity share. */
+export interface IRUnique {
+  /** The properties, of the entity's own fields or links, whose values together are unique. */
+  readonly by: readonly string[];
+  /** Only the records where the rule holds take part, such as the live ones. */
+  readonly when?: IRRule;
+  /** The declared error of a clash. */
+  readonly otherwise?: Urn;
+  /** A value used once is never used by another record, also after the record is gone. */
+  readonly forever?: true;
 }
 
 /** The field a property's values belong to: its own field, or a linked entity's key; undefined for an embedded entity. */
