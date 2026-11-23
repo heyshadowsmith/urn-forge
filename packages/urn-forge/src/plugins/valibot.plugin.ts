@@ -440,6 +440,13 @@ function helpersFor(ir: UniversalIR): ValibotHelper[] {
     for (const rule of [...(op.requires ?? []), ...(op.ensures ?? []), ...(op.exactly ?? []).flatMap((item) => (item.when ? [item.when] : [])), ...allows, ...(op.due ? [op.due] : [])]) {
       for (const helper of emitRule(rule.rule, conditionPrimitives(op, ir), conditionEmbedded(op, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
     }
+    // A rule of refuses reads its error as error.
+    for (const refusal of op.refuses ?? []) {
+      const error = { error: ir.errors[refusal.error] as unknown as IREntity };
+      for (const rule of refusal.ensures) {
+        for (const helper of emitRule(rule.rule, conditionPrimitives(op, ir, error), conditionEmbedded(op, ir, error)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
+      }
+    }
   }
   return (Object.keys(VALIBOT_HELPERS) as ValibotHelper[]).filter((name) => needed.has(name));
 }

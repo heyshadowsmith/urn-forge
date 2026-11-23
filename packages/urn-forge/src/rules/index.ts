@@ -7,7 +7,7 @@
  *   compare := sum (('<' | '<=' | '=' | '!=' | '>=' | '>') sum)?
  *   sum     := product (('+' | '-') product)*
  *   product := timed ('*' timed)*
- *   timed   := primary ('minutes' | 'hours' | 'days')?
+ *   timed   := primary ('minutes' | 'hours' | 'days' | 'months')?
  *   primary := '(' or ')' | over | day | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
  *   over    := ('sum' | 'all' | 'any') '(' name 'in' field ':' or ')'
  *   day     := 'date' '(' sum ')'
@@ -21,11 +21,11 @@ import type { Primitive } from '../primitives/index.js';
 
 export type Comparison = '<' | '<=' | '=' | '!=' | '>=' | '>';
 export type Arithmetic = '+' | '-';
-/** The units of a time added to or taken from a timestamp. */
-export type TimeUnit = 'minutes' | 'hours' | 'days';
-export const TIME_UNITS: readonly TimeUnit[] = ['minutes', 'hours', 'days'];
-/** The milliseconds of one unit: exact, as a timestamp is UTC. */
-export const UNIT_MS: Readonly<Record<TimeUnit, number>> = { minutes: 60_000, hours: 3_600_000, days: 86_400_000 };
+/** The units of a time added to or taken from a timestamp; `months` also on a date. */
+export type TimeUnit = 'minutes' | 'hours' | 'days' | 'months';
+export const TIME_UNITS: readonly TimeUnit[] = ['minutes', 'hours', 'days', 'months'];
+/** The milliseconds of one fixed unit: exact, as a timestamp is UTC. A month is a calendar month, of no fixed length. */
+export const UNIT_MS: Readonly<Record<Exclude<TimeUnit, 'months'>, number>> = { minutes: 60_000, hours: 3_600_000, days: 86_400_000 };
 /** A rule over the items of a list: `sum`, `all` and `any`. */
 export type OverItems = Extract<RuleExpr, { op: 'sum' | 'all' | 'any' }>;
 /** The words that start a function: a word of the language only before "(". */
@@ -610,9 +610,12 @@ export function checkRule(expr: LocatedExpr, fields: Readonly<Record<string, Rul
             return undefined;
           }
           if (!time || !left) return undefined;
+          // Calendar months: on a timestamp or a date, in UTC; the result has the primitive of the left.
+          if (time.kind === 'duration' && time.unit === 'months' && left.kind === 'value' && (left.primitive === 'timestamp' || left.primitive === 'date')) return left;
           if (left.kind !== 'value' || left.primitive !== 'timestamp') {
             const what = left.kind === 'value' ? left.primitive : `${left.literal} literal`;
-            problem('rule-type', e.at, `"${e.op} ${(e.right as Extract<LocatedExpr, { op: 'duration' }>).unit}" works on a timestamp, not on ${article(what)}${what === 'date' ? '; a date counts days: write today + 1' : ''}`);
+            const unit = (e.right as Extract<LocatedExpr, { op: 'duration' }>).unit;
+            problem('rule-type', e.at, `"${e.op} ${unit}" works on a timestamp${unit === 'months' ? ' or a date' : ''}, not on ${article(what)}${what === 'date' ? '; a date counts days: write today + 1' : ''}`);
             return undefined;
           }
           return { kind: 'value', primitive: 'timestamp' };
@@ -772,7 +775,8 @@ export function valueType(e: RuleExpr, primitiveOf: (field: string) => Primitive
     return side(e.left) === 'decimal' || side(e.right) === 'decimal' ? 'decimal' : 'integer';
   }
   if (e.op !== '+' && e.op !== '-') return undefined;
-  if (e.right.op === 'duration') return 'timestamp';
+  // A time on a timestamp is a timestamp; months on a date are a date.
+  if (e.right.op === 'duration') return e.right.unit === 'months' ? valueType(e.left, primitiveOf) : 'timestamp';
   const [left, right] = [valueType(e.left, primitiveOf), valueType(e.right, primitiveOf)];
   if (left === 'date') return right === 'date' || (e.op === '-' && e.right.op === 'text') ? 'integer' : 'date';
   if (right === 'date') return 'integer'; // a date text minus a date (pass 6 allows nothing else)

@@ -119,7 +119,7 @@ export function replaceClaimClaimFrom(value: s.ClaimClaim, from: readonly s.Clai
  * The shell's clock runs the operation for each, in its own transaction.
  */
 export function selectClaimReportOverdueDue(now: string, limit: number): Statement {
-  return { text: "SELECT \"claim_id\" FROM \"claim\".\"claim\" WHERE \"state\" = ANY($2) AND ((\"submitted_at\" IS NOT NULL AND (\"overdue_reported_at\" IS NULL OR \"overdue_reported_at\" < \"submitted_at\")) AND $1::TIMESTAMPTZ >= (\"submitted_at\" + 30 * INTERVAL '1 day')) ORDER BY \"claim_id\" LIMIT $3", values: [now, ["SUBMITTED"], limit] };
+  return { text: "SELECT \"claim_id\" FROM \"claim\".\"claim\" WHERE \"state\" = ANY($2) AND ((\"submitted_at\" IS NOT NULL AND (\"overdue_reported_at\" IS NULL OR \"overdue_reported_at\" < \"submitted_at\")) AND $1::TIMESTAMPTZ >= (\"submitted_at\" + 30 * INTERVAL '24 hours')) ORDER BY \"claim_id\" LIMIT $3", values: [now, ["SUBMITTED"], limit] };
 }
 
 /** The delivery of each event that the outbox holds: the property of its id, the properties that order it, and the sequence. */

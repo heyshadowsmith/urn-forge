@@ -84,8 +84,16 @@ export function ruleSql(ir: UniversalIR, rule: RuleExpr, properties: readonly IR
       case '-': {
         // A time on a timestamp: an interval, exact on a TIMESTAMPTZ.
         if (e.right.op === 'duration') {
-          const unit = { minutes: 'minute', hours: 'hour', days: 'day' }[e.right.unit];
-          return `(${value(e.left, 'timestamp')} ${e.op} ${value(e.right.value, 'integer')} * INTERVAL '1 ${unit}')`;
+          const n = value(e.right.value, 'integer');
+          // Calendar months in UTC, whatever the time zone of the session: a short month ends on its last day.
+          if (e.right.unit === 'months') {
+            return typeOf(e.left) === 'date'
+              ? `(${value(e.left, 'date')} ${e.op} ${n} * INTERVAL '1 month')::DATE`
+              : `((${value(e.left, 'timestamp')} AT TIME ZONE 'UTC') ${e.op} ${n} * INTERVAL '1 month') AT TIME ZONE 'UTC'`;
+          }
+          // A day is 24 hours: INTERVAL '1 day' would follow the time zone of the session across a change of its clocks.
+          const unit = { minutes: "INTERVAL '1 minute'", hours: "INTERVAL '1 hour'", days: "INTERVAL '24 hours'" }[e.right.unit];
+          return `(${value(e.left, 'timestamp')} ${e.op} ${n} * ${unit})`;
         }
         // Days: Postgres's own date - date, date + integer and date - integer.
         if (typeOf(e.left) === 'date' || typeOf(e.right) === 'date') {

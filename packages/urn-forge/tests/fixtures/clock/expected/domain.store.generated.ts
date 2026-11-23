@@ -129,7 +129,7 @@ export function replaceClaimClaimFrom(value: s.ClaimClaim, from: readonly s.Clai
  * The shell's clock runs the operation for each, in its own transaction.
  */
 export function selectClaimReportOverdueDue(now: string, limit: number): Statement {
-  return { text: "SELECT \"claim_id\" FROM \"claim\".\"claim\" WHERE \"state\" = ANY($2) AND (\"overdue_reported_at\" IS NULL AND $1::TIMESTAMPTZ >= (\"submitted_at\" + 30 * INTERVAL '1 day')) ORDER BY \"claim_id\" LIMIT $3", values: [now, ["SUBMITTED"], limit] };
+  return { text: "SELECT \"claim_id\" FROM \"claim\".\"claim\" WHERE \"state\" = ANY($2) AND (\"overdue_reported_at\" IS NULL AND $1::TIMESTAMPTZ >= (\"submitted_at\" + 30 * INTERVAL '24 hours')) ORDER BY \"claim_id\" LIMIT $3", values: [now, ["SUBMITTED"], limit] };
 }
 
 /**
@@ -137,7 +137,7 @@ export function selectClaimReportOverdueDue(now: string, limit: number): Stateme
  * The shell's clock runs the operation for each, in its own transaction.
  */
 export function selectPaymentExpirePaymentDue(now: string, limit: number): Statement {
-  return { text: "SELECT \"payment_id\" FROM \"payment\".\"payment\" WHERE \"status\" = ANY($2) AND $1::TIMESTAMPTZ >= (\"authorized_at\" + 7 * INTERVAL '1 day') ORDER BY \"payment_id\" LIMIT $3", values: [now, ["authorized"], limit] };
+  return { text: "SELECT \"payment_id\" FROM \"payment\".\"payment\" WHERE \"status\" = ANY($2) AND $1::TIMESTAMPTZ >= (\"authorized_at\" + 7 * INTERVAL '24 hours') ORDER BY \"payment_id\" LIMIT $3", values: [now, ["authorized"], limit] };
 }
 
 /** A result of executeOperation: a success has its output and events; a refusal has neither. */

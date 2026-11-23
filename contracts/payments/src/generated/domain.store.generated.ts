@@ -109,7 +109,7 @@ export function replacePaymentPaymentFrom(value: s.PaymentPayment, from: readonl
  * The shell's clock runs the operation for each, in its own transaction.
  */
 export function selectPaymentExpirePaymentDue(now: string, limit: number): Statement {
-  return { text: "SELECT \"payment_id\" FROM \"payment\".\"payment\" WHERE \"status\" = ANY($2) AND (\"method\" = 'card' AND $1::TIMESTAMPTZ >= (\"created_at\" + 7 * INTERVAL '1 day')) ORDER BY \"payment_id\" LIMIT $3", values: [now, ["authorized"], limit] };
+  return { text: "SELECT \"payment_id\" FROM \"payment\".\"payment\" WHERE \"status\" = ANY($2) AND (\"method\" = 'card' AND $1::TIMESTAMPTZ >= (\"created_at\" + 7 * INTERVAL '24 hours')) ORDER BY \"payment_id\" LIMIT $3", values: [now, ["authorized"], limit] };
 }
 
 /** The delivery of each event that the outbox holds: the property of its id, the properties that order it, and the sequence. */

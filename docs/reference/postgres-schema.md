@@ -158,7 +158,10 @@ Each invariant becomes a named `CHECK` on each table that stores its entity, in 
 | A `date`, `timestamp` or `decimal` literal | `DATE '<day>'`, `TIMESTAMPTZ '<t>'`, `'<n>'::NUMERIC` |
 | `a + b`, `a - b` | `(a + b)`. On `integer`, `(a::BIGINT + b)` |
 | `d1 - d2`, two dates | `(d1 - d2)`, in days |
-| `t + n minutes`, `hours` or `days` | `(t + n * INTERVAL '1 minute')`, `'1 hour'` or `'1 day'` |
+| `t + n minutes`, `hours` or `days` | `(t + n * INTERVAL '1 minute')`, `'1 hour'` or `'24 hours'`. A day is 24 hours, whatever the time zone of the session |
+| `t + n months`, `t` a `timestamp` | `((t AT TIME ZONE 'UTC') + n * INTERVAL '1 month') AT TIME ZONE 'UTC'`: calendar months in UTC |
+| `d + n months`, `d` a `date` | `(d + n * INTERVAL '1 month')::DATE` |
+| `date(t)` | `(t AT TIME ZONE 'UTC')::DATE` |
 | `!=` | `<>` |
 | `and`, `or`, `not a` | `AND`, `OR`, `NOT (a)` |
 | `x is present`, `x is absent` | `"x" IS NOT NULL`, `"x" IS NULL` |
