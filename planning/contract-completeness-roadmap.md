@@ -252,7 +252,7 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
     - **Faults in urn-forge** that every contract gets: a repeat of `runOnce` that `commit` writes again; no lock in `runOnce`; an outbox sequence that starts again after published rows are deleted; the `missing` error before the check of `callers`; and the record that the shell builds in `writes` when the answer is not the stored record.
     - **Rules that the manifests leave out**, which `requires` and `ensures` can state today: for example, that the answer has the merchant, the method or the party size of the request, and that the loaded record is the one that the request names.
     - **Real holes**: windows over a local time (D3), a manager from another domain (D1), facts about a file, and a string function.
-17. The next plan: an integrity plan for the faults in urn-forge (decision 10: fixes, not new constructs), then the rules that the manifests leave out.
+17. The [integrity plan](./integrity-plan.md): a plan for the faults in urn-forge (decision 10: fixes, not new constructs), then the rules that the manifests leave out.
 
 ## Risks
 
