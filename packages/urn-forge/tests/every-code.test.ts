@@ -67,6 +67,7 @@ const strict = compile(source('tutorial/3-strict-coverage/domain.manifest.yaml')
 const states = compile(source('tests/fixtures/states/domain.manifest.yaml')).ir!;
 const SEAT = '@urn:demo:states:booking:operation:seat_booking';
 const idempotent = compile(source('tests/fixtures/idempotency/domain.manifest.yaml')).ir!;
+const uniqueIr = compile(source('tests/fixtures/uniqueness/domain.manifest.yaml')).ir!;
 const clock = compile(source('tests/fixtures/clock/domain.manifest.yaml')).ir!;
 const timed = compile(source('tests/fixtures/time/domain.manifest.yaml')).ir!;
 const callers = compile(source('tests/fixtures/callers/domain.manifest.yaml')).ir!;
@@ -278,6 +279,15 @@ const PRODUCERS: Record<DiagnosticCode, () => readonly Diagnostic[] | Promise<re
       ),
       'warn',
       idempotent,
+    ),
+  'uncovered-unique': () =>
+    gate3(
+      scenario(
+        '    When I run the operation with:\n      | subscription_id | customer_id | plan_id |\n      | sub_00000001 | cus_0001 | pln_gold |\n',
+        '@urn:demo:unique:subscription:operation:create_subscription',
+      ),
+      'warn',
+      uniqueIr,
     ),
   'uncovered-due': () =>
     gate3(

@@ -5,8 +5,8 @@ Feature: Pause a subscription
   Scenario Outline: An active or trialing subscription pauses, with or without a resume day
     Given the time is "2026-11-22T10:00:00Z"
     And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id              | resume_on   | idempotency_key   |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> | <idempotency_key> |
@@ -24,8 +24,8 @@ Feature: Pause a subscription
   Scenario Outline: A resume day less than 1 day or more than 90 days after the request is refused, at 2026-11-22T10:00:00Z
     Given the time is "2026-11-22T10:00:00Z"
     And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id              | resume_on   |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> |
@@ -43,8 +43,8 @@ Feature: Pause a subscription
   Scenario Outline: A resume day less than 1 day or more than 90 days after the request is refused, at 2026-11-23T00:00:00Z
     Given the time is "2026-11-23T00:00:00Z"
     And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id              | resume_on   |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> |
@@ -60,8 +60,8 @@ Feature: Pause a subscription
   Scenario Outline: A resume day less than 1 day or more than 90 days after the request is refused, at 2026-11-22T23:59:59.999Z
     Given the time is "2026-11-22T23:59:59.999Z"
     And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id              | resume_on   |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> |
@@ -77,8 +77,8 @@ Feature: Pause a subscription
   Scenario Outline: Today is the UTC date of the time of the request, at 2026-11-22T23:59:59.999Z
     Given the time is "2026-11-22T23:59:59.999Z"
     And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id              | resume_on   |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> |
@@ -93,8 +93,8 @@ Feature: Pause a subscription
   Scenario Outline: Today is the UTC date of the time of the request, at 2026-11-23T00:00:00Z
     Given the time is "2026-11-23T00:00:00Z"
     And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id              | resume_on   |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> |
@@ -110,8 +110,8 @@ Feature: Pause a subscription
   Scenario Outline: A request that breaks a field limit is rejected
     Given the time is "2026-11-22T10:00:00Z"
     And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id   | idempotency_key   |
       | <subscription_id> | <idempotency_key> |
@@ -134,8 +134,8 @@ Feature: Pause a subscription
   Scenario Outline: Only an active or trialing subscription can pause
     Given the time is "2026-11-22T10:00:00Z"
     And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id              |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa |
@@ -154,8 +154,8 @@ Feature: Pause a subscription
   Scenario: A repeat of the same key and the same body within 24 hours returns the first answer and has no second effect
     Given the time is "2026-11-22T10:00:00Z"
     And the current subscription is:
-      | subscription_id | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id | resume_on  | idempotency_key |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa |            | key-1 |
@@ -169,8 +169,8 @@ Feature: Pause a subscription
   Scenario: A repeat of the same key with a different body within 24 hours is refused with conflict
     Given the time is "2026-11-22T10:00:00Z"
     And the current subscription is:
-      | subscription_id | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id | resume_on  | idempotency_key |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa |            | key-1 |
@@ -185,8 +185,8 @@ Feature: Pause a subscription
   Scenario: After 24 hours the same key is free, and the request runs again
     Given the time is "2026-11-22T10:00:00Z"
     And the current subscription is:
-      | subscription_id | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id | resume_on  | idempotency_key |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa |            | key-1 |

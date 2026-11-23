@@ -1,0 +1,53 @@
+# Uniqueness: the target of uniqueness.test.ts. At most one live subscription for each customer
+# and plan, else conflict; and a subscription id that is never used again, also after the
+# subscription is gone.
+manifest:
+  namespace: demo
+  domain: unique
+  version: 1.0.0
+
+subscription.field.subscription_id:
+  primitive: string
+  regex: 'sub_[0-9]{8}'
+  description: The id of a subscription
+subscription.field.customer_id:
+  primitive: string
+  regex: 'cus_[0-9]{4}'
+  description: The customer
+subscription.field.plan_id:
+  primitive: string
+  regex: 'pln_[a-z]{1,8}'
+  description: The plan
+subscription.field.status:
+  primitive: enum
+  values: [active, canceled]
+  moves:
+    active: [canceled]
+  description: The status of a subscription
+subscription.entity.subscription:
+  description: A subscription of a customer to a plan
+  key: subscription.field.subscription_id
+  fields:
+    - ref: subscription.field.subscription_id
+    - ref: subscription.field.customer_id
+    - ref: subscription.field.plan_id
+    - ref: subscription.field.status
+subscription.entity.create_request:
+  description: A request for a subscription
+  fields:
+    - ref: subscription.field.subscription_id
+    - ref: subscription.field.customer_id
+    - ref: subscription.field.plan_id
+subscription.error.conflict:
+  description: The customer has a live subscription to the plan
+  category: conflict
+  retryable: false
+  message: Customer {customer_id} already has plan {plan_id}
+  fields:
+    - ref: subscription.field.customer_id
+    - ref: subscription.field.plan_id
+subscription.operation.create_subscription:
+  description: Subscribe a customer to a plan
+  input: subscription.entity.create_request
+  output: subscription.entity.subscription
+  errors: [subscription.error.conflict]

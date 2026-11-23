@@ -44,7 +44,7 @@ export const DIAGNOSTIC_CODES = {
   'wrong-ref-kind': 'A reference names an atom of the wrong kind',
   // Pass 5: structure
   'missing-key': 'A link, or a unique list of an embedded entity, names an entity that has no key',
-  'invalid-unique': 'A unique list of properties is not on a list of embedded entities, or names a property that the item does not have or that holds a list or an entity',
+  'invalid-unique': 'A unique list of properties is not on a list of embedded entities, or names a property that the item does not have or that holds a list or an entity; or a unique entry of an entity names a property that it does not have or that holds a list or an entity, has a when that is not a rule over its own fields or that SQL cannot write, an otherwise that the record cannot fill, or is on an entity that is not a table',
   'invalid-delivery': 'The delivery of an event names a property that the event does not have, or one that is optional, a list, an entity, or of the wrong primitive',
   'embedding-cycle': 'Entities embed each other in a cycle, so the type of an object would never end',
   // Pass 6: rule and template typing
@@ -116,6 +116,7 @@ export const DIAGNOSTIC_CODES = {
   'invalid-time': 'A scenario of an operation whose rules read the time runs it without Given the time is, or the time is not a UTC timestamp',
   'invalid-caller': 'A scenario of an operation with callers runs it without Given the caller is:, or the step is in a domain whose manifest names no caller',
   'uncovered-idempotency': 'No scenario repeats a call of an operation with idempotency',
+  'uncovered-unique': 'A unique entry of an entity with otherwise has no scenario that stores a record and fails with the error of the clash, or a stored-records step names an entity with no unique values',
   'uncovered-due': 'No scenario calls a timed change for a record that is not due, or the step is on an operation with no due',
   'uncovered-boundary': 'The examples of an input field do not include every boundary case of its constraints (a warning)',
   'ratchet-ready': 'Every feature is strict, so boundaryCoverage can be set to error (a note)',

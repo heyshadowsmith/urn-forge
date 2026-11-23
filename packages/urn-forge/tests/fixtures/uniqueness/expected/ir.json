@@ -1,0 +1,187 @@
+{
+  "entities": {
+    "urn:demo:unique:subscription:entity:create_request": {
+      "brandIdentifier": "SubscriptionCreateRequest",
+      "description": "A request for a subscription",
+      "fields": [
+        {
+          "field": "urn:demo:unique:subscription:field:subscription_id",
+          "name": "subscription_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:unique:subscription:field:customer_id",
+          "name": "customer_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:unique:subscription:field:plan_id",
+          "name": "plan_id",
+          "required": true
+        }
+      ],
+      "urn": "urn:demo:unique:subscription:entity:create_request"
+    },
+    "urn:demo:unique:subscription:entity:subscription": {
+      "brandIdentifier": "SubscriptionSubscription",
+      "description": "A subscription of a customer to a plan",
+      "fields": [
+        {
+          "field": "urn:demo:unique:subscription:field:subscription_id",
+          "name": "subscription_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:unique:subscription:field:customer_id",
+          "name": "customer_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:unique:subscription:field:plan_id",
+          "name": "plan_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:unique:subscription:field:status",
+          "name": "status",
+          "required": true
+        }
+      ],
+      "key": "urn:demo:unique:subscription:field:subscription_id",
+      "unique": [
+        {
+          "by": [
+            "customer_id",
+            "plan_id"
+          ],
+          "otherwise": "urn:demo:unique:subscription:error:conflict",
+          "when": {
+            "rule": {
+              "left": {
+                "name": "status",
+                "op": "field"
+              },
+              "op": "=",
+              "right": {
+                "op": "text",
+                "value": "active"
+              }
+            },
+            "ruleText": "status = 'active'"
+          }
+        },
+        {
+          "by": [
+            "subscription_id"
+          ],
+          "forever": true
+        }
+      ],
+      "urn": "urn:demo:unique:subscription:entity:subscription"
+    }
+  },
+  "errors": {
+    "urn:demo:unique:subscription:error:conflict": {
+      "brandIdentifier": "SubscriptionConflict",
+      "category": "conflict",
+      "description": "The customer has a live subscription to the plan",
+      "fields": [
+        {
+          "field": "urn:demo:unique:subscription:field:customer_id",
+          "name": "customer_id",
+          "required": true
+        },
+        {
+          "field": "urn:demo:unique:subscription:field:plan_id",
+          "name": "plan_id",
+          "required": true
+        }
+      ],
+      "message": [
+        {
+          "text": "Customer "
+        },
+        {
+          "field": "customer_id"
+        },
+        {
+          "text": " already has plan "
+        },
+        {
+          "field": "plan_id"
+        }
+      ],
+      "retryable": false,
+      "urn": "urn:demo:unique:subscription:error:conflict"
+    }
+  },
+  "events": {},
+  "fields": {
+    "urn:demo:unique:subscription:field:customer_id": {
+      "brandIdentifier": "SubscriptionCustomerId",
+      "constraints": {
+        "regex": "cus_[0-9]{4}"
+      },
+      "description": "The customer",
+      "primitive": "string",
+      "urn": "urn:demo:unique:subscription:field:customer_id"
+    },
+    "urn:demo:unique:subscription:field:plan_id": {
+      "brandIdentifier": "SubscriptionPlanId",
+      "constraints": {
+        "regex": "pln_[a-z]{1,8}"
+      },
+      "description": "The plan",
+      "primitive": "string",
+      "urn": "urn:demo:unique:subscription:field:plan_id"
+    },
+    "urn:demo:unique:subscription:field:status": {
+      "brandIdentifier": "SubscriptionStatus",
+      "constraints": {
+        "values": [
+          "active",
+          "canceled"
+        ]
+      },
+      "description": "The status of a subscription",
+      "moves": {
+        "active": [
+          "canceled"
+        ]
+      },
+      "primitive": "enum",
+      "urn": "urn:demo:unique:subscription:field:status"
+    },
+    "urn:demo:unique:subscription:field:subscription_id": {
+      "brandIdentifier": "SubscriptionSubscriptionId",
+      "constraints": {
+        "regex": "sub_[0-9]{8}"
+      },
+      "description": "The id of a subscription",
+      "primitive": "string",
+      "urn": "urn:demo:unique:subscription:field:subscription_id"
+    }
+  },
+  "invariants": {},
+  "meta": {
+    "domain": "unique",
+    "irSchemaVersion": 1,
+    "manifestHash": "6270cac7eee1a477cef00ca785d32ebb6d193f7d1a1ef718c77a518ffcdd762e",
+    "manifestVersion": "1.0.0",
+    "namespace": "demo",
+    "stability": "stable"
+  },
+  "operations": {
+    "urn:demo:unique:subscription:operation:create_subscription": {
+      "brandIdentifier": "SubscriptionCreateSubscription",
+      "description": "Subscribe a customer to a plan",
+      "emits": [],
+      "errors": [
+        "urn:demo:unique:subscription:error:conflict"
+      ],
+      "input": "urn:demo:unique:subscription:entity:create_request",
+      "output": "urn:demo:unique:subscription:entity:subscription",
+      "urn": "urn:demo:unique:subscription:operation:create_subscription"
+    }
+  }
+}

@@ -42,6 +42,7 @@ Conditions:
 | A new `refuses` rule | Compatible: a refusal promises more |
 | A removed or changed `refuses` rule | Breaking: callers can rely on less |
 | A new, changed or removed `rejects` | Breaking: callers get another answer for an input that does not parse |
+| A new, changed or removed `unique` entry | Breaking: calls that worked are refused, and rows already stored may clash; or callers can rely on less |
 | `changes` on an operation that had none | Breaking |
 
 A URN that has two uses obeys the rules of both. These changes are also breaking:

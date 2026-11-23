@@ -13,12 +13,13 @@ promises:
     status: workaround
     by: [money.entity.money, money.field.amount_minor, money.field.currency]
     hole: B4
-  # The form of the code is stated; its uniqueness across all events is not.
+  # The form is the regex of the code. The ticket is the stored record (transfer_ticket and cancel_transfer change it,
+  # check_out and accept_transfer issue new ones), a table of the Postgres extra keyed by its code, and its
+  # unique: [{ by: [ticket_code] }] is a unique index over every stored ticket, whatever its event.
   P03:
     promise: "A ticket code is exactly 16 characters from the uppercase letters A-Z (without I and O) and the digits 2-9, and is unique across all events."
-    status: workaround
-    by: [ticket.field.ticket_code]
-    hole: C1
+    status: declared
+    by: [ticket.field.ticket_code, ticket.entity.ticket]
   # The total of at most 10 tickets counts 1 for a seated line and the quantity for a standing line: a sum with a condition, which only the core checks; the line is not a union type (B1); the distinct seats are P05.
   P04:
     promise: "A hold request names one event and contains 1 to 10 lines, where a seated line names exactly one distinct seat and a standing line names a section and a quantity of at least 1, and the total number of tickets across all lines is at most 10."

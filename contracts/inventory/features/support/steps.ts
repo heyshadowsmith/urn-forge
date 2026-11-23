@@ -1,7 +1,7 @@
 // Connects urn-forge's generic steps to this domain's generated runtime and core.
 import { registerOperationSteps } from 'urn-forge/cucumber';
 import { core } from '../../src/core';
-import { CallerContract, DispatchMap, executeOperation, idempotencyOf } from '../../src/generated/domain.runtime.generated';
+import { CallerContract, DispatchMap, executeOperation, idempotencyOf, refusalOf, UniqueContract } from '../../src/generated/domain.runtime.generated';
 import { commit } from '../../src/generated/domain.store.generated';
 
 // The shell gives each event its id: here 7d3f1c2a-5b4e-4a6d-9c8b-000000000001, 2, ... within a scenario.
@@ -21,4 +21,7 @@ registerOperationSteps({
   idempotency: { idempotencyOf },
   // The statements of a call: "Then nothing changes" checks that a refusal gives none.
   commit,
+  // The stored reservations of "Given these reservation records are stored:": an answer that clashes
+  // with one is refused as commitOnce refuses it (open_reservation_exists for an order with an open one).
+  unique: { contract: UniqueContract, refusalOf },
 });

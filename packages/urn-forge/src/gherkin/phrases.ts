@@ -7,6 +7,8 @@ export const STEP_PHRASES = {
   current: 'the current {word} is:',
   /** The shell found no record that the operation changes. */
   noCurrent: 'there is no current {word}',
+  /** Records of an entity with unique values, as the store holds them before the call: one header row and a row for each. */
+  stored: 'these {word} records are stored:',
   /** Who calls, as the shell authenticated them: one header row and one data row. */
   caller: 'the caller is:',
   /** The time of the call, as the shell's clock would give it: a UTC timestamp. */

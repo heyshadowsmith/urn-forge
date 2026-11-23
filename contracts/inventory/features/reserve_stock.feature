@@ -98,6 +98,53 @@ Feature: Reserve stock for an order
       | [{ sku: WIDGET-1, location: AMS-B-0142, requested: 401, available: 400 }, { sku: GADGET-2, location: ROT-A-0001, requested: 500, available: 400 }] |
     And nothing changes
 
+  # An order has at most one open reservation: the store's partial unique index on order_id (state
+  # ACTIVE or PARTIALLY_SHIPPED) refuses a second, and commitOnce answers open_reservation_exists.
+  Scenario Outline: An order with an open (<state>) reservation cannot get a second one, and nothing is reserved
+    Given these reservation records are stored:
+      | result   | reservation_id                       | order_id | state   | lines                                                   | expires_at               |
+      | RESERVED | 0b5e0000-0000-4000-8000-000000000001 | ORD-20   | <state> | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:20:00.000Z |
+    When I run the operation with:
+      | idempotency_key | order_id | lines                                                  |
+      | res-0020        | ORD-20   | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 2 }] |
+    Then the operation fails with "urn:corpus:inventory:reservation:error:open_reservation_exists":
+      | order_id |
+      | ORD-20   |
+    And nothing changes
+
+    Examples:
+      | state             |
+      | ACTIVE            |
+      | PARTIALLY_SHIPPED |
+
+  Scenario Outline: An order whose reservation is <state> can be reserved again
+    Given these reservation records are stored:
+      | result   | reservation_id                       | order_id | state   | lines                                                   | expires_at               |
+      | RESERVED | 0b5e0000-0000-4000-8000-000000000002 | ORD-21   | <state> | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T09:50:00.000Z |
+    When I run the operation with:
+      | idempotency_key | order_id | lines                                                  |
+      | res-0021        | ORD-21   | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 2 }] |
+    Then the output is:
+      | result   | reservation_id                       | order_id | state  |
+      | RESERVED | c0ffee00-1234-4abc-8def-0123456789ab | ORD-21   | ACTIVE |
+
+    Examples:
+      | state    |
+      | RELEASED |
+      | EXPIRED  |
+      | SHIPPED  |
+
+  Scenario: An open reservation of another order does not stop a reservation
+    Given these reservation records are stored:
+      | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
+      | RESERVED | 0b5e0000-0000-4000-8000-000000000003 | ORD-22   | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:20:00.000Z |
+    When I run the operation with:
+      | idempotency_key | order_id | lines                                                  |
+      | res-0023        | ORD-23   | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 2 }] |
+    Then the output is:
+      | result   | order_id | state  |
+      | RESERVED | ORD-23   | ACTIVE |
+
   Scenario: A SKU and location that appear on two lines are refused
     When I run the operation with:
       | idempotency_key | order_id | lines                                                                                                        |

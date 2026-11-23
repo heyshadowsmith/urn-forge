@@ -90,6 +90,7 @@ const due = addDays('2026-11-21', 28); // '2026-12-19'
 | `operationUrnFromTags` | `(tags: readonly string[]): string` | The one operation URN in the tags. Throws if there is none or more than one |
 | `coerceCell` | `(cell: string, field: PropertyInfoLike): unknown` | A table cell as a value of the primitive of the field |
 | `tableToObject` | `(rows, fields, side: 'input' \| 'output' \| 'error' \| 'event', urn: string): Record<string, unknown>` | A table of one header row and one data row as an object |
+| `uniqueClash` | `(entity, record, stored): { by, otherwise? } \| undefined` | The first clash of a record with the stored records of its entity, as the unique indexes of the store find it |
 | `assertOutput` | `(result, expected, urn): void` | Throws if the operation failed, or if a property of `expected` is different |
 | `assertRejectedOn` | `(result, fieldName, fields, urn): void` | Throws if the result is not `InputRejected` on the property |
 | `assertRejectedBy` | `(result, invariantUrn, urn): void` | Throws if the result is not `InputRejected` by the invariant |

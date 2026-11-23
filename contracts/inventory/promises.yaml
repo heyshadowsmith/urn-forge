@@ -60,10 +60,12 @@ promises:
     status: workaround
     by: [adjustment.operation.adjust_stock, stock.error.insufficient_stock]
     hole: A2
+  # Declared: the reservation is a table of the Postgres extra, and its entity has unique. (a) by [reservation_id], forever: true: the primary key keeps the id unique, and the store writes each id into "used"."reservation" (UNIQUE by value), which keeps it when the reservation is gone, so no other reservation gets it again. (b) by [order_id] when state = 'ACTIVE' or state = 'PARTIALLY_SHIPPED' (open: the reservation still holds stock), otherwise reservation.error.open_reservation_exists: a partial unique index refuses a second open reservation of an order, and commitOnce answers the declared refusal (conflict, with the order_id) and writes nothing; ReserveStock declares that error.
+  # The scenarios of ReserveStock store an ACTIVE and a PARTIALLY_SHIPPED reservation of the order and reserve again (open_reservation_exists, nothing changes), and store a RELEASED, EXPIRED and SHIPPED one, or an open one of another order (reserved). The core does not know the other records; the shell must write each call with commitOnce, or a clash is a database error and not the declared refusal.
   P13:
     promise: "A reservation id is unique across the service and is never reused, and at most one open reservation exists per order id."
-    status: not-declarable
-    hole: C1
+    status: declared
+    by: [reservation.entity.reservation, reservation.field.reservation_id, reservation.field.order_id, reservation.field.state, reservation.error.open_reservation_exists, reservation.operation.reserve_stock]
   P14:
     promise: "A reservation is in one of the states ACTIVE, PARTIALLY_SHIPPED, SHIPPED, RELEASED or EXPIRED, may move only from ACTIVE to PARTIALLY_SHIPPED, SHIPPED, RELEASED or EXPIRED and from PARTIALLY_SHIPPED to SHIPPED or RELEASED, and SHIPPED, RELEASED and EXPIRED are final."
     status: declared

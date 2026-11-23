@@ -235,6 +235,16 @@ For a domain with an operation that changes a table entity, or with an outbox, t
 
 Run them in the transaction of the call. Refer to [Declare what a refusal carries](../how-to/declare-refusals#_3-write-nothing-for-a-refusal).
 
+## Unique values
+
+For each `unique` entry of a table entity, the schema has a unique index on the columns of `by`, with `WHERE` for `when`. For the `forever` entries, it has the table `"used"."<table>"` (`by`, `value`, `owner`): its primary key lets a record write its own values again, and its unique constraint `<table>_once` refuses a value to another record. No statement deletes its rows. `insert<Entity>` claims the values of a new record; `replace<Entity>` and `replace<Entity>From` may write them again.
+
+| Export | Description |
+| --- | --- |
+| `commitOnce(query, result, writes?)` | Runs the statements of `commit` in a savepoint. A clash with an index of an entry with `otherwise` rolls back to the savepoint and gives the declared error, filled by name from the answer. Any other error of the database is thrown. It imports `refusalOf` from the runtime file |
+
+Refer to [Keep values unique](../how-to/keep-values-unique).
+
 ## Answers of idempotent operations
 
 For a domain with an operation that has `idempotency`, the schema has the table `"idempotency"."<domain>"`: `operation`, `scope` (the owners of the key, as JSON), `key`, `body_hash` (SHA-256 of the canonical body), `answer` (`JSONB`) and `created_at`. The operation, the scope and the key are the primary key. The store file has:

@@ -4,8 +4,8 @@ Feature: Resume a subscription
 
   Scenario Outline: A paused subscription becomes active again
     Given the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_pppppppppppppppppppppppp | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | paused   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_pppppppppppppppppppppppp | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | paused   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id              | idempotency_key   |
       | sub_pppppppppppppppppppppppp | <idempotency_key> |
@@ -21,8 +21,8 @@ Feature: Resume a subscription
 
   Scenario Outline: A request that breaks a field limit is rejected
     Given the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_pppppppppppppppppppppppp | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | paused   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_pppppppppppppppppppppppp | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | paused   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id   | idempotency_key   |
       | <subscription_id> | <idempotency_key> |
@@ -43,8 +43,8 @@ Feature: Resume a subscription
 
   Scenario Outline: A subscription that is not paused cannot resume
     Given the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_pppppppppppppppppppppppp | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_pppppppppppppppppppppppp | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id              |
       | sub_pppppppppppppppppppppppp |
@@ -61,8 +61,8 @@ Feature: Resume a subscription
   Scenario: A repeat of the same key and the same body within 24 hours returns the first answer and has no second effect
     Given the time is "2026-11-22T10:00:00Z"
     And the current subscription is:
-      | subscription_id | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_pppppppppppppppppppppppp | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | paused   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_pppppppppppppppppppppppp | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | paused   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id | idempotency_key |
       | sub_pppppppppppppppppppppppp | key-1 |
@@ -76,8 +76,8 @@ Feature: Resume a subscription
   Scenario: A repeat of the same key with a different body within 24 hours is refused with conflict
     Given the time is "2026-11-22T10:00:00Z"
     And the current subscription is:
-      | subscription_id | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_pppppppppppppppppppppppp | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | paused   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_pppppppppppppppppppppppp | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | paused   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id | idempotency_key |
       | sub_pppppppppppppppppppppppp | key-1 |
@@ -92,8 +92,8 @@ Feature: Resume a subscription
   Scenario: After 24 hours the same key is free, and the request runs again
     Given the time is "2026-11-22T10:00:00Z"
     And the current subscription is:
-      | subscription_id | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
-      | sub_pppppppppppppppppppppppp | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | paused   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+      | subscription_id | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
+      | sub_pppppppppppppppppppppppp | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | paused   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
       | subscription_id | idempotency_key |
       | sub_pppppppppppppppppppppppp | key-1 |

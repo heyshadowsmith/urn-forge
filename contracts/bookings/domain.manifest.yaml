@@ -207,6 +207,10 @@ booking.entity.booking:
       required: false
     - ref: guest.field.phone
       required: false
+  # A reference is given to one booking only, also after that booking is gone (P01).
+  unique:
+    - by: [reference]
+      forever: true
 
 booking.entity.booking_ref:
   description: The booking that a call is about; a guest also presents the email or the phone of its contact

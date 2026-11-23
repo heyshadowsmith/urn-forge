@@ -299,6 +299,28 @@ function conditionDeclarations(ir: UniversalIR): string[] {
   });
 }
 
+/** The name of the rule \`when\` of an entry of unique: \`<Brand>Unique<n>When\`. */
+export function uniqueWhenName(brandIdentifier: string, index: number): string {
+  return `${brandIdentifier}Unique${index + 1}When`;
+}
+
+/** For each entry of unique with when: the rule over a record of the entity, which the Gherkin steps check. */
+function uniqueDeclarations(ir: UniversalIR): string[] {
+  return valuesInUrnOrder(ir.entities).flatMap((entity) =>
+    (entity.unique ?? []).flatMap((entry, index) =>
+      entry.when
+        ? [
+            [
+              `/** ${entity.urn} — unique by ${entry.by.join(', ')} where ${entry.when.ruleText} */`,
+              `export const ${uniqueWhenName(entity.brandIdentifier, index)} = (p: ${schemaNames(entity.brandIdentifier).output}): boolean =>`,
+              `  ${emitRule(entry.when.rule, primitiveIn(entity, ir), embeddedIn(entity, ir)).code};`,
+            ].join('\n'),
+          ]
+        : [],
+    ),
+  );
+}
+
 /** The entity of each prefix of an operation's conditions. `event.` names properties that each of its events has, so the first event gives them. */
 function conditionEntities(op: IROperation, ir: UniversalIR, extra: Readonly<Record<string, IREntity>> = {}): Record<string, IREntity> {
   const event = op.exactly?.[0] && ir.events[op.exactly[0].event];
@@ -431,6 +453,11 @@ function helpersFor(ir: UniversalIR): ValibotHelper[] {
   for (const field of Object.values(ir.fields)) {
     for (const helper of TRANSLATIONS[field.primitive].helpers ?? []) for (const need of HELPER_NEEDS[helper]) needed.add(need);
   }
+  for (const entity of Object.values(ir.entities)) {
+    for (const entry of entity.unique ?? []) {
+      if (entry.when) for (const helper of emitRule(entry.when.rule, primitiveIn(entity, ir), embeddedIn(entity, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
+    }
+  }
   for (const invariant of Object.values(ir.invariants ?? {})) {
     const primitiveOf = primitiveIn(ir.entities[invariant.on]!, ir);
     for (const helper of emitRule(invariant.rule, primitiveOf, embeddedIn(ir.entities[invariant.on]!, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
@@ -511,6 +538,7 @@ export const valibotPlugin: CodegenPlugin<ValibotPluginConfig> = {
         ? [`// Errors`, ...valuesInUrnOrder(ir.errors).map((error) => errorDeclaration(error, ir))]
         : []),
       ...(conditionDeclarations(ir).length > 0 ? [`// Conditions`, ...conditionDeclarations(ir)] : []),
+      ...(uniqueDeclarations(ir).length > 0 ? [`// Unique values`, ...uniqueDeclarations(ir)] : []),
     ];
     if (diagnostics.length > 0) return { artifacts: [], diagnostics };
     return {

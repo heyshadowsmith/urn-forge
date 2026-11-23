@@ -12,6 +12,8 @@ import { schemaNames } from '../naming.js';
 import { answersImports, answersStore, hasAnswers } from './postgres-idempotency.js';
 import { hasOutbox, outboxStore } from './postgres-outbox.js';
 import type { StoreChild, StoreRoot, StoreTable } from './postgres-tables.js';
+import { FCIS_RUNTIME_FILE } from './fcis.plugin.js';
+import { uniqueIndexName } from './postgres.plugin.js';
 import { valuesInUrnOrder } from './plugin.interface.js';
 
 export const POSTGRES_STORE_FILE = 'domain.store.generated.ts';
@@ -106,26 +108,40 @@ export function storeFile(ir: UniversalIR, store: readonly StoreRoot[], dues: re
   const states = new Map<string, string>();
   for (const operation of Object.values(ir.operations)) if (operation.changes) states.set(operation.changes.entity, operation.changes.property);
   const changed = store.some((root) => states.has(root.entity));
-  const parts = [`import type * as s from './domain.schemas.generated.js';`, ...(answers ? [answersImports()] : []), '', changed ? RUNTIME + RUNTIME_FROM : RUNTIME];
+  const unique = store.some((root) => (ir.entities[root.entity]!.unique ?? []).length > 0);
+  const anyForever = store.some((root) => (ir.entities[root.entity]!.unique ?? []).some((u) => u.forever));
+  const parts = [
+    `import type * as s from './domain.schemas.generated.js';`,
+    ...(answers ? [answersImports()] : []),
+    // runOnce imports ExecuteResult already, for a domain with idempotency.
+    ...(unique ? [`import { refusalOf${answers ? '' : ', type ExecuteResult'} } from './${FCIS_RUNTIME_FILE.replace(/\.ts$/, '.js')}';`] : []),
+    '',
+    (changed ? RUNTIME + RUNTIME_FROM : RUNTIME) + (anyForever ? USED : ''),
+  ];
   for (const root of store) {
     const entity = ir.entities[root.entity]!;
     const brand = entity.brandIdentifier;
     const keyBrand = ir.fields[entity.key!]!.brandIdentifier;
     const table = `${brand}Table`;
     const key = JSON.stringify(root.keyProperty);
+    // The values that a record uses for good: forever entries of unique, kept in the table of used values.
+    const foreverBy = (entity.unique ?? []).filter((u) => u.forever).map((u) => u.by);
+    const forever = foreverBy.length > 0;
+    // A new record claims its values; a replace of a record may write its own values again.
+    const usedCall = (fresh: boolean) => `usedValues(${JSON.stringify(root.name)}, ${JSON.stringify(foreverBy)}, value as Readonly<Record<string, unknown>>, ${key}, ${fresh})`;
     parts.push(
       '',
       `/** The tables of ${root.entity}. */`,
       `const ${table}: Table = ${tableLiteral(root, '').trimStart()};`,
       '',
-      `/** The statements that insert one ${root.entity}, and its child rows. */`,
+      `/** The statements that insert one ${root.entity}, and its child rows${forever ? ', and the values that it uses for good' : ''}. */`,
       `export function insert${brand}(value: s.${brand}): readonly Statement[] {`,
-      `  return insertRows(${table}, ${key}, value as Readonly<Record<string, unknown>>);`,
+      `  return ${forever ? '[...' : ''}insertRows(${table}, ${key}, value as Readonly<Record<string, unknown>>)${forever ? `, ...${usedCall(true)}]` : ''};`,
       '}',
       '',
       `/** The statements that replace one ${root.entity}: a delete of the old rows, then an insert. */`,
       `export function replace${brand}(value: s.${brand}): readonly Statement[] {`,
-      `  return [...deleteRows(${table}, value[${key}]), ...insertRows(${table}, ${key}, value as Readonly<Record<string, unknown>>)];`,
+      `  return [...deleteRows(${table}, value[${key}]), ...insertRows(${table}, ${key}, value as Readonly<Record<string, unknown>>)${forever ? `, ...${usedCall(false)}` : ''}];`,
       '}',
       '',
       `/** The statement that deletes one ${root.entity} by its key, with its child rows. */`,
@@ -145,7 +161,7 @@ export function storeFile(ir: UniversalIR, store: readonly StoreRoot[], dues: re
         ` * deletes no row when the record moved since the shell loaded it: check that it deleted one, else roll back.`,
         ` */`,
         `export function replace${brand}From(value: s.${brand}, from: readonly ${stateBrand ? `s.${schemaNames(stateBrand).input}` : 'string'}[]): readonly Statement[] {`,
-        `  return [...deleteRowsFrom(${table}, value[${key}], ${JSON.stringify(column)}, from), ...insertRows(${table}, ${key}, value as Readonly<Record<string, unknown>>)];`,
+        `  return [...deleteRowsFrom(${table}, value[${key}], ${JSON.stringify(column)}, from), ...insertRows(${table}, ${key}, value as Readonly<Record<string, unknown>>)${forever ? `, ...${usedCall(false)}` : ''}];`,
         '}',
       );
     }
@@ -164,8 +180,9 @@ export function storeFile(ir: UniversalIR, store: readonly StoreRoot[], dues: re
   }
   if (outbox) parts.push(outboxStore(ir));
   if (answers) parts.push(answersStore(ir));
-  const commit = commitStore(ir, store, outbox);
+  const commit = commitStore(ir, store, outbox, unique);
   if (commit) parts.push(commit);
+  if (unique) parts.push(commitOnceStore(ir, store, answers));
   return `${parts.join('\n')}\n`;
 }
 
@@ -174,7 +191,7 @@ export function storeFile(ir: UniversalIR, store: readonly StoreRoot[], dues: re
  * with an outbox. A refusal gives none. A success gives the new record of an operation that changes
  * a stored record and answers it, the statements of `writes`, and the events that the outbox holds.
  */
-function commitStore(ir: UniversalIR, store: readonly StoreRoot[], outbox: boolean): string | undefined {
+function commitStore(ir: UniversalIR, store: readonly StoreRoot[], outbox: boolean, unique = false): string | undefined {
   const tables = new Set(store.map((root) => root.entity));
   const changes = valuesInUrnOrder(ir.operations).flatMap((op) => {
     if (!op.changes || !tables.has(op.changes.entity) || op.output !== op.changes.entity) return [];
@@ -182,7 +199,7 @@ function commitStore(ir: UniversalIR, store: readonly StoreRoot[], outbox: boole
     return [`  ${JSON.stringify(op.urn)}: (output) => replace${brand}From(output as s.${brand}, ${JSON.stringify(op.changes.from)}),`];
   });
   const changesTable = valuesInUrnOrder(ir.operations).some((op) => op.changes !== undefined && tables.has(op.changes.entity));
-  if (!changesTable && !outbox) return undefined;
+  if (!changesTable && !outbox && !unique) return undefined;
   return `
 /** A result of executeOperation: a success has its output and events; a refusal has neither. */
 export type CommitResult =
@@ -204,5 +221,64 @@ export function commit(result: CommitResult, writes: (output: unknown) => readon
   if (!result.ok) return [];
   const change = Object.hasOwn(Changes, result.urn) ? Changes[result.urn]! : () => [];
   return [...change(result.output), ...writes(result.output)${outbox ? ', ...insertEvents(result.events.filter((event) => Object.hasOwn(Delivery, event.urn)))' : ''}];
+}`;
+}
+
+/** The used values of a record: for each forever entry of unique, one row that is never deleted. */
+const USED = `
+
+/**
+ * The statements that keep the values that a record uses for good. A new record (\`fresh\`) claims
+ * each value: a value used before, by any record, also one that is gone, is refused. A replace of a
+ * record may write its own values again; another record's value is refused.
+ */
+function usedValues(table: string, entries: readonly (readonly string[])[], value: Readonly<Record<string, unknown>>, key: string, fresh: boolean): readonly Statement[] {
+  return entries.map((by) => ({
+    text: \`INSERT INTO \${quote('used')}.\${quote(table)} ("by", "value", "owner") VALUES ($1, $2, $3)\${fresh ? '' : ' ON CONFLICT ("by", "value", "owner") DO NOTHING'}\`,
+    values: [by.join(','), JSON.stringify(by.map((name) => value[name])), JSON.stringify(value[key])],
+  }));
+}`;
+
+/**
+ * \`commitOnce\`: the statements of \`commit\`, run in a savepoint. A clash with an index of a unique
+ * entry that has \`otherwise\` rolls back to the savepoint and gives the declared refusal.
+ */
+function commitOnceStore(ir: UniversalIR, store: readonly StoreRoot[], answers: boolean): string {
+  const clashes = store.flatMap((root) =>
+    (ir.entities[root.entity]!.unique ?? []).flatMap((entry) => (entry.otherwise && !entry.forever ? [`  ${JSON.stringify(uniqueIndexName(root.name, entry.by))}: ${JSON.stringify(entry.otherwise)},`] : [])),
+  );
+  return `${answers ? '' : `
+/** Runs one statement, in the transaction of the call, and gives its rows: the query function of your driver. */
+export type Query = (statement: Statement) => Promise<{ readonly rows: readonly Readonly<Record<string, unknown>>[] }>;
+`}
+/** The index of each unique entry with otherwise, and the declared error of a clash with it. */
+const Clashes: Readonly<Record<string, string>> = {
+${clashes.join('\n')}
+};
+
+/**
+ * Runs the statements of \`commit\` in the transaction of the call, in a savepoint. A clash with a unique
+ * entry that has \`otherwise\` rolls back to the savepoint, so the call writes nothing, and gives the declared
+ * error, filled by name from the answer. Any other error of the database is thrown, as it is.
+ */
+export async function commitOnce(
+  query: Query,
+  result: CommitResult,
+  writes: (output: unknown) => readonly Statement[] = () => [],
+): Promise<CommitResult | ExecuteResult> {
+  if (!result.ok) return result;
+  await query({ text: 'SAVEPOINT urn_forge_commit', values: [] });
+  try {
+    for (const statement of commit(result, writes)) await query(statement);
+  } catch (error) {
+    const { code, constraint } = error as { readonly code?: unknown; readonly constraint?: unknown };
+    const errorUrn = code === '23505' && typeof constraint === 'string' && Object.hasOwn(Clashes, constraint) ? Clashes[constraint] : undefined;
+    const refusal = errorUrn === undefined ? undefined : refusalOf(result.urn, errorUrn, result.output as Readonly<Record<string, unknown>>);
+    if (!refusal) throw error;
+    await query({ text: 'ROLLBACK TO SAVEPOINT urn_forge_commit', values: [] });
+    return refusal;
+  }
+  await query({ text: 'RELEASE SAVEPOINT urn_forge_commit', values: [] });
+  return result;
 }`;
 }

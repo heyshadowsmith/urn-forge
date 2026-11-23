@@ -269,6 +269,12 @@ export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOp
     const uses = usesFor(urn, true);
     if (a.key !== b!.key) relate(urn, 'neither', `key ${show(a.key)} → ${show(b!.key)}`, uses);
     properties(urn, a.fields, b!.fields, uses);
+    // unique: a new or changed entry refuses calls that worked, and stored rows may clash; a removed one promises less.
+    const entry = (u: NonNullable<typeof a.unique>[number]) =>
+      `by ${u.by.join(', ')}${u.when ? ` where ${u.when.ruleText}` : ''}${u.otherwise ? ` (otherwise ${u.otherwise})` : ''}${u.forever ? ' (forever)' : ''}`;
+    const [ua, ub] = [(a.unique ?? []).map(entry), (b!.unique ?? []).map(entry)];
+    for (const text of ub.filter((u) => !ua.includes(u))) breaking(urn, `the new unique ${text} refuses records that worked, and rows already stored may clash`);
+    for (const text of ua.filter((u) => !ub.includes(u))) breaking(urn, `the unique ${text} is removed, which breaks callers that rely on it`);
   }
 
   for (const urn of Object.keys(old.invariants) as Urn[]) {

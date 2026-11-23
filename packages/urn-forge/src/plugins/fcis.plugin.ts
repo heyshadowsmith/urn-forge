@@ -21,7 +21,7 @@ import { conditionName, handlerName, ruleName, schemaNames } from '../naming.js'
 import { namesIn } from '../rules/index.js';
 import { PRIMITIVE_NAMES } from '../primitives/index.js';
 import { docComment, valuesInUrnOrder, type CodegenPlugin } from './plugin.interface.js';
-import { VALIBOT_SCHEMAS_FILE } from './valibot.plugin.js';
+import { uniqueWhenName, VALIBOT_SCHEMAS_FILE } from './valibot.plugin.js';
 
 export const FCIS_RUNTIME_FILE = 'domain.runtime.generated.ts';
 
@@ -363,6 +363,38 @@ const COUNTS = `
     }
   }`;
 
+/**
+ * For the Gherkin steps: each entity with unique, by URN, with its key, its properties, and each
+ * entry, so that the steps check a new record against the stored records of a scenario.
+ */
+function uniqueContractLines(ir: UniversalIR): string[] {
+  const entities = valuesInUrnOrder(ir.entities).filter((e) => (e.unique ?? []).length > 0);
+  if (entities.length === 0) return [];
+  return [
+    ``,
+    `/** Each entity with unique values: its key, its properties, and the values that no two stored records share. */`,
+    `export const UniqueContract = {`,
+    ...entities.flatMap((entity) => {
+      const key = entity.fields.find((f) => 'field' in f && f.field === entity.key)?.name;
+      return [
+        `  ${q(entity.urn)}: {`,
+        ...(key === undefined ? [] : [`    key: ${q(key)},`]),
+        `    fields: {`,
+        ...fieldInfoLines(entity.urn, entity.fields, ir, '      '),
+        `    },`,
+        `    unique: [`,
+        ...entity.unique!.map(
+          (entry, index) =>
+            `      { by: [${entry.by.map(q).join(', ')}]${entry.when ? `, when: s.${uniqueWhenName(entity.brandIdentifier, index)}` : ''}${entry.otherwise ? `, otherwise: ${q(entry.otherwise)}` : ''}${entry.forever ? ', forever: true' : ''} },`,
+        ),
+        `    ],`,
+        `  },`,
+      ];
+    }),
+    `} as const;`,
+  ];
+}
+
 /** The lines of refuses in the DispatchMap: for each error, its rules, numbered across the operation. */
 function refusesLines(op: IROperation): string[] {
   let index = 0;
@@ -421,6 +453,30 @@ function refusalRuntime(runtime: string, rejects: boolean, refuses: boolean): st
   }
   return text;
 }
+
+/** The declared refusal of a clash that the store found: for commitOnce. */
+const REFUSAL_OF = `
+
+/**
+ * The declared error \`errorUrn\` of the operation \`urn\`, filled by name from \`known\` and parsed: the
+ * answer to a clash with a unique value, which the store finds. Undefined when the operation does
+ * not declare the error, or the values do not fill it.
+ */
+export function refusalOf(urn: string, errorUrn: string, known: Readonly<Record<string, unknown>>): ExecuteResult | undefined {
+  if (!isOperationUrn(urn)) return undefined;
+  const contract: OperationContract = DispatchMap[urn];
+  const declared = Object.hasOwn(contract.errors, errorUrn) ? contract.errors[errorUrn] : undefined;
+  if (!declared) return undefined;
+  const names = Object.keys(declared.fields).filter((name) => known[name] !== undefined);
+  const error = v.safeParse(declared.schema, { ...Object.fromEntries(names.map((name) => [name, known[name]])), kind: errorUrn });
+  if (!error.success) return undefined;
+  return {
+    ok: false,
+    kind: 'DomainError',
+    urn,
+    error: { urn: errorUrn, category: declared.category, retryable: declared.retryable, message: renderMessage(declared.message, error.output), fields: error.output },
+  } as ExecuteResult;
+}`;
 
 /** The parse of an event with a delivery: the id from the shell, and no sequence, which the outbox fills. */
 const DELIVERY_PARSE = `
@@ -1071,6 +1127,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
         `  },`,
       ]),
       `} as const satisfies Readonly<Record<keyof DomainCoreImplementation, OperationContract>>;`,
+      ...uniqueContractLines(ir),
       ...(anyCaller
         ? [
             ``,
@@ -1084,7 +1141,7 @@ export const fcisPlugin: CodegenPlugin<FcisPluginConfig> = {
     ].join('\n');
 
     // Idempotency: the key of a call, and the error for the same key with another body. The store keeps the answers.
-    const idempotencyHelpers = anyIdempotency ? IDEMPOTENCY : '';
+    const idempotencyHelpers = (anyIdempotency ? IDEMPOTENCY : '') + (Object.values(ir.entities).some((e) => (e.unique ?? []).length > 0) ? REFUSAL_OF : '');
     const runtime = refusalRuntime(shell(anyChanges, anyConditions, anyCounts, anyDelivery, anyReads, anyCaller, anyTime, anyDue, anyIdempotency), anyRejects, anyRefuses);
     const sections = [
       `import * as v from 'valibot';\nimport * as s from '${schemasModule}';`,

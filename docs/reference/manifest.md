@@ -134,6 +134,7 @@ customer.entity.customer:
 | `description` | string | Yes | Not empty |
 | `key` | string | No | The short key of a field that the entity refers to with `ref`, `required: true` and no `many`. Else `invalid-entity-key` |
 | `fields` | A list of [field references](#field-reference) | Yes | One or more items |
+| `unique` | A list of maps | No | For each entry: `by` (properties of the entity with one value: fields or links), `when` (optional: a rule over the record), `otherwise` (optional: a declared error, filled by name from the answer), `forever` (optional: `true`, not with `when` or `otherwise`). The entity must be a table of the `postgres` plugin. Else `invalid-unique`. Refer to [Keep values unique](../how-to/keep-values-unique) |
 
 An entity needs a `key` if a `link` names it, if a list with `unique: true` embeds it, or if it is a table of the `postgres` plugin. An `invariants` key causes `unknown-property`: each invariant names its entity with `on`.
 

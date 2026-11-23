@@ -100,6 +100,8 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
   const repeated = new Set<string>();
   /** Each timed change that a scenario calls for a record that is not due. */
   const notDue = new Set<string>();
+  /** "<entity URN> <error URN>": a scenario that stores records of the entity and fails with the error of a clash. */
+  const clashes = new Set<string>();
   /** Each event that a scenario expects a success without: the other side of a \`when\` rule. */
   const absentEvents = new Set<string>();
   /** `<operation URN> <event URN>` for each record of a refusal some scenario expects. */
@@ -180,7 +182,18 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
       let hasTime = false;
       let expectsOtherwise = false;
       let runs: SourceLocation | undefined;
+      // `Given these <entity> records are stored:` and the errors that the scenario expects: a clash with a unique value.
+      const storedEntities = scenario.steps.flatMap((step) => {
+        const stored = /^these (\S+) records are stored:$/.exec(step.text)?.[1];
+        const entity = stored === undefined ? undefined : Object.values(ir.entities).find((e) => e.urn.split(':').at(-1) === stored && (e.unique ?? []).length > 0);
+        if (stored !== undefined && !entity) report('uncovered-unique', step.location, `"${step.text}": ${stored} is not an entity with unique values`, owner?.urn ?? '');
+        else if (entity && step.table) checkHeader(step.table.header, entityOwner(ir, entity.urn));
+        return entity ? [entity.urn] : [];
+      });
+      const expected = scenario.steps.flatMap((step) => stepTexts(scenario, step.text).flatMap((text) => failsWithUrn(text) ?? []));
+      for (const entity of storedEntities) for (const error of expected) clashes.add(`${entity} ${error}`);
       for (const step of scenario.steps) {
+        if (/^these \S+ records are stored:$/.test(step.text)) continue;
         if (step.text === STEP_PHRASES.run) runs ??= step.location;
         // `When I run the operation again with:`: a repeat of an idempotent call.
         if (step.text === STEP_PHRASES.runAgain && owner && operation?.idempotency) repeated.add(owner.urn);
@@ -477,6 +490,19 @@ export function checkGherkin({ ir, features, boundaryCoverage }: GateContext): G
       urn: operation.urn,
       message: `${operation.urn} returns the first answer to a repeat with the same ${operation.idempotency.key}, and no scenario repeats a call; add one with When I run the operation again with:`,
     });
+  }
+  // A unique entry with otherwise: a scenario must store a record and fail with the clash.
+  for (const entity of Object.values(ir.entities)) {
+    for (const entry of entity.unique ?? []) {
+      if (!entry.otherwise || clashes.has(`${entity.urn} ${entry.otherwise}`)) continue;
+      problems.push({
+        code: 'uncovered-unique',
+        severity: 'error',
+        file: features.directory,
+        urn: entity.urn,
+        message: `${entity.urn} refuses a second record with the same ${entry.by.join(', ')}${entry.when ? ` where ${entry.when.ruleText}` : ''} with ${entry.otherwise}, and no scenario shows it; add one with Given these ${entity.urn.split(':').at(-1)} records are stored: and Then the operation fails with "${entry.otherwise}"`,
+      });
+    }
   }
   // A timed change: a scenario must call it for a record that is not due, the other side of its due rule.
   for (const operation of Object.values(ir.operations)) {
