@@ -35,12 +35,12 @@ promises:
     promise: "A line's expense date is never later than the claim's submission date and never more than 90 days before it."
     status: not-declarable
     hole: A1
-  # P06 and P07 conflict as written: a MILEAGE line above 25.00 cannot both carry and not carry a receipt.
-  # The invariant takes the reading that keeps both: the receipt rule applies to every category but MILEAGE.
+  # Workaround: The domain sees only what the caller declares about a file: a hash, a type and a size that do not match the file are accepted. A MILEAGE item with no receipt is accepted, which is a narrower rule than the promise.
   P06:
     promise: "A line with an amount above 25.00 must carry a receipt reference, and each receipt file is a PDF, JPEG or PNG of at most 10 MB."
-    status: declared
+    status: workaround
     by: [line.invariant.receipt_above_25, receipt.entity.receipt, receipt.field.media_type, receipt.field.size_bytes]
+    hole: B1
   # A line is one type with an optional distance and receipt, not a union of a MILEAGE line and other lines.
   P07:
     promise: "A MILEAGE line must carry a distance in kilometres between 1 and 2000 and must not carry a receipt, while every other category must not carry a distance."
@@ -55,21 +55,23 @@ promises:
     promise: "Callers can create a draft claim, edit a draft, submit, withdraw, approve, reject, mark paid, and get a claim by id, and each change request names the claim id and the version the caller last read."
     status: declared
     by: [claim.operation.create_draft, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid, claim.operation.get_claim, claim.entity.draft_edit, claim.entity.change, claim.entity.rejection]
+  # Workaround: create_draft has no ensures on the state, so a core can answer APPROVED. The shell builds the record of a call that does not answer the claim in writes, so DRAFT to PAID can be stored; replaceClaimClaim lets two decisions overwrite each other.
   P10:
     promise: "A claim is in exactly one state of DRAFT, SUBMITTED, APPROVED, REJECTED, WITHDRAWN or PAID, and the only allowed moves are DRAFT to SUBMITTED, SUBMITTED to APPROVED, REJECTED or WITHDRAWN, REJECTED to DRAFT, and APPROVED to PAID."
-    status: declared
+    status: workaround
     by: [claim.field.state, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid, claim.operation.report_overdue]
+    hole: C3
   # PAID and WITHDRAWN are final by the moves of the state; that the lines and amounts cannot change once a claim leaves DRAFT is not stated.
   P11:
     promise: "PAID and WITHDRAWN are final states, and once a claim leaves DRAFT its lines and amounts cannot be changed."
     status: not-declarable
     hole: C3
-  # A create request sends no version; its answer has version 1. The answer to a submission also holds
-  # when the claim was submitted (submission_answer), which P23 counts from.
+  # Workaround: create_draft has no ensures that the state is DRAFT and the version is 1. Fixable with ensures.
   P12:
     promise: "A successful request answers with the claim id, its new state, its total and currency, and its new version number, which is 1 higher than the version sent."
-    status: declared
+    status: workaround
     by: [claim.entity.answer, claim.entity.rejection_answer, claim.entity.submission_answer, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid]
+    hole: A2
   # Each operation rejects an input that does not parse with claim.error.invalid_request, and the
   # errors lists name only invalid_request, not_found, forbidden, invalid_state, version_conflict and
   # duplicate_receipt, each with a message; commit gives no statement for a refusal, and each refusal
@@ -93,21 +95,12 @@ promises:
     promise: "A payment amount always equals the approved claim total in the claim's currency, and a claim is never paid twice."
     status: not-declarable
     hole: C3
-  # Each write (create_draft, edit_draft, submit_claim, withdraw_claim, approve_claim, reject_claim,
-  # mark_paid and the clock's report_overdue) may carry claim.field.idempotency_key, and has idempotency
-  # { key: input.idempotency_key, scope: [caller.role, caller.employee_id], window: 24 hours } with no
-  # otherwise: the scope is the whole caller as the shell authenticated it (the clock has role clock and no
-  # employee id), and a repeat with any body gets the first answer. get_claim is a read and carries no key.
-  # The Postgres extra writes the table "idempotency"."claims" and runOnce in the store file: a repeat in
-  # the window returns the stored answer and runs nothing (no change, no event); a refusal is not stored;
-  # a call without a key runs as any call. The scenarios repeat each write (the first answer, no event),
-  # with another body, by another caller (a new request) and at 24 hours (a new request).
-  # The key is owned per operation: a key used on one operation and sent on another is a new request, as
-  # it has no original answer of its own. The shell must call runOnce in the transaction of the call.
+  # Workaround: A key belongs to one operation, so the same key on another operation runs again. A refusal is not stored, so a repeat after a refusal can succeed.
   P16:
     promise: "A request carrying an idempotency key already used by the same caller within 24 hours returns the original answer without making a second change."
-    status: declared
+    status: workaround
     by: [claim.field.idempotency_key, auth.entity.caller, claim.entity.draft, claim.entity.draft_edit, claim.entity.change, claim.entity.rejection, claim.entity.claim_ref, claim.operation.create_draft, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid, claim.operation.report_overdue]
+    hole: C2
   # The refusal is declared; the rule across the receipts of stored claims is not. unique cannot state it:
   # the receipts are child rows of the lines, and a partial index on them cannot read the state of the claim.
   P17:
@@ -115,26 +108,18 @@ promises:
     status: workaround
     by: [claim.error.duplicate_receipt, receipt.field.sha256]
     hole: C1
-  # The shell authenticates the caller (auth.entity.caller: role, employee_id); the callers of each operation
-  # decide, before the state and the handler. create_draft: caller.employee_id = input.employee_id; edit_draft,
-  # submit_claim, withdraw_claim: caller.employee_id = current.employee_id; get_claim reads the stored claim
-  # (reads) and allows the owner, current.manager_id or role finance. Every rule also needs input.actor_id =
-  # caller.employee_id, so the actor that the events carry is the caller. Each other caller gets forbidden.
-  # The shell's clock (role clock) has no employee_id, and each rule needs caller.employee_id is present,
-  # so the clock can call none of these; it can call only report_overdue (P23).
-  # The manager is the manager_id stored with the claim, from the employee directory, as the shell gives the record.
+  # Workaround: get_claim can answer another claim than the one it reads: nothing ties the answer to current or the request. manager_id is a value that the shell copies, and nothing checks it.
   P18:
     promise: "Only the employee who owns a claim may create, edit, submit or withdraw it, and only that employee, their manager and finance users may read it."
-    status: declared
+    status: workaround
     by: [auth.entity.caller, auth.field.role, claim.field.employee_id, claim.field.manager_id, claim.entity.claim, claim.error.forbidden, claim.operation.create_draft, claim.operation.edit_draft, claim.operation.submit_claim, claim.operation.withdraw_claim, claim.operation.get_claim]
-  # The stored claim holds manager_id. approve_claim allows caller.employee_id = current.manager_id and
-  # caller.employee_id != current.employee_id; reject_claim allows caller.employee_id = current.manager_id;
-  # mark_paid allows caller.role = 'finance'; each also needs input.actor_id = caller.employee_id. Each
-  # other caller gets forbidden, before the state and the handler.
+    hole: A2
+  # Workaround: "The claimant's manager" is caller.employee_id = current.manager_id, and the shell gives manager_id from a directory outside the contract. A stale or wrong manager_id lets another person decide, and an employee who is their own manager can reject their own claim.
   P19:
     promise: "Only the claimant's manager may approve or reject a claim, a caller may never approve their own claim, and only finance users may mark a claim paid."
-    status: declared
+    status: workaround
     by: [auth.entity.caller, auth.field.role, claim.field.employee_id, claim.field.manager_id, claim.entity.claim, claim.error.forbidden, claim.operation.approve_claim, claim.operation.reject_claim, claim.operation.mark_paid]
+    hole: D1
   # Each of the five operations emits exactly one event of its kind ({ event }), and its ensures tie
   # event.claim_id, total, currency and state to the output, employee_id to current and actor_id to the input.
   # Not declared: edit_draft moves a REJECTED claim back to DRAFT, a state change that publishes no event and
@@ -155,22 +140,12 @@ promises:
     promise: "All timestamps are ISO 8601 in UTC, while expense dates are calendar dates without time zone."
     status: declared
     by: [event.field.occurred_at, line.field.expense_date, claim.field.submitted_at, claim.field.overdue_reported_at]
-  # The record holds submitted_at: submit_claim ensures output.submitted_at = now in its answer, the shell
-  # stores it, and claim.invariant.submitted_has_time (schema and SQL CHECK) keeps it on a SUBMITTED claim.
-  # Each submission sets it again, so a claim rejected, edited and submitted again counts from its last
-  # submission. report_overdue is a timed change: changes from [SUBMITTED] with no `to` (the runtime keeps
-  # the state), due: current.submitted_at is present and (current.overdue_reported_at is absent or
-  # current.overdue_reported_at < current.submitted_at) and now >= current.submitted_at + 30 days. The mark
-  # overdue_reported_at (ensures output.overdue_reported_at = now) makes it due once per submission; a mark
-  # of an earlier submission is older than submitted_at. It emits exactly one claim_decision_overdue
-  # (ClaimDecisionOverdue), whose fields its ensures tie to the record and to now, with output.state =
-  # current.state. Only the shell's clock (caller.role = 'clock') may call it; selectClaimReportOverdueDue
-  # finds the claims that are due, from the same rule, as claim.entity.claim is a table. A call that is not
-  # due is a ContractViolation. That the shell runs its clock is the shell's, as the transport of events (P21).
+  # Workaround: submitted_at reaches the stored record only because the shell copies it in writes. If the shell keeps an old submitted_at after a resubmit, the overdue report is never due.
   P23:
     promise: "A claim left in SUBMITTED for 30 days without a decision is reported in a ClaimDecisionOverdue event, and its state is not changed by that."
-    status: declared
+    status: workaround
     by: [claim.operation.report_overdue, claim.event.claim_decision_overdue, claim.field.submitted_at, claim.field.overdue_reported_at, claim.entity.claim, claim.entity.claim_ref, claim.invariant.submitted_has_time, claim.operation.submit_claim, claim.entity.submission_answer, claim.error.clock_only, auth.field.role, auth.entity.caller]
+    hole: E3
   # The manifest is stable, so urn-forge diff refuses a removal or a rename. compatibility.callers states that
   # callers ignore what they do not know, so diff accepts a new optional field, event, category or refusal code.
   P24:

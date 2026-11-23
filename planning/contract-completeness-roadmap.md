@@ -12,7 +12,13 @@ A goal of "any contract" needs a measure, or it has no end.
 
 - **The corpus** is a directory, `contracts/`, of real contracts, each written as plain promises first: payments, bookings, claims, ticketing, insurance, subscriptions, inventory, and the public contract of a known API style (a payments API, a messaging API).
 - **Each promise** of each contract is a line with an ID: `payments.P07: a card payment has a card number and no account`.
-- **Each promise has one status:** *declared* (the manifest states it, and a test shows that each enforcing part applies it), *workaround* (the manifest states it only with a pattern of [known holes](../docs/explanation/the-contract.md)), or *not declarable*.
+- **Each promise has one status:** *declared*, *workaround*, or *not declarable*.
+  - **The test of *declared*:** "Can the promise break while every generated check passes?" If yes, it is not declared. The test assumes that the shell uses the generated boundary as the docs say: `executeOperation`, `commit`, `commitOnce`, `runOnce`, and the generated SQL. A part of the promise that the shell or the caller must get right in any other way is not covered.
+  - A promise is *declared* only if:
+    1. each part of it maps to a construct whose documented meaning is that part;
+    2. a reader of the manifest alone can recover the promise.
+  - A wrong literal value in the manifest, such as a wrong limit, is an authoring error, not a break.
+  - *Workaround*: the manifest states part of the promise, or states it with constructs that do not enforce it. The promise names the [hole](../docs/explanation/the-contract.md) that would declare it, and a comment names the break.
 - **The score** is the share of promises that are declared. CI prints it. Each plan of this roadmap names the promises that it moves to *declared*, and the score must go up.
 - **A blind trial after each phase** gives a new contract to an agent, which writes its promises, then its manifest, and reports each promise that it could not declare. New promises go into the corpus.
 
@@ -223,6 +229,7 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 | 7 | The order | **A, B, C, D**, one plan at a time | A and B extend what exists; C needs the store file; D needs decisions about other systems |
 | 8 | The rule language | **It grows in A1, A2 and B4 only**: paths, quantifiers, `count`, `sum`, units, `input.` and `output.`. No user functions, no loops, no calls | These are what relations need. More would make it a programming language, which fails the test |
 | 9 | Outside registries | **urn-forge ships no outside registry: no time zones, no currencies, no countries, no names of places. A contract states the values it accepts, as an `enum` or a rule, in its own repository**. Added Nov 23, 2026 | A registry changes by its own rules, outside the contract and outside urn-forge. A pinned copy in urn-forge would make urn-forge its keeper; a copy from the platform (`Intl`, the database) would give two verdicts for one commit. A contract that lists the currencies it accepts states a narrower and truer promise than "any ISO 4217 code". The [UTC times plan](./utc-times-plan.md) made the same choice for time zones |
+| 10 | urn-forge is an enabler | **urn-forge gives general constructs: fields, entities, rules, operations, errors, events and stores. It has no construct for an idea of one domain, such as a request, a refund or an HTTP status. Before a construct is added: (1) its name and meaning must not name a domain idea; (2) no existing construct can state the promise, also with more lines; (3) its meaning is one sentence that names no domain, and the generated code enforces exactly that sentence.** A promise that only a domain-specific construct could state stays a workaround or is out of scope. Added Nov 23, 2026 | Fewer and more general constructs serve more contracts. A contract that needs the idea of a request models it with entities and rules, and urn-forge supports it as any other model |
 
 ## The first steps
 
@@ -241,7 +248,11 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 13. UTC times (most of D3). Done: 55.9%. Bookings P07, P14, P15 and P16, inventory P17 and subscriptions P23 are declared. D3 keeps 3 promises that need zone data: bookings P03 and P12, and ticketing P22.
 14. Uniqueness (C1). Done: 59.4%. Bookings P01, claims P01, inventory P13, subscriptions P17 and ticketing P03 are declared. C1 keeps 4: a seat across holds and tickets, a capacity, a receipt on child rows of two claims, and the order of invoice periods.
 15. Currencies (B4), with no plan and no new construct (decision 9): each contract lists the currencies it accepts as an `enum`. Done: 62.2%. Claims P02, payments P01, subscriptions P03 and ticketing P02 are declared. Bookings P09 stays a workaround: the service has many restaurants, and one enum cannot be the currency of each.
-16. The next plan. The score now puts A2 (12) and A1, C3, D2 (5 each) first.
+16. An audit of the 89 declared promises with the test of *declared* (Nov 23, 2026). 40 promises break while every generated check passes: 49 of 143 (34.3%). Each is a workaround now, with a comment that names the break. The causes:
+    - **Faults in urn-forge** that every contract gets: a repeat of `runOnce` that `commit` writes again; no lock in `runOnce`; an outbox sequence that starts again after published rows are deleted; the `missing` error before the check of `callers`; and the record that the shell builds in `writes` when the answer is not the stored record.
+    - **Rules that the manifests leave out**, which `requires` and `ensures` can state today: for example, that the answer has the merchant, the method or the party size of the request, and that the loaded record is the one that the request names.
+    - **Real holes**: windows over a local time (D3), a manager from another domain (D1), facts about a file, and a string function.
+17. The next plan: an integrity plan for the faults in urn-forge (decision 10: fixes, not new constructs), then the rules that the manifests leave out.
 
 ## Risks
 
