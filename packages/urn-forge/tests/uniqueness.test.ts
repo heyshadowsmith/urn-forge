@@ -124,7 +124,10 @@ describe('the Gherkin steps and gate 3', () => {
     const next = { ...live, subscription_id: 'sub_00000002' };
     expect(uniqueClash(entity, next, [live])).toEqual({ by: ['customer_id', 'plan_id'], otherwise: CONFLICT });
     expect(uniqueClash(entity, next, [{ ...live, status: 'canceled' }])).toBeUndefined();
+    // A new record with a used id clashes; the record itself, changed, may write its id again.
     expect(uniqueClash(entity, live, [live])).toEqual({ by: ['subscription_id'] });
+    expect(uniqueClash(entity, { ...live, status: 'canceled' }, [live], false)).toBeUndefined();
+    expect(uniqueClash(entity, { ...live, subscription_id: 'sub_00000009', customer_id: 'cus_0009' }, [{ ...live, subscription_id: 'sub_00000009', status: 'canceled' }], false)).toEqual(undefined);
     expect(uniqueClash(entity, { ...next, customer_id: 'cus_0002' }, [{ ...live, status: 'canceled' }])).toBeUndefined();
   });
 

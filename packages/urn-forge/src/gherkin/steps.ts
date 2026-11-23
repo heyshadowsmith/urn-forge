@@ -106,22 +106,23 @@ export interface UniqueEntityLike {
 
 /**
  * The first clash of \`record\` with a stored record of its entity, as the indexes of the store find
- * it: the same values \`by\`, both where \`when\` holds (a forever entry: any stored record), and another
- * key. Undefined when there is none.
+ * it: the same values \`by\`, both where \`when\` holds, and another key. A forever entry looks at every
+ * stored record: a new record (\`fresh\`, as insert writes it) clashes also with a record of its own key,
+ * which used the value before; a changed record may write its own values again, as replace does.
+ * Undefined when there is none.
  */
 export function uniqueClash(
   entity: UniqueEntityLike,
   record: Readonly<Record<string, unknown>>,
   stored: readonly Readonly<Record<string, unknown>>[],
+  fresh = true,
 ): { readonly by: readonly string[]; readonly otherwise?: string } | undefined {
   const other = (row: Readonly<Record<string, unknown>>) => entity.key === undefined || row[entity.key] !== record[entity.key];
   for (const entry of entity.unique) {
     const takesPart = (row: Readonly<Record<string, unknown>>) => entry.forever || entry.when === undefined || entry.when(row as never);
     if (!takesPart(record)) continue;
     const same = (row: Readonly<Record<string, unknown>>) => entry.by.every((name) => sameValue(row[name], record[name]));
-    const clash = entry.forever
-      ? stored.find((row) => same(row) && (entity.key === undefined || other(row) || entry.by.includes(entity.key)))
-      : stored.find((row) => other(row) && takesPart(row) && same(row));
+    const clash = entry.forever ? stored.find((row) => same(row) && (fresh || other(row))) : stored.find((row) => other(row) && takesPart(row) && same(row));
     if (clash) return { by: entry.by, ...(entry.otherwise === undefined ? {} : { otherwise: entry.otherwise }) };
   }
   return undefined;
@@ -578,7 +579,8 @@ export function registerOperationSteps(options: OperationStepsOptions): void {
         const entity = options.unique.contract[entityUrn]!;
         const output = s.result.output as Readonly<Record<string, unknown>>;
         if (!entity.unique.every((entry) => entry.by.every((name) => Object.hasOwn(output, name)))) continue;
-        const clash = uniqueClash(entity, output, rows);
+        // An operation with changes writes its record again (replace); any other writes a new one (insert).
+        const clash = uniqueClash(entity, output, rows, contract(urn).changes === undefined);
         if (!clash) continue;
         const refusal = clash.otherwise === undefined ? undefined : options.unique.refusalOf(urn, clash.otherwise, output);
         if (!refusal) throw new Error(`${urn} answered a record whose ${clash.by.join(', ')} a stored ${entityUrn.split(':').at(-1)} has; the store refuses it, and no declared error answers it`);
