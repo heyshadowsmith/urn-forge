@@ -4,7 +4,7 @@
 import type * as s from './domain.schemas.generated.js';
 import { createHash } from 'node:crypto';
 import { idempotencyOf, type ExecuteOptions, type ExecuteResult } from './domain.runtime.generated.js';
-import { refusalOf, type ExecuteResult } from './domain.runtime.generated.js';
+import { refusalOf } from './domain.runtime.generated.js';
 
 /** A statement to run, with its parameters: the form that node-postgres and PGlite take. */
 export interface Statement {

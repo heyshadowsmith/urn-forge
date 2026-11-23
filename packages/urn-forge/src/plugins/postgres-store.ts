@@ -113,7 +113,8 @@ export function storeFile(ir: UniversalIR, store: readonly StoreRoot[], dues: re
   const parts = [
     `import type * as s from './domain.schemas.generated.js';`,
     ...(answers ? [answersImports()] : []),
-    ...(unique ? [`import { refusalOf, type ExecuteResult } from './${FCIS_RUNTIME_FILE.replace(/\.ts$/, '.js')}';`] : []),
+    // runOnce imports ExecuteResult already, for a domain with idempotency.
+    ...(unique ? [`import { refusalOf${answers ? '' : ', type ExecuteResult'} } from './${FCIS_RUNTIME_FILE.replace(/\.ts$/, '.js')}';`] : []),
     '',
     (changed ? RUNTIME + RUNTIME_FROM : RUNTIME) + (anyForever ? USED : ''),
   ];

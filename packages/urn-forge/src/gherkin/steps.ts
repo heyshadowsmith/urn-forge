@@ -418,7 +418,7 @@ export function assertNothingChanges(result: ExecuteResultLike, urn: string, com
 
 /** Checks that a timed change refused a call for a record that is not due (a ContractViolation that says so). */
 export function assertNotDue(result: ExecuteResultLike, urn: string): void {
-  const issues = !result.ok && 'issues' in result ? result.issues : [];
+  const issues = (!result.ok && 'issues' in result ? result.issues : undefined) ?? [];
   if (result.ok || !('kind' in result) || result.kind !== 'ContractViolation' || !issues.some((issue) => issue.message.includes('is not due for this record'))) {
     throw new Error(`${urn} ${result.ok ? 'succeeded' : `failed with ${describeFailure(result)}`}; expected it to be not due for this record`);
   }
