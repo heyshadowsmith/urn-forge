@@ -34,10 +34,11 @@ money.field.amount_minor:
   primitive: integer
   min: 0
   description: An amount of money as a whole number of minor units of its currency, for example cents
+# urn-forge ships no list of ISO 4217 codes (roadmap decision 9): the contract lists the currencies it sells in.
 money.field.currency:
-  primitive: string
-  regex: '[A-Z]{3}'
-  description: A three-letter ISO 4217 currency code
+  primitive: enum
+  values: [EUR, GBP, USD]
+  description: The three-letter ISO 4217 code of the currency of an amount, one of the currencies that the ticketing service sells in, EUR, GBP or USD
 money.entity.money:
   description: An amount of money in minor units, with its currency
   fields:
@@ -170,6 +171,12 @@ hold.invariant.expires_after_created:
   on: hold.entity.hold
   rule: expires_at > created_at
   message: A hold must expire after it was created
+hold.invariant.amounts_share_currency:
+  description: All amounts of a hold share one currency, the currency of its total
+  on: hold.entity.hold
+  rule: 'all(line in lines: line.price.currency = total.currency)'
+  reportOn: lines
+  message: The line prices and the total of a hold must share one currency
 
 hold.entity.hold_ref:
   description: A request that names one hold
@@ -319,6 +326,12 @@ order.invariant.total_is_prices_plus_fees:
   on: order.entity.order
   rule: 'total.amount_minor = sum(ticket in tickets: ticket.price.amount_minor) + fees.amount_minor'
   message: The total must be the sum of the ticket prices plus the fees
+order.invariant.amounts_share_currency:
+  description: All amounts of an order share one currency, the currency of its total
+  on: order.entity.order
+  rule: 'fees.currency = total.currency and all(t in tickets: t.price.currency = total.currency)'
+  reportOn: tickets
+  message: The ticket prices, the fees and the total of an order must share one currency
 order.entity.order_ref:
   description: A request that names one order
   fields:
@@ -635,6 +648,9 @@ order.operation.check_out:
   requires:
     - rule: now <= current.expires_at
       otherwise: order.error.hold_expired
+  # The order is in the currency of the hold that it pays for.
+  ensures:
+    - output.total.currency = current.total.currency
   errors:
     - order.error.hold_expired
     - hold.error.hold_not_found
@@ -717,6 +733,9 @@ refund.operation.request_refund:
   requires:
     - rule: now < current.starts_at - 48 hours
       otherwise: refund.error.refund_window_closed
+  # A refund of tickets of an order is an amount of that order, in its currency.
+  ensures:
+    - output.amount.currency = current.total.currency
   errors:
     - order.error.order_not_found
     - refund.error.refund_window_closed

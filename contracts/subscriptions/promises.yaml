@@ -9,12 +9,13 @@ promises:
     promise: "A billing period is either \"month\" or \"year\", and a plan's interval count is a whole number from 1 to 12 for \"month\" and exactly 1 for \"year\"."
     status: declared
     by: [plan.field.billing_period, plan.field.interval_count, plan.invariant.yearly_interval_is_one]
-  # The currency is any three uppercase letters; nothing limits it to the ISO 4217 codes.
+  # Every money amount (a plan's price, an invoice line's amount and an invoice's total) is the money
+  # entity. The domain lists the ISO 4217 codes it accepts, EUR, GBP and USD, as an enum (roadmap
+  # decision 9): the schema of every answer and stored record, and the SQL CHECK, refuse any other.
   P03:
     promise: "Every money amount is an integer number of minor currency units from 0 to 99999999 paired with a three-letter uppercase ISO 4217 currency code."
-    status: workaround
+    status: declared
     by: [money.entity.money, money.field.amount_minor, money.field.currency]
-    hole: B4
   P04:
     promise: "A subscription's status is exactly one of \"trialing\", \"active\", \"past_due\", \"paused\", \"canceled\" or \"expired\"."
     status: declared

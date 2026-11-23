@@ -20,6 +20,18 @@ Feature: Check out a hold
       | message_id                           | event_id                             | ticket_code      | occurred_at          |
       | 00000000-0000-4000-8000-000000000002 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ABCDEFGH23456789 | 2026-12-01T19:00:00Z |
 
+  Scenario: Every amount of an order is in the currency of its hold
+    Given the time is "2026-12-01T19:00:00Z"
+    And the current hold is:
+      | hold_id                              | event_id                             | hold_status | lines                                                                                                                                                                                                             | total                                 | created_at           | expires_at           |
+      | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: USD } }, { place_kind: standing, section: FLOOR, quantity: 1, price: { amount_minor: 3000, currency: USD } }] | { amount_minor: 8000, currency: USD } | 2026-12-01T18:58:00Z | 2026-12-01T19:08:00Z |
+    When I run the operation with:
+      | idempotency_key | hold_id                              | payment_reference |
+      | checkout-usd-01 | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | pay_123           |
+    Then the output is:
+      | order_id                             | tickets                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | fees                                 | total                                 |
+      | 7c9d8e10-3a4b-4c5d-8e6f-7a8b9c0d1e2f | [{ ticket_code: ABCDEFGH23456789, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: seated, section: A1, row: C, seat_number: 12, ticket_status: ISSUED, price: { amount_minor: 5000, currency: USD }, starts_at: 2026-12-12T20:00:00Z }, { ticket_code: ZYXWVUTS98765432, event_id: 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f, place_kind: standing, section: FLOOR, ticket_status: ISSUED, price: { amount_minor: 3000, currency: USD }, starts_at: 2026-12-12T20:00:00Z }] | { amount_minor: 500, currency: USD } | { amount_minor: 8500, currency: USD } |
+
   Scenario Outline: Values at the edges of their limits are accepted
     Given the time is "2026-12-01T19:00:00Z"
     And the current hold is:

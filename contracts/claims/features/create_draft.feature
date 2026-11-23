@@ -19,6 +19,24 @@ Feature: Create a draft claim
       | =repeat(500, "p") | =repeat(50, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 10.00 })                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 500.00   |
       | Client visit      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | 95.00    |
 
+  Scenario Outline: A claim in each currency the domain accepts is kept, with its total in that currency
+    Given the caller is:
+      | role     | employee_id |
+      | employee | E-1001      |
+    When I run the operation with:
+      | actor_id | employee_id | purpose      | currency   | lines |
+      | E-1001   | E-1001      | Client visit | <currency> | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
+    Then the output is:
+      | claim_id       | state | total | currency   | version |
+      | CLM-0000000001 | DRAFT | 95.00 | <currency> | 1       |
+
+    Examples:
+      | currency |
+      | CHF      |
+      | EUR      |
+      | GBP      |
+      | USD      |
+
   Scenario Outline: A purpose that is empty or longer than 500 characters is rejected
     Given the caller is:
       | role     | employee_id |
@@ -35,16 +53,22 @@ Feature: Create a draft claim
       | ""                |
       | =repeat(501, "p") |
 
-  Scenario: A currency that is not three capital letters is rejected
+  Scenario Outline: A currency that is not one the domain accepts is rejected
     Given the caller is:
       | role     | employee_id |
       | employee | E-1001      |
     When I run the operation with:
-      | actor_id | employee_id | purpose      | currency | lines                                                                                                                                                                                                                              |
-      | E-1001   | E-1001      | Client visit | eur      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
+      | actor_id | employee_id | purpose      | currency   | lines                                                                                                                                                                                                                              |
+      | E-1001   | E-1001      | Client visit | <currency> | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }] |
     Then the input is rejected on "currency"
     And the operation fails with "urn:corpus:claims:claim:error:invalid_request"
     And nothing changes
+
+    Examples:
+      | currency |
+      | eur      |
+      | XYZ      |
+      | JPY      |
 
   Scenario Outline: A list of lines that breaks a rule of its values is rejected
     Given the caller is:

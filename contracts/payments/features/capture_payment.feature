@@ -81,8 +81,8 @@ Feature: Capture a payment
       | merchant_id | payment_id                   | amount   |
       | mer_1       | pay_authorized00000000000000 | <amount> |
     Then the operation fails with "urn:corpus:payments:payment:error:capture_exceeds_authorized":
-      | amount   | authorized_amount |
-      | <amount> | 5000              |
+      | amount   | currency | authorized_amount |
+      | <amount> | EUR      | 5000              |
     And the operation emits no event
 
     Examples:

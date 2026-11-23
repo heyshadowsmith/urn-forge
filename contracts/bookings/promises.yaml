@@ -48,11 +48,16 @@ promises:
     promise: "A party of 7 or more guests must include a deposit payment token in the request, otherwise the request is refused with DEPOSIT_REQUIRED."
     status: declared
     by: [booking.field.deposit_token, booking.error.deposit_required, booking.operation.create_booking]
-  # Positive with 2 decimals is declared; the single currency of the restaurant is not, and a rule cannot multiply the per-guest amount by the party size.
+  # Declared: positive with at most 2 decimals (exclusiveMin 0, scale 2), and the deposit equals the per-guest amount times
+  # the party size (invariant deposit_is_per_guest on the answer, `party_size * deposit_per_guest`, exact; scenarios at
+  # 7 and 12 guests, the edges of a deposit). Not declared: the restaurant's single published currency. The service books
+  # for many restaurants (restaurant_id in each request, staff of one restaurant, P19), each with its own time zone, and
+  # the manifest holds no restaurant record; currency is any ISO 4217 shape. A one-value enum (roadmap decision 9) would
+  # state one currency for the whole service, not the currency of each restaurant, so it is not used here.
   P09:
     promise: "A deposit, when taken, is in the restaurant's single published currency, is a positive amount with at most 2 decimal places, and equals the per-guest deposit amount stated in the answer times the party size."
     status: workaround
-    by: [booking.field.deposit_amount, booking.field.deposit_per_guest, booking.field.currency, booking.invariant.deposit_has_terms]
+    by: [booking.field.deposit_amount, booking.field.deposit_per_guest, booking.field.currency, booking.invariant.deposit_has_terms, booking.invariant.deposit_is_per_guest]
     hole: B4
   P10:
     promise: "A successful create returns status CONFIRMED with the booking reference, restaurant id, local start time, time zone, party size, booked duration in minutes and any deposit amount charged."

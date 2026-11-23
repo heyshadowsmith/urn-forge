@@ -32,10 +32,12 @@ money.field.amount_minor:
   min: 0
   max: 99999999
   description: An amount in minor units of its currency, for example cents
+# The ISO 4217 codes that this domain accepts. urn-forge ships no currency registry: the
+# contract lists its own, and a new currency is a new enum value.
 money.field.currency:
-  primitive: string
-  regex: '[A-Z]{3}'
-  description: A three-letter uppercase ISO 4217 currency code
+  primitive: enum
+  values: [EUR, GBP, USD]
+  description: A three-letter uppercase ISO 4217 currency code that the domain accepts, EUR, GBP or USD
 money.entity.money:
   description: A money amount and its currency
   fields:

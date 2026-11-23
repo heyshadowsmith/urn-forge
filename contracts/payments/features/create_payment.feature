@@ -24,22 +24,27 @@ Feature: Create a payment
       | key_kind | merchant_id |
       | secret   | mer_1       |
     When I run the operation with:
-      | merchant_id | amount   | currency | method | idempotency_key   | description   | metadata   | line_items   | card   |
-      | mer_1       | <amount> | EUR      | card   | <idempotency_key> | <description> | <metadata> | <line_items> | <card> |
+      | merchant_id | amount   | currency   | method | idempotency_key   | description   | metadata   | line_items   | card   |
+      | mer_1       | <amount> | <currency> | card   | <idempotency_key> | <description> | <metadata> | <line_items> | <card> |
     Then the output is:
-      | payment_id                   | merchant_id | amount   | currency | method | status     |
-      | pay_new000000000000000000000 | mer_1       | <amount> | EUR      | card   | authorized |
+      | payment_id                   | merchant_id | amount   | currency   | method | status     |
+      | pay_new000000000000000000000 | mer_1       | <amount> | <currency> | card   | authorized |
     And the operation emits "urn:corpus:payments:payment:event:authorized":
-      | payment_id                   | amount   | new_status | occurred_at          |
-      | pay_new000000000000000000000 | <amount> | authorized | 2026-11-22T10:00:00Z |
+      | payment_id                   | amount   | currency   | new_status | occurred_at          |
+      | pay_new000000000000000000000 | <amount> | <currency> | authorized | 2026-11-22T10:00:00Z |
 
     Examples:
-      | amount   | idempotency_key     | description         | metadata | line_items                                                             | card |
-      | 1        | k                   |                     |          |                                                                        | { card_number: 4242424242424242, exp_month: 1, exp_year: 1000, security_code: 123 } |
-      | 99999999 | =repeat(64, "k")    | =repeat(255, "d")   | [{ key: k1, value: v }, { key: k2, value: v }, { key: k3, value: v }, { key: k4, value: v }, { key: k5, value: v }, { key: k6, value: v }, { key: k7, value: v }, { key: k8, value: v }, { key: k9, value: v }, { key: k10, value: v }, { key: k11, value: v }, { key: k12, value: v }, { key: k13, value: v }, { key: k14, value: v }, { key: k15, value: v }, { key: k16, value: v }, { key: k17, value: v }, { key: k18, value: v }, { key: k19, value: v }, { key: k20, value: v }] |                                                                        | { card_number: 4242424242424242, exp_month: 12, exp_year: 9999, security_code: 123 } |
-      | 5000     | order 42 / Zoë      | Two tickets         | []       | [{ quantity: 1, unit_amount: 5000 }]                                   | { card_number: 4242424242424242, exp_month: 6, exp_year: 2030, security_code: 123 } |
-      | 5000     | order-43            |                     |          | =repeat(100, { quantity: 1, unit_amount: 50 })                         | { card_number: 4242424242424242, exp_month: 6, exp_year: 2030, security_code: 123 } |
-      | 5000     | order-44            |                     |          | [{ quantity: 1, unit_amount: 0 }, { quantity: 2, unit_amount: 2500 }] | { card_number: 4242424242424242, exp_month: 6, exp_year: 2030, security_code: 123 } |
+      | amount   | currency | idempotency_key     | description         | metadata | line_items                                                             | card |
+      | 1        | USD      | k                   |                     |          |                                                                        | { card_number: 4242424242424242, exp_month: 1, exp_year: 1000, security_code: 123 } |
+      | 99999999 | GBP      | =repeat(64, "k")    | =repeat(255, "d")   | [{ key: k1, value: v }, { key: k2, value: v }, { key: k3, value: v }, { key: k4, value: v }, { key: k5, value: v }, { key: k6, value: v }, { key: k7, value: v }, { key: k8, value: v }, { key: k9, value: v }, { key: k10, value: v }, { key: k11, value: v }, { key: k12, value: v }, { key: k13, value: v }, { key: k14, value: v }, { key: k15, value: v }, { key: k16, value: v }, { key: k17, value: v }, { key: k18, value: v }, { key: k19, value: v }, { key: k20, value: v }] |                                                                        | { card_number: 4242424242424242, exp_month: 12, exp_year: 9999, security_code: 123 } |
+      | 5000     | EUR      | order 42 / Zoë      | Two tickets         | []       | [{ quantity: 1, unit_amount: 5000 }]                                   | { card_number: 4242424242424242, exp_month: 6, exp_year: 2030, security_code: 123 } |
+      | 5000     | CHF      | order-43            |                     |          | =repeat(100, { quantity: 1, unit_amount: 50 })                         | { card_number: 4242424242424242, exp_month: 6, exp_year: 2030, security_code: 123 } |
+      | 5000     | EUR      | order-44            |                     |          | [{ quantity: 1, unit_amount: 0 }, { quantity: 2, unit_amount: 2500 }] | { card_number: 4242424242424242, exp_month: 6, exp_year: 2030, security_code: 123 } |
+      | 5000     | AUD      | order-60            |                     |          |                                                                       | { card_number: 4242424242424242, exp_month: 6, exp_year: 2030, security_code: 123 } |
+      | 5000     | CAD      | order-61            |                     |          |                                                                       | { card_number: 4242424242424242, exp_month: 6, exp_year: 2030, security_code: 123 } |
+      | 5000     | DKK      | order-62            |                     |          |                                                                       | { card_number: 4242424242424242, exp_month: 6, exp_year: 2030, security_code: 123 } |
+      | 5000     | NOK      | order-63            |                     |          |                                                                       | { card_number: 4242424242424242, exp_month: 6, exp_year: 2030, security_code: 123 } |
+      | 5000     | SEK      | order-64            |                     |          |                                                                       | { card_number: 4242424242424242, exp_month: 6, exp_year: 2030, security_code: 123 } |
 
   Scenario: A bank transfer payment is pending
     Given the time is "2026-11-22T10:00:00Z"
@@ -72,6 +77,8 @@ Feature: Create a payment
       | amount          | 0         | EUR      | card   | k                |                   |                                                      |                                                | { card_number: 4242424242424242, exp_month: 1, exp_year: 2030, security_code: 123 }    |
       | amount          | 100000000 | EUR      | card   | k                |                   |                                                      |                                                | { card_number: 4242424242424242, exp_month: 1, exp_year: 2030, security_code: 123 }    |
       | currency        | 5000      | eur      | card   | k                |                   |                                                      |                                                | { card_number: 4242424242424242, exp_month: 1, exp_year: 2030, security_code: 123 }    |
+      | currency        | 5000      | XYZ      | card   | k                |                   |                                                      |                                                | { card_number: 4242424242424242, exp_month: 1, exp_year: 2030, security_code: 123 }    |
+      | currency        | 5000      | XXX      | card   | k                |                   |                                                      |                                                | { card_number: 4242424242424242, exp_month: 1, exp_year: 2030, security_code: 123 }    |
       | method          | 5000      | EUR      | cash   | k                |                   |                                                      |                                                |                                                                                         |
       | idempotency_key | 5000      | EUR      | card   | ""               |                   |                                                      |                                                | { card_number: 4242424242424242, exp_month: 1, exp_year: 2030, security_code: 123 }    |
       | idempotency_key | 5000      | EUR      | card   | =repeat(65, "k") |                   |                                                      |                                                | { card_number: 4242424242424242, exp_month: 1, exp_year: 2030, security_code: 123 }    |
@@ -150,10 +157,10 @@ Feature: Create a payment
       | secret   | mer_1       |
     When I run the operation with:
       | merchant_id | amount | currency | method        | idempotency_key | iban                   |
-      | mer_1       | 5000   | XXX      | bank_transfer | order-50        | DE89370400440532013000 |
+      | mer_1       | 5000   | JPY      | bank_transfer | order-50        | DE89370400440532013000 |
     Then the operation fails with "urn:corpus:payments:payment:error:unsupported_currency":
       | currency |
-      | XXX      |
+      | JPY      |
 
   Scenario Outline: Line items that do not add up to the amount are refused as an invalid request
     Given the time is "2026-11-22T10:00:00Z"

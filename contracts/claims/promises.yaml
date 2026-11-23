@@ -9,12 +9,18 @@ promises:
     promise: "A claim id is the prefix \"CLM-\" followed by exactly 10 digits, is assigned by the domain on creation, and is never reused for another claim."
     status: declared
     by: [claim.field.claim_id, claim.entity.draft, claim.entity.answer, claim.entity.claim, claim.operation.create_draft]
-  # The currency is only three capital letters, not a code of ISO 4217, and no amount is tied to its currency.
+  # The money amounts are line.field.amount and claim.field.total, both decimals of scale 2; a line
+  # amount has exclusiveMin "0" and max "10000.00", with scenarios at 0.01, 10000.00, 0, 10000.01 and 1.005.
+  # claim.field.currency is an enum of the ISO 4217 codes the domain accepts, CHF, EUR, GBP and USD, each
+  # with 2 minor units (roadmap decision 9: urn-forge ships no ISO 4217 list, so the contract lists its
+  # codes, and "an ISO 4217 code" is an upper bound); create_draft and edit_draft keep each code and
+  # reject eur, XYZ and JPY. Each amount is tied to one currency by the shape: a line has no currency of
+  # its own and belongs to one claim, which has one currency (P04), and every entity and event that
+  # carries a total carries the currency of the claim, which the ensures of each operation equal.
   P02:
     promise: "Every money amount is a decimal with at most 2 fraction digits in an ISO 4217 three-letter currency code, and every line amount is greater than 0.00 and at most 10000.00."
-    status: workaround
-    by: [line.field.amount, claim.field.total, claim.field.currency]
-    hole: B4
+    status: declared
+    by: [line.field.amount, claim.field.total, claim.field.currency, line.entity.line, claim.entity.claim, claim.entity.answer, claim.operation.create_draft, claim.operation.edit_draft]
   P03:
     promise: "A line's category is exactly one of TRAVEL, LODGING, MEALS, MILEAGE, SUPPLIES, TRAINING or OTHER."
     status: declared

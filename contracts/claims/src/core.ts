@@ -4,13 +4,14 @@
 // the receipt whose hash is 64 times "f" is already on another claim.
 import { sumDecimal } from 'urn-forge/exact';
 import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
+import type { ClaimCurrency } from './generated/domain.schemas.generated';
 
 const KNOWN_RECEIPT = 'f'.repeat(64);
 const NOW = '2026-11-22T10:00:00Z';
 
 type Line = { readonly amount: string; readonly receipt?: { readonly sha256: string } };
 type Request = { readonly claim_id: string; readonly version: number; readonly actor_id: string };
-type Stored = { readonly claim_id: string; readonly version: number; readonly employee_id: string; readonly total: string; readonly currency: string };
+type Stored = { readonly claim_id: string; readonly version: number; readonly employee_id: string; readonly total: string; readonly currency: ClaimCurrency };
 
 function duplicate(lines: readonly Line[]) {
   const known = lines.find((line) => line.receipt?.sha256 === KNOWN_RECEIPT);
