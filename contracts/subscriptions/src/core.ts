@@ -21,6 +21,26 @@ const periodOf = (plan_id: string) =>
     ? { billing_period: 'year' as const, interval_count: 1 }
     : { billing_period: 'month' as const, interval_count: plan_id.includes('quarterly') ? 3 : plan_id.includes('annual-monthly') ? 12 : 1 };
 
+// An instant in UTC, n calendar months later, at the same time of day. A day that the target month
+// lacks is that month's last day: 2026-01-31T10:00:00Z + 1 is 2026-02-28T10:00:00Z.
+export const addMonths = (instant: string, n: number): string => {
+  const [year, month, day] = [Number(instant.slice(0, 4)), Number(instant.slice(5, 7)) - 1 + n, Number(instant.slice(8, 10))];
+  const last = new Date(Date.UTC(2000, 0, 1));
+  last.setUTCFullYear(year, month + 1, 0);
+  const target = new Date(Date.UTC(2000, 0, 1));
+  target.setUTCFullYear(year, month, Math.min(day, last.getUTCDate()));
+  return `${target.toISOString().slice(0, 10)}${instant.slice(10)}`;
+};
+
+const monthsOf = (period: { billing_period: 'month' | 'year'; interval_count: number }) =>
+  period.billing_period === 'year' ? 12 * period.interval_count : period.interval_count;
+
+// A billing period of a plan, from its start.
+const periodFrom = (start: string, period: { billing_period: 'month' | 'year'; interval_count: number }) => ({
+  current_period_start: start,
+  current_period_end: addMonths(start, monthsOf(period)),
+});
+
 const planOf = (plan_id: string) => ({
   plan_id,
   ...periodOf(plan_id),
@@ -39,12 +59,29 @@ const subscription = (subscription_id: string, status: 'active' | 'paused' | 'ca
 
 const statusOf = (id: string) => (id === CANCELED ? 'canceled' : id === PAUSED ? 'paused' : 'active');
 
+// A few fixed invoice ids stand for invoices of other plans and periods; any other id is the
+// monthly invoice of November 2026.
+const INVOICE_PERIODS: Readonly<Record<string, { plan_id: string; start: string }>> = {
+  'in_2026-01-31': { plan_id: 'plan_basic', start: '2026-01-31T00:00:00Z' },
+  'in_2028-01-31': { plan_id: 'plan_basic', start: '2028-01-31T00:00:00Z' },
+  'in_2026-03-31': { plan_id: 'plan_basic', start: '2026-03-31T12:30:00Z' },
+  'in_2026-12-31': { plan_id: 'plan_basic', start: '2026-12-31T23:59:59Z' },
+  'in_quarterly-2026-11-30': { plan_id: 'plan_team-quarterly', start: '2026-11-30T00:00:00Z' },
+  'in_yearly-2028-02-29': { plan_id: 'plan_pro-yearly', start: '2028-02-29T00:00:00Z' },
+};
+
+const invoicePeriod = (invoice_id: string) => {
+  const { plan_id, start } = INVOICE_PERIODS[invoice_id] ?? { plan_id: 'plan_basic', start: '2026-11-01T00:00:00Z' };
+  const period = periodOf(plan_id);
+  const { current_period_start, current_period_end } = periodFrom(start, period);
+  return { period_start: current_period_start, period_end: current_period_end, ...period };
+};
+
 const invoice = (invoice_id: string, subscription_id: string) => ({
   invoice_id,
   subscription_id,
   status: 'paid' as const,
-  period_start: '2026-11-01T00:00:00Z',
-  period_end: '2026-12-01T00:00:00Z',
+  ...invoicePeriod(invoice_id),
   lines: [{ quantity: 2, amount: { amount_minor: 3000, currency: 'EUR' } }],
   total: { amount_minor: 3000, currency: 'EUR' },
 });
@@ -61,7 +98,9 @@ export const core = {
     }
     const trialEnd =
       req.trial_end ?? (req.trial_days !== undefined && req.trial_days > 0 ? addDays(today, req.trial_days) : undefined);
-    const base = { ...subscription(CREATED), customer_id: req.customer_id, plan: planOf(req.plan_id), quantity: req.quantity };
+    const plan = planOf(req.plan_id);
+    // The first period starts now and lasts the plan's period.
+    const base = { ...subscription(CREATED), customer_id: req.customer_id, plan, quantity: req.quantity, ...periodFrom(now, plan) };
     const created = emit('urn:corpus:subscriptions:subscription:event:created', meta(CREATED));
     if (trialEnd === undefined) {
       return ok(base, [
@@ -89,7 +128,7 @@ export const core = {
     return ok({ subscriptions: all.filter((s) => status === undefined || s.status === status).map((s) => ({ ...s, customer_id })) });
   },
 
-  'urn:corpus:subscriptions:subscription:operation:change_plan': ({ subscription_id, plan_id, proration }, current) => {
+  'urn:corpus:subscriptions:subscription:operation:change_plan': ({ subscription_id, plan_id, proration }, current, now) => {
     const next = planOf(plan_id);
     if (next.price.currency !== current.plan.price.currency) {
       return fail('urn:corpus:subscriptions:subscription:error:currency_mismatch', {
@@ -97,7 +136,12 @@ export const core = {
         subscription_currency: current.plan.price.currency,
       });
     }
-    const changed = proration === 'at_period_end' ? { ...current, scheduled_plan_id: plan_id } : { ...current, plan: next };
+    // A plan with the same period keeps the current period; a plan with another one starts a new period now.
+    const samePeriod = next.billing_period === current.plan.billing_period && next.interval_count === current.plan.interval_count;
+    const changed =
+      proration === 'at_period_end'
+        ? { ...current, scheduled_plan_id: plan_id }
+        : { ...current, plan: next, ...(samePeriod ? {} : periodFrom(now, next)) };
     return ok(changed, [emit('urn:corpus:subscriptions:subscription:event:updated', meta(subscription_id))]);
   },
 

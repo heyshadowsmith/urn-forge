@@ -250,3 +250,26 @@ Feature: Create a subscription
       | customer_id | plan_id    | quantity |
       | cus_1       | plan_basic | 1        |
     Then the operation emits "urn:corpus:subscriptions:subscription:event:created"
+
+  Scenario Outline: The first period starts now and ends the plan's number of calendar months later, on the last day of a month that lacks the start's day
+    Given the time is "<now>"
+    When I run the operation with:
+      | customer_id | plan_id   | quantity | trial_days   |
+      | cus_1       | <plan_id> | 1        | <trial_days> |
+    Then the output is:
+      | current_period_start | current_period_end   |
+      | <now>                | <current_period_end> |
+
+    Examples:
+      | now                  | plan_id                  | trial_days | current_period_end   |
+      | 2026-01-31T10:00:00Z | plan_basic               |            | 2026-02-28T10:00:00Z |
+      | 2028-01-31T10:00:00Z | plan_basic               |            | 2028-02-29T10:00:00Z |
+      | 2026-03-31T10:00:00Z | plan_basic               |            | 2026-04-30T10:00:00Z |
+      | 2026-05-31T00:00:00Z | plan_basic               | 14         | 2026-06-30T00:00:00Z |
+      | 2026-12-31T23:59:59Z | plan_basic               |            | 2027-01-31T23:59:59Z |
+      | 2026-01-30T10:00:00Z | plan_basic               |            | 2026-02-28T10:00:00Z |
+      | 2026-02-28T10:00:00Z | plan_basic               |            | 2026-03-28T10:00:00Z |
+      | 2026-11-22T10:00:00Z | plan_basic               |            | 2026-12-22T10:00:00Z |
+      | 2026-11-30T10:00:00Z | plan_team-quarterly      |            | 2027-02-28T10:00:00Z |
+      | 2026-01-31T10:00:00Z | plan_team-annual-monthly |            | 2027-01-31T10:00:00Z |
+      | 2028-02-29T10:00:00Z | plan_pro-yearly          |            | 2029-02-28T10:00:00Z |

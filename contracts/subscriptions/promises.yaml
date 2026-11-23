@@ -111,12 +111,11 @@ promises:
     promise: "A customer may only read, list, pause, resume and cancel their own subscriptions, while only merchant staff with the billing-admin role may create subscriptions, change plans or void invoices."
     status: not-declarable
     hole: D2
-  # Each timestamp is ISO 8601 in UTC with a trailing Z. The end of a monthly period on a short month is a calendar calculation in the core.
+  # Every timestamp (current_period_start/end and trial_will_end_sent_at of a subscription, period_start/end of an invoice, occurred_at of each of the six events) is the timestamp primitive, which accepts only ISO 8601 in UTC with a trailing Z in answers and events and in a stored record; no request carries a timestamp (trial_end and resume_on are dates). Periods: every operation that answers a subscription (create, read, list, change_plan, pause, resume, cancel, announce_trial_end) ensures that a plan billed in months has current_period_end = current_period_start + interval_count months (so a monthly plan's period ends 1 calendar month on, on the last day of a month that lacks the start's day) and a yearly plan + 12 months; create ensures the first period starts now, and change_plan keeps the period for a plan with the same period and starts one now otherwise. An invoice carries billing_period and interval_count, and invariants state the same rule on its period. No event carries a period. Scenarios start periods on Jan 31 (Feb 28), Jan 31 2028 (Feb 29), Mar 31 (Apr 30), May 31, Dec 31 (Jan 31), Nov 30 quarterly (Feb 28) and Feb 29 yearly, in create, change_plan and read_invoice. The rule is an ensures, not an invariant of the subscription, because the Postgres plugin crashes on a path into the embedded plan in a CHECK.
   P23:
     promise: "All timestamps in requests, answers and events are ISO 8601 in UTC with a trailing \"Z\", and a monthly period that starts on a day missing from the next month ends on that month's last day."
-    status: workaround
-    by: [billing.field.period_start, billing.field.period_end, event.field.occurred_at]
-    hole: D3
+    status: declared
+    by: [billing.field.period_start, billing.field.period_end, event.field.occurred_at, subscription.field.trial_will_end_sent_at, subscription.operation.create_subscription, subscription.operation.change_plan, subscription.operation.read_subscription, subscription.operation.list_subscriptions, subscription.operation.pause_subscription, subscription.operation.resume_subscription, subscription.operation.cancel_subscription, subscription.operation.announce_trial_end, invoice.invariant.monthly_period, invoice.invariant.yearly_period]
   # Within the major version, urn-forge diff refuses a removal or a rename, and compatibility.callers lets it accept a
   # new field or enum value. The 12 months for which a removed version keeps working is how long the operator runs it,
   # which nothing that urn-forge builds can check.
