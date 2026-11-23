@@ -222,6 +222,7 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 | 6 | The corpus | **Build it before A1**, with at least six contracts and their promises, and the first score | Each plan then states the promises that it moves, and CI shows the score |
 | 7 | The order | **A, B, C, D**, one plan at a time | A and B extend what exists; C needs the store file; D needs decisions about other systems |
 | 8 | The rule language | **It grows in A1, A2 and B4 only**: paths, quantifiers, `count`, `sum`, units, `input.` and `output.`. No user functions, no loops, no calls | These are what relations need. More would make it a programming language, which fails the test |
+| 9 | Outside registries | **urn-forge ships no outside registry: no time zones, no currencies, no countries, no names of places. A contract states the values it accepts, as an `enum` or a rule, in its own repository**. Added Nov 23, 2026 | A registry changes by its own rules, outside the contract and outside urn-forge. A pinned copy in urn-forge would make urn-forge its keeper; a copy from the platform (`Intl`, the database) would give two verdicts for one commit. A contract that lists the currencies it accepts states a narrower and truer promise than "any ISO 4217 code". The [UTC times plan](./utc-times-plan.md) made the same choice for time zones |
 
 ## The first steps
 
@@ -239,7 +240,7 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 12. Refusals (part of A2). Done: 51.7%. Ticketing P09 is declared. Bookings P12, claims P13 and inventory P08 state more, and stay workarounds: a window over a local time (D3), a seventh refusal code, and the stored stock (group 3).
 13. UTC times (most of D3). Done: 55.9%. Bookings P07, P14, P15 and P16, inventory P17 and subscriptions P23 are declared. D3 keeps 3 promises that need zone data: bookings P03 and P12, and ticketing P22.
 14. Uniqueness (C1). Done: 59.4%. Bookings P01, claims P01, inventory P13, subscriptions P17 and ticketing P03 are declared. C1 keeps 4: a seat across holds and tickets, a capacity, a receipt on child rows of two claims, and the order of invoice periods.
-15. The next plan. The score now puts A2 (12) and A1, B4, C3, D2 (5 each) first.
+15. Currencies (B4), with no plan and no new construct (decision 9): each contract lists the currencies it accepts as an `enum`.
 
 ## Risks
 
