@@ -188,6 +188,14 @@ booking.invariant.deposit_has_terms:
   rule: deposit_amount is absent or deposit_per_guest is present and currency is present
   message: A deposit needs the amount for each guest and the currency
 
+# The deposit is the amount for each guest times the party size, exact in decimals (P09).
+booking.invariant.deposit_is_per_guest:
+  description: A deposit is the amount for each guest times the party size
+  on: booking.entity.confirmation
+  rule: deposit_amount is absent or deposit_per_guest is absent or deposit_amount = party_size * deposit_per_guest
+  reportOn: deposit_amount
+  message: A deposit must be the amount for each guest times the party size
+
 booking.entity.booking:
   description: A booking as it is now
   key: booking.field.reference
