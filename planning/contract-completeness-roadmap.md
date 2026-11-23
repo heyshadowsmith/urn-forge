@@ -240,7 +240,8 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
 12. Refusals (part of A2). Done: 51.7%. Ticketing P09 is declared. Bookings P12, claims P13 and inventory P08 state more, and stay workarounds: a window over a local time (D3), a seventh refusal code, and the stored stock (group 3).
 13. UTC times (most of D3). Done: 55.9%. Bookings P07, P14, P15 and P16, inventory P17 and subscriptions P23 are declared. D3 keeps 3 promises that need zone data: bookings P03 and P12, and ticketing P22.
 14. Uniqueness (C1). Done: 59.4%. Bookings P01, claims P01, inventory P13, subscriptions P17 and ticketing P03 are declared. C1 keeps 4: a seat across holds and tickets, a capacity, a receipt on child rows of two claims, and the order of invoice periods.
-15. Currencies (B4), with no plan and no new construct (decision 9): each contract lists the currencies it accepts as an `enum`.
+15. Currencies (B4), with no plan and no new construct (decision 9): each contract lists the currencies it accepts as an `enum`. Done: 62.2%. Claims P02, payments P01, subscriptions P03 and ticketing P02 are declared. Bookings P09 stays a workaround: the service has many restaurants, and one enum cannot be the currency of each.
+16. The next plan. The score now puts A2 (12) and A1, C3, D2 (5 each) first.
 
 ## Risks
 
