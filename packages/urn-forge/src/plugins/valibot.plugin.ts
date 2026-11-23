@@ -135,6 +135,11 @@ const TRANSLATIONS: ValibotTranslations = {
       max: (t) => instantCheck(`Date.parse(value) <= Date.parse(${text(t)})`, `Invalid value: Expected <=${t}`),
       exclusiveMin: (t) => instantCheck(`Date.parse(value) > Date.parse(${text(t)})`, `Invalid value: Expected >${t}`),
       exclusiveMax: (t) => instantCheck(`Date.parse(value) < Date.parse(${text(t)})`, `Invalid value: Expected <${t}`),
+      // Exactly n digits after the second: none for 0.
+      precision: (n) =>
+        n === 0
+          ? `v.regex(/:[0-9]{2}Z$/u, 'Invalid timestamp: Expected no digits after the second')`
+          : `v.regex(/\\.[0-9]{${n}}Z$/u, 'Invalid timestamp: Expected exactly ${n} digit${n === 1 ? '' : 's'} after the second')`,
     },
   },
 };
@@ -434,6 +439,13 @@ function helpersFor(ir: UniversalIR): ValibotHelper[] {
     const allows = op.callers && op.callers.allow !== 'any' ? op.callers.allow : [];
     for (const rule of [...(op.requires ?? []), ...(op.ensures ?? []), ...(op.exactly ?? []).flatMap((item) => (item.when ? [item.when] : [])), ...allows, ...(op.due ? [op.due] : [])]) {
       for (const helper of emitRule(rule.rule, conditionPrimitives(op, ir), conditionEmbedded(op, ir)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
+    }
+    // A rule of refuses reads its error as error.
+    for (const refusal of op.refuses ?? []) {
+      const error = { error: ir.errors[refusal.error] as unknown as IREntity };
+      for (const rule of refusal.ensures) {
+        for (const helper of emitRule(rule.rule, conditionPrimitives(op, ir, error), conditionEmbedded(op, ir, error)).helpers) for (const need of HELPER_NEEDS[helper]) needed.add(need);
+      }
     }
   }
   return (Object.keys(VALIBOT_HELPERS) as ValibotHelper[]).filter((name) => needed.has(name));

@@ -13,6 +13,8 @@ promises:
     status: declared
     by: [booking.field.party_size, booking.error.party_too_large_for_online, booking.operation.create_booking]
   # The 15-minute boundary and the time zone in each answer are declared; that the time is in the restaurant's zone, and that the name is a real IANA zone, are not.
+  # The start is starts_at, a UTC timestamp (the windows of P07, P14, P15 and P16 read it); local_date, local_time and
+  # time_zone are the values that the guest gave, and no rule ties them to starts_at, as a rule has no zone data (D3).
   P03:
     promise: "A booking time is given as a local date and time on a 15-minute boundary (minutes 00, 15, 30 or 45) in the restaurant's IANA time zone, and every answer carries that time zone name alongside the time."
     status: workaround
@@ -32,17 +34,15 @@ promises:
     promise: "A create-booking request must contain the restaurant id, local date and time, party size, guest contact and a client-generated idempotency key of 16 to 64 characters."
     status: declared
     by: [booking.entity.create_request, booking.field.restaurant_id, booking.field.local_date, booking.field.local_time, booking.field.party_size, guest.entity.contact, booking.field.idempotency_key]
-  # The error is declared. The window is not, even with now: the start is a local date and time in the restaurant's
-  # IANA zone (P03), and a rule cannot turn a date, a local time and a zone into an instant, nor a timestamp into a date
-  # (D3). A UTC starts_at that the shell computes would let `now >= input.starts_at - 90 days and now <= input.starts_at
-  # - 2 hours` hold, but nothing would tie starts_at to local_date, local_time and time_zone, so a wrong starts_at would
-  # break the promise with every check green. A bound on local_date with today (e.g. local_date >= today + 2) is safe for
-  # any zone but refuses valid bookings, so it is not this window.
+  # create_booking requires `now >= input.starts_at - 90 days and now <= input.starts_at - 2 hours`, otherwise
+  # OUTSIDE_BOOKING_WINDOW, checked by the runtime before the core; both edges are included ("no earlier than", "no later
+  # than"). The start time is starts_at, a required UTC timestamp of the request, the record and the answers; the local
+  # date, time and zone are the values that the guest gave (P03). Converting the guest's local time to starts_at is the
+  # client's, outside the contract. Scenarios at each edge, 1 ms before and after.
   P07:
     promise: "A booking can be made no earlier than 2 hours and no later than 90 days before its start time, and requests outside that window are refused with OUTSIDE_BOOKING_WINDOW."
-    status: workaround
-    by: [booking.error.outside_booking_window]
-    hole: D3
+    status: declared
+    by: [booking.operation.create_booking, booking.field.starts_at, booking.error.outside_booking_window]
   # create_booking requires fewer than 7 guests or a deposit token, otherwise DEPOSIT_REQUIRED.
   P08:
     promise: "A party of 7 or more guests must include a deposit payment token in the request, otherwise the request is refused with DEPOSIT_REQUIRED."
@@ -64,42 +64,50 @@ promises:
     status: workaround
     by: [booking.error.invalid_request, booking.error.outside_booking_window, booking.error.no_availability, booking.error.deposit_required, booking.error.payment_declined, booking.error.party_too_large_for_online, booking.error.booking_not_found, booking.error.invalid_state, booking.error.change_deadline_passed, booking.error.forbidden]
     hole: C3
-  # Up to 5 is maxItems: 5 on the alternatives of no_availability (schema, checked on every refusal); each one's date and party size are refuses rules of create_booking (all(alt in error.alternatives: …) = input.…), checked at runtime and shown by the scenarios of no_availability. Within 2 hours of the requested time is not stated: a start time is a local HH:MM string, which the rule language can only compare with = (hours are added to a timestamp, not to a string), so the core keeps it.
+  # Up to 5 is maxItems: 5 on the alternatives of no_availability (schema, checked on every refusal). Each alternative
+  # carries starts_at, and create_booking's refuses rules state, checked at runtime and shown by the scenarios of
+  # no_availability: the same party (alt.party_size = input.party_size), within 2 hours of the requested time
+  # (alt.starts_at from input.starts_at - 2 hours to input.starts_at + 2 hours, both included) and the same local date
+  # (alt.local_date = input.local_date). "On the same date" is not stated: the date of a start is its day in the
+  # restaurant's zone, and alt.local_date is a value that no rule ties to alt.starts_at (P03); date(alt.starts_at) is the
+  # UTC day, which is another day near midnight. Thus the date needs zone data (D3).
   P12:
     promise: "A NO_AVAILABILITY refusal may carry up to 5 alternative start times, each on the same date, within 2 hours of the requested time and for the same party size."
     status: workaround
-    by: [booking.error.no_availability, booking.entity.alternative, booking.operation.create_booking]
-    hole: A2
+    by: [booking.error.no_availability, booking.entity.alternative, booking.operation.create_booking, booking.field.starts_at]
+    hole: D3
   P13:
     promise: "A booking is always in exactly one of the states CONFIRMED, SEATED, COMPLETED, CANCELLED or NO_SHOW, and the only allowed moves are CONFIRMED to SEATED, CANCELLED or NO_SHOW, and SEATED to COMPLETED; CANCELLED, COMPLETED and NO_SHOW are final."
     status: declared
     by: [booking.field.state, booking.operation.seat_booking, booking.operation.complete_booking, booking.operation.cancel_booking, booking.operation.mark_no_show]
-  # "Only while CONFIRMED" is declared: both operations change a booking from CONFIRMED only (cancel also accepts a repeat on a CANCELLED booking, P18), otherwise INVALID_STATE. "At least 2 hours before" is not, even with now: the
-  # start is local to the restaurant's zone, and `now <= current.starts_at - 2 hours` on a stored UTC starts_at would hold
-  # on a value that no rule ties to local_date, local_time and time_zone (D3). The core converts the zone and refuses.
+  # "Only while CONFIRMED": both operations change a booking from CONFIRMED only (cancel also accepts a repeat on a
+  # CANCELLED booking, P18), otherwise INVALID_STATE. "At least 2 hours before its start time": change_booking requires
+  # `now <= current.starts_at - 2 hours` and cancel_booking `current.state = 'CANCELLED' or now <= current.starts_at - 2
+  # hours`, otherwise CHANGE_DEADLINE_PASSED, checked by the runtime before the core; the deadline reads the start before
+  # the change. The start time is starts_at, a UTC timestamp of the record; the local values are the guest's (P03), and
+  # converting them is the client's, outside the contract. Scenarios at the edge, 1 ms before and after.
   P14:
     promise: "A guest may change the date, time or party size, or cancel, only while the booking is CONFIRMED and at least 2 hours before its start time, otherwise the request is refused with CHANGE_DEADLINE_PASSED or INVALID_STATE."
-    status: workaround
-    by: [booking.operation.change_booking, booking.operation.cancel_booking, booking.error.change_deadline_passed, booking.error.invalid_state]
-    hole: D3
-  # cancel_booking ensures the refund is zero or at most the stored deposit. Full or nothing at 24 hours before the start
-  # is not declared, even with now: the start is local to the restaurant's zone, and an ensures on `now` against a stored
-  # UTC starts_at would hold on a value that no rule ties to local_date, local_time and time_zone (D3).
+    status: declared
+    by: [booking.operation.change_booking, booking.operation.cancel_booking, booking.field.starts_at, booking.error.change_deadline_passed, booking.error.invalid_state]
+  # cancel_booking ensures, on each answer: no deposit gives a refund of 0, else the refund is at most the deposit; and on
+  # a cancellation (current.state = 'CONFIRMED', not a repeat, P18): the full deposit when `now <= current.starts_at - 24
+  # hours`, else 0. The runtime checks the answer, so a core that refunds otherwise is a ContractViolation. The start
+  # time is starts_at, a UTC timestamp of the record; converting the guest's local time is the client's, outside the
+  # contract. Scenarios at 24 hours before the start, 1 ms before and after, and with no deposit.
   P15:
     promise: "A cancellation made 24 hours or more before the start time refunds the full deposit, a later one refunds nothing, and a refund is never more than the deposit paid."
-    status: workaround
-    by: [booking.operation.cancel_booking, booking.field.refund_amount]
-    hole: D3
-  # "Only by restaurant staff" is declared: mark_no_show allows only a caller with role staff of the booking's restaurant,
-  # otherwise FORBIDDEN, and a guest is refused in a scenario. "From 15 minutes after its start time" needs the current
-  # time and the start as an instant: the start is local to the restaurant's zone, and `now >= current.starts_at + 15
-  # minutes` on a stored UTC starts_at would hold on a value that no rule ties to local_date, local_time and time_zone
-  # (D3). The core converts the zone and refuses earlier with INVALID_STATE.
+    status: declared
+    by: [booking.operation.cancel_booking, booking.field.refund_amount, booking.field.deposit_amount, booking.field.starts_at]
+  # "Only by restaurant staff": mark_no_show allows only a caller with role staff of the booking's restaurant,
+  # otherwise FORBIDDEN, and a guest is refused in a scenario. "From 15 minutes after its start time onward":
+  # mark_no_show requires `now >= current.starts_at + 15 minutes`, otherwise INVALID_STATE, checked by the runtime
+  # before the core. The start time is starts_at, a UTC timestamp of the record; converting the guest's local time is
+  # the client's, outside the contract. Scenarios at the edge, 1 ms before and after.
   P16:
     promise: "A booking can be marked NO_SHOW only by restaurant staff and only from 15 minutes after its start time onward."
-    status: workaround
-    by: [booking.operation.mark_no_show, auth.entity.caller, auth.field.role, booking.error.forbidden, booking.error.invalid_state]
-    hole: D3
+    status: declared
+    by: [booking.operation.mark_no_show, auth.entity.caller, auth.field.role, booking.field.starts_at, booking.error.forbidden, booking.error.invalid_state]
   # create_booking has idempotency { key: input.idempotency_key, window: 24 hours, otherwise: invalid_request }, and the
   # contract uses the Postgres extra, so the store file has runOnce and the answers table "idempotency"."bookings": a
   # repeat with the same key and body in 24 hours returns the stored first answer (the same reference) and runs nothing,
@@ -168,7 +176,7 @@ promises:
   P23:
     promise: "All timestamps other than the booking's local start time are given in UTC in ISO 8601 format with a trailing Z."
     status: declared
-    by: [event.field.occurred_at, booking.field.cancelled_at]
+    by: [event.field.occurred_at, booking.field.cancelled_at, booking.field.starts_at]
   # Within the major version, urn-forge diff refuses a removed or changed field or error code, and a new error code
   # (the header does not state that callers ignore unknown values). The notice for a new major version is how long
   # the operator runs the old one, which nothing that urn-forge builds can check.

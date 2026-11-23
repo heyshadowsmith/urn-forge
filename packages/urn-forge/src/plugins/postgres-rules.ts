@@ -46,18 +46,24 @@ export interface TimeSql {
 /** The rule over the properties of an entity, as a condition on the columns of its table. With `time`, the rule may read now and today. */
 export function ruleSql(ir: UniversalIR, rule: RuleExpr, properties: readonly IRPropertyRef[], time?: TimeSql): RuleSql {
   const byName = new Map(properties.map((p) => [p.name, p]));
+  /** The property of a name, or Untranslatable for a path into an embedded entity, whose properties are columns of another table. */
+  const property = (name: string): IRPropertyRef => {
+    const ref = byName.get(name);
+    if (ref) return ref;
+    throw new Untranslatable(`"${name}" reads into an embedded entity, which is rows of a child table, and a CHECK sees one row`);
+  };
 
   const primitiveOf = (name: string): Primitive => {
     if (time && name === 'now') return 'timestamp';
     if (time && name === 'today') return 'date';
-    const ref = byName.get(name)!;
+    const ref = property(name);
     const field = 'field' in ref ? ref.field : 'link' in ref ? ir.entities[ref.link]!.key! : undefined;
     return ir.fields[field!]!.primitive;
   };
   /** A property in a row: a column. A list or an embedded entity is rows of another table. */
   const column = (name: string): string => {
     if (time && (name === 'now' || name === 'today')) return time[name];
-    const ref = byName.get(name)!;
+    const ref = property(name);
     if ('entity' in ref || ref.many !== undefined) {
       throw new Untranslatable(`"${name}" is ${'entity' in ref ? 'an embedded entity' : 'a list'}, which is rows of a child table, and a CHECK sees one row`);
     }
@@ -84,8 +90,16 @@ export function ruleSql(ir: UniversalIR, rule: RuleExpr, properties: readonly IR
       case '-': {
         // A time on a timestamp: an interval, exact on a TIMESTAMPTZ.
         if (e.right.op === 'duration') {
-          const unit = { minutes: 'minute', hours: 'hour', days: 'day' }[e.right.unit];
-          return `(${value(e.left, 'timestamp')} ${e.op} ${value(e.right.value, 'integer')} * INTERVAL '1 ${unit}')`;
+          const n = value(e.right.value, 'integer');
+          // Calendar months in UTC, whatever the time zone of the session: a short month ends on its last day.
+          if (e.right.unit === 'months') {
+            return typeOf(e.left) === 'date'
+              ? `(${value(e.left, 'date')} ${e.op} ${n} * INTERVAL '1 month')::DATE`
+              : `((${value(e.left, 'timestamp')} AT TIME ZONE 'UTC') ${e.op} ${n} * INTERVAL '1 month') AT TIME ZONE 'UTC'`;
+          }
+          // A day is 24 hours: INTERVAL '1 day' would follow the time zone of the session across a change of its clocks.
+          const unit = { minutes: "INTERVAL '1 minute'", hours: "INTERVAL '1 hour'", days: "INTERVAL '24 hours'" }[e.right.unit];
+          return `(${value(e.left, 'timestamp')} ${e.op} ${n} * ${unit})`;
         }
         // Days: Postgres's own date - date, date + integer and date - integer.
         if (typeOf(e.left) === 'date' || typeOf(e.right) === 'date') {

@@ -57,6 +57,15 @@ describe('the refusals target compiles', () => {
   });
 });
 
+describe('the helpers of a rule of refuses', () => {
+  it('are in the schemas file: a rule that counts days gets epochDay', () => {
+    const counted = source.replace("date(alt.starts_at) = input.date)'", "date(alt.starts_at) + 1 > input.date)'");
+    const result = compile(counted);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.files.find((f) => f.relativePath === 'domain.schemas.generated.ts')?.content).toContain('function epochDay(');
+  });
+});
+
 describe('rejects', () => {
   it('answers an input that does not parse with the declared error, and the issues', () => {
     const result = runtime.executeOperation(CREATE, { ...request, party_size: 0 }, refuse([]));

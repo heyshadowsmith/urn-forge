@@ -28,7 +28,7 @@ Make a project in which `urn-forge compile`, `urn-forge verify` and Cucumber run
    updated    package.json
    wrote      src/generated/domain.runtime.generated.ts
    wrote      src/generated/domain.schemas.generated.ts
-   fingerprint sha256:1ec93ba0f7bf6c19c0ef98157bdaa97679a8ad1b52a5d7124381b3c4b2da2722
+   fingerprint sha256:2a62295c8074239ab1e8633b9dd3c0896e2ae378c6876c70773aea3a9c306d25
    next: npm run verify, then npm run test:features
    ```
 
@@ -64,7 +64,7 @@ Do these steps to add urn-forge to a project that you have. The files come from 
    ```
    wrote      src/generated/domain.runtime.generated.ts
    wrote      src/generated/domain.schemas.generated.ts
-   fingerprint sha256:40bd31f60e13cbb2b5a8223690a04d4856b7e8b3c82fb1a732a2af1dbe8f8d92
+   fingerprint sha256:28f251b06ee13bc71fcd6ef07854183ef6af206f87b6bcf789d8ee6063871368
    ```
 
    Commit the files in `src/generated/`.

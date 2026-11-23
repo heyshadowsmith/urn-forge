@@ -40,7 +40,7 @@ Before you start, do the steps in [Tutorials](./).
    updated    package.json
    wrote      src/generated/domain.runtime.generated.ts
    wrote      src/generated/domain.schemas.generated.ts
-   fingerprint sha256:6431175d253fe08f43536faf50064c29a29687f59e2bdbcf92d9d7dd9cf83c9c
+   fingerprint sha256:897edd10c9fdefff5c0e70a3d45190000a8bcdf068596732f2b242a9ad3c1a18
    next: npm run verify, then npm run test:features
    ```
 
@@ -82,7 +82,7 @@ The command shows this output:
 ```
 wrote      src/generated/domain.runtime.generated.ts
 wrote      src/generated/domain.schemas.generated.ts
-fingerprint sha256:40bd31f60e13cbb2b5a8223690a04d4856b7e8b3c82fb1a732a2af1dbe8f8d92
+fingerprint sha256:28f251b06ee13bc71fcd6ef07854183ef6af206f87b6bcf789d8ee6063871368
 ```
 
 The same manifest always gives the same files. Thus, your fingerprint is the same.

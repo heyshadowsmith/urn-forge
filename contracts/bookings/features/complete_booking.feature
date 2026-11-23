@@ -6,8 +6,8 @@ Feature: Close a booking when the party leaves
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED    | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state  | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
@@ -23,8 +23,8 @@ Feature: Close a booking when the party leaves
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state>   | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state   | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state> | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
@@ -45,8 +45,8 @@ Feature: Close a booking when the party leaves
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED    | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state  | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | BOOKING1  |
@@ -68,8 +68,8 @@ Feature: Close a booking when the party leaves
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | SEATED    | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state  | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | SEATED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
     When I run the operation with:
       | reference |
       | FRBDDN22  |
@@ -81,8 +81,8 @@ Feature: Close a booking when the party leaves
       | role  | restaurant_id                        |
       | guest | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED    | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state  | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | email           | phone        |
       | CNFRMD22  | ada@example.com | +33612345678 |
@@ -96,8 +96,8 @@ Feature: Close a booking when the party leaves
       | role  |
       | staff |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED    | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state  | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
@@ -109,8 +109,8 @@ Feature: Close a booking when the party leaves
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED    | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
+      | reference | restaurant_id                        | state  | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
     When I run the operation with:
       | reference | email   | phone   |
       | CNFRMD22  | <email> | <phone> |

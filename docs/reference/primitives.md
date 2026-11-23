@@ -13,12 +13,12 @@ Each field has one primitive. The primitive sets the kind of value and the const
 | `float` | An approximate measurement | `number`, finite | `min`, `max`, `exclusiveMin`, `exclusiveMax`, `notIn` |
 | `integer` | An exact whole number | `number`, a safe integer | `min`, `max`, `multipleOf`, `notIn` |
 | `string` | Free text | `string` | `minLength`, `maxLength`, `regex`, `format` |
-| `timestamp` | An instant, ISO 8601 in UTC | `string` | `min`, `max`, `exclusiveMin`, `exclusiveMax` |
+| `timestamp` | An instant, ISO 8601 in UTC | `string` | `min`, `max`, `exclusiveMin`, `exclusiveMax`, `precision` |
 
 - A finite number is not `Infinity`, `-Infinity` or `NaN`. A safe integer is from `-(2^53 − 1)` to `2^53 − 1`.
 - A `decimal` matches `^-?(0|[1-9][0-9]*)(\.[0-9]+)?$`. It has no exponent, no `+` and no leading zeros.
 - A `date` is a real day of the Gregorian calendar. `2024-02-29` is correct. `2023-02-29` is not.
-- A `timestamp` has the form `YYYY-MM-DDTHH:MM:SSZ`, with an optional fraction of 1 to 3 digits. It must end with `Z`. An offset such as `+02:00` is not correct.
+- A `timestamp` has the form `YYYY-MM-DDTHH:MM:SSZ`, with an optional fraction of 1 to 3 digits. It must end with `Z`. An offset such as `+02:00` is not correct. With `precision: 3`, it has exactly 3 digits after the second: `2026-01-31T09:30:00.000Z`.
 - The parsed type of each field has a brand. The input type has no brand.
 - A list is not a primitive. Use `many` on a field reference. To hold a different entity, use `ref` or `link` on a field reference. Refer to [The manifest](./manifest).
 
@@ -68,6 +68,7 @@ A field can set only one of each pair: `min` or `exclusiveMin`, `max` or `exclus
 | `max` | `timestamp` | Range | A timestamp in quotes |
 | `exclusiveMin` | `timestamp` | Range | A timestamp in quotes |
 | `exclusiveMax` | `timestamp` | Range | A timestamp in quotes |
+| `precision` | `timestamp` | Shape | `0`, `1`, `2` or `3`: exactly that many digits after the second |
 
 | Problem | Code |
 | --- | --- |

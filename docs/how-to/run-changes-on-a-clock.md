@@ -69,7 +69,7 @@ claim.operation.report_overdue:
 The store file has a query for each timed change: `select<Operation brand>Due(now, limit)` gives the keys of the rows in a state of `from` where `due` holds. It comes from the same rule as the runtime check:
 
 ```sql
-SELECT "payment_id" FROM "payment"."payment" WHERE "status" = ANY($2) AND $1::TIMESTAMPTZ >= ("authorized_at" + 7 * INTERVAL '1 day') ORDER BY "payment_id" LIMIT $3
+SELECT "payment_id" FROM "payment"."payment" WHERE "status" = ANY($2) AND $1::TIMESTAMPTZ >= ("authorized_at" + 7 * INTERVAL '24 hours') ORDER BY "payment_id" LIMIT $3
 ```
 
 Run it on your clock, and run the operation for each key, each in its own transaction:

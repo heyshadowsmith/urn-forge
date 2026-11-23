@@ -132,6 +132,15 @@ Scenario Outline: A refund at most 180 days after the capture
     | 2026-06-30T12:00:00.001Z |
 ```
 
+### Keep times in UTC
+
+Every instant of a contract is a UTC `timestamp`, and a rule has no time zone. Thus one commit gives one result on every machine, whatever the zone of the machine or of the database.
+
+- If people give a local time, such as 19:30 in a restaurant in Paris, the client converts it to UTC, and the request carries the instant: `starts_at`. A rule then reads `starts_at`: `now <= current.starts_at - 2 hours`.
+- The request can also carry the local date, time and zone, as the values that the person gave. No rule converts them, so no rule ties them to `starts_at`. Show them; do not compute with them.
+- A calendar month is in UTC too: `output.period_end = output.period_start + 1 months`. Refer to [Calendar months](../reference/rule-language#calendar-months).
+- For exact milliseconds, give a `timestamp` `precision: 3`. Refer to [Primitives](../reference/primitives).
+
 ## 3. Remove the rule from the handler
 
 `executeOperation` checks the conditions:

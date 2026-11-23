@@ -154,6 +154,7 @@ event.field.sequence:
   description: The position of the event among the events of its SKU and location
 event.field.occurred_at:
   primitive: timestamp
+  precision: 3
   description: When the change happened, in UTC
 event.field.quantity_changed:
   primitive: integer
@@ -272,6 +273,7 @@ reservation.field.state:
   description: The state of a reservation
 reservation.field.expires_at:
   primitive: timestamp
+  precision: 3
   description: When the reservation expires if it is still active
 
 reservation.entity.reserve_request:

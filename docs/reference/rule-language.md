@@ -18,7 +18,7 @@ unary   := 'not' unary | compare
 compare := sum (('<' | '<=' | '=' | '!=' | '>=' | '>') sum)?
 sum     := product (('+' | '-') product)*
 product := timed ('*' timed)*
-timed   := primary ('minutes' | 'hours' | 'days')?
+timed   := primary ('minutes' | 'hours' | 'days' | 'months')?
 primary := '(' or ')' | over | day | field 'is' ('present' | 'absent') | field | number | text | 'true' | 'false'
 over    := 'sum' '(' field 'in' field ':' sum ')' | ('all' | 'any') '(' field 'in' field ':' or ')'
 day     := 'date' '(' sum ')'
@@ -53,6 +53,7 @@ A rule is one `or` expression, and then the end of the rule.
 | Days | `d + n`, `d - n`, `d1 - d2` | Refer to [Days](#days) | A `date` or an `integer` |
 | Date of a time | `date(starts_at)` | A `timestamp` | Its date in UTC, a `date`. Refer to [Time](#time) |
 | Time | `t + 2 hours`, `t - 15 minutes`, `t + n days` | A `timestamp`, and an `integer` with a unit. Refer to [Time](#time) | A `timestamp` |
+| Months | `t + 1 months`, `d - 3 months` | A `timestamp` or a `date`, and an `integer` of months. Refer to [Calendar months](#calendar-months) | A value of the primitive of the left |
 | `and`, `or` | `c and d` | Two conditions | A condition |
 | `not` | `not c` | One condition | A condition |
 | Presence | `x is present`, `x is absent` | An optional property, a list or an embedded entity | A condition |
@@ -130,7 +131,7 @@ The two sides of each operator must have one primitive. A link has the primitive
 - The date is on the left. `28 + loan_date` causes `rule-type`.
 - `n` can be a number, an `integer` field or an `integer` expression.
 - In `d - '2026-01-01'`, the text is a date.
-- The unit is the day. There are no months or years. For one year, write `365` or `366`.
+- The unit is the day. For calendar months, write `d + n months`. Refer to [Calendar months](#calendar-months). There are no years: write `12 months`.
 - In a rule of an operation, `today` is the date of the call: `input.resume_on <= today + 90`.
 - `date(t)` changes a `timestamp` to its date in UTC. A rule cannot change a `date` to a `timestamp`.
 - The arithmetic is exact, in the schemas and in the Postgres `CHECK`. Give an `integer` field that counts days a `max`.
@@ -145,10 +146,21 @@ The two sides of each operator must have one primitive. A link has the primitive
 - `n` is a number with no fraction, an `integer` field or an `integer` expression: `input.trial_days days`.
 - A day is 24 hours: every time is UTC, so the arithmetic is exact.
 - A `timestamp` with no unit causes `rule-type`: `"+" on a timestamp needs a unit: write 2 hours, 15 minutes or 180 days`.
-- A unit on a `date` causes `rule-type`. A date counts days: write `today + 1`.
-- There is no time between two timestamps, and no months or years.
+- `minutes`, `hours` or `days` on a `date` cause `rule-type`. A date counts days: write `today + 1`.
+- There is no time between two timestamps.
 - `date(t)` is the date of `t` in UTC: `date(alt.starts_at) = input.date`. It can count days: `date(t) + 1`. A date in another time zone is not in the language.
 - `now` and `today` come from the shell. Refer to [Declare preconditions and postconditions](../how-to/declare-conditions#a-window-of-time).
+
+## Calendar months
+
+| Form | Left | Right | Result | Example |
+| --- | --- | --- | --- | --- |
+| `t + n months`, `t - n months` | `timestamp` | `integer` | The same time of day, `n` calendar months on or back, in UTC | `output.period_end = output.period_start + 1 months` |
+| `d + n months`, `d - n months` | `date` | `integer` | The day `n` calendar months on or back | `ends_on = starts_on + 1 months` |
+
+- A day that the target month lacks is that month's last day: `2026-01-31` + 1 month is `2026-02-28`, and `2028-01-31` + 1 month is `2028-02-29`.
+- Months are not reversible: `2026-01-31 + 1 months - 1 months` is `2026-01-28`.
+- Every month is in UTC, in the schemas, in the runtime and in Postgres, whatever the time zone of the machine or of the database session.
 
 ## Guards
 

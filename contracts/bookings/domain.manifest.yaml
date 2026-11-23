@@ -14,17 +14,20 @@ booking.field.restaurant_id:
   primitive: string
   format: uuid
   description: The identifier of the restaurant
+booking.field.starts_at:
+  primitive: timestamp
+  description: The start of the booking, an instant in UTC; every window of time reads it. The client converts the local time of the guest to it
 booking.field.local_date:
   primitive: date
-  description: The day of the booking, in the time zone of the restaurant
+  description: The day of the booking as the guest gave it, in the time zone of the restaurant; no rule ties it to starts_at
 booking.field.local_time:
   primitive: string
   regex: '([01][0-9]|2[0-3]):(00|15|30|45)'
-  description: The start time of the booking, HH:MM on a 15-minute boundary, in the time zone of the restaurant
+  description: The start time of the booking as the guest gave it, HH:MM on a 15-minute boundary, in the time zone of the restaurant; no rule ties it to starts_at
 booking.field.time_zone:
   primitive: string
   regex: 'UTC|[A-Z][A-Za-z_]+(/[A-Za-z0-9_+-]+){1,2}'
-  description: The IANA time zone name of the restaurant, for example Europe/Paris
+  description: The IANA time zone name of the restaurant, for example Europe/Paris, to show the local time; no rule converts it
 booking.field.party_size:
   primitive: integer
   min: 1
@@ -144,6 +147,7 @@ booking.entity.create_request:
   description: A request to book a table
   fields:
     - ref: booking.field.restaurant_id
+    - ref: booking.field.starts_at
     - ref: booking.field.local_date
     - ref: booking.field.local_time
     - ref: booking.field.party_size
@@ -165,6 +169,7 @@ booking.entity.confirmation:
     - ref: booking.field.restaurant_id
     - ref: booking.field.confirmed_state
       as: status
+    - ref: booking.field.starts_at
     - ref: booking.field.local_date
     - ref: booking.field.local_time
     - ref: booking.field.time_zone
@@ -190,6 +195,7 @@ booking.entity.booking:
     - ref: booking.field.reference
     - ref: booking.field.restaurant_id
     - ref: booking.field.state
+    - ref: booking.field.starts_at
     - ref: booking.field.local_date
     - ref: booking.field.local_time
     - ref: booking.field.time_zone
@@ -219,6 +225,8 @@ booking.entity.change_request:
       required: false
     - ref: guest.field.phone
       required: false
+    - ref: booking.field.starts_at
+      required: false
     - ref: booking.field.local_date
       required: false
     - ref: booking.field.local_time
@@ -226,9 +234,17 @@ booking.entity.change_request:
     - ref: booking.field.party_size
       required: false
 
+booking.invariant.move_has_starts_at:
+  description: A move gives the new start as starts_at with the new local date or time, and starts_at comes only with a move
+  on: booking.entity.change_request
+  rule: starts_at is present and (local_date is present or local_time is present) or starts_at is absent and local_date is absent and local_time is absent
+  reportOn: starts_at
+  message: A new start needs starts_at with the local date or time that the guest gave
+
 booking.entity.alternative:
   description: Another start time that has a free table, offered when the requested one has none
   fields:
+    - ref: booking.field.starts_at
     - ref: booking.field.local_date
     - ref: booking.field.local_time
     - ref: booking.field.party_size
@@ -254,11 +270,11 @@ booking.error.outside_booking_window:
   description: The start time is less than 2 hours or more than 90 days away
   category: precondition
   retryable: false
-  message: A booking on {local_date} at {local_time} ({time_zone}) is outside the booking window
+  message: A booking that starts at {starts_at} ({local_date} {local_time} local time) is outside the booking window
   fields:
+    - ref: booking.field.starts_at
     - ref: booking.field.local_date
     - ref: booking.field.local_time
-    - ref: booking.field.time_zone
 booking.error.no_availability:
   description: No table is free for the party at that time; up to 5 other start times on the same day may be offered
   category: conflict
@@ -381,11 +397,16 @@ booking.operation.create_booking:
       otherwise: booking.error.party_too_large_for_online
     - rule: input.party_size < 7 or input.deposit_token is present
       otherwise: booking.error.deposit_required
-  # A refusal for no availability offers other start times on the requested date, for the same party.
+    # The booking window: from 90 days to 2 hours before the start, both edges included.
+    - rule: now >= input.starts_at - 90 days and now <= input.starts_at - 2 hours
+      otherwise: booking.error.outside_booking_window
+  # A refusal for no availability offers other start times on the requested local date, within 2 hours of the
+  # requested start, for the same party.
   refuses:
     - error: booking.error.no_availability
       ensures:
         - 'all(alt in error.alternatives: alt.local_date = input.local_date)'
+        - 'all(alt in error.alternatives: alt.starts_at >= input.starts_at - 2 hours and alt.starts_at <= input.starts_at + 2 hours)'
         - 'all(alt in error.alternatives: alt.party_size = input.party_size)'
   errors:
     - booking.error.invalid_request
@@ -397,6 +418,7 @@ booking.operation.create_booking:
   emits:
     - event: booking.event.booking_created
   ensures:
+    - output.starts_at = input.starts_at
     - event.reference = output.reference
     - event.restaurant_id = output.restaurant_id
     - event.state = output.status
@@ -435,6 +457,10 @@ booking.operation.change_booking:
       - caller.role = 'guest' and input.reference = current.reference and input.phone is present and current.phone is present and input.phone = current.phone
       - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
     otherwise: booking.error.forbidden
+  # The deadline reads the start of the booking as it is, before the change.
+  requires:
+    - rule: now <= current.starts_at - 2 hours
+      otherwise: booking.error.change_deadline_passed
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state
@@ -443,6 +469,7 @@ booking.operation.change_booking:
   emits:
     - event: booking.event.booking_changed
   ensures:
+    - input.starts_at is present and output.starts_at = input.starts_at or input.starts_at is absent and output.starts_at = current.starts_at
     - event.reference = output.reference
     - event.restaurant_id = output.restaurant_id
     - event.state = output.state
@@ -466,8 +493,16 @@ booking.operation.cancel_booking:
       - caller.role = 'guest' and input.reference = current.reference and input.phone is present and current.phone is present and input.phone = current.phone
       - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
     otherwise: booking.error.forbidden
+  # A repeat on a CANCELLED booking is a success at any time (P18); a cancellation is refused from 2 hours before the start.
+  requires:
+    - rule: current.state = 'CANCELLED' or now <= current.starts_at - 2 hours
+      otherwise: booking.error.change_deadline_passed
+  # The refund: never more than the deposit, and none with no deposit; on a cancellation (not a repeat) the full
+  # deposit 24 hours or more before the start, and nothing later.
   ensures:
-    - output.refund_amount = 0 or current.deposit_amount is present and output.refund_amount <= current.deposit_amount
+    - current.deposit_amount is absent and output.refund_amount = 0 or current.deposit_amount is present and output.refund_amount <= current.deposit_amount
+    - current.state = 'CANCELLED' or now > current.starts_at - 24 hours or current.deposit_amount is absent or output.refund_amount = current.deposit_amount
+    - current.state = 'CANCELLED' or now <= current.starts_at - 24 hours or output.refund_amount = 0
     - event.reference = output.reference
     - event.restaurant_id = current.restaurant_id
     - event.state = output.state
@@ -555,6 +590,10 @@ booking.operation.mark_no_show:
     allow:
       - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
     otherwise: booking.error.forbidden
+  # From 15 minutes after the start onward, that edge included.
+  requires:
+    - rule: now >= current.starts_at + 15 minutes
+      otherwise: booking.error.invalid_state
   errors:
     - booking.error.booking_not_found
     - booking.error.invalid_state

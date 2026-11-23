@@ -1,7 +1,7 @@
 # The contract corpus. Each contract in this folder lists its promises in promises.yaml.
 # The score is the share of promises that are declared; CI fails below the minimum.
 # Each plan that moves promises to declared raises the minimum.
-minimum: 51.7
+minimum: 55.9
 
 # The holes of the contract completeness roadmap (planning/contract-completeness-roadmap.md).
 # A promise that is a workaround or not declarable names the hole that would declare it.

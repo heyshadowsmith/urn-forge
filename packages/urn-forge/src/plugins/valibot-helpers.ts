@@ -78,6 +78,19 @@ function epochDay(value: string): number {
   date.setUTCFullYear(Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1, Number(value.slice(8, 10)));
   return date.getTime() / 86400000;
 }`,
+  months: `/**
+ * A day or an instant in UTC, n calendar months later (or earlier, for a negative n). A day that
+ * the target month lacks is that month's last day; the time of an instant stays.
+ */
+function addMonths(value: string, n: number): string {
+  const [year, month, day] = [Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1 + n, Number(value.slice(8, 10))];
+  const last = new Date(0);
+  last.setUTCFullYear(year, month + 1, 0);
+  const date = new Date(0);
+  date.setUTCFullYear(year, month, Math.min(day, last.getUTCDate()));
+  const pad = (part: number, width: number) => String(part).padStart(width, '0');
+  return pad(date.getUTCFullYear(), 4) + '-' + pad(date.getUTCMonth() + 1, 2) + '-' + pad(date.getUTCDate(), 2) + value.slice(10);
+}`,
 } as const;
 
 export type ValibotHelper = keyof typeof VALIBOT_HELPERS;
@@ -89,4 +102,5 @@ export const HELPER_NEEDS: { readonly [H in ValibotHelper]: readonly ValibotHelp
   date: ['date'],
   timestamp: ['date', 'timestamp'],
   days: ['days'],
+  months: ['months'],
 };

@@ -27,7 +27,7 @@ describe('primitive registry', () => {
       float: ['min', 'max', 'exclusiveMin', 'exclusiveMax', 'notIn'],
       integer: ['min', 'max', 'multipleOf', 'notIn'],
       string: ['minLength', 'maxLength', 'regex', 'format'],
-      timestamp: ['min', 'max', 'exclusiveMin', 'exclusiveMax'],
+      timestamp: ['min', 'max', 'exclusiveMin', 'exclusiveMax', 'precision'],
     });
   });
 

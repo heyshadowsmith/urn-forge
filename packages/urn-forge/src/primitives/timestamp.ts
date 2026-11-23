@@ -18,7 +18,14 @@ const bound: ConstraintSpec<string> = {
  */
 export const timestamp = definePrimitive({
   name: 'timestamp',
-  constraints: { min: bound, max: bound, exclusiveMin: bound, exclusiveMax: bound },
+  constraints: {
+    min: bound,
+    max: bound,
+    exclusiveMin: bound,
+    exclusiveMax: bound,
+    /** Exactly this many digits after the second, 0 to 3. Without it, 0 to 3 digits. */
+    precision: { schema: v.pipe(v.number(), v.integer('must be 0, 1, 2 or 3'), v.minValue(0, 'must be 0, 1, 2 or 3'), v.maxValue(3, 'must be 0, 1, 2 or 3')), aspect: 'shape' } as ConstraintSpec<number>,
+  },
   exclusive: BOUND_GROUPS,
   coherence: (c) => {
     const lower = c.min !== undefined ? { name: 'min', value: c.min, open: false } : c.exclusiveMin !== undefined ? { name: 'exclusiveMin', value: c.exclusiveMin, open: true } : undefined;
@@ -44,6 +51,10 @@ export const timestamp = definePrimitive({
     if (c.max !== undefined) cases.push({ label: `value at max ${c.max}`, covers: at(c.max) }, { label: `value after max ${c.max}`, covers: beyond(c.max, 1) });
     if (c.exclusiveMax !== undefined) {
       cases.push({ label: `value at exclusiveMax ${c.exclusiveMax}`, covers: at(c.exclusiveMax) }, { label: `value before exclusiveMax ${c.exclusiveMax}`, covers: beyond(c.exclusiveMax, -1) });
+    }
+    if (c.precision !== undefined) {
+      const digits = (value: unknown) => (isUtcTimestamp(value) ? (/\.([0-9]+)Z$/u.exec(value)?.[1]?.length ?? 0) : undefined);
+      cases.push({ label: `value with other than ${c.precision} digits after the second`, covers: (value) => digits(value) !== undefined && digits(value) !== c.precision });
     }
     return cases;
   },

@@ -6,22 +6,22 @@ Feature: Read a booking
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email             |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com   |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
     Then the output is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
 
   Scenario: A guest reads a booking whose reference and email they present
     Given the caller is:
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | email           |
       | CNFRMD22  | ada@example.com |
@@ -34,8 +34,8 @@ Feature: Read a booking
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | phone        |
       | CNFRMD22  | +33612345678 |
@@ -70,8 +70,8 @@ Feature: Read a booking
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | email   | phone   |
       | CNFRMD22  | <email> | <phone> |
@@ -90,8 +90,8 @@ Feature: Read a booking
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | +33612345678 |
     When I run the operation with:
       | reference | email           |
       | CNFRMD22  | ada@example.com |
@@ -102,8 +102,8 @@ Feature: Read a booking
       | role  |
       | staff |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
     When I run the operation with:
       | reference |
       | CNFRMD22  |
@@ -114,8 +114,8 @@ Feature: Read a booking
       | role  | restaurant_id                        |
       | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes |
-      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes |
+      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
     When I run the operation with:
       | reference |
       | FRBDDN22  |
@@ -128,8 +128,8 @@ Feature: Read a booking
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
     When I run the operation with:
       | reference | email   | phone   |
       | CNFRMD22  | <email> | <phone> |
@@ -147,8 +147,8 @@ Feature: Read a booking
       | role  | restaurant_id                        |
       | staff | 7c9e6679-7425-40de-944b-e07fc1f90ae7 |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
+      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | email           | phone        |
       | CNFRMD22  | ada@example.com | +33612345678 |
@@ -159,8 +159,8 @@ Feature: Read a booking
       | role  |
       | guest |
     And the current booking is:
-      | reference | restaurant_id                        | state     | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
-      | FRBDDN22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
+      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
+      | FRBDDN22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
     When I run the operation with:
       | reference | email           | phone        |
       | CNFRMD22  | ada@example.com | +33612345678 |

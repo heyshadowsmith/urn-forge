@@ -248,6 +248,8 @@ invoice.entity.invoice:
     - ref: invoice.field.status
     - ref: billing.field.period_start
     - ref: billing.field.period_end
+    - ref: plan.field.billing_period
+    - ref: plan.field.interval_count
     - ref: invoice.entity.line
       as: lines
       many: true
@@ -258,6 +260,18 @@ invoice.invariant.period_end_after_start:
   on: invoice.entity.invoice
   rule: period_end > period_start
   message: An invoice period must end after it starts
+invoice.invariant.monthly_period:
+  description: The period of an invoice billed in months ends that many calendar months after it starts, on the last day of a month that lacks the start's day
+  on: invoice.entity.invoice
+  rule: billing_period != 'month' or period_end = period_start + interval_count months
+  reportOn: period_end
+  message: The period must end the invoice's number of calendar months after it starts
+invoice.invariant.yearly_period:
+  description: The period of an invoice billed yearly ends 12 calendar months after it starts
+  on: invoice.entity.invoice
+  rule: billing_period != 'year' or period_end = period_start + 12 months
+  reportOn: period_end
+  message: The period must end 12 calendar months after it starts
 invoice.invariant.total_is_sum:
   description: An invoice's total is the sum of its line amounts, in minor units
   on: invoice.entity.invoice
@@ -431,11 +445,13 @@ subscription.operation.create_subscription:
     - input.trial_days is present and input.trial_days > 0 or input.trial_end is present or output.status = 'active'
     - input.trial_days is absent or input.trial_days = 0 or output.status = 'trialing'
     - input.trial_end is absent or output.status = 'trialing'
+    - output.current_period_start = now
     - input.trial_end is absent or output.trial_end is present and output.trial_end = input.trial_end
     - input.trial_days is absent or input.trial_days = 0 or output.trial_end is present and output.trial_end = today + input.trial_days
     - input.trial_end is present or input.trial_days is present and input.trial_days > 0 or output.trial_end is absent
     - output.trial_end is absent or output.trial_end >= today + 3 or output.trial_will_end_sent_at is present and output.trial_will_end_sent_at = now
     - output.trial_end is absent or output.trial_end < today + 3 or output.trial_will_end_sent_at is absent
+    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
   errors:
     - subscription.error.invalid_trial_end
     - subscription.error.conflict
@@ -452,14 +468,18 @@ subscription.operation.read_subscription:
   description: Read one subscription
   input: subscription.entity.lookup
   output: subscription.entity.subscription
+  ensures:
+    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
   errors:
     - subscription.error.not_found
 subscription.operation.list_subscriptions:
   description: List the subscriptions of a customer
   input: subscription.entity.list_request
   output: subscription.entity.subscription_list
+  ensures:
+    - "all(s in output.subscriptions: s.plan.billing_period = 'month' and s.current_period_end = s.current_period_start + s.plan.interval_count months or s.plan.billing_period = 'year' and s.current_period_end = s.current_period_start + 12 months)"
 subscription.operation.change_plan:
-  description: Move a subscription to a different plan of the same currency
+  description: Move a subscription to a different plan of the same currency; a plan with another billing period starts a new period now
   input: subscription.entity.change_plan_request
   output: subscription.entity.subscription
   idempotency:
@@ -474,9 +494,13 @@ subscription.operation.change_plan:
   ensures:
     - input.proration != 'at_period_end' or output.scheduled_plan_id is present and output.scheduled_plan_id = input.plan_id
     - input.proration != 'at_period_end' or output.plan = current.plan
+    - output.current_period_start = current.current_period_start or output.current_period_start = now
+    - output.plan.billing_period != current.plan.billing_period or output.plan.interval_count != current.plan.interval_count or output.current_period_start = current.current_period_start
+    - output.plan.billing_period = current.plan.billing_period and output.plan.interval_count = current.plan.interval_count or output.current_period_start = now
     - current.trial_will_end_sent_at is absent or output.trial_will_end_sent_at is present and output.trial_will_end_sent_at = current.trial_will_end_sent_at
     - current.trial_end is absent or output.trial_end is present and output.trial_end = current.trial_end
     - event.subscription_id = output.subscription_id
+    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
   errors:
     - subscription.error.not_found
     - subscription.error.currency_mismatch
@@ -504,6 +528,7 @@ subscription.operation.pause_subscription:
       fill: { resume_on: input.resume_on }
   ensures:
     - event.subscription_id = output.subscription_id
+    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
@@ -527,6 +552,7 @@ subscription.operation.resume_subscription:
     missing: subscription.error.not_found
   ensures:
     - event.subscription_id = output.subscription_id
+    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
@@ -551,6 +577,7 @@ subscription.operation.cancel_subscription:
     - current.trial_will_end_sent_at is absent or output.trial_will_end_sent_at is present and output.trial_will_end_sent_at = current.trial_will_end_sent_at
     - current.trial_end is absent or output.trial_end is present and output.trial_end = current.trial_end
     - event.subscription_id = output.subscription_id
+    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition
@@ -571,6 +598,7 @@ subscription.operation.announce_trial_end:
     - output.trial_will_end_sent_at is present and output.trial_will_end_sent_at = now
     - current.trial_end is absent or output.trial_end is present and output.trial_end = current.trial_end
     - event.subscription_id = output.subscription_id
+    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
   errors:
     - subscription.error.not_found
     - subscription.error.invalid_state_transition

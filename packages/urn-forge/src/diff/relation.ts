@@ -87,7 +87,7 @@ const RELATIONS: { readonly [P in Primitive]: ConstraintRelation<P> } = {
   boolean: (o, n) => [shape(o.mustBe, n.mustBe)],
   enum: (o, n) => [included((a, b) => a === b, o.values ?? [], n.values ?? [])],
   date: (o, n) => range(byText, o, n),
-  timestamp: (o, n) => range(byInstant, o, n),
+  timestamp: (o, n) => [...range(byInstant, o, n), shape(o.precision, n.precision)],
   decimal: (o, n) => [
     ...range(compareDecimal, o, n),
     // No scale is any number of digits after the point.

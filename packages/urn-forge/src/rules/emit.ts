@@ -10,7 +10,7 @@ import { hasDateArithmetic, itemPrimitives, UNIT_MS, valueType, type RuleExpr } 
 export interface EmittedRule {
   readonly code: string;
   /** Helpers the code calls, by the names of VALIBOT_HELPERS. */
-  readonly helpers: ReadonlySet<'decimal' | 'decimalArithmetic' | 'days'>;
+  readonly helpers: ReadonlySet<'decimal' | 'decimalArithmetic' | 'days' | 'months'>;
 }
 
 const PLAIN_TYPE: { readonly [P in Primitive]: string } = {
@@ -44,7 +44,7 @@ export function emitRule(
   outerPropertiesOf: (field: string) => readonly EmbeddedProperty[] | undefined = () => undefined,
 ): EmittedRule {
   let propertiesOf = outerPropertiesOf;
-  const helpers = new Set<'decimal' | 'decimalArithmetic' | 'days'>();
+  const helpers = new Set<'decimal' | 'decimalArithmetic' | 'days' | 'months'>();
   // Inside a sum, the item's names: a local variable, and the primitives of the list's items.
   let primitiveOf = outerPrimitiveOf;
   const bound = new Set<string>();
@@ -71,6 +71,8 @@ export function emitRule(
         return `epochDay(${value(e, 'date')})`;
       case '+':
       case '-':
+        // A date some months on: its day number.
+        if (e.right.op === 'duration') return `epochDay(${value(e, 'date')})`;
         return `(${days(e.left)} ${e.op} ${value(e.right, 'integer')})`;
       default:
         throw new Error(`internal error: ${e.op} is not a date`);
@@ -80,6 +82,7 @@ export function emitRule(
   /** A timestamp as milliseconds since the epoch: a field, a timestamp text, or a timestamp ± a time. Exact, as each is UTC. */
   const instant = (e: RuleExpr): string => {
     if ((e.op === '+' || e.op === '-') && e.right.op === 'duration') {
+      if (e.right.unit === 'months') return `Date.parse(${value(e, 'timestamp')})`;
       return `(${instant(e.left)} ${e.op} ${value(e.right.value, 'integer')} * ${UNIT_MS[e.right.unit]})`;
     }
     return `Date.parse(${value(e, 'timestamp')})`;
@@ -102,6 +105,11 @@ export function emitRule(
         return `new Date(Date.parse(${value(e.value, 'timestamp')})).toISOString().slice(0, 10)`;
       case '+':
       case '-':
+        // Calendar months, on a date or a timestamp: the text of the day or the instant, in UTC.
+        if (e.right.op === 'duration' && e.right.unit === 'months') {
+          helpers.add('months');
+          return `addMonths(${value(e.left, primitive)}, ${e.op === '-' ? '-' : ''}${value(e.right.value, 'integer')})`;
+        }
         // A timestamp ± a time: compared as instants, so its value here is the instant as text.
         if (e.right.op === 'duration') return `new Date(${instant(e)}).toISOString()`;
         // The days between two dates: a date (or a date text) minus a date.

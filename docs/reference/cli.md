@@ -165,7 +165,7 @@ tests/fixtures/broken-references/domain.manifest.yaml:39:10  error  wrong-ref-ki
 ```
 unchanged  example/generated/domain.runtime.generated.ts
 unchanged  example/generated/domain.schemas.generated.ts
-fingerprint sha256:e69e1912890b626f5d271fdf69961f88eb5848e7928186ab788ce9f150ec1002
+fingerprint sha256:67e930ea67354b292bb6cb49a3302df451b1e94ef8c1cd0dc5657b1bc2a8774d
 ```
 
 | Line | Meaning |
@@ -291,7 +291,7 @@ urn-forge leaves out a property that has no value.
 ```json
 {"type":"file","path":"example/generated/domain.runtime.generated.ts","changed":false}
 {"type":"file","path":"example/generated/domain.schemas.generated.ts","changed":false}
-{"type":"result","ok":true,"fingerprint":"sha256:e69e1912890b626f5d271fdf69961f88eb5848e7928186ab788ce9f150ec1002"}
+{"type":"result","ok":true,"fingerprint":"sha256:67e930ea67354b292bb6cb49a3302df451b1e94ef8c1cd0dc5657b1bc2a8774d"}
 ```
 
 `urn-forge verify --config tutorial/2-declared-errors/urn-forge.config.ts --format json`:

@@ -3,7 +3,8 @@
 Feature: Change the plan of a subscription
 
   Scenario Outline: An immediate change, or a change with no proration, moves the subscription to the new plan
-    Given the current subscription is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the current subscription is:
       | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
@@ -24,7 +25,8 @@ Feature: Change the plan of a subscription
       | paused   | plan_pro                   | immediate |                   |
 
   Scenario: A change at the end of the period shows the new plan as scheduled and keeps the current plan
-    Given the current subscription is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the current subscription is:
       | subscription_id              | customer_id | plan                                                                                                          | quantity | status | current_period_start | current_period_end   |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
@@ -35,7 +37,8 @@ Feature: Change the plan of a subscription
       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_pro          |
 
   Scenario Outline: A request that breaks a field limit is rejected
-    Given the current subscription is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the current subscription is:
       | subscription_id              | customer_id | plan                                                                                                          | quantity | status | current_period_start | current_period_end   |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
@@ -53,7 +56,8 @@ Feature: Change the plan of a subscription
       | idempotency_key | sub_aaaaaaaaaaaaaaaaaaaaaaaa | plan_pro                   | none      | =repeat(256, "k") |
 
   Scenario: A request without a proration mode is rejected
-    Given the current subscription is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the current subscription is:
       | subscription_id              | customer_id | plan                                                                                                          | quantity | status | current_period_start | current_period_end   |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
@@ -62,7 +66,8 @@ Feature: Change the plan of a subscription
     Then the input is rejected on "proration"
 
   Scenario: A plan in a different currency is refused
-    Given the current subscription is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the current subscription is:
       | subscription_id              | customer_id | plan                                                                                                          | quantity | status | current_period_start | current_period_end   |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
@@ -74,14 +79,16 @@ Feature: Change the plan of a subscription
     And the operation emits no event
 
   Scenario: An unknown subscription is not found
-    Given there is no current subscription
+    Given the time is "2026-11-22T10:00:00Z"
+    And there is no current subscription
     When I run the operation with:
       | subscription_id              | plan_id  | proration |
       | sub_000000000000000000000000 | plan_pro | immediate |
     Then the operation fails with "urn:corpus:subscriptions:subscription:error:not_found"
 
   Scenario Outline: A canceled or expired subscription cannot change its plan
-    Given the current subscription is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the current subscription is:
       | subscription_id              | customer_id | plan                                                                                                          | quantity | status   | current_period_start | current_period_end   |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
     When I run the operation with:
@@ -98,7 +105,8 @@ Feature: Change the plan of a subscription
       | expired  |
 
   Scenario Outline: A change keeps the mark of a trial that was announced, so the clock does not announce it again
-    Given the current subscription is:
+    Given the time is "2026-11-22T10:00:00Z"
+    And the current subscription is:
       | subscription_id              | customer_id | plan | quantity | status   | current_period_start | current_period_end   | trial_end  | trial_will_end_sent_at |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 | 2026-11-22T00:00:00Z   |
     When I run the operation with:
@@ -157,3 +165,75 @@ Feature: Change the plan of a subscription
       | subscription_id | plan_id  | proration | idempotency_key |
       | sub_aaaaaaaaaaaaaaaaaaaaaaaa | plan_pro | immediate | key-1 |
     Then the operation emits "urn:corpus:subscriptions:subscription:event:updated"
+
+  Scenario: A plan with the same billing period keeps the current period that ends on Feb 28
+    Given the time is "2026-02-10T08:00:00Z"
+    And the current subscription is:
+      | subscription_id              | customer_id | plan                                                                                                            | quantity | status | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active | 2026-01-31T10:00:00Z | 2026-02-28T10:00:00Z |
+    When I run the operation with:
+      | subscription_id              | plan_id  | proration |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | plan_pro | immediate |
+    Then the output is:
+      | current_period_start | current_period_end   |
+      | 2026-01-31T10:00:00Z | 2026-02-28T10:00:00Z |
+
+  Scenario: A monthly plan from another period starts a new period now: from Jan 31 it ends on Feb 28
+    Given the time is "2026-01-31T09:00:00Z"
+    And the current subscription is:
+      | subscription_id              | customer_id | plan                                                                                                                     | quantity | status | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_team-quarterly, billing_period: month, interval_count: 3, price: { amount_minor: 1500, currency: EUR } } | 1        | active | 2025-12-15T00:00:00Z | 2026-03-15T00:00:00Z |
+    When I run the operation with:
+      | subscription_id              | plan_id    | proration |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | plan_basic | immediate |
+    Then the output is:
+      | current_period_start | current_period_end   |
+      | 2026-01-31T09:00:00Z | 2026-02-28T09:00:00Z |
+
+  Scenario: A monthly plan from another period starts a new period now: from Jan 31 of a leap year it ends on Feb 29
+    Given the time is "2028-01-31T09:00:00Z"
+    And the current subscription is:
+      | subscription_id              | customer_id | plan                                                                                                                     | quantity | status | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_team-quarterly, billing_period: month, interval_count: 3, price: { amount_minor: 1500, currency: EUR } } | 1        | active | 2027-12-15T00:00:00Z | 2028-03-15T00:00:00Z |
+    When I run the operation with:
+      | subscription_id              | plan_id    | proration |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | plan_basic | none      |
+    Then the output is:
+      | current_period_start | current_period_end   |
+      | 2028-01-31T09:00:00Z | 2028-02-29T09:00:00Z |
+
+  Scenario: A monthly plan from a yearly one starts a new period now: from Mar 31 it ends on Apr 30
+    Given the time is "2026-03-31T09:00:00Z"
+    And the current subscription is:
+      | subscription_id              | customer_id | plan                                                                                                                | quantity | status | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_pro-yearly, billing_period: year, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active | 2025-04-01T00:00:00Z | 2026-04-01T00:00:00Z |
+    When I run the operation with:
+      | subscription_id              | plan_id    | proration |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | plan_basic | immediate |
+    Then the output is:
+      | current_period_start | current_period_end   |
+      | 2026-03-31T09:00:00Z | 2026-04-30T09:00:00Z |
+
+  Scenario: A quarterly plan from a monthly one starts a new period now: from Dec 31 it ends on Mar 31
+    Given the time is "2026-12-31T09:00:00Z"
+    And the current subscription is:
+      | subscription_id              | customer_id | plan                                                                                                            | quantity | status | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active | 2026-12-10T00:00:00Z | 2027-01-10T00:00:00Z |
+    When I run the operation with:
+      | subscription_id              | plan_id             | proration |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | plan_team-quarterly | immediate |
+    Then the output is:
+      | current_period_start | current_period_end   |
+      | 2026-12-31T09:00:00Z | 2027-03-31T09:00:00Z |
+
+  Scenario: A change at the end of the period keeps the current period
+    Given the time is "2026-11-30T09:00:00Z"
+    And the current subscription is:
+      | subscription_id              | customer_id | plan                                                                                                            | quantity | status | current_period_start | current_period_end   |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | 1        | active | 2026-11-10T00:00:00Z | 2026-12-10T00:00:00Z |
+    When I run the operation with:
+      | subscription_id              | plan_id             | proration     |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | plan_team-quarterly | at_period_end |
+    Then the output is:
+      | current_period_start | current_period_end   |
+      | 2026-11-10T00:00:00Z | 2026-12-10T00:00:00Z |
