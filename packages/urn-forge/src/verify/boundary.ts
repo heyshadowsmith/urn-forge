@@ -1,168 +1,102 @@
 /**
- * Gate 2: boundary discipline. No branded value is forged outside the
- * generated parsers. Four rules run on the type checker, over the core files (the core entry
- * and the files that it imports in its own directory) and the shell files (config `shell`):
+ * Gate 2: the boundary. The shell runs the core only through the harness, which checks each input
+ * and each answer. Two rules, over the core files (the core and the files it imports from its own
+ * directory) and the shell files (config `shell`):
  *
- * - `brand-assertion`: a type assertion whose target type carries a brand.
- * - `brand-from-any`: an expression of type `any` where the type carries a brand.
- * - `suppressed-check`: `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`.
- * - `core-parser-import`: a value import of the generated schemas or of `valibot` in a core file.
- *
- * `as const`, an assertion to a type with no brand, and a type import are not forging.
+ * - `direct-call`: a shell file reads a function of the core (`core.seat_booking`), which skips the
+ *   harness. Passing `core` to runOperation is the boundary.
+ * - `suppressed-check`: `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`, which can hide a broken contract.
  */
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import ts from 'typescript';
-import type { Diagnostic, DiagnosticCode } from '../diagnostics.js';
-import { VALIBOT_SCHEMAS_FILE } from '../plugins/valibot.plugin.js';
-import { generatedPath } from '../write.js';
-import { programFor } from './completeness.js';
-import { displayPath, type Gate, type GateContext, type GateOutcome } from './types.js';
-
-/** How deep the brand test looks into objects, arrays and unions; recursive types stop here. */
-const BRAND_DEPTH = 4;
+import type { GateOutcome, GateProblem } from './types.js';
 
 const SOURCE = /\.(?:ts|tsx|mts|cts)$/u;
 
-/** Every source file under a path: the file itself, or each one in the directory, at any depth. */
 function sourcesUnder(path: string): string[] {
   if (!existsSync(path)) return [];
   if (!statSync(path).isDirectory()) return [resolve(path)];
   return readdirSync(path, { withFileTypes: true }).flatMap((entry) =>
-    entry.name === 'node_modules' || entry.name.startsWith('.') ? [] : entry.isDirectory() ? sourcesUnder(join(path, entry.name)) : SOURCE.test(entry.name) && !entry.name.endsWith('.d.ts') ? [resolve(path, entry.name)] : [],
+    entry.name === 'node_modules' || entry.name.startsWith('.')
+      ? []
+      : entry.isDirectory()
+        ? sourcesUnder(join(path, entry.name))
+        : SOURCE.test(entry.name) && !entry.name.endsWith('.d.ts')
+          ? [resolve(path, entry.name)]
+          : [],
   );
 }
 
-/** Whether a type carries Valibot's brand, through unions, intersections, arrays, tuples and properties. */
-function carriesBrand(checker: ts.TypeChecker, type: ts.Type, depth = 0, seen = new Set<ts.Type>()): boolean {
-  if (depth > BRAND_DEPTH || seen.has(type)) return false;
-  seen.add(type);
-  if (type.isUnionOrIntersection()) return type.types.some((t) => carriesBrand(checker, t, depth + 1, seen));
-  if (!(type.flags & ts.TypeFlags.Object)) return false;
-  for (const property of type.getProperties()) {
-    // Valibot's Brand<Name> has one property, keyed by its unique symbol BrandSymbol.
-    if (String(property.escapedName).startsWith('__@BrandSymbol')) return true;
-  }
-  if (checker.isArrayType(type) || checker.isTupleType(type)) {
-    return checker.getTypeArguments(type as ts.TypeReference).some((t) => carriesBrand(checker, t, depth + 1, seen));
-  }
-  // An object with branded properties: a function or a class is not a value to forge.
-  if (type.getCallSignatures().length > 0 || type.getConstructSignatures().length > 0) return false;
-  return type.getProperties().some((property) => {
-    const declaration = property.valueDeclaration ?? property.declarations?.[0];
-    if (!declaration) return false;
-    return carriesBrand(checker, checker.getTypeOfSymbolAtLocation(property, declaration), depth + 1, seen);
-  });
+export interface BoundaryOptions {
+  readonly corePath: string;
+  readonly generatedPath: string;
+  readonly shell: readonly string[];
+  readonly tsconfigPath: string;
+  readonly show: (path: string) => string;
 }
 
-const SUPPRESSION = /(?:\/\/|\/\*)\s*@ts-(ignore|expect-error|nocheck)\b/gu;
-
-export function checkBoundary(context: GateContext): GateOutcome {
-  const show = (path: string) => displayPath(context.cwd, path, relative);
-  const generatedDir = resolve(context.outDir) + sep;
-  const schemasFile = resolve(generatedPath(context.outDir, VALIBOT_SCHEMAS_FILE));
-  const coreDir = resolve(dirname(context.corePath)) + sep;
-
-  // The core files: the core entry and what it imports in its own directory (gate 1's program).
-  const coreProgram = programFor(context);
-  if (!coreProgram) return { summary: 'not run: gate 1 could not build the program', problems: [] };
-  const ours = (file: ts.SourceFile) => !file.isDeclarationFile && !file.fileName.includes(`${sep}node_modules${sep}`) && !resolve(file.fileName).startsWith(generatedDir);
-  const coreFiles = new Set(coreProgram.getSourceFiles().filter((f) => ours(f) && resolve(f.fileName).startsWith(coreDir)).map((f) => resolve(f.fileName)));
-  const shellFiles = new Set((context.shellPaths ?? []).flatMap(sourcesUnder).filter((f) => !coreFiles.has(f) && !f.startsWith(generatedDir)));
-  // A shell path that matches no source file turns gate 2 off for it in silence, as a typo does.
-  const unmatched: Diagnostic[] = (context.shellPaths ?? [])
-    .filter((path) => sourcesUnder(path).length === 0)
-    .map((path) => ({
-      code: 'shell-not-found',
-      severity: 'warning',
-      file: show(path),
-      message: existsSync(path) ? 'the shell path has no TypeScript file, so gate 2 examines nothing here' : 'the shell path does not exist, so gate 2 examines nothing here; correct the path in shell',
-    }));
-
-  // One program for both sets, built on gate 1's, so the core files are not checked twice.
-  const program = shellFiles.size === 0 ? coreProgram : ts.createProgram([...coreProgram.getRootFileNames(), ...shellFiles], coreProgram.getCompilerOptions(), undefined, coreProgram);
+export function boundaryGate(options: BoundaryOptions, coreProgram: ts.Program | string): GateOutcome {
+  const result = (pass: boolean, summary: string, problems: GateProblem[]): GateOutcome => ({ gate: 2, name: 'boundary', pass, summary, problems });
+  if (typeof coreProgram === 'string') return result(false, 'the tsconfig cannot be read', []);
+  const coreDir = dirname(resolve(options.corePath)) + sep;
+  const generated = resolve(options.generatedPath);
+  const coreFiles = coreProgram
+    .getSourceFiles()
+    .map((s) => resolve(s.fileName))
+    .filter((f) => f.startsWith(coreDir) && f !== generated && !f.includes(`${sep}node_modules${sep}`));
+  const shellFiles = options.shell.flatMap(sourcesUnder).filter((f) => f !== generated && !coreFiles.includes(f));
+  const program = shellFiles.length === 0 ? coreProgram : ts.createProgram({ rootNames: [...coreFiles, ...shellFiles], options: coreProgram.getCompilerOptions() });
   const checker = program.getTypeChecker();
-  const problems: Diagnostic[] = [...unmatched];
+  const problems: GateProblem[] = [];
+  const at = (source: ts.SourceFile, position: number) => ({ file: options.show(source.fileName), line: source.getLineAndCharacterOfPosition(position).line + 1 });
 
-  for (const fileName of [...coreFiles, ...shellFiles]) {
-    const source = program.getSourceFile(fileName);
+  // The exports of the core: a shell that reads a property of one calls the core directly.
+  const coreSource = program.getSourceFile(resolve(options.corePath));
+  const coreExports = new Set<ts.Symbol>();
+  if (coreSource) {
+    const moduleSymbol = checker.getSymbolAtLocation(coreSource);
+    for (const symbol of moduleSymbol ? checker.getExportsOfModule(moduleSymbol) : []) coreExports.add(symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol);
+  }
+
+  for (const file of [...coreFiles, ...shellFiles]) {
+    const source = program.getSourceFile(file);
     if (!source) continue;
-    const inCore = coreFiles.has(fileName);
-    const report = (code: DiagnosticCode, node: ts.Node | number, message: string) => {
-      const position = typeof node === 'number' ? node : node.getStart(source);
-      const { line, character } = source.getLineAndCharacterOfPosition(position);
-      problems.push({ code, severity: 'error', file: show(fileName), location: { line: line + 1, column: character + 1 }, message });
-    };
-    const text = (node: ts.Node) => {
-      const raw = node.getText(source).replace(/\s+/gu, ' ');
-      return raw.length > 60 ? `${raw.slice(0, 57)}…` : raw;
-    };
-
-    /** The branded type an any meets, as the code writes it when it does: an annotation or a return type. */
-    const expectedText = (node: ts.Node, expected: ts.Type): string => {
-      const parent = node.parent;
-      if (ts.isVariableDeclaration(parent) && parent.type) return text(parent.type);
-      if (ts.isReturnStatement(parent) || ts.isArrowFunction(parent)) {
-        const fn = ts.findAncestor(parent, ts.isFunctionLike);
-        if (fn?.type) return text(fn.type);
-      }
-      const written = checker.typeToString(expected);
-      return written.length > 60 ? `${written.slice(0, 57)}…` : written;
-    };
-
-    // Only comments count: a string that holds the same text is not a suppression.
-    const comments = new Map<number, number>();
-    const collect = (node: ts.Node) => {
-      for (const range of [...(ts.getLeadingCommentRanges(source.text, node.getFullStart()) ?? []), ...(ts.getTrailingCommentRanges(source.text, node.getEnd()) ?? [])]) {
-        comments.set(range.pos, range.end);
-      }
-      ts.forEachChild(node, collect);
-    };
-    collect(source);
-    for (const range of ts.getLeadingCommentRanges(source.text, source.endOfFileToken.getFullStart()) ?? []) comments.set(range.pos, range.end);
-    for (const [pos, end] of [...comments].sort(([a], [b]) => a - b)) {
-      for (const match of source.text.slice(pos, end).matchAll(SUPPRESSION)) {
-        report('suppressed-check', pos + match.index, `@ts-${match[1]} turns off a type check, which could hide a forged brand; correct the type instead`);
-      }
+    for (const match of source.text.matchAll(/@ts-(ignore|expect-error|nocheck)\b/g)) {
+      problems.push({ code: 'suppressed-check', severity: 'error', ...at(source, match.index), message: `@ts-${match[1]} can hide a broken contract; fix the type error` });
     }
-
+    if (!shellFiles.includes(file)) continue;
+    const isCore = (expression: ts.Expression): boolean => {
+      if (!ts.isIdentifier(expression)) return false;
+      let symbol = checker.getSymbolAtLocation(expression);
+      if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+      return symbol !== undefined && coreExports.has(symbol);
+    };
     const visit = (node: ts.Node): void => {
-      // A type assertion to a branded type: `x as T`, `<T>x`. `as const` is not one.
-      if ((ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) && !(ts.isTypeReferenceNode(node.type) && node.type.getText(source) === 'const')) {
-        const target = checker.getTypeFromTypeNode(node.type);
-        if (carriesBrand(checker, target)) {
-          report('brand-assertion', node, `${text(node)} asserts the branded type ${text(node.type)}; only a generated parser makes a branded value`);
-        }
+      // const { quote_shipping } = core takes a function of the core out of it, as core.quote_shipping does.
+      if (ts.isVariableDeclaration(node) && ts.isObjectBindingPattern(node.name) && node.initializer && isCore(node.initializer)) {
+        problems.push({
+          code: 'direct-call',
+          severity: 'error',
+          ...at(source, node.getStart()),
+          message: `${node.getText()} takes a function of the core without the harness; call runOperation(${node.initializer.getText()}, …), which checks the input and the answer`,
+        });
       }
-      // An any where a branded type belongs: an assignment, a return, an argument, a property.
-      // A name is not a value: the property name in `{ premium: raw }` has the type of raw, which is reported once, at raw.
-      const isName = ts.isIdentifier(node) && !ts.isShorthandPropertyAssignment(node.parent) && (node.parent as { readonly name?: ts.Node }).name === node;
-      if (!isName && ts.isExpression(node) && !ts.isParenthesizedExpression(node.parent) && checker.getTypeAtLocation(node).flags & ts.TypeFlags.Any) {
-        const expected = checker.getContextualType(node);
-        if (expected && carriesBrand(checker, expected)) {
-          report('brand-from-any', node, `${text(node)} is any where the branded type ${expectedText(node, expected)} belongs; parse the value with a generated schema in the shell`);
-        }
-      }
-      // The core receives branded values and returns plain ones: it never parses.
-      if (inCore && ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-        const clause = node.importClause;
-        const typeOnly = !clause || clause.isTypeOnly || (!clause.name && clause.namedBindings !== undefined && ts.isNamedImports(clause.namedBindings) && clause.namedBindings.elements.every((e) => e.isTypeOnly));
-        const specifier = node.moduleSpecifier.text;
-        const resolved = ts.resolveModuleName(specifier, fileName, program.getCompilerOptions(), ts.sys).resolvedModule?.resolvedFileName;
-        const parser = specifier === 'valibot' || (resolved !== undefined && resolve(resolved) === schemasFile);
-        if (parser && !typeOnly) {
-          report('core-parser-import', node, `the core imports ${specifier} as a value, which can make branded values; the core receives branded input and returns plain output, so import types only (import type)`);
+      if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression)) {
+        let symbol = checker.getSymbolAtLocation(node.expression);
+        if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+        if (symbol && coreExports.has(symbol)) {
+          problems.push({
+            code: 'direct-call',
+            severity: 'error',
+            ...at(source, node.getStart()),
+            message: `${node.getText()} runs the core without the harness; call runOperation(${node.expression.text}, …), which checks the input and the answer`,
+          });
         }
       }
       ts.forEachChild(node, visit);
     };
     visit(source);
   }
-
-  return {
-    summary: `${coreFiles.size} core file(s), ${shellFiles.size} shell file(s): ${problems.length} problem(s)`,
-    problems,
-  };
+  return result(problems.length === 0, `${coreFiles.length} core file(s), ${shellFiles.length} shell file(s): ${problems.length} problem(s)`, problems);
 }
-
-export const boundaryGate: Gate = { number: 2, name: 'boundary', run: checkBoundary };

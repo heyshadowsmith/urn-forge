@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// The path a person takes outside this repository: pack urn-forge, install the tarball in a
-// new project, run `urn-forge init`, then compile, verify and the scenarios. Each step must
-// succeed and show what the README promises. Then a hand edit must fail verify, so a green
-// run is not an accident.
+// The path a person takes outside this repository: pack urn-forge, install the tarball in a new
+// project, run `urn-forge init`, then compile, verify and the scenarios. Each step must succeed.
+// Then a wrong core must fail the scenarios, and a hand edit of a generated file must fail verify,
+// so a green run is not an accident.
 //
 // Run with `npm run test:tarball`. It needs the npm registry for urn-forge's dependencies.
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +16,7 @@ const work = mkdtempSync(join(tmpdir(), 'urn-forge-tarball-'));
 const project = join(work, 'my-domain');
 let failed = false;
 
-/** Runs a command; returns its exit code and its output (stdout and stderr together). */
+/** Runs a command; gives its exit code and its output (stdout and stderr together). */
 function run(command, args, cwd) {
   console.log(`\n$ ${[command, ...args].join(' ')}`);
   try {
@@ -45,33 +45,30 @@ try {
   expect('npm install <tarball>', run('npm', ['install', '--no-audit', '--no-fund', tarball], project).code === 0);
 
   const init = run('npx', ['urn-forge', 'init', '--namespace', 'acme', '--domain', 'billing'], project);
-  expect('urn-forge init', init.code === 0 && init.output.includes('next: npm run verify, then npm run test:features'));
+  expect('urn-forge init', init.code === 0 && init.output.includes('next: npm install, then npx urn-forge compile, then npx urn-forge verify'));
   expect('package.json is an ES module package', JSON.parse(readFileSync(join(project, 'package.json'), 'utf8')).type === 'module');
 
-  // urn-forge/exact is exported to a core: exact decimals and days from the installed package, through tsx as the core runs.
-  const exact = run('npx', ['tsx', '-e', "import { addDecimal, daysBetween } from 'urn-forge/exact'; console.log(addDecimal('0.1', '0.2'), daysBetween('2028-02-28', '2028-03-01'));"], project);
-  expect('urn-forge/exact', exact.code === 0 && exact.output.includes('0.3 2'));
-
+  expect('compile', run('npm', ['run', 'compile'], project).code === 0);
   const verify = run('npm', ['run', 'verify'], project);
-  expect('verify passes with no warning', verify.code === 0 && verify.output.includes('verify passed (gates 1, 2, 3, 4;'));
+  expect('verify passes with no warning', verify.code === 0 && verify.output.includes('verify passed (gates 1, 2, 3, 4)'));
 
   const features = run('npm', ['run', 'test:features'], project);
-  expect('every scenario passes', features.code === 0 && features.output.includes('9 scenarios (9 passed)'));
+  expect('every scenario passes', features.code === 0 && features.output.includes('11 scenarios (11 passed)'));
 
-  // A changed rule in the core: the scenarios must catch it.
+  // A changed rule in the core: the harness must catch it.
   const corePath = join(project, 'src/core.ts');
-  writeFileSync(corePath, readFileSync(corePath, 'utf8').replace('total_cents / count', 'total_cents / count + 1'));
+  writeFileSync(corePath, readFileSync(corePath, 'utf8').replace('total_cents / people.length', 'total_cents / people.length + 1'));
   const broken = run('npm', ['run', 'test:features'], project);
-  expect('a wrong core fails the scenarios', broken.code !== 0 && broken.output.includes('share_cents: expected 250, got 251'));
+  expect('a wrong core fails the scenarios', broken.code !== 0 && broken.output.includes('ContractViolation: shares_add_up of split: The shares do not add up to the total'));
 
   // A hand edit of a generated file: verify must fail at gate 4.
-  const runtime = join(project, 'src/generated/domain.runtime.generated.ts');
-  writeFileSync(runtime, `${readFileSync(runtime, 'utf8')}// edited\n`);
+  const generated = join(project, 'src/generated/domain.generated.ts');
+  writeFileSync(generated, `${readFileSync(generated, 'utf8')}// edited\n`);
   const drift = run('npm', ['run', 'verify'], project);
-  expect('a hand-edited generated file fails gate 4', drift.code !== 0 && drift.output.includes('generated-differs'));
+  expect('a hand-edited generated file fails gate 4', drift.code !== 0 && drift.output.includes('the generated file is not current'));
 
-  // The tutorials (docs/tutorials) start from init and change four files. Their end state
-  // must pass in a project made from the tarball, with the files init wrote.
+  // The tutorials (docs/tutorials) start from init and change the manifest, the config, the core and
+  // the feature. Their end state must pass in a project made from the tarball.
   const shipping = join(work, 'my-shipping');
   execFileSync('mkdir', [shipping]);
   run('npm', ['init', '-y'], shipping);
@@ -79,14 +76,13 @@ try {
   expect('tutorial: urn-forge init', run('npx', ['urn-forge', 'init', '--namespace', 'demo', '--domain', 'shipping'], shipping).code === 0);
   rmSync(join(shipping, 'features/split.feature'));
   const tutorial = join(packageDir, 'tutorial/3-strict-coverage');
-  for (const file of ['domain.manifest.yaml', 'urn-forge.config.ts', 'src/core.ts', 'features/quote_shipping.feature']) {
-    cpSync(join(tutorial, file), join(shipping, file));
-  }
+  for (const file of ['domain.manifest.yaml', 'urn-forge.config.ts', 'src/core.ts']) cpSync(join(tutorial, file), join(shipping, file));
+  for (const file of readdirSync(join(tutorial, 'features')).filter((f) => f.endsWith('.feature'))) cpSync(join(tutorial, 'features', file), join(shipping, 'features', file));
   expect('tutorial: compile', run('npx', ['urn-forge', 'compile'], shipping).code === 0);
   const tutorialVerify = run('npx', ['urn-forge', 'verify'], shipping);
-  expect('tutorial: verify passes with no warning', tutorialVerify.code === 0 && tutorialVerify.output.includes('verify passed (gates 1, 2, 3, 4;'));
+  expect('tutorial: verify passes with no warning', tutorialVerify.code === 0 && tutorialVerify.output.includes('verify passed (gates 1, 2, 3, 4)'));
   const tutorialFeatures = run('npx', ['cucumber-js'], shipping);
-  expect('tutorial: every scenario passes', tutorialFeatures.code === 0 && tutorialFeatures.output.includes('10 scenarios (10 passed)'));
+  expect('tutorial: every scenario passes', tutorialFeatures.code === 0 && /\d+ scenarios \(\d+ passed\)/.test(tutorialFeatures.output));
 } finally {
   rmSync(work, { recursive: true, force: true });
 }

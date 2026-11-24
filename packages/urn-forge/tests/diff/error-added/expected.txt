@@ -1,2 +1,0 @@
-compatible urn:demo:shop:order:error:closed
-breaking urn:demo:shop:order:operation:place

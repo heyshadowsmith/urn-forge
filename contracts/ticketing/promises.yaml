@@ -1,173 +1,199 @@
 contract: ticketing
 description: "Sells tickets for concerts and events with seated and standing sections to buyers, holds seats during checkout, issues tickets, and handles transfers and refunds for buyers, organizers and box-office staff."
 promises:
-  # A seated or a standing place is a kind field with optional row and seat number, and invariants; the generated type is not a union.
+  # Declared: section, row and seat_number are definitions with the patterns and the bounds of the promise, and seat
+  # requires all three. Every value that names a place (hold_line, held_line, ticket) carries place_kind and applies
+  # seated_place_names_a_seat (a seated place has a row and a seat number) and standing_place_names_no_seat (a
+  # standing place has neither). The generated type is not a union, but no value that breaks the promise passes a check.
   P01:
     promise: "A seat is identified by a section code of 1 to 6 uppercase letters or digits, a row of 1 to 2 uppercase letters, and a seat number from 1 to 150; a standing section has no row and no seat number."
-    status: workaround
-    by: [seat.field.place_kind, seat.field.section, seat.field.row, seat.field.seat_number, hold.invariant.seated_line_names_one_seat, hold.invariant.standing_line_names_quantity, ticket.invariant.seated_ticket_has_seat, ticket.invariant.standing_ticket_has_no_seat]
-    hole: B1
-  # Every amount is money.entity.money: a required integer amount_minor with min 0, and a required currency. urn-forge
-  # ships no ISO 4217 list (roadmap decision 9), so the currency is an enum of the ISO 4217 codes the service sells in,
-  # EUR, GBP and USD: a narrower promise than "any ISO 4217 code", checked by the schema, the Postgres CHECK and diff.
-  # order.invariant.amounts_share_currency states that the fees and each ticket price are in the currency of the total,
-  # on every answer with an order (check_out, get_order) and on the stored order that request_refund reads;
-  # hold.invariant.amounts_share_currency does the same for the hold the order pays for. check_out ensures the order is in
-  # the currency of its hold, and request_refund that the refund is in the currency of its order. A core that answers
-  # otherwise is a ContractViolation. Scenarios check every amount of an order in USD and a refund in GBP. The Postgres
-  # CHECK does not see the items of a list (unenforced-in-sql on the hold); the generated schema does.
+    status: declared
+    by: [definitions.section, definitions.row, definitions.seat_number, definitions.seat, definitions.place_kind, definitions.hold_line, definitions.held_line, definitions.ticket, rules.seated_place_names_a_seat, rules.standing_place_names_no_seat]
+  # Declared: every amount is a definition of type money (price, fees, total, refund_amount): a required integer
+  # amount_minor with minimum 0, and a required currency. urn-forge ships no ISO 4217 list, so the currency is an enum
+  # of the ISO 4217 codes the service sells in, EUR, GBP and USD: a narrower promise than "any ISO 4217 code".
+  # order_amounts_share_currency puts the fees and each ticket price in the currency of the order's total;
+  # hold_amounts_share_currency does the same for the hold. check_out's order_of_the_hold puts the order in the
+  # currency of its hold, and request_refund's refunds_the_request puts a refund in the currency of its order.
   P02:
     promise: "Every money amount is a non-negative integer number of minor units (for example cents) together with a three-letter ISO 4217 currency code, and all amounts in one order share the same currency."
     status: declared
-    by: [money.entity.money, money.field.amount_minor, money.field.currency, order.invariant.amounts_share_currency, hold.invariant.amounts_share_currency, order.operation.check_out, refund.operation.request_refund]
-  # Workaround: The tickets are inside the order answer: a core can issue two tickets with one code, and the unique index sees a code only if the shell writes each ticket as a row in writes.
+    by: [definitions.money, definitions.amount_minor, definitions.currency, rules.order_amounts_share_currency, rules.hold_amounts_share_currency, rules.order_of_the_hold, rules.refunds_the_request]
+  # Workaround: the pattern is declared, and no_code_twice keeps the codes of one order apart. Uniqueness across all
+  # events is the primary key of the ticket table, which sees a code only if the shell writes each issued ticket of a
+  # placed_order (and each new_ticket of accept_transfer) as a ticket row; nothing generated says to. A core can issue
+  # a code that a ticket of another order already has, and every check passes.
   P03:
     promise: "A ticket code is exactly 16 characters from the uppercase letters A-Z (without I and O) and the digits 2-9, and is unique across all events."
     status: workaround
-    by: [ticket.field.ticket_code, ticket.entity.ticket]
+    by: [definitions.ticket_code, definitions.ticket, rules.no_code_twice]
     hole: C1
-  # The total of at most 10 tickets counts 1 for a seated line and the quantity for a standing line: a sum with a condition, which only the core checks; the line is not a union type (B1); the distinct seats are P05.
+  # Declared: hold_request requires event_id and hold_lines; hold_lines has minItems 1 and maxItems 10. A line has a
+  # required quantity of at least 1: seated_line_is_one_place makes a seated line one seat (quantity 1), and
+  # seated_place_names_a_seat gives it its row and seat number; standing_place_names_no_seat makes a standing line a
+  # section and a quantity. no_seat_twice keeps the seats distinct, and at_most_ten_tickets sums the quantities of
+  # the lines (1 per seated line) to at most 10.
   P04:
     promise: "A hold request names one event and contains 1 to 10 lines, where a seated line names exactly one distinct seat and a standing line names a section and a quantity of at least 1, and the total number of tickets across all lines is at most 10."
-    status: workaround
-    by: [hold.entity.hold_request, hold.entity.hold_line, show.field.event_id, seat.field.quantity, hold.invariant.seated_line_names_one_seat, hold.invariant.standing_line_names_quantity]
-    hole: A1
-  # Each list of places of a hold request, a hold and an order is unique by section, row and seat number; a standing line or ticket has no row or seat number, so it is not compared.
+    status: declared
+    by: [definitions.hold_request, definitions.hold_lines, definitions.hold_line, definitions.quantity, definitions.event_id, rules.seated_line_is_one_place, rules.seated_place_names_a_seat, rules.standing_place_names_no_seat, rules.no_seat_twice, rules.at_most_ten_tickets]
+  # Declared: no_seat_twice applies to the lines of a hold request (hold_lines), of a hold (held_lines) and to the
+  # tickets of an order (tickets): no two items with a row and a seat number name the same section, row and seat.
   P05:
     promise: "A single hold or order never contains the same seat twice."
     status: declared
-    by: [hold.entity.hold_request, hold.entity.hold, order.entity.order, seat.field.section, seat.field.row, seat.field.seat_number]
+    by: [rules.no_seat_twice, definitions.hold_lines, definitions.held_lines, definitions.tickets]
+  # Declared: one operation per request.
   P06:
     promise: "A caller can request: create a hold, release a hold, check out a hold, get an order, transfer a ticket, accept a transfer, cancel a transfer, request a refund, and validate a ticket at entry."
     status: declared
-    by: [hold.operation.create_hold, hold.operation.release_hold, order.operation.check_out, order.operation.get_order, transfer.operation.transfer_ticket, transfer.operation.accept_transfer, transfer.operation.cancel_transfer, refund.operation.request_refund, entry.operation.validate_ticket]
-  # The answer of create_hold is hold.entity.hold: a required hold id, 1 to 10 held lines (a seat, or a standing
-  # section and quantity) each with a required price, and a required total. create_hold ensures
-  # output.created_at = now (the hold is created at the time of the call, which the shell gives) and
-  # output.expires_at = output.created_at + 10 minutes, so the runtime refuses any other expiry as a ContractViolation.
-  # Scenarios at 19:00, 19:55 and 23:54:59.999 on New Year's Eve show the expiry exactly 10 minutes later.
+    by: [operations.create_hold, operations.release_hold, operations.check_out, operations.get_order, operations.transfer_ticket, operations.accept_transfer, operations.cancel_transfer, operations.request_refund, operations.validate_ticket]
+  # Declared: the success of create_hold is new_hold, whose hold requires the hold id, 1 to 10 held lines (a seat, or a
+  # standing section and quantity) each with a required price, the total and both times. hold_created_at_the_call
+  # makes created_at the time of the call (called_at, from the shell's clock) and expires_at exactly 10 minutes later.
   P07:
     promise: "A successful hold answer carries a hold id, the held seats or standing quantities, the price of each line, the order total, and an expiry time exactly 10 minutes after the hold was created."
     status: declared
-    by: [hold.operation.create_hold, hold.entity.hold, hold.field.hold_id, hold.entity.held_line, money.entity.money, hold.field.created_at, hold.field.expires_at]
-  # The four refusals are declared; that the listed seats are exactly the requested seats that cannot be held is a rule between request and answer, and "a refused hold holds nothing" is not stated.
+    by: [operations.create_hold, definitions.new_hold, definitions.hold, definitions.held_line, definitions.price, definitions.total, definitions.created_at, definitions.expires_at, rules.hold_created_at_the_call]
+  # Workaround: the four refusals are outputs, and lists_requested_seats, names_a_requested_standing_section and
+  # names_the_requested_event tie them to the request. Which seats are taken, the capacity left in a section, the
+  # tickets the buyer already holds and whether the event is on sale live in other stored records that the input
+  # does not carry: a core can list one of two taken seats, or refuse SALES_CLOSED for an event on sale, and every
+  # check passes. A refusal carries no hold, so a shell that writes from the answer writes none.
   P08:
     promise: "A hold request is refused with SEAT_UNAVAILABLE listing every requested seat that cannot be held, with SECTION_SOLD_OUT naming the standing section lacking capacity, with LIMIT_EXCEEDED if the buyer would hold more than 10 tickets for the event, or with SALES_CLOSED if the event is not on sale; a refused hold holds nothing."
     status: workaround
-    by: [hold.operation.create_hold, hold.error.seat_unavailable, hold.error.section_sold_out, hold.error.limit_exceeded, hold.error.sales_closed]
-    hole: A2
-  # Workaround: Nothing checks that the loaded hold is the one that the request names, so an expired hold can be checked out with another hold as current. The core can answer a success for a declined payment.
+    by: [operations.create_hold, definitions.seat_unavailable, definitions.section_sold_out, definitions.limit_exceeded, definitions.sales_closed, rules.lists_requested_seats, rules.names_a_requested_standing_section, rules.names_the_requested_event]
+    hole: C1
+  # Declared: checkout_request requires the hold id and the payment reference, and carries the hold as stored
+  # (names_the_hold) and the outcome of the payment, which the shell gets from the payment provider. hold_missing
+  # gives HOLD_NOT_FOUND exactly when there is no stored hold; hold_closed_at_checkout gives HOLD_EXPIRED when the
+  # call comes after expires_at (or the hold is no longer ACTIVE), and hold_open_at_checkout keeps a later call from
+  # succeeding; payment_failed gives PAYMENT_DECLINED for a declined payment, and the success requires
+  # payment_approved, so a declined payment answers no order and no TicketIssued. A caller who is not the buyer of
+  # the hold is refused with FORBIDDEN first (P21).
   P09:
     promise: "A checkout request must carry the hold id and a payment reference, and is refused with HOLD_EXPIRED if received after the hold's expiry time, with HOLD_NOT_FOUND for an unknown hold, or with PAYMENT_DECLINED if the payment fails, in which case no ticket is issued."
-    status: workaround
-    by: [order.operation.check_out, order.entity.checkout_request, hold.field.hold_id, order.field.payment_reference, hold.field.expires_at, order.error.hold_expired, hold.error.hold_not_found, order.error.payment_declined, ticket.event.ticket_issued]
-    hole: A2
-  # The total as the sum of the ticket prices plus the fees is an invariant of the order; one ticket per held place pairs the tickets of the answer with the lines of the stored hold, which no rule states.
+    status: declared
+    by: [operations.check_out, definitions.checkout_request, definitions.payment_outcome, definitions.hold_expired_refusal, definitions.hold_not_found, definitions.payment_declined, rules.names_the_hold, rules.hold_missing, rules.hold_open_at_checkout, rules.hold_closed_at_checkout, rules.payment_approved, rules.payment_failed]
+  # Workaround: the order id is required, total_is_line_prices_plus_fees makes the total the line prices of the
+  # stored hold plus the fees, and one_ticket_per_held_place makes the number of tickets the number of held places,
+  # one ticket per held seat, and each standing ticket of a held standing section. With standing lines in two
+  # sections, the split of the standing tickets between them is not checked (FLOOR x2 and PIT x1 answered as FLOOR x1
+  # and PIT x2 passes): that needs a count with a condition, which the rule language lacks.
   P10:
     promise: "A successful checkout returns an order id and exactly one ticket per held seat or standing place, and the order total equals the sum of the line prices plus the listed fees."
     status: workaround
-    by: [order.operation.check_out, order.entity.order, order.field.order_id, order.invariant.total_is_prices_plus_fees]
+    by: [operations.check_out, definitions.order, rules.one_ticket_per_held_place, rules.total_is_line_prices_plus_fees, rules.total_is_prices_plus_fees]
     hole: A1
-  # The moves and the final states are declared, and release and checkout start only from ACTIVE; that the seats of a hold that left ACTIVE are no longer held is a rule across the stored holds and tickets.
+  # Workaround: the states are an enum, and each move is a rule over the stored hold and the answer: release_hold and
+  # expire_hold move an ACTIVE hold to RELEASED or EXPIRED (hold_was_active, else HOLD_NOT_ACTIVE), check_out converts
+  # only an open hold (converts_the_hold). "Its seats are no longer held by it" is about seat availability across the
+  # stored holds and tickets, which no input carries; and the hold table has no check of a change of state, so a
+  # write outside these answers can move a hold out of a final state.
   P11:
     promise: "A hold moves only from ACTIVE to CONVERTED, RELEASED or EXPIRED, and once it leaves ACTIVE its seats are no longer held by it."
     status: workaround
-    by: [hold.field.hold_status, hold.operation.release_hold, order.operation.check_out, hold.error.hold_not_active]
+    by: [definitions.hold_status, operations.release_hold, operations.expire_hold, operations.check_out, rules.hold_was_active, rules.hold_is_released, rules.hold_is_expired, rules.converts_the_hold]
     hole: C1
-  # Workaround: accept_transfer voids a TRANSFER_PENDING or USED ticket that it does not load; validate_ticket, request_refund and cancel_event declare no changes, so their moves are written by writes with no check.
+  # Workaround: transfer_ticket (ISSUED to TRANSFER_PENDING), cancel_transfer (back to ISSUED) and validate_ticket
+  # (ISSUED to USED) are rules over the stored ticket and the answer. But the other promises need moves this one
+  # forbids: accept_transfer voids a TRANSFER_PENDING ticket (P15), and request_refund and cancel_event refund
+  # TRANSFER_PENDING tickets (P16, P17). Two calls that load the same ISSUED ticket can both move it, and the ticket
+  # table has no check of a change of state.
   P12:
     promise: "A ticket moves only from ISSUED to TRANSFER_PENDING, USED, REFUNDED or VOID, from TRANSFER_PENDING back to ISSUED, and no ticket ever leaves USED, REFUNDED or VOID."
     status: workaround
-    by: [ticket.field.ticket_status, transfer.operation.transfer_ticket, transfer.operation.cancel_transfer, ticket.error.invalid_ticket_state]
+    by: [definitions.ticket_status, operations.transfer_ticket, operations.cancel_transfer, operations.validate_ticket, rules.ticket_was_issued, rules.ticket_was_pending, rules.offers_the_ticket, rules.ticket_is_reissued, rules.ticket_used_on_admit]
     hole: C3
   # A rule across all stored holds and tickets of an event, and the capacity of a section.
   P13:
     promise: "At any moment a given seat of an event belongs to at most one active hold or one ISSUED, TRANSFER_PENDING or USED ticket, and a standing section never has more held and issued tickets than its stated capacity."
     status: not-declarable
     hole: C1
-  # Workaround: runOnce gives a repeat as a plain success, and commit runs writes again, which can store a second refund or reset a used ticket. If the shell finds no hold, a repeat answers HOLD_NOT_FOUND instead of the original answer.
+  # Workaround: the key of 8 to 64 characters is required on the three requests. Giving the original answer to a
+  # repeat within 24 hours, and running nothing, is behaviour of the shell, not data: nothing generated checks it.
   P14:
     promise: "Create-hold, checkout and refund requests carry a client-supplied idempotency key of 8 to 64 characters, and repeating a request with the same key within 24 hours returns the original answer without creating a second hold, order or refund."
     status: workaround
-    by: [request.field.idempotency_key, hold.entity.hold_request, order.entity.checkout_request, refund.entity.refund_request, hold.operation.create_hold, order.operation.check_out, refund.operation.request_refund]
+    by: [definitions.idempotency_key, definitions.hold_request, definitions.checkout_request, definitions.refund_request]
     hole: C2
-  # Declared: the request (one ticket code and a recipient email), "only an ISSUED ticket" (changes from ISSUED), and the
-  # 72 hours: transfer_ticket ensures offered_at = now and accept_until = offered_at + 72 hours, and accept_transfer
-  # requires now <= current.offered_at + 72 hours ("within": at 72 hours still), else transfer_expired; scenarios
-  # at 72 hours and a millisecond after. accept_transfer ensures a new ISSUED ticket code, and that its one
-  # TicketTransferred names the new code and the old one as void.
-  # Not declared: (1) "only by that recipient" needs a caller (D2): ticketing has no caller header, and one would make
-  # each operation state callers, while the rest of this promise still fails, so it is not added here; (2) the old
-  # ticket becoming VOID is not a change of the stored ticket: accept_transfer reads the transfer, and P12 does not allow
-  # TRANSFER_PENDING to VOID; (3) "the same seat": the transfer does not carry the place, so no rule ties the new
-  # ticket's place to the old one's (A2), and no record names the recipient as the new ticket's holder.
+  # Workaround: the rules state one call exactly, but an accept_transfer and a cancel_transfer that load the same TRANSFER_PENDING ticket at once both pass ticket_was_pending, and the cancel, stored second, makes the old code ISSUED again next to the recipient's new code: after the acceptance the old ticket is not VOID. Two accepts at once likewise issue two new codes for one seat.
   P15:
     promise: "A transfer names one ISSUED ticket and a recipient email address, may be accepted only by that recipient within 72 hours, and on acceptance the old ticket code becomes VOID and the recipient receives a new ticket code for the same seat."
     status: workaround
-    by: [transfer.operation.transfer_ticket, transfer.operation.accept_transfer, transfer.entity.transfer_request, transfer.field.recipient_email, transfer.field.offered_at, transfer.field.accept_until, transfer.error.transfer_expired, ticket.event.ticket_transferred, ticket.error.invalid_ticket_state]
-    hole: D2
-  # The refusal is declared; the refund at most the amount paid is not stated, and a refund names many tickets, so the states that refuse it cannot be a change of one stored ticket.
+    by: [operations.transfer_ticket, operations.accept_transfer, definitions.transfer_request, definitions.recipient_email, definitions.caller, rules.ticket_was_issued, rules.offers_the_ticket, rules.by_the_recipient, rules.within_72_hours, rules.after_72_hours, rules.voids_the_old_ticket, rules.same_place_new_code]
+    hole: C3
+  # Workaround: the rules state one call exactly, but two refunds that load the same ISSUED ticket at once both pass tickets_refundable and both answer granted_refund, and both are stored: the ticket is refunded twice, more than was paid for it, and the second is not refused with TICKET_NOT_REFUNDABLE.
   P16:
     promise: "A refund is never more than the amount paid for the refunded tickets, and requesting a refund for a ticket that is USED, REFUNDED or VOID is refused with TICKET_NOT_REFUNDABLE."
     status: workaround
-    by: [refund.operation.request_refund, refund.error.ticket_not_refundable]
-    hole: A2
-  # The cancellation and its events are declared; the full refund of every ISSUED or TRANSFER_PENDING ticket, and the publication of the cancellation before the refunds, are not.
+    by: [operations.request_refund, definitions.refund_request, definitions.ticket_not_refundable, rules.loads_the_requested_tickets, rules.refunds_the_request, rules.tickets_refundable, rules.names_an_unrefundable_ticket, rules.refunded_tickets_match_events]
+    hole: C3
+  # Workaround: cancels_the_event refunds every ISSUED or TRANSFER_PENDING ticket of the event, as stored, with one
+  # TicketRefunded each, and EventCancelled comes in the same answer. That the cancellation is published before the
+  # refunds is the order of delivery, which nothing generated keeps; and "in full including fees" is not stated, as
+  # a ticket carries no share of its order's fees and a TicketRefunded no amount.
   P17:
     promise: "When an organizer cancels an event, every ISSUED or TRANSFER_PENDING ticket of that event is refunded in full including fees, and the cancellation is published before the refunds."
     status: workaround
-    by: [show.operation.cancel_event, show.event.event_cancelled, ticket.event.ticket_refunded]
+    by: [operations.cancel_event, definitions.cancelled_event, definitions.event_cancelled, definitions.ticket_refunded, rules.cancels_the_event]
     hole: D4
-  # The four answers are an enum and the moves of a ticket are declared; "ADMIT exactly once, for an ISSUED ticket" answers the other states with a verdict, not with a refusal, so no change of the ticket states it.
+  # Workaround: the verdicts are an enum, and admits_only_an_issued_ticket, already_used_for_a_used_ticket and
+  # wrong_event_for_another_event give each from the stored ticket; an ADMIT answers the ticket USED. "Exactly once"
+  # is not data: two scans that load the same ISSUED ticket both answer ADMIT, and the ticket table does not refuse
+  # the second move to USED.
   P18:
     promise: "Validating a ticket at entry answers ADMIT exactly once for an ISSUED ticket, and answers ALREADY_USED, NOT_VALID or WRONG_EVENT otherwise."
     status: workaround
-    by: [entry.operation.validate_ticket, entry.field.verdict, ticket.event.ticket_used]
+    by: [operations.validate_ticket, definitions.verdict, rules.admits_only_an_issued_ticket, rules.already_used_for_a_used_ticket, rules.wrong_event_for_another_event, rules.ticket_used_on_admit]
     hole: C3
-  # Each event and its fields are declared, each has an operation that emits it, and a scenario shows each. HoldExpired
-  # is emitted by expire_hold, which the shell's clock calls (due: now > current.expires_at, after the last instant
-  # check_out allows); the hold is a Postgres table, so selectHoldExpireHoldDue finds the holds that are due.
-  # create_hold, expire_hold, accept_transfer and validate_ticket emit one event ({ event }, validate_ticket when ADMIT)
-  # and ensure that it names its hold or tickets and event, with occurred_at = now.
-  # Not declared: check_out (OrderPlaced and a TicketIssued per ticket), request_refund (a TicketRefunded per ticket) and
-  # cancel_event (EventCancelled and TicketRefunded) emit several events, and ensures with event. needs exactly one, so
-  # nothing ties their ids or their time to the change; the time of those events is a value of the core (A2).
-  # EventCancelled names no ticket.
+  # Declared: each of the eight events is an object that requires a message id, the event id, the affected hold or
+  # ticket ids and occurred_at, and is part of the answer of the change it reports. A rule of each answer ties it to
+  # the change and the time of the call: hold_created_names_the_hold, hold_is_expired, order_events_name_the_order
+  # (OrderPlaced and one TicketIssued per ticket), voids_the_old_ticket (TicketTransferred), refunds_the_request and
+  # cancels_the_event (one TicketRefunded per refunded ticket, EventCancelled with the refunded tickets),
+  # ticket_used_on_admit (TicketUsed). The delivery and the uniqueness of the message id are P20.
   P19:
     promise: "The domain publishes HoldCreated, HoldExpired, OrderPlaced, TicketIssued, TicketTransferred, TicketRefunded, TicketUsed and EventCancelled events, each carrying an event id, the event's id, the affected ticket or hold ids, and the time it occurred."
-    status: workaround
-    by: [hold.event.hold_created, hold.event.hold_expired, order.event.order_placed, ticket.event.ticket_issued, ticket.event.ticket_transferred, ticket.event.ticket_refunded, ticket.event.ticket_used, show.event.event_cancelled, notice.field.message_id, notice.field.occurred_at, hold.operation.create_hold, hold.operation.expire_hold, transfer.operation.accept_transfer, entry.operation.validate_ticket]
-    hole: A2
-  # Each event has a delivery with id message_id, which the shell gives (newEventId), and the outbox of the Postgres
-  # extra keeps the unique id (primary key), no lost event and at least once (a row stays until markPublished). The
-  # order per ticket is not stated: the outbox orders by one orderBy value of each event, and OrderPlaced names
-  # several tickets (ordered by the order), TicketTransferred two (ordered by the new code, not with the events of
-  # the voided code), so the events of one ticket are not in one order.
+    status: declared
+    by: [definitions.hold_created, definitions.hold_expired, definitions.order_placed, definitions.ticket_issued, definitions.ticket_transferred, definitions.ticket_refunded, definitions.ticket_used, definitions.event_cancelled, definitions.message_id, definitions.occurred_at, rules.hold_created_names_the_hold, rules.hold_is_expired, rules.order_events_name_the_order, rules.voids_the_old_ticket, rules.refunds_the_request, rules.cancels_the_event, rules.ticket_used_on_admit]
+  # Workaround: each event carries a message_id, but the core gives it, and no check sees the ids of other answers,
+  # so two events can share one. Delivery at least once and in order per ticket is behaviour of the shell, not data.
   P20:
     promise: "Published events are delivered at least once and in order per ticket, and each carries a unique event id so consumers can discard duplicates."
     status: workaround
-    by: [notice.field.message_id, hold.event.hold_created, hold.event.hold_expired, order.event.order_placed, ticket.event.ticket_issued, ticket.event.ticket_transferred, ticket.event.ticket_refunded, ticket.event.ticket_used, show.event.event_cancelled]
+    by: [definitions.message_id, definitions.hold_created, definitions.hold_expired, definitions.order_placed, definitions.ticket_issued, definitions.ticket_transferred, definitions.ticket_refunded, definitions.ticket_used, definitions.event_cancelled]
     hole: D4
-  # Not declarable with callers: "staff assigned to the event" needs the caller to hold the list of its events and a rule of membership, which the rule language lacks; one assigned event id would not fit staff assigned to several events. Also no record holds the owner or the organizer: the hold and the ticket have no buyer, request_refund and cancel_event read no record, and no event entity names its organizer.
+  # Declared: each input carries the caller as the shell authenticated it, and each stored record its owner. A hold,
+  # an order and a ticket have a buyer_id: by_the_hold_buyer guards check_out, by_the_order_buyer request_refund, and
+  # by_the_ticket_buyer transfer_ticket (the tickets of an order are its buyer's, issues_the_tickets); the event (show)
+  # has an organizer_id, which by_the_organizer checks for cancel_event; by_assigned_staff lets validate_ticket run
+  # only for a box_office caller whose assigned_events has the event. Any other caller is answered FORBIDDEN.
   P21:
     promise: "Only the buyer who owns an order may check it out, request its refund or transfer its tickets; only the event's organizer may cancel the event; only box-office staff assigned to the event may validate its tickets."
-    status: not-declarable
-    hole: D2
-  # All times are UTC timestamps; the start time of an event in the IANA time zone of its venue is not stated.
+    status: declared
+    by: [definitions.caller, definitions.buyer_id, definitions.organizer_id, definitions.assigned_events, definitions.forbidden, rules.by_the_hold_buyer, rules.by_the_order_buyer, rules.by_the_ticket_buyer, rules.issues_the_tickets, rules.by_the_organizer, rules.by_assigned_staff]
+  # Workaround: every time is a utc_time, ISO 8601 (format date-time) and in UTC (in_utc). The stored event has the
+  # time zone of its venue, but only as a pattern: whether it is an IANA zone, and the local start time it gives,
+  # need the time zone database, which no rule has.
   P22:
     promise: "All times are exchanged in UTC as ISO 8601 timestamps, while each event also states its start time in its venue's IANA time zone."
     status: workaround
-    by: [hold.field.created_at, hold.field.expires_at, notice.field.occurred_at, transfer.field.offered_at, show.field.cancelled_at]
+    by: [definitions.utc_time, rules.in_utc, definitions.time_zone, definitions.show]
     hole: D3
-  # Workaround: transfer_ticket has no ensures that starts_at is the stored one, and the stored start is a copy of the event's start: after the event moves earlier, a transfer inside the real 2-hour window passes.
+  # Declared: request_refund, transfer_ticket and accept_transfer carry the event as it is stored now (show_of_the_order,
+  # show_of_the_ticket), not a copy of its start. before_refund_cutoff and after_refund_cutoff accept a refund only
+  # earlier than 48 hours before the start (else REFUND_WINDOW_CLOSED); before_transfer_cutoff and
+  # after_transfer_cutoff accept an offer and an acceptance only earlier than 2 hours before it (else
+  # TRANSFER_WINDOW_CLOSED).
   P23:
     promise: "Buyer-requested refunds are accepted only until 48 hours before the event's start time, and transfers are accepted only until 2 hours before the event's start time."
-    status: workaround
-    by: [show.field.starts_at, refund.operation.request_refund, order.entity.order, refund.error.refund_window_closed, transfer.operation.transfer_ticket, ticket.entity.ticket, transfer.operation.accept_transfer, transfer.entity.transfer, transfer.error.transfer_window_closed]
-    hole: E2
-  # Within the major version, urn-forge diff refuses a removal or a rename, and compatibility.callers lets it accept a
-  # new field or refusal code. The 180 days of notice for a new major version is how long the operator runs the old
-  # one, which nothing that urn-forge builds can check.
+    status: declared
+    by: [definitions.show, definitions.starts_at, operations.request_refund, operations.transfer_ticket, operations.accept_transfer, rules.show_of_the_order, rules.show_of_the_ticket, rules.before_refund_cutoff, rules.after_refund_cutoff, rules.before_transfer_cutoff, rules.after_transfer_cutoff]
+  # Workaround: within the major version, urn-forge diff refuses a removal or a rename, and compatibility.callers lets
+  # it accept a new property, output or choice. The 180 days of notice for a new major version is how long the
+  # operator runs the old one, which nothing that urn-forge builds can check.
   P24:
     promise: "Within one major version, fields and refusal codes are only added and never removed or renamed, callers must ignore unknown fields, and a new major version is announced at least 180 days before the old one is retired."
     status: workaround

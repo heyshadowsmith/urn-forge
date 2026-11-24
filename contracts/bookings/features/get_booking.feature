@@ -1,167 +1,111 @@
-@urn:corpus:bookings:booking:operation:get_booking
 Feature: Read a booking
+  # The input holds the booking as the shell loaded it (absent when no booking has the reference), the caller and the time of the call.
 
-  Scenario: Staff read a booking of their own restaurant, with its time zone
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com |
-    When I run the operation with:
-      | reference |
-      | CNFRMD22  |
-    Then the output is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
-
-  Scenario: A guest reads a booking whose reference and email they present
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | email           |
-      | CNFRMD22  | ada@example.com |
-    Then the output is:
-      | reference | state     |
-      | CNFRMD22  | CONFIRMED |
-
-  Scenario: A guest reads a booking whose reference and phone they present
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | phone        |
-      | CNFRMD22  | +33612345678 |
-    Then the output is:
-      | reference | state     |
-      | CNFRMD22  | CONFIRMED |
-
-  Scenario: A reference that is not 8 characters from the published alphabet is rejected
-    Given the caller is:
-      | role  |
-      | guest |
-    And there is no current booking
-    When I run the operation with:
-      | reference |
-      | BOOKING1  |
-    Then the input is rejected on "reference"
+  Scenario: Staff read a booking of their own restaurant, as it is stored
+    When I run "get_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "booking":
+      | reference | restaurant_id                        | state     | time_zone    |
+      | ABCDEFGH  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | Europe/Paris |
 
   Scenario: An unknown reference is not found
-    Given the caller is:
-      | role  |
-      | guest |
-    And there is no current booking
-    When I run the operation with:
-      | reference | email           |
-      | XXXXXXXX  | ada@example.com |
-    Then the operation fails with "urn:corpus:bookings:booking:error:booking_not_found":
+    When I run "get_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z |
+    Then the output is "booking_not_found":
       | reference |
-      | XXXXXXXX  |
+      | ABCDEFGH  |
 
-  Scenario Outline: A guest who does not present the contact of the booking is forbidden
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | email   | phone   |
-      | CNFRMD22  | <email> | <phone> |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden":
+  Scenario: A booking is forbidden to staff of another restaurant
+    When I run "get_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 9b2c1f00-1111-4222-8333-444455556666 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
       | reference |
-      | CNFRMD22  |
+      | ABCDEFGH  |
+
+  Scenario: A booking is forbidden to staff of another restaurant who present its contact
+    When I run "get_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 9b2c1f00-1111-4222-8333-444455556666 | ada@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
+      | reference |
+      | ABCDEFGH  |
+
+  Scenario: A booking is forbidden to a guest who presents another email
+    When I run "get_booking" with:
+      | reference | caller.role | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | eve@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
+      | reference |
+      | ABCDEFGH  |
+
+  Scenario: A booking is forbidden to a guest who presents no contact
+    When I run "get_booking" with:
+      | reference | caller.role | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
+      | reference |
+      | ABCDEFGH  |
+
+  Scenario: A booking is forbidden to a guest who presents an email, of a booking with none
+    When I run "get_booking" with:
+      | reference | caller.role | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.phone |
+      | ABCDEFGH  | guest       | ada@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | +447911123456        |
+    Then the output is "forbidden":
+      | reference |
+      | ABCDEFGH  |
+
+  Scenario: A guest who presents the email of the booking may act on it
+    When I run "get_booking" with:
+      | reference | caller.role | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | ada@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "booking"
+
+  Scenario: A guest who presents the phone of the booking may act on it
+    When I run "get_booking" with:
+      | reference | caller.role | phone         | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | +447911123456 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "booking"
+
+  Scenario: A request that names another booking than the one loaded is rejected
+    When I run "get_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ZZZZZZZZ  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the input is rejected by "names_the_booking" of "booking_ref"
+
+  Scenario Outline: A call that leaves out a required part is rejected
+    When I run "get_booking" with:
+      | <column> |
+      | <value>  |
+    Then the input is rejected by "required" of "<definition>"
 
     Examples:
-      | email           | phone        |
-      |                 |              |
-      | eve@example.com |              |
-      |                 | +33600000000 |
+      | definition  | column               | value                                |
+      | booking_ref | reference            | ABCDEFGH                             |
+      | caller      | caller.restaurant_id | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
 
-  Scenario: A guest who presents an email cannot read a booking that holds none
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | +33612345678 |
-    When I run the operation with:
-      | reference | email           |
-      | CNFRMD22  | ada@example.com |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
-
-  Scenario: Staff with no restaurant are forbidden
-    Given the caller is:
-      | role  |
-      | staff |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
-    When I run the operation with:
-      | reference |
-      | CNFRMD22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
-
-  Scenario: Staff cannot read a booking of another restaurant
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes |
-      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
-    When I run the operation with:
-      | reference |
-      | FRBDDN22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden":
-      | reference |
-      | FRBDDN22  |
-
-  Scenario Outline: A presented email or phone that is not valid is rejected
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
-    When I run the operation with:
-      | reference | email   | phone   |
-      | CNFRMD22  | <email> | <phone> |
-    Then the input is rejected on "<field>"
+  Scenario Outline: A call with a value that breaks a rule is rejected
+    When I run "get_booking" with:
+      | reference   | caller.role | caller.restaurant_id | now                  |
+      | <reference> | <role>      | <restaurant_id>      | 2026-11-22T10:00:00Z |
+    Then the input is rejected by "<rule>" of "<definition>"
 
     Examples:
-      | field | email         | phone         |
-      | email | not-an-email  |               |
-      | phone |               | 0612345678    |
-      | phone |               | +012345678    |
-      | phone |               | +1234567890123456 |
+      | rule                         | definition | reference | role  | restaurant_id                        |
+      | pattern                      | reference  | ABCDEFGI  | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
+      | enum                         | role       | ABCDEFGH  | chef  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
+      | staff_works_for_a_restaurant | caller     | ABCDEFGH  | staff |                                      |
 
-  Scenario: Staff of another restaurant cannot read a booking by presenting its contact
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 7c9e6679-7425-40de-944b-e07fc1f90ae7 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | email           | phone        |
-      | CNFRMD22  | ada@example.com | +33612345678 |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
+  Scenario Outline: A stored booking that breaks a rule is rejected
+    When I run "get_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state>              | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | <time_zone>              | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the input is rejected by "<rule>" of "<definition>"
 
-  Scenario: A guest's contact opens only the booking of the reference they present
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | email           | phone        |
-      | FRBDDN22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | email           | phone        |
-      | CNFRMD22  | ada@example.com | +33612345678 |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
+    Examples:
+      | rule                     | definition | state     | time_zone    |
+      | enum                     | state      | LOST      | Europe/Paris |
+      | pattern                  | time_zone  | CONFIRMED | paris        |
+      | cancellation_is_recorded | booking    | CANCELLED | Europe/Paris |

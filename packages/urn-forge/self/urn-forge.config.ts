@@ -2,12 +2,9 @@
 import { defineConfig } from 'urn-forge/config';
 
 export default defineConfig({
-  manifest: './domain.manifest.yaml',
-  out: './generated',
-  core: './core.ts',
-  features: './features',
+  out: 'generated',
+  core: 'core.ts',
   tsconfig: '../tsconfig.json',
-  // Every feature is @urn-forge:strict; this keeps new features strict too.
-  boundaryCoverage: 'error',
-  plugins: ['valibot', 'fcis'],
+  // Every operation, output and rule has a scenario; this keeps new ones covered too.
+  coverage: 'error',
 });

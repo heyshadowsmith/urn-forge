@@ -1,419 +1,247 @@
 /**
- * `urn-forge diff`: the class of each change between two manifests (gate 5).
+ * The changes between two manifests, each breaking or compatible for callers. Whether a change
+ * breaks depends on the side of the value: callers send the values of an input, and receive the values
+ * of an output. A rule that accepts less breaks the senders; a rule that accepts more breaks the
+ * receivers. A value on both sides takes the stricter verdict.
  *
- * A change is breaking when a consumer that worked before can fail after it, and who can
- * fail depends on the direction of use:
- *
- * - In: a value that callers send. A narrower set breaks them.
- * - Out: a value that callers receive. A wider set breaks them.
- * - Stored: a value in a table of the Postgres plugin. A narrower set breaks old rows.
- *
- * A change that is neither narrower nor wider breaks every use. A URN with no use breaks no
- * one. The uses come from the old manifest: they are the consumers that exist.
+ * A rule is compared by name and by its argument. For a rule that compares the value with its one
+ * parameter (`self >= bound`, `size(self) <= count`), the form of the rule gives the direction of a
+ * new argument. Any other change of an argument, or of a rule's text, is breaking for both sides.
  */
-import { firstField } from '../rules/index.js';
-import { liveIr } from '../ir/lifecycle.js';
-import { statusOf, type IRPropertyRef, type Lifecycle, type UniversalIR, type Urn } from '../ir/types.js';
-import { constraintRelation, listRelation, type Relation } from './relation.js';
+import type { Expr } from '../cel/parse.js';
+import { print } from '../cel/print.js';
+import type { Model } from '../model.js';
+import type { Application } from '../rules.js';
 
-export type ChangeClass = 'compatible' | 'breaking' | 'lifecycle';
+export type ChangeClass = 'breaking' | 'compatible';
 
 export interface Change {
   readonly class: ChangeClass;
-  /** The URN that changed, or `urn:<namespace>:<domain>` for the manifest itself. */
-  readonly urn: string;
+  /** The part that changed: `definitions.party_size`, `operations.seat_booking`, `manifest`. */
+  readonly place: string;
   readonly message: string;
 }
 
-export type Use = 'in' | 'out' | 'stored';
-
-const USE_TEXT: Readonly<Record<Use, string>> = { in: 'callers send', out: 'callers receive', stored: 'the database stores' };
-/** The note on a compatible change that a table of the database does not have yet: urn-forge writes CREATE statements only. */
-const MIGRATION = '; the database needs a migration for it';
-
-/** Who a breaking change breaks, for each use. */
-const BROKEN_TEXT: Readonly<Record<Use, string>> = { in: 'callers that send it', out: 'callers that receive it', stored: 'rows already stored' };
-
-/** The uses of every atom of a manifest. */
-export function usesOf(ir: UniversalIR, tables: readonly Urn[] = []): Map<Urn, Set<Use>> {
-  const live = liveIr(ir);
-  const uses = new Map<Urn, Set<Use>>();
-  const add = (urn: Urn, use: Use) => {
-    if (!uses.has(urn)) uses.set(urn, new Set());
-    uses.get(urn)!.add(use);
-  };
-  const properties = (refs: readonly IRPropertyRef[], use: Use, seen: Set<Urn>) => {
-    for (const ref of refs) {
-      if ('field' in ref) add(ref.field, use);
-      else if ('link' in ref) {
-        // A link holds the target's key, so the key field's values travel with it.
-        const key = live.entities[ref.link]?.key;
-        if (key) add(key, use);
-      } else entity(ref.entity, use, seen);
-    }
-  };
-  const entity = (urn: Urn, use: Use, seen = new Set<Urn>()) => {
-    if (seen.has(urn) || !live.entities[urn]) return;
-    seen.add(urn);
-    add(urn, use);
-    properties(live.entities[urn]!.fields, use, seen);
-  };
-  for (const op of Object.values(live.operations)) {
-    add(op.urn, 'in');
-    add(op.urn, 'out');
-    entity(op.input, 'in');
-    entity(op.output, 'out');
-    for (const urn of op.errors) {
-      const error = live.errors[urn];
-      if (!error) continue;
-      add(urn, 'out');
-      properties(error.fields, 'out', new Set());
-      // The event that records the error reaches the shell's audit trail.
-      if (error.recordAs && live.events[error.recordAs]) {
-        add(error.recordAs, 'out');
-        properties(live.events[error.recordAs]!.fields, 'out', new Set());
-      }
-    }
-    // An event reaches whoever the shell publishes it to.
-    for (const urn of op.emits) {
-      if (!live.events[urn]) continue;
-      add(urn, 'out');
-      properties(live.events[urn]!.fields, 'out', new Set());
-    }
-  }
-  for (const table of tables) entity(table, 'stored');
-  // The shell sends the caller, as it sends an input.
-  if (live.meta?.caller) entity(live.meta.caller, 'in');
-  for (const invariant of Object.values(live.invariants)) for (const use of uses.get(invariant.on) ?? []) add(invariant.urn, use);
-  return uses;
+export interface Side {
+  readonly model: Model;
+  readonly applications: readonly Application[];
 }
 
-/** Whether a change with this relation breaks a URN with these uses. */
-function breaks(relation: Relation, uses: ReadonlySet<Use>): Use[] {
-  if (relation === 'equal') return [];
-  return [...uses].filter((use) => (use === 'out' ? relation !== 'narrower' : relation !== 'wider')).sort();
-}
+type Direction = 'narrower' | 'wider' | 'both' | 'same';
 
-const VERB: Readonly<Record<Relation, string>> = { equal: 'keeps', narrower: 'narrows', wider: 'widens', neither: 'changes' };
-
-const show = (value: unknown) => (value === undefined ? 'none' : typeof value === 'string' ? value : JSON.stringify(value));
-
-/** "[1, 2]" style, of a constraint value or a list rule. */
-function changedKeys(old: Readonly<Record<string, unknown>>, now: Readonly<Record<string, unknown>>): string {
-  const keys = [...new Set([...Object.keys(old), ...Object.keys(now)])].sort();
-  return keys
-    .filter((k) => JSON.stringify(old[k]) !== JSON.stringify(now[k]))
-    .map((k) => `${k} ${show(old[k])} → ${show(now[k])}`)
-    .join(', ');
-}
-
-const STATUS_ORDER: Readonly<Record<Lifecycle['status'], number>> = { active: 0, deprecated: 1, sunset: 2 };
-
-export interface ClassifyOptions {
-  /** The Postgres plugin's tables in the old manifest, by URN: their values have the Stored use. */
-  readonly tables?: readonly Urn[];
-}
-
-/** Every change from `old` to `now`, in URN order. */
-export function classify(old: UniversalIR, now: UniversalIR, options: ClassifyOptions = {}): Change[] {
-  const changes: Change[] = [];
-  const manifest = `urn:${old.meta.namespace}:${old.meta.domain}`;
-  if (old.meta.namespace !== now.meta.namespace || old.meta.domain !== now.meta.domain) {
-    return [{ class: 'breaking', urn: manifest, message: `the namespace or domain changed to urn:${now.meta.namespace}:${now.meta.domain}, so every URN changed` }];
-  }
-  if (old.meta.stability !== now.meta.stability) {
-    changes.push(
-      now.meta.stability === 'stable'
-        ? { class: 'compatible', urn: manifest, message: 'stability experimental → stable: from now on, a breaking change fails' }
-        : { class: 'breaking', urn: manifest, message: 'stability stable → experimental: a published manifest cannot go back to experimental' },
-    );
-  }
-
-  const oldUses = usesOf(old, options.tables);
-  const newUses = usesOf(now, options.tables);
-  /** The uses of a URN: the old manifest's, or for a new URN the new manifest's. */
-  const usesFor = (urn: Urn, existed: boolean): Set<Use> => (existed ? oldUses.get(urn) : newUses.get(urn)) ?? new Set();
-
-  // Callers that ignore what they do not know are not broken by a new kind of answer.
-  const ignoresUnknown = old.meta.compatibility?.callers === 'ignore-unknown';
-  /**
-   * A change with a relation: breaking if a use breaks, else compatible. `unknown`: the change
-   * only adds a kind of answer (an error, an event, an enum value), which a caller that ignores
-   * what it does not know is not broken by.
-   */
-  const relate = (urn: Urn, relation: Relation, what: string, uses: ReadonlySet<Use>, unknown = false) => {
-    if (relation === 'equal') return;
-    const ignored = ignoresUnknown && unknown && relation === 'wider' && uses.has('out');
-    const broken = breaks(relation, uses).filter((use) => !(ignored && use === 'out'));
-    const used = [...uses].sort().map((u) => USE_TEXT[u]);
-    const whom = used.length === 0 ? 'nothing uses' : used.join(' and ');
-    const why = broken.length > 0 ? `, which breaks ${broken.map((u) => BROKEN_TEXT[u]).join(' and ')}` : ignored ? ', which callers ignore when they do not know it (compatibility.callers)' : '';
-    changes.push({ class: broken.length > 0 ? 'breaking' : 'compatible', urn, message: `${what} ${VERB[relation]} a value that ${whom}${why}` });
-  };
-  const compatible = (urn: Urn, message: string) => changes.push({ class: 'compatible', urn, message });
-  const breaking = (urn: Urn, message: string) => changes.push({ class: 'breaking', urn, message });
-
-  type Node = { readonly urn: Urn; readonly lifecycle?: Lifecycle; readonly description?: string };
-  const groups = ['fields', 'entities', 'invariants', 'operations', 'events', 'errors'] as const;
-  for (const group of groups) {
-    const before = old[group] as Readonly<Record<Urn, Node>>;
-    const after = now[group] as Readonly<Record<Urn, Node>>;
-    for (const urn of Object.keys(before) as Urn[]) {
-      const a = before[urn]!;
-      const b = after[urn];
-      if (b === undefined) {
-        // A sunset atom stays as a tombstone, so its URN never gets a second meaning.
-        breaking(urn, `is removed; ${statusOf(a) === 'sunset' ? 'keep a sunset atom in the manifest, so its URN is never used again' : 'deprecate it, and set status: sunset when no one uses it'}`);
-        continue;
-      }
-      // Lifecycle: forward only. A change to a sunset atom is not reported: it is gone for its users.
-      const [from, to] = [statusOf(a), statusOf(b)];
-      if (from === 'sunset' && to === 'sunset') continue;
-      if (STATUS_ORDER[to] < STATUS_ORDER[from]) {
-        breaking(urn, `status ${from} → ${to}: a status only moves forward; declare a new URN instead`);
-        continue;
-      }
-      // With a notice, a removal is announced first: the old manifest deprecates the atom with a sunset date.
-      const notice = old.meta.compatibility?.notice;
-      if (notice !== undefined && to === 'sunset' && !(from === 'deprecated' && a.lifecycle?.sunsetDate !== undefined)) {
-        breaking(urn, `status ${from} → sunset with no notice; compatibility.notice is ${notice}, so deprecate it with deprecatedOn and sunsetDate first`);
-        continue;
-      }
-      if (from !== to) changes.push({ class: 'lifecycle', urn, message: `status ${from} → ${to}` });
-      // The notice counts from the announcement, so its day does not move.
-      const [announced, now] = [a.lifecycle?.deprecatedOn, b.lifecycle?.deprecatedOn];
-      if (announced !== undefined && announced !== now) breaking(urn, `deprecatedOn ${announced} → ${now ?? 'none'}: the day a deprecation was announced does not change`);
-      if (to === 'sunset') continue;
-      if (JSON.stringify(a.lifecycle?.supersededBy) !== JSON.stringify(b.lifecycle?.supersededBy) || a.lifecycle?.sunsetDate !== b.lifecycle?.sunsetDate) {
-        if (from === to) changes.push({ class: 'lifecycle', urn, message: changedKeys({ supersededBy: a.lifecycle?.supersededBy, sunsetDate: a.lifecycle?.sunsetDate }, { supersededBy: b.lifecycle?.supersededBy, sunsetDate: b.lifecycle?.sunsetDate }) });
-      }
-      if (a.description !== b.description) compatible(urn, 'description changed');
-    }
-    for (const urn of Object.keys(after) as Urn[]) {
-      if (before[urn] !== undefined) continue;
-      // A new invariant narrows its entity; every other new atom is new to everyone.
-      // An invariant on a new entity narrows nothing that a caller sent or a row holds.
-      if (group === 'invariants') {
-        const on = now.invariants[urn]!.on;
-        if (old.entities[on] === undefined) compatible(urn, `is new, on the new entity ${on}`);
-        else relate(urn, 'narrower', 'a new invariant', usesFor(on, true));
-      } else compatible(urn, 'is new');
-    }
-  }
-
-  const live = (node: { readonly lifecycle?: Lifecycle } | undefined) => node !== undefined && statusOf(node) !== 'sunset';
-
-  // Fields: the primitive, then the constraints.
-  for (const urn of Object.keys(old.fields) as Urn[]) {
-    const [a, b] = [old.fields[urn]!, now.fields[urn]];
-    if (!live(a) || !live(b)) continue;
-    const uses = usesFor(urn, true);
-    if (a.primitive !== b!.primitive) relate(urn, 'neither', `primitive ${a.primitive} → ${b!.primitive}`, uses);
-    else {
-      // A new enum value, and nothing else: a value that a caller that ignores what it does not know is not broken by.
-      const others = (c: Readonly<Record<string, unknown>>) => JSON.stringify({ ...c, values: undefined });
-      const onlyValues = a.primitive === 'enum' && others(a.constraints) === others(b!.constraints);
-      relate(urn, constraintRelation(a.primitive, a.constraints, b!.constraints), changedKeys(a.constraints, b!.constraints), uses, onlyValues);
-    }
-  }
-
-  /** The target of a property in the old manifest, if that target was deprecated there. */
-  const deprecatedTarget = (ref: IRPropertyRef): Urn | undefined => {
-    const urn = 'field' in ref ? ref.field : 'link' in ref ? ref.link : ref.entity;
-    const node = old.fields[urn] ?? old.entities[urn];
-    return node !== undefined && statusOf(node) === 'deprecated' ? urn : undefined;
-  };
-
-  /**
-   * A required list that may be empty does not break stored rows: a row with no child rows holds
-   * the empty list, which is valid. Callers still have to send it.
-   */
-  const withoutEmptyRows = (ref: IRPropertyRef, uses: ReadonlySet<Use>): ReadonlySet<Use> =>
-    ref.many !== undefined && (ref.many.minItems ?? 0) === 0 ? new Set([...uses].filter((u) => u !== 'stored')) : uses;
-  /** The properties of an entity or an error, compared by name. */
-  const properties = (urn: Urn, before: readonly IRPropertyRef[], after: readonly IRPropertyRef[], uses: ReadonlySet<Use>) => {
-    const target = (ref: IRPropertyRef) => ('field' in ref ? `ref ${ref.field}` : 'link' in ref ? `link ${ref.link}` : `ref ${ref.entity}`);
-    for (const a of before) {
-      const b = after.find((p) => p.name === a.name);
-      if (!b) {
-        // A property whose target was deprecated retires on its announced path: callers were
-        // warned (deprecated-ref, @deprecated) and had until the sunset date to move.
-        const retired = deprecatedTarget(a);
-        if (retired !== undefined) changes.push({ class: 'lifecycle', urn, message: `removes the property "${a.name}", whose target ${retired} was deprecated` });
-        else relate(urn, 'wider', `removing the ${a.required ? 'required' : 'optional'} property "${a.name}"`, uses);
-        continue;
-      }
-      if (target(a) !== target(b) || (a.many === undefined) !== (b.many === undefined)) {
-        relate(urn, 'neither', `the property "${a.name}" (${target(a)}${a.many ? ', a list' : ''} → ${target(b)}${b.many ? ', a list' : ''})`, uses);
-        continue;
-      }
-      if (a.required !== b.required) relate(urn, b.required ? 'narrower' : 'wider', `the property "${a.name}" (${a.required ? 'required → optional' : 'optional → required'})`, b.required ? withoutEmptyRows(b, uses) : uses);
-      if (a.many && b.many) relate(urn, listRelation(a.many, b.many), `the list "${a.name}" (${changedKeys({ ...a.many }, { ...b.many })})`, uses);
-    }
-    for (const b of after) {
-      if (before.some((p) => p.name === b.name)) continue;
-      // An optional property is new to everyone; a required one narrows what callers may send.
-      if (b.required) {
-        const rest = withoutEmptyRows(b, uses);
-        if (rest.size === 0 && uses.size > 0) compatible(urn, `adds the required list "${b.name}", which rows already stored hold as an empty list${MIGRATION}`);
-        else relate(urn, 'narrower', `the new required property "${b.name}"`, rest);
-      }
-      // Compatible for callers, but a stored entity has a table that does not have it yet.
-      else compatible(urn, `adds the optional property "${b.name}"${uses.has('stored') ? MIGRATION : ''}`);
-    }
-  };
-
-  for (const urn of Object.keys(old.entities) as Urn[]) {
-    const [a, b] = [old.entities[urn]!, now.entities[urn]];
-    if (!live(a) || !live(b)) continue;
-    const uses = usesFor(urn, true);
-    if (a.key !== b!.key) relate(urn, 'neither', `key ${show(a.key)} → ${show(b!.key)}`, uses);
-    properties(urn, a.fields, b!.fields, uses);
-    // unique: a new or changed entry refuses calls that worked, and stored rows may clash; a removed one promises less.
-    const entry = (u: NonNullable<typeof a.unique>[number]) =>
-      `by ${u.by.join(', ')}${u.when ? ` where ${u.when.ruleText}` : ''}${u.otherwise ? ` (otherwise ${u.otherwise})` : ''}${u.forever ? ' (forever)' : ''}`;
-    const [ua, ub] = [(a.unique ?? []).map(entry), (b!.unique ?? []).map(entry)];
-    for (const text of ub.filter((u) => !ua.includes(u))) breaking(urn, `the new unique ${text} refuses records that worked, and rows already stored may clash`);
-    for (const text of ua.filter((u) => !ub.includes(u))) breaking(urn, `the unique ${text} is removed, which breaks callers that rely on it`);
-  }
-
-  for (const urn of Object.keys(old.invariants) as Urn[]) {
-    const [a, b] = [old.invariants[urn]!, now.invariants[urn]];
-    if (!live(a) || !live(b)) continue;
-    const uses = usesFor(urn, true);
-    // A rule cannot be compared with another rule in general, so a new rule is neither.
-    if (a.on !== b!.on) relate(urn, 'neither', `on ${a.on} → ${b!.on}`, uses);
-    else if (a.ruleText !== b!.ruleText) relate(urn, 'neither', `rule ${a.ruleText} → ${b!.ruleText}`, uses);
-    if (a.message !== b!.message) compatible(urn, 'message changed');
-    // reportOn moves the issue, not the set of values that the rule accepts.
-    const [fromField, toField] = [a.reportOn ?? firstField(a.rule), b!.reportOn ?? firstField(b!.rule)];
-    if (fromField !== toField) compatible(urn, `reports its issue on "${fromField}" → "${toField}"`);
-  }
-
-  for (const urn of Object.keys(old.errors) as Urn[]) {
-    const [a, b] = [old.errors[urn]!, now.errors[urn]];
-    if (!live(a) || !live(b)) continue;
-    const uses = usesFor(urn, true);
-    if (a.category !== b!.category) relate(urn, 'neither', `category ${a.category} → ${b!.category}`, uses);
-    if (a.retryable !== b!.retryable) relate(urn, 'neither', `retryable ${a.retryable} → ${b!.retryable}`, uses);
-    if (JSON.stringify(a.message) !== JSON.stringify(b!.message)) compatible(urn, 'message changed');
-    // A record is extra information on a refusal: a new one is compatible; removing or changing one breaks its audit consumers.
-    if (a.recordAs === undefined && b!.recordAs !== undefined) compatible(urn, `adds the record ${b!.recordAs}`);
-    else if (a.recordAs !== undefined && b!.recordAs === undefined) relate(urn, 'wider', `removing the record ${a.recordAs}`, uses);
-    else if (a.recordAs !== b!.recordAs) relate(urn, 'neither', `recordAs ${show(a.recordAs)} → ${show(b!.recordAs)}`, uses);
-    properties(urn, a.fields, b!.fields, uses);
-  }
-
-  for (const urn of Object.keys(old.events) as Urn[]) {
-    const [a, b] = [old.events[urn]!, now.events[urn]];
-    if (!live(a) || !live(b)) continue;
-    properties(urn, a.fields, b!.fields, usesFor(urn, true));
-    // The delivery is what a consumer relies on to drop duplicates and to keep the order.
-    const delivery = (d: typeof a.delivery) => (d ? `id ${d.id}, orderBy ${d.orderBy.join(' and ')}${d.sequence === undefined ? '' : `, sequence ${d.sequence}`}` : 'none');
-    if (delivery(a.delivery) !== delivery(b!.delivery)) breaking(urn, `delivery ${delivery(a.delivery)} → ${delivery(b!.delivery)}: consumers rely on the id and the order`);
-  }
-
-  for (const urn of Object.keys(old.operations) as Urn[]) {
-    const [a, b] = [old.operations[urn]!, now.operations[urn]];
-    if (!live(a) || !live(b)) continue;
-    if (a.input !== b!.input) breaking(urn, `input ${a.input} → ${b!.input}: callers send another entity`);
-    if (a.output !== b!.output) breaking(urn, `output ${a.output} → ${b!.output}: callers receive another entity`);
-    const added = b!.errors.filter((e) => !a.errors.includes(e));
-    const removed = a.errors.filter((e) => !b!.errors.includes(e));
-    // A new declared error is a new kind of result, which a caller that handles each kind does not know.
-    for (const e of added) relate(urn, 'wider', `the new declared error ${e}`, new Set<Use>(['out']), true);
-    for (const e of removed) relate(urn, 'narrower', `removing the declared error ${e}`, new Set<Use>(['out']));
-    // A new event is a new kind of fact, which a consumer that handles each kind does not know.
-    for (const e of b!.emits.filter((x) => !a.emits.includes(x))) relate(urn, 'wider', `the new event ${e}`, new Set<Use>(['out']), true);
-    for (const e of a.emits.filter((x) => !b!.emits.includes(x))) relate(urn, 'narrower', `removing the event ${e}`, new Set<Use>(['out']));
-    // A count promises how many of an event a success has: a new count promises more, a removed or changed one breaks.
-    const count = (op: typeof a, e: Urn) => {
-      const item = op.exactly?.find((x) => x.event === e);
-      return item === undefined ? undefined : item.when === undefined ? 'emitted exactly once on each success' : `emitted exactly once when ${item.when.ruleText}`;
+/** The definitions that callers send (input) and receive (output), through properties, items and types. */
+export function sides(model: Model): { readonly sent: ReadonlySet<string>; readonly received: ReadonlySet<string> } {
+  const reach = (roots: readonly string[]): Set<string> => {
+    const seen = new Set<string>();
+    const visit = (name: string): void => {
+      const definition = model.definitions[name];
+      if (!definition || seen.has(name)) return;
+      seen.add(name);
+      if (definition.root !== name) visit(definition.type);
+      const root = model.definitions[definition.root];
+      root?.properties?.forEach(visit);
+      if (root?.items) visit(root.items);
     };
-    for (const e of b!.emits.filter((x) => a.emits.includes(x))) {
-      const [before, after] = [count(a, e), count(b!, e)];
-      if (before === after) continue;
-      if (before === undefined) compatible(urn, `the event ${e} is now ${after}`);
-      else breaking(urn, `the event ${e} was ${before}, and is now ${after ?? 'emitted zero or more times'}`);
-    }
-    // The record that the operation changes: which states it starts from is a rule on what callers can do.
-    const [ca, cb] = [a.changes, b!.changes];
-    if (!ca && cb) breaking(urn, `now changes a record of ${cb.entity}, only from ${cb.from.join(', ')}: a caller whose record is in another state is refused`);
-    if (ca && !cb) compatible(urn, `no longer changes a record of ${ca.entity}`);
-    if (ca && cb) {
-      if (ca.entity !== cb.entity) breaking(urn, `changes a record of ${cb.entity}, not ${ca.entity}`);
-      for (const state of cb.from.filter((x) => !ca.from.includes(x))) compatible(urn, `also starts from ${ca.property} ${state}`);
-      for (const state of ca.from.filter((x) => !cb.from.includes(x))) breaking(urn, `no longer starts from ${ca.property} ${state}, which breaks callers whose record is ${state}`);
-      const states = (to: readonly string[] | undefined) => (to === undefined ? 'stays' : to.join(', '));
-      if (states(ca.to) !== states(cb.to)) breaking(urn, `the state of the answer ${states(ca.to)} → ${states(cb.to)}: callers receive another state`);
-      if (ca.otherwise !== cb.otherwise) breaking(urn, `otherwise ${ca.otherwise} → ${cb.otherwise}: callers receive another error for a state outside from`);
-      if (ca.missing !== cb.missing) {
-        if (ca.missing === undefined) compatible(urn, `a missing record now answers ${cb.missing}`);
-        else breaking(urn, `missing ${ca.missing} → ${cb.missing ?? 'none'}: callers receive another answer when there is no record`);
-      }
-    }
-  }
-
-  // Conditions: a new or changed requires rule refuses calls that worked (In narrows); a new ensures
-  // rule promises more about the answer (Out narrows), and a removed one promises less.
-  for (const urn of Object.keys(old.operations) as Urn[]) {
-    const [a, b] = [old.operations[urn]!, now.operations[urn]];
-    if (!live(a) || !live(b)) continue;
-    const requires = (op: typeof a) => (op.requires ?? []).map((r) => `${r.ruleText} (otherwise ${r.otherwise}${r.fill ? `, fill ${JSON.stringify(r.fill)}` : ''})`);
-    const ensures = (op: typeof a) => (op.ensures ?? []).map((r) => r.ruleText);
-    for (const rule of requires(b!).filter((r) => !requires(a).includes(r))) breaking(urn, `the new requires rule ${rule} refuses calls that worked`);
-    for (const rule of requires(a).filter((r) => !requires(b!).includes(r))) compatible(urn, `the requires rule ${rule} is removed`);
-    for (const rule of ensures(b!).filter((r) => !ensures(a).includes(r))) compatible(urn, `the new ensures rule ${rule}`);
-    for (const rule of ensures(a).filter((r) => !ensures(b!).includes(r))) breaking(urn, `the ensures rule ${rule} is removed, which breaks callers that rely on it`);
-    // A rule of refuses is an ensures rule on a refusal: a new one promises more, a removed one less.
-    const refuses = (op: typeof a) => (op.refuses ?? []).flatMap((r) => r.ensures.map((rule) => `${rule.ruleText} (on ${r.error})`));
-    for (const rule of refuses(b!).filter((r) => !refuses(a).includes(r))) compatible(urn, `the new refuses rule ${rule}`);
-    for (const rule of refuses(a).filter((r) => !refuses(b!).includes(r))) breaking(urn, `the refuses rule ${rule} is removed, which breaks callers that rely on it`);
-    // rejects: which answer an input that does not parse gets. Callers handle that answer, so any change breaks them.
-    if (a.rejects !== b!.rejects) breaking(urn, `rejects ${a.rejects ?? 'none (InputRejected)'} → ${b!.rejects ?? 'none (InputRejected)'}: callers get another answer for an input that does not parse`);
-    // Idempotency: callers rely on safe retries. Adding it, or a longer window, is safe; the rest is not.
-    const once = (op: typeof a) => op.idempotency;
-    const [ia, ib] = [once(a), once(b!)];
-    if (!ia && ib) compatible(urn, `idempotency: a repeat with the same ${ib.key} in ${ib.window} now returns the first answer`);
-    else if (ia && !ib) breaking(urn, `idempotency removed: a repeat with the same ${ia.key} makes a second change`);
-    else if (ia && ib) {
-      if (ia.key !== ib.key || JSON.stringify(ia.scope ?? []) !== JSON.stringify(ib.scope ?? [])) breaking(urn, `idempotency: the key ${ia.key} of ${JSON.stringify(ia.scope ?? [])} → ${ib.key} of ${JSON.stringify(ib.scope ?? [])}`);
-      if (ib.windowMs < ia.windowMs) breaking(urn, `idempotency.window ${ia.window} → ${ib.window}: a repeat after the new window makes a second change`);
-      else if (ib.windowMs > ia.windowMs) compatible(urn, `idempotency.window ${ia.window} → ${ib.window}`);
-      if (ia.otherwise !== ib.otherwise) breaking(urn, `idempotency.otherwise ${ia.otherwise ?? 'none'} → ${ib.otherwise ?? 'none'}: a repeat with another body gets another answer`);
-    }
-    // A timed change: when it happens by itself is a promise to consumers.
-    if (a.due?.ruleText !== b!.due?.ruleText) breaking(urn, `due ${a.due?.ruleText ?? 'none'} → ${b!.due?.ruleText ?? 'none'}: the change happens at another time, or no longer by itself`);
-    // Who may call: a new allow rule lets more callers in; a removed one, or new callers, shuts some out.
-    const allow = (op: typeof a): 'any' | readonly string[] | undefined => (op.callers === undefined ? undefined : op.callers.allow === 'any' ? 'any' : op.callers.allow.map((r) => r.ruleText));
-    const [before, after] = [allow(a), allow(b!)];
-    if (before === undefined && after !== undefined) {
-      if (after === 'any') compatible(urn, 'callers: any caller may call');
-      else breaking(urn, `callers: only a caller for whom ${after.join(' or ')} may now call`);
-    } else if (before !== undefined && after === undefined) {
-      compatible(urn, 'callers removed: any caller may call');
-    } else if (before !== undefined && after !== undefined) {
-      if (before === 'any' && after !== 'any') breaking(urn, `callers: any caller → only a caller for whom ${after.join(' or ')}`);
-      else if (before !== 'any' && after === 'any') compatible(urn, 'callers: any caller may now call');
-      else if (before !== 'any' && after !== 'any') {
-        for (const rule of after.filter((r) => !before.includes(r))) compatible(urn, `the new allow rule ${rule} lets more callers call`);
-        for (const rule of before.filter((r) => !after.includes(r))) breaking(urn, `the allow rule ${rule} is removed, which shuts out callers that it let in`);
-      }
-      if (before !== 'any' && after !== 'any' && a.callers!.otherwise !== b!.callers!.otherwise) breaking(urn, `callers.otherwise ${a.callers!.otherwise} → ${b!.callers!.otherwise}: refused callers receive another error`);
-    }
-  }
-
-  // The moves of a state field: a removed move breaks the callers that make it.
-  for (const urn of Object.keys(old.fields) as Urn[]) {
-    const [a, b] = [old.fields[urn]!, now.fields[urn]];
-    if (!live(a) || !live(b) || (!a.moves && !b!.moves)) continue;
-    const pairs = (moves: typeof a.moves) => Object.entries(moves ?? {}).flatMap(([from, targets]) => targets.map((to) => `${from} → ${to}`));
-    const [before, after] = [pairs(a.moves), pairs(b!.moves)];
-    for (const move of after.filter((m) => !before.includes(m))) compatible(urn, `the new move ${move}`);
-    for (const move of before.filter((m) => !after.includes(m))) breaking(urn, `removing the move ${move}, which breaks callers that make it`);
-  }
-
-  return changes.sort((x, y) => (x.urn < y.urn ? -1 : x.urn > y.urn ? 1 : 0));
+    roots.forEach(visit);
+    return seen;
+  };
+  const operations = Object.values(model.operations);
+  return { sent: reach(operations.map((o) => o.input)), received: reach(operations.flatMap((o) => o.outputs.map((out) => out.object))) };
 }
 
+/** For a rule `self op p` or `p op self` (or `size(self) op p`): whether a larger p accepts less or more. */
+function largerParameter(expr: Expr, parameter: string): 'narrower' | 'wider' | undefined {
+  if (expr.kind !== 'binary' || !['<', '<=', '>', '>='].includes(expr.op)) return undefined;
+  const isParameter = (e: Expr): boolean => e.kind === 'name' && e.name === parameter;
+  const isValue = (e: Expr): boolean =>
+    (e.kind === 'name' && e.name === 'self') || (e.kind === 'call' && e.fn === 'size' && ((e.target ?? e.args[0])?.kind === 'name'));
+  // Written as `value op parameter`: a larger parameter is narrower for >= and >, wider for <= and <.
+  const op = isValue(expr.left) && isParameter(expr.right) ? expr.op : isParameter(expr.left) && isValue(expr.right) ? flip(expr.op) : undefined;
+  if (!op) return undefined;
+  return op === '>' || op === '>=' ? 'narrower' : 'wider';
+}
+
+function flip(op: string): string {
+  return ({ '<': '>', '<=': '>=', '>': '<', '>=': '<=' } as Record<string, string>)[op]!;
+}
+
+const asSet = (value: unknown): Set<string> => new Set(Array.isArray(value) ? value.map((v) => JSON.stringify(v)) : []);
+
+/** The direction of a new argument of a rule: narrower (accepts less), wider, both, or the same. */
+function argumentDirection(application: Application, before: unknown, after: unknown): Direction {
+  if (JSON.stringify(before) === JSON.stringify(after)) return 'same';
+  const { rule } = application;
+  // A list that the value must be in (enum), or that the object must have (required).
+  if (rule.name === 'enum' || rule.name === 'required') {
+    const a = asSet(before);
+    const b = asSet(after);
+    const subset = [...b].every((x) => a.has(x));
+    const superset = [...a].every((x) => b.has(x));
+    const fewer = rule.name === 'enum' ? subset : superset;
+    const more = rule.name === 'enum' ? superset : subset;
+    return fewer ? 'narrower' : more ? 'wider' : 'both';
+  }
+  if (rule.parameters.length === 1 && typeof before === 'number' && typeof after === 'number') {
+    const larger = largerParameter(rule.expr, rule.parameters[0]!);
+    if (larger) return after > before ? larger : larger === 'narrower' ? 'wider' : 'narrower';
+  }
+  return 'both';
+}
+
+/** The verdict of a change that accepts less, more or both, for a value on these sides. */
+function verdict(direction: Direction, sent: boolean, received: boolean, ignoreUnknown: boolean): ChangeClass {
+  // A value that no operation sends or receives breaks no caller.
+  if (direction === 'same' || (!sent && !received)) return 'compatible';
+  if (direction === 'both') return 'breaking';
+  // Accepts less: senders may now be rejected. Accepts more: receivers may get what they do not expect,
+  // unless the contract promises that they ignore what they do not know.
+  if (direction === 'narrower') return sent ? 'breaking' : 'compatible';
+  return received && !ignoreUnknown ? 'breaking' : 'compatible';
+}
+
+function useKey(application: Application): string {
+  return application.rule.name;
+}
+
+function rulesOf(side: Side, place: (a: Application) => string | undefined): Map<string, Map<string, Application>> {
+  const map = new Map<string, Map<string, Application>>();
+  for (const application of side.applications) {
+    const key = place(application);
+    if (key === undefined) continue;
+    const uses = map.get(key) ?? new Map<string, Application>();
+    uses.set(useKey(application), application);
+    map.set(key, uses);
+  }
+  return map;
+}
+
+/** The changes from the old manifest to the new one. */
+export function classify(old: Side, next: Side): Change[] {
+  const changes: Change[] = [];
+  const add = (cls: ChangeClass, place: string, message: string): void => {
+    changes.push({ class: cls, place, message });
+  };
+  const ignoreUnknown = next.model.header.compatibility?.callers === 'ignore-unknown';
+
+  const a = old.model.header;
+  const b = next.model.header;
+  if (a.namespace !== b.namespace || a.domain !== b.domain) add('breaking', 'manifest', `the contract is now ${b.namespace}:${b.domain}, not ${a.namespace}:${a.domain}`);
+  if (!a.compatibility && b.compatibility) add('compatible', 'manifest', 'callers now promise to ignore what they do not know: compatibility callers: ignore-unknown');
+  if (a.compatibility && !b.compatibility) add('breaking', 'manifest', 'callers no longer promise to ignore what they do not know');
+
+  const oldSides = sides(old.model);
+  const newSides = sides(next.model);
+  const sentIn = (name: string): boolean => oldSides.sent.has(name) || newSides.sent.has(name);
+  const receivedIn = (name: string): boolean => oldSides.received.has(name) || newSides.received.has(name);
+
+  // Rule texts: a rule of the manifest whose text changed is breaking wherever it is used.
+  for (const rule of Object.values(next.model.rules)) {
+    const before = old.model.rules[rule.name];
+    if (!before?.expr || !rule.expr) continue;
+    if (print(before.expr) !== print(rule.expr)) {
+      const used = next.applications.some((app) => app.rule.name === rule.name && app.owner === next.model);
+      add(used ? 'breaking' : 'compatible', `rules.${rule.name}`, `the rule is now ${print(rule.expr)}, not ${print(before.expr)}`);
+    }
+  }
+
+  // Definitions.
+  for (const name of new Set([...Object.keys(old.model.definitions), ...Object.keys(next.model.definitions)])) {
+    const before = old.model.definitions[name];
+    const after = next.model.definitions[name];
+    const place = `definitions.${name}`;
+    const sent = sentIn(name);
+    const received = receivedIn(name);
+    const used = sent || received;
+    if (!before) {
+      add('compatible', place, 'the definition is new');
+      continue;
+    }
+    if (!after) {
+      add(used ? 'breaking' : 'compatible', place, 'the definition is removed');
+      continue;
+    }
+    if (before.type !== after.type) add(used ? 'breaking' : 'compatible', place, `the type is now ${after.type}, not ${before.type}`);
+    if (before.items !== after.items) add(used ? 'breaking' : 'compatible', place, `the items are now ${after.items}, not ${before.items}`);
+    if (before.identifier !== after.identifier) add(used ? 'breaking' : 'compatible', place, `the identifier is now ${after.identifier ?? 'none'}, not ${before.identifier ?? 'none'}`);
+    if (!before.deprecated && after.deprecated) add('compatible', place, 'the definition is deprecated');
+    const oldProps = before.properties ?? [];
+    const newProps = after.properties ?? [];
+    for (const property of newProps.filter((p) => !oldProps.includes(p))) {
+      // Senders need not send a new property unless it is required (a rule, compared below); receivers may get it.
+      add(verdict('wider', sent, received, ignoreUnknown), place, `the property ${property} is new`);
+    }
+    for (const property of oldProps.filter((p) => !newProps.includes(p))) add(used ? 'breaking' : 'compatible', place, `the property ${property} is removed`);
+  }
+
+  // Rules of definitions, by name and argument.
+  const definitionRules = (side: Side) => rulesOf(side, (app) => (app.place.kind === 'definition' ? app.place.definition : undefined));
+  const oldDefinitionRules = definitionRules(old);
+  const newDefinitionRules = definitionRules(next);
+  for (const name of Object.keys(next.model.definitions)) {
+    if (!old.model.definitions[name]) continue;
+    const before = oldDefinitionRules.get(name) ?? new Map<string, Application>();
+    const after = newDefinitionRules.get(name) ?? new Map<string, Application>();
+    const sent = sentIn(name);
+    const received = receivedIn(name);
+    const place = `definitions.${name}`;
+    for (const [rule, application] of after) {
+      const previous = before.get(rule);
+      if (!previous) {
+        add(verdict('narrower', sent, received, ignoreUnknown), place, `the rule ${rule} is new: it accepts less`);
+        continue;
+      }
+      const params = application.rule.parameters;
+      for (const parameter of params) {
+        const direction = argumentDirection(application, previous.arguments[parameter], application.arguments[parameter]);
+        if (direction === 'same') continue;
+        const what = direction === 'narrower' ? 'it accepts less' : direction === 'wider' ? 'it accepts more' : 'it accepts other values';
+        add(verdict(direction, sent, received, ignoreUnknown), place, `${rule} is now ${JSON.stringify(application.arguments[parameter])}, not ${JSON.stringify(previous.arguments[parameter])}: ${what}`);
+      }
+    }
+    for (const rule of before.keys()) if (!after.has(rule)) add(verdict('wider', sent, received, ignoreUnknown), place, `the rule ${rule} is removed: it accepts more`);
+  }
+
+  // Operations.
+  for (const name of new Set([...Object.keys(old.model.operations), ...Object.keys(next.model.operations)])) {
+    const before = old.model.operations[name];
+    const after = next.model.operations[name];
+    const place = `operations.${name}`;
+    if (!before) {
+      add('compatible', place, 'the operation is new');
+      continue;
+    }
+    if (!after) {
+      add('breaking', place, 'the operation is removed');
+      continue;
+    }
+    if (!before.deprecated && after.deprecated) add('compatible', place, 'the operation is deprecated');
+    if (before.input !== after.input) add('breaking', place, `the input is now ${after.input}, not ${before.input}`);
+    const oldOutputs = before.outputs.map((o) => o.object);
+    const newOutputs = after.outputs.map((o) => o.object);
+    for (const output of newOutputs.filter((o) => !oldOutputs.includes(o))) {
+      add(ignoreUnknown ? 'compatible' : 'breaking', place, `the output ${output} is new: callers can get an answer that they do not handle`);
+    }
+    for (const output of oldOutputs.filter((o) => !newOutputs.includes(o))) add('compatible', place, `the output ${output} is removed`);
+  }
+
+  // Rules of operations and outputs: a new one promises more (compatible), a removed one promises less.
+  const operationRules = (side: Side) =>
+    rulesOf(side, (app) => (app.place.kind === 'output' ? `operations.${app.place.operation}.${app.place.object}` : app.place.kind === 'operation' ? `operations.${app.place.operation}` : undefined));
+  const oldOperationRules = operationRules(old);
+  const newOperationRules = operationRules(next);
+  for (const key of new Set([...oldOperationRules.keys(), ...newOperationRules.keys()])) {
+    const before = oldOperationRules.get(key) ?? new Map<string, Application>();
+    const after = newOperationRules.get(key) ?? new Map<string, Application>();
+    const operation = key.split('.')[1]!;
+    if (!old.model.operations[operation] || !next.model.operations[operation]) continue;
+    for (const [rule, application] of after) {
+      const previous = before.get(rule);
+      if (!previous) add('compatible', key, `the rule ${rule} is new: the answer promises more`);
+      else if (JSON.stringify(previous.arguments) !== JSON.stringify(application.arguments)) add('breaking', key, `the arguments of ${rule} changed`);
+    }
+    for (const rule of before.keys()) if (!after.has(rule)) add('breaking', key, `the rule ${rule} is removed: the answer promises less`);
+  }
+
+  // By code point, not by locale: the order is the same on every machine.
+  return changes.sort((x, y) => (x.place < y.place ? -1 : x.place > y.place ? 1 : 0));
+}

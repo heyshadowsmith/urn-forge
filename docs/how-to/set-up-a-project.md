@@ -14,7 +14,7 @@ Make a project in which `urn-forge compile`, `urn-forge verify` and Cucumber run
    npx urn-forge init
    ```
 
-   `init` writes a starter project, then compiles it:
+   `init` writes a starter project:
 
    ```
    wrote      cucumber.json
@@ -26,73 +26,57 @@ Make a project in which `urn-forge compile`, `urn-forge verify` and Cucumber run
    wrote      tsconfig.json
    wrote      urn-forge.config.ts
    updated    package.json
-   wrote      src/generated/domain.runtime.generated.ts
-   wrote      src/generated/domain.schemas.generated.ts
-   fingerprint sha256:2a62295c8074239ab1e8633b9dd3c0896e2ae378c6876c70773aea3a9c306d25
-   next: npm run verify, then npm run test:features
+   next: npm install, then npx urn-forge compile, then npx urn-forge verify
    ```
 
-2. Run `npm run verify`. All gates pass.
-3. Run `npm run test:features`. All scenarios pass.
-4. Change the starter domain to your domain. Edit `domain.manifest.yaml`, run `npm run compile`, then do what `verify` tells you.
+2. Run `npx urn-forge compile`. It writes `src/generated/domain.generated.ts`.
+3. Run `npx urn-forge verify`. All gates pass, with no warning.
+4. Run `npx cucumber-js`. All 11 scenarios pass.
+5. Change the starter domain to your domain. Edit `domain.manifest.yaml`, run `npx urn-forge compile`, then do what `verify` tells you.
 
-The starter splits a bill between a list of people. Its features are strict, so each new coverage gap makes `verify` fail.
+The starter splits a bill between a list of people. Its config sets `coverage: 'error'`, so each new gap in the scenarios makes `verify` fail.
 
-- `--namespace` and `--domain` set the header of the manifest. The defaults are `app` and `starter`.
-- If a starter file is already in the folder, `init` writes no file and stops with exit code 1.
-- `init` sets `"type": "module"` in `package.json` and adds the scripts `compile`, `verify` and `test:features`. It does not replace a script that you have.
+<<< @/../packages/urn-forge/templates/starter/domain.manifest.yaml
+
+- `--namespace` and `--domain` set the header of the manifest. The defaults are `app` and `starter`. A name is lowercase snake_case that starts with a letter.
+- If a starter file is already in the folder, `init` writes no file and stops with exit code 1:
+
+  ```
+  init writes no file: these exist already: cucumber.json, domain.manifest.yaml, features/split.feature, features/support/steps.ts, register-tsx.mjs, src/core.ts, tsconfig.json, urn-forge.config.ts
+  ```
+
+- `init` sets `"type": "module"` in `package.json` and adds the scripts `compile`, `verify` and `test:features`. It does not change the other scripts. If the folder has no `package.json`, `init` writes one.
 
 ## Set up the files by hand
 
-Do these steps to add urn-forge to a project that you have. The files come from `packages/urn-forge/tutorial/1-first-domain/`.
+Do these steps to add urn-forge to a project that you have. The files come from `packages/urn-forge/templates/starter/`, the files that `init` writes.
 
-1. Make a `package.json` with `"type": "module"`. Without it, Cucumber stops with `ERR_VM_MODULE_LINK_FAILURE`.
+1. Make a `package.json` with `"type": "module"`. urn-forge and the starter files are ES modules.
 2. Make `domain.manifest.yaml`. Refer to [The manifest](../reference/manifest).
+3. Make `urn-forge.config.ts`. Each path has a default, so the object can be empty. Refer to [The configuration file](../reference/configuration).
 
-   <<< @/../packages/urn-forge/tutorial/1-first-domain/domain.manifest.yaml{yaml}
+   <<< @/../packages/urn-forge/templates/starter/urn-forge.config.ts
 
-3. Make `urn-forge.config.ts`. Each path has a default, so this file can be empty. Refer to [The configuration file](../reference/configuration).
+4. Make `tsconfig.json`. Gate 1 type-checks the core with its `compilerOptions`. With `"moduleResolution": "NodeNext"`, write the import in the core as `./generated/domain.generated.js`.
 
-   <<< @/../packages/urn-forge/tutorial/1-first-domain/urn-forge.config.ts
+   <<< @/../packages/urn-forge/templates/starter/tsconfig.json
 
-4. Make `tsconfig.json`. Gate 1 type-checks the core with its `compilerOptions`. With `NodeNext`, write the import in the core as `./generated/domain.runtime.generated.js`.
+5. Run `npx urn-forge compile`. Commit the files in `src/generated/`.
+6. Make `src/core.ts`. Export one object with a function for each operation, and end it with `satisfies DomainCore`. Gate 1 fails without this clause.
 
-   <<< @/../packages/urn-forge/tutorial/1-first-domain/tsconfig.json
+   <<< @/../packages/urn-forge/templates/starter/src/core.ts
 
-5. Run `npx urn-forge compile`:
+7. Make `features/support/steps.ts`. It connects the steps of urn-forge to your generated file and your core. Write the same file in each project.
 
-   ```
-   wrote      src/generated/domain.runtime.generated.ts
-   wrote      src/generated/domain.schemas.generated.ts
-   fingerprint sha256:28f251b06ee13bc71fcd6ef07854183ef6af206f87b6bcf789d8ee6063871368
-   ```
-
-   Commit the files in `src/generated/`.
-
-6. Make `src/core.ts`. Export one object with a handler for each operation, and end it with `satisfies DomainCoreImplementation`. Gate 1 fails without this clause.
-
-   <<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts
-
-7. Make `features/support/steps.ts`. It connects the generic steps to your runtime and your core. Write the same file in each project.
-
-   <<< @/../packages/urn-forge/tutorial/1-first-domain/features/support/steps.ts
+   <<< @/../packages/urn-forge/templates/starter/features/support/steps.ts
 
 8. Make `register-tsx.mjs`:
 
-   <<< @/../packages/urn-forge/src/gherkin/register-tsx.mjs{js}
+   <<< @/../packages/urn-forge/templates/starter/register-tsx.mjs{js}
 
-9. Make `cucumber.json`. Put `register-tsx.mjs` first in `import`, or Cucumber stops with `ERR_MODULE_NOT_FOUND`:
+9. Make `cucumber.json`. Put `register-tsx.mjs` first in `import`, so that Cucumber can load TypeScript:
 
-   ```json
-   {
-     "default": {
-       "paths": ["features/**/*.feature"],
-       "import": ["register-tsx.mjs", "features/support/**/*.ts"],
-       "format": ["progress"],
-       "strict": true
-     }
-   }
-   ```
+   <<< @/../packages/urn-forge/templates/starter/cucumber.json
 
 10. Add these scripts to `package.json`:
 
@@ -106,9 +90,7 @@ Do these steps to add urn-forge to a project that you have. The files come from 
     }
     ```
 
-11. Make a feature in `features/`, tagged with the URN of the operation. Refer to [Write scenarios](write-scenarios).
-
-    <<< @/../packages/urn-forge/tutorial/1-first-domain/features/quote_shipping.feature{gherkin}
+11. Make a feature in `features/`. Refer to [Write scenarios](write-scenarios).
 
 ::: warning
 Do not leave out `package.json`. Without it, `npx` runs `urn-forge` from a parent folder, and the CLI reads the wrong configuration file.
@@ -116,19 +98,15 @@ Do not leave out `package.json`. Without it, `npx` runs `urn-forge` from a paren
 
 ## Result
 
-`npx urn-forge verify` shows each gate:
+`npx urn-forge verify` shows each gate. For the starter, it shows this output:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; core satisfies DomainCore
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
-gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, strict: 0/1 features
-    features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-    features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
-verify passed with 2 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
+gate 3  gherkin       PASS  1 feature(s), 11 scenario(s), 1/1 operation(s) run, 9 rule(s) broken
+gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
+verify passed (gates 1, 2, 3, 4)
 ```
-
-The warnings show boundaries that no scenario tests. To close them, refer to [Close boundary gaps](close-boundary-gaps). `npm run test:features` runs the scenarios.
 
 ## Related pages
 

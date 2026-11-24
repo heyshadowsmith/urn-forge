@@ -1,50 +1,37 @@
-@urn-forge:strict
-@urn:corpus:subscriptions:subscription:operation:list_subscriptions
 Feature: List the subscriptions of a customer
+  The shell loads the stored subscriptions; the answer holds the customer's, with the status asked
+  for if any. A customer lists only their own.
 
-  Scenario: All subscriptions of a customer are listed
-    When I run the operation with:
-      | customer_id |
-      | c           |
-    Then the output is:
-      | subscriptions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-      | [{ subscription_id: sub_aaaaaaaaaaaaaaaaaaaaaaaa, customer_id: c, plan: { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } }, plan_id: plan_basic, quantity: 1, status: active, current_period_start: 2026-11-01T00:00:00Z, current_period_end: 2026-12-01T00:00:00Z }, { subscription_id: sub_pppppppppppppppppppppppp, customer_id: c, plan: { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } }, plan_id: plan_basic, quantity: 1, status: paused, current_period_start: 2026-11-01T00:00:00Z, current_period_end: 2026-12-01T00:00:00Z }, { subscription_id: sub_cccccccccccccccccccccccc, customer_id: c, plan: { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } }, plan_id: plan_basic, quantity: 1, status: canceled, current_period_start: 2026-11-01T00:00:00Z, current_period_end: 2026-12-01T00:00:00Z }] |
-
-  Scenario Outline: A list can keep one status only
-    When I run the operation with:
-      | customer_id | status   |
-      | cus_1       | <status> |
-    Then the output is:
+  Scenario Outline: The customer's subscriptions with the status asked for are listed
+    When I run "list_subscriptions" with:
+      | customer_id | subscription_status | caller.caller_kind | caller.customer_id | stored_subscriptions                       |
+      | cus_1       | <status>            | <kind>             | <customer>         | [{"subscription_id": "sub_aaaaaaaaaaaaaaaaaaaaaaaa", "customer_id": "cus_1", "plan": {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}}, "plan_id": "plan_basic", "quantity": 1, "subscription_status": "active", "current_period_start": "2026-11-01T00:00:00Z", "current_period_end": "2026-12-01T00:00:00Z"}, {"subscription_id": "sub_pppppppppppppppppppppppp", "customer_id": "cus_1", "plan": {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}}, "plan_id": "plan_basic", "quantity": 1, "subscription_status": "paused", "current_period_start": "2026-11-01T00:00:00Z", "current_period_end": "2026-12-01T00:00:00Z"}, {"subscription_id": "sub_bbbbbbbbbbbbbbbbbbbbbbbb", "customer_id": "cus_2", "plan": {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}}, "plan_id": "plan_basic", "quantity": 1, "subscription_status": "active", "current_period_start": "2026-11-01T00:00:00Z", "current_period_end": "2026-12-01T00:00:00Z"}] |
+    Then the output is "subscription_list":
       | subscriptions |
-      | <subscriptions>      |
+      | <listed>      |
 
     Examples:
-      | status   | subscriptions |
-      | trialing | []     |
-      | past_due | []     |
-      | expired  | []     |
+      | status   | kind     | customer | listed                       |
+      |          | staff    |          | [{"subscription_id": "sub_aaaaaaaaaaaaaaaaaaaaaaaa", "customer_id": "cus_1", "plan": {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}}, "plan_id": "plan_basic", "quantity": 1, "subscription_status": "active", "current_period_start": "2026-11-01T00:00:00Z", "current_period_end": "2026-12-01T00:00:00Z"}, {"subscription_id": "sub_pppppppppppppppppppppppp", "customer_id": "cus_1", "plan": {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}}, "plan_id": "plan_basic", "quantity": 1, "subscription_status": "paused", "current_period_start": "2026-11-01T00:00:00Z", "current_period_end": "2026-12-01T00:00:00Z"}] |
+      | paused   | customer | cus_1    | [{"subscription_id": "sub_pppppppppppppppppppppppp", "customer_id": "cus_1", "plan": {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}}, "plan_id": "plan_basic", "quantity": 1, "subscription_status": "paused", "current_period_start": "2026-11-01T00:00:00Z", "current_period_end": "2026-12-01T00:00:00Z"}]               |
+      | canceled | staff    |          | []                           |
 
-  Scenario Outline: A list of one status gives the subscriptions of that status
-    When I run the operation with:
-      | customer_id | status   |
-      | cus_1       | <status> |
-    Then the output is:
-      | subscriptions   |
-      | <subscriptions> |
+  Scenario: A customer may not list another customer's subscriptions
+    When I run "list_subscriptions" with:
+      | customer_id | caller.caller_kind | caller.customer_id | stored_subscriptions |
+      | cus_2       | customer           | cus_1              | []                   |
+    Then the output is "forbidden":
+      | caller                                              |
+      | {"caller_kind": "customer", "customer_id": "cus_1"} |
 
-    Examples:
-      | status   | subscriptions |
-      | active   | [{ subscription_id: sub_aaaaaaaaaaaaaaaaaaaaaaaa, customer_id: cus_1, plan: { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } }, plan_id: plan_basic, quantity: 1, status: active, current_period_start: 2026-11-01T00:00:00Z, current_period_end: 2026-12-01T00:00:00Z }] |
-      | paused   | [{ subscription_id: sub_pppppppppppppppppppppppp, customer_id: cus_1, plan: { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } }, plan_id: plan_basic, quantity: 1, status: paused, current_period_start: 2026-11-01T00:00:00Z, current_period_end: 2026-12-01T00:00:00Z }] |
-      | canceled | [{ subscription_id: sub_cccccccccccccccccccccccc, customer_id: cus_1, plan: { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } }, plan_id: plan_basic, quantity: 1, status: canceled, current_period_start: 2026-11-01T00:00:00Z, current_period_end: 2026-12-01T00:00:00Z }] |
-
-  Scenario Outline: An unknown status or an empty customer id is rejected
-    When I run the operation with:
-      | customer_id   | status   |
-      | <customer_id> | <status> |
-    Then the input is rejected on "<field>"
+  Scenario Outline: A request that breaks a rule is rejected
+    When I run "list_subscriptions" with:
+      | customer_id | subscription_status | caller.caller_kind | stored_subscriptions |
+      | cus_1       | <status>            | staff              | <stored>             |
+    Then the input is rejected by "<rule>" of "<definition>"
 
     Examples:
-      | field       | customer_id | status   |
-      | status      | cus_1       | unpaid   |
-      | customer_id | ""          |          |
+      | rule        | definition          | status | stored                       |
+      | enum        | subscription_status | lost   | []                           |
+      | required    | list_request        |        |                              |
+      | uniqueItems | subscriptions       |        | [{"subscription_id": "sub_aaaaaaaaaaaaaaaaaaaaaaaa", "customer_id": "cus_1", "plan": {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}}, "plan_id": "plan_basic", "quantity": 1, "subscription_status": "active", "current_period_start": "2026-11-01T00:00:00Z", "current_period_end": "2026-12-01T00:00:00Z"}, {"subscription_id": "sub_aaaaaaaaaaaaaaaaaaaaaaaa", "customer_id": "cus_1", "plan": {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}}, "plan_id": "plan_basic", "quantity": 1, "subscription_status": "active", "current_period_start": "2026-11-01T00:00:00Z", "current_period_end": "2026-12-01T00:00:00Z"}] |

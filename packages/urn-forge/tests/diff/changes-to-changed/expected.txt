@@ -1,2 +1,0 @@
-compatible urn:demo:states:booking:field:state
-breaking urn:demo:states:booking:operation:seat_booking

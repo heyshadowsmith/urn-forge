@@ -1,44 +1,67 @@
-@urn-forge:strict
-@urn:corpus:ticketing:entry:operation:validate_ticket
-Feature: Validate a ticket at the entry
+Feature: Validate a ticket at the entry of an event
+  Only box-office staff assigned to the event validate its tickets. An ISSUED ticket is admitted, with TicketUsed.
 
-  Scenario: An issued ticket is admitted and becomes used
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | ticket_code      | event_id                             |
-      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f |
-    Then the output is:
-      | verdict |
-      | ADMIT   |
-    And the operation emits "urn:corpus:ticketing:ticket:event:ticket_used":
-      | message_id                           | event_id                             | ticket_code      | occurred_at          |
-      | 00000000-0000-4000-8000-000000000001 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ABCDEFGH23456789 | 2026-12-01T19:00:00Z |
+  Scenario: An ISSUED ticket of the event is admitted, with TicketUsed at the time of the call
+    When I run "validate_ticket" with:
+      | ticket_code      | event_id                             | caller                                                                                                            | called_at            | stored_ticket                                                                                                                                                                                                                                                     |
+      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | {"caller_id": "gate-7", "caller_role": "box_office", "assigned_events": ["6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"]} | 2026-12-12T19:30:00Z | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}} |
+    Then the output is "entry_result":
+      | ticket_code      | event_id                             | verdict | used_ticket                                                  | ticket_used                                                                                                                                                                          |
+      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ADMIT   | {"ticket_code": "ABCDEFGH23456789", "ticket_status": "USED"} | {"message_id": "00000000-0000-4000-8000-000000000001", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "ticket_code": "ABCDEFGH23456789", "occurred_at": "2026-12-12T19:30:00Z"} |
 
-  Scenario Outline: A ticket that cannot enter gets another answer, and nothing is used
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | ticket_code   | event_id   |
-      | <ticket_code> | <event_id> |
-    Then the output is:
-      | verdict   |
-      | <verdict> |
-    And the operation emits no event
-    And the operation emits no "urn:corpus:ticketing:ticket:event:ticket_used"
+  Scenario Outline: A ticket that is not ISSUED, of another event, or unknown is not admitted
+    When I run "validate_ticket" with:
+      | ticket_code      | event_id                             | caller                                                                                                            | called_at            | stored_ticket |
+      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | {"caller_id": "gate-7", "caller_role": "box_office", "assigned_events": ["6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"]} | 2026-12-12T19:30:00Z | <ticket>      |
+    Then the output is "entry_result":
+      | ticket_code      | event_id                             | verdict   |
+      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | <verdict> |
 
     Examples:
-      | ticket_code      | event_id                             | verdict      |
-      | USEDUSEDUSEDUSED | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ALREADY_USED |
-      | ZZZZZZZZZZZZZZZZ | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | NOT_VALID    |
-      | ABCDEFGH23456789 | 00000000-0000-4000-8000-000000000999 | WRONG_EVENT  |
+      | verdict      | ticket                                                                                                                                                                                                                                                                      |
+      | ALREADY_USED | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "USED", "price": {"amount_minor": 5000, "currency": "USD"}}             |
+      | NOT_VALID    | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "REFUNDED", "price": {"amount_minor": 5000, "currency": "USD"}}         |
+      | NOT_VALID    | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "VOID", "price": {"amount_minor": 5000, "currency": "USD"}}             |
+      | NOT_VALID    | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 5000, "currency": "USD"}} |
+      | WRONG_EVENT  | {"ticket_code": "ABCDEFGH23456789", "event_id": "5e0b1c2d-3a4b-4c5d-8e6f-9a0b1c2d3e4f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}}           |
+      | WRONG_EVENT  | {"ticket_code": "ABCDEFGH23456789", "event_id": "5e0b1c2d-3a4b-4c5d-8e6f-9a0b1c2d3e4f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "USED", "price": {"amount_minor": 5000, "currency": "USD"}}             |
 
-  Scenario Outline: A ticket code or an event identifier that is not valid is rejected at the boundary
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | ticket_code   | event_id   |
-      | <ticket_code> | <event_id> |
-    Then the input is rejected on "<field>"
+  Scenario: An unknown ticket is NOT_VALID
+    When I run "validate_ticket" with:
+      | ticket_code      | event_id                             | caller                                                                                                            | called_at            |
+      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | {"caller_id": "gate-7", "caller_role": "box_office", "assigned_events": ["6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"]} | 2026-12-12T19:30:00Z |
+    Then the output is "entry_result":
+      | ticket_code      | event_id                             | verdict   |
+      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | NOT_VALID |
+
+  Scenario Outline: A caller who is not box-office staff assigned to the event is refused with FORBIDDEN
+    When I run "validate_ticket" with:
+      | ticket_code      | event_id                             | caller   | called_at            | stored_ticket                                                                                                                                                                                                                                                     |
+      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | <caller> | 2026-12-12T19:30:00Z | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}} |
+    Then the output is "forbidden":
+      | caller_id   |
+      | <caller_id> |
 
     Examples:
-      | field       | ticket_code       | event_id                             |
-      | ticket_code | ABCDEFGH234567891 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f |
-      | event_id    | ABCDEFGH23456789  | concert-1                            |
+      | caller_id | caller                                                                                                            |
+      | gate-9    | {"caller_id": "gate-9", "caller_role": "box_office", "assigned_events": ["5e0b1c2d-3a4b-4c5d-8e6f-9a0b1c2d3e4f"]} |
+      | ada       | {"caller_id": "ada", "caller_role": "buyer"}                                                                      |
+      | org-1     | {"caller_id": "org-1", "caller_role": "organizer", "assigned_events": ["6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"]}   |
+
+  Scenario: A stored ticket that is not the ticket of the scan is rejected
+    When I run "validate_ticket" with:
+      | ticket_code      | event_id                             | caller                                                                                                            | called_at            | stored_ticket                                                                                                                                                                                                                                                     |
+      | ZYXWVUTS98765432 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | {"caller_id": "gate-7", "caller_role": "box_office", "assigned_events": ["6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"]} | 2026-12-12T19:30:00Z | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}} |
+    Then the input is rejected by "names_the_ticket" of "entry_scan"
+
+  Scenario Outline: A scan by a caller that breaks a rule is rejected
+    When I run "validate_ticket" with:
+      | ticket_code      | event_id                             | caller   | called_at            | stored_ticket                                                                                                                                                                                                                                                     |
+      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | <caller> | 2026-12-12T19:30:00Z | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}} |
+    Then the input is rejected by "<rule>" of "<definition>"
+
+    Examples:
+      | rule      | definition  | caller                                                                                                       |
+      | enum      | caller_role | {"caller_id": "gate-7", "caller_role": "admin", "assigned_events": ["6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"]} |
+      | minLength | caller_id   | {"caller_id": "", "caller_role": "box_office", "assigned_events": ["6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"]}  |
+      | required  | caller      | {"caller_id": "gate-7"}                                                                                      |

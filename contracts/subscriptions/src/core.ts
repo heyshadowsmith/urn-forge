@@ -1,24 +1,30 @@
-// A small subscriptions core. It holds no store. An operation that changes a subscription gets
-// the stored record from the shell; for the others, a few fixed ids stand for the stored records
-// that the scenarios need, and every other id is an active subscription.
-import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
-import { addDays, daysBetween } from 'urn-forge/exact';
+// A small subscriptions core. It holds no store: the shell loads the stored records that a call
+// needs into its input, and gives the caller and the time of the call (now). The core decides the
+// answer; the harness, runOperation, checks the input before and the answer after.
+import { answer, type DomainCore, type Event, type Plan, type Subscription } from './generated/domain.generated';
 
-const ID_24 = (c: string) => `sub_${c.repeat(24)}`;
+// Ids that the core makes, from the call that makes them, so that a run is deterministic: a hash
+// (FNV-1a) of the text, in base 36 or hex. A real core would draw random ids.
+const hash = (text: string, length: number, radix: 16 | 36): string => {
+  let out = '';
+  for (let round = 0; out.length < length; round++) {
+    let h = 0x811c9dc5 ^ round;
+    for (const c of text) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0;
+    out += h.toString(radix).padStart(radix === 16 ? 8 : 7, '0');
+  }
+  return out.slice(0, length);
+};
+const newSubscriptionId = (customer_id: string, plan_id: string, now: string) => `sub_${hash(`${customer_id} ${plan_id} ${now}`, 24, 36)}`;
+const newInvoiceId = (subscription_id: string, now: string) => `in_${hash(`${subscription_id} ${now}`, 12, 36)}`;
+const newEventId = (text: string) => {
+  const h = hash(text, 32, 16);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+};
 
-export const MISSING = ID_24('0');
-export const CANCELED = ID_24('c');
-export const PAUSED = ID_24('p');
-const CREATED = ID_24('n');
-const MISSING_INVOICE = 'in_missing';
-const NOW = '2026-11-22T10:00:00Z';
-
-// A plan id names its period: "yearly" bills each year, "quarterly" each 3 months and
-// "annual-monthly" each 12 months. Any other plan bills each month.
-const periodOf = (plan_id: string) =>
-  plan_id.includes('yearly')
-    ? { billing_period: 'year' as const, interval_count: 1 }
-    : { billing_period: 'month' as const, interval_count: plan_id.includes('quarterly') ? 3 : plan_id.includes('annual-monthly') ? 12 : 1 };
+// The day of an instant in UTC, and a day n days later.
+const dayOf = (instant: string) => instant.slice(0, 10);
+const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 
 // An instant in UTC, n calendar months later, at the same time of day. A day that the target month
 // lacks is that month's last day: 2026-01-31T10:00:00Z + 1 is 2026-02-28T10:00:00Z.
@@ -31,148 +37,157 @@ export const addMonths = (instant: string, n: number): string => {
   return `${target.toISOString().slice(0, 10)}${instant.slice(10)}`;
 };
 
-const monthsOf = (period: { billing_period: 'month' | 'year'; interval_count: number }) =>
-  period.billing_period === 'year' ? 12 * period.interval_count : period.interval_count;
-
 // A billing period of a plan, from its start.
-const periodFrom = (start: string, period: { billing_period: 'month' | 'year'; interval_count: number }) => ({
+const periodFrom = (start: string, plan: Plan) => ({
   current_period_start: start,
-  current_period_end: addMonths(start, monthsOf(period)),
+  current_period_end: addMonths(start, plan.billing_period === 'year' ? 12 * plan.interval_count : plan.interval_count),
 });
 
-const planOf = (plan_id: string) => ({
-  plan_id,
-  ...periodOf(plan_id),
-  price: { amount_minor: 1500, currency: plan_id.includes('usd') ? ('USD' as const) : ('EUR' as const) },
-});
-
-const subscription = (subscription_id: string, status: 'active' | 'paused' | 'canceled' = 'active') => ({
+const event = (event_type: Event['event_type'], subscription_id: string, occurred_at: string, invoice_id?: string): Event => ({
+  event_id: newEventId(`${subscription_id} ${event_type} ${occurred_at}`),
+  event_type,
   subscription_id,
-  customer_id: 'cus_1',
-  plan: planOf('plan_basic'),
-  plan_id: 'plan_basic',
-  quantity: 1,
-  status,
-  current_period_start: '2026-11-01T00:00:00Z',
-  current_period_end: '2026-12-01T00:00:00Z',
+  occurred_at,
+  ...(invoice_id ? { invoice_id } : {}),
 });
 
-const statusOf = (id: string) => (id === CANCELED ? 'canceled' : id === PAUSED ? 'paused' : 'active');
+const isBillingAdmin = (caller: { caller_kind: string; staff_roles?: readonly string[] }) =>
+  caller.caller_kind === 'staff' && (caller.staff_roles ?? []).includes('billing-admin');
 
-// A few fixed invoice ids stand for invoices of other plans and periods; any other id is the
-// monthly invoice of November 2026.
-const INVOICE_PERIODS: Readonly<Record<string, { plan_id: string; start: string }>> = {
-  'in_2026-01-31': { plan_id: 'plan_basic', start: '2026-01-31T00:00:00Z' },
-  'in_2028-01-31': { plan_id: 'plan_basic', start: '2028-01-31T00:00:00Z' },
-  'in_2026-03-31': { plan_id: 'plan_basic', start: '2026-03-31T12:30:00Z' },
-  'in_2026-12-31': { plan_id: 'plan_basic', start: '2026-12-31T23:59:59Z' },
-  'in_quarterly-2026-11-30': { plan_id: 'plan_team-quarterly', start: '2026-11-30T00:00:00Z' },
-  'in_yearly-2028-02-29': { plan_id: 'plan_pro-yearly', start: '2028-02-29T00:00:00Z' },
-};
+// A customer may use only their own subscriptions; staff and the clock may use any.
+const holds = (caller: { caller_kind: string; customer_id?: string }, stored: Subscription) =>
+  caller.caller_kind !== 'customer' || caller.customer_id === stored.customer_id;
 
-const invoicePeriod = (invoice_id: string) => {
-  const { plan_id, start } = INVOICE_PERIODS[invoice_id] ?? { plan_id: 'plan_basic', start: '2026-11-01T00:00:00Z' };
-  const period = periodOf(plan_id);
-  const { current_period_start, current_period_end } = periodFrom(start, period);
-  return { period_start: current_period_start, period_end: current_period_end, ...period };
-};
-
-const invoice = (invoice_id: string, subscription_id: string) => ({
-  invoice_id,
-  subscription_id,
-  status: 'paid' as const,
-  ...invoicePeriod(invoice_id),
-  lines: [{ quantity: 2, amount: { amount_minor: 3000, currency: 'EUR' as const } }],
-  total: { amount_minor: 3000, currency: 'EUR' as const },
-});
-
-// The shell gives each event its id (newEventId), so the core sets only the subscription and the time.
-const meta = (subscription_id: string) => ({ subscription_id, occurred_at: NOW });
+const LIVE = ['trialing', 'active', 'past_due', 'paused'];
 
 export const core = {
-  // The shell gives the time of the call (now); the day of the request is its UTC date.
-  'urn:corpus:subscriptions:subscription:operation:create_subscription': (req, _current, now) => {
-    const today = now.slice(0, 10);
-    // The core sees one call, not the stored subscriptions: a second live subscription of the
-    // customer to the plan is refused by the unique entry of the subscription (the store's index,
-    // and commitOnce answers conflict).
-    const trialEnd =
-      req.trial_end ?? (req.trial_days !== undefined && req.trial_days > 0 ? addDays(today, req.trial_days) : undefined);
-    const plan = planOf(req.plan_id);
-    // The first period starts now and lasts the plan's period.
-    const base = { ...subscription(CREATED), customer_id: req.customer_id, plan, plan_id: req.plan_id, quantity: req.quantity, ...periodFrom(now, plan) };
-    const created = emit('urn:corpus:subscriptions:subscription:event:created', meta(CREATED));
+  create_subscription: (input) => {
+    if (!isBillingAdmin(input.caller)) return answer('forbidden', { caller: input.caller });
+    if (input.existing_subscription) return answer('conflict', { customer_id: input.customer_id, plan_id: input.plan_id });
+    const today = dayOf(input.now);
+    const trialEnd = input.trial_end ?? (input.trial_days !== undefined && input.trial_days > 0 ? addDays(today, input.trial_days) : undefined);
+    const subscription_id = newSubscriptionId(input.customer_id, input.plan_id, input.now);
+    const base: Subscription = {
+      subscription_id,
+      customer_id: input.customer_id,
+      plan: input.plan,
+      plan_id: input.plan_id,
+      quantity: input.quantity,
+      subscription_status: 'active',
+      ...periodFrom(input.now, input.plan),
+    };
+    const created = event('subscription.created', subscription_id, input.now);
     if (trialEnd === undefined) {
-      return ok(base, [
-        created,
-        emit('urn:corpus:subscriptions:invoice:event:created', { ...meta(CREATED), invoice_id: 'in_1' }),
-        emit('urn:corpus:subscriptions:invoice:event:paid', { ...meta(CREATED), invoice_id: 'in_1' }),
-      ]);
-    }
-    // A trial shorter than 3 days announces its end at once, and keeps the mark so that the clock
-    // (announce_trial_end) does not announce it again.
-    const soon = daysBetween(today, trialEnd) < 3;
-    const trialing = { ...base, status: 'trialing' as const, trial_end: trialEnd };
-    return soon
-      ? ok({ ...trialing, trial_will_end_sent_at: now }, [created, emit('urn:corpus:subscriptions:subscription:event:trial_will_end', meta(CREATED))])
-      : ok(trialing, [created]);
-  },
-
-  'urn:corpus:subscriptions:subscription:operation:read_subscription': ({ subscription_id }) =>
-    subscription_id === MISSING
-      ? fail('urn:corpus:subscriptions:subscription:error:not_found', { subscription_id })
-      : ok(subscription(subscription_id, statusOf(subscription_id))),
-
-  'urn:corpus:subscriptions:subscription:operation:list_subscriptions': ({ customer_id, status }) => {
-    const all = [subscription(ID_24('a')), subscription(PAUSED, 'paused'), subscription(CANCELED, 'canceled')];
-    return ok({ subscriptions: all.filter((s) => status === undefined || s.status === status).map((s) => ({ ...s, customer_id })) });
-  },
-
-  'urn:corpus:subscriptions:subscription:operation:change_plan': ({ subscription_id, plan_id, proration }, current, now) => {
-    const next = planOf(plan_id);
-    if (next.price.currency !== current.plan.price.currency) {
-      return fail('urn:corpus:subscriptions:subscription:error:currency_mismatch', {
-        plan_currency: next.price.currency,
-        subscription_currency: current.plan.price.currency,
+      const invoice_id = newInvoiceId(subscription_id, input.now);
+      return answer('subscription_change', {
+        subscription: base,
+        events: [created, event('invoice.created', subscription_id, input.now, invoice_id), event('invoice.paid', subscription_id, input.now, invoice_id)],
       });
     }
+    const trialing: Subscription = { ...base, subscription_status: 'trialing', trial_end: trialEnd };
+    // A trial that ends less than 3 days after today is announced at once, and marked so that the
+    // clock (announce_trial_end) does not announce it again.
+    if (daysBetween(today, trialEnd) < 3) {
+      return answer('subscription_change', {
+        subscription: { ...trialing, trial_will_end_sent_at: input.now },
+        events: [created, event('subscription.trial_will_end', subscription_id, input.now)],
+      });
+    }
+    return answer('subscription_change', { subscription: trialing, events: [created] });
+  },
+
+  read_subscription: ({ subscription_id, caller, stored_subscription }) => {
+    if (!stored_subscription) return answer('subscription_not_found', { subscription_id });
+    if (!holds(caller, stored_subscription)) return answer('forbidden', { caller });
+    return answer('subscription', stored_subscription);
+  },
+
+  list_subscriptions: ({ customer_id, subscription_status, caller, stored_subscriptions }) => {
+    if (caller.caller_kind === 'customer' && caller.customer_id !== customer_id) return answer('forbidden', { caller });
+    const subscriptions = stored_subscriptions.filter((s) => s.customer_id === customer_id && (subscription_status === undefined || s.subscription_status === subscription_status));
+    return answer('subscription_list', { subscriptions });
+  },
+
+  change_plan: (input) => {
+    const stored = input.stored_subscription;
+    if (!stored) return answer('subscription_not_found', { subscription_id: input.subscription_id });
+    if (!isBillingAdmin(input.caller)) return answer('forbidden', { caller: input.caller });
+    if (!LIVE.includes(stored.subscription_status)) {
+      return answer('invalid_state_transition', { subscription_id: input.subscription_id, subscription_status: stored.subscription_status });
+    }
+    const next = input.new_plan;
+    if (next.price.currency !== stored.plan.price.currency) {
+      return answer('currency_mismatch', { plan_currency: next.price.currency, subscription_currency: stored.plan.price.currency });
+    }
+    if (input.existing_subscription) return answer('conflict', { customer_id: stored.customer_id, plan_id: input.plan_id });
+    const { scheduled_plan_id: _scheduled, ...rest } = stored;
     // A plan with the same period keeps the current period; a plan with another one starts a new period now.
-    const samePeriod = next.billing_period === current.plan.billing_period && next.interval_count === current.plan.interval_count;
-    const changed =
-      proration === 'at_period_end'
-        ? { ...current, scheduled_plan_id: plan_id }
-        : { ...current, plan: next, plan_id, ...(samePeriod ? {} : periodFrom(now, next)) };
-    return ok(changed, [emit('urn:corpus:subscriptions:subscription:event:updated', meta(subscription_id))]);
+    const samePeriod = next.billing_period === stored.plan.billing_period && next.interval_count === stored.plan.interval_count;
+    const changed: Subscription =
+      input.proration === 'at_period_end'
+        ? { ...stored, scheduled_plan_id: input.plan_id }
+        : { ...rest, plan: next, plan_id: input.plan_id, ...(samePeriod ? {} : periodFrom(input.now, next)) };
+    return answer('subscription_change', { subscription: changed, events: [event('subscription.updated', stored.subscription_id, input.now)] });
   },
 
-  'urn:corpus:subscriptions:subscription:operation:pause_subscription': ({ subscription_id, resume_on }, current) => {
-    const paused = { ...current, status: 'paused' as const, ...(resume_on ? { resume_on } : {}) };
-    return ok(paused, [emit('urn:corpus:subscriptions:subscription:event:updated', meta(subscription_id))]);
+  pause_subscription: ({ subscription_id, resume_on, caller, now, stored_subscription: stored }) => {
+    if (!stored) return answer('subscription_not_found', { subscription_id });
+    if (!holds(caller, stored)) return answer('forbidden', { caller });
+    if (stored.subscription_status !== 'active' && stored.subscription_status !== 'trialing') {
+      return answer('invalid_state_transition', { subscription_id, subscription_status: stored.subscription_status });
+    }
+    const { resume_on: _old, ...rest } = stored;
+    const paused: Subscription = { ...rest, subscription_status: 'paused', ...(resume_on ? { resume_on } : {}) };
+    return answer('subscription_change', { subscription: paused, events: [event('subscription.updated', subscription_id, now)] });
   },
 
-  'urn:corpus:subscriptions:subscription:operation:resume_subscription': ({ subscription_id }, current) => {
-    const { resume_on: _resumed, ...rest } = current;
-    return ok({ ...rest, status: 'active' as const }, [emit('urn:corpus:subscriptions:subscription:event:updated', meta(subscription_id))]);
+  resume_subscription: ({ subscription_id, caller, now, stored_subscription: stored }) => {
+    if (!stored) return answer('subscription_not_found', { subscription_id });
+    if (!holds(caller, stored)) return answer('forbidden', { caller });
+    if (stored.subscription_status !== 'paused') {
+      return answer('invalid_state_transition', { subscription_id, subscription_status: stored.subscription_status });
+    }
+    const { resume_on: _resumed, ...rest } = stored;
+    return answer('subscription_change', { subscription: { ...rest, subscription_status: 'active' }, events: [event('subscription.updated', subscription_id, now)] });
   },
 
-  'urn:corpus:subscriptions:subscription:operation:cancel_subscription': ({ subscription_id, cancel_mode }, current) => {
-    const canceled = cancel_mode === 'immediately' ? { ...current, status: 'canceled' as const } : { ...current, cancel_at: cancel_mode };
-    return ok(canceled, [emit('urn:corpus:subscriptions:subscription:event:canceled', meta(subscription_id))]);
+  cancel_subscription: ({ subscription_id, cancel_mode, caller, now, stored_subscription: stored }) => {
+    if (!stored) return answer('subscription_not_found', { subscription_id });
+    if (!holds(caller, stored)) return answer('forbidden', { caller });
+    if (!LIVE.includes(stored.subscription_status)) {
+      return answer('invalid_state_transition', { subscription_id, subscription_status: stored.subscription_status });
+    }
+    const canceled: Subscription = cancel_mode === 'immediately' ? { ...stored, subscription_status: 'canceled' } : { ...stored, cancel_at: 'at_period_end' };
+    return answer('subscription_change', { subscription: canceled, events: [event('subscription.canceled', subscription_id, now)] });
   },
 
   // The shell's clock calls it for each trialing subscription whose trial ends within 3 days and
   // that was not announced yet; the subscription keeps its status and gets the mark.
-  'urn:corpus:subscriptions:subscription:operation:announce_trial_end': ({ subscription_id }, current, now) =>
-    ok({ ...current, trial_will_end_sent_at: now }, [emit('urn:corpus:subscriptions:subscription:event:trial_will_end', { subscription_id, occurred_at: now })]),
-
-  'urn:corpus:subscriptions:invoice:operation:read_invoice': ({ invoice_id }) =>
-    invoice_id === MISSING_INVOICE
-      ? fail('urn:corpus:subscriptions:invoice:error:not_found', { invoice_id })
-      : ok(invoice(invoice_id, ID_24('a'))),
-
-  'urn:corpus:subscriptions:invoice:operation:list_invoices': ({ subscription_id, status }) => {
-    if (subscription_id === MISSING) return fail('urn:corpus:subscriptions:subscription:error:not_found', { subscription_id });
-    const all = [invoice('in_1', subscription_id), { ...invoice('in_2', subscription_id), status: 'open' as const }];
-    return ok({ invoices: all.filter((i) => status === undefined || i.status === status) });
+  announce_trial_end: ({ subscription_id, caller, now, stored_subscription: stored }) => {
+    if (!stored) return answer('subscription_not_found', { subscription_id });
+    if (caller.caller_kind === 'customer') return answer('forbidden', { caller });
+    const due =
+      stored.subscription_status === 'trialing' &&
+      stored.trial_will_end_sent_at === undefined &&
+      stored.trial_end !== undefined &&
+      daysBetween(dayOf(now), stored.trial_end) <= 3;
+    if (!due) return answer('invalid_state_transition', { subscription_id, subscription_status: stored.subscription_status });
+    return answer('subscription_change', {
+      subscription: { ...stored, trial_will_end_sent_at: now },
+      events: [event('subscription.trial_will_end', subscription_id, now)],
+    });
   },
-} satisfies DomainCoreImplementation;
+
+  read_invoice: ({ invoice_id, caller, stored_invoice, stored_subscription }) => {
+    if (!stored_invoice) return answer('invoice_not_found', { invoice_id });
+    if (stored_subscription && !holds(caller, stored_subscription)) return answer('forbidden', { caller });
+    return answer('invoice', stored_invoice);
+  },
+
+  list_invoices: ({ subscription_id, invoice_status, caller, stored_subscription, stored_invoices }) => {
+    if (!stored_subscription) return answer('subscription_not_found', { subscription_id });
+    if (!holds(caller, stored_subscription)) return answer('forbidden', { caller });
+    const invoices = stored_invoices.filter((i) => i.subscription_id === subscription_id && (invoice_status === undefined || i.invoice_status === invoice_status));
+    return answer('invoice_list', { invoices });
+  },
+} satisfies DomainCore;

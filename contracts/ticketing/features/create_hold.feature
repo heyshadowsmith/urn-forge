@@ -1,175 +1,119 @@
-@urn-forge:strict
-@urn:corpus:ticketing:hold:operation:create_hold
 Feature: Hold seats and standing places during checkout
+  A buyer holds 1 to 10 lines of one event: a seated line is one seat (quantity 1), a standing line a section
+  and a quantity. The hold is created at the time of the call, and expires exactly 10 minutes later.
 
-  Scenario: A hold of one seat and two standing places gives the price of each line, the total and the expiry
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | idempotency_key | event_id                             | lines                                                                                                                   |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }, { place_kind: standing, section: FLOOR, quantity: 2 }] |
-    Then the output is:
-      | hold_id                              | hold_status | lines                                                                                                                                                                                                     | total                                  | created_at           | expires_at           |
-      | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | ACTIVE      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, price: { amount_minor: 5000, currency: EUR } }, { place_kind: standing, section: FLOOR, quantity: 2, price: { amount_minor: 6000, currency: EUR } }] | { amount_minor: 11000, currency: EUR } | 2026-12-01T19:00:00Z | 2026-12-01T19:10:00Z |
-    And the operation emits "urn:corpus:ticketing:hold:event:hold_created":
-      | message_id                           | event_id                             | hold_id                              | occurred_at          |
-      | 00000000-0000-4000-8000-000000000001 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | 2026-12-01T19:00:00Z |
+  Scenario: A hold of one seat and two standing places gives the price of each line, the total, the expiry and HoldCreated
+    When I run "create_hold" with:
+      | idempotency_key | event_id                             | hold_lines                                                                                                                                               | caller                                       | called_at            |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 2}] | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-01T19:00:00Z |
+    Then the output is "new_hold":
+      | hold                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | hold_created                                                                                                                                                                                         |
+      | {"hold_id": "3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "hold_status": "ACTIVE", "held_lines": [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1, "price": {"amount_minor": 5000, "currency": "EUR"}}, {"place_kind": "standing", "section": "FLOOR", "quantity": 2, "price": {"amount_minor": 6000, "currency": "EUR"}}], "total": {"amount_minor": 11000, "currency": "EUR"}, "created_at": "2026-12-01T19:00:00Z", "expires_at": "2026-12-01T19:10:00Z"} | {"message_id": "00000000-0000-4000-8000-000000000001", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "hold_id": "3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b", "occurred_at": "2026-12-01T19:00:00Z"} |
 
   Scenario Outline: The hold is created at the time of the call and expires exactly 10 minutes later
-    Given the time is "<now>"
-    When I run the operation with:
-      | idempotency_key | event_id                             | lines                                                          |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
-    Then the output is:
-      | hold_id                              | created_at | expires_at   |
-      | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | <now>      | <expires_at> |
-    And the operation emits "urn:corpus:ticketing:hold:event:hold_created":
-      | message_id                           | event_id                             | hold_id                              | occurred_at |
-      | 00000000-0000-4000-8000-000000000001 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b | <now>       |
+    When I run "create_hold" with:
+      | idempotency_key | event_id                             | hold_lines                                                                                | caller                                       | called_at |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1}] | {"caller_id": "ada", "caller_role": "buyer"} | <now>     |
+    Then the output is "new_hold":
+      | hold                                                                                                                                                                                                                                                                                                                                                                                                                      | hold_created                                                                                                                                                                          |
+      | {"hold_id": "3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "hold_status": "ACTIVE", "held_lines": [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1, "price": {"amount_minor": 5000, "currency": "EUR"}}], "total": {"amount_minor": 5000, "currency": "EUR"}, "created_at": "<now>", "expires_at": "<expires_at>"} | {"message_id": "00000000-0000-4000-8000-000000000001", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "hold_id": "3b8e7a10-2c4d-4e6f-9a1b-2c3d4e5f6a7b", "occurred_at": "<now>"} |
 
     Examples:
       | now                      | expires_at               |
       | 2026-12-01T19:55:00Z     | 2026-12-01T20:05:00Z     |
       | 2026-12-31T23:54:59.999Z | 2027-01-01T00:04:59.999Z |
 
-  Scenario Outline: Values at the edges of their limits are accepted
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | idempotency_key   | event_id                             | lines   |
-      | <idempotency_key> | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | <lines> |
-    Then the output is:
-      | hold_status |
-      | ACTIVE      |
+  Scenario Outline: Lines at the edges of their limits are held
+    When I run "create_hold" with:
+      | idempotency_key | event_id                             | hold_lines | caller                                       | called_at            |
+      | <key>           | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | <lines>    | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-01T19:00:00Z |
+    Then the output is "new_hold"
 
     Examples:
-      | idempotency_key  | lines                                                                         |
-      | =repeat(8, "k")  | [{ place_kind: seated, section: A, row: A, seat_number: 1 }]                  |
-      | =repeat(64, "k") | [{ place_kind: seated, section: ZZ9999, row: ZZ, seat_number: 150 }]          |
-      | hold-key-0002    | [{ place_kind: standing, section: FLOOR, quantity: 1 }]                       |
-      | hold-key-0003    | [{ place_kind: standing, section: FLOOR, quantity: 10 }]                      |
-      | hold-key-0004    | =repeat(10, { place_kind: standing, section: FLOOR, quantity: 1 })            |
-      | hold-key-0005    | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }, { place_kind: seated, section: A1, row: D, seat_number: 12 }] |
+      | key                                                              | lines                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+      | kkkkkkkk                                                         | [{"place_kind": "seated", "section": "A", "row": "A", "seat_number": 1, "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+      | kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk | [{"place_kind": "seated", "section": "ZZ9999", "row": "ZZ", "seat_number": 150, "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+      | hold-key-0002                                                    | [{"place_kind": "standing", "section": "FLOOR", "quantity": 10}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+      | hold-key-0003                                                    | [{"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}] |
+      | hold-key-0004                                                    | [{"place_kind": "standing", "section": "FLOOR", "quantity": 5}, {"place_kind": "standing", "section": "FLOOR", "quantity": 5}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+      | hold-key-0005                                                    | [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1}, {"place_kind": "seated", "section": "A1", "row": "D", "seat_number": 12, "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
-  Scenario Outline: A request outside the limits of a field is rejected at the boundary
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | idempotency_key   | event_id   | lines   |
-      | <idempotency_key> | <event_id> | <lines> |
-    Then the input is rejected on "<field>"
+  Scenario: A request that names a seat that cannot be held is refused with SEAT_UNAVAILABLE, listing that seat
+    When I run "create_hold" with:
+      | idempotency_key | event_id                             | hold_lines                                                                                                                                                                        | caller                                       | called_at            |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1}, {"place_kind": "seated", "section": "A1", "row": "Q", "seat_number": 3, "quantity": 1}] | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-01T19:00:00Z |
+    Then the output is "seat_unavailable":
+      | seats                                             |
+      | [{"section": "A1", "row": "Q", "seat_number": 3}] |
 
-    Examples:
-      | field           | idempotency_key  | event_id                             | lines                                                                    |
-      | idempotency_key | =repeat(7, "k")  | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }]           |
-      | idempotency_key | =repeat(65, "k") | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }]           |
-      | event_id        | hold-key-0001    | concert-1                            | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }]           |
-      | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | []                                                                       |
-      | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | =repeat(11, { place_kind: standing, section: FLOOR, quantity: 1 })       |
-      | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: boxed, section: A1, row: C, seat_number: 12 }]            |
-      | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: a1, row: C, seat_number: 12 }]           |
-      | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C3, seat_number: 12 }]          |
-      | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 0 }]            |
-      | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 151 }]          |
-      | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: standing, section: FLOOR, quantity: 0 }]                  |
-      | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: standing, section: FLOOR, quantity: 11 }]                 |
-      | lines           | hold-key-0001    | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }, { place_kind: seated, section: A1, row: C, seat_number: 12 }] |
-
-  Scenario Outline: A seated line that does not name exactly one seat is rejected
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | idempotency_key | event_id                             | lines   |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | <lines> |
-    Then the input is rejected by "urn:corpus:ticketing:hold:invariant:seated_line_names_one_seat"
-
-    Examples:
-      | lines                                                                     |
-      | [{ place_kind: seated, section: A1, row: C }]                             |
-      | [{ place_kind: seated, section: A1, seat_number: 12 }]                    |
-      | [{ place_kind: seated, section: A1, row: C, seat_number: 12, quantity: 2 }] |
-
-  Scenario Outline: A standing line with a row or a seat number, or without a quantity, is rejected
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | idempotency_key | event_id                             | lines   |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | <lines> |
-    Then the input is rejected by "urn:corpus:ticketing:hold:invariant:standing_line_names_quantity"
-
-    Examples:
-      | lines                                                                  |
-      | [{ place_kind: standing, section: FLOOR }]                             |
-      | [{ place_kind: standing, section: FLOOR, quantity: 2, row: C }]        |
-      | [{ place_kind: standing, section: FLOOR, quantity: 2, seat_number: 4 }] |
-
-  Scenario: Seats that cannot be held are all listed, and nothing is held
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | idempotency_key | event_id                             | lines                                                                                                                                                    |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: Q, seat_number: 3 }, { place_kind: seated, section: A1, row: C, seat_number: 12 }, { place_kind: seated, section: B, row: Q, seat_number: 4 }] |
-    Then the operation fails with "urn:corpus:ticketing:hold:error:seat_unavailable":
-      | seats                                                                              |
-      | [{ section: A1, row: Q, seat_number: 3 }, { section: B, row: Q, seat_number: 4 }] |
-    And the operation emits no event
-
-  Scenario: A standing section without enough capacity is named, and nothing is held
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | idempotency_key | event_id                             | lines                                                  |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: standing, section: SOLD, quantity: 2 }] |
-    Then the operation fails with "urn:corpus:ticketing:hold:error:section_sold_out":
+  Scenario: A standing section without capacity is refused with SECTION_SOLD_OUT
+    When I run "create_hold" with:
+      | idempotency_key | event_id                             | hold_lines                                                     | caller                                       | called_at            |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{"place_kind": "standing", "section": "SOLD", "quantity": 2}] | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-01T19:00:00Z |
+    Then the output is "section_sold_out":
       | section |
       | SOLD    |
-    And the operation emits no event
 
-  Scenario: More than 10 tickets in one hold is refused
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | idempotency_key | event_id                             | lines                                                                                                          |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: standing, section: FLOOR, quantity: 6 }, { place_kind: standing, section: FLOOR, quantity: 5 }] |
-    Then the operation fails with "urn:corpus:ticketing:hold:error:limit_exceeded"
-    And the operation emits no event
+  Scenario: A buyer who would hold more than 10 tickets of the event is refused with LIMIT_EXCEEDED
+    When I run "create_hold" with:
+      | idempotency_key | event_id                             | hold_lines                                                                                                                                               | caller                                                  | called_at            |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 2}] | {"caller_id": "buyer-at-limit", "caller_role": "buyer"} | 2026-12-01T19:00:00Z |
+    Then the output is "limit_exceeded":
+      | event_id                             |
+      | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f |
 
-  Scenario: An event that is not on sale is refused
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | idempotency_key | event_id                             | lines                                                          |
-      | hold-key-0001   | 00000000-0000-4000-8000-0000000000c1 | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
-    Then the operation fails with "urn:corpus:ticketing:hold:error:sales_closed":
+  Scenario: An event that is not on sale is refused with SALES_CLOSED
+    When I run "create_hold" with:
+      | idempotency_key | event_id                             | hold_lines                                                                                                                                               | caller                                       | called_at            |
+      | hold-key-0001   | 00000000-0000-4000-8000-0000000000c1 | [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 2}] | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-01T19:00:00Z |
+    Then the output is "sales_closed":
       | event_id                             |
       | 00000000-0000-4000-8000-0000000000c1 |
-    And the operation emits no event
 
-  Scenario: A repeat with the same key within 24 hours returns the first hold and holds nothing more
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | idempotency_key | event_id                             | lines                                                          |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
-    Then the operation emits "urn:corpus:ticketing:hold:event:hold_created"
-    Given the time is "2026-12-02T18:59:59.999Z"
-    When I run the operation again with:
-      | idempotency_key | event_id                             | lines                                                          |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
-    Then the answer is the first answer
-    And the operation emits no event
+  Scenario Outline: A request whose lines break a rule is rejected
+    When I run "create_hold" with:
+      | idempotency_key | event_id                             | hold_lines | caller                                       | called_at            |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | <lines>    | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-01T19:00:00Z |
+    Then the input is rejected by "<rule>" of "<definition>"
 
-  Scenario: A repeat with the same key and another body still returns the first hold
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | idempotency_key | event_id                             | lines                                                          |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
-    And I run the operation again with:
-      | idempotency_key | event_id                             | lines                                              |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: standing, section: FLOOR, quantity: 2 }] |
-    Then the answer is the first answer
-    And the operation emits no event
+    Examples:
+      | rule                         | definition  | lines                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+      | minItems                     | hold_lines  | []                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+      | maxItems                     | hold_lines  | [{"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 1}] |
+      | no_seat_twice                | hold_lines  | [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1}, {"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+      | at_most_ten_tickets          | hold_lines  | [{"place_kind": "standing", "section": "FLOOR", "quantity": 6}, {"place_kind": "standing", "section": "PIT", "quantity": 5}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+      | at_most_ten_tickets          | hold_lines  | [{"place_kind": "standing", "section": "FLOOR", "quantity": 10}, {"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+      | required                     | hold_line   | [{"place_kind": "standing", "section": "FLOOR"}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+      | seated_place_names_a_seat    | hold_line   | [{"place_kind": "seated", "section": "A1", "seat_number": 12, "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+      | seated_place_names_a_seat    | hold_line   | [{"place_kind": "seated", "section": "A1", "row": "C", "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+      | standing_place_names_no_seat | hold_line   | [{"place_kind": "standing", "section": "FLOOR", "quantity": 2, "row": "C"}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+      | standing_place_names_no_seat | hold_line   | [{"place_kind": "standing", "section": "FLOOR", "quantity": 2, "seat_number": 4}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+      | seated_line_is_one_place     | hold_line   | [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 2}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+      | enum                         | place_kind  | [{"place_kind": "boxed", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+      | pattern                      | section     | [{"place_kind": "seated", "section": "a1", "row": "C", "seat_number": 12, "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+      | pattern                      | section     | [{"place_kind": "seated", "section": "ABCDEFG", "row": "C", "seat_number": 12, "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+      | pattern                      | row         | [{"place_kind": "seated", "section": "A1", "row": "C3", "seat_number": 12, "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+      | minimum                      | seat_number | [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 0, "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+      | maximum                      | seat_number | [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 151, "quantity": 1}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+      | minimum                      | quantity    | [{"place_kind": "standing", "section": "FLOOR", "quantity": 0}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+      | maximum                      | quantity    | [{"place_kind": "standing", "section": "FLOOR", "quantity": 11}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
-  Scenario: 24 hours after the first call the key is free, and the repeat holds again
-    Given the time is "2026-12-01T19:00:00Z"
-    When I run the operation with:
-      | idempotency_key | event_id                             | lines                                                          |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
-    Given the time is "2026-12-02T19:00:00Z"
-    When I run the operation again with:
-      | idempotency_key | event_id                             | lines                                                          |
-      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | [{ place_kind: seated, section: A1, row: C, seat_number: 12 }] |
-    Then the output is:
-      | created_at           | expires_at           |
-      | 2026-12-02T19:00:00Z | 2026-12-02T19:10:00Z |
-    And the operation emits "urn:corpus:ticketing:hold:event:hold_created"
+  Scenario Outline: A request with a value out of its limits is rejected
+    When I run "create_hold" with:
+      | idempotency_key | event_id   | hold_lines                                                                                                                                               | caller                                       | called_at   |
+      | <key>           | <event_id> | [{"place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "quantity": 1}, {"place_kind": "standing", "section": "FLOOR", "quantity": 2}] | {"caller_id": "ada", "caller_role": "buyer"} | <called_at> |
+    Then the input is rejected by "<rule>" of "<definition>"
+
+    Examples:
+      | rule      | definition      | key                                                               | event_id                             | called_at                 |
+      | minLength | idempotency_key | kkkkkkk                                                           | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01T19:00:00Z      |
+      | maxLength | idempotency_key | kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01T19:00:00Z      |
+      | pattern   | uuid            | hold-key-0001                                                     | concert-1                            | 2026-12-01T19:00:00Z      |
+      | format    | utc_time        | hold-key-0001                                                     | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01 19:00          |
+      | in_utc    | utc_time        | hold-key-0001                                                     | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01T20:00:00+01:00 |
+
+  Scenario: A request without its lines is rejected
+    When I run "create_hold" with:
+      | idempotency_key | event_id                             | caller                                       | called_at            |
+      | hold-key-0001   | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-01T19:00:00Z |
+    Then the input is rejected by "required" of "hold_request"

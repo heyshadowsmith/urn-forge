@@ -1,3 +1,0 @@
-lifecycle urn:demo:shop:order:entity:order
-lifecycle urn:demo:shop:order:entity:receipt
-lifecycle urn:demo:shop:order:field:spare

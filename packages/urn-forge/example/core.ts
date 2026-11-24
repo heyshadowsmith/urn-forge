@@ -1,8 +1,8 @@
-import { ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
+// The core of the math example. The harness, runOperation, checks each input before the core
+// runs and each answer after it.
+import { answer, type DomainCore } from './generated/domain.generated.js';
 
 export const core = {
-  'urn:demo:math:geometry:operation:compute_area':
-    ({ radius }) => ok({ area: Math.PI * radius ** 2 }),
-  'urn:demo:math:arithmetic:operation:safe_divide':
-    ({ dividend, divisor }) => ok({ quotient: dividend / divisor }),
-} satisfies DomainCoreImplementation;
+  compute_area: ({ radius }) => answer('circle_area', { area: Math.PI * radius ** 2 }),
+  safe_divide: ({ dividend, divisor }) => answer('division_result', { quotient: dividend / divisor }),
+} satisfies DomainCore;

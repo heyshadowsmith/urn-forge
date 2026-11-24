@@ -47,15 +47,19 @@ function read(file: string, name: string, problems: string[]): unknown {
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
- * What a promise can name in by: each short key of the manifest, and each key of its header as
- * `manifest.<key>`, such as `manifest.compatibility`, for a rule of the whole contract.
+ * What a promise can name in by: each part of the manifest as `<section>.<name>`, such as
+ * `definitions.party_size`, `rules.large_party_pays_deposit` or `operations.seat_booking`, and each
+ * key of its header as `manifest.<key>`, such as `manifest.compatibility`.
  */
 function shortKeys(path: string): ReadonlySet<string> | undefined {
   if (!existsSync(path)) return undefined;
   const document: unknown = parse(readFileSync(path, 'utf8'));
   if (!isRecord(document)) return new Set();
-  const header = isRecord(document['manifest']) ? Object.keys(document['manifest']).map((key) => `manifest.${key}`) : [];
-  return new Set([...Object.keys(document).filter((key) => key !== 'manifest'), ...header]);
+  const keys: string[] = [];
+  for (const [section, value] of Object.entries(document)) {
+    if (isRecord(value)) for (const name of Object.keys(value)) keys.push(`${section}.${name}`);
+  }
+  return new Set(keys);
 }
 
 /** Reads and checks the corpus in `root`. */
@@ -97,11 +101,11 @@ export function checkCorpus(root: string): CorpusReport {
 
       if (status === undefined) problems.push(`${where}: has no status`);
       else if (!STATUSES.includes(status)) problems.push(`${where}: status "${String(status)}" is not one of ${STATUSES.join(', ')}`);
-      if (raw.by !== undefined && !Array.isArray(raw.by)) problems.push(`${where}: by must be a list of short keys`);
-      if ((status === 'declared' || status === 'workaround') && by.length === 0) problems.push(`${where}: a ${status} promise needs by, the atoms that state it`);
+      if (raw.by !== undefined && !Array.isArray(raw.by)) problems.push(`${where}: by must be a list of parts of the manifest, such as definitions.<name>`);
+      if ((status === 'declared' || status === 'workaround') && by.length === 0) problems.push(`${where}: a ${status} promise needs by, the parts that state it`);
       if (status === 'not-declarable' && by.length > 0) problems.push(`${where}: a not-declarable promise has no by`);
-      if (by.length > 0 && keys === undefined) problems.push(`${where}: by names atoms, but ${contract} has no domain.manifest.yaml`);
-      for (const key of by) if (keys && !keys.has(key)) problems.push(`${where}: ${key} is not an atom or a header key of ${contract}/domain.manifest.yaml`);
+      if (by.length > 0 && keys === undefined) problems.push(`${where}: by names parts, but ${contract} has no domain.manifest.yaml`);
+      for (const key of by) if (keys && !keys.has(key)) problems.push(`${where}: ${key} is not a part or a header key of ${contract}/domain.manifest.yaml`);
       if ((status === 'workaround' || status === 'not-declarable') && hole === undefined) problems.push(`${where}: a ${status} promise needs hole, the hole of the roadmap that would declare it`);
       if (status === 'declared' && hole !== undefined) problems.push(`${where}: a declared promise has no hole`);
       if (hole !== undefined && !Object.hasOwn(holes, hole)) problems.push(`${where}: hole ${hole} is not in corpus.yaml`);

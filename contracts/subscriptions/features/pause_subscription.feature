@@ -1,197 +1,81 @@
-@urn-forge:strict
-@urn:corpus:subscriptions:subscription:operation:pause_subscription
 Feature: Pause a subscription
+  An active or trialing subscription is paused, until a resume day from 1 to 90 days after the day of
+  the request if one is given. A customer pauses only their own subscription.
 
-  Scenario Outline: An active or trialing subscription pauses, with or without a resume day
-    Given the time is "2026-11-22T10:00:00Z"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
-    When I run the operation with:
-      | subscription_id              | resume_on   | idempotency_key   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> | <idempotency_key> |
-    Then the output is:
-      | status | resume_on   |
-      | paused | <resume_on> |
-    And the operation emits "urn:corpus:subscriptions:subscription:event:updated"
+  Scenario Outline: An active or trialing subscription is paused
+    When I run "pause_subscription" with:
+      | subscription_id              | resume_on   | caller.caller_kind | caller.customer_id | now   | stored_subscription.subscription_id | stored_subscription.customer_id | stored_subscription.plan | stored_subscription.plan_id | stored_subscription.quantity | stored_subscription.subscription_status | stored_subscription.current_period_start | stored_subscription.current_period_end | stored_subscription.trial_end |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> | customer           | cus_1              | <now> | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1 | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic | 1 | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | <trial_end> |
+    Then the output is "subscription_change"
 
     Examples:
-      | status   | resume_on  | idempotency_key   |
-      | active   |            | k                 |
-      | trialing | 2026-11-23 | =repeat(255, "k") |
-      | active   | 2027-02-20 |                   |
+      | status   | trial_end  | resume_on  | now                  |
+      | active   |            |            | 2026-11-22T10:00:00Z |
+      | trialing | 2026-12-01 | 2026-11-23 | 2026-11-22T10:00:00Z |
+      | active   |            | 2027-02-20 | 2026-11-22T10:00:00Z |
+      | active   |            | 2026-11-23 | 2026-11-22T23:59:59Z |
+      | active   |            | 2027-02-20 | 2026-11-22T00:00:00Z |
 
-  Scenario Outline: A resume day less than 1 day or more than 90 days after the request is refused, at 2026-11-22T10:00:00Z
-    Given the time is "2026-11-22T10:00:00Z"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
-    When I run the operation with:
-      | subscription_id              | resume_on   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> |
-    Then the operation fails with "urn:corpus:subscriptions:subscription:error:invalid_resume_date":
-      | resume_on   |
-      | <resume_on> |
-    And the operation emits no event
+  Scenario: The paused subscription keeps the resume day
+    When I run "pause_subscription" with:
+      | subscription_id              | resume_on  | caller.caller_kind | now                  | stored_subscription.subscription_id | stored_subscription.customer_id | stored_subscription.plan | stored_subscription.plan_id | stored_subscription.quantity | stored_subscription.subscription_status | stored_subscription.current_period_start | stored_subscription.current_period_end |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | 2026-12-15 | staff              | 2026-11-22T10:00:00Z | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1 | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic | 1 | active | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+    Then the output is "subscription_change":
+      | subscription |
+      | {"subscription_id": "sub_aaaaaaaaaaaaaaaaaaaaaaaa", "customer_id": "cus_1", "plan": {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}}, "plan_id": "plan_basic", "quantity": 1, "subscription_status": "paused", "current_period_start": "2026-11-01T00:00:00Z", "current_period_end": "2026-12-01T00:00:00Z", "resume_on": "2026-12-15"} |
 
-    Examples:
-      | resume_on  |
-      | 2026-11-22 |
-      | 2026-11-01 |
-      | 2027-02-21 |
-
-  Scenario Outline: A resume day less than 1 day or more than 90 days after the request is refused, at 2026-11-23T00:00:00Z
-    Given the time is "2026-11-23T00:00:00Z"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
-    When I run the operation with:
-      | subscription_id              | resume_on   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> |
-    Then the operation fails with "urn:corpus:subscriptions:subscription:error:invalid_resume_date":
-      | resume_on   |
-      | <resume_on> |
-    And the operation emits no event
+  Scenario Outline: A resume day that is not 1 to 90 days after the day of the request is rejected
+    When I run "pause_subscription" with:
+      | subscription_id              | resume_on   | caller.caller_kind | now   | stored_subscription.subscription_id | stored_subscription.customer_id | stored_subscription.plan | stored_subscription.plan_id | stored_subscription.quantity | stored_subscription.subscription_status | stored_subscription.current_period_start | stored_subscription.current_period_end |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> | staff              | <now> | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1 | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic | 1 | active | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+    Then the input is rejected by "resume_on_in_window" of "pause_request"
 
     Examples:
-      | resume_on  |
-      | 2026-11-23 |
+      | resume_on  | now                  |
+      | 2026-11-22 | 2026-11-22T10:00:00Z |
+      | 2027-02-21 | 2026-11-22T10:00:00Z |
+      | 2026-11-23 | 2026-11-23T00:00:00Z |
+      | 2027-02-20 | 2026-11-21T23:59:59Z |
 
-  Scenario Outline: A resume day less than 1 day or more than 90 days after the request is refused, at 2026-11-22T23:59:59.999Z
-    Given the time is "2026-11-22T23:59:59.999Z"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
-    When I run the operation with:
-      | subscription_id              | resume_on   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> |
-    Then the operation fails with "urn:corpus:subscriptions:subscription:error:invalid_resume_date":
-      | resume_on   |
-      | <resume_on> |
-    And the operation emits no event
-
-    Examples:
-      | resume_on  |
-      | 2027-02-21 |
-
-  Scenario Outline: Today is the UTC date of the time of the request, at 2026-11-22T23:59:59.999Z
-    Given the time is "2026-11-22T23:59:59.999Z"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
-    When I run the operation with:
-      | subscription_id              | resume_on   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> |
-    Then the output is:
-      | status | resume_on   |
-      | paused | <resume_on> |
-
-    Examples:
-      | resume_on  |
-      | 2026-11-23 |
-
-  Scenario Outline: Today is the UTC date of the time of the request, at 2026-11-23T00:00:00Z
-    Given the time is "2026-11-23T00:00:00Z"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
-    When I run the operation with:
-      | subscription_id              | resume_on   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <resume_on> |
-    Then the output is:
-      | status | resume_on   |
-      | paused | <resume_on> |
-
-    Examples:
-      | resume_on  |
-      | 2026-11-24 |
-      | 2027-02-21 |
-
-  Scenario Outline: A request that breaks a field limit is rejected
-    Given the time is "2026-11-22T10:00:00Z"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
-    When I run the operation with:
-      | subscription_id   | idempotency_key   |
-      | <subscription_id> | <idempotency_key> |
-    Then the input is rejected on "<field>"
-
-    Examples:
-      | field           | subscription_id              | idempotency_key   |
-      | subscription_id | sub_                         |                   |
-      | idempotency_key | sub_aaaaaaaaaaaaaaaaaaaaaaaa | ""                |
-      | idempotency_key | sub_aaaaaaaaaaaaaaaaaaaaaaaa | =repeat(256, "k") |
-
-  Scenario: An unknown subscription is not found
-    Given the time is "2026-11-22T10:00:00Z"
-    And there is no current subscription
-    When I run the operation with:
-      | subscription_id              |
-      | sub_000000000000000000000000 |
-    Then the operation fails with "urn:corpus:subscriptions:subscription:error:not_found"
-
-  Scenario Outline: Only an active or trialing subscription can pause
-    Given the time is "2026-11-22T10:00:00Z"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
-    When I run the operation with:
-      | subscription_id              |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa |
-    Then the operation fails with "urn:corpus:subscriptions:subscription:error:invalid_state_transition":
-      | subscription_id              | status   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <status> |
-    And the operation emits no event
+  Scenario Outline: A subscription that is neither active nor trialing cannot be paused
+    When I run "pause_subscription" with:
+      | subscription_id              | caller.caller_kind | now                  | stored_subscription.subscription_id | stored_subscription.customer_id | stored_subscription.plan | stored_subscription.plan_id | stored_subscription.quantity | stored_subscription.subscription_status | stored_subscription.current_period_start | stored_subscription.current_period_end |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | staff              | 2026-11-22T10:00:00Z | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1 | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic | 1 | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+    Then the output is "invalid_state_transition":
+      | subscription_id              | subscription_status |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <status>            |
 
     Examples:
       | status   |
-      | past_due |
       | paused   |
+      | past_due |
       | canceled |
       | expired  |
 
-  Scenario: A repeat of the same key and the same body within 24 hours returns the first answer and has no second effect
-    Given the time is "2026-11-22T10:00:00Z"
-    And the current subscription is:
-      | subscription_id | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
-    When I run the operation with:
-      | subscription_id | resume_on  | idempotency_key |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa |            | key-1 |
-    And the time is "2026-11-23T09:59:59Z"
-    And I run the operation again with:
-      | subscription_id | resume_on  | idempotency_key |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa |            | key-1 |
-    Then the answer is the first answer
-    And the operation emits no event
+  Scenario: A subscription that is not stored is not found
+    When I run "pause_subscription" with:
+      | subscription_id              | caller.caller_kind | now                  |
+      | sub_000000000000000000000000 | staff              | 2026-11-22T10:00:00Z |
+    Then the output is "subscription_not_found":
+      | subscription_id              |
+      | sub_000000000000000000000000 |
 
-  Scenario: A repeat of the same key with a different body within 24 hours is refused with conflict
-    Given the time is "2026-11-22T10:00:00Z"
-    And the current subscription is:
-      | subscription_id | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
-    When I run the operation with:
-      | subscription_id | resume_on  | idempotency_key |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa |            | key-1 |
-    And I run the operation again with:
-      | subscription_id | resume_on  | idempotency_key |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | 2026-12-01 | key-1 |
-    Then the operation fails with "urn:corpus:subscriptions:request:error:conflict":
-      | idempotency_key |
-      | key-1           |
-    And the operation emits no event
+  Scenario: A customer may not pause another customer's subscription
+    When I run "pause_subscription" with:
+      | subscription_id              | caller.caller_kind | caller.customer_id | now                  | stored_subscription.subscription_id | stored_subscription.customer_id | stored_subscription.plan | stored_subscription.plan_id | stored_subscription.quantity | stored_subscription.subscription_status | stored_subscription.current_period_start | stored_subscription.current_period_end |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | customer           | cus_2              | 2026-11-22T10:00:00Z | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1 | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic | 1 | active | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+    Then the output is "forbidden":
+      | caller                                              |
+      | {"caller_kind": "customer", "customer_id": "cus_2"} |
 
-  Scenario: After 24 hours the same key is free, and the request runs again
-    Given the time is "2026-11-22T10:00:00Z"
-    And the current subscription is:
-      | subscription_id | customer_id | plan                                                                                                          | plan_id | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | active   | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
-    When I run the operation with:
-      | subscription_id | resume_on  | idempotency_key |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa |            | key-1 |
-    And the time is "2026-11-23T10:00:00Z"
-    And I run the operation again with:
-      | subscription_id | resume_on  | idempotency_key |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa |            | key-1 |
-    Then the operation emits "urn:corpus:subscriptions:subscription:event:updated"
+  Scenario Outline: A request that breaks a rule is rejected
+    When I run "pause_subscription" with:
+      | subscription_id   | resume_on   | caller.caller_kind | now   | stored_subscription.subscription_id | stored_subscription.customer_id | stored_subscription.plan | stored_subscription.plan_id | stored_subscription.quantity | stored_subscription.subscription_status | stored_subscription.current_period_start | stored_subscription.current_period_end |
+      | <subscription_id> | <resume_on> | staff              | <now> | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1 | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic | 1 | active | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
+    Then the input is rejected by "<rule>" of "<definition>"
+
+    Examples:
+      | rule                   | definition    | subscription_id              | resume_on  | now                  |
+      | names_the_subscription | pause_request | sub_bbbbbbbbbbbbbbbbbbbbbbbb |            | 2026-11-22T10:00:00Z |
+      | format                 | resume_on     | sub_aaaaaaaaaaaaaaaaaaaaaaaa | 15/12/2026 | 2026-11-22T10:00:00Z |
+      | required               | pause_request | sub_aaaaaaaaaaaaaaaaaaaaaaaa |            |                      |

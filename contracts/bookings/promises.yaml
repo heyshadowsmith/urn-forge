@@ -1,165 +1,203 @@
 contract: bookings
 description: "Lets guests and restaurant staff book, change and cancel tables at a restaurant for a given date, time and party size, with deposits for larger parties."
+# The shell loads what a call needs into its input (the booking as stored, the caller it authenticated, the time
+# of its clock, the first call with an idempotency key) and stores and publishes what an output holds. Each
+# output lists the rules that hold when it comes back, so runOperation refuses an answer that breaks them.
 promises:
-  # The shape is the regex of the field. The booking is a table with `unique: forever` on its reference, so the
-  # database refuses a reused reference, also after the booking is gone, through the table of used values.
+  # Workaround: the shape is the pattern of reference. The reference is the identifier of booking, so it is the
+  # primary key of the booking table and two stored bookings never share one. "Never reused" is not stated: a
+  # deleted row frees its reference, and no rule of create_booking sees the references used before, so a core can
+  # give a reference of a deleted booking to a new one and every check passes.
   P01:
     promise: "A booking reference is exactly 8 characters drawn from upper-case letters A-Z (excluding I and O) and digits 2-9, and is never reused for another booking."
-    status: declared
-    by: [booking.field.reference, booking.entity.booking]
-  # Workaround: change_booking has no rule for the party size, so a change to 15 succeeds; create has no ensures that the answer's party size is the requested one. Fixable with requires and ensures.
+    status: workaround
+    by: [definitions.reference, definitions.booking]
+    hole: C1
+  # Declared: party_size is an integer with minimum 1 and maximum 20. create_booking answers party_too_large_for_online
+  # exactly when the party is 13 or more (party_too_large on that output, party_fits_online on every other one), and
+  # change_booking does the same for a new party size (new_party_too_large, new_party_fits_online). This refusal comes
+  # before the others of the request, so a request for 13 or more always gets it.
   P02:
     promise: "A party size is a whole number from 1 to 20, and requests for 13 or more guests are refused with PARTY_TOO_LARGE_FOR_ONLINE so they can be handled by phone."
-    status: workaround
-    by: [booking.field.party_size, booking.error.party_too_large_for_online, booking.operation.create_booking]
-    hole: A2
-  # The 15-minute boundary and the time zone in each answer are declared; that the time is in the restaurant's zone, and that the name is a real IANA zone, are not.
-  # The start is starts_at, a UTC timestamp (the windows of P07, P14, P15 and P16 read it); local_date, local_time and
-  # time_zone are the values that the guest gave, and no rule ties them to starts_at, as a rule has no zone data (D3).
+    status: declared
+    by: [definitions.party_size, definitions.party_too_large_for_online, rules.party_too_large, rules.party_fits_online, rules.new_party_too_large, rules.new_party_fits_online, rules.names_the_party, rules.names_the_new_party, operations.create_booking, operations.change_booking]
+  # Workaround: the 15-minute boundary (pattern of local_time) and the time zone in each answer (required in
+  # confirmation and booking) are declared. That the time is in the restaurant's zone, and that the name is a real IANA
+  # zone, are not: starts_at is the start, and no rule ties local_date, local_time and time_zone to it, as a rule has no
+  # zone data. A local time of 19:30 with a starts_at of 03:00 passes every check.
   P03:
     promise: "A booking time is given as a local date and time on a 15-minute boundary (minutes 00, 15, 30 or 45) in the restaurant's IANA time zone, and every answer carries that time zone name alongside the time."
     status: workaround
-    by: [booking.field.local_date, booking.field.local_time, booking.field.time_zone, booking.entity.confirmation, booking.entity.booking]
+    by: [definitions.local_date, definitions.local_time, definitions.time_zone, definitions.confirmation, definitions.booking]
     hole: D3
-  # The invariant states "email or phone", but the generated type has both as optional, not a union.
+  # Declared: contact requires name (minLength 1, maxLength 100), and the rule email_or_phone needs an email or a phone;
+  # phone has the E.164 pattern of at most 15 digits. The check refuses a contact with neither.
   P04:
     promise: "A guest's contact must include a name of 1 to 100 characters and at least one of an email address or an E.164 phone number of at most 15 digits."
-    status: workaround
-    by: [guest.entity.contact, guest.field.name, guest.field.email, guest.field.phone, guest.invariant.email_or_phone]
-    hole: B1
+    status: declared
+    by: [definitions.contact, definitions.name, definitions.email, definitions.phone, rules.email_or_phone]
+  # Declared: special_requests has maxLength 500; dietary_tags is an optional array of dietary_tag (an enum of the
+  # published set) with maxItems 10 and uniqueItems.
   P05:
     promise: "Special requests are free text of at most 500 characters, and dietary tags, if given, are a list of at most 10 distinct values from a fixed published set such as vegetarian, vegan, gluten_free, nut_allergy and halal."
     status: declared
-    by: [booking.field.special_requests, booking.field.dietary_tag, booking.entity.create_request]
+    by: [definitions.special_requests, definitions.dietary_tag, definitions.dietary_tags, definitions.booking_request]
+  # Declared: booking_request, the body of create_booking's input, requires restaurant_id, local_date, local_time,
+  # party_size, contact and idempotency_key, whose minLength is 16 and maxLength 64.
   P06:
     promise: "A create-booking request must contain the restaurant id, local date and time, party size, guest contact and a client-generated idempotency key of 16 to 64 characters."
     status: declared
-    by: [booking.entity.create_request, booking.field.restaurant_id, booking.field.local_date, booking.field.local_time, booking.field.party_size, guest.entity.contact, booking.field.idempotency_key]
-  # Workaround: The window reads starts_at, which nothing ties to the local date, time and zone: a request at the local time now with starts_at 3 hours later is accepted. change_booking does not check the window.
+    by: [definitions.booking_request, definitions.restaurant_id, definitions.local_date, definitions.local_time, definitions.party_size, definitions.contact, definitions.idempotency_key, operations.create_booking]
+  # Workaround: the window is stated over now and starts_at (in_the_booking_window on booked and the other answers,
+  # outside_the_booking_window on outside_booking_window; the move_ rules for a new start in change_booking). It reads
+  # starts_at, which nothing ties to the local date, time and zone (P03): a request for the local time now with a
+  # starts_at 3 hours later is booked.
   P07:
     promise: "A booking can be made no earlier than 2 hours and no later than 90 days before its start time, and requests outside that window are refused with OUTSIDE_BOOKING_WINDOW."
     status: workaround
-    by: [booking.operation.create_booking, booking.field.starts_at, booking.error.outside_booking_window]
+    by: [operations.create_booking, operations.change_booking, rules.in_the_booking_window, rules.outside_the_booking_window, rules.move_in_the_booking_window, rules.move_outside_the_booking_window, definitions.starts_at, definitions.now, definitions.outside_booking_window]
     hole: D3
-  # Workaround: change_request has no deposit_token field and no rule for it, so a change from 4 to 10 guests with no token succeeds. Fixable with the field and a requires.
+  # Declared: create_booking answers deposit_required exactly when a party of 7 to 12 gives no deposit_token
+  # (deposit_token_missing on that output, deposit_token_if_needed on the outputs after it); 13 or more is refused
+  # first (P02). change_booking does the same for a new party size (new_deposit_token_missing, new_deposit_token_if_needed).
   P08:
     promise: "A party of 7 or more guests must include a deposit payment token in the request, otherwise the request is refused with DEPOSIT_REQUIRED."
-    status: workaround
-    by: [booking.field.deposit_token, booking.error.deposit_required, booking.operation.create_booking]
-    hole: A2
-  # Declared: positive with at most 2 decimals (exclusiveMin 0, scale 2), and the deposit equals the per-guest amount times
-  # the party size (invariant deposit_is_per_guest on the answer, `party_size * deposit_per_guest`, exact; scenarios at
-  # 7 and 12 guests, the edges of a deposit). Not declared: the restaurant's single published currency. The service books
-  # for many restaurants (restaurant_id in each request, staff of one restaurant, P19), each with its own time zone, and
-  # the manifest holds no restaurant record; currency is any ISO 4217 shape. A one-value enum (roadmap decision 9) would
-  # state one currency for the whole service, not the currency of each restaurant, so it is not used here.
+    status: declared
+    by: [definitions.deposit_token, definitions.deposit_required, rules.deposit_token_if_needed, rules.deposit_token_missing, rules.new_deposit_token_if_needed, rules.new_deposit_token_missing, operations.create_booking, operations.change_booking]
+  # Workaround: an amount is an integer of cents with exclusiveMinimum 0, so it is positive with at most 2 decimals of a
+  # currency of 2 decimals; deposit_has_terms and deposit_is_per_guest state the per-guest amount and the product,
+  # exactly. Not declared: the restaurant's single published currency. The manifest holds no restaurant record, and
+  # currency is any ISO 4217 shape, so a deposit in USD at a restaurant that publishes EUR passes every check; nor is
+  # the number of decimals tied to the currency.
   P09:
     promise: "A deposit, when taken, is in the restaurant's single published currency, is a positive amount with at most 2 decimal places, and equals the per-guest deposit amount stated in the answer times the party size."
     status: workaround
-    by: [booking.field.deposit_amount, booking.field.deposit_per_guest, booking.field.currency, booking.invariant.deposit_has_terms, booking.invariant.deposit_is_per_guest]
+    by: [definitions.deposit_amount, definitions.deposit_per_guest, definitions.currency, rules.deposit_has_terms, rules.deposit_is_per_guest]
     hole: B4
-  # Workaround: No ensures ties the answer to the request: the core can answer another restaurant, party size, date or time, or no deposit_amount for a party of 10. The amount charged is not in the contract.
+  # Workaround: booked carries a confirmation with status (const CONFIRMED), reference, time_zone and duration_minutes
+  # required, and confirms_the_request ties the restaurant, the start, the local date and time and the party size to
+  # the request. The amount charged is not in the contract: the charge with the deposit token is an effect that no
+  # input or output holds, so a core can charge a party of 10 and answer no deposit_amount.
   P10:
     promise: "A successful create returns status CONFIRMED with the booking reference, restaurant id, local start time, time zone, party size, booked duration in minutes and any deposit amount charged."
     status: workaround
-    by: [booking.operation.create_booking, booking.entity.confirmation, booking.field.confirmed_state, booking.field.reference, booking.field.time_zone, booking.field.duration_minutes, booking.field.deposit_amount]
+    by: [operations.create_booking, definitions.booked, definitions.confirmation, definitions.status, definitions.reference, definitions.time_zone, definitions.duration_minutes, definitions.deposit_amount, rules.confirms_the_request]
     hole: A2
-  # Each code is a declared error with a message; a malformed request is an input rejection, not the code INVALID_REQUEST, and that a refusal creates or changes nothing is not stated.
+  # Workaround: each code is an output object, named by its description, and the rules of each operation's outputs give
+  # one answer to one request. Not declared: a refusal carries no message (an object has no message, only a failed
+  # rule has one); a malformed request is an input rejection, not INVALID_REQUEST; and that a refusal changes nothing
+  # is the shell's: a refusal holds no record to store, but no generated check sees what the shell writes.
   P11:
     promise: "Every refusal carries exactly one error code from the published list (INVALID_REQUEST, OUTSIDE_BOOKING_WINDOW, NO_AVAILABILITY, DEPOSIT_REQUIRED, PAYMENT_DECLINED, PARTY_TOO_LARGE_FOR_ONLINE, BOOKING_NOT_FOUND, INVALID_STATE, CHANGE_DEADLINE_PASSED, FORBIDDEN) and a human-readable message, and a refused request creates or changes nothing."
     status: workaround
-    by: [booking.error.invalid_request, booking.error.outside_booking_window, booking.error.no_availability, booking.error.deposit_required, booking.error.payment_declined, booking.error.party_too_large_for_online, booking.error.booking_not_found, booking.error.invalid_state, booking.error.change_deadline_passed, booking.error.forbidden]
+    by: [definitions.invalid_request, definitions.outside_booking_window, definitions.no_availability, definitions.deposit_required, definitions.payment_declined, definitions.party_too_large_for_online, definitions.booking_not_found, definitions.invalid_state, definitions.change_deadline_passed, definitions.forbidden]
     hole: C3
-  # Up to 5 is maxItems: 5 on the alternatives of no_availability (schema, checked on every refusal). Each alternative
-  # carries starts_at, and create_booking's refuses rules state, checked at runtime and shown by the scenarios of
-  # no_availability: the same party (alt.party_size = input.party_size), within 2 hours of the requested time
-  # (alt.starts_at from input.starts_at - 2 hours to input.starts_at + 2 hours, both included) and the same local date
-  # (alt.local_date = input.local_date). "On the same date" is not stated: the date of a start is its day in the
-  # restaurant's zone, and alt.local_date is a value that no rule ties to alt.starts_at (P03); date(alt.starts_at) is the
-  # UTC day, which is another day near midnight. Thus the date needs zone data (D3).
+  # Workaround: up to 5 is maxItems 5 on alternatives; offers_nearby_times states the same party size, a start within
+  # 2 hours of the requested one (both edges included) and the same local date. "On the same date" is not stated: the
+  # date of a start is its day in the restaurant's zone, and alt.local_date is a value that no rule ties to
+  # alt.starts_at (P03), so an alternative at 00:30 local time of the next day passes with the requested local_date.
   P12:
     promise: "A NO_AVAILABILITY refusal may carry up to 5 alternative start times, each on the same date, within 2 hours of the requested time and for the same party size."
     status: workaround
-    by: [booking.error.no_availability, booking.entity.alternative, booking.operation.create_booking, booking.field.starts_at]
+    by: [definitions.no_availability, definitions.alternatives, definitions.alternative, rules.offers_nearby_times, operations.create_booking]
     hole: D3
-  # Workaround: create_booking and cancel_booking do not answer the booking, so commit writes no record for them. The shell builds the state and the from list in writes; with replaceBookingBooking, SEATED to CANCELLED can be stored.
+  # Workaround: state is an enum, required in booking, and each move is a rule over the stored state and the record to
+  # store (was_confirmed and is_seated, was_seated and is_completed, …); CANCELLED, COMPLETED and NO_SHOW have no move
+  # out. The moves hold for each call, not for the table: two calls that load the same CONFIRMED booking at once, a
+  # seat and a cancel, both pass, and the second write turns the SEATED record into CANCELLED. The generated table
+  # checks each row, not the move from the row before.
   P13:
     promise: "A booking is always in exactly one of the states CONFIRMED, SEATED, COMPLETED, CANCELLED or NO_SHOW, and the only allowed moves are CONFIRMED to SEATED, CANCELLED or NO_SHOW, and SEATED to COMPLETED; CANCELLED, COMPLETED and NO_SHOW are final."
     status: workaround
-    by: [booking.field.state, booking.operation.seat_booking, booking.operation.complete_booking, booking.operation.cancel_booking, booking.operation.mark_no_show]
+    by: [definitions.state, definitions.booking, rules.was_confirmed, rules.was_seated, rules.is_seated, rules.is_completed, rules.is_no_show, rules.is_confirmed, rules.records_the_cancellation, operations.seat_booking, operations.complete_booking, operations.cancel_booking, operations.mark_no_show, operations.change_booking]
     hole: C3
-  # Workaround: The window reads starts_at, which nothing ties to the local start: with starts_at 2 days after the local start, a cancel 1 hour before the local start is accepted.
+  # Workaround: change_booking and cancel_booking answer invalid_state when the booking was not CONFIRMED and
+  # change_deadline_passed when the call is less than 2 hours before the stored start. The deadline reads starts_at,
+  # which nothing ties to the local start (P03): with starts_at 2 days after the local start, a cancellation 1 hour
+  # before the local start is accepted.
   P14:
     promise: "A guest may change the date, time or party size, or cancel, only while the booking is CONFIRMED and at least 2 hours before its start time, otherwise the request is refused with CHANGE_DEADLINE_PASSED or INVALID_STATE."
     status: workaround
-    by: [booking.operation.change_booking, booking.operation.cancel_booking, booking.field.starts_at, booking.error.change_deadline_passed, booking.error.invalid_state]
+    by: [operations.change_booking, operations.cancel_booking, rules.two_hours_before_start, rules.less_than_two_hours_before_start, rules.was_confirmed, rules.was_not_confirmed, definitions.change_deadline_passed, definitions.invalid_state]
     hole: D3
-  # Workaround: The refund window reads starts_at, which nothing ties to the local start: the full deposit is refunded 1 hour before the local start. "Never more than the deposit" holds.
+  # Workaround: refunds_by_the_deadline states no refund with no deposit, the full deposit 24 hours or more before the
+  # start and nothing later, so never more than the deposit. The window reads starts_at, which nothing ties to the local
+  # start (P03): the full deposit is refunded 1 hour before the local start.
   P15:
     promise: "A cancellation made 24 hours or more before the start time refunds the full deposit, a later one refunds nothing, and a refund is never more than the deposit paid."
     status: workaround
-    by: [booking.operation.cancel_booking, booking.field.refund_amount, booking.field.deposit_amount, booking.field.starts_at]
+    by: [operations.cancel_booking, rules.refunds_by_the_deadline, definitions.refund_amount, definitions.deposit_amount]
     hole: D3
-  # Workaround: The no-show window reads starts_at, which nothing ties to the local start: staff can mark NO_SHOW 45 minutes before the local start. The staff-only part holds.
+  # Workaround: staff_may_act holds on mark_no_show's change and staff_may_not_act on forbidden, and
+  # fifteen_minutes_after_start on the change. The window reads starts_at, which nothing ties to the local start (P03):
+  # staff can mark NO_SHOW 45 minutes before the local start. The staff-only part holds.
   P16:
     promise: "A booking can be marked NO_SHOW only by restaurant staff and only from 15 minutes after its start time onward."
     status: workaround
-    by: [booking.operation.mark_no_show, auth.entity.caller, auth.field.role, booking.field.starts_at, booking.error.forbidden, booking.error.invalid_state]
+    by: [operations.mark_no_show, rules.staff_may_act, rules.staff_may_not_act, rules.fifteen_minutes_after_start, rules.cannot_be_marked_no_show, definitions.caller, definitions.role]
     hole: D3
-  # Workaround: runOnce takes no lock: two simultaneous repeats both find no answer, both run the core, and so charge the deposit twice; only the second insert of the answer fails.
+  # Workaround: the first call with the key is data in the input: when the shell gives one from the last 24 hours
+  # (first_call_has_the_key, first_call_is_recent), the same body gets repeated, the first confirmation with no record or
+  # event, and another body gets invalid_request. The shell finds the first call itself, with no lock: two simultaneous
+  # calls with one key both get no first call, both are booked, and the deposit is charged twice.
   P17:
     promise: "Repeating a create request with the same idempotency key within 24 hours returns the original answer and booking reference without creating a second booking or charging a second deposit, and reusing a key with a different request body is refused with INVALID_REQUEST."
     status: workaround
-    by: [booking.operation.create_booking, booking.field.idempotency_key, booking.error.invalid_request]
+    by: [operations.create_booking, definitions.first_call, definitions.repeated, definitions.invalid_request, definitions.idempotency_key, rules.repeats_the_first_answer, rules.reuses_the_key, rules.is_not_a_repeat]
     hole: C2
-  # cancel_booking changes from [CONFIRMED, CANCELLED] to CANCELLED, so a CANCELLED booking is a success that stays
-  # CANCELLED, and booking_cancelled is emitted only when current.state = 'CONFIRMED', so a repeat publishes none. The
-  # rest is not stated, and `ensures` cannot state it today: (1) "the same cancellation details": the stored booking has
-  # no refund_amount or cancelled_at, and adding them would not help, since no rule ties what the first cancellation
-  # stores to its answer (the output is a cancellation, not the record, and an ensures cannot name the record after the
-  # change), so an ensures `output.cancelled_at = current.cancelled_at` would hold on whatever the shell stored; (2) "does
-  # not refund again": no element models the refund itself (no refund event or effect); refund_amount is a field of the
-  # answer, which a repeat repeats, so a shell that refunds on the answer would refund twice. idempotency does not fit:
-  # there is no key, and the promise has no window.
+  # Workaround: the record stores the refund and the time of a cancellation (records_the_cancellation,
+  # cancellation_is_recorded), and a cancellation of a CANCELLED booking answers already_cancelled, the stored refund and
+  # time, with no record or event (repeats_the_cancellation). "Does not refund again" is not stated: the refund is an
+  # effect that no output holds, and two simultaneous cancellations both load a CONFIRMED booking, both answer cancelled,
+  # and both refund.
   P18:
     promise: "Cancelling a booking that is already CANCELLED returns success with the same cancellation details and does not refund again."
     status: workaround
-    by: [booking.operation.cancel_booking]
+    by: [operations.cancel_booking, definitions.already_cancelled, rules.repeats_the_cancellation, rules.records_the_cancellation, rules.cancellation_is_recorded]
     hole: C2
-  # Workaround: change_booking has no ensures that restaurant_id, email and phone stay as stored: a core that answers another email is stored, and that email can then read or cancel the booking. At create the shell copies the contact into the record, and nothing checks it.
+  # Declared: the caller and the booking as stored are in the input, and names_the_booking ties the stored booking to
+  # the reference. Every answer that reads or changes a booking holds caller_may_act (a guest who presents the email or
+  # the phone of the booking, or staff whose restaurant is the booking's), or staff_may_act for the staff-only moves;
+  # forbidden holds the negation. The record keeps the email and the phone of the contact (records_the_confirmation)
+  # and no change can alter them or the restaurant (applies_the_change, keeps_all_but_the_state).
   P19:
     promise: "A guest can read, change or cancel only bookings whose reference and contact email or phone they present, while restaurant staff can read and act on any booking of their own restaurant and never on another restaurant's bookings."
-    status: workaround
-    by: [auth.entity.caller, auth.field.role, booking.entity.booking, booking.entity.booking_ref, booking.entity.change_request, booking.operation.get_booking, booking.operation.change_booking, booking.operation.cancel_booking, booking.operation.seat_booking, booking.operation.complete_booking, booking.operation.mark_no_show, booking.error.forbidden]
-    hole: A2
-  # Each changing operation lists its event as { event }, so a success publishes exactly one; cancel_booking only when
-  # current.state = 'CONFIRMED' (a repeat changes nothing and publishes none). Each operation ensures the event carries the
-  # reference, restaurant id, new state, party size, local date, time and time zone of the change (cancel_booking reads the
-  # booking from current). occurred_at is a required UTC timestamp; that it is the time of the change is not in this promise
-  # (it would need a clock, E2).
+    status: declared
+    by: [definitions.caller, definitions.role, definitions.booking_ref, definitions.change_request, definitions.forbidden, rules.names_the_booking, rules.caller_may_act, rules.caller_may_not_act, rules.staff_may_act, rules.staff_may_not_act, rules.records_the_confirmation, rules.applies_the_change, rules.keeps_all_but_the_state, operations.get_booking, operations.change_booking, operations.cancel_booking, operations.seat_booking, operations.complete_booking, operations.mark_no_show]
+  # Declared: each output that holds a record to store (booked, booking_change, cancelled) requires exactly one
+  # booking_event, and the outputs that change nothing (repeated, already_cancelled, the refusals) have none. The rule
+  # event_is_<kind> gives each operation its event type, and event_describes_the_booking makes the event carry the
+  # reference, restaurant, new state, party size, local date, time and time zone of the record, with occurred_at the
+  # time of the call, in UTC (in_utc). How the shell delivers the event is P21.
   P20:
     promise: "Every state change publishes exactly one event (BookingCreated, BookingChanged, BookingCancelled, BookingSeated, BookingCompleted or BookingNoShow) carrying the booking reference, restaurant id, new state, party size, local start time with time zone and an event timestamp in UTC."
     status: declared
-    by: [booking.event.booking_created, booking.event.booking_changed, booking.event.booking_cancelled, booking.event.booking_seated, booking.event.booking_completed, booking.event.booking_no_show, booking.operation.create_booking, booking.operation.change_booking, booking.operation.cancel_booking, booking.operation.seat_booking, booking.operation.complete_booking, booking.operation.mark_no_show, booking.field.state, event.field.occurred_at]
-  # Workaround: The event id is the shell's newEventId, and the primary key covers only the rows still in the outbox. The docs say to delete published rows, so an id can be used again.
+    by: [definitions.booking_event, definitions.event_type, definitions.occurred_at, definitions.booked, definitions.booking_change, definitions.cancelled, rules.event_describes_the_booking, rules.event_is_created, rules.event_is_changed, rules.event_is_cancelled, rules.event_is_seated, rules.event_is_completed, rules.event_is_no_show, operations.create_booking, operations.change_booking, operations.cancel_booking, operations.seat_booking, operations.complete_booking, operations.mark_no_show]
+  # Workaround: event_id is a required UUID. Its uniqueness, delivery at least once and the order per booking are the
+  # shell's: the manifest has no outbox, and the core can give two events one id with every check passing.
   P21:
     promise: "Events are delivered at least once, each carries a unique event id for de-duplication, and events for the same booking are delivered in the order the changes happened."
     status: workaround
-    by: [event.field.event_id, booking.field.reference, booking.event.booking_created, booking.event.booking_changed, booking.event.booking_cancelled, booking.event.booking_seated, booking.event.booking_completed, booking.event.booking_no_show]
+    by: [definitions.event_id, definitions.booking_event]
     hole: D4
+  # Declared: booking_event has no property for the name, the email or the phone, and the check refuses a property
+  # that an object does not list; the guest is guest_id, a UUID.
   P22:
     promise: "Personal guest contact details are never included in published events, which refer to the guest only by an opaque guest id."
     status: declared
-    by: [booking.event.booking_created, booking.event.booking_changed, booking.event.booking_cancelled, booking.event.booking_seated, booking.event.booking_completed, booking.event.booking_no_show, guest.field.guest_id]
+    by: [definitions.booking_event, definitions.guest_id]
+  # Declared: each time other than the local date and time (starts_at, cancelled_at, occurred_at, now, called_at) is a
+  # string with format date-time and the rule in_utc, a trailing Z.
   P23:
     promise: "All timestamps other than the booking's local start time are given in UTC in ISO 8601 format with a trailing Z."
     status: declared
-    by: [event.field.occurred_at, booking.field.cancelled_at, booking.field.starts_at]
-  # Within the major version, urn-forge diff refuses a removed or changed field or error code, and a new error code
-  # (the header does not state that callers ignore unknown values). The notice for a new major version is how long
-  # the operator runs the old one, which nothing that urn-forge builds can check.
+    by: [definitions.starts_at, definitions.cancelled_at, definitions.occurred_at, definitions.now, definitions.called_at, rules.in_utc]
+  # Workaround: compatibility callers ignore-unknown states that callers ignore what they do not know, and diff refuses
+  # a removed or changed property or output within the major version. With it, diff also accepts a new output (a new
+  # error code) or a new choice in an output within the major version, which the promise does not allow. The notice of
+  # 6 months is how long the operator runs the old version, which nothing that urn-forge builds can check.
   P24:
     promise: "Within a major version the contract only adds optional request fields, new answer fields and new event fields, callers must ignore fields they do not know, and a removed or changed field or error code requires a new major version announced at least 6 months before the old one is withdrawn."
     status: workaround
-    by: [manifest.version]
+    by: [manifest.version, manifest.compatibility]
     hole: E4

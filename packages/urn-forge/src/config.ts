@@ -1,142 +1,94 @@
 /**
- * `urn-forge.config.ts`: project defaults for the CLI, and which plugins run.
+ * `urn-forge.config.ts`: the paths of a project, and its options.
  *
  *   import { defineConfig } from 'urn-forge/config';
- *   export default defineConfig({
- *     manifest: './domain.manifest.yaml',
- *     out: './src/generated',
- *     plugins: [['valibot', {}], ['fcis', {}]],
- *   });
+ *   export default defineConfig({ coverage: 'error' });
  *
  * Paths are relative to the config file. Flags on the command line override the config.
- * Each plugin's own config is checked against its `configSchema` by the engine.
  */
 import { pathToFileURL } from 'node:url';
-import { stripVTControlCharacters } from 'node:util';
-import * as v from 'valibot';
-import { isCalendarDate } from './primitives/exact.js';
-import { relativePaths, type Diagnostic } from './diagnostics.js';
-import type { PluginEntry } from './engine.js';
-import { PLUGINS, PLUGIN_NAMES, isPluginName, type PluginConfigOf, type PluginName } from './plugins/index.js';
 
-/** A plugin by name, with its config or (meaning `{}`) without. */
-export type PluginSpec = { [N in PluginName]: N | readonly [N, PluginConfigOf<N>] }[PluginName];
+export interface PostgresConfig {
+  /** The objects that become tables. Each needs an identifier. */
+  readonly tables: readonly string[];
+  /** A property that holds the identifier of another table: `{ booking: { restaurant_ref: 'restaurant' } }`. */
+  readonly references?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+  /** Properties whose values no two rows of a table share: `{ booking: [['restaurant_ref', 'starts_at']] }`. */
+  readonly unique?: Readonly<Record<string, readonly (readonly string[])[]>>;
+}
 
 export interface UrnForgeConfig {
-  /** The manifest to compile. Default: `domain.manifest.yaml`. */
+  /** The manifest. Default: `domain.manifest.yaml`. */
   readonly manifest?: string;
   /** The directory of the generated files. Default: `src/generated`. */
   readonly out?: string;
-  /** verify: the core entry. Default: `src/core.ts`. */
+  /** verify: the core, which exports `… satisfies DomainCore`. Default: `src/core.ts`. */
   readonly core?: string;
   /** verify: the directory of the `.feature` files. Default: `features`. */
   readonly features?: string;
-  /** verify: the tsconfig for gate 1. Default: `tsconfig.json`. */
+  /** verify: the tsconfig of gate 1. Default: `tsconfig.json`. */
   readonly tsconfig?: string;
-  /** verify: the shell's files and directories, which gate 2 checks besides the core. Default: none. */
+  /** verify: the files and directories of the shell, which gate 2 checks besides the core. Default: none. */
   readonly shell?: readonly string[];
-  /**
-   * verify: whether gate 3's coverage gaps (boundaries and declared errors) are warnings or
-   * errors. Default: `warn`. A feature tagged `@urn-forge:strict` makes its operations' gaps
-   * errors either way. Switch to `error` once every feature is strict.
-   */
-  readonly boundaryCoverage?: 'warn' | 'error';
-  /**
-   * compile and verify: the day that pass 8 compares sunset dates with (YYYY-MM-DD), never
-   * the clock. `--reference-date` overrides it. Without either, sunset dates are not checked.
-   */
-  readonly referenceDate?: string;
-  /** The plugins to run, in order. Default: Valibot and FCIS, each with an empty config. */
-  readonly plugins?: readonly PluginSpec[];
+  /** verify: whether a gap in the scenarios is a warning or an error. Default: `warn`. */
+  readonly coverage?: 'warn' | 'error';
+  /** compile: write a Postgres schema of these tables, `schema.generated.sql`. */
+  readonly postgres?: PostgresConfig;
 }
 
-/** Types a config object. It returns the object unchanged. */
+/** Types a config. It returns the config unchanged. */
 export function defineConfig(config: UrnForgeConfig): UrnForgeConfig {
   return config;
 }
 
 export const CONFIG_FILE = 'urn-forge.config.ts';
 
-const Path = v.pipe(v.string(), v.minLength(1, 'must not be empty'));
-const ConfigSchema = v.strictObject({
-  manifest: v.optional(Path),
-  out: v.optional(Path),
-  core: v.optional(Path),
-  features: v.optional(Path),
-  tsconfig: v.optional(Path),
-  shell: v.optional(v.array(Path)),
-  boundaryCoverage: v.optional(v.picklist(['warn', 'error'])),
-  referenceDate: v.optional(v.pipe(v.string(), v.check((value: string) => isCalendarDate(value), 'must be a date YYYY-MM-DD'))),
-  // No plugin would write no file, and gate 1 would then fail on a missing runtime. An item
-  // after the config of a tuple has no meaning, so it is refused, not ignored.
-  plugins: v.optional(
-    v.pipe(
-      v.array(v.union([v.string(), v.strictTuple([v.string(), v.unknown()])], 'must be a plugin name or [name, config]')),
-      v.minLength(1, 'must list one or more plugins'),
-    ),
-  ),
-});
+const KEYS = ['manifest', 'out', 'core', 'features', 'tsconfig', 'shell', 'coverage', 'postgres'];
 
-export type ConfigResult =
-  | { readonly ok: true; readonly config: UrnForgeConfig }
-  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
-/**
- * Imports the config module (TypeScript, through tsx) and validates its default export.
- * `file` labels diagnostics; paths in a load error are made relative to `cwd`.
- */
-export async function loadConfig(path: string, file: string, cwd: string = process.cwd()): Promise<ConfigResult> {
-  const fail = (code: 'config-unreadable' | 'config-invalid', message: string): ConfigResult => ({
-    ok: false,
-    diagnostics: [{ code, severity: 'error', file, message }],
-  });
+const isText = (value: unknown): boolean => typeof value === 'string' && value !== '';
+const isTexts = (value: unknown): boolean => Array.isArray(value) && value.every(isText);
 
+/** The problems of a config, as messages. */
+export function configProblems(config: unknown): string[] {
+  if (!isRecord(config)) return ['the config must be an object: export default defineConfig({ … })'];
+  const problems: string[] = [];
+  for (const key of Object.keys(config)) if (!KEYS.includes(key)) problems.push(`config.${key} is not an option; the options are ${KEYS.join(', ')}`);
+  for (const key of ['manifest', 'out', 'core', 'features', 'tsconfig']) {
+    if (config[key] !== undefined && !isText(config[key])) problems.push(`config.${key} must be a path`);
+  }
+  if (config['shell'] !== undefined && !isTexts(config['shell'])) problems.push('config.shell must be a list of paths');
+  if (config['coverage'] !== undefined && config['coverage'] !== 'warn' && config['coverage'] !== 'error') problems.push("config.coverage must be 'warn' or 'error'");
+  const postgres = config['postgres'];
+  if (postgres !== undefined) {
+    if (!isRecord(postgres) || !isTexts(postgres['tables'])) problems.push('config.postgres must have tables, a list of object names');
+    else {
+      for (const key of Object.keys(postgres)) if (!['tables', 'references', 'unique'].includes(key)) problems.push(`config.postgres.${key} is not an option`);
+      const references = postgres['references'];
+      if (references !== undefined && (!isRecord(references) || !Object.values(references).every((r) => isRecord(r) && Object.values(r).every(isText)))) {
+        problems.push('config.postgres.references must map a table to its properties, each to the table it refers to');
+      }
+      const unique = postgres['unique'];
+      if (unique !== undefined && (!isRecord(unique) || !Object.values(unique).every((u) => Array.isArray(u) && u.every(isTexts)))) {
+        problems.push('config.postgres.unique must map a table to a list of lists of properties');
+      }
+    }
+  }
+  return problems;
+}
+
+/** Imports a config module (TypeScript, through tsx) and checks its default export. */
+export async function loadConfig(path: string): Promise<{ readonly ok: true; readonly config: UrnForgeConfig } | { readonly ok: false; readonly problems: readonly string[] }> {
   let module: { default?: unknown };
   try {
     module = (await import(pathToFileURL(path).href)) as { default?: unknown };
   } catch (error) {
-    // The whole message: its first line alone ("Transform failed with 1 error:") does not say what is wrong.
-    return fail('config-unreadable', `cannot load config: ${relativePaths(stripVTControlCharacters((error as Error).message).trimEnd(), cwd)}`);
+    return { ok: false, problems: [`cannot load the config: ${(error as Error).message}`] };
   }
-  if (module.default === undefined) return fail('config-invalid', 'config: the file must `export default` the config');
-
-  const parsed = v.safeParse(ConfigSchema, module.default);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      diagnostics: parsed.issues.map((issue) => {
-        // `plugins[0]`, as pluginEntries writes it, not Valibot's `plugins.0`.
-        const path = v.getDotPath(issue)?.replace(/\.(\d+)(?=\.|$)/g, '[$1]') ?? null;
-        const unknownKey = issue.type === 'strict_object' && issue.expected === 'never';
-        return {
-          code: 'config-invalid' as const,
-          severity: 'error' as const,
-          file,
-          message: unknownKey ? `config.${path}: unknown option "${path}"` : `config${path ? `.${path}` : ''}: ${issue.message}`,
-        };
-      }),
-    };
-  }
-  return { ok: true, config: parsed.output as UrnForgeConfig };
-}
-
-export type PluginEntriesResult =
-  | { readonly ok: true; readonly entries: readonly PluginEntry[] }
-  | { readonly ok: false; readonly diagnostics: readonly Diagnostic[] };
-
-/** Turns a config's `plugins` list into engine entries, rejecting unknown and repeated names. */
-export function pluginEntries(specs: readonly PluginSpec[], file: string): PluginEntriesResult {
-  const diagnostics: Diagnostic[] = [];
-  const entries: PluginEntry[] = [];
-  const seen = new Set<string>();
-  specs.forEach((spec, i) => {
-    const [name, config] = typeof spec === 'string' ? [spec as string, {}] : [spec[0] as string, spec[1]];
-    const invalid = (message: string) =>
-      diagnostics.push({ code: 'config-invalid', severity: 'error', file, message: `config.plugins[${i}]: ${message}` });
-    if (!isPluginName(name)) return invalid(`unknown plugin "${name}" (plugins: ${PLUGIN_NAMES.join(', ')})`);
-    if (seen.has(name)) return invalid(`plugin "${name}" is listed more than once`);
-    seen.add(name);
-    entries.push({ plugin: PLUGINS[name], config });
-  });
-  return diagnostics.length > 0 ? { ok: false, diagnostics } : { ok: true, entries };
+  if (module.default === undefined) return { ok: false, problems: ['the config must export default the config'] };
+  const problems = configProblems(module.default);
+  return problems.length > 0 ? { ok: false, problems } : { ok: true, config: module.default as UrnForgeConfig };
 }

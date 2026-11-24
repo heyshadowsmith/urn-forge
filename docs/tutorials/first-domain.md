@@ -13,14 +13,19 @@ Before you start, do the steps in [Tutorials](./).
    cd my-shipping
    ```
 
-2. Make a `package.json`, and install urn-forge. Give the path of your tarball:
+2. Make a `package.json`:
 
    ```bash
    npm init -y
-   npm install /path/to/urn-forge-0.1.0.tgz
    ```
 
-3. Write a starter project:
+3. Install urn-forge. Give the path of your tarball:
+
+   ```bash
+   npm install /path/to/urn-forge-0.2.0.tgz
+   ```
+
+4. Write a starter project:
 
    ```bash
    npx urn-forge init --namespace demo --domain shipping
@@ -38,10 +43,7 @@ Before you start, do the steps in [Tutorials](./).
    wrote      tsconfig.json
    wrote      urn-forge.config.ts
    updated    package.json
-   wrote      src/generated/domain.runtime.generated.ts
-   wrote      src/generated/domain.schemas.generated.ts
-   fingerprint sha256:897edd10c9fdefff5c0e70a3d45190000a8bcdf068596732f2b242a9ad3c1a18
-   next: npm run verify, then npm run test:features
+   next: npm install, then npx urn-forge compile, then npx urn-forge verify
    ```
 
 The starter project splits a bill. You replace its domain with the shipping domain. You change four files: `urn-forge.config.ts`, `domain.manifest.yaml`, `src/core.ts` and the feature. Keep the other files. All the commands in the tutorials run from the `my-shipping` folder.
@@ -52,7 +54,7 @@ Replace the content of `urn-forge.config.ts` with this content:
 
 <<< @/../packages/urn-forge/tutorial/1-first-domain/urn-forge.config.ts
 
-With the default settings, a boundary gap is only a warning. You make it an error in [tutorial 3](./strict-coverage).
+With the default settings, a gap in the scenarios is only a warning. You make it an error in [tutorial 3](./strict-coverage).
 
 ## 3. Write the manifest
 
@@ -60,14 +62,15 @@ Replace the content of `domain.manifest.yaml` with this content:
 
 <<< @/../packages/urn-forge/tutorial/1-first-domain/domain.manifest.yaml
 
-The manifest has four parts:
+The manifest has three parts:
 
-- The header gives the namespace and the domain. They are the start of each URN, for example `urn:demo:shipping:quote:operation:quote_shipping`.
-- Each field has a primitive and constraints. For example, `weight_grams` must be an integer from 1 to 30000.
-- Each entity is a list of field references. `required: false` makes `express` optional.
-- The operation gets a `parcel` and gives a `quote`.
+- The header, `manifest`, gives the namespace, the domain and the version of the contract.
+- `definitions` gives each value a name, a `description` and a `type`. The types are the six types of JSON Schema. `rules` lists what must be true of the value. For example, `weight_grams` is an integer, with the rules `minimum: 1` and `maximum: 30000`.
+- `operations` gives each operation an `input` and a list of outputs. `quote_shipping` gets a `parcel` and gives a `quote`.
 
-Each key has the format `<context>.<kind>.<identifier>`.
+An object, such as `parcel`, lists its properties by the names of other definitions. The rule `required` lists the properties that an object must have. `express` is not in `required`, so a parcel can have no `express`.
+
+`minimum`, `maximum`, `enum` and `required` are standard rules. urn-forge ships them. In tutorial 2, you write rules of your own.
 
 ## 4. Compile the manifest
 
@@ -80,37 +83,45 @@ npx urn-forge compile
 The command shows this output:
 
 ```
-wrote      src/generated/domain.runtime.generated.ts
-wrote      src/generated/domain.schemas.generated.ts
-fingerprint sha256:28f251b06ee13bc71fcd6ef07854183ef6af206f87b6bcf789d8ee6063871368
+wrote      src/generated/domain.generated.ts
 ```
 
-The same manifest always gives the same files. Thus, your fingerprint is the same.
+The same manifest always gives the same file. Do not edit the generated file. Gate 4 of `verify` finds each manual change.
 
-## 5. Examine the handler type
+## 5. Examine the generated types
 
-Open `src/generated/domain.runtime.generated.ts`. Find these lines:
+Open `src/generated/domain.generated.ts`. Find these lines:
 
 ```ts
-/** urn:demo:shipping:quote:operation:quote_shipping — Calculate the price to send a parcel */
-export type QuoteQuoteShippingHandler = (
-  input: s.ParcelParcel,
-) => Result<s.QuoteQuoteInput, never>;
+/** A parcel to send */
+export interface Parcel {
+  /** The weight of the parcel in grams */
+  readonly weight_grams: WeightGrams;
+  /** Where the parcel goes */
+  readonly zone: Zone;
+  /** Whether the parcel goes by express delivery */
+  readonly express?: Express;
+}
+```
 
-// Registry
+Then find these lines:
 
-export interface DomainCoreImplementation {
-  readonly 'urn:demo:shipping:quote:operation:quote_shipping': QuoteQuoteShippingHandler;
+```ts
+/** The answers of quote_shipping. */
+export type QuoteShippingAnswer = Answer<"quote", Quote>;
+
+/** The core: a function for each operation, from its input to one of its answers. */
+export interface DomainCore {
+  /** Calculate the price to send a parcel */
+  readonly quote_shipping: (input: Parcel) => QuoteShippingAnswer;
 }
 ```
 
 These lines tell you three things:
 
-- Your core must have one handler for each operation URN.
-- The handler gets a `ParcelParcel`: the parsed parcel, with a brand on each value.
-- The handler returns a `Result`. The error type is `never`, because the operation declares no errors.
-
-Do not edit the generated files. Gate 4 of `verify` finds each manual change.
+- Your core must have one function for each operation.
+- The function gets a `Parcel`. `express` is optional, because the `required` rule of `parcel` does not list it. The type of `zone` is `"domestic" | "international"`, from the `enum` rule.
+- The function returns an answer: the name of an output and its value. You make an answer with the generated function `answer`.
 
 ## 6. Write the core
 
@@ -118,7 +129,7 @@ Replace the content of `src/core.ts` with this content:
 
 <<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts
 
-The core is one object. Its key is the operation URN, and it `satisfies` the generated `DomainCoreImplementation`. Thus, TypeScript knows the type of each parameter. The handler returns its output in `ok(…)`.
+The core is one object. It has a function for each operation, and it `satisfies` the generated `DomainCore`. Thus, TypeScript knows the type of each parameter. The core does not check the input. The harness, `runOperation`, checks the input before the core runs.
 
 ## 7. Write the feature
 
@@ -134,12 +145,14 @@ Then make the file `features/quote_shipping.feature` with this content:
 
 Examine these parts of the feature:
 
-- The tag on line 1 is the URN of the operation. The steps use it to find the operation, and `verify` uses it to trace the feature to the manifest.
-- The table headers are the field names of the input and the output.
-- An empty cell sends no value. Thus, the second parcel goes by usual delivery.
-- The last scenario sends the weight `0`. The schema refuses it before the core gets the parcel.
+- `When I run "quote_shipping" with:` sends the table to the operation through the harness.
+- The table headers are the names of the properties of the input.
+- An empty cell sends no value. Thus, the second parcel has no `express`.
+- `Then the output is "quote":` expects the output `quote`, with the values of the table.
+- `Then the input is rejected by "minimum" of "weight_grams"` expects the harness to refuse the input before the core runs, because the input breaks that rule.
+- `When I check a "quote" with:` checks a value against a definition. It does not run the core. Use it for a rule that no input can break, for example a rule of an output.
 
-The file `features/support/steps.ts` connects these steps to your generated runtime and your core. You do not change it.
+The file `features/support/steps.ts` connects these steps to your generated file and your core. You do not change it.
 
 ## 8. Run Cucumber
 
@@ -152,11 +165,11 @@ npx cucumber-js
 The command shows this output:
 
 ```
-...............
+..............................
 
-5 scenarios (5 passed)
-15 steps (15 passed)
-0m 0.015s (0m 0.003s executing your code)
+10 scenarios (10 passed)
+30 steps (30 passed)
+0m 0.022s (0m 0.005s executing your code)
 ```
 
 Cucumber counts each `Examples` row as one scenario.
@@ -172,27 +185,23 @@ npx urn-forge verify
 The command shows this output:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; core satisfies DomainCore
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
-gate 3  gherkin       PASS  1 feature(s), 2 scenario(s), 1/1 operations tagged, strict: 0/1 features
-    features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-    features  warning  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
-verify passed with 2 warning(s) (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
+gate 3  gherkin       PASS  1 feature(s), 10 scenario(s), 1/1 operation(s) run, 6 rule(s) broken
+gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
+verify passed (gates 1, 2, 3, 4)
 ```
 
 Each gate examines one link:
 
-- **Gate 1** makes sure that the core has a correct handler for each operation.
-- **Gate 2** makes sure that the core does not make a branded value without a parse.
-- **Gate 3** makes sure that the feature traces to a real operation and uses real field names.
-- **Gate 4** makes sure that the generated files are the same as a new compile.
-
-The two warnings are boundary gaps. Your scenarios do not send the values at the edges of the constraints, for example the weight `30001`. You close these gaps in tutorial 3.
+- **Gate 1** makes sure that the core has a function of the correct type for each operation.
+- **Gate 2** makes sure that no code calls the core without the harness.
+- **Gate 3** makes sure that a scenario runs each operation, gives each output, and breaks each rule of each definition. The manifest applies six rules to definitions, and a scenario breaks each one.
+- **Gate 4** makes sure that the generated file is the same as a new compile.
 
 ## Next
 
-Continue to [tutorial 2: Add a declared error](./declared-errors).
+Continue to [tutorial 2: Add a refusal](./declared-errors).
 
 ## Related pages
 

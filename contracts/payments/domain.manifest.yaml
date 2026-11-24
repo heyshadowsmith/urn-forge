@@ -1,696 +1,1021 @@
+# Payments: a merchant takes payments from buyers by card or bank transfer, captures or voids them,
+# and refunds them.
+#
+# Each call's input holds what the shell gives besides the request: the caller (the kind of the API
+# key that the shell authenticated, and its merchant), the time of the call (now), the id of the
+# event that the call publishes (event_id), and the stored record that the call reads or moves
+# (stored_payment, stored_refund), which the shell loads by the id of the request. A payment id or
+# refund id that names no stored record is the shell's not_found. Each answer that creates or changes
+# a payment carries the payment as it is after the call and the one event of the change; the shell
+# stores the records of the answer as they are and publishes the event.
 manifest:
   namespace: corpus
   domain: payments
   version: 1.0.0
-  caller: auth.entity.caller
+  # Callers tolerate a new optional property or a new choice in an answer, such as a new event type.
+  compatibility:
+    callers: ignore-unknown
 
-# Values
+definitions:
+  # Values
 
-payment.field.payment_id:
-  primitive: string
-  regex: 'pay_[a-z0-9]{24}'
-  description: The id of a payment
-refund.field.refund_id:
-  primitive: string
-  regex: 're_[a-z0-9]{24}'
-  description: The id of a refund
-payment.field.merchant_id:
-  primitive: string
-  description: The id of the merchant that the payment belongs to
-payment.field.amount:
-  primitive: integer
-  min: 1
-  max: 99999999
-  description: An amount in minor units of its currency, for example cents
-# The currencies that the domain takes, each an active ISO 4217 code; urn-forge keeps no list of
-# its own (roadmap decision 9). A merchant may take fewer of them (unsupported_currency).
-payment.field.currency:
-  primitive: enum
-  values: [AUD, CAD, CHF, DKK, EUR, GBP, JPY, NOK, SEK, USD]
-  description: The ISO 4217 code of the currency of an amount, one of those that the domain takes
-payment.field.method:
-  primitive: enum
-  values: [card, bank_transfer]
-  description: How the buyer pays
-payment.field.idempotency_key:
-  primitive: string
-  minLength: 1
-  maxLength: 64
-  regex: '\P{C}*'
-  description: A key that the caller chooses, so that a repeated request has the effect of one
-payment.field.description:
-  primitive: string
-  maxLength: 255
-  description: Free text about the payment
-payment.field.metadata_key:
-  primitive: string
-  description: The key of a metadata entry
-payment.field.metadata_value:
-  primitive: string
-  description: The value of a metadata entry
-payment.field.quantity:
-  primitive: integer
-  min: 1
-  description: How many units a line item has
-payment.field.unit_amount:
-  primitive: integer
-  min: 0
-  description: The amount of one unit of a line item, in minor units
-payment.field.iban:
-  primitive: string
-  regex: '[A-Z]{2}[0-9]{2}[A-Z0-9]{1,30}'
-  description: The IBAN of the account that pays by bank transfer
-payment.field.status:
-  primitive: enum
-  values: [pending, authorized, failed, captured, voided, expired, partially_refunded, refunded]
-  moves:
-    pending: [authorized, failed]
-    authorized: [captured, voided, expired]
-    captured: [partially_refunded, refunded]
-    partially_refunded: [refunded]
-  description: Where a payment is in its life
-payment.field.initial_status:
-  primitive: enum
-  values: [authorized, pending]
-  description: The status of a payment that was just created
-payment.field.authorized_amount:
-  primitive: integer
-  min: 1
-  max: 99999999
-  description: The amount that the buyer authorized, in minor units
-payment.field.captured_amount:
-  primitive: integer
-  min: 0
-  max: 99999999
-  description: The amount captured from the buyer, in minor units
-payment.field.refunded_amount:
-  primitive: integer
-  min: 0
-  max: 99999999
-  description: The sum of all refunds of a payment, in minor units
-payment.field.captured_at:
-  primitive: timestamp
-  description: When the payment was captured
-payment.field.created_at:
-  primitive: timestamp
-  description: When the payment or refund was created
-payment.field.event_id:
-  primitive: string
-  format: uuid
-  description: The id of an event, so that a consumer can discard a duplicate
-payment.field.occurred_at:
-  primitive: timestamp
-  description: When the status of the payment changed
+  payment_id:
+    description: The id of a payment
+    type: string
+    rules:
+      - pattern: '^pay_[a-z0-9]{24}$'
 
-card.field.card_number:
-  primitive: string
-  regex: '[0-9]{12,19}'
-  description: The number of a card
-card.field.exp_month:
-  primitive: integer
-  min: 1
-  max: 12
-  description: The month in which a card expires
-card.field.exp_year:
-  primitive: integer
-  min: 1000
-  max: 9999
-  description: The year in which a card expires, four digits
-card.field.security_code:
-  primitive: string
-  regex: '[0-9]{3,4}'
-  description: The security code of a card
-card.field.brand:
-  primitive: enum
-  values: [visa, mastercard, amex, other]
-  description: The brand of a card
-card.field.last4:
-  primitive: string
-  regex: '[0-9]{4}'
-  description: The last 4 digits of a card number
+  refund_id:
+    description: The id of a refund
+    type: string
+    rules:
+      - pattern: '^re_[a-z0-9]{24}$'
 
-auth.field.key_kind:
-  primitive: enum
-  values: [secret, read_only, clock]
-  description: The kind of the API key that the caller presented, a secret key or a read-only key, or clock for the shell's clock, which presents no key
+  merchant_id:
+    description: The id of the merchant that a payment belongs to, or that an API key belongs to
+    type: string
 
-# Shapes
+  amount:
+    description: An amount in minor units of its currency, for example cents
+    type: integer
+    rules:
+      - minimum: 1
+      - maximum: 99999999
 
-auth.entity.caller:
-  description: Who calls, as the shell authenticated them from their API key; a key belongs to one merchant, and the shell's clock to none
-  fields:
-    - ref: auth.field.key_kind
-    - ref: payment.field.merchant_id
-      required: false
-auth.invariant.key_has_merchant:
-  description: A key belongs to one merchant, and the shell's clock to none
-  on: auth.entity.caller
-  rule: key_kind = 'clock' and merchant_id is absent or key_kind != 'clock' and merchant_id is present
-  reportOn: merchant_id
-  message: A key belongs to one merchant, and the clock to none
+  # The currencies that the domain takes, each an active ISO 4217 code. A merchant may take fewer of
+  # them (unsupported_currency).
+  currency:
+    description: The ISO 4217 code of the currency of an amount, one of those that the domain takes
+    type: string
+    rules:
+      - enum: [AUD, CAD, CHF, DKK, EUR, GBP, JPY, NOK, SEK, USD]
 
-card.entity.card_details:
-  description: The details of a card that pays
-  fields:
-    - ref: card.field.card_number
-    - ref: card.field.exp_month
-    - ref: card.field.exp_year
-    - ref: card.field.security_code
-card.entity.card_summary:
-  description: What an answer or an event shows of a card
-  fields:
-    - ref: card.field.brand
-    - ref: card.field.last4
-    - ref: card.field.exp_month
-    - ref: card.field.exp_year
+  method:
+    description: How the buyer pays
+    type: string
+    rules:
+      - enum: [card, bank_transfer]
 
-payment.entity.metadata_entry:
-  description: One entry of the metadata of a payment
-  key: payment.field.metadata_key
-  fields:
-    - ref: payment.field.metadata_key
-      as: key
-    - ref: payment.field.metadata_value
-      as: value
-payment.entity.line_item:
-  description: One line of what the buyer pays for
-  fields:
-    - ref: payment.field.quantity
-    - ref: payment.field.unit_amount
+  # "Printable" is read as "no Unicode control, format, private-use or unassigned character" (\P{C}).
+  idempotency_key:
+    description: A key that the caller chooses, so that a repeated request has the effect of one
+    type: string
+    rules:
+      - minLength: 1
+      - maxLength: 64
+      - pattern: '^\P{C}*$'
 
-payment.entity.create_payment_request:
-  description: A request to take a payment from a buyer
-  fields:
-    - ref: payment.field.merchant_id
-    - ref: payment.field.amount
-    - ref: payment.field.currency
-    - ref: payment.field.method
-    - ref: payment.field.idempotency_key
-    - ref: payment.field.description
-      required: false
-    - ref: payment.entity.metadata_entry
-      as: metadata
-      required: false
-      many: { maxItems: 20, unique: true }
-    - ref: payment.entity.line_item
-      as: line_items
-      required: false
-      many: { minItems: 1, maxItems: 100 }
-    - ref: card.entity.card_details
-      as: card
-      required: false
-    - ref: payment.field.iban
-      required: false
-payment.invariant.card_payment_has_card:
-  description: A card payment carries card details
-  on: payment.entity.create_payment_request
-  rule: method != 'card' or card is present
-  reportOn: card
-  message: A card payment needs card details
-payment.invariant.bank_transfer_has_iban_and_no_card:
-  description: A bank transfer payment carries an IBAN and no card details
-  on: payment.entity.create_payment_request
-  rule: method != 'bank_transfer' or iban is present and card is absent
-  reportOn: iban
-  message: A bank transfer payment needs an IBAN and no card details
+  description:
+    description: Free text about the payment
+    type: string
+    rules:
+      - maxLength: 255
 
-payment.entity.created_payment:
-  description: A payment that was just created
-  fields:
-    - ref: payment.field.payment_id
-    - ref: payment.field.merchant_id
-    - ref: payment.field.amount
-    - ref: payment.field.currency
-    - ref: payment.field.method
-    - ref: payment.field.initial_status
-      as: status
-    - ref: card.entity.card_summary
-      as: card
-      required: false
-    - ref: payment.field.created_at
-payment.invariant.pending_only_for_bank_transfer:
-  description: Only a bank transfer payment can be pending
-  on: payment.entity.created_payment
-  rule: status != 'pending' or method = 'bank_transfer'
-  reportOn: status
-  message: Only a bank transfer payment can be pending
+  metadata_key:
+    description: The key of a metadata entry
+    type: string
 
-payment.entity.payment_ref:
-  description: The payment that the shell's clock acts on
-  fields:
-    - ref: payment.field.payment_id
+  metadata_value:
+    description: The value of a metadata entry
+    type: string
 
-payment.entity.payment_lookup:
-  description: A request that names one payment of a merchant
-  fields:
-    - ref: payment.field.merchant_id
-    - ref: payment.field.payment_id
+  quantity:
+    description: How many units a line item has
+    type: integer
+    rules:
+      - minimum: 1
 
-payment.entity.payment:
-  description: A payment as a caller can read it
-  key: payment.field.payment_id
-  fields:
-    - ref: payment.field.payment_id
-    - ref: payment.field.merchant_id
-    - ref: payment.field.amount
-    - ref: payment.field.currency
-    - ref: payment.field.method
-    - ref: payment.field.status
-    - ref: payment.field.captured_amount
-    - ref: payment.field.refunded_amount
-    - ref: card.entity.card_summary
-      as: card
-      required: false
-    - ref: payment.field.created_at
-    - ref: payment.field.captured_at
-      required: false
-# A payment that was captured holds the time of its capture (the captured_at of the answer of
-# capture_payment), which the refund window counts from.
-payment.invariant.captured_payment_has_capture_time:
-  description: A captured or refunded payment holds when it was captured
-  on: payment.entity.payment
-  rule: status != 'captured' and status != 'partially_refunded' and status != 'refunded' or captured_at is present
-  reportOn: captured_at
-  message: A captured or refunded payment needs the time of its capture
+  unit_amount:
+    description: The amount of one unit of a line item, in minor units
+    type: integer
+    rules:
+      - minimum: 0
 
-payment.entity.capture_request:
-  description: A request to capture an authorized payment, in full when it has no amount
-  fields:
-    - ref: payment.field.merchant_id
-    - ref: payment.field.payment_id
-    - ref: payment.field.amount
-      required: false
-payment.entity.capture_result:
-  description: A payment that was captured
-  fields:
-    - ref: payment.field.payment_id
-    - ref: payment.field.currency
-    - ref: payment.field.authorized_amount
-    - ref: payment.field.captured_amount
-    - ref: payment.field.status
-    - ref: payment.field.captured_at
-payment.invariant.captured_within_authorized:
-  description: A capture takes at least 1 and at most the authorized amount
-  on: payment.entity.capture_result
-  rule: captured_amount >= 1 and captured_amount <= authorized_amount
-  message: The captured amount must be from 1 to the authorized amount
+  iban:
+    description: The IBAN of the account that pays by bank transfer
+    type: string
+    rules:
+      - pattern: '^[A-Z]{2}[0-9]{2}[A-Z0-9]{1,30}$'
 
-refund.entity.refund_request:
-  description: A request to give back a part or all of a captured payment
-  fields:
-    - ref: payment.field.merchant_id
-    - ref: payment.field.payment_id
-    - ref: payment.field.amount
-    - ref: payment.field.idempotency_key
-refund.entity.refund_lookup:
-  description: A request that names one refund of a merchant
-  fields:
-    - ref: payment.field.merchant_id
-    - ref: refund.field.refund_id
-refund.entity.refund:
-  description: A refund of a payment
-  key: refund.field.refund_id
-  fields:
-    - ref: refund.field.refund_id
-    - ref: payment.field.payment_id
-    - ref: payment.field.merchant_id
-    - ref: payment.field.amount
-    - ref: payment.field.currency
-    - ref: payment.field.captured_amount
-    - ref: payment.field.refunded_amount
-      as: refunded_total
-    - ref: payment.field.created_at
-refund.invariant.refunds_within_captured:
-  description: The sum of all refunds of a payment, this one included, is at most the captured amount
-  on: refund.entity.refund
-  rule: amount <= refunded_total and refunded_total <= captured_amount
-  message: The refunds of a payment must not exceed the captured amount
+  status:
+    description: Where a payment is in its life
+    type: string
+    rules:
+      - enum: [pending, authorized, failed, captured, voided, expired, partially_refunded, refunded]
 
-# Refusals
+  previous_status:
+    description: The status of a payment before a change
+    type: status
 
-payment.error.invalid_request:
-  description: The request breaks a rule that its fields alone do not show, such as line items that do not add up to the amount
-  category: validation
-  retryable: false
-  message: The request is not valid
-payment.error.card_declined:
-  description: The issuer of the card declined the payment
-  category: precondition
-  retryable: false
-  message: The card was declined
-payment.error.insufficient_funds:
-  description: The account of the card does not hold enough money
-  category: precondition
-  retryable: true
-  message: The card has insufficient funds
-payment.error.expired_card:
-  description: The card has expired
-  category: precondition
-  retryable: false
-  message: The card has expired
-payment.error.unsupported_currency:
-  description: The currency is not one that the merchant can take
-  category: validation
-  retryable: false
-  message: The currency {currency} is not supported
-  fields:
-    - ref: payment.field.currency
-payment.error.fraud_suspected:
-  description: The payment looks like fraud
-  category: forbidden
-  retryable: false
-  message: The payment was refused as suspected fraud
-payment.error.idempotency_conflict:
-  description: The idempotency key was used before with a different request
-  category: conflict
-  retryable: false
-  message: The idempotency key {idempotency_key} was used with a different request
-  fields:
-    - ref: payment.field.idempotency_key
-payment.error.not_found:
-  description: The merchant is unknown, or the payment or refund does not exist or belongs to another merchant
-  category: not_found
-  retryable: false
-  message: Not found
-payment.error.invalid_state:
-  description: The payment is in a status that does not allow the requested move
-  category: conflict
-  retryable: false
-  message: A payment in status {status} cannot make this move
-  fields:
-    - ref: payment.field.status
-payment.error.capture_exceeds_authorized:
-  description: The capture amount is more than the authorized amount
-  category: validation
-  retryable: false
-  message: A capture of {amount} {currency} is more than the authorized amount of {authorized_amount} {currency}
-  fields:
-    - ref: payment.field.amount
-    - ref: payment.field.currency
-    - ref: payment.field.authorized_amount
-refund.error.amount_exceeds_captured:
-  description: The refund would make the refunds of the payment more than its captured amount
-  category: precondition
-  retryable: false
-  message: A refund of {amount} {currency} is more than is left of the captured amount of {captured_amount}, of which {refunded_amount} is refunded
-  fields:
-    - ref: payment.field.amount
-    - ref: payment.field.currency
-    - ref: payment.field.captured_amount
-    - ref: payment.field.refunded_amount
-refund.error.refund_window_closed:
-  description: The payment was captured more than 180 days ago
-  category: precondition
-  retryable: false
-  message: The payment can no longer be refunded
+  new_status:
+    description: The status of a payment after a change
+    type: status
 
-# Events: one for each status that a call can make. Each has a delivery: the shell gives the
-# event id, and the outbox of the Postgres plugin keeps the events of one payment in order.
+  authorized_amount:
+    description: The amount that the buyer authorized, in minor units
+    type: amount
 
-payment.event.pending:
-  description: A payment became pending
-  fields: &status_change
-    - ref: payment.field.event_id
-    - ref: payment.field.payment_id
-    - ref: payment.field.merchant_id
-    - ref: payment.field.amount
-    - ref: payment.field.currency
-    - ref: payment.field.status
-      as: previous_status
-      required: false
-    - ref: payment.field.status
-      as: new_status
-    - ref: payment.field.occurred_at
-  delivery: &delivery
-    id: event_id
-    orderBy: payment_id
-payment.event.authorized:
-  description: A payment became authorized
-  fields: *status_change
-  delivery: *delivery
-payment.event.captured:
-  description: A payment became captured
-  fields: *status_change
-  delivery: *delivery
-payment.event.voided:
-  description: A payment became voided
-  fields: *status_change
-  delivery: *delivery
-payment.event.partially_refunded:
-  description: A payment became partially refunded
-  fields: *status_change
-  delivery: *delivery
-payment.event.refunded:
-  description: A payment became refunded in full
-  fields: *status_change
-  delivery: *delivery
-payment.event.expired:
-  description: A card payment became expired, as it was not captured within 7 days of its authorization
-  fields: *status_change
-  delivery: *delivery
+  total:
+    description: A sum of amounts in minor units, 0 or more
+    type: integer
+    rules:
+      - minimum: 0
+      - maximum: 99999999
 
-# Calls
+  captured_amount:
+    description: The amount captured from the buyer, in minor units
+    type: total
 
-payment.operation.create_payment:
-  description: Create a payment and ask the buyer's bank to authorize it
-  input: payment.entity.create_payment_request
-  output: payment.entity.created_payment
-  # P15: a repeat with the same key from the same merchant within 24 hours gets the first answer,
-  # and no second payment or event; the same key with another body is idempotency_conflict.
-  # The kind of the key is in the scope too: only a secret key succeeds, so it is the merchant's
-  # one scope, and a repeat with a read-only key runs and is refused by callers (P22), as the
-  # first answer is found before the callers are checked.
-  idempotency:
-    key: input.idempotency_key
-    scope: caller.merchant_id
-    window: 24 hours
-    otherwise: payment.error.idempotency_conflict
-  # Authentication (a valid key) is the shell's; who may call is here. A request that names a
-  # merchant other than the one of the key is not found (P16): a key belongs to a known merchant.
-  callers:
-    allow:
-      - caller.key_kind = 'secret' and caller.merchant_id is present and caller.merchant_id = input.merchant_id
-    otherwise: payment.error.not_found
-  requires:
-    - rule: 'input.line_items is absent or input.amount = sum(item in input.line_items: item.quantity * item.unit_amount)'
-      otherwise: payment.error.invalid_request
-  errors:
-    - payment.error.invalid_request
-    - payment.error.card_declined
-    - payment.error.insufficient_funds
-    - payment.error.expired_card
-    - payment.error.unsupported_currency
-    - payment.error.fraud_suspected
-    - payment.error.idempotency_conflict
-    - payment.error.not_found
-  emits:
-    - event: payment.event.authorized
-      when: output.status = 'authorized'
-    - event: payment.event.pending
-      when: output.status = 'pending'
-  ensures:
-    - event.payment_id = output.payment_id
-    - event.merchant_id = output.merchant_id
-    - event.amount = output.amount
-    - event.currency = output.currency
-    - event.previous_status is absent
-    - event.new_status = output.status
-    - event.occurred_at = now
-    - output.created_at = now
-payment.operation.capture_payment:
-  description: Capture an authorized payment, in full or in part
-  input: payment.entity.capture_request
-  output: payment.entity.capture_result
-  changes:
-    entity: payment.entity.payment
-    from: [authorized]
-    to: captured
-    otherwise: payment.error.invalid_state
-    missing: payment.error.not_found
-  # Authentication (a valid key) is the shell's; who may call is here. A payment of another
-  # merchant, or a request that names a merchant other than the key's, is not found (P16).
-  callers:
-    allow:
-      - caller.key_kind = 'secret' and caller.merchant_id is present and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
-    otherwise: payment.error.not_found
+  refunded_amount:
+    description: The sum of all refunds of a payment, in minor units
+    type: total
+
+  refunded_total:
+    description: The sum of all refunds of a payment, this one included, in minor units
+    type: total
+
+  time:
+    description: A time in UTC, in ISO 8601 with a trailing Z
+    type: string
+    rules:
+      - format: date-time
+      - pattern: 'Z$'
+
+  now:
+    description: The time of the call, which the shell gives
+    type: time
+
+  created_at:
+    description: When the payment or refund was created
+    type: time
+
+  captured_at:
+    description: When the payment was captured
+    type: time
+
+  occurred_at:
+    description: When the status of the payment changed
+    type: time
+
+  event_id:
+    description: The id of an event, which the shell gives, so that a consumer can discard a duplicate
+    type: string
+    rules:
+      - pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+
+  event_type:
+    description: The name of an event, payment.<new_status>
+    type: string
+    rules:
+      - enum: [payment.pending, payment.authorized, payment.failed, payment.captured, payment.voided, payment.expired, payment.partially_refunded, payment.refunded]
+
+  transfer_outcome:
+    description: What the bank reported of a bank transfer
+    type: string
+    rules:
+      - enum: [arrived, failed]
+
+  card_number:
+    description: The number of a card
+    type: string
+    rules:
+      - pattern: '^[0-9]{12,19}$'
+
+  exp_month:
+    description: The month in which a card expires
+    type: integer
+    rules:
+      - minimum: 1
+      - maximum: 12
+
+  exp_year:
+    description: The year in which a card expires, four digits
+    type: integer
+    rules:
+      - minimum: 1000
+      - maximum: 9999
+
+  security_code:
+    description: The security code of a card
+    type: string
+    rules:
+      - pattern: '^[0-9]{3,4}$'
+
+  brand:
+    description: The brand of a card
+    type: string
+    rules:
+      - enum: [visa, mastercard, amex, other]
+
+  last4:
+    description: The last 4 digits of a card number
+    type: string
+    rules:
+      - pattern: '^[0-9]{4}$'
+
+  key_kind:
+    description: >-
+      The kind of the API key of the caller, as the shell authenticated it: secret or read_only, a
+      merchant's key; clock, the shell's clock; bank, the shell when the bank reports a transfer;
+      none, no key or a key that is not valid
+    type: string
+    rules:
+      - enum: [secret, read_only, clock, bank, none]
+
+  # Shapes
+
+  caller:
+    description: Who calls; a key belongs to one merchant, and the clock, the bank and no key to none
+    type: object
+    properties: [key_kind, merchant_id]
+    rules:
+      - required: [key_kind]
+      - key_has_merchant
+
+  card:
+    description: The details of a card that pays
+    type: object
+    properties: [card_number, exp_month, exp_year, security_code]
+    rules:
+      - required: [card_number, exp_month, exp_year, security_code]
+      - security_code_fits_the_brand
+
+  card_summary:
+    description: What an answer shows of a card
+    type: object
+    properties: [brand, last4, exp_month, exp_year]
+    rules:
+      - required: [brand, last4, exp_month, exp_year]
+
+  metadata_entry:
+    description: One entry of the metadata of a payment
+    type: object
+    identifier: metadata_key
+    properties: [metadata_key, metadata_value]
+    rules:
+      - required: [metadata_key, metadata_value]
+
+  metadata:
+    description: The metadata of a payment, at most one entry for each key
+    type: array
+    items: metadata_entry
+    rules:
+      - maxItems: 20
+      - one_entry_for_each_key
+
+  line_item:
+    description: One line of what the buyer pays for
+    type: object
+    properties: [quantity, unit_amount]
+    rules:
+      - required: [quantity, unit_amount]
+
+  line_items:
+    description: What the buyer pays for
+    type: array
+    items: line_item
+    rules:
+      - minItems: 1
+      - maxItems: 100
+
+  payment:
+    description: A payment as it is stored and as a caller can read it
+    type: object
+    identifier: payment_id
+    properties: [payment_id, merchant_id, amount, currency, method, status, captured_amount, refunded_amount, card_summary, created_at, captured_at]
+    rules:
+      - required: [payment_id, merchant_id, amount, currency, method, status, captured_amount, refunded_amount, created_at]
+      - amounts_within_payment
+      - captured_payment_has_capture_time
+      - pending_only_for_bank_transfer
+
+  stored_payment:
+    description: The payment that the request names, as the shell loaded it before the call
+    type: payment
+
+  refund:
+    description: A refund of a payment
+    type: object
+    identifier: refund_id
+    properties: [refund_id, payment_id, merchant_id, amount, currency, captured_amount, refunded_total, created_at]
+    rules:
+      - required: [refund_id, payment_id, merchant_id, amount, currency, captured_amount, refunded_total, created_at]
+      - refunds_within_captured
+
+  stored_refund:
+    description: The refund that the request names, as the shell loaded it before the call
+    type: refund
+
+  payment_event:
+    description: The event of a change of the status of a payment, which the shell publishes
+    type: object
+    properties: [event_id, event_type, payment_id, merchant_id, amount, currency, previous_status, new_status, occurred_at]
+    rules:
+      - required: [event_id, event_type, payment_id, merchant_id, amount, currency, new_status, occurred_at]
+      - event_type_names_the_status
+
+  # Requests
+
+  create_payment_request:
+    description: A request to take a payment from a buyer
+    type: object
+    properties: [merchant_id, amount, currency, method, idempotency_key, description, metadata, line_items, card, iban, caller, now, event_id]
+    rules:
+      - required: [merchant_id, amount, currency, method, idempotency_key, caller, now, event_id]
+      - card_payment_has_card
+      - bank_transfer_has_iban_and_no_card
+
+  capture_request:
+    description: A request to capture an authorized payment, in full when it has no amount
+    type: object
+    properties: [merchant_id, payment_id, amount, stored_payment, caller, now, event_id]
+    rules:
+      - required: [merchant_id, payment_id, stored_payment, caller, now, event_id]
+      - names_the_payment
+
+  void_request:
+    description: A request to cancel an authorized payment that was not captured
+    type: object
+    properties: [merchant_id, payment_id, stored_payment, caller, now, event_id]
+    rules:
+      - required: [merchant_id, payment_id, stored_payment, caller, now, event_id]
+      - names_the_payment
+
+  expiry:
+    description: The shell's clock expires a payment that it found due
+    type: object
+    properties: [payment_id, stored_payment, caller, now, event_id]
+    rules:
+      - required: [payment_id, stored_payment, caller, now, event_id]
+      - names_the_payment
+
+  settlement:
+    description: The shell reports what the bank said of a bank transfer
+    type: object
+    properties: [payment_id, transfer_outcome, stored_payment, caller, now, event_id]
+    rules:
+      - required: [payment_id, transfer_outcome, stored_payment, caller, now, event_id]
+      - names_the_payment
+
+  payment_lookup:
+    description: A request that names one payment of a merchant
+    type: object
+    properties: [merchant_id, payment_id, stored_payment, caller]
+    rules:
+      - required: [merchant_id, payment_id, stored_payment, caller]
+      - names_the_payment
+
+  refund_request:
+    description: A request to give back a part or all of a captured payment
+    type: object
+    properties: [merchant_id, payment_id, amount, idempotency_key, stored_payment, caller, now, event_id]
+    rules:
+      - required: [merchant_id, payment_id, amount, idempotency_key, stored_payment, caller, now, event_id]
+      - names_the_payment
+
+  refund_lookup:
+    description: A request that names one refund of a merchant
+    type: object
+    properties: [merchant_id, refund_id, stored_refund, caller]
+    rules:
+      - required: [merchant_id, refund_id, stored_refund, caller]
+      - names_the_refund
+
+  # Answers
+
+  payment_changed:
+    description: A payment as it is after its creation or a change of its status, which the shell stores, and the event of the change
+    type: object
+    properties: [payment, payment_event]
+    rules:
+      - required: [payment, payment_event]
+
+  refund_made:
+    description: A refund that was made and its payment as it is after it, which the shell stores, and the event of the change of the status of the payment
+    type: object
+    properties: [refund, payment, payment_event]
+    rules:
+      - required: [refund, payment, payment_event]
+
+  # Refusals
+
+  invalid_request:
+    description: The request breaks a rule that its values alone do not show, such as line items that do not add up to the amount
+    type: object
+    properties: []
+
+  card_declined:
+    description: The issuer of the card declined the payment
+    type: object
+    properties: []
+
+  insufficient_funds:
+    description: The account of the card does not hold enough money
+    type: object
+    properties: []
+
+  expired_card:
+    description: The card has expired
+    type: object
+    properties: []
+
+  fraud_suspected:
+    description: The payment was refused as suspected fraud
+    type: object
+    properties: []
+
+  unsupported_currency:
+    description: The currency is not one that the merchant can take
+    type: object
+    properties: [currency]
+    rules:
+      - required: [currency]
+
+  idempotency_conflict:
+    description: The idempotency key was used before with a different request
+    type: object
+    properties: [idempotency_key]
+    rules:
+      - required: [idempotency_key]
+
+  not_found:
+    description: The request names a merchant other than the one of the key, or a payment or refund of another merchant
+    type: object
+    properties: []
+
+  unauthorized:
+    description: The caller presented no API key, or one that is not valid
+    type: object
+    properties: []
+
+  forbidden:
+    description: The key of the caller may not make this call
+    type: object
+    properties: []
+
+  invalid_state:
+    description: The payment is in a status that does not allow the requested move
+    type: object
+    properties: [status]
+    rules:
+      - required: [status]
+
+  capture_exceeds_authorized:
+    description: The capture amount is more than the authorized amount
+    type: object
+    properties: [amount, currency, authorized_amount]
+    rules:
+      - required: [amount, currency, authorized_amount]
+
+  amount_exceeds_captured:
+    description: The refund would make the refunds of the payment more than its captured amount
+    type: object
+    properties: [amount, currency, captured_amount, refunded_amount]
+    rules:
+      - required: [amount, currency, captured_amount, refunded_amount]
+
+  refund_window_closed:
+    description: The payment was captured more than 180 days ago
+    type: object
+    properties: []
+
+rules:
+  # Rules of values
+
+  key_has_merchant:
+    description: A merchant's key belongs to one merchant; the clock, the bank and no key to none
+    rule: >-
+      ((self.key_kind == 'secret' || self.key_kind == 'read_only') && has(self.merchant_id)) ||
+      (self.key_kind != 'secret' && self.key_kind != 'read_only' && !has(self.merchant_id))
+    message: A merchant's key belongs to one merchant, and no other caller to any
+
+  security_code_fits_the_brand:
+    description: The security code of an American Express card (a number that starts with 34 or 37) is 4 digits, and of any other card 3
+    rule: >-
+      (self.card_number.matches('^3[47]') && self.security_code.matches('^[0-9]{4}$')) ||
+      (!self.card_number.matches('^3[47]') && self.security_code.matches('^[0-9]{3}$'))
+    message: The security code is 4 digits for American Express and 3 for any other card
+
+  one_entry_for_each_key:
+    description: No two metadata entries have the same key
+    rule: self.all(e, self.exists_one(f, f.metadata_key == e.metadata_key))
+    message: Each metadata key may occur once
+
+  amounts_within_payment:
+    description: A payment captures at most its amount, and refunds at most what it captured
+    rule: self.captured_amount <= self.amount && self.refunded_amount <= self.captured_amount
+    message: The captured amount must be at most the amount, and the refunded amount at most the captured amount
+
+  # A captured payment holds the time of its capture, which the refund window counts from.
+  captured_payment_has_capture_time:
+    description: A captured or refunded payment holds when it was captured
+    rule: "!(self.status in ['captured', 'partially_refunded', 'refunded']) || has(self.captured_at)"
+    message: A captured or refunded payment needs the time of its capture
+
+  pending_only_for_bank_transfer:
+    description: Only a bank transfer payment can be pending
+    rule: self.status != 'pending' || self.method == 'bank_transfer'
+    message: Only a bank transfer payment can be pending
+
+  refunds_within_captured:
+    description: The sum of all refunds of a payment, this one included, is at most the captured amount
+    rule: self.amount <= self.refunded_total && self.refunded_total <= self.captured_amount
+    message: The refunds of a payment must not exceed the captured amount
+
+  event_type_names_the_status:
+    description: An event is named payment.<new_status>
+    rule: self.event_type == 'payment.' + self.new_status
+    message: The event type must be payment.<new_status>
+
+  card_payment_has_card:
+    description: A card payment carries card details
+    rule: self.method != 'card' || has(self.card)
+    message: A card payment needs card details
+
+  bank_transfer_has_iban_and_no_card:
+    description: A bank transfer payment carries an IBAN and no card details
+    rule: self.method != 'bank_transfer' || (has(self.iban) && !has(self.card))
+    message: A bank transfer payment needs an IBAN and no card details
+
+  names_the_payment:
+    description: The stored payment is the one that the request names
+    rule: self.stored_payment.payment_id == self.payment_id
+    message: The stored payment is not the one that the request names
+
+  names_the_refund:
+    description: The stored refund is the one that the request names
+    rule: self.stored_refund.refund_id == self.refund_id
+    message: The stored refund is not the one that the request names
+
+  # Who calls
+
+  has_no_key:
+    description: The caller has no valid API key
+    rule: input.caller.key_kind == 'none'
+    message: The caller has a valid key
+
+  is_not_a_secret_key:
+    description: The caller has a valid key that is not a merchant's secret key
+    rule: input.caller.key_kind != 'none' && input.caller.key_kind != 'secret'
+    message: The caller has a secret key, or no key
+
+  is_not_a_merchant_key:
+    description: The caller has a valid key that is not a merchant's
+    rule: input.caller.key_kind == 'clock' || input.caller.key_kind == 'bank'
+    message: The caller has a merchant's key, or no key
+
+  is_not_the_clock:
+    description: The caller has a valid key that is not the shell's clock
+    rule: input.caller.key_kind != 'none' && input.caller.key_kind != 'clock'
+    message: The caller is the clock, or has no key
+
+  is_the_clock:
+    description: The caller is the shell's clock
+    rule: input.caller.key_kind == 'clock'
+    message: Only the shell's clock may expire a payment
+
+  is_not_the_bank:
+    description: The caller has a valid key that is not the bank's
+    rule: input.caller.key_kind != 'none' && input.caller.key_kind != 'bank'
+    message: The caller is the bank, or has no key
+
+  is_the_bank:
+    description: The caller is the shell, reporting for the bank
+    rule: input.caller.key_kind == 'bank'
+    message: Only the bank may settle a payment
+
+  is_the_merchants_secret_key:
+    description: The caller has the secret key of the merchant that the request names
+    rule: input.caller.key_kind == 'secret' && has(input.caller.merchant_id) && input.caller.merchant_id == input.merchant_id
+    message: Only the merchant's secret key may make this call
+
+  is_the_merchants_key:
+    description: The caller has a key, secret or read-only, of the merchant that the request names
+    rule: >-
+      (input.caller.key_kind == 'secret' || input.caller.key_kind == 'read_only') &&
+      has(input.caller.merchant_id) && input.caller.merchant_id == input.merchant_id
+    message: Only a key of the merchant may make this call
+
+  is_another_merchants_secret_key:
+    description: The caller has a secret key of a merchant other than the one that the request names
+    rule: >-
+      input.caller.key_kind == 'secret' &&
+      (!has(input.caller.merchant_id) || input.caller.merchant_id != input.merchant_id)
+    message: The key is of the merchant that the request names
+
+  names_the_merchants_payment:
+    description: The stored payment belongs to the merchant that the request names
+    rule: input.stored_payment.merchant_id == input.merchant_id
+    message: The payment belongs to another merchant
+
+  is_not_the_merchants_payment_to_change:
+    description: A secret key of another merchant, or a payment of another merchant
+    rule: >-
+      input.caller.key_kind == 'secret' &&
+      (!has(input.caller.merchant_id) || input.caller.merchant_id != input.merchant_id ||
+      input.stored_payment.merchant_id != input.merchant_id)
+    message: The key and the payment are of the merchant that the request names
+
+  is_not_the_merchants_payment_to_read:
+    description: A merchant's key of another merchant, or a payment of another merchant
+    rule: >-
+      (input.caller.key_kind == 'secret' || input.caller.key_kind == 'read_only') &&
+      (!has(input.caller.merchant_id) || input.caller.merchant_id != input.merchant_id ||
+      input.stored_payment.merchant_id != input.merchant_id)
+    message: The key and the payment are of the merchant that the request names
+
+  names_the_merchants_refund:
+    description: The stored refund belongs to the merchant that the request names
+    rule: input.stored_refund.merchant_id == input.merchant_id
+    message: The refund belongs to another merchant
+
+  is_not_the_merchants_refund:
+    description: A merchant's key of another merchant, or a refund of another merchant
+    rule: >-
+      (input.caller.key_kind == 'secret' || input.caller.key_kind == 'read_only') &&
+      (!has(input.caller.merchant_id) || input.caller.merchant_id != input.merchant_id ||
+      input.stored_refund.merchant_id != input.merchant_id)
+    message: The key and the refund are of the merchant that the request names
+
+  # Creating a payment
+
+  line_items_add_up:
+    description: When the request has line items, the amount is the sum of quantity times unit amount over all lines
+    rule: '!has(input.line_items) || input.amount == input.line_items.map(i, i.quantity * i.unit_amount).sum()'
+    message: The line items do not add up to the amount
+
+  line_items_do_not_add_up:
+    description: The request has line items that do not add up to the amount
+    rule: has(input.line_items) && input.amount != input.line_items.map(i, i.quantity * i.unit_amount).sum()
+    message: The line items add up to the amount
+
+  pays_by_card:
+    description: The request pays by card
+    rule: input.method == 'card'
+    message: Only a card payment can be refused by the issuer of the card
+
+  creates_the_payment:
+    description: >-
+      The new payment has the merchant, amount, currency and method of the request, was created at
+      the time of the call, is authorized or pending, and has nothing captured or refunded
+    rule: >-
+      output.payment.merchant_id == input.merchant_id && output.payment.amount == input.amount &&
+      output.payment.currency == input.currency && output.payment.method == input.method &&
+      output.payment.created_at == input.now &&
+      output.payment.status in ['authorized', 'pending'] &&
+      output.payment.captured_amount == 0 && output.payment.refunded_amount == 0 &&
+      !has(output.payment.captured_at)
+    message: The new payment differs from the request
+
+  # The answer shows of a card only its brand, the last 4 digits of its number and its expiry,
+  # and its payment id does not hold the card number.
+  shows_the_card:
+    description: The answer shows the last 4 digits and the expiry of the card of the request, and nothing of a payment without a card
+    rule: >-
+      (!has(input.card) && !has(output.payment.card_summary)) ||
+      (has(input.card) && has(output.payment.card_summary) &&
+      input.card.card_number.matches(output.payment.card_summary.last4 + '$') &&
+      output.payment.card_summary.exp_month == input.card.exp_month &&
+      output.payment.card_summary.exp_year == input.card.exp_year &&
+      !output.payment.payment_id.matches(input.card.card_number))
+    message: The answer must show the last 4 digits and the expiry of the card, and nothing else of it
+
+  announces_the_new_payment:
+    description: The event of a new payment has the event id of the call, the payment's id, merchant, amount, currency and status, no previous status, and the time of the call
+    rule: >-
+      output.payment_event.event_id == input.event_id &&
+      output.payment_event.payment_id == output.payment.payment_id &&
+      output.payment_event.merchant_id == output.payment.merchant_id &&
+      output.payment_event.amount == output.payment.amount &&
+      output.payment_event.currency == output.payment.currency &&
+      !has(output.payment_event.previous_status) &&
+      output.payment_event.new_status == output.payment.status &&
+      output.payment_event.occurred_at == input.now
+    message: The event does not describe the new payment
+
+  names_the_currency:
+    description: The refusal names the currency of the request
+    rule: output.currency == input.currency
+    message: The refusal names another currency
+
+  names_the_key:
+    description: The refusal names the idempotency key of the request
+    rule: output.idempotency_key == input.idempotency_key
+    message: The refusal names another idempotency key
+
+  # Moving a payment
+
+  was_authorized:
+    description: The stored payment is authorized
+    rule: input.stored_payment.status == 'authorized'
+    message: The payment is not authorized
+
   # A card payment is authorized when it is created (only a bank transfer can be pending), so its
-  # created_at is the time of its authorization. From 7 days after it, to the millisecond, it can
-  # no longer be captured, even before the clock expires it.
-  requires:
-    - rule: current.method != 'card' or now < current.created_at + 7 days
-      otherwise: payment.error.invalid_state
-    - rule: input.amount is absent or input.amount <= current.amount
-      otherwise: payment.error.capture_exceeds_authorized
-      fill: { amount: input.amount, currency: current.currency, authorized_amount: current.amount }
-  ensures:
-    - output.currency = current.currency
-    - output.authorized_amount = current.amount
-    - input.amount is present or output.captured_amount = current.amount
-    - input.amount is absent or output.captured_amount = input.amount
-    - output.captured_at = now
-    - event.payment_id = output.payment_id
-    - event.merchant_id = current.merchant_id
-    - event.amount = current.amount
-    - event.currency = current.currency
-    - event.previous_status is present and event.previous_status = current.status
-    - event.new_status = output.status
-    - event.occurred_at = now
-  errors:
-    - payment.error.not_found
-    - payment.error.invalid_state
-    - payment.error.capture_exceeds_authorized
-  emits:
-    - event: payment.event.captured
-payment.operation.void_payment:
-  description: Cancel an authorized payment that was not captured
-  input: payment.entity.payment_lookup
-  output: payment.entity.payment
-  changes:
-    entity: payment.entity.payment
-    from: [authorized]
-    to: voided
-    otherwise: payment.error.invalid_state
-    missing: payment.error.not_found
-  # Authentication (a valid key) is the shell's; who may call is here. A payment of another
-  # merchant, or a request that names a merchant other than the key's, is not found (P16).
-  callers:
-    allow:
-      - caller.key_kind = 'secret' and caller.merchant_id is present and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
-    otherwise: payment.error.not_found
-  # From 7 days after its authorization, a card payment is due to expire, so it can no longer be
-  # voided: it moves to expired, as the clock is the only one to move it.
-  requires:
-    - rule: current.method != 'card' or now < current.created_at + 7 days
-      otherwise: payment.error.invalid_state
-  ensures:
-    - event.payment_id = output.payment_id
-    - event.merchant_id = current.merchant_id
-    - event.amount = current.amount
-    - event.currency = current.currency
-    - event.previous_status is present and event.previous_status = current.status
-    - event.new_status = output.status
-    - event.occurred_at = now
-  errors:
-    - payment.error.not_found
-    - payment.error.invalid_state
-  emits:
-    - event: payment.event.voided
-# A timed change: the shell's clock calls it for each payment that selectPaymentExpirePaymentDue
-# finds. A card payment is authorized when it is created, so created_at is the time of its
-# authorization; a bank transfer payment does not expire.
-payment.operation.expire_payment:
-  description: Expire an authorized card payment that was not captured within 7 days of its authorization
-  input: payment.entity.payment_ref
-  output: payment.entity.payment
-  changes:
-    entity: payment.entity.payment
-    from: [authorized]
-    to: expired
-    otherwise: payment.error.invalid_state
-    missing: payment.error.not_found
-  due: current.method = 'card' and now >= current.created_at + 7 days
-  # Only the shell's clock calls it; a merchant's key is refused as not found.
-  callers:
-    allow:
-      - caller.key_kind = 'clock'
-    otherwise: payment.error.not_found
-  ensures:
-    - event.payment_id = output.payment_id
-    - event.merchant_id = current.merchant_id
-    - event.amount = current.amount
-    - event.currency = current.currency
-    - event.previous_status is present and event.previous_status = current.status
-    - event.new_status = output.status
-    - event.occurred_at = now
-  errors:
-    - payment.error.not_found
-    - payment.error.invalid_state
-  emits:
-    - event: payment.event.expired
-payment.operation.get_payment:
-  description: Read a payment by its id
-  input: payment.entity.payment_lookup
-  output: payment.entity.payment
-  reads:
-    entity: payment.entity.payment
-    missing: payment.error.not_found
-  # Authentication (a valid key) is the shell's; who may call is here. A payment of another
-  # merchant, or a request that names a merchant other than the key's, is not found (P16).
-  callers:
-    allow:
-      - caller.merchant_id is present and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
-    otherwise: payment.error.not_found
-  errors:
-    - payment.error.not_found
-refund.operation.refund_payment:
-  description: Give back a part or all of a captured payment
-  input: refund.entity.refund_request
-  output: refund.entity.refund
-  # P15: a repeat with the same key from the same merchant within 24 hours gets the first answer,
-  # and no second refund or event; the same key with another body is idempotency_conflict.
-  # The kind of the key is in the scope too: only a secret key succeeds, so it is the merchant's
-  # one scope, and a repeat with a read-only key runs and is refused by callers (P22), as the
-  # first answer is found before the callers are checked.
-  idempotency:
-    key: input.idempotency_key
-    scope: caller.merchant_id
-    window: 24 hours
-    otherwise: payment.error.idempotency_conflict
-  changes:
-    entity: payment.entity.payment
-    from: [captured, partially_refunded]
-    to: [partially_refunded, refunded]
-    otherwise: payment.error.invalid_state
-    missing: payment.error.not_found
-  # Authentication (a valid key) is the shell's; who may call is here. A payment of another
-  # merchant, or a request that names a merchant other than the key's, is not found (P16).
-  callers:
-    allow:
-      - caller.key_kind = 'secret' and caller.merchant_id is present and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
-    otherwise: payment.error.not_found
-  # At most 180 days after the capture, to the millisecond: on day 180 itself a refund is allowed.
-  requires:
-    - rule: current.captured_at is present and now <= current.captured_at + 180 days
-      otherwise: refund.error.refund_window_closed
-    - rule: current.refunded_amount + input.amount <= current.captured_amount
-      otherwise: refund.error.amount_exceeds_captured
-      fill: { amount: input.amount, currency: current.currency }
-  ensures:
-    - output.amount = input.amount
-    - output.currency = current.currency
-    - output.captured_amount = current.captured_amount
-    - output.refunded_total = current.refunded_amount + input.amount
-    - event.payment_id = output.payment_id
-    - event.merchant_id = current.merchant_id
-    - event.amount = current.amount
-    - event.currency = current.currency
-    - event.previous_status is present and event.previous_status = current.status
-    - output.refunded_total < output.captured_amount or event.new_status = 'refunded'
-    - output.refunded_total = output.captured_amount or event.new_status = 'partially_refunded'
-    - event.occurred_at = now
-  errors:
-    - payment.error.not_found
-    - payment.error.invalid_state
-    - payment.error.idempotency_conflict
-    - refund.error.amount_exceeds_captured
-    - refund.error.refund_window_closed
-  emits:
-    - event: payment.event.partially_refunded
-      when: output.refunded_total < output.captured_amount
-    - event: payment.event.refunded
-      when: output.refunded_total = output.captured_amount
-refund.operation.get_refund:
-  description: Read a refund by its id
-  input: refund.entity.refund_lookup
-  output: refund.entity.refund
-  reads:
-    entity: refund.entity.refund
-    missing: payment.error.not_found
-  # Authentication (a valid key) is the shell's; who may call is here. A refund of another
-  # merchant, or a request that names a merchant other than the key's, is not found (P16).
-  callers:
-    allow:
-      - caller.merchant_id is present and caller.merchant_id = input.merchant_id and caller.merchant_id = current.merchant_id
-    otherwise: payment.error.not_found
-  errors:
-    - payment.error.not_found
+  # created_at is the time of its authorization.
+  is_within_7_days:
+    description: A card payment is less than 7 days past its authorization
+    rule: input.stored_payment.method != 'card' || timestamp(input.now) < timestamp(input.stored_payment.created_at) + duration('168h')
+    message: A card payment can no longer be captured or voided 7 days after its authorization
+
+  cannot_capture_or_void:
+    description: The stored payment is not authorized, or it is a card payment 7 days or more past its authorization
+    rule: >-
+      input.stored_payment.status != 'authorized' ||
+      (input.stored_payment.method == 'card' &&
+      timestamp(input.now) >= timestamp(input.stored_payment.created_at) + duration('168h'))
+    message: The payment can be captured or voided
+
+  names_the_status:
+    description: The refusal names the status of the stored payment
+    rule: output.status == input.stored_payment.status
+    message: The refusal names another status
+
+  capture_within_authorized:
+    description: A capture amount, when the request has one, is at most the authorized amount
+    rule: '!has(input.amount) || input.amount <= input.stored_payment.amount'
+    message: The capture amount is more than the authorized amount
+
+  capture_exceeds_authorized_amount:
+    description: The capture amount is more than the authorized amount
+    rule: has(input.amount) && input.amount > input.stored_payment.amount
+    message: The capture amount is at most the authorized amount
+
+  captures_the_amount:
+    description: >-
+      The capture takes the amount of the request, or the full authorized amount when it has none,
+      at the time of the call, and changes nothing else of the payment
+    rule: >-
+      output.payment.payment_id == input.stored_payment.payment_id &&
+      output.payment.merchant_id == input.stored_payment.merchant_id &&
+      output.payment.amount == input.stored_payment.amount &&
+      output.payment.currency == input.stored_payment.currency &&
+      output.payment.method == input.stored_payment.method &&
+      output.payment.refunded_amount == input.stored_payment.refunded_amount &&
+      output.payment.created_at == input.stored_payment.created_at &&
+      ((has(output.payment.card_summary) && has(input.stored_payment.card_summary) &&
+      output.payment.card_summary == input.stored_payment.card_summary) ||
+      (!has(output.payment.card_summary) && !has(input.stored_payment.card_summary))) &&
+      output.payment.status == 'captured' &&
+      has(output.payment.captured_at) && output.payment.captured_at == input.now &&
+      ((has(input.amount) && output.payment.captured_amount == input.amount) ||
+      (!has(input.amount) && output.payment.captured_amount == input.stored_payment.amount))
+    message: The capture differs from the request or the payment
+
+  names_the_excess:
+    description: The refusal names the capture amount, the currency and the authorized amount
+    rule: >-
+      has(input.amount) && output.amount == input.amount &&
+      output.currency == input.stored_payment.currency &&
+      output.authorized_amount == input.stored_payment.amount
+    message: The refusal names other amounts
+
+  keeps_the_payment:
+    description: A change of status changes the status of the stored payment only
+    rule: >-
+      output.payment.payment_id == input.stored_payment.payment_id &&
+      output.payment.merchant_id == input.stored_payment.merchant_id &&
+      output.payment.amount == input.stored_payment.amount &&
+      output.payment.currency == input.stored_payment.currency &&
+      output.payment.method == input.stored_payment.method &&
+      output.payment.captured_amount == input.stored_payment.captured_amount &&
+      output.payment.refunded_amount == input.stored_payment.refunded_amount &&
+      output.payment.created_at == input.stored_payment.created_at &&
+      ((has(output.payment.card_summary) && has(input.stored_payment.card_summary) &&
+      output.payment.card_summary == input.stored_payment.card_summary) ||
+      (!has(output.payment.card_summary) && !has(input.stored_payment.card_summary))) &&
+      ((has(output.payment.captured_at) && has(input.stored_payment.captured_at) &&
+      output.payment.captured_at == input.stored_payment.captured_at) ||
+      (!has(output.payment.captured_at) && !has(input.stored_payment.captured_at)))
+    message: The call may change only the status of the payment
+
+  announces_the_change:
+    description: The event of a change describes the stored payment, its status before and after, and the time of the call
+    rule: >-
+      output.payment_event.event_id == input.event_id &&
+      output.payment_event.payment_id == input.stored_payment.payment_id &&
+      output.payment_event.merchant_id == input.stored_payment.merchant_id &&
+      output.payment_event.amount == input.stored_payment.amount &&
+      output.payment_event.currency == input.stored_payment.currency &&
+      has(output.payment_event.previous_status) &&
+      output.payment_event.previous_status == input.stored_payment.status &&
+      output.payment_event.new_status == output.payment.status &&
+      output.payment_event.occurred_at == input.now
+    message: The event does not describe the change
+
+  becomes_voided:
+    description: The payment is voided
+    rule: output.payment.status == 'voided'
+    message: The payment is not voided
+
+  is_due:
+    description: The stored payment is an authorized card payment 7 days or more past its authorization
+    rule: >-
+      input.stored_payment.status == 'authorized' && input.stored_payment.method == 'card' &&
+      timestamp(input.now) >= timestamp(input.stored_payment.created_at) + duration('168h')
+    message: The payment is not due to expire
+
+  is_not_due:
+    description: The stored payment is not an authorized card payment 7 days or more past its authorization
+    rule: >-
+      input.stored_payment.status != 'authorized' || input.stored_payment.method != 'card' ||
+      timestamp(input.now) < timestamp(input.stored_payment.created_at) + duration('168h')
+    message: The payment is due to expire
+
+  becomes_expired:
+    description: The payment is expired
+    rule: output.payment.status == 'expired'
+    message: The payment is not expired
+
+  was_pending:
+    description: The stored payment is pending
+    rule: input.stored_payment.status == 'pending'
+    message: The payment is not pending
+
+  was_not_pending:
+    description: The stored payment is not pending
+    rule: input.stored_payment.status != 'pending'
+    message: The payment is pending
+
+  settles_the_transfer:
+    description: A transfer that arrived authorizes the payment, and one that failed fails it
+    rule: >-
+      (input.transfer_outcome == 'arrived' && output.payment.status == 'authorized') ||
+      (input.transfer_outcome == 'failed' && output.payment.status == 'failed')
+    message: The status does not follow what the bank reported
+
+  # Refunding a payment
+
+  was_captured:
+    description: The stored payment is captured or partially refunded
+    rule: input.stored_payment.status in ['captured', 'partially_refunded']
+    message: The payment is not captured
+
+  was_not_captured:
+    description: The stored payment is neither captured nor partially refunded
+    rule: "!(input.stored_payment.status in ['captured', 'partially_refunded'])"
+    message: The payment is captured
+
+  # At most 180 days after the capture, to the millisecond: on the instant 180 days after it a
+  # refund is allowed.
+  is_within_refund_window:
+    description: The time of the call is at most 180 days after the capture
+    rule: has(input.stored_payment.captured_at) && timestamp(input.now) <= timestamp(input.stored_payment.captured_at) + duration('4320h')
+    message: The payment was captured more than 180 days ago
+
+  refund_window_is_closed:
+    description: The time of the call is more than 180 days after the capture
+    rule: '!has(input.stored_payment.captured_at) || timestamp(input.now) > timestamp(input.stored_payment.captured_at) + duration(''4320h'')'
+    message: The payment was captured at most 180 days ago
+
+  refund_within_captured:
+    description: The refunds of the payment, this one included, are at most its captured amount
+    rule: input.stored_payment.refunded_amount + input.amount <= input.stored_payment.captured_amount
+    message: The refund is more than is left of the captured amount
+
+  refund_exceeds_captured:
+    description: The refunds of the payment, this one included, would be more than its captured amount
+    rule: input.stored_payment.refunded_amount + input.amount > input.stored_payment.captured_amount
+    message: The refund is at most what is left of the captured amount
+
+  makes_the_refund:
+    description: The refund has the amount of the request, the payment's merchant, currency and captured amount, the new total of its refunds, and the time of the call
+    rule: >-
+      output.refund.payment_id == input.payment_id &&
+      output.refund.merchant_id == input.stored_payment.merchant_id &&
+      output.refund.amount == input.amount &&
+      output.refund.currency == input.stored_payment.currency &&
+      output.refund.captured_amount == input.stored_payment.captured_amount &&
+      output.refund.refunded_total == input.stored_payment.refunded_amount + input.amount &&
+      output.refund.created_at == input.now
+    message: The refund differs from the request or the payment
+
+  refunds_the_payment:
+    description: >-
+      The payment adds the refund to its refunded amount, is refunded when that is all it captured
+      and partially refunded otherwise, and changes nothing else
+    rule: >-
+      output.payment.payment_id == input.stored_payment.payment_id &&
+      output.payment.merchant_id == input.stored_payment.merchant_id &&
+      output.payment.amount == input.stored_payment.amount &&
+      output.payment.currency == input.stored_payment.currency &&
+      output.payment.method == input.stored_payment.method &&
+      output.payment.captured_amount == input.stored_payment.captured_amount &&
+      output.payment.created_at == input.stored_payment.created_at &&
+      ((has(output.payment.card_summary) && has(input.stored_payment.card_summary) &&
+      output.payment.card_summary == input.stored_payment.card_summary) ||
+      (!has(output.payment.card_summary) && !has(input.stored_payment.card_summary))) &&
+      has(output.payment.captured_at) && has(input.stored_payment.captured_at) &&
+      output.payment.captured_at == input.stored_payment.captured_at &&
+      output.payment.refunded_amount == output.refund.refunded_total &&
+      ((output.payment.refunded_amount < output.payment.captured_amount && output.payment.status == 'partially_refunded') ||
+      (output.payment.refunded_amount == output.payment.captured_amount && output.payment.status == 'refunded'))
+    message: The payment after the refund differs from the stored payment and the refund
+
+  names_the_shortfall:
+    description: The refusal names the refund amount, the currency, and the captured and refunded amounts of the payment
+    rule: >-
+      output.amount == input.amount && output.currency == input.stored_payment.currency &&
+      output.captured_amount == input.stored_payment.captured_amount &&
+      output.refunded_amount == input.stored_payment.refunded_amount
+    message: The refusal names other amounts
+
+  # Reading
+
+  returns_the_payment:
+    description: The answer is the stored payment
+    rule: output == input.stored_payment
+    message: The answer is not the stored payment
+
+  returns_the_refund:
+    description: The answer is the stored refund
+    rule: output == input.stored_refund
+    message: The answer is not the stored refund
+
+operations:
+  create_payment:
+    description: Create a payment and ask the buyer's bank to authorize it
+    input: create_payment_request
+    output:
+      - payment_changed: [is_the_merchants_secret_key, line_items_add_up, creates_the_payment, shows_the_card, announces_the_new_payment]
+      - invalid_request: [is_the_merchants_secret_key, line_items_do_not_add_up]
+      - card_declined: [is_the_merchants_secret_key, line_items_add_up, pays_by_card]
+      - insufficient_funds: [is_the_merchants_secret_key, line_items_add_up, pays_by_card]
+      - expired_card: [is_the_merchants_secret_key, line_items_add_up, pays_by_card]
+      - fraud_suspected: [is_the_merchants_secret_key, line_items_add_up]
+      - unsupported_currency: [is_the_merchants_secret_key, line_items_add_up, names_the_currency]
+      - idempotency_conflict: [is_the_merchants_secret_key, names_the_key]
+      - not_found: [is_another_merchants_secret_key]
+      - forbidden: [is_not_a_secret_key]
+      - unauthorized: [has_no_key]
+
+  capture_payment:
+    description: Capture an authorized payment, in full or in part
+    input: capture_request
+    output:
+      - payment_changed: [is_the_merchants_secret_key, names_the_merchants_payment, was_authorized, is_within_7_days, capture_within_authorized, captures_the_amount, announces_the_change]
+      - capture_exceeds_authorized: [is_the_merchants_secret_key, names_the_merchants_payment, was_authorized, is_within_7_days, capture_exceeds_authorized_amount, names_the_excess]
+      - invalid_state: [is_the_merchants_secret_key, names_the_merchants_payment, cannot_capture_or_void, names_the_status]
+      - not_found: [is_not_the_merchants_payment_to_change]
+      - forbidden: [is_not_a_secret_key]
+      - unauthorized: [has_no_key]
+
+  void_payment:
+    description: Cancel an authorized payment that was not captured
+    input: void_request
+    output:
+      - payment_changed: [is_the_merchants_secret_key, names_the_merchants_payment, was_authorized, is_within_7_days, keeps_the_payment, becomes_voided, announces_the_change]
+      - invalid_state: [is_the_merchants_secret_key, names_the_merchants_payment, cannot_capture_or_void, names_the_status]
+      - not_found: [is_not_the_merchants_payment_to_change]
+      - forbidden: [is_not_a_secret_key]
+      - unauthorized: [has_no_key]
+
+  # The shell's clock calls it for a payment that it finds due.
+  expire_payment:
+    description: Expire an authorized card payment that was not captured within 7 days of its authorization
+    input: expiry
+    output:
+      - payment_changed: [is_the_clock, is_due, keeps_the_payment, becomes_expired, announces_the_change]
+      - invalid_state: [is_the_clock, is_not_due, names_the_status]
+      - forbidden: [is_not_the_clock]
+      - unauthorized: [has_no_key]
+
+  # The shell calls it when the bank reports that a bank transfer arrived or failed.
+  settle_payment:
+    description: Authorize a pending bank transfer payment whose money arrived, or fail one whose transfer failed
+    input: settlement
+    output:
+      - payment_changed: [is_the_bank, was_pending, keeps_the_payment, settles_the_transfer, announces_the_change]
+      - invalid_state: [is_the_bank, was_not_pending, names_the_status]
+      - forbidden: [is_not_the_bank]
+      - unauthorized: [has_no_key]
+
+  get_payment:
+    description: Read a payment by its id
+    input: payment_lookup
+    output:
+      - payment: [is_the_merchants_key, names_the_merchants_payment, returns_the_payment]
+      - not_found: [is_not_the_merchants_payment_to_read]
+      - forbidden: [is_not_a_merchant_key]
+      - unauthorized: [has_no_key]
+
+  refund_payment:
+    description: Give back a part or all of a captured payment
+    input: refund_request
+    output:
+      - refund_made: [is_the_merchants_secret_key, names_the_merchants_payment, was_captured, is_within_refund_window, refund_within_captured, makes_the_refund, refunds_the_payment, announces_the_change]
+      - amount_exceeds_captured: [is_the_merchants_secret_key, names_the_merchants_payment, was_captured, is_within_refund_window, refund_exceeds_captured, names_the_shortfall]
+      - refund_window_closed: [is_the_merchants_secret_key, names_the_merchants_payment, was_captured, refund_window_is_closed]
+      - invalid_state: [is_the_merchants_secret_key, names_the_merchants_payment, was_not_captured, names_the_status]
+      - idempotency_conflict: [is_the_merchants_secret_key, names_the_key]
+      - not_found: [is_not_the_merchants_payment_to_change]
+      - forbidden: [is_not_a_secret_key]
+      - unauthorized: [has_no_key]
+
+  get_refund:
+    description: Read a refund by its id
+    input: refund_lookup
+    output:
+      - refund: [is_the_merchants_key, names_the_merchants_refund, returns_the_refund]
+      - not_found: [is_not_the_merchants_refund]
+      - forbidden: [is_not_a_merchant_key]
+      - unauthorized: [has_no_key]

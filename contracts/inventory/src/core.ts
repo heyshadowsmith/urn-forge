@@ -1,171 +1,207 @@
-import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
+// The core of the inventory contract. The shell loads the stored records that a call needs (stock
+// levels, the reservation) into the input; the core answers the new state of the records it changes,
+// and the events of the change, or a refusal. runOperation checks the input, the answer and the rules.
+import { randomUUID } from 'node:crypto';
+import {
+  answer,
+  type Caller,
+  type DomainCore,
+  type Forbidden,
+  type Line,
+  type ReservedLine,
+  type StockEvent,
+  type StockLevel,
+  type UnknownLocation,
+  type UnknownSku,
+} from './generated/domain.generated';
 
-// Every SKU at every location starts with this stock.
-const ON_HAND = 500;
-const RESERVED = 100;
-const AVAILABLE = ON_HAND - RESERVED;
-// Every known reservation holds this many units on each of its lines.
-const RESERVED_PER_LINE = 10;
-
-const NOW = '2026-11-22T10:00:00.000Z';
-const UNKNOWN_SKU = 'NO-SUCH-SKU';
-const UNKNOWN_LOCATION = 'ZZZ-Z-9999';
-const NEW_RESERVATION = 'c0ffee00-1234-4abc-8def-0123456789ab';
+// This core has no catalogue of SKUs and locations: a pair with no stored level is unknown. The
+// warehouse ZZZ does not exist, so its locations are unknown; any other pair has an unknown SKU.
+const UNKNOWN_WAREHOUSE = 'ZZZ-';
 const DEFAULT_TTL_MINUTES = 30;
 
-// The shell gives each event its id, and the outbox its sequence.
-const event = { occurred_at: NOW };
+type Pair = { readonly sku: string; readonly location: string };
+const samePair = (a: Pair, b: Pair): boolean => a.sku === b.sku && a.location === b.location;
+const levelOf = (levels: readonly StockLevel[], pair: Pair): StockLevel | undefined => levels.find((l) => samePair(l, pair));
 
-function unknown(lines: readonly { sku: string; location: string }[]) {
-  const sku = lines.find((line) => line.sku === UNKNOWN_SKU);
-  if (sku) return fail('urn:corpus:inventory:stock:error:unknown_sku', { sku: sku.sku });
-  const location = lines.find((line) => line.location === UNKNOWN_LOCATION);
-  if (location) return fail('urn:corpus:inventory:stock:error:unknown_location', { location: location.location });
-  return undefined;
-}
+const withOnHandAndReserved = (level: StockLevel, on_hand: number, reserved: number): StockLevel => ({
+  sku: level.sku,
+  location: level.location,
+  on_hand,
+  reserved,
+  available: on_hand - reserved,
+});
 
-// The core keeps no idempotency keys: runOnce in the store file keeps the first answer of each key
-// for 24 hours, returns it for a repeat and refuses another body with idempotency_conflict.
+const unknown = (pair: Pair) =>
+  pair.location.startsWith(UNKNOWN_WAREHOUSE)
+    ? answer('unknown_location', { error_code: 'UNKNOWN_LOCATION', error_message: `The location ${pair.location} is not known`, location: pair.location } satisfies UnknownLocation)
+    : answer('unknown_sku', { error_code: 'UNKNOWN_SKU', error_message: `The SKU ${pair.sku} is not known`, sku: pair.sku } satisfies UnknownSku);
 
-const RESERVED_LINE = { sku: 'WIDGET-1', location: 'AMS-B-0142', quantity: RESERVED_PER_LINE };
+const forbidden = (caller: Caller) =>
+  answer('forbidden', { error_code: 'FORBIDDEN', error_message: `A caller with the role ${caller.role} may not call this operation`, role: caller.role } satisfies Forbidden);
+
+const event = (event_type: StockEvent['event_type'], level: StockLevel, quantity_changed: number, occurred_at: string, more: Partial<StockEvent> = {}): StockEvent => ({
+  event_id: randomUUID(),
+  event_type,
+  sku: level.sku,
+  location: level.location,
+  quantity_changed,
+  level,
+  occurred_at,
+  ...more,
+});
+
+const depletionsOf = (levels: readonly StockLevel[], occurred_at: string) =>
+  levels.filter((l) => l.available === 0).map((l) => ({ event_id: randomUUID(), sku: l.sku, location: l.location, occurred_at }));
+
+const addMinutes = (time: string, minutes: number): string => new Date(Date.parse(time) + minutes * 60_000).toISOString();
+
+const held = (line: ReservedLine): number => line.quantity - line.shipped;
 
 export const core = {
-  'urn:corpus:inventory:stock:operation:get_stock': ({ sku, location }) =>
-    unknown([{ sku, location }]) ??
-    ok({ sku, location, on_hand: ON_HAND, reserved: RESERVED, available: AVAILABLE }),
+  get_stock: ({ sku, location, stored_level }) => (stored_level ? answer('stock_level', stored_level) : unknown({ sku, location })),
 
-  'urn:corpus:inventory:receipt:operation:receive_goods': ({ purchase_order_id, lines }) => {
-    const refused = unknown(lines);
-    if (refused) return refused;
-    const levels = lines.map(({ sku, location, quantity }) => ({
-      sku,
-      location,
-      on_hand: ON_HAND + quantity,
-      reserved: RESERVED,
-      available: AVAILABLE + quantity,
-    }));
-    return ok(
-      { purchase_order_id, lines: levels },
-      levels.map((level, i) =>
-        emit('urn:corpus:inventory:stock:event:stock_received', { ...event, sku: level.sku, location: level.location, quantity_changed: lines[i].quantity, level }),
-      ),
-    );
+  receive_goods: ({ caller, now, purchase_order_id, receipt_lines, stored_levels }) => {
+    if (caller.role !== 'warehouse_staff' && caller.role !== 'purchasing_system') return forbidden(caller);
+    const missing = receipt_lines.find((l) => !levelOf(stored_levels, l));
+    if (missing) return unknown(missing);
+    // Each line adds to the level after the lines before it.
+    const current = new Map(stored_levels.map((l) => [`${l.sku} ${l.location}`, l]));
+    const levels = receipt_lines.map((line) => {
+      const key = `${line.sku} ${line.location}`;
+      const before = current.get(key)!;
+      const after = withOnHandAndReserved(before, before.on_hand + line.quantity, before.reserved);
+      current.set(key, after);
+      return after;
+    });
+    const events = receipt_lines.map((line, i) => event('StockReceived', levels[i]!, line.quantity, now));
+    return answer('receipt', { purchase_order_id, levels, events });
   },
 
-  // The shell gives the time of the call (now): the reservation expires ttl_minutes after it, 30 by default.
-  'urn:corpus:inventory:reservation:operation:reserve_stock': ({ order_id, lines, ttl_minutes }, _current, now) => {
-    const refused = unknown(lines);
-    if (refused) return refused;
-    const short = lines.filter((line) => line.quantity > AVAILABLE);
-    if (short.length > 0) {
-      return fail('urn:corpus:inventory:stock:error:insufficient_stock', {
-        short_lines: short.map(({ sku, location, quantity }) => ({ sku, location, requested: quantity, available: AVAILABLE })),
-      });
+  reserve_stock: ({ caller, now, order_id, reserve_lines, ttl_minutes, stored_levels, open_reservation }) => {
+    if (caller.role !== 'order_system') return forbidden(caller);
+    const missing = reserve_lines.find((l) => !levelOf(stored_levels, l));
+    if (missing) return unknown(missing);
+    if (open_reservation) {
+      return answer('open_reservation_exists', { error_code: 'INVALID_REQUEST', error_message: `The order ${order_id} already has an open reservation`, order_id });
     }
-    const events = lines.flatMap(({ sku, location, quantity }) => {
-      const level = { sku, location, on_hand: ON_HAND, reserved: RESERVED + quantity, available: AVAILABLE - quantity };
-      const reserved = emit('urn:corpus:inventory:reservation:event:stock_reserved', {
-        ...event,
-        reservation_id: NEW_RESERVATION,
-        sku,
-        location,
-        quantity_changed: quantity,
-        level,
-      });
-      return level.available === 0
-        ? [reserved, emit('urn:corpus:inventory:stock:event:stock_depleted', { ...event, sku, location })]
-        : [reserved];
+    const short_lines = reserve_lines.flatMap((line) => {
+      const level = levelOf(stored_levels, line)!;
+      return line.quantity > level.available ? [{ sku: line.sku, location: line.location, requested: line.quantity, available: level.available }] : [];
     });
-    const expires = new Date(Date.parse(now) + (ttl_minutes ?? DEFAULT_TTL_MINUTES) * 60_000).toISOString();
-    return ok(
-      {
-        result: 'RESERVED' as const,
-        reservation_id: NEW_RESERVATION,
+    if (short_lines.length > 0) {
+      return answer('insufficient_stock', { error_code: 'INSUFFICIENT_STOCK', error_message: 'The stock cannot cover the request', short_lines });
+    }
+    const reservation_id = randomUUID();
+    const levels = reserve_lines.map((line) => {
+      const level = levelOf(stored_levels, line)!;
+      return withOnHandAndReserved(level, level.on_hand, level.reserved + line.quantity);
+    });
+    return answer('reservation_made', {
+      result: 'RESERVED' as const,
+      reservation: {
+        reservation_id,
         order_id,
         state: 'ACTIVE' as const,
-        lines: lines.map(({ sku, location, quantity }) => ({ sku, location, quantity })),
-        expires_at: expires,
+        reservation_lines: reserve_lines.map((l) => ({ sku: l.sku, location: l.location, quantity: l.quantity, shipped: 0 })),
+        expires_at: addMinutes(now, ttl_minutes ?? DEFAULT_TTL_MINUTES),
       },
-      events,
-    );
-  },
-
-  'urn:corpus:inventory:reservation:operation:release_reservation': ({ reservation_id }) => {
-    const { sku, location, quantity } = RESERVED_LINE;
-    return ok({ reservation_id, state: 'RELEASED' as const }, [
-      emit('urn:corpus:inventory:reservation:event:reservation_released', {
-        ...event,
-        reservation_id,
-        sku,
-        location,
-        quantity_changed: quantity,
-        level: { sku, location, on_hand: ON_HAND, reserved: RESERVED - quantity, available: AVAILABLE + quantity },
-      }),
-    ]);
-  },
-
-  // The shell's clock calls it for an active reservation whose expiry time has come: each line gives its units back.
-  'urn:corpus:inventory:reservation:operation:expire_reservation': ({ reservation_id }, current) => {
-    return ok(
-      { reservation_id, state: 'EXPIRED' as const },
-      current.lines.map(({ sku, location, quantity }) =>
-        emit('urn:corpus:inventory:reservation:event:reservation_expired', {
-          ...event,
-          reservation_id,
-          sku,
-          location,
-          quantity_changed: quantity,
-          level: { sku, location, on_hand: ON_HAND, reserved: RESERVED - quantity, available: AVAILABLE + quantity },
-        }),
-      ),
-    );
-  },
-
-  'urn:corpus:inventory:reservation:operation:ship_reservation': ({ reservation_id, lines }) => {
-    const shipped = lines ?? [RESERVED_LINE];
-    const over = shipped.find((line) => line.quantity > RESERVED_PER_LINE);
-    if (over) {
-      return fail('urn:corpus:inventory:request:error:invalid_request', {
-        detail: `${over.quantity} is more than the ${RESERVED_PER_LINE} units still reserved on ${over.sku} at ${over.location}`,
-      });
-    }
-    const whole = shipped.every((line) => line.quantity === RESERVED_PER_LINE);
-    return ok(
-      { reservation_id, state: whole ? ('SHIPPED' as const) : ('PARTIALLY_SHIPPED' as const) },
-      shipped.map(({ sku, location, quantity }) =>
-        emit('urn:corpus:inventory:reservation:event:stock_shipped', {
-          ...event,
-          reservation_id,
-          sku,
-          location,
-          quantity_changed: -quantity,
-          level: { sku, location, on_hand: ON_HAND - quantity, reserved: RESERVED - quantity, available: AVAILABLE },
-        }),
-      ),
-    );
-  },
-
-  'urn:corpus:inventory:adjustment:operation:adjust_stock': ({ sku, location, delta, reason }) => {
-    const refused = unknown([{ sku, location }]);
-    if (refused) return refused;
-    const on_hand = ON_HAND + delta;
-    if (on_hand < RESERVED) {
-      return fail('urn:corpus:inventory:stock:error:insufficient_stock', {
-        short_lines: [{ sku, location, requested: -delta, available: AVAILABLE }],
-      });
-    }
-    const level = { sku, location, on_hand, reserved: RESERVED, available: on_hand - RESERVED };
-    const adjusted = emit('urn:corpus:inventory:adjustment:event:stock_adjusted', {
-      ...event,
-      sku,
-      location,
-      quantity_changed: delta,
-      reason,
-      level,
+      levels,
+      events: reserve_lines.map((line, i) => event('StockReserved', levels[i]!, line.quantity, now, { reservation_id })),
+      depletions: depletionsOf(levels, now),
     });
-    return ok(
-      level,
-      level.available === 0 ? [adjusted, emit('urn:corpus:inventory:stock:event:stock_depleted', { ...event, sku, location })] : [adjusted],
-    );
   },
-} satisfies DomainCoreImplementation;
+
+  release_reservation: ({ caller, now, reservation_id, stored_reservation, stored_levels }) => {
+    if (caller.role !== 'order_system') return forbidden(caller);
+    if (!stored_reservation) return answer('reservation_not_found', { error_code: 'RESERVATION_NOT_FOUND', error_message: `No reservation ${reservation_id}`, reservation_id });
+    const { state } = stored_reservation;
+    if (state !== 'ACTIVE' && state !== 'PARTIALLY_SHIPPED') {
+      return answer('invalid_state', { error_code: 'INVALID_STATE', error_message: `The reservation ${reservation_id} is ${state}`, reservation_id, state });
+    }
+    return answer('reservation_changed', giveBack(stored_reservation, stored_levels, 'RELEASED', 'ReservationReleased', now));
+  },
+
+  ship_reservation: ({ caller, now, reservation_id, ship_lines, stored_reservation, stored_levels }) => {
+    if (caller.role !== 'order_system') return forbidden(caller);
+    if (!stored_reservation) return answer('reservation_not_found', { error_code: 'RESERVATION_NOT_FOUND', error_message: `No reservation ${reservation_id}`, reservation_id });
+    const { state } = stored_reservation;
+    if (state !== 'ACTIVE' && state !== 'PARTIALLY_SHIPPED') {
+      return answer('invalid_state', { error_code: 'INVALID_STATE', error_message: `The reservation ${reservation_id} is ${state}`, reservation_id, state });
+    }
+    const toShip = (line: ReservedLine): number => (ship_lines ? (ship_lines.find((x: Line) => samePair(x, line))?.quantity ?? 0) : held(line));
+    const tooMuch = ship_lines?.find((x) => {
+      const line = stored_reservation.reservation_lines.find((r) => samePair(r, x));
+      return !line || x.quantity > held(line);
+    });
+    if (tooMuch) {
+      return answer('invalid_request', {
+        error_code: 'INVALID_REQUEST',
+        error_message: `The reservation does not hold ${tooMuch.quantity} units of ${tooMuch.sku} at ${tooMuch.location}`,
+      });
+    }
+    const reservation_lines = stored_reservation.reservation_lines.map((r) => ({ ...r, shipped: r.shipped + toShip(r) }));
+    const allShipped = reservation_lines.every((r) => r.shipped === r.quantity);
+    const shippedLines = stored_reservation.reservation_lines.filter((r) => toShip(r) > 0);
+    const levels = shippedLines.map((r) => {
+      const level = levelOf(stored_levels, r)!;
+      return withOnHandAndReserved(level, level.on_hand - toShip(r), level.reserved - toShip(r));
+    });
+    return answer('reservation_changed', {
+      reservation: { ...stored_reservation, state: allShipped ? ('SHIPPED' as const) : ('PARTIALLY_SHIPPED' as const), reservation_lines },
+      levels,
+      events: shippedLines.map((r, i) => event('StockShipped', levels[i]!, toShip(r), now, { reservation_id })),
+    });
+  },
+
+  expire_reservation: ({ caller, now, reservation_id, stored_reservation, stored_levels }) => {
+    if (caller.role !== 'clock') return forbidden(caller);
+    if (!stored_reservation) return answer('reservation_not_found', { error_code: 'RESERVATION_NOT_FOUND', error_message: `No reservation ${reservation_id}`, reservation_id });
+    const { state } = stored_reservation;
+    if (state !== 'ACTIVE') {
+      return answer('invalid_state', { error_code: 'INVALID_STATE', error_message: `The reservation ${reservation_id} is ${state}`, reservation_id, state });
+    }
+    if (Date.parse(now) < Date.parse(stored_reservation.expires_at)) {
+      return answer('invalid_request', { error_code: 'INVALID_REQUEST', error_message: `The reservation ${reservation_id} expires at ${stored_reservation.expires_at}` });
+    }
+    return answer('reservation_changed', giveBack(stored_reservation, stored_levels, 'EXPIRED', 'ReservationExpired', now));
+  },
+
+  adjust_stock: ({ caller, now, sku, location, delta, reason, stored_level }) => {
+    if (caller.role !== 'warehouse_supervisor') return forbidden(caller);
+    if (!stored_level) return unknown({ sku, location });
+    if (stored_level.on_hand + delta < stored_level.reserved) {
+      return answer('insufficient_stock', {
+        error_code: 'INSUFFICIENT_STOCK',
+        error_message: 'The stock cannot cover the request',
+        short_lines: [{ sku, location, requested: -delta, available: stored_level.available }],
+      });
+    }
+    const level = withOnHandAndReserved(stored_level, stored_level.on_hand + delta, stored_level.reserved);
+    return answer('adjustment_made', {
+      level,
+      events: [event('StockAdjusted', level, delta, now, { reason })],
+      depletions: depletionsOf([level], now),
+    });
+  },
+} satisfies DomainCore;
+
+/** Release or expire: the reservation takes the new state, and each line gives back the units it still holds. */
+function giveBack(
+  reservation: NonNullable<Parameters<DomainCore['release_reservation']>[0]['stored_reservation']>,
+  stored_levels: readonly StockLevel[],
+  state: 'RELEASED' | 'EXPIRED',
+  event_type: 'ReservationReleased' | 'ReservationExpired',
+  now: string,
+) {
+  const lines = reservation.reservation_lines.filter((r) => held(r) > 0);
+  const levels = lines.map((r) => {
+    const level = levelOf(stored_levels, r)!;
+    return withOnHandAndReserved(level, level.on_hand, level.reserved - held(r));
+  });
+  return {
+    reservation: { ...reservation, state },
+    levels,
+    events: lines.map((r, i) => event(event_type, levels[i]!, held(r), now, { reservation_id: reservation.reservation_id })),
+  };
+}

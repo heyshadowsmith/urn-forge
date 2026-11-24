@@ -1,46 +1,79 @@
-# The domain of this project. Each top-level key is <context>.<kind>.<identifier>.
+# The contract of this project: definitions, rules and operations.
 # After a change, run `npx urn-forge compile`, then `npx urn-forge verify`.
 manifest:
   namespace: {{namespace}}
   domain: {{domain}}
   version: 0.1.0
 
-bill.field.total_cents:
-  primitive: integer
-  min: 0
-  description: The total of the bill in cents
-bill.field.people:
-  primitive: string
-  minLength: 1
-  description: The name of a person who shares the bill
-bill.field.share_cents:
-  primitive: integer
-  min: 0
-  description: The amount that each person pays in cents
+definitions:
+  total_cents:
+    description: The total of the bill in cents
+    type: integer
+    rules:
+      - minimum: 0
 
-bill.entity.split_request:
-  description: A bill to split between people
-  fields:
-    - ref: bill.field.total_cents
-    # A list of names: 1 to 10 people, each one once.
-    - ref: bill.field.people
-      many: { minItems: 1, maxItems: 10, unique: true }
-bill.entity.share:
-  description: The amount that each person pays
-  fields:
-    - ref: bill.field.share_cents
+  person:
+    description: The name of a person who shares the bill
+    type: string
+    rules:
+      - minLength: 1
 
-bill.error.uneven_split:
-  description: The total cannot be split into equal shares of whole cents
-  category: precondition
-  retryable: false
-  message: A total of {total_cents} cents cannot be split evenly between the people
-  fields:
-    - ref: bill.field.total_cents
+  people:
+    description: The people who share the bill, each one once
+    type: array
+    items: person
+    rules:
+      - minItems: 1
+      - maxItems: 10
+      - uniqueItems
 
-bill.operation.split:
-  description: Split a bill into equal shares
-  input: bill.entity.split_request
-  output: bill.entity.share
-  errors:
-    - bill.error.uneven_split
+  share_cents:
+    description: The amount that each person pays in cents
+    type: integer
+    rules:
+      - minimum: 0
+
+  split_request:
+    description: A bill to split between people
+    type: object
+    properties: [total_cents, people]
+    rules:
+      - required: [total_cents, people]
+
+  share:
+    description: The amount that each person pays
+    type: object
+    properties: [share_cents]
+    rules:
+      - required: [share_cents]
+
+  uneven_split:
+    description: The total cannot be split into equal shares of whole cents
+    type: object
+    properties: [total_cents]
+    rules:
+      - required: [total_cents]
+
+rules:
+  shares_add_up:
+    description: The shares add up to the total
+    rule: output.share_cents * size(input.people) == input.total_cents
+    message: The shares do not add up to the total
+
+  total_does_not_divide:
+    description: The total does not divide into equal shares
+    rule: input.total_cents % size(input.people) != 0
+    message: The total divides into equal shares
+
+  names_the_total:
+    description: The refusal names the total of the request
+    rule: output.total_cents == input.total_cents
+    message: The refusal names another total
+
+operations:
+  split:
+    description: Split a bill into equal shares
+    input: split_request
+    output:
+      - share: [shares_add_up]
+      - uneven_split: [total_does_not_divide, names_the_total]

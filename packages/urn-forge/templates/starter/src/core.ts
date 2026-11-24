@@ -1,15 +1,11 @@
-// The functional core: one handler for each operation in the manifest. `satisfies` makes
-// `verify` (gate 1) fail when a handler is missing or has the wrong type.
-// Amounts here are integer cents. For a decimal field (a string such as "12.50") or a date,
-// calculate with urn-forge/exact: it is exact, and gate 2 allows it in the core.
-import { fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
+// The core: a function for each operation of the manifest. `satisfies DomainCore` makes
+// `verify` (gate 1) fail when a function is missing or has the wrong type. The harness,
+// runOperation, checks each input before the core runs and each answer after.
+import { answer, type DomainCore } from './generated/domain.generated';
 
 export const core = {
-  'urn:{{namespace}}:{{domain}}:bill:operation:split': ({ total_cents, people }) => {
-    const count = people.length;
-    if (total_cents % count !== 0) {
-      return fail('urn:{{namespace}}:{{domain}}:bill:error:uneven_split', { total_cents });
-    }
-    return ok({ share_cents: total_cents / count });
+  split: ({ total_cents, people }) => {
+    if (total_cents % people.length !== 0) return answer('uneven_split', { total_cents });
+    return answer('share', { share_cents: total_cents / people.length });
   },
-} satisfies DomainCoreImplementation;
+} satisfies DomainCore;

@@ -1,115 +1,68 @@
-@urn-forge:strict
-@urn:corpus:subscriptions:subscription:operation:announce_trial_end
-Feature: Announce the end of a trial, 3 days before it ends
+Feature: Announce the end of a trial
+  The shell's clock calls it for a trialing subscription whose trial ends within 3 days of today and
+  was not announced yet. The subscription keeps its status and is marked as announced now.
 
-  The shell's clock calls this operation for each subscription that selectSubscriptionAnnounceTrialEndDue
-  finds. It publishes subscription.trial_will_end once: the subscription keeps its status and gets
-  the mark trial_will_end_sent_at, so a second call is not due.
-
-  Scenario Outline: A trialing subscription is due from the day 3 days before its trial ends
-    Given the time is "<now>"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan | plan_id | quantity | status   | current_period_start | current_period_end   | trial_end  |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
-    When I run the operation with:
-      | subscription_id              |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa |
-    Then the output is:
-      | status   | trial_end  | trial_will_end_sent_at |
-      | trialing | 2026-11-25 | <now>                  |
-    And the operation emits "urn:corpus:subscriptions:subscription:event:trial_will_end":
-      | subscription_id              | occurred_at |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <now>       |
+  Scenario Outline: A trial that ends within 3 days is announced
+    When I run "announce_trial_end" with:
+      | subscription_id              | caller.caller_kind | now   | stored_subscription.subscription_id | stored_subscription.customer_id | stored_subscription.plan | stored_subscription.plan_id | stored_subscription.quantity | stored_subscription.subscription_status | stored_subscription.current_period_start | stored_subscription.current_period_end | stored_subscription.trial_end |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <kind>             | <now> | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1 | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic | 1 | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | <trial_end> |
+    Then the output is "subscription_change"
 
     Examples:
-      | now                      |
-      | 2026-11-22T00:00:00Z     |
-      | 2026-11-22T10:00:00Z     |
-      | 2026-11-24T23:59:59.999Z |
-      | 2026-11-26T08:00:00Z     |
+      | kind  | trial_end  | now                  |
+      | clock | 2026-11-25 | 2026-11-22T10:00:00Z |
+      | clock | 2026-11-25 | 2026-11-22T00:00:00Z |
+      | staff | 2026-11-23 | 2026-11-22T23:59:59Z |
+      | clock | 2026-11-20 | 2026-11-22T10:00:00Z |
 
-  Scenario Outline: A trialing subscription is not due before the day 3 days before its trial ends
-    Given the time is "<now>"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan | plan_id | quantity | status   | current_period_start | current_period_end   | trial_end  |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
-    When I run the operation with:
-      | subscription_id              |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa |
-    Then the operation is not due
+  Scenario: The announced subscription keeps its trial end and gets the mark
+    When I run "announce_trial_end" with:
+      | subscription_id              | caller.caller_kind | now                  | stored_subscription.subscription_id | stored_subscription.customer_id | stored_subscription.plan | stored_subscription.plan_id | stored_subscription.quantity | stored_subscription.subscription_status | stored_subscription.current_period_start | stored_subscription.current_period_end | stored_subscription.trial_end |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | clock              | 2026-11-22T10:00:00Z | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1 | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic | 1 | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
+    Then the output is "subscription_change":
+      | subscription |
+      | {"subscription_id": "sub_aaaaaaaaaaaaaaaaaaaaaaaa", "customer_id": "cus_1", "plan": {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}}, "plan_id": "plan_basic", "quantity": 1, "subscription_status": "trialing", "current_period_start": "2026-11-01T00:00:00Z", "current_period_end": "2026-12-01T00:00:00Z", "trial_end": "2026-11-25", "trial_will_end_sent_at": "2026-11-22T10:00:00Z"} |
 
-    Examples:
-      | now                      |
-      | 2026-11-21T23:59:59.999Z |
-      | 2026-11-01T10:00:00Z     |
-
-  Scenario Outline: A trial that was announced already is not due again
-    Given the time is "<now>"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan | plan_id | quantity | status   | current_period_start | current_period_end   | trial_end  | trial_will_end_sent_at |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 | <trial_will_end_sent_at> |
-    When I run the operation with:
-      | subscription_id              |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa |
-    Then the operation is not due
+  Scenario Outline: A trial that is not due, was announced, or is not trialing is refused
+    When I run "announce_trial_end" with:
+      | subscription_id              | caller.caller_kind | now   | stored_subscription.subscription_id | stored_subscription.customer_id | stored_subscription.plan | stored_subscription.plan_id | stored_subscription.quantity | stored_subscription.subscription_status | stored_subscription.current_period_start | stored_subscription.current_period_end | stored_subscription.trial_end | stored_subscription.trial_will_end_sent_at |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | clock              | <now> | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1 | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic | 1 | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | <trial_end> | <sent_at> |
+    Then the output is "invalid_state_transition":
+      | subscription_id              | subscription_status |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <status>            |
 
     Examples:
-      | trial_will_end_sent_at | now                  |
-      | 2026-11-22T00:00:00Z | 2026-11-22T00:01:00Z |
-      | 2026-11-22T00:00:00Z | 2026-11-24T10:00:00Z |
-      | 2026-11-23T10:00:00Z | 2026-11-23T10:00:00Z |
+      | status   | trial_end  | sent_at              | now                  |
+      | trialing | 2026-11-26 |                      | 2026-11-22T10:00:00Z |
+      | trialing | 2026-11-26 |                      | 2026-11-22T23:59:59Z |
+      | trialing | 2026-11-25 | 2026-11-22T09:00:00Z | 2026-11-22T10:00:00Z |
+      | trialing |            |                      | 2026-11-22T10:00:00Z |
+      | active   | 2026-11-25 |                      | 2026-11-22T10:00:00Z |
+      | canceled | 2026-11-25 |                      | 2026-11-22T10:00:00Z |
 
-  Scenario: A trialing subscription with no trial end is never due
-    Given the time is "2026-11-22T10:00:00Z"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan | plan_id | quantity | status   | current_period_start | current_period_end   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z |
-    When I run the operation with:
-      | subscription_id              |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa |
-    Then the operation is not due
-
-  Scenario Outline: A subscription that is no longer trialing is not announced, even when its trial end is near
-    Given the time is "2026-11-23T10:00:00Z"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan | plan_id | quantity | status   | current_period_start | current_period_end   | trial_end  |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | <status> | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
-    When I run the operation with:
-      | subscription_id              |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa |
-    Then the operation fails with "urn:corpus:subscriptions:subscription:error:invalid_state_transition":
-      | subscription_id              | status   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <status> |
-    And the operation emits no event
-
-    Examples:
-      | status   |
-      | active   |
-      | past_due |
-      | paused   |
-      | canceled |
-      | expired  |
-
-  Scenario: A subscription that is gone is not found
-    Given the time is "2026-11-23T10:00:00Z"
-    And there is no current subscription
-    When I run the operation with:
+  Scenario: A subscription that is not stored is not found
+    When I run "announce_trial_end" with:
+      | subscription_id              | caller.caller_kind | now                  |
+      | sub_000000000000000000000000 | clock              | 2026-11-22T10:00:00Z |
+    Then the output is "subscription_not_found":
       | subscription_id              |
       | sub_000000000000000000000000 |
-    Then the operation fails with "urn:corpus:subscriptions:subscription:error:not_found"
-    And the operation emits no event
 
-  Scenario Outline: A request that breaks a field limit is rejected
-    Given the time is "2026-11-23T10:00:00Z"
-    And the current subscription is:
-      | subscription_id              | customer_id | plan | plan_id | quantity | status   | current_period_start | current_period_end   | trial_end  |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | { plan_id: plan_basic, billing_period: month, interval_count: 1, price: { amount_minor: 1500, currency: EUR } } | plan_basic | 1        | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
-    When I run the operation with:
-      | subscription_id   |
-      | <subscription_id> |
-    Then the input is rejected on "subscription_id"
+  Scenario: A customer may not announce the end of a trial
+    When I run "announce_trial_end" with:
+      | subscription_id              | caller.caller_kind | caller.customer_id | now                  | stored_subscription.subscription_id | stored_subscription.customer_id | stored_subscription.plan | stored_subscription.plan_id | stored_subscription.quantity | stored_subscription.subscription_status | stored_subscription.current_period_start | stored_subscription.current_period_end | stored_subscription.trial_end |
+      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | customer           | cus_1              | 2026-11-22T10:00:00Z | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1 | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic | 1 | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
+    Then the output is "forbidden":
+      | caller                                              |
+      | {"caller_kind": "customer", "customer_id": "cus_1"} |
+
+  Scenario Outline: A request that breaks a rule is rejected
+    When I run "announce_trial_end" with:
+      | subscription_id   | caller.caller_kind | now   | stored_subscription.subscription_id | stored_subscription.customer_id | stored_subscription.plan | stored_subscription.plan_id | stored_subscription.quantity | stored_subscription.subscription_status | stored_subscription.current_period_start | stored_subscription.current_period_end | stored_subscription.trial_end |
+      | <subscription_id> | clock              | <now> | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1 | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic | 1 | trialing | 2026-11-01T00:00:00Z | 2026-12-01T00:00:00Z | 2026-11-25 |
+    Then the input is rejected by "<rule>" of "announce_request"
 
     Examples:
-      | subscription_id               |
-      | sub_short                     |
-      | sub_AAAAAAAAAAAAAAAAAAAAAAAA  |
+      | rule                   | subscription_id              | now                  |
+      | names_the_subscription | sub_bbbbbbbbbbbbbbbbbbbbbbbb | 2026-11-22T10:00:00Z |
+      | required               | sub_aaaaaaaaaaaaaaaaaaaaaaaa |                      |

@@ -1,131 +1,197 @@
 contract: subscriptions
 description: "Manages customer subscriptions to priced plans with monthly or yearly billing periods, trials, plan changes, pauses, cancellation and per-period invoices, for merchant back-office systems and their customers."
 promises:
+  # Declared: the pattern rules of the definitions subscription_id ('^sub_[a-z0-9]{24}$') and plan_id
+  # ('^plan_[a-z0-9-]{1,40}$'). Every subscription id and plan id in a request, an answer, a stored record
+  # (scheduled_plan_id is a plan_id) and the SQL CHECK of the tables is one of these definitions.
   P01:
     promise: "A subscription id is the prefix \"sub_\" followed by exactly 24 lowercase letters or digits, and a plan id is the prefix \"plan_\" followed by 1 to 40 lowercase letters, digits or hyphens."
     status: declared
-    by: [subscription.field.subscription_id, plan.field.plan_id]
+    by: [definitions.subscription_id, definitions.plan_id]
+  # Declared: billing_period has enum [month, year]; interval_count has minimum 1 and maximum 12; the plan
+  # object applies yearly_interval_is_one (self.billing_period != 'year' || self.interval_count == 1).
   P02:
     promise: "A billing period is either \"month\" or \"year\", and a plan's interval count is a whole number from 1 to 12 for \"month\" and exactly 1 for \"year\"."
     status: declared
-    by: [plan.field.billing_period, plan.field.interval_count, plan.invariant.yearly_interval_is_one]
-  # Every money amount (a plan's price, an invoice line's amount and an invoice's total) is the money
-  # entity. The domain lists the ISO 4217 codes it accepts, EUR, GBP and USD, as an enum (roadmap
-  # decision 9): the schema of every answer and stored record, and the SQL CHECK, refuse any other.
+    by: [definitions.billing_period, definitions.interval_count, definitions.plan, rules.yearly_interval_is_one]
+  # Declared: every money amount (a plan's price, an invoice line's amount and an invoice's total) has the type
+  # money, an object that requires amount_minor (an integer, minimum 0, maximum 99999999) and currency (enum
+  # [EUR, GBP, USD], the ISO 4217 codes that the domain accepts).
   P03:
     promise: "Every money amount is an integer number of minor currency units from 0 to 99999999 paired with a three-letter uppercase ISO 4217 currency code."
     status: declared
-    by: [money.entity.money, money.field.amount_minor, money.field.currency]
+    by: [definitions.money, definitions.amount_minor, definitions.currency, definitions.price, definitions.amount, definitions.total]
+  # Declared: subscription_status has enum [trialing, active, past_due, paused, canceled, expired], and the
+  # subscription requires it.
   P04:
     promise: "A subscription's status is exactly one of \"trialing\", \"active\", \"past_due\", \"paused\", \"canceled\" or \"expired\"."
     status: declared
-    by: [subscription.field.status]
+    by: [definitions.subscription_status, definitions.subscription]
+  # Declared: create_request, the input of create_subscription, requires customer_id, plan_id and quantity
+  # (an integer, minimum 1, maximum 10000), and has an optional trial_days (minimum 0, maximum 730).
   P05:
     promise: "A create-subscription request must contain a customer id, a plan id and a quantity that is a whole number from 1 to 10000, and may contain trial days from 0 to 730."
     status: declared
-    by: [subscription.operation.create_subscription, subscription.entity.create_request, customer.field.customer_id, plan.field.plan_id, subscription.field.quantity, subscription.field.trial_days]
-  # Never both: the invariant trial_days_or_trial_end on the request (trial days and trial end are two optional fields, and the rule refuses both). The window: a requires on create_subscription, input.trial_end is absent or input.trial_end > today and input.trial_end <= today + 730, answers invalid_trial_end; today is the UTC date of now, the time of the call that the shell gives (no more requested_on in the request). trial_end is a date, so "in the future" is a day after today. Scenarios at each edge, at 10:00, just before and at midnight UTC.
+    by: [operations.create_subscription, definitions.create_request, definitions.customer_id, definitions.plan_id, definitions.quantity, definitions.trial_days]
+  # Declared: the rules of create_request. trial_days_or_trial_end (!has(trial_days) || !has(trial_end)) refuses
+  # both. trial_end_in_window compares the trial end at midnight UTC with now, the time of the call that the
+  # shell gives in the input: after now is a day after today, and less 730 days (17520h) at now or before is at
+  # most 730 days after today. The harness rejects the input before the core runs. Scenarios at each edge, at
+  # 10:00, just before and at midnight UTC.
   P06:
     promise: "A create-subscription request may contain either trial days or an explicit trial end date but never both, and an explicit trial end must be in the future and at most 730 days after the request."
     status: declared
-    by: [subscription.invariant.trial_days_or_trial_end, subscription.operation.create_subscription, subscription.field.trial_end, subscription.error.invalid_trial_end]
+    by: [definitions.create_request, rules.trial_days_or_trial_end, rules.trial_end_in_window, definitions.trial_end, definitions.now]
+  # Declared: the operations of the manifest.
   P07:
     promise: "Callers can create, read, list, change plan, pause, resume and cancel a subscription, and read and list its invoices."
     status: declared
-    by: [subscription.operation.create_subscription, subscription.operation.read_subscription, subscription.operation.list_subscriptions, subscription.operation.change_plan, subscription.operation.pause_subscription, subscription.operation.resume_subscription, subscription.operation.cancel_subscription, invoice.operation.read_invoice, invoice.operation.list_invoices]
-  # The output is the full subscription, and ensures on create_subscription tie its status to the trial days (and an explicit trial end) of the request. The status code 201 is for the shell.
+    by: [operations.create_subscription, operations.read_subscription, operations.list_subscriptions, operations.change_plan, operations.pause_subscription, operations.resume_subscription, operations.cancel_subscription, operations.read_invoice, operations.list_invoices]
+  # Workaround: the output subscription_change holds the full subscription, and create_status ties its status to
+  # the request (trialing with more than 0 trial days or a trial end, active otherwise). The status code 201 is
+  # the shell's HTTP answer, which no construct states, so a 200 passes every check. The promise also says
+  # "active" for a request with an explicit trial end (P06), where the contract answers trialing.
   P08:
     promise: "A successful create returns 201 with the full subscription, whose status is \"trialing\" if the request asked for more than 0 trial days and \"active\" otherwise."
     status: workaround
-    by: [subscription.operation.create_subscription, subscription.entity.subscription, subscription.field.status]
+    by: [operations.create_subscription, definitions.subscription_change, rules.create_status]
     hole: A2
-  # Only the errors that the core or a requires rule returns are declared, each with a message; invalid_trial_end and invalid_resume_date are validation errors, which the shell answers as invalid_request. The other invalid_request answers, forbidden and rate_limited come from the shell, and no refusal carries the request id.
+  # Workaround: each refusal of the core is an output object with its own name (subscription_not_found,
+  # invoice_not_found, conflict, invalid_state_transition, currency_mismatch, forbidden), and an input that
+  # breaks a rule is InputRejected with each rule's name and message. The codes are not the promised names
+  # (not_found, invalid_request), the refusal objects carry no message, rate_limited is the shell's, and no
+  # answer carries the request id: a refusal without a request id passes every check.
   P09:
     promise: "Every refused request returns one named error code from \"invalid_request\", \"not_found\", \"forbidden\", \"conflict\", \"invalid_state_transition\", \"currency_mismatch\" or \"rate_limited\" together with a human-readable message and the request id."
     status: workaround
-    by: [subscription.error.not_found, invoice.error.not_found, subscription.error.conflict, subscription.error.invalid_state_transition, subscription.error.currency_mismatch]
+    by: [definitions.subscription_not_found, definitions.invoice_not_found, definitions.conflict, definitions.invalid_state_transition, definitions.currency_mismatch, definitions.forbidden]
     hole: A2
-  # The error is declared, but the rule that compares the currency of the new plan with the currency of the subscription is in the core.
+  # Declared: the shell loads the new plan into the input (new_plan), and names_the_new_plan ties it to the
+  # plan id of the request. The output subscription_change of change_plan applies same_currency (the new plan's
+  # currency is the stored subscription's plan's), and the output currency_mismatch applies other_currency and
+  # currency_mismatch_names_the_currencies. With a live subscription in another currency, no other output's
+  # rules hold, except forbidden for a caller who may not change plans (P22).
   P10:
     promise: "A change-plan request must name a plan whose currency equals the subscription's current currency, otherwise it is refused with \"currency_mismatch\"."
-    status: workaround
-    by: [subscription.operation.change_plan, subscription.error.currency_mismatch]
-    hole: A1
-  # The proration mode is a required enum, and two ensures on change_plan state that an at_period_end answer shows the new plan as scheduled and the plan of the record unchanged.
+    status: declared
+    by: [operations.change_plan, definitions.change_plan_request, definitions.new_plan, rules.names_the_new_plan, rules.same_currency, rules.other_currency, definitions.currency_mismatch, rules.currency_mismatch_names_the_currencies]
+  # Declared: change_plan_request requires proration, an enum [immediate, none, at_period_end]. The rule
+  # changes_the_plan on the answer: with at_period_end, output.subscription.plan == the stored plan (the whole
+  # embedded object) and scheduled_plan_id == the plan id of the request.
   P11:
     promise: "A change-plan request must state a proration mode of \"immediate\", \"none\" or \"at_period_end\", and with \"at_period_end\" the answer shows the new plan as scheduled and the current plan as unchanged."
     status: declared
-    by: [subscription.field.proration, subscription.entity.change_plan_request, subscription.entity.subscription, subscription.operation.change_plan]
-  # Workaround: cancel_subscription can move past_due to paused, so a cancel can pause a subscription that was not active or trialing. to cannot tie the end state to cancel_mode.
+    by: [definitions.proration, definitions.change_plan_request, operations.change_plan, rules.changes_the_plan]
+  # Workaround: the resume date and stored_may_pause state one call exactly, but a pause and an immediate cancel that load the same active subscription at once both pass, and the pause, stored second, makes the canceled subscription paused: it was paused while canceled.
   P12:
     promise: "A pause request may contain a resume date that is at least 1 day and at most 90 days after the request, and a subscription may only be paused while \"active\" or \"trialing\"."
     status: workaround
-    by: [subscription.operation.pause_subscription, subscription.field.resume_on, subscription.error.invalid_resume_date, subscription.field.status, subscription.error.invalid_state_transition]
+    by: [operations.pause_subscription, definitions.pause_request, definitions.resume_on, rules.resume_on_in_window, rules.stored_may_pause, rules.stored_may_not_pause, rules.pauses, definitions.invalid_state_transition, rules.create_status, rules.changes_the_plan, rules.resumes, rules.cancels, rules.announces_the_trial_end]
     hole: C3
-  # Workaround: Nothing checks that the loaded record is the one that the request names: the shell can load an active record for a request on a canceled one, and the cancel succeeds. Fixable with requires current.subscription_id = input.subscription_id.
+  # Workaround: the rules state one call exactly, but a cancel and a pause (or a change of plan) that load the same active subscription at once both pass stored_is_live or stored_may_pause, and the second write moves the canceled subscription back to paused or active.
   P13:
     promise: "A cancel request states either \"immediately\" or \"at_period_end\", and a canceled or expired subscription can never move to any other status, so any further change request on it is refused with \"invalid_state_transition\"."
     status: workaround
-    by: [subscription.field.cancel_mode, subscription.field.status, subscription.operation.change_plan, subscription.operation.pause_subscription, subscription.operation.resume_subscription, subscription.operation.cancel_subscription, subscription.error.invalid_state_transition]
-    hole: A2
-  # Only "the period end is after the period start" is declared. No overlap and no gap between the invoices of one subscription are rules across stored records.
+    by: [definitions.cancel_mode, definitions.cancel_request, rules.names_the_subscription, rules.stored_is_live, rules.stored_is_ended, rules.stored_may_pause, rules.stored_may_not_pause, rules.stored_is_paused, rules.stored_is_not_paused, rules.trial_end_is_due, rules.trial_end_is_not_due, rules.names_the_stored_state, definitions.invalid_state_transition, operations.change_plan, operations.pause_subscription, operations.resume_subscription, operations.cancel_subscription, operations.announce_trial_end]
+    hole: C3
+  # Workaround: invoice_period_ends_after_start is declared (and a CHECK of the invoice table). No overlap and no
+  # gap between the invoices of one subscription are rules across stored records: two stored invoices of one
+  # subscription with overlapping periods pass every check.
   P14:
     promise: "Within one subscription, invoice periods never overlap, each invoice's period end is after its period start, and each invoice's period start equals the previous invoice's period end."
     status: workaround
-    by: [invoice.invariant.period_end_after_start]
+    by: [definitions.invoice, rules.invoice_period_ends_after_start]
     hole: C1
-  # A line quantity of at least 1, a total of 0 or more, and a total in minor units that is the sum of the line amounts in minor units are declared. That each line is in the currency of the total is not: it is a rule on each item, which no construct states, so an invoice whose lines are in another currency than its total still passes.
+  # Declared: the invoice requires lines and total and applies total_is_sum (total.amount_minor ==
+  # lines.map(l, l.amount.amount_minor).sum()) and lines_in_total_currency; line_quantity has minimum 1, and the
+  # total's amount_minor minimum 0. SQL cannot say the two list rules (the schema's comment names them), but
+  # every invoice that leaves the domain crosses the harness: read_invoice and list_invoices check the stored
+  # invoices of their input and the invoices of their answer.
   P15:
     promise: "Every invoice's total equals the sum of its line amounts, each line has a quantity of at least 1, and no invoice has a negative total."
-    status: workaround
-    by: [invoice.entity.invoice, invoice.invariant.total_is_sum, invoice.field.line_quantity, money.field.amount_minor]
-    hole: A1
-  # Workaround: No operation and no table changes an invoice, so the moves of the invoice status are in no generated code: read_invoice can answer paid, then open, for one invoice.
+    status: declared
+    by: [definitions.invoice, rules.total_is_sum, rules.lines_in_total_currency, definitions.line, definitions.line_quantity, definitions.total, definitions.amount_minor, operations.read_invoice, operations.list_invoices]
+  # Workaround: invoice_status has the enum. No operation changes an invoice, so no rule compares an invoice
+  # before and after: read_invoice can answer paid, then open, for one invoice.
   P16:
     promise: "An invoice's status is exactly one of \"draft\", \"open\", \"paid\", \"void\" or \"uncollectible\", and a \"paid\" or \"void\" invoice never changes status again."
     status: workaround
-    by: [invoice.field.status]
+    by: [definitions.invoice_status]
     hole: C3
-  # Declared: the subscription (a table of the postgres plugin) has plan_id as its own column (plan.field.plan_id, with the invariant plan_id_is_plan: plan_id = plan.plan_id) and unique [{ by: [customer_id, plan_id], when: status != 'canceled' and status != 'expired', otherwise: subscription.error.conflict }]. The schema has the partial unique index subscription_customer_id_plan_id_unique, and commitOnce answers a clash with conflict, filled by name (customer_id, plan_id) from the answer, and writes nothing. create_subscription ensures output.customer_id = input.customer_id and output.plan_id = input.plan_id, so a second create for the same customer and plan is the clash. The core has no check of its own (it sees one call). Scenarios: a stored trialing, active, past_due or paused subscription of the customer to the plan → conflict, nothing changes; a stored canceled or expired one → created; another plan or another customer → created. change_plan also declares conflict, for a move to a plan that the customer has a live subscription to. Readings: the invariant plan_id = plan.plan_id reads the child table of the plan, so the SQL does not check it (unenforced-in-sql); the Valibot schema of the output does, before commitOnce.
+  # Workaround: the shell loads the customer's live subscription to the plan, if any, into the input
+  # (existing_subscription, which existing_is_the_customers_live_one checks); create_subscription answers
+  # conflict (has_live_subscription, conflict_names_the_request) with one, and a subscription only without one
+  # (no_live_subscription). But the uniqueness is across stored records: a shell that finds none (two creates at
+  # once) passes every check, and the SQL schema has no unique index, as the config's unique has no condition
+  # (not canceled, not expired).
   P17:
     promise: "A customer has at most one non-canceled, non-expired subscription per plan, and a second create for the same customer and plan is refused with \"conflict\"."
-    status: declared
-    by: [subscription.entity.subscription, plan.field.plan_id, subscription.invariant.plan_id_is_plan, subscription.operation.create_subscription, subscription.error.conflict]
-  # Workaround: runOnce gives a repeat as a plain success, and commitOnce writes it again: a repeated change_plan undoes a later one, and a repeated create throws a duplicate key. A refusal is not stored, so a repeat after a refusal can succeed.
+    status: workaround
+    by: [operations.create_subscription, definitions.create_request, definitions.existing_subscription, rules.existing_is_the_customers_live_one, rules.no_live_subscription, rules.has_live_subscription, definitions.conflict, rules.conflict_names_the_request]
+    hole: C1
+  # Workaround: the idempotency key (1 to 255 characters) is an optional property of every write request. A
+  # repeat within 24 hours is behaviour across calls, not data: nothing keeps the first answer, and a repeat
+  # passes every check with a second effect. No output is the conflict of a key sent with another body.
   P18:
     promise: "Every write request may carry an idempotency key of 1 to 255 characters, and a repeat of the same key with the same body within 24 hours returns the original answer without a second effect, while the same key with a different body is refused with \"conflict\"."
     status: workaround
-    by: [request.field.idempotency_key, request.error.conflict, subscription.operation.create_subscription, subscription.operation.change_plan, subscription.operation.pause_subscription, subscription.operation.resume_subscription, subscription.operation.cancel_subscription]
+    by: [definitions.idempotency_key, definitions.create_request, definitions.change_plan_request, definitions.pause_request, definitions.resume_request, definitions.cancel_request]
     hole: C2
-  # Each operation now publishes counted events: create_subscription exactly one created, one trial_will_end when the trial ends less than 3 days after the request, and one invoice.created and one invoice.paid when there is no trial; change_plan, pause and resume exactly one updated; cancel exactly one canceled. The shell gives each event id (newEventId), and the outbox's primary key refuses an id twice. ensures state that the event of change_plan, pause, resume and cancel carries the subscription's id. trial_will_end for a trial of 3 days or more is now published by the timed operation announce_trial_end (due 3 days before the trial end, see P21), exactly one, with an ensures that it carries the subscription's id. Still missing: (1) invoice.created for each later period and invoice.paid when a customer pays have no operation either: the only invoices published are the first, at create; (2) create_subscription emits two or three events, and an ensures that reads event. needs exactly one, so nothing ties the subscription id of its events to the new subscription; (3) the occurrence time is a value of the core, not a clock (E2); and the type is the kind URN (urn:corpus:subscriptions:subscription:event:created), not the name subscription.created.
+  # Workaround: the events are part of the output subscription_change. An event requires event_id (a UUID),
+  # event_type (enum of the six names), subscription_id and occurred_at; events_name_the_subscription ties each
+  # to the subscription of the answer, events_occur_now its time to now, and event_ids_differ makes the ids of
+  # one answer differ. The rules of each operation count its events: create_events, create_trial_notice,
+  # one_updated_event, one_canceled_event and one_trial_will_end_event. Still missing: invoice.created for each
+  # later period and invoice.paid when a customer pays have no operation (only the first invoice, at create,
+  # is published), and an event id is unique only within one answer: two calls can publish one id.
   P19:
     promise: "The domain publishes the events subscription.created, subscription.updated, subscription.canceled, subscription.trial_will_end, invoice.created and invoice.paid, each carrying a unique event id, the event type, the subscription id and the occurrence time."
     status: workaround
-    by: [subscription.event.created, subscription.event.updated, subscription.event.canceled, subscription.event.trial_will_end, invoice.event.created, invoice.event.paid, event.field.event_id, event.field.occurred_at, subscription.operation.create_subscription, subscription.operation.change_plan, subscription.operation.pause_subscription, subscription.operation.resume_subscription, subscription.operation.cancel_subscription, subscription.operation.announce_trial_end]
+    by: [definitions.event, definitions.event_id, definitions.event_type, definitions.occurred_at, definitions.events, definitions.subscription_change, rules.event_ids_differ, rules.events_name_the_subscription, rules.events_occur_now, rules.create_events, rules.create_trial_notice, rules.one_updated_event, rules.one_canceled_event, rules.one_trial_will_end_event]
     hole: E3
-  # Each of the six events has delivery { id: event_id, orderBy: subscription_id }, and the contract uses the Postgres plugin, which writes the outbox: the events commit with the change (none is lost), a row stays until markPublished (at least once), the event id is the primary key (unique, so a consumer can drop one it has seen), and nextEvents gives each subscription's events in the order they were written. The transport is the user's.
+  # Workaround: the event id that a consumer drops a repeat by is declared. Delivery at least once and in order
+  # per subscription is behaviour of the transport, not data: the manifest has no outbox and the Postgres schema
+  # has no event table, so a lost or reordered event passes every check.
   P20:
     promise: "Events are delivered at least once and in order per subscription, so consumers must ignore an event id they have already processed."
-    status: declared
-    by: [subscription.event.created, subscription.event.updated, subscription.event.canceled, subscription.event.trial_will_end, invoice.event.created, invoice.event.paid, event.field.event_id, subscription.field.subscription_id]
-  # Workaround: Nothing stops an operation from setting trial_will_end_sent_at, after which the notice is never due; due has no upper bound, so a notice 20 days late passes.
+    status: workaround
+    by: [definitions.event_id, definitions.events]
+    hole: D4
+  # Workaround: create_trial_notice announces a trial that ends less than 3 days after today at once (one
+  # trial_will_end event, and the mark trial_will_end_sent_at = now), and marks no other. announce_trial_end
+  # answers a change only when trial_end_is_due (trialing, not marked, today at or after 3 days before the end),
+  # with one trial_will_end event and the mark; keeps_the_trial stops the other changes from setting or clearing
+  # the mark. Being called on time is not data: a clock that calls 20 days late, or never, passes every check.
   P21:
     promise: "subscription.trial_will_end is published 3 days before a trial ends, or immediately on creation if the trial is shorter than 3 days."
     status: workaround
-    by: [subscription.event.trial_will_end, subscription.operation.create_subscription, subscription.operation.announce_trial_end, subscription.field.trial_will_end_sent_at, subscription.field.trial_end, subscription.operation.change_plan, subscription.operation.cancel_subscription]
+    by: [operations.create_subscription, rules.create_trial_notice, operations.announce_trial_end, rules.trial_end_is_due, rules.announces_the_trial_end, rules.one_trial_will_end_event, rules.keeps_the_trial, definitions.trial_will_end_sent_at]
     hole: E3
+  # Declared: the caller, as the shell authenticated it, is a property of every input (caller_kind customer,
+  # staff or clock; a customer has a customer_id, only staff have staff_roles). create_subscription and
+  # change_plan answer a change only with caller_is_billing_admin, and forbidden otherwise. A customer reads,
+  # pauses, resumes and cancels only with caller_holds_the_stored (the stored subscription is theirs), lists only
+  # with caller_may_list, and may not call announce_trial_end (caller_is_not_a_customer). No operation voids an
+  # invoice. Read and list of invoices also hold a customer to their own subscriptions.
   P22:
     promise: "A customer may only read, list, pause, resume and cancel their own subscriptions, while only merchant staff with the billing-admin role may create subscriptions, change plans or void invoices."
-    status: not-declarable
-    hole: D2
-  # Every timestamp (current_period_start/end and trial_will_end_sent_at of a subscription, period_start/end of an invoice, occurred_at of each of the six events) is the timestamp primitive, which accepts only ISO 8601 in UTC with a trailing Z in answers and events and in a stored record; no request carries a timestamp (trial_end and resume_on are dates). Periods: every operation that answers a subscription (create, read, list, change_plan, pause, resume, cancel, announce_trial_end) ensures that a plan billed in months has current_period_end = current_period_start + interval_count months (so a monthly plan's period ends 1 calendar month on, on the last day of a month that lacks the start's day) and a yearly plan + 12 months; create ensures the first period starts now, and change_plan keeps the period for a plan with the same period and starts one now otherwise. An invoice carries billing_period and interval_count, and invariants state the same rule on its period. No event carries a period. Scenarios start periods on Jan 31 (Feb 28), Jan 31 2028 (Feb 29), Mar 31 (Apr 30), May 31, Dec 31 (Jan 31), Nov 30 quarterly (Feb 28) and Feb 29 yearly, in create, change_plan and read_invoice. The rule is an ensures, not an invariant of the subscription, because the Postgres plugin crashes on a path into the embedded plan in a CHECK.
+    status: declared
+    by: [definitions.caller, rules.customer_has_id, rules.roles_are_for_staff, rules.caller_is_billing_admin, rules.caller_is_not_billing_admin, rules.caller_holds_the_stored, rules.caller_does_not_hold_the_stored, rules.caller_may_list, rules.caller_may_not_list, rules.caller_is_not_a_customer, rules.caller_is_a_customer, definitions.forbidden, operations.create_subscription, operations.change_plan, operations.read_subscription, operations.list_subscriptions, operations.pause_subscription, operations.resume_subscription, operations.cancel_subscription, operations.announce_trial_end]
+  # Workaround: every timestamp (now, current_period_start/end, trial_will_end_sent_at, period_start/end of an
+  # invoice, occurred_at of an event) has the type utc_time: format date-time and the pattern 'Z$'. The monthly
+  # period is not stated: the rule language has no calendar months and a duration is a literal, so no rule says
+  # that a period ends interval_count calendar months after it starts, on the last day of a shorter month. Only
+  # period_ends_after_start and invoice_period_ends_after_start hold; a monthly period of 40 days passes every
+  # check. Scenarios start periods on Jan 31 (Feb 28), Jan 31 2028 (Feb 29), Mar 31 (Apr 30), Dec 31 (Jan 31),
+  # Nov 30 quarterly (Feb 28) and Feb 29 yearly (Feb 28).
   P23:
     promise: "All timestamps in requests, answers and events are ISO 8601 in UTC with a trailing \"Z\", and a monthly period that starts on a day missing from the next month ends on that month's last day."
-    status: declared
-    by: [billing.field.period_start, billing.field.period_end, event.field.occurred_at, subscription.field.trial_will_end_sent_at, subscription.operation.create_subscription, subscription.operation.change_plan, subscription.operation.read_subscription, subscription.operation.list_subscriptions, subscription.operation.pause_subscription, subscription.operation.resume_subscription, subscription.operation.cancel_subscription, subscription.operation.announce_trial_end, invoice.invariant.monthly_period, invoice.invariant.yearly_period]
-  # Within the major version, urn-forge diff refuses a removal or a rename, and compatibility.callers lets it accept a
-  # new field or enum value. The 12 months for which a removed version keeps working is how long the operator runs it,
-  # which nothing that urn-forge builds can check.
+    status: workaround
+    by: [definitions.utc_time, definitions.now, definitions.current_period_start, definitions.current_period_end, definitions.trial_will_end_sent_at, definitions.period_start, definitions.period_end, definitions.occurred_at, rules.period_ends_after_start, rules.invoice_period_ends_after_start]
+    hole: D3
+  # Workaround: within the major version, urn-forge diff refuses a removal or a rename, and compatibility.callers
+  # lets it accept a new property or choice. The 12 months for which a removed version keeps working is how long
+  # the operator runs it, which nothing that urn-forge builds can check.
   P24:
     promise: "Within one major API version, fields and enum values are only added and never removed or renamed, callers must ignore unknown fields, and a removed version keeps working for at least 12 months after its deprecation is announced."
     status: workaround

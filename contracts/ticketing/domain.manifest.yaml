@@ -1,760 +1,1488 @@
+# Ticketing: holds, orders, tickets, transfers, refunds, entry and the cancellation of an event.
+#
+# Each operation's input carries what the call needs besides the request: the caller (as the shell
+# authenticated it), the time of the call, and the stored records that the shell loaded (stored_hold,
+# stored_ticket, stored_transfer, stored_order, stored_tickets, and show, the event as it is now). A
+# record that the shell did not find is absent. A refusal is an output, and the events of a change
+# are properties of its output.
 manifest:
   namespace: corpus
   domain: ticketing
   version: 1.0.0
-  # Callers ignore a property, an event, a refusal code or an enum value that they do not know.
+  # Callers ignore a property, an output or a choice that they do not know.
   compatibility:
     callers: ignore-unknown
 
-# Values shared by many requests and answers.
-request.field.idempotency_key:
-  primitive: string
-  minLength: 8
-  maxLength: 64
-  description: A key that the caller chooses for one request, so that a repeated request gives the original answer
-show.field.event_id:
-  primitive: string
-  format: uuid
-  description: The identifier of a concert or other event that sells tickets
-show.field.starts_at:
-  primitive: timestamp
-  description: The start time of the event, in UTC. The shell loads it with each ticket and order of the event, from the event as it is now
-show.field.cancelled_at:
-  primitive: timestamp
-  description: When the organizer cancelled the event, in UTC
-notice.field.message_id:
-  primitive: string
-  format: uuid
-  description: The unique identifier of one published event message, so that consumers can discard duplicates
-notice.field.occurred_at:
-  primitive: timestamp
-  description: When the published fact occurred, in UTC
+definitions:
+  # Shared kinds of values.
+  uuid:
+    description: A UUID in lowercase hexadecimal, such as 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f
+    type: string
+    rules:
+      - pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 
-money.field.amount_minor:
-  primitive: integer
-  min: 0
-  description: An amount of money as a whole number of minor units of its currency, for example cents
-# urn-forge ships no list of ISO 4217 codes (roadmap decision 9): the contract lists the currencies it sells in.
-money.field.currency:
-  primitive: enum
-  values: [EUR, GBP, USD]
-  description: The three-letter ISO 4217 code of the currency of an amount, one of the currencies that the ticketing service sells in, EUR, GBP or USD
-money.entity.money:
-  description: An amount of money in minor units, with its currency
-  fields:
-    - ref: money.field.amount_minor
-    - ref: money.field.currency
+  utc_time:
+    description: An ISO 8601 date and time in UTC, with the designator Z, such as 2026-12-01T19:00:00Z
+    type: string
+    rules:
+      - format: date-time
+      - in_utc
 
-# A place in a venue: a seat in a seated section, or a place in a standing section.
-seat.field.place_kind:
-  primitive: enum
-  values: [seated, standing]
-  description: Whether a line or a ticket is for one seat of a seated section or for places in a standing section
-seat.field.section:
-  primitive: string
-  regex: '[A-Z0-9]{1,6}'
-  description: The code of a section of the venue, 1 to 6 uppercase letters or digits
-seat.field.row:
-  primitive: string
-  regex: '[A-Z]{1,2}'
-  description: The row of a seat, 1 to 2 uppercase letters
-seat.field.seat_number:
-  primitive: integer
-  min: 1
-  max: 150
-  description: The number of a seat in its row, from 1 to 150
-seat.field.quantity:
-  primitive: integer
-  min: 1
-  max: 10
-  description: The number of standing places in one line
-seat.entity.seat:
-  description: One seat of a seated section
-  fields:
-    - ref: seat.field.section
-    - ref: seat.field.row
-    - ref: seat.field.seat_number
+  idempotency_key:
+    description: A key that the caller chooses for one request, so that a repeated request gives the original answer
+    type: string
+    rules:
+      - minLength: 8
+      - maxLength: 64
 
-# Holds.
-hold.field.hold_id:
-  primitive: string
-  format: uuid
-  description: The identifier of a hold
-hold.field.hold_status:
-  primitive: enum
-  values: [ACTIVE, CONVERTED, RELEASED, EXPIRED]
-  moves:
-    ACTIVE: [CONVERTED, RELEASED, EXPIRED]
-  description: The state of a hold. A hold starts ACTIVE and moves only to CONVERTED, RELEASED or EXPIRED, which are final
-hold.field.created_at:
-  primitive: timestamp
-  description: When the hold was created, in UTC
-hold.field.expires_at:
-  primitive: timestamp
-  description: When the hold expires, in UTC, 10 minutes after it was created
+  # The caller and the time of the call.
+  caller_id:
+    description: The identifier of a person or a system that calls the service, as the shell authenticated it
+    type: string
+    rules:
+      - minLength: 1
 
-hold.entity.hold_line:
-  description: One line of a hold request, for one seat or for a quantity of standing places in one section
-  fields:
-    - ref: seat.field.place_kind
-    - ref: seat.field.section
-    - ref: seat.field.row
-      required: false
-    - ref: seat.field.seat_number
-      required: false
-    - ref: seat.field.quantity
-      required: false
-hold.invariant.seated_line_names_one_seat:
-  description: A seated line names exactly one seat, with a row and a seat number, and no quantity
-  on: hold.entity.hold_line
-  rule: place_kind != 'seated' or row is present and seat_number is present and quantity is absent
-  reportOn: seat_number
-  message: A seated line needs a row and a seat number, and no quantity
-hold.invariant.standing_line_names_quantity:
-  description: A standing line names a section and a quantity, and no row or seat number
-  on: hold.entity.hold_line
-  rule: place_kind != 'standing' or quantity is present and row is absent and seat_number is absent
-  reportOn: quantity
-  message: A standing line needs a quantity, and no row or seat number
+  email:
+    description: An email address
+    type: string
+    rules:
+      - pattern: '^[^@ ]+@[^@ ]+\.[^@ ]+$'
 
-hold.entity.hold_request:
-  description: A request to hold seats or standing places of one event during checkout
-  fields:
-    - ref: request.field.idempotency_key
-    - ref: show.field.event_id
-    - ref: hold.entity.hold_line
-      as: lines
-      many: { minItems: 1, maxItems: 10, unique: [section, row, seat_number] }
+  caller_email:
+    description: The email address of the caller, as the shell authenticated it
+    type: email
 
-hold.entity.held_line:
-  description: One line of a hold, with its price
-  fields:
-    - ref: seat.field.place_kind
-    - ref: seat.field.section
-    - ref: seat.field.row
-      required: false
-    - ref: seat.field.seat_number
-      required: false
-    - ref: seat.field.quantity
-      required: false
-    - ref: money.entity.money
-      as: price
-hold.invariant.seated_held_line_has_seat:
-  description: A seated held line names exactly one seat, and no quantity
-  on: hold.entity.held_line
-  rule: place_kind != 'seated' or row is present and seat_number is present and quantity is absent
-  reportOn: seat_number
-  message: A seated line needs a row and a seat number, and no quantity
-hold.invariant.standing_held_line_has_quantity:
-  description: A standing held line has a quantity, and no row or seat number
-  on: hold.entity.held_line
-  rule: place_kind != 'standing' or quantity is present and row is absent and seat_number is absent
-  reportOn: quantity
-  message: A standing line needs a quantity, and no row or seat number
+  caller_role:
+    description: What the caller is to the service, a buyer, an organizer of events, or box-office staff
+    type: string
+    rules:
+      - enum: [buyer, organizer, box_office]
 
-hold.entity.hold:
-  description: A hold of seats or standing places, with the price of each line and the total
-  key: hold.field.hold_id
-  fields:
-    - ref: hold.field.hold_id
-    - ref: show.field.event_id
-    - ref: hold.field.hold_status
-    - ref: hold.entity.held_line
-      as: lines
-      many: { minItems: 1, maxItems: 10, unique: [section, row, seat_number] }
-    - ref: money.entity.money
-      as: total
-    - ref: hold.field.created_at
-    - ref: hold.field.expires_at
-hold.invariant.expires_after_created:
-  description: A hold expires after it was created
-  on: hold.entity.hold
-  rule: expires_at > created_at
-  message: A hold must expire after it was created
-hold.invariant.amounts_share_currency:
-  description: All amounts of a hold share one currency, the currency of its total
-  on: hold.entity.hold
-  rule: 'all(line in lines: line.price.currency = total.currency)'
-  reportOn: lines
-  message: The line prices and the total of a hold must share one currency
+  assigned_events:
+    description: The events that a member of the box-office staff is assigned to
+    type: array
+    items: event_id
 
-hold.entity.hold_ref:
-  description: A request that names one hold
-  fields:
-    - ref: hold.field.hold_id
-hold.entity.hold_state:
-  description: The state of one hold
-  fields:
-    - ref: hold.field.hold_id
-    - ref: hold.field.hold_status
+  caller:
+    description: Who calls, as the shell authenticated them
+    type: object
+    properties: [caller_id, caller_email, caller_role, assigned_events]
+    rules:
+      - required: [caller_id, caller_role]
 
-hold.error.seat_unavailable:
-  description: One or more requested seats cannot be held. The hold holds nothing
-  category: conflict
-  retryable: true
-  message: One or more requested seats cannot be held
-  fields:
-    - ref: seat.entity.seat
-      as: seats
-      many: { minItems: 1, maxItems: 10 }
-hold.error.section_sold_out:
-  description: A standing section has not enough capacity left for the requested quantity. The hold holds nothing
-  category: conflict
-  retryable: true
-  message: Section {section} has not enough standing places left
-  fields:
-    - ref: seat.field.section
-hold.error.limit_exceeded:
-  description: The buyer would hold more than 10 tickets for the event. The hold holds nothing
-  category: precondition
-  retryable: false
-  message: A buyer can hold at most 10 tickets for one event
-hold.error.sales_closed:
-  description: The event is not on sale. The hold holds nothing
-  category: precondition
-  retryable: true
-  message: Event {event_id} is not on sale
-  fields:
-    - ref: show.field.event_id
-hold.error.hold_not_found:
-  description: No hold has this identifier
-  category: not_found
-  retryable: false
-  message: No hold {hold_id}
-  fields:
-    - ref: hold.field.hold_id
-hold.error.hold_not_active:
-  description: The hold is not ACTIVE, so it cannot be released
-  category: conflict
-  retryable: false
-  message: Hold {hold_id} is {hold_status}
-  fields:
-    - ref: hold.field.hold_id
-    - ref: hold.field.hold_status
-order.error.hold_expired:
-  description: The checkout came after the expiry time of the hold, or the hold is no longer ACTIVE. No ticket is issued
-  category: precondition
-  retryable: false
-  message: Hold {hold_id} can no longer be checked out; its expiry time is {expires_at}
-  fields:
-    - ref: hold.field.hold_id
-    - ref: hold.field.expires_at
+  called_at:
+    description: The time of the call, in UTC, as the shell's clock gives it
+    type: utc_time
 
-# Tickets.
-ticket.field.ticket_code:
-  primitive: string
-  regex: '[A-HJ-NP-Z2-9]{16}'
-  description: The code of a ticket, 16 characters from A-Z without I and O, and the digits 2-9
-ticket.field.ticket_status:
-  primitive: enum
-  values: [ISSUED, TRANSFER_PENDING, USED, REFUNDED, VOID]
-  moves:
-    ISSUED: [TRANSFER_PENDING, USED, REFUNDED, VOID]
-    TRANSFER_PENDING: [ISSUED]
-  description: The state of a ticket. ISSUED moves to TRANSFER_PENDING, USED, REFUNDED or VOID; TRANSFER_PENDING moves back to ISSUED; USED, REFUNDED and VOID are final
-ticket.entity.ticket:
-  description: An issued ticket for one seat or one standing place of an event
-  key: ticket.field.ticket_code
-  fields:
-    - ref: ticket.field.ticket_code
-    - ref: show.field.event_id
-    - ref: seat.field.place_kind
-    - ref: seat.field.section
-    - ref: seat.field.row
-      required: false
-    - ref: seat.field.seat_number
-      required: false
-    - ref: ticket.field.ticket_status
-    - ref: money.entity.money
-      as: price
-    - ref: show.field.starts_at
-  # A ticket code is unique across all events: no two stored tickets share one, whatever their event.
-  unique:
-    - by: [ticket_code]
-ticket.error.invalid_ticket_state:
-  description: The ticket is not in a state that allows this
-  category: conflict
-  retryable: false
-  message: Ticket {ticket_code} is {ticket_status}
-  fields:
-    - ref: ticket.field.ticket_code
-    - ref: ticket.field.ticket_status
-ticket.invariant.seated_ticket_has_seat:
-  description: A ticket of a seated section names a row and a seat number
-  on: ticket.entity.ticket
-  rule: place_kind != 'seated' or row is present and seat_number is present
-  reportOn: seat_number
-  message: A seated ticket needs a row and a seat number
-ticket.invariant.standing_ticket_has_no_seat:
-  description: A ticket of a standing section has no row and no seat number
-  on: ticket.entity.ticket
-  rule: place_kind != 'standing' or row is absent and seat_number is absent
-  reportOn: row
-  message: A standing ticket has no row and no seat number
+  # Events (shows) that sell tickets.
+  event_id:
+    description: The identifier of a concert or other event that sells tickets
+    type: uuid
 
-# Orders.
-order.field.order_id:
-  primitive: string
-  format: uuid
-  description: The identifier of an order
-order.field.payment_reference:
-  primitive: string
-  minLength: 1
-  description: The reference of the payment that pays for the hold
-order.entity.checkout_request:
-  description: A request to pay for a hold and turn it into an order
-  fields:
-    - ref: request.field.idempotency_key
-    - ref: hold.field.hold_id
-    - ref: order.field.payment_reference
-order.entity.order:
-  description: A paid order, with one ticket per held seat or standing place
-  key: order.field.order_id
-  fields:
-    - ref: order.field.order_id
-    - ref: show.field.event_id
-    - ref: show.field.starts_at
-    - ref: ticket.entity.ticket
-      as: tickets
-      many: { minItems: 1, maxItems: 10, unique: [section, row, seat_number] }
-    - ref: money.entity.money
-      as: fees
-    - ref: money.entity.money
-      as: total
-order.invariant.total_is_prices_plus_fees:
-  description: The total of an order is the sum of the prices of its tickets plus the fees
-  on: order.entity.order
-  rule: 'total.amount_minor = sum(ticket in tickets: ticket.price.amount_minor) + fees.amount_minor'
-  message: The total must be the sum of the ticket prices plus the fees
-order.invariant.amounts_share_currency:
-  description: All amounts of an order share one currency, the currency of its total
-  on: order.entity.order
-  rule: 'fees.currency = total.currency and all(t in tickets: t.price.currency = total.currency)'
-  reportOn: tickets
-  message: The ticket prices, the fees and the total of an order must share one currency
-order.entity.order_ref:
-  description: A request that names one order
-  fields:
-    - ref: order.field.order_id
-order.error.order_not_found:
-  description: No order has this identifier
-  category: not_found
-  retryable: false
-  message: No order {order_id}
-  fields:
-    - ref: order.field.order_id
-order.error.payment_declined:
-  description: The payment failed. No ticket is issued
-  category: precondition
-  retryable: true
-  message: The payment {payment_reference} was declined
-  fields:
-    - ref: order.field.payment_reference
+  organizer_id:
+    description: The caller who organizes an event
+    type: caller_id
 
-# Transfers.
-transfer.field.transfer_id:
-  primitive: string
-  format: uuid
-  description: The identifier of a transfer
-transfer.field.recipient_email:
-  primitive: string
-  format: email
-  description: The email address of the person who receives a transferred ticket
-transfer.field.offered_at:
-  primitive: timestamp
-  description: When the transfer was offered, in UTC
-transfer.field.accept_until:
-  primitive: timestamp
-  description: The last time the recipient can accept the transfer, in UTC, 72 hours after the offer
-transfer.entity.transfer_request:
-  description: A request to transfer one issued ticket to a recipient
-  fields:
-    - ref: ticket.field.ticket_code
-    - ref: transfer.field.recipient_email
-transfer.entity.transfer:
-  description: A transfer that waits for the recipient, with the start time of the event of its ticket
-  key: transfer.field.transfer_id
-  fields:
-    - ref: transfer.field.transfer_id
-    - ref: ticket.field.ticket_code
-    - ref: transfer.field.recipient_email
-    - ref: transfer.field.offered_at
-    - ref: transfer.field.accept_until
-    - ref: show.field.starts_at
-transfer.invariant.accept_after_offer:
-  description: A transfer can be accepted only after it was offered
-  on: transfer.entity.transfer
-  rule: accept_until > offered_at
-  message: The end of the acceptance window must be after the offer
-transfer.error.transfer_not_found:
-  description: No transfer has this identifier
-  category: not_found
-  retryable: false
-  message: No transfer {transfer_id}
-  fields:
-    - ref: transfer.field.transfer_id
-transfer.error.transfer_window_closed:
-  description: The event starts in less than 2 hours, so its tickets can no longer be transferred
-  category: precondition
-  retryable: false
-  message: Ticket {ticket_code} can no longer be transferred; transfers close 2 hours before the event starts at {starts_at}
-  fields:
-    - ref: ticket.field.ticket_code
-    - ref: show.field.starts_at
-transfer.error.transfer_expired:
-  description: The transfer was offered more than 72 hours ago, so the recipient can no longer accept it
-  category: precondition
-  retryable: false
-  message: Transfer {transfer_id} can no longer be accepted; it could be accepted until {accept_until}
-  fields:
-    - ref: transfer.field.transfer_id
-    - ref: transfer.field.accept_until
-transfer.entity.transfer_ref:
-  description: A request that names one transfer
-  fields:
-    - ref: transfer.field.transfer_id
+  starts_at:
+    description: The start time of an event, in UTC
+    type: utc_time
 
-# Refunds.
-refund.field.refund_id:
-  primitive: string
-  format: uuid
-  description: The identifier of a refund
-refund.entity.refund_request:
-  description: A request to refund tickets of an order
-  fields:
-    - ref: request.field.idempotency_key
-    - ref: order.field.order_id
-    - ref: ticket.field.ticket_code
-      as: ticket_codes
-      many: { minItems: 1, unique: true }
-refund.entity.refund:
-  description: A refund of tickets of an order
-  fields:
-    - ref: refund.field.refund_id
-    - ref: order.field.order_id
-    - ref: ticket.field.ticket_code
-      as: ticket_codes
-      many: { minItems: 1, unique: true }
-    - ref: money.entity.money
-      as: amount
-refund.error.ticket_not_refundable:
-  description: The ticket is USED, REFUNDED or VOID, so it cannot be refunded
-  category: precondition
-  retryable: false
-  message: Ticket {ticket_code} cannot be refunded
-  fields:
-    - ref: ticket.field.ticket_code
-refund.error.refund_window_closed:
-  description: The event starts in less than 48 hours, so the buyer can no longer refund tickets of the order
-  category: precondition
-  retryable: false
-  message: Order {order_id} can no longer be refunded; refunds close 48 hours before the event starts at {starts_at}
-  fields:
-    - ref: order.field.order_id
-    - ref: show.field.starts_at
+  time_zone:
+    description: The IANA time zone of the venue of an event, such as Europe/Paris
+    type: string
+    rules:
+      - pattern: '^[A-Za-z]+(/[A-Za-z0-9_+-]+)+$'
 
-# Entry.
-entry.field.verdict:
-  primitive: enum
-  values: [ADMIT, ALREADY_USED, NOT_VALID, WRONG_EVENT]
-  description: The answer to a ticket at the entry of an event
-entry.entity.entry_scan:
-  description: A ticket presented at the entry of an event
-  fields:
-    - ref: ticket.field.ticket_code
-    - ref: show.field.event_id
-entry.entity.entry_result:
-  description: The answer to a ticket presented at the entry
-  fields:
-    - ref: ticket.field.ticket_code
-    - ref: show.field.event_id
-    - ref: entry.field.verdict
+  show:
+    description: An event as it is stored now, which the shell loads with a call; its start time in UTC and the time zone of its venue
+    type: object
+    identifier: event_id
+    properties: [event_id, organizer_id, starts_at, time_zone]
+    rules:
+      - required: [event_id, organizer_id, starts_at, time_zone]
 
-# The cancellation of an event.
-show.entity.event_cancellation:
-  description: A request of the organizer to cancel an event
-  fields:
-    - ref: show.field.event_id
-show.entity.cancelled_event:
-  description: An event that the organizer cancelled
-  fields:
-    - ref: show.field.event_id
-    - ref: show.field.cancelled_at
+  # Money.
+  amount_minor:
+    description: An amount of money as a whole number of minor units of its currency, for example cents
+    type: integer
+    rules:
+      - minimum: 0
 
-# Published events. Each has a unique message id, the id of the event that sells the tickets,
-# the affected hold or tickets, and the time it occurred. The shell gives the message id, and the
-# outbox of the Postgres extra keeps each event until it is published, in the order of its
-# ticket, hold, order or event. An order names several tickets, and a transfer two, so their
-# events are ordered by the order and by the new ticket code.
-hold.event.hold_created:
-  description: A hold was created
-  fields:
-    - ref: notice.field.message_id
-    - ref: show.field.event_id
-    - ref: hold.field.hold_id
-    - ref: notice.field.occurred_at
-  delivery:
-    id: message_id
-    orderBy: hold_id
-hold.event.hold_expired:
-  description: A hold reached its expiry time without a checkout
-  fields:
-    - ref: notice.field.message_id
-    - ref: show.field.event_id
-    - ref: hold.field.hold_id
-    - ref: notice.field.occurred_at
-  delivery:
-    id: message_id
-    orderBy: hold_id
-order.event.order_placed:
-  description: An order was placed and paid
-  fields:
-    - ref: notice.field.message_id
-    - ref: show.field.event_id
-    - ref: order.field.order_id
-    - ref: hold.field.hold_id
-    - ref: ticket.field.ticket_code
-      as: ticket_codes
-      many: { minItems: 1, maxItems: 10 }
-    - ref: notice.field.occurred_at
-  delivery:
-    id: message_id
-    orderBy: order_id
-ticket.event.ticket_issued:
-  description: A ticket was issued
-  fields:
-    - ref: notice.field.message_id
-    - ref: show.field.event_id
-    - ref: ticket.field.ticket_code
-    - ref: notice.field.occurred_at
-  delivery:
-    id: message_id
-    orderBy: ticket_code
-ticket.event.ticket_transferred:
-  description: A transfer was accepted. The old ticket code is VOID and the recipient has a new ticket code for the same place
-  fields:
-    - ref: notice.field.message_id
-    - ref: show.field.event_id
-    - ref: ticket.field.ticket_code
-    - ref: ticket.field.ticket_code
-      as: void_ticket_code
-    - ref: notice.field.occurred_at
-  delivery:
-    id: message_id
-    orderBy: ticket_code
-ticket.event.ticket_refunded:
-  description: A ticket was refunded
-  fields:
-    - ref: notice.field.message_id
-    - ref: show.field.event_id
-    - ref: ticket.field.ticket_code
-    - ref: notice.field.occurred_at
-  delivery:
-    id: message_id
-    orderBy: ticket_code
-ticket.event.ticket_used:
-  description: A ticket was admitted at the entry
-  fields:
-    - ref: notice.field.message_id
-    - ref: show.field.event_id
-    - ref: ticket.field.ticket_code
-    - ref: notice.field.occurred_at
-  delivery:
-    id: message_id
-    orderBy: ticket_code
-show.event.event_cancelled:
-  description: The organizer cancelled an event
-  fields:
-    - ref: notice.field.message_id
-    - ref: show.field.event_id
-    - ref: notice.field.occurred_at
-  delivery:
-    id: message_id
-    orderBy: event_id
+  # urn-forge ships no list of ISO 4217 codes: the contract lists the currencies it sells in.
+  currency:
+    description: The three-letter ISO 4217 code of the currency of an amount, one of the currencies that the ticketing service sells in, EUR, GBP or USD
+    type: string
+    rules:
+      - enum: [EUR, GBP, USD]
 
-# Operations: one for each caller action.
-hold.operation.create_hold:
-  description: Hold seats or standing places of one event during checkout
-  input: hold.entity.hold_request
-  output: hold.entity.hold
-  # A repeat with the same key within 24 hours returns the first answer, whatever its body, and runs nothing.
-  idempotency:
-    key: input.idempotency_key
-    window: 24 hours
-  errors:
-    - hold.error.seat_unavailable
-    - hold.error.section_sold_out
-    - hold.error.limit_exceeded
-    - hold.error.sales_closed
-  # The hold is created at the time of the call, and expires exactly 10 minutes later. The one
-  # HoldCreated of a success names the new hold, its event, and the time of the call.
-  ensures:
-    - output.created_at = now
-    - output.expires_at = output.created_at + 10 minutes
-    - event.hold_id = output.hold_id
-    - event.event_id = output.event_id
-    - event.occurred_at = now
-  emits:
-    - event: hold.event.hold_created
-hold.operation.expire_hold:
-  description: Expire an ACTIVE hold after its expiry time, so that its seats are no longer held by it. The shell's clock calls it, with no request
-  input: hold.entity.hold_ref
-  output: hold.entity.hold_state
-  changes:
-    entity: hold.entity.hold
-    from: [ACTIVE]
-    to: EXPIRED
-    otherwise: hold.error.hold_not_active
-    missing: hold.error.hold_not_found
-  # Due after the expiry time: at the expiry time itself the hold can still be checked out (check_out).
-  due: now > current.expires_at
-  ensures:
-    - event.hold_id = current.hold_id
-    - event.event_id = current.event_id
-    - event.occurred_at = now
-  errors:
-    - hold.error.hold_not_found
-    - hold.error.hold_not_active
-  emits:
-    - event: hold.event.hold_expired
-hold.operation.release_hold:
-  description: Release a hold, so that its seats are no longer held by it
-  input: hold.entity.hold_ref
-  output: hold.entity.hold_state
-  changes:
-    entity: hold.entity.hold
-    from: [ACTIVE]
-    to: RELEASED
-    otherwise: hold.error.hold_not_active
-    missing: hold.error.hold_not_found
-  errors:
-    - hold.error.hold_not_found
-    - hold.error.hold_not_active
-order.operation.check_out:
-  description: Pay for a hold and turn it into an order with its tickets
-  input: order.entity.checkout_request
-  output: order.entity.order
-  # A repeat with the same key within 24 hours returns the first answer, whatever its body, and runs nothing.
-  idempotency:
-    key: input.idempotency_key
-    window: 24 hours
-  changes:
-    entity: hold.entity.hold
-    from: [ACTIVE]
-    to: CONVERTED
-    otherwise: order.error.hold_expired
-    missing: hold.error.hold_not_found
-  # "Refused if received after the hold's expiry time": a checkout at the expiry time itself is not after it.
-  requires:
-    - rule: now <= current.expires_at
-      otherwise: order.error.hold_expired
-  # The order is in the currency of the hold that it pays for.
-  ensures:
-    - output.total.currency = current.total.currency
-  errors:
-    - order.error.hold_expired
-    - hold.error.hold_not_found
-    - order.error.payment_declined
-  emits: [order.event.order_placed, ticket.event.ticket_issued]
-order.operation.get_order:
-  description: Get an order with its tickets
-  input: order.entity.order_ref
-  output: order.entity.order
-transfer.operation.transfer_ticket:
-  description: Offer one issued ticket to a recipient
-  input: transfer.entity.transfer_request
-  output: transfer.entity.transfer
-  changes:
-    entity: ticket.entity.ticket
-    from: [ISSUED]
-    to: TRANSFER_PENDING
-    otherwise: ticket.error.invalid_ticket_state
-  # Transfers are accepted only until 2 hours before the start: at 2 hours before, no longer.
-  requires:
-    - rule: now < current.starts_at - 2 hours
-      otherwise: transfer.error.transfer_window_closed
-  # The offer names the ticket and the recipient, is made at the time of the call, and can be
-  # accepted for 72 hours.
-  ensures:
-    - output.ticket_code = current.ticket_code
-    - output.recipient_email = input.recipient_email
-    - output.offered_at = now
-    - output.accept_until = output.offered_at + 72 hours
-  errors: [ticket.error.invalid_ticket_state, transfer.error.transfer_window_closed]
-transfer.operation.accept_transfer:
-  description: Accept a transfer, so that the recipient gets a new ticket code for the same place
-  input: transfer.entity.transfer_ref
-  output: ticket.entity.ticket
-  # The transfer, with the start of the event. A transfer is accepted only until 2 hours before the
-  # start, whether "accepted" is the offer (transfer_ticket) or the recipient's acceptance (here).
-  reads:
-    entity: transfer.entity.transfer
-    missing: transfer.error.transfer_not_found
-  # "Within 72 hours" of the offer: at 72 hours after the offer, still.
-  requires:
-    - rule: now < current.starts_at - 2 hours
-      otherwise: transfer.error.transfer_window_closed
-    - rule: now <= current.offered_at + 72 hours
-      otherwise: transfer.error.transfer_expired
-  # A new, ISSUED ticket code; the one TicketTransferred names it, the old code as void, and the time of the call.
-  ensures:
-    - output.ticket_code != current.ticket_code
-    - output.ticket_status = 'ISSUED'
-    - event.ticket_code = output.ticket_code
-    - event.void_ticket_code = current.ticket_code
-    - event.event_id = output.event_id
-    - event.occurred_at = now
-  errors: [transfer.error.transfer_not_found, transfer.error.transfer_window_closed, transfer.error.transfer_expired]
-  emits:
-    - event: ticket.event.ticket_transferred
-transfer.operation.cancel_transfer:
-  description: Cancel a transfer, so that the ticket is ISSUED again
-  input: transfer.entity.transfer_ref
-  output: ticket.entity.ticket
-  changes:
-    entity: ticket.entity.ticket
-    from: [TRANSFER_PENDING]
-    to: ISSUED
-    otherwise: ticket.error.invalid_ticket_state
-  errors: [ticket.error.invalid_ticket_state]
-refund.operation.request_refund:
-  description: Refund tickets of an order
-  input: refund.entity.refund_request
-  output: refund.entity.refund
-  # A repeat with the same key within 24 hours returns the first answer, whatever its body, and runs nothing.
-  idempotency:
-    key: input.idempotency_key
-    window: 24 hours
-  # The order, with the start of its event. Refunds are accepted only until 48 hours before the
-  # start: at 48 hours before, no longer.
-  reads:
-    entity: order.entity.order
-    missing: order.error.order_not_found
-  requires:
-    - rule: now < current.starts_at - 48 hours
-      otherwise: refund.error.refund_window_closed
-  # A refund of tickets of an order is an amount of that order, in its currency.
-  ensures:
-    - output.amount.currency = current.total.currency
-  errors:
-    - order.error.order_not_found
-    - refund.error.refund_window_closed
-    - refund.error.ticket_not_refundable
-  emits: [ticket.event.ticket_refunded]
-entry.operation.validate_ticket:
-  description: Validate a ticket at the entry of an event
-  input: entry.entity.entry_scan
-  output: entry.entity.entry_result
-  # One TicketUsed for an admitted ticket, and none otherwise, with the ticket and the time of the call.
-  ensures:
-    - event.ticket_code = output.ticket_code
-    - event.event_id = output.event_id
-    - event.occurred_at = now
-  emits:
-    - event: ticket.event.ticket_used
-      when: output.verdict = 'ADMIT'
-show.operation.cancel_event:
-  description: Cancel an event and refund its tickets
-  input: show.entity.event_cancellation
-  output: show.entity.cancelled_event
-  emits: [show.event.event_cancelled, ticket.event.ticket_refunded]
+  money:
+    description: An amount of money in minor units, with its currency
+    type: object
+    properties: [amount_minor, currency]
+    rules:
+      - required: [amount_minor, currency]
+
+  price:
+    description: The price of a line of a hold or of a ticket
+    type: money
+
+  fees:
+    description: The fees of an order
+    type: money
+
+  total:
+    description: The total of a hold or of an order
+    type: money
+
+  refund_amount:
+    description: The amount that a refund pays back
+    type: money
+
+  # Places in a venue: a seat in a seated section, or places in a standing section.
+  place_kind:
+    description: Whether a line or a ticket is for one seat of a seated section or for places in a standing section
+    type: string
+    rules:
+      - enum: [seated, standing]
+
+  section:
+    description: The code of a section of the venue, 1 to 6 uppercase letters or digits
+    type: string
+    rules:
+      - pattern: '^[A-Z0-9]{1,6}$'
+
+  row:
+    description: The row of a seat, 1 to 2 uppercase letters
+    type: string
+    rules:
+      - pattern: '^[A-Z]{1,2}$'
+
+  seat_number:
+    description: The number of a seat in its row, from 1 to 150
+    type: integer
+    rules:
+      - minimum: 1
+      - maximum: 150
+
+  quantity:
+    description: The number of tickets of one line, 1 for a seated line, 1 to 10 for a standing line
+    type: integer
+    rules:
+      - minimum: 1
+      - maximum: 10
+
+  seat:
+    description: One seat of a seated section
+    type: object
+    properties: [section, row, seat_number]
+    rules:
+      - required: [section, row, seat_number]
+
+  seats:
+    description: The seats that a hold request cannot hold
+    type: array
+    items: seat
+    rules:
+      - minItems: 1
+      - maxItems: 10
+
+  # Holds.
+  hold_line:
+    description: One line of a hold request, for one seat (quantity 1), or for a quantity of standing places in one section
+    type: object
+    properties: [place_kind, section, row, seat_number, quantity]
+    rules:
+      - required: [place_kind, section, quantity]
+      - seated_place_names_a_seat
+      - standing_place_names_no_seat
+      - seated_line_is_one_place
+
+  hold_lines:
+    description: The lines of a hold request
+    type: array
+    items: hold_line
+    rules:
+      - minItems: 1
+      - maxItems: 10
+      - no_seat_twice
+      - at_most_ten_tickets
+
+  hold_request:
+    description: A request of a buyer to hold seats or standing places of one event during checkout
+    type: object
+    properties: [idempotency_key, event_id, hold_lines, caller, called_at]
+    rules:
+      - required: [idempotency_key, event_id, hold_lines, caller, called_at]
+
+  held_line:
+    description: One line of a hold, with its price
+    type: object
+    properties: [place_kind, section, row, seat_number, quantity, price]
+    rules:
+      - required: [place_kind, section, quantity, price]
+      - seated_place_names_a_seat
+      - standing_place_names_no_seat
+      - seated_line_is_one_place
+
+  held_lines:
+    description: The lines of a hold
+    type: array
+    items: held_line
+    rules:
+      - minItems: 1
+      - maxItems: 10
+      - no_seat_twice
+      - at_most_ten_tickets
+
+  hold_id:
+    description: The identifier of a hold
+    type: uuid
+
+  buyer_id:
+    description: The buyer who owns a hold, an order or a ticket
+    type: caller_id
+
+  hold_status:
+    description: The state of a hold. A hold starts ACTIVE and moves only to CONVERTED, RELEASED or EXPIRED, which are final
+    type: string
+    rules:
+      - enum: [ACTIVE, CONVERTED, RELEASED, EXPIRED]
+
+  created_at:
+    description: When a hold was created, in UTC
+    type: utc_time
+
+  expires_at:
+    description: When a hold expires, in UTC, 10 minutes after it was created
+    type: utc_time
+
+  hold:
+    description: A hold of seats or standing places of one buyer, with the price of each line and the total
+    type: object
+    identifier: hold_id
+    properties: [hold_id, event_id, buyer_id, hold_status, held_lines, total, created_at, expires_at]
+    rules:
+      - required: [hold_id, event_id, buyer_id, hold_status, held_lines, total, created_at, expires_at]
+      - expires_after_created
+      - hold_amounts_share_currency
+
+  stored_hold:
+    description: The hold as it is stored, before the call
+    type: hold
+
+  message_id:
+    description: The unique identifier of one published event message, so that consumers can discard duplicates
+    type: uuid
+
+  occurred_at:
+    description: When a published fact occurred, in UTC
+    type: utc_time
+
+  hold_created:
+    description: The published event HoldCreated, a hold was created
+    type: object
+    properties: [message_id, event_id, hold_id, occurred_at]
+    rules:
+      - required: [message_id, event_id, hold_id, occurred_at]
+
+  new_hold:
+    description: The answer of a hold request that holds the places, the hold and its HoldCreated
+    type: object
+    properties: [hold, hold_created]
+    rules:
+      - required: [hold, hold_created]
+
+  seat_unavailable:
+    description: SEAT_UNAVAILABLE, one or more requested seats cannot be held. The hold holds nothing
+    type: object
+    properties: [seats]
+    rules:
+      - required: [seats]
+
+  section_sold_out:
+    description: SECTION_SOLD_OUT, a standing section has not enough capacity left for the requested quantity. The hold holds nothing
+    type: object
+    properties: [section]
+    rules:
+      - required: [section]
+
+  limit_exceeded:
+    description: LIMIT_EXCEEDED, the buyer would hold more than 10 tickets for the event. The hold holds nothing
+    type: object
+    properties: [event_id]
+    rules:
+      - required: [event_id]
+
+  sales_closed:
+    description: SALES_CLOSED, the event is not on sale. The hold holds nothing
+    type: object
+    properties: [event_id]
+    rules:
+      - required: [event_id]
+
+  hold_ref:
+    description: A request that names one hold, with the hold as stored, when the shell found it
+    type: object
+    properties: [hold_id, stored_hold]
+    rules:
+      - required: [hold_id]
+      - names_the_hold
+
+  expiry_request:
+    description: A call of the shell's clock to expire one hold, with the time of the call and the hold as stored, when the shell found it
+    type: object
+    properties: [hold_id, called_at, stored_hold]
+    rules:
+      - required: [hold_id, called_at]
+      - names_the_hold
+
+  hold_state:
+    description: The state of one hold after a call
+    type: object
+    properties: [hold_id, hold_status]
+    rules:
+      - required: [hold_id, hold_status]
+
+  hold_expired:
+    description: The published event HoldExpired, a hold reached its expiry time without a checkout
+    type: object
+    properties: [message_id, event_id, hold_id, occurred_at]
+    rules:
+      - required: [message_id, event_id, hold_id, occurred_at]
+
+  expired_hold:
+    description: A hold that expired, with its HoldExpired
+    type: object
+    properties: [hold_id, hold_status, hold_expired]
+    rules:
+      - required: [hold_id, hold_status, hold_expired]
+
+  hold_not_found:
+    description: HOLD_NOT_FOUND, no hold has this identifier
+    type: object
+    properties: [hold_id]
+    rules:
+      - required: [hold_id]
+
+  hold_not_active:
+    description: HOLD_NOT_ACTIVE, the hold is not ACTIVE, so it cannot be released or expired
+    type: object
+    properties: [hold_id, hold_status]
+    rules:
+      - required: [hold_id, hold_status]
+
+  hold_not_due:
+    description: The hold has not reached its expiry time, so it cannot be expired yet
+    type: object
+    properties: [hold_id, expires_at]
+    rules:
+      - required: [hold_id, expires_at]
+
+  # Checkout and orders.
+  payment_reference:
+    description: The reference of the payment that pays for the hold
+    type: string
+    rules:
+      - minLength: 1
+
+  payment_outcome:
+    description: The result of the payment for the hold, which the shell gets from the payment provider before the call
+    type: string
+    rules:
+      - enum: [approved, declined]
+
+  checkout_request:
+    description: A request to pay for a hold and turn it into an order, with the result of the payment and the hold as stored, when the shell found it
+    type: object
+    properties: [idempotency_key, hold_id, payment_reference, payment_outcome, caller, called_at, stored_hold]
+    rules:
+      - required: [idempotency_key, hold_id, payment_reference, payment_outcome, caller, called_at]
+      - names_the_hold
+
+  ticket_code:
+    description: The code of a ticket, 16 characters from A-Z without I and O, and the digits 2-9
+    type: string
+    rules:
+      - pattern: '^[A-HJ-NP-Z2-9]{16}$'
+
+  ticket_status:
+    description: The state of a ticket. ISSUED moves to TRANSFER_PENDING, USED, REFUNDED or VOID; TRANSFER_PENDING moves back to ISSUED; USED, REFUNDED and VOID are final
+    type: string
+    rules:
+      - enum: [ISSUED, TRANSFER_PENDING, USED, REFUNDED, VOID]
+
+  ticket:
+    description: A ticket for one seat or one standing place of an event, owned by a buyer
+    type: object
+    identifier: ticket_code
+    properties: [ticket_code, event_id, buyer_id, place_kind, section, row, seat_number, ticket_status, price]
+    rules:
+      - required: [ticket_code, event_id, buyer_id, place_kind, section, ticket_status, price]
+      - seated_place_names_a_seat
+      - standing_place_names_no_seat
+
+  stored_ticket:
+    description: The ticket as it is stored, before the call
+    type: ticket
+
+  stored_tickets:
+    description: Tickets as they are stored, before the call
+    type: array
+    items: ticket
+
+  tickets:
+    description: The tickets of an order
+    type: array
+    items: ticket
+    rules:
+      - minItems: 1
+      - maxItems: 10
+      - no_seat_twice
+      - no_code_twice
+
+  order_id:
+    description: The identifier of an order
+    type: uuid
+
+  order:
+    description: A paid order of one buyer, with one ticket per held seat or standing place
+    type: object
+    identifier: order_id
+    properties: [order_id, event_id, buyer_id, hold_id, tickets, fees, total]
+    rules:
+      - required: [order_id, event_id, buyer_id, hold_id, tickets, fees, total]
+      - total_is_prices_plus_fees
+      - order_amounts_share_currency
+
+  stored_order:
+    description: The order as it is stored, before the call
+    type: order
+
+  ticket_codes:
+    description: Ticket codes, each one time
+    type: array
+    items: ticket_code
+    rules:
+      - minItems: 1
+      - maxItems: 10
+      - uniqueItems
+
+  order_placed:
+    description: The published event OrderPlaced, an order was placed and paid
+    type: object
+    properties: [message_id, event_id, order_id, hold_id, ticket_codes, occurred_at]
+    rules:
+      - required: [message_id, event_id, order_id, hold_id, ticket_codes, occurred_at]
+
+  ticket_issued:
+    description: The published event TicketIssued, a ticket was issued
+    type: object
+    properties: [message_id, event_id, ticket_code, occurred_at]
+    rules:
+      - required: [message_id, event_id, ticket_code, occurred_at]
+
+  tickets_issued:
+    description: The TicketIssued events of an order, one per ticket
+    type: array
+    items: ticket_issued
+
+  converted_hold:
+    description: The hold that an order pays for, now CONVERTED
+    type: hold_state
+
+  placed_order:
+    description: The answer of a checkout that pays, the order, the hold that it converts, its OrderPlaced and a TicketIssued per ticket
+    type: object
+    properties: [order, converted_hold, order_placed, tickets_issued]
+    rules:
+      - required: [order, converted_hold, order_placed, tickets_issued]
+
+  hold_expired_refusal:
+    description: HOLD_EXPIRED, the checkout came after the expiry time of the hold, or the hold is no longer ACTIVE. No ticket is issued
+    type: object
+    properties: [hold_id, expires_at]
+    rules:
+      - required: [hold_id, expires_at]
+
+  payment_declined:
+    description: PAYMENT_DECLINED, the payment failed. No ticket is issued
+    type: object
+    properties: [payment_reference]
+    rules:
+      - required: [payment_reference]
+
+  forbidden:
+    description: FORBIDDEN, the caller may not do this
+    type: object
+    properties: [caller_id]
+    rules:
+      - required: [caller_id]
+
+  order_ref:
+    description: A request that names one order, with the order as stored, when the shell found it
+    type: object
+    properties: [order_id, stored_order]
+    rules:
+      - required: [order_id]
+      - names_the_order
+
+  order_not_found:
+    description: ORDER_NOT_FOUND, no order has this identifier
+    type: object
+    properties: [order_id]
+    rules:
+      - required: [order_id]
+
+  # Transfers.
+  recipient_email:
+    description: The email address of the person who receives a transferred ticket
+    type: email
+
+  transfer_request:
+    description: A request to transfer one ticket to a recipient, with the ticket and its event as stored, when the shell found the ticket
+    type: object
+    properties: [ticket_code, recipient_email, caller, called_at, stored_ticket, show]
+    rules:
+      - required: [ticket_code, recipient_email, caller, called_at]
+      - names_the_ticket
+      - show_of_the_ticket
+
+  transfer_id:
+    description: The identifier of a transfer
+    type: uuid
+
+  offered_at:
+    description: When a transfer was offered, in UTC
+    type: utc_time
+
+  accept_until:
+    description: The last time the recipient can accept a transfer, in UTC, 72 hours after the offer
+    type: utc_time
+
+  transfer:
+    description: A transfer of one ticket that waits for the recipient
+    type: object
+    identifier: transfer_id
+    properties: [transfer_id, ticket_code, recipient_email, offered_at, accept_until]
+    rules:
+      - required: [transfer_id, ticket_code, recipient_email, offered_at, accept_until]
+      - accept_after_offer
+
+  stored_transfer:
+    description: The transfer as it is stored, before the call
+    type: transfer
+
+  ticket_state:
+    description: The state of one ticket after a call
+    type: object
+    properties: [ticket_code, ticket_status]
+    rules:
+      - required: [ticket_code, ticket_status]
+
+  pending_ticket:
+    description: The ticket of a transfer, now TRANSFER_PENDING
+    type: ticket_state
+
+  offered_transfer:
+    description: The answer of a transfer request, the transfer and its ticket, now TRANSFER_PENDING
+    type: object
+    properties: [transfer, pending_ticket]
+    rules:
+      - required: [transfer, pending_ticket]
+
+  ticket_not_found:
+    description: TICKET_NOT_FOUND, no ticket has this code
+    type: object
+    properties: [ticket_code]
+    rules:
+      - required: [ticket_code]
+
+  invalid_ticket_state:
+    description: INVALID_TICKET_STATE, the ticket is not in a state that allows this
+    type: object
+    properties: [ticket_code, ticket_status]
+    rules:
+      - required: [ticket_code, ticket_status]
+
+  transfer_window_closed:
+    description: TRANSFER_WINDOW_CLOSED, the event starts in 2 hours or less, so its tickets can no longer be transferred
+    type: object
+    properties: [ticket_code, starts_at]
+    rules:
+      - required: [ticket_code, starts_at]
+
+  acceptance:
+    description: A request of the recipient to accept a transfer, with the transfer, its ticket and the ticket's event as stored, when the shell found the transfer
+    type: object
+    properties: [transfer_id, caller, called_at, stored_transfer, stored_ticket, show]
+    rules:
+      - required: [transfer_id, caller, called_at]
+      - names_the_transfer
+      - ticket_of_the_transfer
+      - show_of_the_ticket
+
+  new_ticket:
+    description: The new ticket of the recipient of a transfer
+    type: ticket
+
+  void_ticket:
+    description: The ticket that a transfer replaces, now VOID
+    type: ticket_state
+
+  void_ticket_code:
+    description: The code of the ticket that a transfer made VOID
+    type: ticket_code
+
+  ticket_transferred:
+    description: The published event TicketTransferred, a transfer was accepted. The old ticket code is VOID and the recipient has a new ticket code for the same place
+    type: object
+    properties: [message_id, event_id, ticket_code, void_ticket_code, occurred_at]
+    rules:
+      - required: [message_id, event_id, ticket_code, void_ticket_code, occurred_at]
+
+  accepted_transfer:
+    description: The answer of an accepted transfer, the recipient's new ticket, the old ticket now VOID, and its TicketTransferred
+    type: object
+    properties: [new_ticket, void_ticket, ticket_transferred]
+    rules:
+      - required: [new_ticket, void_ticket, ticket_transferred]
+
+  transfer_not_found:
+    description: TRANSFER_NOT_FOUND, no transfer has this identifier
+    type: object
+    properties: [transfer_id]
+    rules:
+      - required: [transfer_id]
+
+  transfer_expired:
+    description: TRANSFER_EXPIRED, the transfer was offered more than 72 hours ago, so the recipient can no longer accept it
+    type: object
+    properties: [transfer_id, accept_until]
+    rules:
+      - required: [transfer_id, accept_until]
+
+  transfer_ref:
+    description: A request that names one transfer, with the transfer and its ticket as stored, when the shell found the transfer
+    type: object
+    properties: [transfer_id, stored_transfer, stored_ticket]
+    rules:
+      - required: [transfer_id]
+      - names_the_transfer
+      - ticket_of_the_transfer
+
+  # Refunds.
+  refund_request:
+    description: A request of a buyer to refund tickets of an order, with the order, the requested tickets and the event as stored, when the shell found the order
+    type: object
+    properties: [idempotency_key, order_id, ticket_codes, caller, called_at, stored_order, stored_tickets, show]
+    rules:
+      - required: [idempotency_key, order_id, ticket_codes, caller, called_at]
+      - names_the_order
+      - loads_the_requested_tickets
+      - show_of_the_order
+
+  refund_id:
+    description: The identifier of a refund
+    type: uuid
+
+  refund:
+    description: A refund of tickets of an order
+    type: object
+    properties: [refund_id, order_id, ticket_codes, refund_amount]
+    rules:
+      - required: [refund_id, order_id, ticket_codes, refund_amount]
+
+  ticket_refunded:
+    description: The published event TicketRefunded, a ticket was refunded
+    type: object
+    properties: [message_id, event_id, ticket_code, occurred_at]
+    rules:
+      - required: [message_id, event_id, ticket_code, occurred_at]
+
+  tickets_refunded:
+    description: The TicketRefunded events of a call, one per refunded ticket
+    type: array
+    items: ticket_refunded
+
+  refunded_tickets:
+    description: The tickets that a call refunds, each now REFUNDED
+    type: array
+    items: ticket_state
+
+  granted_refund:
+    description: The answer of a refund request that refunds, the refund, its tickets now REFUNDED, and a TicketRefunded per ticket
+    type: object
+    properties: [refund, refunded_tickets, tickets_refunded]
+    rules:
+      - required: [refund, refunded_tickets, tickets_refunded]
+
+  ticket_not_refundable:
+    description: TICKET_NOT_REFUNDABLE, the ticket is USED, REFUNDED or VOID, so it cannot be refunded
+    type: object
+    properties: [ticket_code]
+    rules:
+      - required: [ticket_code]
+
+  refund_window_closed:
+    description: REFUND_WINDOW_CLOSED, the event starts in 48 hours or less, so the buyer can no longer refund tickets of the order
+    type: object
+    properties: [order_id, starts_at]
+    rules:
+      - required: [order_id, starts_at]
+
+  # Entry.
+  entry_scan:
+    description: A ticket presented at the entry of an event, with the member of staff who scans it and the ticket as stored, when the shell found it
+    type: object
+    properties: [ticket_code, event_id, caller, called_at, stored_ticket]
+    rules:
+      - required: [ticket_code, event_id, caller, called_at]
+      - names_the_ticket
+
+  verdict:
+    description: The answer to a ticket at the entry of an event
+    type: string
+    rules:
+      - enum: [ADMIT, ALREADY_USED, NOT_VALID, WRONG_EVENT]
+
+  ticket_used:
+    description: The published event TicketUsed, a ticket was admitted at the entry
+    type: object
+    properties: [message_id, event_id, ticket_code, occurred_at]
+    rules:
+      - required: [message_id, event_id, ticket_code, occurred_at]
+
+  used_ticket:
+    description: The ticket that the entry admitted, now USED
+    type: ticket_state
+
+  entry_result:
+    description: The answer to a ticket presented at the entry; when it admits the ticket, the ticket now USED and its TicketUsed
+    type: object
+    properties: [ticket_code, event_id, verdict, used_ticket, ticket_used]
+    rules:
+      - required: [ticket_code, event_id, verdict]
+
+  # The cancellation of an event.
+  event_cancellation:
+    description: A request of an organizer to cancel an event, with the event and its tickets as stored
+    type: object
+    properties: [event_id, caller, called_at, show, stored_tickets]
+    rules:
+      - required: [event_id, caller, called_at, show, stored_tickets]
+      - names_the_show
+      - tickets_of_the_show
+
+  cancelled_at:
+    description: When the organizer cancelled an event, in UTC
+    type: utc_time
+
+  affected_tickets:
+    description: The codes of the tickets that a cancellation refunds
+    type: array
+    items: ticket_code
+    rules:
+      - uniqueItems
+
+  event_cancelled:
+    description: The published event EventCancelled, the organizer cancelled an event, with the tickets it refunds
+    type: object
+    properties: [message_id, event_id, affected_tickets, occurred_at]
+    rules:
+      - required: [message_id, event_id, affected_tickets, occurred_at]
+
+  cancelled_event:
+    description: >-
+      An event that the organizer cancelled, with its EventCancelled, its ISSUED or TRANSFER_PENDING tickets now
+      REFUNDED, and a TicketRefunded per such ticket
+    type: object
+    properties: [event_id, cancelled_at, event_cancelled, refunded_tickets, tickets_refunded]
+    rules:
+      - required: [event_id, cancelled_at, event_cancelled, refunded_tickets, tickets_refunded]
+
+rules:
+  # Rules of values.
+  in_utc:
+    description: A time is in UTC, with the designator Z
+    rule: self.matches('Z$')
+    message: Must be a time in UTC, ending with Z
+
+  seated_place_names_a_seat:
+    description: A seated line or ticket names a seat, with a row and a seat number
+    rule: self.place_kind != 'seated' || (has(self.row) && has(self.seat_number))
+    message: A seated place needs a row and a seat number
+
+  standing_place_names_no_seat:
+    description: A standing line or ticket names a section only, with no row and no seat number
+    rule: self.place_kind != 'standing' || (!has(self.row) && !has(self.seat_number))
+    message: A standing place has no row and no seat number
+
+  seated_line_is_one_place:
+    description: A seated line is for exactly one seat, a quantity of 1
+    rule: self.place_kind != 'seated' || self.quantity == 1
+    message: A seated line is for one seat, quantity 1
+
+  no_seat_twice:
+    description: No two lines or tickets of one list name the same seat; a standing place names no seat, so it is not compared
+    rule: >-
+      self.all(a, !has(a.row) || !has(a.seat_number) ||
+      self.exists_one(b, has(b.row) && has(b.seat_number) && b.section == a.section && b.row == a.row && b.seat_number == a.seat_number))
+    message: The same seat must not occur two times
+
+  at_most_ten_tickets:
+    description: The lines of a hold count at most 10 tickets in all, 1 for each seated line and the quantity for each standing line
+    rule: self.map(l, l.quantity).sum() <= 10
+    message: A hold has at most 10 tickets
+
+  no_code_twice:
+    description: No two tickets of one list share a ticket code
+    rule: self.all(a, self.exists_one(b, b.ticket_code == a.ticket_code))
+    message: The same ticket code must not occur two times
+
+  expires_after_created:
+    description: A hold expires after it was created
+    rule: timestamp(self.expires_at) > timestamp(self.created_at)
+    message: A hold must expire after it was created
+
+  hold_amounts_share_currency:
+    description: All amounts of a hold share one currency, the currency of its total
+    rule: self.held_lines.all(l, l.price.currency == self.total.currency)
+    message: The line prices and the total of a hold must share one currency
+
+  total_is_prices_plus_fees:
+    description: The total of an order is the sum of the prices of its tickets plus the fees
+    rule: self.total.amount_minor == self.tickets.map(t, t.price.amount_minor).sum() + self.fees.amount_minor
+    message: The total must be the sum of the ticket prices plus the fees
+
+  order_amounts_share_currency:
+    description: All amounts of an order share one currency, the currency of its total
+    rule: self.fees.currency == self.total.currency && self.tickets.all(t, t.price.currency == self.total.currency)
+    message: The ticket prices, the fees and the total of an order must share one currency
+
+  accept_after_offer:
+    description: A transfer can be accepted only after it was offered
+    rule: timestamp(self.accept_until) > timestamp(self.offered_at)
+    message: The end of the acceptance window must be after the offer
+
+  # Rules of requests: the stored records that the shell loaded are the ones that the request names.
+  names_the_hold:
+    description: The stored hold, when there is one, is the hold that the request names
+    rule: '!has(self.stored_hold) || self.stored_hold.hold_id == self.hold_id'
+    message: The stored hold is not the hold of the request
+
+  names_the_order:
+    description: The stored order, when there is one, is the order that the request names
+    rule: '!has(self.stored_order) || self.stored_order.order_id == self.order_id'
+    message: The stored order is not the order of the request
+
+  names_the_ticket:
+    description: The stored ticket, when there is one, is the ticket that the request names
+    rule: '!has(self.stored_ticket) || self.stored_ticket.ticket_code == self.ticket_code'
+    message: The stored ticket is not the ticket of the request
+
+  names_the_transfer:
+    description: The stored transfer, when there is one, is the transfer that the request names
+    rule: '!has(self.stored_transfer) || self.stored_transfer.transfer_id == self.transfer_id'
+    message: The stored transfer is not the transfer of the request
+
+  names_the_show:
+    description: The stored event is the event that the request names
+    rule: self.show.event_id == self.event_id
+    message: The stored event is not the event of the request
+
+  ticket_of_the_transfer:
+    description: With a stored transfer comes the stored ticket that it transfers
+    rule: '!has(self.stored_transfer) || (has(self.stored_ticket) && self.stored_ticket.ticket_code == self.stored_transfer.ticket_code)'
+    message: The stored ticket is not the ticket of the transfer
+
+  show_of_the_ticket:
+    description: With a stored ticket comes its event as it is stored now
+    rule: '!has(self.stored_ticket) || (has(self.show) && self.show.event_id == self.stored_ticket.event_id)'
+    message: The stored event is not the event of the ticket
+
+  show_of_the_order:
+    description: With a stored order comes its event as it is stored now
+    rule: '!has(self.stored_order) || (has(self.show) && self.show.event_id == self.stored_order.event_id)'
+    message: The stored event is not the event of the order
+
+  loads_the_requested_tickets:
+    description: With a stored order come the stored tickets that the request names, each one time, and each a ticket of that order
+    rule: >-
+      !has(self.stored_order) ||
+      (has(self.stored_tickets) && size(self.stored_tickets) == size(self.ticket_codes) &&
+      self.ticket_codes.all(c, self.stored_tickets.exists_one(t, t.ticket_code == c) && self.stored_order.tickets.exists(t, t.ticket_code == c)))
+    message: The stored tickets are not the requested tickets of the order
+
+  tickets_of_the_show:
+    description: The stored tickets are tickets of the event that the request names
+    rule: self.stored_tickets.all(t, t.event_id == self.event_id)
+    message: A stored ticket is of another event
+
+  # Rules of create_hold.
+  hold_created_at_the_call:
+    description: A new hold is created at the time of the call, and expires exactly 10 minutes later
+    rule: >-
+      timestamp(output.hold.created_at) == timestamp(input.called_at) &&
+      timestamp(output.hold.expires_at) == timestamp(output.hold.created_at) + duration('10m')
+    message: A new hold is created at the time of the call and expires 10 minutes later
+
+  new_hold_of_the_request:
+    description: >-
+      A new hold is ACTIVE, of the requested event and owned by the caller; it has as many lines as the request, each
+      requested line is a held line, and each held line is a requested line
+    rule: >-
+      output.hold.hold_status == 'ACTIVE' && output.hold.event_id == input.event_id &&
+      output.hold.buyer_id == input.caller.caller_id &&
+      size(output.hold.held_lines) == size(input.hold_lines) &&
+      input.hold_lines.all(l, output.hold.held_lines.exists(h,
+      h.place_kind == l.place_kind && h.section == l.section && h.quantity == l.quantity &&
+      (l.place_kind == 'standing' || (has(l.row) && has(h.row) && has(l.seat_number) && has(h.seat_number) && l.row == h.row && l.seat_number == h.seat_number)))) &&
+      output.hold.held_lines.all(h, input.hold_lines.exists(l,
+      h.place_kind == l.place_kind && h.section == l.section && h.quantity == l.quantity &&
+      (h.place_kind == 'standing' || (has(l.row) && has(h.row) && has(l.seat_number) && has(h.seat_number) && l.row == h.row && l.seat_number == h.seat_number))))
+    message: A new hold must hold the requested lines of the requested event for the caller
+
+  hold_created_names_the_hold:
+    description: The HoldCreated of a new hold names the hold, its event, and the time of the call
+    rule: >-
+      output.hold_created.hold_id == output.hold.hold_id && output.hold_created.event_id == output.hold.event_id &&
+      timestamp(output.hold_created.occurred_at) == timestamp(input.called_at)
+    message: HoldCreated must name the new hold, its event and the time of the call
+
+  lists_requested_seats:
+    description: SEAT_UNAVAILABLE lists only seats that the request names
+    rule: >-
+      output.seats.all(s, input.hold_lines.exists(l, has(l.row) && has(l.seat_number) &&
+      l.section == s.section && l.row == s.row && l.seat_number == s.seat_number))
+    message: SEAT_UNAVAILABLE must list only requested seats
+
+  names_a_requested_standing_section:
+    description: SECTION_SOLD_OUT names a standing section that the request asks places of
+    rule: input.hold_lines.exists(l, l.place_kind == 'standing' && l.section == output.section)
+    message: SECTION_SOLD_OUT must name a requested standing section
+
+  names_the_requested_event:
+    description: The refusal names the event of the request
+    rule: output.event_id == input.event_id
+    message: The refusal must name the event of the request
+
+  # Rules of the operations that read a stored hold.
+  hold_found:
+    description: The shell found the hold
+    rule: has(input.stored_hold)
+    message: The hold was not found
+
+  hold_missing:
+    description: The shell did not find the hold, and the refusal names the hold of the request
+    rule: '!has(input.stored_hold) && output.hold_id == input.hold_id'
+    message: HOLD_NOT_FOUND is only for a hold that the shell did not find
+
+  hold_was_active:
+    description: The hold was ACTIVE before the call
+    rule: has(input.stored_hold) && input.stored_hold.hold_status == 'ACTIVE'
+    message: The hold was not ACTIVE
+
+  hold_was_not_active:
+    description: The hold was not ACTIVE before the call, and the refusal names it and its state
+    rule: >-
+      has(input.stored_hold) && input.stored_hold.hold_status != 'ACTIVE' &&
+      output.hold_id == input.hold_id && output.hold_status == input.stored_hold.hold_status
+    message: HOLD_NOT_ACTIVE is only for a hold that is not ACTIVE, with its state
+
+  hold_is_released:
+    description: A released hold is the hold of the request, now RELEASED
+    rule: output.hold_id == input.hold_id && output.hold_status == 'RELEASED'
+    message: The hold must be RELEASED
+
+  hold_is_due:
+    description: The call comes after the expiry time of the hold; at the expiry time itself the hold can still be checked out
+    rule: has(input.stored_hold) && timestamp(input.called_at) > timestamp(input.stored_hold.expires_at)
+    message: The hold has not reached its expiry time
+
+  hold_is_not_due:
+    description: The call comes at or before the expiry time of an ACTIVE hold, and the refusal names the hold and its expiry time
+    rule: >-
+      has(input.stored_hold) && input.stored_hold.hold_status == 'ACTIVE' &&
+      timestamp(input.called_at) <= timestamp(input.stored_hold.expires_at) &&
+      output.hold_id == input.hold_id && output.expires_at == input.stored_hold.expires_at
+    message: A hold that is not due names its expiry time
+
+  hold_is_expired:
+    description: An expired hold is the hold of the request, now EXPIRED, and its HoldExpired names it, its event and the time of the call
+    rule: >-
+      has(input.stored_hold) && output.hold_id == input.hold_id && output.hold_status == 'EXPIRED' &&
+      output.hold_expired.hold_id == input.hold_id && output.hold_expired.event_id == input.stored_hold.event_id &&
+      timestamp(output.hold_expired.occurred_at) == timestamp(input.called_at)
+    message: The hold must be EXPIRED, with a HoldExpired of the hold at the time of the call
+
+  # Rules of check_out.
+  by_the_hold_buyer:
+    description: The caller is the buyer who owns the hold
+    rule: has(input.stored_hold) && input.caller.caller_id == input.stored_hold.buyer_id
+    message: Only the buyer of the hold may check it out
+
+  not_the_hold_buyer:
+    description: The caller is not the buyer who owns the hold, and the refusal names the caller
+    rule: has(input.stored_hold) && input.caller.caller_id != input.stored_hold.buyer_id && output.caller_id == input.caller.caller_id
+    message: FORBIDDEN is only for a caller who is not the buyer of the hold
+
+  hold_open_at_checkout:
+    description: The hold is ACTIVE, and the checkout comes at or before its expiry time
+    rule: >-
+      has(input.stored_hold) && input.stored_hold.hold_status == 'ACTIVE' &&
+      timestamp(input.called_at) <= timestamp(input.stored_hold.expires_at)
+    message: The hold is no longer open for checkout
+
+  hold_closed_at_checkout:
+    description: The hold is no longer ACTIVE, or the checkout comes after its expiry time, and the refusal names the hold and its expiry time
+    rule: >-
+      has(input.stored_hold) &&
+      (input.stored_hold.hold_status != 'ACTIVE' || timestamp(input.called_at) > timestamp(input.stored_hold.expires_at)) &&
+      output.hold_id == input.hold_id && output.expires_at == input.stored_hold.expires_at
+    message: HOLD_EXPIRED is only for a hold that is no longer open, with its expiry time
+
+  payment_approved:
+    description: The payment was approved
+    rule: input.payment_outcome == 'approved'
+    message: The payment was declined
+
+  payment_failed:
+    description: The payment was declined, and the refusal names it
+    rule: input.payment_outcome == 'declined' && output.payment_reference == input.payment_reference
+    message: PAYMENT_DECLINED is only for a declined payment
+
+  order_of_the_hold:
+    description: The order pays for the hold of the request, of its event, for its buyer, in the currency of its total
+    rule: >-
+      has(input.stored_hold) && output.order.hold_id == input.hold_id &&
+      output.order.event_id == input.stored_hold.event_id && output.order.buyer_id == input.stored_hold.buyer_id &&
+      output.order.total.currency == input.stored_hold.total.currency
+    message: The order must pay for the hold, for its event, its buyer and in its currency
+
+  one_ticket_per_held_place:
+    description: >-
+      The order has as many tickets as the hold has places; each held seat has exactly one ticket, each seated
+      ticket is a held seat, and each standing ticket is of a held standing section
+    rule: >-
+      has(input.stored_hold) &&
+      size(output.order.tickets) == input.stored_hold.held_lines.map(l, l.quantity).sum() &&
+      input.stored_hold.held_lines.all(l, !has(l.row) || !has(l.seat_number) ||
+      output.order.tickets.exists_one(t, has(t.row) && has(t.seat_number) && t.section == l.section && t.row == l.row && t.seat_number == l.seat_number)) &&
+      output.order.tickets.all(t, (t.place_kind == 'seated' && has(t.row) && has(t.seat_number) &&
+      input.stored_hold.held_lines.exists(l, has(l.row) && has(l.seat_number) && l.section == t.section && l.row == t.row && l.seat_number == t.seat_number)) ||
+      (t.place_kind == 'standing' && input.stored_hold.held_lines.exists(l, l.place_kind == 'standing' && l.section == t.section)))
+    message: The order must have one ticket per held seat or standing place
+
+  total_is_line_prices_plus_fees:
+    description: The total of the order is the sum of the line prices of the hold plus the fees
+    rule: >-
+      has(input.stored_hold) &&
+      output.order.total.amount_minor == input.stored_hold.held_lines.map(l, l.price.amount_minor).sum() + output.order.fees.amount_minor
+    message: The total of the order must be the line prices of the hold plus the fees
+
+  issues_the_tickets:
+    description: Each ticket of the order is ISSUED, of the order's event and owned by its buyer
+    rule: output.order.tickets.all(t, t.ticket_status == 'ISSUED' && t.event_id == output.order.event_id && t.buyer_id == output.order.buyer_id)
+    message: Each ticket of a new order is ISSUED, of its event and owned by its buyer
+
+  converts_the_hold:
+    description: The hold of the request is now CONVERTED
+    rule: output.converted_hold.hold_id == input.hold_id && output.converted_hold.hold_status == 'CONVERTED'
+    message: The hold must be CONVERTED
+
+  order_events_name_the_order:
+    description: >-
+      OrderPlaced names the order, its hold, its event and its tickets; there is one TicketIssued per ticket, of its
+      event; each at the time of the call
+    rule: >-
+      output.order_placed.order_id == output.order.order_id && output.order_placed.hold_id == output.order.hold_id &&
+      output.order_placed.event_id == output.order.event_id &&
+      output.order_placed.ticket_codes == output.order.tickets.map(t, t.ticket_code) &&
+      timestamp(output.order_placed.occurred_at) == timestamp(input.called_at) &&
+      size(output.tickets_issued) == size(output.order.tickets) &&
+      output.order.tickets.all(t, output.tickets_issued.exists_one(e, e.ticket_code == t.ticket_code)) &&
+      output.tickets_issued.all(e, e.event_id == output.order.event_id && timestamp(e.occurred_at) == timestamp(input.called_at))
+    message: OrderPlaced and one TicketIssued per ticket must name the order at the time of the call
+
+  # Rules of get_order.
+  order_found:
+    description: The answer is the stored order
+    rule: has(input.stored_order) && output == input.stored_order
+    message: The answer must be the stored order
+
+  order_missing:
+    description: The shell did not find the order, and the refusal names the order of the request
+    rule: '!has(input.stored_order) && output.order_id == input.order_id'
+    message: ORDER_NOT_FOUND is only for an order that the shell did not find
+
+  # Rules of transfer_ticket.
+  ticket_missing:
+    description: The shell did not find the ticket, and the refusal names the ticket of the request
+    rule: '!has(input.stored_ticket) && output.ticket_code == input.ticket_code'
+    message: TICKET_NOT_FOUND is only for a ticket that the shell did not find
+
+  by_the_ticket_buyer:
+    description: The caller is the buyer who owns the ticket
+    rule: has(input.stored_ticket) && input.caller.caller_id == input.stored_ticket.buyer_id
+    message: Only the buyer of the ticket may transfer it
+
+  not_the_ticket_buyer:
+    description: The caller is not the buyer who owns the ticket, and the refusal names the caller
+    rule: has(input.stored_ticket) && input.caller.caller_id != input.stored_ticket.buyer_id && output.caller_id == input.caller.caller_id
+    message: FORBIDDEN is only for a caller who is not the buyer of the ticket
+
+  ticket_was_issued:
+    description: The ticket was ISSUED before the call
+    rule: has(input.stored_ticket) && input.stored_ticket.ticket_status == 'ISSUED'
+    message: The ticket was not ISSUED
+
+  ticket_was_not_issued:
+    description: The ticket was not ISSUED before the call, and the refusal names it and its state
+    rule: >-
+      has(input.stored_ticket) && input.stored_ticket.ticket_status != 'ISSUED' &&
+      output.ticket_code == input.stored_ticket.ticket_code && output.ticket_status == input.stored_ticket.ticket_status
+    message: INVALID_TICKET_STATE is only for a ticket that is not ISSUED, with its state
+
+  before_transfer_cutoff:
+    description: The call comes earlier than 2 hours before the start of the event, as it is stored now
+    rule: has(input.show) && timestamp(input.called_at) < timestamp(input.show.starts_at) - duration('2h')
+    message: Transfers close 2 hours before the event starts
+
+  after_transfer_cutoff:
+    description: The call comes 2 hours or less before the start of the event, and the refusal names the ticket and the start
+    rule: >-
+      has(input.show) && has(input.stored_ticket) &&
+      timestamp(input.called_at) >= timestamp(input.show.starts_at) - duration('2h') &&
+      output.ticket_code == input.stored_ticket.ticket_code && output.starts_at == input.show.starts_at
+    message: TRANSFER_WINDOW_CLOSED is only for a call 2 hours or less before the start, with the start
+
+  offers_the_ticket:
+    description: >-
+      The transfer offers the ticket of the request to the recipient of the request at the time of the call, can be
+      accepted for 72 hours, and the ticket is now TRANSFER_PENDING
+    rule: >-
+      output.transfer.ticket_code == input.ticket_code && output.transfer.recipient_email == input.recipient_email &&
+      timestamp(output.transfer.offered_at) == timestamp(input.called_at) &&
+      timestamp(output.transfer.accept_until) == timestamp(output.transfer.offered_at) + duration('72h') &&
+      output.pending_ticket.ticket_code == input.ticket_code && output.pending_ticket.ticket_status == 'TRANSFER_PENDING'
+    message: The transfer must offer the requested ticket to the recipient for 72 hours from the call
+
+  # Rules of accept_transfer and cancel_transfer.
+  transfer_found:
+    description: The shell found the transfer
+    rule: has(input.stored_transfer)
+    message: The transfer was not found
+
+  transfer_missing:
+    description: The shell did not find the transfer, and the refusal names the transfer of the request
+    rule: '!has(input.stored_transfer) && output.transfer_id == input.transfer_id'
+    message: TRANSFER_NOT_FOUND is only for a transfer that the shell did not find
+
+  by_the_recipient:
+    description: The caller is the recipient of the transfer
+    rule: >-
+      has(input.stored_transfer) && has(input.caller.caller_email) &&
+      input.caller.caller_email == input.stored_transfer.recipient_email
+    message: Only the recipient may accept a transfer
+
+  not_the_recipient:
+    description: The caller is not the recipient of the transfer, and the refusal names the caller
+    rule: >-
+      has(input.stored_transfer) && (!has(input.caller.caller_email) || input.caller.caller_email != input.stored_transfer.recipient_email) &&
+      output.caller_id == input.caller.caller_id
+    message: FORBIDDEN is only for a caller who is not the recipient
+
+  ticket_was_pending:
+    description: The ticket of the transfer was TRANSFER_PENDING before the call
+    rule: has(input.stored_ticket) && input.stored_ticket.ticket_status == 'TRANSFER_PENDING'
+    message: The ticket was not TRANSFER_PENDING
+
+  ticket_was_not_pending:
+    description: The ticket of the transfer was not TRANSFER_PENDING before the call, and the refusal names it and its state
+    rule: >-
+      has(input.stored_ticket) && input.stored_ticket.ticket_status != 'TRANSFER_PENDING' &&
+      output.ticket_code == input.stored_ticket.ticket_code && output.ticket_status == input.stored_ticket.ticket_status
+    message: INVALID_TICKET_STATE is only for a ticket that is not TRANSFER_PENDING, with its state
+
+  within_72_hours:
+    description: The acceptance comes within 72 hours of the offer; at 72 hours, still
+    rule: has(input.stored_transfer) && timestamp(input.called_at) <= timestamp(input.stored_transfer.offered_at) + duration('72h')
+    message: The transfer can no longer be accepted
+
+  after_72_hours:
+    description: The acceptance comes more than 72 hours after the offer, and the refusal names the transfer and the end of its window
+    rule: >-
+      has(input.stored_transfer) && timestamp(input.called_at) > timestamp(input.stored_transfer.offered_at) + duration('72h') &&
+      output.transfer_id == input.transfer_id && output.accept_until == input.stored_transfer.accept_until
+    message: TRANSFER_EXPIRED is only for an acceptance more than 72 hours after the offer
+
+  same_place_new_code:
+    description: >-
+      The recipient's new ticket has a new code, is ISSUED, owned by the caller, and is for the same event, place
+      and price as the old ticket
+    rule: >-
+      has(input.stored_ticket) &&
+      output.new_ticket.ticket_code != input.stored_ticket.ticket_code && output.new_ticket.ticket_status == 'ISSUED' &&
+      output.new_ticket.buyer_id == input.caller.caller_id &&
+      output.new_ticket.event_id == input.stored_ticket.event_id && output.new_ticket.place_kind == input.stored_ticket.place_kind &&
+      output.new_ticket.section == input.stored_ticket.section && output.new_ticket.price == input.stored_ticket.price &&
+      ((!has(output.new_ticket.row) && !has(input.stored_ticket.row)) ||
+      (has(output.new_ticket.row) && has(input.stored_ticket.row) && output.new_ticket.row == input.stored_ticket.row)) &&
+      ((!has(output.new_ticket.seat_number) && !has(input.stored_ticket.seat_number)) ||
+      (has(output.new_ticket.seat_number) && has(input.stored_ticket.seat_number) && output.new_ticket.seat_number == input.stored_ticket.seat_number))
+    message: The new ticket must be a new ISSUED code of the caller for the same place
+
+  voids_the_old_ticket:
+    description: The old ticket is now VOID, and TicketTransferred names the new code, the old code as void, the event and the time of the call
+    rule: >-
+      has(input.stored_ticket) &&
+      output.void_ticket.ticket_code == input.stored_ticket.ticket_code && output.void_ticket.ticket_status == 'VOID' &&
+      output.ticket_transferred.ticket_code == output.new_ticket.ticket_code &&
+      output.ticket_transferred.void_ticket_code == input.stored_ticket.ticket_code &&
+      output.ticket_transferred.event_id == output.new_ticket.event_id &&
+      timestamp(output.ticket_transferred.occurred_at) == timestamp(input.called_at)
+    message: The old ticket must be VOID, with a TicketTransferred of both codes at the time of the call
+
+  ticket_is_reissued:
+    description: The ticket of the cancelled transfer is ISSUED again
+    rule: has(input.stored_ticket) && output.ticket_code == input.stored_ticket.ticket_code && output.ticket_status == 'ISSUED'
+    message: The ticket must be ISSUED again
+
+  # Rules of request_refund.
+  by_the_order_buyer:
+    description: The caller is the buyer who owns the order
+    rule: has(input.stored_order) && input.caller.caller_id == input.stored_order.buyer_id
+    message: Only the buyer of the order may refund its tickets
+
+  not_the_order_buyer:
+    description: The caller is not the buyer who owns the order, and the refusal names the caller
+    rule: has(input.stored_order) && input.caller.caller_id != input.stored_order.buyer_id && output.caller_id == input.caller.caller_id
+    message: FORBIDDEN is only for a caller who is not the buyer of the order
+
+  before_refund_cutoff:
+    description: The call comes earlier than 48 hours before the start of the event, as it is stored now
+    rule: has(input.show) && timestamp(input.called_at) < timestamp(input.show.starts_at) - duration('48h')
+    message: Refunds close 48 hours before the event starts
+
+  after_refund_cutoff:
+    description: The call comes 48 hours or less before the start of the event, and the refusal names the order and the start
+    rule: >-
+      has(input.show) && timestamp(input.called_at) >= timestamp(input.show.starts_at) - duration('48h') &&
+      output.order_id == input.order_id && output.starts_at == input.show.starts_at
+    message: REFUND_WINDOW_CLOSED is only for a call 48 hours or less before the start, with the start
+
+  tickets_refundable:
+    description: No requested ticket is USED, REFUNDED or VOID
+    rule: has(input.stored_tickets) && input.stored_tickets.all(t, !(t.ticket_status in ['USED', 'REFUNDED', 'VOID']))
+    message: A requested ticket cannot be refunded
+
+  names_an_unrefundable_ticket:
+    description: TICKET_NOT_REFUNDABLE names a requested ticket that is USED, REFUNDED or VOID
+    rule: >-
+      has(input.stored_tickets) &&
+      input.stored_tickets.exists(t, t.ticket_code == output.ticket_code && t.ticket_status in ['USED', 'REFUNDED', 'VOID'])
+    message: TICKET_NOT_REFUNDABLE must name a requested ticket that is USED, REFUNDED or VOID
+
+  refunds_the_request:
+    description: >-
+      The refund is of the requested tickets of the order, at most the sum of the prices paid for them, in the
+      currency of the order, with one TicketRefunded per ticket, of the order's event, at the time of the call
+    rule: >-
+      has(input.stored_order) && has(input.stored_tickets) &&
+      output.refund.order_id == input.order_id && output.refund.ticket_codes == input.ticket_codes &&
+      output.refund.refund_amount.amount_minor <= input.stored_tickets.map(t, t.price.amount_minor).sum() &&
+      output.refund.refund_amount.currency == input.stored_order.total.currency &&
+      size(output.tickets_refunded) == size(input.ticket_codes) &&
+      input.ticket_codes.all(c, output.tickets_refunded.exists_one(e, e.ticket_code == c)) &&
+      output.tickets_refunded.all(e, e.event_id == input.stored_order.event_id && timestamp(e.occurred_at) == timestamp(input.called_at))
+    message: The refund must be of the requested tickets, at most what was paid, in the order's currency
+
+  refunded_tickets_match_events:
+    description: The tickets now REFUNDED are the tickets of the TicketRefunded events, in their order
+    rule: >-
+      output.refunded_tickets.map(s, s.ticket_code) == output.tickets_refunded.map(e, e.ticket_code) &&
+      output.refunded_tickets.all(s, s.ticket_status == 'REFUNDED')
+    message: Each refunded ticket must be REFUNDED, with its TicketRefunded
+
+  # Rules of validate_ticket.
+  by_assigned_staff:
+    description: The caller is box-office staff assigned to the event of the scan
+    rule: >-
+      input.caller.caller_role == 'box_office' && has(input.caller.assigned_events) &&
+      input.event_id in input.caller.assigned_events
+    message: Only box-office staff assigned to the event may validate its tickets
+
+  not_assigned_staff:
+    description: The caller is not box-office staff assigned to the event of the scan, and the refusal names the caller
+    rule: >-
+      (input.caller.caller_role != 'box_office' || !has(input.caller.assigned_events) ||
+      !(input.event_id in input.caller.assigned_events)) && output.caller_id == input.caller.caller_id
+    message: FORBIDDEN is only for a caller who is not staff assigned to the event
+
+  answers_the_scan:
+    description: The answer names the ticket and the event of the scan
+    rule: output.ticket_code == input.ticket_code && output.event_id == input.event_id
+    message: The answer must name the scanned ticket and event
+
+  admits_only_an_issued_ticket:
+    description: The answer is ADMIT exactly when the ticket is ISSUED and of the event of the scan
+    rule: >-
+      (output.verdict == 'ADMIT') ==
+      (has(input.stored_ticket) && input.stored_ticket.event_id == input.event_id && input.stored_ticket.ticket_status == 'ISSUED')
+    message: ADMIT is for an ISSUED ticket of the event, and only for it
+
+  already_used_for_a_used_ticket:
+    description: The answer is ALREADY_USED exactly when the ticket is USED and of the event of the scan
+    rule: >-
+      (output.verdict == 'ALREADY_USED') ==
+      (has(input.stored_ticket) && input.stored_ticket.event_id == input.event_id && input.stored_ticket.ticket_status == 'USED')
+    message: ALREADY_USED is for a USED ticket of the event, and only for it
+
+  wrong_event_for_another_event:
+    description: The answer is WRONG_EVENT exactly when the ticket is of another event; any other ticket, or none, is NOT_VALID
+    rule: (output.verdict == 'WRONG_EVENT') == (has(input.stored_ticket) && input.stored_ticket.event_id != input.event_id)
+    message: WRONG_EVENT is for a ticket of another event, and only for it
+
+  ticket_used_on_admit:
+    description: >-
+      An ADMIT, and only an ADMIT, carries the ticket now USED and one TicketUsed, which names the ticket, the event
+      and the time of the call
+    rule: >-
+      (output.verdict == 'ADMIT') == has(output.ticket_used) && (output.verdict == 'ADMIT') == has(output.used_ticket) &&
+      (!has(output.used_ticket) || (output.used_ticket.ticket_code == output.ticket_code && output.used_ticket.ticket_status == 'USED')) &&
+      (!has(output.ticket_used) || (output.ticket_used.ticket_code == output.ticket_code &&
+      output.ticket_used.event_id == output.event_id && timestamp(output.ticket_used.occurred_at) == timestamp(input.called_at)))
+    message: An ADMIT carries the ticket now USED and a TicketUsed at the time of the call, and nothing else does
+
+  # Rules of cancel_event.
+  by_the_organizer:
+    description: The caller is the organizer of the event
+    rule: input.caller.caller_id == input.show.organizer_id
+    message: Only the organizer of the event may cancel it
+
+  not_the_organizer:
+    description: The caller is not the organizer of the event, and the refusal names the caller
+    rule: input.caller.caller_id != input.show.organizer_id && output.caller_id == input.caller.caller_id
+    message: FORBIDDEN is only for a caller who is not the organizer
+
+  cancels_the_event:
+    description: >-
+      The event of the request is cancelled at the time of the call; EventCancelled names it and the refunded tickets, and there is one
+      TicketRefunded for each ISSUED or TRANSFER_PENDING ticket of the event, and for no other ticket
+    rule: >-
+      output.event_id == input.event_id && timestamp(output.cancelled_at) == timestamp(input.called_at) &&
+      output.event_cancelled.event_id == input.event_id &&
+      output.event_cancelled.affected_tickets == output.tickets_refunded.map(e, e.ticket_code) &&
+      timestamp(output.event_cancelled.occurred_at) == timestamp(input.called_at) &&
+      input.stored_tickets.all(t, !(t.ticket_status in ['ISSUED', 'TRANSFER_PENDING']) ||
+      output.tickets_refunded.exists_one(e, e.ticket_code == t.ticket_code)) &&
+      output.tickets_refunded.all(e, e.event_id == input.event_id && timestamp(e.occurred_at) == timestamp(input.called_at) &&
+      input.stored_tickets.exists(t, t.ticket_code == e.ticket_code && t.ticket_status in ['ISSUED', 'TRANSFER_PENDING']))
+    message: The cancellation must name the event and refund each ISSUED or TRANSFER_PENDING ticket, at the time of the call
+
+operations:
+  create_hold:
+    description: Hold seats or standing places of one event for the calling buyer during checkout
+    input: hold_request
+    output:
+      - new_hold: [hold_created_at_the_call, new_hold_of_the_request, hold_created_names_the_hold]
+      - seat_unavailable: [lists_requested_seats]
+      - section_sold_out: [names_a_requested_standing_section]
+      - limit_exceeded: [names_the_requested_event]
+      - sales_closed: [names_the_requested_event]
+
+  expire_hold:
+    description: Expire an ACTIVE hold after its expiry time, so that its seats are no longer held by it. The shell's clock calls it
+    input: expiry_request
+    output:
+      - expired_hold: [hold_was_active, hold_is_due, hold_is_expired]
+      - hold_not_found: [hold_missing]
+      - hold_not_active: [hold_was_not_active]
+      - hold_not_due: [hold_is_not_due]
+
+  release_hold:
+    description: Release a hold, so that its seats are no longer held by it
+    input: hold_ref
+    output:
+      - hold_state: [hold_was_active, hold_is_released]
+      - hold_not_found: [hold_missing]
+      - hold_not_active: [hold_was_not_active]
+
+  check_out:
+    description: Pay for a hold and turn it into an order with its tickets
+    input: checkout_request
+    output:
+      - placed_order:
+          - by_the_hold_buyer
+          - hold_open_at_checkout
+          - payment_approved
+          - order_of_the_hold
+          - one_ticket_per_held_place
+          - total_is_line_prices_plus_fees
+          - issues_the_tickets
+          - converts_the_hold
+          - order_events_name_the_order
+      - hold_not_found: [hold_missing]
+      - forbidden: [not_the_hold_buyer]
+      - hold_expired_refusal: [by_the_hold_buyer, hold_closed_at_checkout]
+      - payment_declined: [by_the_hold_buyer, hold_open_at_checkout, payment_failed]
+
+  get_order:
+    description: Get an order with its tickets
+    input: order_ref
+    output:
+      - order: [order_found]
+      - order_not_found: [order_missing]
+
+  transfer_ticket:
+    description: Offer one issued ticket of the calling buyer to a recipient
+    input: transfer_request
+    output:
+      - offered_transfer: [by_the_ticket_buyer, ticket_was_issued, before_transfer_cutoff, offers_the_ticket]
+      - ticket_not_found: [ticket_missing]
+      - forbidden: [not_the_ticket_buyer]
+      - invalid_ticket_state: [by_the_ticket_buyer, ticket_was_not_issued]
+      - transfer_window_closed: [by_the_ticket_buyer, ticket_was_issued, after_transfer_cutoff]
+
+  accept_transfer:
+    description: Accept a transfer, so that the calling recipient gets a new ticket code for the same place and the old code is VOID
+    input: acceptance
+    output:
+      - accepted_transfer: [transfer_found, by_the_recipient, ticket_was_pending, before_transfer_cutoff, within_72_hours, same_place_new_code, voids_the_old_ticket]
+      - transfer_not_found: [transfer_missing]
+      - forbidden: [not_the_recipient]
+      - invalid_ticket_state: [by_the_recipient, ticket_was_not_pending]
+      - transfer_window_closed: [by_the_recipient, ticket_was_pending, after_transfer_cutoff]
+      - transfer_expired: [by_the_recipient, ticket_was_pending, before_transfer_cutoff, after_72_hours]
+
+  cancel_transfer:
+    description: Cancel a transfer, so that the ticket is ISSUED again
+    input: transfer_ref
+    output:
+      - ticket_state: [transfer_found, ticket_was_pending, ticket_is_reissued]
+      - transfer_not_found: [transfer_missing]
+      - invalid_ticket_state: [ticket_was_not_pending]
+
+  request_refund:
+    description: Refund tickets of an order of the calling buyer
+    input: refund_request
+    output:
+      - granted_refund: [by_the_order_buyer, before_refund_cutoff, tickets_refundable, refunds_the_request, refunded_tickets_match_events]
+      - order_not_found: [order_missing]
+      - forbidden: [not_the_order_buyer]
+      - refund_window_closed: [by_the_order_buyer, after_refund_cutoff]
+      - ticket_not_refundable: [by_the_order_buyer, before_refund_cutoff, names_an_unrefundable_ticket]
+
+  validate_ticket:
+    description: Validate a ticket at the entry of an event
+    input: entry_scan
+    output:
+      - entry_result: [by_assigned_staff, answers_the_scan, admits_only_an_issued_ticket, already_used_for_a_used_ticket, wrong_event_for_another_event, ticket_used_on_admit]
+      - forbidden: [not_assigned_staff]
+
+  cancel_event:
+    description: Cancel an event and refund its ISSUED and TRANSFER_PENDING tickets
+    input: event_cancellation
+    output:
+      - cancelled_event: [by_the_organizer, cancels_the_event, refunded_tickets_match_events]
+      - forbidden: [not_the_organizer]

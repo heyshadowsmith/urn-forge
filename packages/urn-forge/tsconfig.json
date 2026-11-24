@@ -2,8 +2,6 @@
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
-    // Bundler resolution allows the extensionless import in example/core.ts. src/ and generated
-    // code still use explicit `.js` specifiers, which also resolve under NodeNext, so generated files work in either kind of project.
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
@@ -12,14 +10,10 @@
     "noImplicitOverride": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src", "tests", "example", "self", "tutorial", "insurance", "vitest.config.ts"],
-  // Fragments that tests/gate-2.test.ts adds to a copy of insurance; they type-check only there.
-  "exclude": ["tests/gate-2/*/*.ts", ".gate-2-*"]
+  "include": ["src", "tests", "vitest.config.ts", "example", "self", "insurance"]
 }

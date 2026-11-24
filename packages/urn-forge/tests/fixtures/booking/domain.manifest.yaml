@@ -1,0 +1,211 @@
+# A restaurant booking in the redesigned manifest: the target of phase 1.
+# It uses each construct of the redesign notes: definitions of the six types, a definition as the type
+# of another, an identifier, lists of values and of objects, rules with and without parameters, the
+# standard set, the CEL core, lists and times, and an operation with rules for each output.
+manifest:
+  namespace: demo
+  domain: booking
+  version: 0.1.0
+  compatibility:
+    callers: ignore-unknown
+
+definitions:
+  reference:
+    description: The reference of a booking
+    type: string
+    rules:
+      - pattern: '^[A-Z]{8}$'
+
+  party_size:
+    description: The number of guests
+    type: integer
+    rules:
+      - minimum: 1
+      - maximum: 12
+
+  state:
+    description: The state of a booking
+    type: string
+    rules:
+      - enum: [confirmed, seated, completed, cancelled]
+
+  deposit:
+    description: The deposit paid, in cents
+    type: integer
+    rules:
+      - at_least: 0
+
+  starts_at:
+    description: When the booking starts
+    type: string
+    rules:
+      - format: date-time
+
+  ends_at:
+    description: When the booking ends
+    type: string
+    rules:
+      - format: date-time
+
+  note:
+    description: A note from the guest
+    type: string
+    deprecated: true
+    rules:
+      - maxLength: 20
+
+  table_number:
+    description: The number of a table
+    type: integer
+    rules:
+      - minimum: 1
+
+  tables:
+    description: The tables a booking asks for
+    type: array
+    items: table_number
+    rules:
+      - maxItems: 4
+      - uniqueItems
+
+  email:
+    description: The email address of a guest
+    type: string
+    rules:
+      - pattern: '^[^@ ]+@[^@ ]+$'
+
+  phone:
+    description: The phone number of a guest
+    type: string
+
+  contact:
+    description: How to reach the guest
+    type: object
+    properties: [email, phone]
+    rules:
+      - required: [email]
+
+  amount:
+    description: An amount in cents
+    type: integer
+    rules:
+      - minimum: 0
+
+  course:
+    description: The course of a dish
+    type: string
+    rules:
+      - enum: [starter, main, dessert]
+
+  dish:
+    description: A dish that is ordered ahead
+    type: object
+    properties: [course, amount]
+    rules:
+      - required: [course, amount]
+
+  dishes:
+    description: The dishes that are ordered ahead
+    type: array
+    items: dish
+
+  total:
+    description: The total of the dishes, in cents
+    type: integer
+
+  limit:
+    description: A whole number that a value is compared with
+    type: integer
+
+  booking:
+    description: A booking
+    type: object
+    identifier: reference
+    properties: [reference, party_size, state, deposit, starts_at, ends_at, note, tables, contact, dishes, total]
+    rules:
+      - required: [reference, party_size, state, starts_at, ends_at, contact]
+      - large_party_pays_deposit
+      - ends_after_start
+      - total_is_the_dishes
+
+  stored_booking:
+    description: The booking as it is stored, before the call
+    type: booking
+
+  seat_request:
+    description: A request to seat a booking, with the booking as stored
+    type: object
+    properties: [reference, stored_booking]
+    rules:
+      - required: [reference, stored_booking]
+      - names_the_booking
+
+  invalid_state:
+    description: The booking is not in a state that allows this
+    type: object
+    properties: [reference, state]
+    rules:
+      - required: [reference, state]
+
+rules:
+  at_least:
+    description: The value is the bound or more
+    parameters: [limit]
+    rule: self >= limit
+    message: Must be at least {limit}
+
+  large_party_pays_deposit:
+    description: A party of 7 or more pays a deposit
+    rule: self.party_size < 7 || (has(self.deposit) && self.deposit > 0)
+    message: A party of 7 or more pays a deposit
+
+  ends_after_start:
+    description: A booking ends after it starts
+    rule: timestamp(self.ends_at) > timestamp(self.starts_at) + duration('30m')
+    message: A booking lasts more than 30 minutes
+
+  total_is_the_dishes:
+    description: The total is the sum of the dishes
+    rule: '!has(self.dishes) || (has(self.total) && self.total == self.dishes.map(d, d.amount).sum())'
+    message: The total is not the sum of the dishes
+
+  names_the_booking:
+    description: The request names the booking that was loaded
+    rule: self.reference == self.stored_booking.reference
+    message: The request names another booking than the one loaded
+
+  was_confirmed:
+    description: The booking was confirmed
+    rule: input.stored_booking.state == 'confirmed'
+    message: The booking was not confirmed
+
+  was_not_confirmed:
+    description: The booking was not confirmed
+    rule: input.stored_booking.state != 'confirmed'
+    message: The booking was confirmed
+
+  is_seated:
+    description: The booking is seated
+    rule: output.state == 'seated'
+    message: The booking is not seated
+
+  keeps_the_party:
+    description: Seating changes the state only
+    rule: >-
+      output.reference == input.stored_booking.reference &&
+      output.party_size == input.stored_booking.party_size &&
+      output.contact == input.stored_booking.contact
+    message: Seating may change only the state
+
+  names_the_request:
+    description: A refusal names the booking of the request
+    rule: output.reference == input.reference
+    message: The refusal names another booking
+
+operations:
+  seat_booking:
+    description: Seat the party of a booking
+    input: seat_request
+    output:
+      - booking: [was_confirmed, is_seated, keeps_the_party]
+      - invalid_state: [was_not_confirmed, names_the_request]

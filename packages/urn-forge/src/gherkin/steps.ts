@@ -1,687 +1,120 @@
 /**
- * Generic, domain-independent Cucumber steps.
+ * The Gherkin steps of every domain. They read the definitions and the operations from the generated
+ * file, so each step works for any manifest:
  *
- *   When I run the operation with:          one header row of input field names + one data row
- *   Then the output is:                     one header row of output field names + one data row
- *   Then the input is rejected on "<field>"
- *   Then the operation fails with "<error URN>"
- *   Then the operation fails with "<error URN>":   one header row of error field names + one data row
- *   Then the operation emits "<event URN>"
- *   Then the operation emits "<event URN>":        one header row of event field names + one data row
- *   Then the operation emits no event
- *   Then the operation is not due
- *   Then nothing changes
- *   Then the operation emits no "<event URN>"
+ *   When I run "seat_booking" with:          a table: the input
+ *   When I check a "booking" with:            a table: a value of a definition
+ *   Then the output is "booking"              the answer of the core is that output
+ *   Then the output is "booking":             … and has the values of the table
+ *   Then the input is rejected by "minimum" of "party_size"
+ *   Then the value is rejected by "minimum" of "party_size"
+ *   Then the value is accepted
  *
- * The operation is the feature's (or scenario's) `@urn:…:operation:…` tag. Table cells are
- * coerced by the field's primitive (from the generated `DispatchMap`, read through the
- * primitive registry in src/primitives/) before the generated
- * `executeOperation` parses them, so `10` reaches a `float` field as a number and `abc`
- * stays a string for the schema to reject. An empty cell means the key is absent: in an
- * input table it is not sent, and in an output or error table the key must be absent from
- * the result. `""` is the empty string.
+ * In features/support/steps.ts:
  *
- * The project wires in its own generated runtime and core from a support file:
- *
- *   registerOperationSteps({
- *     dispatch: DispatchMap,
- *     execute: (urn, payload) => executeOperation(urn, payload, core),
- *   });
+ *   import { registerSteps } from 'urn-forge/cucumber';
+ *   import { core } from '../../src/core';
+ *   import { check, Definitions, Operations, runOperation } from '../../src/generated/domain.generated';
+ *   registerSteps({ Definitions, Operations, check, run: (operation, input) => runOperation(core, operation, input) });
  */
-import { Before, Given, Then, When, type DataTable } from '@cucumber/cucumber';
-import { type Primitive } from '../primitives/index.js';
-import { readCell } from './cells.js';
-import { STEP_PHRASES } from './phrases.js';
+import { Before, Then, When, type DataTable } from '@cucumber/cucumber';
+import type { Failure } from '../generate/runtime.js';
+import { tableValue, type DefinitionsTable } from './cells.js';
 
-// Structural views of the generated runtime, so this library does not depend on any one domain.
+/** The step texts, which gate 3 reads too. */
+export const STEPS = {
+  run: /^I run "([^"]+)" with:$/,
+  check: /^I check an? "([^"]+)" with:$/,
+  output: /^the output is "([^"]+)"$/,
+  outputWith: /^the output is "([^"]+)":$/,
+  inputRejected: /^the input is rejected by "([^"]+)" of "([^"]+)"$/,
+  valueRejected: /^the value is rejected by "([^"]+)" of "([^"]+)"$/,
+  accepted: /^the value is accepted$/,
+} as const;
 
-export type { Primitive };
+type Result =
+  | { readonly ok: true; readonly output?: string; readonly value: unknown }
+  | { readonly ok: false; readonly kind?: string; readonly failures: readonly Failure[] };
 
-export interface FieldInfoLike {
-  readonly urn: string;
-  readonly primitive: Primitive;
-  readonly required: boolean;
-  /** A list: the cell is `[a, b, c]`. */
-  readonly many?: boolean;
-  /** A link: the entity whose key the value is. */
-  readonly link?: string;
+export interface StepOptions {
+  readonly Definitions: DefinitionsTable;
+  readonly Operations: Readonly<Record<string, { readonly input: string; readonly outputs: readonly string[] }>>;
+  readonly check: (definition: never, value: unknown) => Result;
+  readonly run: (operation: never, input: unknown) => Result;
 }
 
-/** A property that holds an embedded entity: the cell is `{ name: value, … }`. */
-export interface EmbeddedInfoLike {
-  readonly entity: string;
-  readonly required: boolean;
-  readonly many?: boolean;
-  readonly fields: Readonly<Record<string, PropertyInfoLike>>;
-}
-
-export type PropertyInfoLike = FieldInfoLike | EmbeddedInfoLike;
-
-export type FieldsLike = Readonly<Record<string, PropertyInfoLike>>;
-
-export interface OperationContractLike {
-  readonly input: { readonly fields: FieldsLike; readonly invariants?: readonly { readonly urn: string }[] };
-  readonly output: { readonly fields: FieldsLike };
-  /** The operation's declared errors, keyed by error URN, each with the event it records as, if any. */
-  readonly errors: Readonly<Record<string, { readonly fields: FieldsLike; readonly recordAs?: { readonly urn: string; readonly fields: FieldsLike } }>>;
-  /** The operation's events, keyed by event URN. */
-  readonly events?: Readonly<Record<string, { readonly fields: FieldsLike }>>;
-  /** The record that the operation changes, when it changes one. */
-  readonly changes?: { readonly entity: { readonly urn: string; readonly fields: FieldsLike } };
-  /** The record that the operation reads, when it reads one. */
-  readonly reads?: { readonly entity: { readonly urn: string; readonly fields: FieldsLike } };
-}
-
-export interface EmittedEventLike {
-  readonly urn: string;
-  readonly fields: unknown;
-}
-
-export interface BoundaryIssueLike {
-  readonly path: string;
-  readonly fieldUrn?: string;
-  readonly invariantUrn?: string;
-  readonly message: string;
-}
-
-export interface DomainErrorLike {
-  readonly urn: string;
-  readonly message: string;
-  readonly fields: unknown;
-  /** The event that records the refusal, when the error has recordAs. */
-  readonly record?: EmittedEventLike;
-}
-
-export type ExecuteResultLike =
-  | { readonly ok: true; readonly output: unknown; readonly events?: readonly EmittedEventLike[] }
-  | { readonly ok: false; readonly kind: 'DomainError'; readonly error: DomainErrorLike; readonly issues?: readonly BoundaryIssueLike[] }
-  | { readonly ok: false; readonly kind: string; readonly issues: readonly BoundaryIssueLike[] };
-
-/** An entity with unique values, as the generated UniqueContract gives it. */
-export interface UniqueEntityLike {
-  readonly key?: string;
-  readonly fields: FieldsLike;
-  readonly unique: readonly { readonly by: readonly string[]; readonly when?: (record: never) => boolean; readonly otherwise?: string; readonly forever?: true }[];
-}
+/** A value as JSON with the keys of each object in order, so that two equal values give one text. */
+const TIME = /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/;
 
 /**
- * The first clash of \`record\` with a stored record of its entity, as the indexes of the store find
- * it: the same values \`by\`, both where \`when\` holds, and another key. A forever entry looks at every
- * stored record: a new record (\`fresh\`, as insert writes it) clashes also with a record of its own key,
- * which used the value before; a changed record may write its own values again, as replace does.
- * Undefined when there is none.
+ * A value as JSON with the keys of each object in order, so that two equal values give one text. A
+ * time is its instant, so that 19:00:00Z and 19:00:00.000Z are equal.
  */
-export function uniqueClash(
-  entity: UniqueEntityLike,
-  record: Readonly<Record<string, unknown>>,
-  stored: readonly Readonly<Record<string, unknown>>[],
-  fresh = true,
-): { readonly by: readonly string[]; readonly otherwise?: string } | undefined {
-  const other = (row: Readonly<Record<string, unknown>>) => entity.key === undefined || row[entity.key] !== record[entity.key];
-  for (const entry of entity.unique) {
-    const takesPart = (row: Readonly<Record<string, unknown>>) => entry.forever || entry.when === undefined || entry.when(row as never);
-    if (!takesPart(record)) continue;
-    const same = (row: Readonly<Record<string, unknown>>) => entry.by.every((name) => sameValue(row[name], record[name]));
-    const clash = entry.forever ? stored.find((row) => same(row) && (fresh || other(row))) : stored.find((row) => other(row) && takesPart(row) && same(row));
-    if (clash) return { by: entry.by, ...(entry.otherwise === undefined ? {} : { otherwise: entry.otherwise }) };
-  }
-  return undefined;
-}
-
-export interface OperationStepsOptions {
-  readonly dispatch: Readonly<Record<string, OperationContractLike>>;
-  /**
-   * Runs one operation. `options.current` is the record of `Given the current <entity> is:`;
-   * a domain with `changes` passes it on: `executeOperation(urn, payload, core, options)`.
-   */
-  readonly execute: (
-    urn: string,
-    payload: unknown,
-    options: { readonly current?: unknown; readonly caller?: unknown; readonly now?: string; readonly repeat?: { readonly output: unknown } | { readonly conflict: true } },
-  ) => ExecuteResultLike;
-  /** The caller entity of a domain with a caller (the generated CallerContract), for `Given the caller is:`. */
-  readonly caller?: { readonly urn: string; readonly fields: FieldsLike };
-  /**
-   * For a domain with idempotency: the generated idempotencyOf. The steps then keep the answers of a
-   * scenario with the rules of runOnce, and give a repeat to execute as \`repeat\`.
-   */
-  /**
-   * For a domain with the Postgres extra: the generated commit. \`Then nothing changes\` then also
-   * checks that it gives no statement for the refusal.
-   */
-  readonly commit?: (result: never) => readonly unknown[];
-  /**
-   * For a domain with unique values: the generated UniqueContract and refusalOf. After a success, the
-   * steps check the answer against the stored records of the scenario, as the indexes of the store
-   * do, and give a clash with \`otherwise\` as commitOnce gives it.
-   */
-  readonly unique?: {
-    readonly contract: Readonly<Record<string, UniqueEntityLike>>;
-    readonly refusalOf: (urn: string, errorUrn: string, known: Readonly<Record<string, unknown>>) => ExecuteResultLike | undefined;
-  };
-  readonly idempotency?: {
-    readonly idempotencyOf: (
-      urn: string,
-      payload: unknown,
-      options: { readonly caller?: unknown },
-    ) => { readonly scope: string; readonly key: string; readonly body: string; readonly windowMs: number; readonly refusesOtherBody: boolean } | undefined;
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Pure helpers (unit-tested without Cucumber)
-// ---------------------------------------------------------------------------
-
-const OPERATION_TAG = /^@(urn:[a-z][a-z0-9_]*:[a-z][a-z0-9_]*:[a-z][a-z0-9_]*:operation:[a-z][a-z0-9_]*)$/;
-
-/** The one operation URN among a scenario's tags (feature tags included). */
-export function operationUrnFromTags(tags: readonly string[]): string {
-  const urns = [...new Set(tags.flatMap((tag) => OPERATION_TAG.exec(tag)?.[1] ?? []))];
-  if (urns.length === 1) return urns[0]!;
-  throw new Error(
-    urns.length === 0
-      ? 'no @urn:<namespace>:<domain>:<context>:operation:<identifier> tag on this scenario or its feature'
-      : `more than one operation tag on this scenario: ${urns.join(', ')}`,
-  );
-}
-
-/**
- * Converts a table cell to the JS value the field's schema expects, using the field's
- * primitive descriptor; `undefined` means absent.
- */
-export function coerceCell(cell: string, field: PropertyInfoLike): unknown {
-  if (cell === '') return undefined;
-  return readCell(cell, field);
-}
-
-/**
- * Reads a two-row table (headers + one data row) into an object, coercing each cell by its
- * field. `urn` is the operation for `input` and `output`, and the error for `error`.
- *
- * An empty input cell leaves the key out, so the payload does not send it. An empty output
- * or error cell keeps the key with the value `undefined`, so the assertion makes sure that
- * the key is absent. It never skips the column.
- */
-export function tableToObject(
-  rows: readonly (readonly string[])[],
-  fields: FieldsLike,
-  side: 'input' | 'output' | 'error' | 'event' | 'current record' | 'caller' | 'stored record',
-  urn: string,
-): Record<string, unknown> {
-  if (rows.length !== 2) {
-    throw new Error(`expected a header row and exactly one data row, got ${rows.length} row(s)`);
-  }
-  const [headers, values] = rows as [readonly string[], readonly string[]];
-  const object: Record<string, unknown> = {};
-  headers.forEach((header, i) => {
-    const field = Object.hasOwn(fields, header) ? fields[header] : undefined;
-    if (!field) {
-      throw new Error(
-        `"${header}" is not a field of ${side === 'error' || side === 'event' ? urn : `the ${side} of ${urn}`} (fields: ${Object.keys(fields).join(', ')})`,
-      );
-    }
-    const value = coerceCell(values[i] ?? '', field);
-    if (value !== undefined || side !== 'input') object[header] = value;
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) => {
+    if (typeof v === 'string' && TIME.test(v) && !Number.isNaN(Date.parse(v))) return `time ${Date.parse(v)}`;
+    return typeof v === 'object' && v !== null && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : v;
   });
-  return object;
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
-
-function sameValue(actual: unknown, expected: unknown): boolean {
-  if (Array.isArray(actual) && Array.isArray(expected)) {
-    return actual.length === expected.length && actual.every((item, i) => sameValue(item, expected[i]));
-  }
-  if (isObject(actual) && isObject(expected)) {
-    // An embedded object: the properties the table gives, and no other property.
-    const keys = new Set([...Object.keys(actual), ...Object.keys(expected)]);
-    return [...keys].every((key) => sameValue(actual[key], expected[key]));
-  }
-  // Two UTC timestamps are equal when they are the same instant: 19:00:00Z is 19:00:00.000Z.
-  if (typeof actual === 'string' && typeof expected === 'string' && UTC_TIMESTAMP.test(actual) && UTC_TIMESTAMP.test(expected)) {
-    return Date.parse(actual) === Date.parse(expected);
-  }
-  return actual === expected || (Number.isNaN(actual) && Number.isNaN(expected));
+function show(failures: readonly Failure[]): string {
+  return failures.map((f) => `${f.rule} of ${f.definition}${f.path ? ` at ${f.path}` : ''}: ${f.message}`).join('; ');
 }
 
-/** A UTC timestamp, as a timestamp field holds it. */
-const UTC_TIMESTAMP = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]+)?)?Z$/;
-
-/** A text longer than this is shown shortened, and so is a list with more items. */
-const SHOWN_CHARACTERS = 60;
-const SHOWN_ITEMS = 10;
-
-/** A value for a message: a long text shows its first 40 characters and its length; a long list its first 3 items and its length. */
-function show(value: unknown): string {
-  if (Array.isArray(value)) {
-    if (value.length > SHOWN_ITEMS) return `[${value.slice(0, 3).map(show).join(', ')}, …(${value.length} items)]`;
-    return `[${value.map(show).join(', ')}]`;
-  }
-  if (isObject(value)) return `{ ${Object.entries(value).map(([k, v]) => `${k}: ${show(v)}`).join(', ')} }`;
-  if (value === undefined) return 'absent';
-  const text = String(value);
-  const characters = [...text];
-  return characters.length > SHOWN_CHARACTERS ? `${characters.slice(0, 40).join('')}…(${characters.length} characters)` : text;
-}
-
-/** Where two long texts first differ, when a shortened message would hide it. */
-function firstDifference(expected: unknown, actual: unknown): string {
-  if (typeof expected !== 'string' || typeof actual !== 'string') return '';
-  const [e, a] = [[...expected], [...actual]];
-  if (e.length <= SHOWN_CHARACTERS && a.length <= SHOWN_CHARACTERS) return '';
-  let at = 0;
-  while (at < e.length && at < a.length && e[at] === a[at]) at += 1;
-  return ` (first difference at character ${at + 1})`;
-}
-
-/** One `key: expected …, got …` entry for each expected key whose value differs; `undefined` expects the key to be absent. */
-function differences(actual: Record<string, unknown>, expected: Record<string, unknown>): string[] {
-  return Object.entries(expected)
-    .filter(([key, value]) => !sameValue(actual[key], value))
-    .map(([key, value]) => `${key}: expected ${show(value)}, got ${show(actual[key])}${firstDifference(value, actual[key])}`);
-}
-
-function describeFailure(result: Extract<ExecuteResultLike, { ok: false }>): string {
-  if ('error' in result) {
-    const issues = (result.issues ?? []).map((i) => `${i.path || '(payload)'}: ${i.message}`).join('; ');
-    return `DomainError ${result.error.urn} (${result.error.message}${issues ? `; ${issues}` : ''})`;
-  }
-  const issues = result.issues.map((i) => `${i.path || '(payload)'}: ${i.message}`).join('; ');
-  return `${result.kind}${issues ? ` (${issues})` : ''}`;
-}
-
-/**
- * Checks every expected column against the output; an `undefined` expected value means the
- * key must be absent. Columns not in the table are not checked.
- */
-export function assertOutput(result: ExecuteResultLike, expected: Record<string, unknown>, urn: string): void {
-  if (!result.ok) throw new Error(`${urn} did not succeed: ${describeFailure(result)}`);
-  const mismatches = differences((result.output ?? {}) as Record<string, unknown>, expected);
-  if (mismatches.length > 0) throw new Error(`${urn} output differs: ${mismatches.join('; ')}`);
-}
-
-/** The issues of an input that did not parse: of InputRejected, or of the declared error of rejects, which carries them. */
-function rejectionIssues(result: Extract<ExecuteResultLike, { ok: false }>): readonly BoundaryIssueLike[] | undefined {
-  if (result.kind === 'InputRejected' && 'issues' in result) return result.issues;
-  return result.kind === 'DomainError' && 'error' in result ? result.issues : undefined;
-}
-
-/** Checks the input was rejected at the boundary with an issue on the named field. */
-export function assertRejectedOn(result: ExecuteResultLike, fieldName: string, fields: FieldsLike, urn: string): void {
-  const field = Object.hasOwn(fields, fieldName) ? fields[fieldName] : undefined;
-  if (!field) {
-    throw new Error(`"${fieldName}" is not a field of the input of ${urn} (fields: ${Object.keys(fields).join(', ')})`);
-  }
-  if (result.ok) throw new Error(`${urn} accepted the input; expected it to be rejected on "${fieldName}"`);
-  const issues = rejectionIssues(result);
-  if (!issues) {
-    throw new Error(`${urn} failed with ${describeFailure(result)}; expected InputRejected on "${fieldName}"`);
-  }
-  // The property is the head of the issue's path, also when the issue is inside it (`coverages.1.limit`).
-  if (!issues.some((issue) => issue.path.split('.')[0] === fieldName)) {
-    throw new Error(`${urn} rejected the input, but not on "${fieldName}": ${describeFailure(result)}`);
-  }
-}
-
-/** Checks the input was rejected at the boundary because the invariant `invariantUrn` does not hold. */
-export function assertRejectedBy(result: ExecuteResultLike, invariantUrn: string, urn: string): void {
-  if (result.ok) throw new Error(`${urn} accepted the input; expected it to be rejected by ${invariantUrn}`);
-  const issues = rejectionIssues(result);
-  if (!issues) {
-    throw new Error(`${urn} failed with ${describeFailure(result)}; expected InputRejected by ${invariantUrn}`);
-  }
-  if (!issues.some((issue) => issue.invariantUrn === invariantUrn)) {
-    throw new Error(`${urn} rejected the input, but not by ${invariantUrn}: ${describeFailure(result)}`);
-  }
-}
-
-/**
- * Checks the operation refused with the declared error `errorUrn`, and, when `expected` is
- * given, that the error's fields equal it (`undefined` means absent). Columns not in the
- * table are not checked.
- */
-export function assertFailsWith(
-  result: ExecuteResultLike,
-  errorUrn: string,
-  urn: string,
-  expected?: Record<string, unknown>,
-): void {
-  if (result.ok) throw new Error(`${urn} succeeded; expected it to fail with ${errorUrn}`);
-  if (!('error' in result)) {
-    throw new Error(`${urn} failed with ${describeFailure(result)}; expected the declared error ${errorUrn}`);
-  }
-  if (result.error.urn !== errorUrn) {
-    throw new Error(`${urn} failed with ${result.error.urn} (${result.error.message}); expected ${errorUrn}`);
-  }
-  if (!expected) return;
-  const mismatches = differences((result.error.fields ?? {}) as Record<string, unknown>, expected);
-  if (mismatches.length > 0) throw new Error(`${errorUrn} fields differ: ${mismatches.join('; ')}`);
-}
-
-/**
- * Checks the operation succeeded and returned the event `eventUrn`; when `expected` is given,
- * one event of that URN must have those fields (`undefined` means absent). Columns not in the
- * table are not checked, and neither are the count and the order of the events.
- */
-export function assertEmits(result: ExecuteResultLike, eventUrn: string, urn: string, expected?: Record<string, unknown>): void {
-  if (!result.ok) throw new Error(`${urn} did not succeed: ${describeFailure(result)}; expected it to emit ${eventUrn}`);
-  const events = result.events ?? [];
-  const named = events.filter((event) => event.urn === eventUrn);
-  if (named.length === 0) {
-    throw new Error(`${urn} did not emit ${eventUrn} (emitted: ${events.length > 0 ? events.map((e) => e.urn).join(', ') : 'nothing'})`);
-  }
-  if (!expected) return;
-  const mismatches = named.map((event) => differences((event.fields ?? {}) as Record<string, unknown>, expected));
-  if (mismatches.every((m) => m.length > 0)) {
-    throw new Error(`${eventUrn} fields differ: ${mismatches.map((m) => m.join('; ')).join(' | ')}`);
-  }
-}
-
-/**
- * Checks the operation refused with a declared error whose record is the event `eventUrn`; when
- * `expected` is given, the record's fields must equal it (`undefined` means absent). Columns not
- * in the table are not checked.
- */
-export function assertRecordedAs(result: ExecuteResultLike, eventUrn: string, urn: string, expected?: Record<string, unknown>): void {
-  if (result.ok) throw new Error(`${urn} succeeded; expected a refusal recorded as ${eventUrn}`);
-  if (!('error' in result)) throw new Error(`${urn} failed with ${describeFailure(result)}; expected a declared error recorded as ${eventUrn}`);
-  const record = result.error.record;
-  if (record?.urn !== eventUrn) {
-    throw new Error(`${urn} failed with ${result.error.urn}, which ${record ? `is recorded as ${record.urn}` : 'has no record'}; expected it to be recorded as ${eventUrn}`);
-  }
-  if (!expected) return;
-  const mismatches = differences((record.fields ?? {}) as Record<string, unknown>, expected);
-  if (mismatches.length > 0) throw new Error(`${eventUrn} fields differ: ${mismatches.join('; ')}`);
-}
-
-/**
- * Checks the operation returned no event: it succeeded with none, or refused with a declared
- * error, which never has events. Any other failure is not "no event".
- */
-export function assertEmitsNone(result: ExecuteResultLike, urn: string): void {
-  if (!result.ok && 'error' in result) return;
-  if (!result.ok) throw new Error(`${urn} failed with ${describeFailure(result)}; expected it to emit no event`);
-  const events = result.events ?? [];
-  if (events.length > 0) throw new Error(`${urn} emitted ${events.map((e) => e.urn).join(', ')}; expected no event`);
-}
-
-/**
- * Checks that the call changed nothing: it refused (a declared error or a rejected input), so it has
- * no output and no event, and \`commit\`, when the domain has one, gives no statement for it.
- */
-export function assertNothingChanges(result: ExecuteResultLike, urn: string, commit?: (result: never) => readonly unknown[]): void {
-  if (result.ok) throw new Error(`${urn} succeeded; expected it to refuse and change nothing`);
-  if (result.kind !== 'DomainError' && result.kind !== 'InputRejected') throw new Error(`${urn} failed with ${describeFailure(result)}; expected a refusal`);
-  const statements = commit?.(result as never) ?? [];
-  if (statements.length > 0) throw new Error(`${urn} refused, but commit gave ${statements.length} statement(s) for it`);
-}
-
-/** Checks that a timed change refused a call for a record that is not due (a ContractViolation that says so). */
-export function assertNotDue(result: ExecuteResultLike, urn: string): void {
-  const issues = (!result.ok && 'issues' in result ? result.issues : undefined) ?? [];
-  if (result.ok || !('kind' in result) || result.kind !== 'ContractViolation' || !issues.some((issue) => issue.message.includes('is not due for this record'))) {
-    throw new Error(`${urn} ${result.ok ? 'succeeded' : `failed with ${describeFailure(result)}`}; expected it to be not due for this record`);
-  }
-}
-
-/** Checks the operation succeeded without the event \`eventUrn\`: the other side of an event that it emits only when a rule holds. */
-export function assertEmitsNoneOf(result: ExecuteResultLike, eventUrn: string, urn: string): void {
-  if (!result.ok) throw new Error(`${urn} did not succeed: ${describeFailure(result)}; expected a success without ${eventUrn}`);
-  const count = (result.events ?? []).filter((event) => event.urn === eventUrn).length;
-  if (count > 0) throw new Error(`${urn} emitted ${eventUrn}; expected a success without it`);
-}
-
-// ---------------------------------------------------------------------------
-// Cucumber registration
-// ---------------------------------------------------------------------------
-
-interface ScenarioState {
-  tags: readonly string[];
-  /** The record of `Given the current <entity> is:`, as the shell would load it. */
-  current?: unknown;
-  /** The caller of `Given the caller is:`, as the shell would authenticate them. */
-  caller?: unknown;
-  /** The time of `Given the time is "<timestamp>"`, as the shell's clock would give it. */
-  now?: string;
-  /** The records of `Given these <entity> records are stored:`, by entity URN, as the store holds them. */
-  stored?: Map<string, readonly Record<string, unknown>[]>;
-  /** The answers of the idempotent calls of the scenario, by operation, owners and key, as runOnce keeps them. */
-  answers?: Map<string, { readonly body: string; readonly output: unknown; readonly at: number }>;
-  /** The output of the first run of the scenario that succeeded. */
-  firstOutput?: { readonly value: unknown };
-  urn?: string;
-  result?: ExecuteResultLike;
-}
-
-interface StepsWorld {
-  urnForge?: ScenarioState;
-}
-
-function state(world: StepsWorld): ScenarioState {
-  if (!world.urnForge) throw new Error('urn-forge steps: scenario state missing (Before hook did not run)');
-  return world.urnForge;
-}
-
-export function registerOperationSteps(options: OperationStepsOptions): void {
-  const contract = (urn: string): OperationContractLike => {
-    const found = Object.hasOwn(options.dispatch, urn) ? options.dispatch[urn] : undefined;
-    if (!found) throw new Error(`${urn} is not an operation of this domain`);
-    return found;
-  };
-  const declaredError = (urn: string, errorUrn: string): { readonly fields: FieldsLike } => {
-    const { errors } = contract(urn);
-    const found = Object.hasOwn(errors, errorUrn) ? errors[errorUrn] : undefined;
-    if (!found) {
-      const declared = Object.keys(errors);
-      throw new Error(`${errorUrn} is not a declared error of ${urn} (errors: ${declared.length > 0 ? declared.join(', ') : 'none'})`);
-    }
-    return found;
-  };
-  const declaredEvent = (urn: string, eventUrn: string): { readonly fields: FieldsLike } => {
-    const events = contract(urn).events ?? {};
-    const found = Object.hasOwn(events, eventUrn) ? events[eventUrn] : undefined;
-    if (!found) {
-      const declared = Object.keys(events);
-      throw new Error(`${eventUrn} is not an event of ${urn} (emits: ${declared.length > 0 ? declared.join(', ') : 'none'})`);
-    }
-    return found;
-  };
-  /** The fields of the event that a declared error of the operation records as. */
-  const recordedEvent = (urn: string, eventUrn: string): { readonly fields: FieldsLike } => {
-    const records = Object.values(contract(urn).errors).flatMap((error) => (error.recordAs ? [error.recordAs] : []));
-    const found = records.find((record) => record.urn === eventUrn);
-    if (!found) {
-      throw new Error(`${eventUrn} records no declared error of ${urn} (records: ${records.length > 0 ? [...new Set(records.map((r) => r.urn))].join(', ') : 'none'})`);
-    }
-    return found;
-  };
-  const lastRun = (world: StepsWorld): { urn: string; result: ExecuteResultLike } => {
-    const s = state(world);
-    if (s.urn === undefined || s.result === undefined) {
-      throw new Error('no operation has run yet; start with "When I run the operation with:"');
-    }
-    return { urn: s.urn, result: s.result };
+/** Registers the steps for a domain. Call it once, in the support code. */
+export function registerSteps(options: StepOptions): void {
+  let last: { readonly step: 'run' | 'check'; readonly name: string; readonly result: Result } | undefined;
+  Before(() => {
+    last = undefined;
+  });
+  const need = (step: 'run' | 'check'): NonNullable<typeof last> => {
+    if (!last || last.step !== step) throw new Error(step === 'run' ? 'run an operation first: When I run "<operation>" with:' : 'check a value first: When I check a "<definition>" with:');
+    return last;
   };
 
-  Before(function (this: StepsWorld, { pickle }) {
-    this.urnForge = { tags: pickle.tags.map((tag) => tag.name) };
+  When(STEPS.run, (operation: string, table: DataTable) => {
+    const contract = options.Operations[operation];
+    if (!contract) throw new Error(`${operation} is not an operation; the operations are ${Object.keys(options.Operations).join(', ')}`);
+    const input = tableValue(table.raw(), contract.input, options.Definitions);
+    last = { step: 'run', name: operation, result: options.run(operation as never, input) };
   });
 
-  Given(STEP_PHRASES.time, function (this: StepsWorld, now: string) {
-    state(this).now = now;
+  When(STEPS.check, (definition: string, table: DataTable) => {
+    if (!options.Definitions[definition]) throw new Error(`${definition} is not a definition`);
+    const value = tableValue(table.raw(), definition, options.Definitions);
+    last = { step: 'check', name: definition, result: options.check(definition as never, value) };
   });
 
-  Given(STEP_PHRASES.caller, function (this: StepsWorld, table: DataTable) {
-    const s = state(this);
-    if (!options.caller) throw new Error('"the caller is:" needs the caller entity: pass caller: CallerContract to registerOperationSteps');
-    s.caller = tableToObject(table.raw(), options.caller.fields, 'caller', options.caller.urn);
-  });
-
-  Given(STEP_PHRASES.current, function (this: StepsWorld, word: string, table: DataTable) {
-    const s = state(this);
-    const urn = operationUrnFromTags(s.tags);
-    const change = contract(urn).changes ?? contract(urn).reads;
-    if (!change) throw new Error(`${urn} changes no record, so "the current ${word} is:" has nothing to give`);
-    const identifier = change.entity.urn.split(':').at(-1);
-    if (word !== identifier) throw new Error(`${urn} changes a record of ${change.entity.urn}: write "the current ${identifier} is:"`);
-    s.current = tableToObject(table.raw(), change.entity.fields, 'current record', change.entity.urn);
-  });
-
-  Given(STEP_PHRASES.stored, function (this: StepsWorld, word: string, table: DataTable) {
-    const s = state(this);
-    const entries = Object.entries(options.unique?.contract ?? {});
-    const found = entries.find(([urn]) => urn.split(':').at(-1) === word);
-    if (!found) {
-      throw new Error(`"${word}" is not an entity with unique values (entities: ${entries.map(([urn]) => urn.split(':').at(-1)).join(', ') || 'none; give registerOperationSteps the unique option'})`);
-    }
-    const [urn, entity] = found;
-    const [headers, ...rows] = table.raw();
-    (s.stored ??= new Map()).set(urn, rows.map((row) => tableToObject([headers!, row], entity.fields, 'stored record', urn)));
-  });
-
-  Given(STEP_PHRASES.noCurrent, function (this: StepsWorld, word: string) {
-    const s = state(this);
-    const urn = operationUrnFromTags(s.tags);
-    const change = contract(urn).changes ?? contract(urn).reads;
-    if (!change) throw new Error(`${urn} changes no record, so "there is no current ${word}" has nothing to say`);
-    const identifier = change.entity.urn.split(':').at(-1);
-    if (word !== identifier) throw new Error(`${urn} changes a record of ${change.entity.urn}: write "there is no current ${identifier}"`);
-    // The shell found no record: it passes null, and the runtime answers the declared missing error.
-    s.current = null;
-  });
-
-  /** One run, with the rules of runOnce when the domain has idempotency: a repeat in the window returns the first answer. */
-  const run = (s: ScenarioState, table: DataTable) => {
-    const urn = operationUrnFromTags(s.tags);
-    const payload = tableToObject(table.raw(), contract(urn).input.fields, 'input', urn);
-    const execute = (repeat?: { readonly output: unknown } | { readonly conflict: true }) =>
-      options.execute(urn, payload, {
-        ...(s.current === undefined ? {} : { current: s.current }),
-        ...(s.caller === undefined ? {} : { caller: s.caller }),
-        ...(s.now === undefined ? {} : { now: s.now }),
-        ...(repeat === undefined ? {} : { repeat }),
-      });
-    s.urn = urn;
-    const call = options.idempotency?.idempotencyOf(urn, payload, { caller: s.caller });
-    const at = s.now === undefined ? 0 : Date.parse(s.now);
-    const id = call && JSON.stringify([urn, call.scope, call.key]);
-    const found = id === undefined ? undefined : s.answers?.get(id);
-    if (call && found && at < found.at + call.windowMs) {
-      // A repeat: the runtime answers it once the caller may call, as runOnce gives it.
-      s.result = execute(found.body !== call.body && call.refusesOtherBody ? { conflict: true } : { output: found.output });
-    } else {
-      s.result = execute();
-      if (call && id !== undefined && s.result.ok) (s.answers ??= new Map()).set(id, { body: call.body, output: s.result.output, at });
-    }
-    // A success that clashes with a stored record: the index refuses it, and commitOnce gives otherwise.
-    if (s.result.ok && options.unique && s.stored) {
-      for (const [entityUrn, rows] of s.stored) {
-        const entity = options.unique.contract[entityUrn]!;
-        const output = s.result.output as Readonly<Record<string, unknown>>;
-        if (!entity.unique.every((entry) => entry.by.every((name) => Object.hasOwn(output, name)))) continue;
-        // An operation with changes writes its record again (replace); any other writes a new one (insert).
-        const clash = uniqueClash(entity, output, rows, contract(urn).changes === undefined);
-        if (!clash) continue;
-        const refusal = clash.otherwise === undefined ? undefined : options.unique.refusalOf(urn, clash.otherwise, output);
-        if (!refusal) throw new Error(`${urn} answered a record whose ${clash.by.join(', ')} a stored ${entityUrn.split(':').at(-1)} has; the store refuses it, and no declared error answers it`);
-        s.result = refusal;
-        break;
+  const output = (object: string, table: DataTable | undefined): void => {
+    const { name, result } = need('run');
+    if (!result.ok) throw new Error(`${name} did not answer: ${result.kind ?? 'refused'}: ${show(result.failures)}`);
+    if (result.output !== object) throw new Error(`${name} answered ${result.output}, not ${object}`);
+    if (!table) return;
+    const expected = tableValue(table.raw(), object, options.Definitions);
+    const actual = result.value as Record<string, unknown>;
+    for (const [key, value] of Object.entries(expected)) {
+      if (canonical(actual[key]) !== canonical(value)) {
+        throw new Error(`${object}.${key} is ${JSON.stringify(actual[key])}, not ${JSON.stringify(value)}`);
       }
     }
-    if (s.result.ok) s.firstOutput ??= { value: s.result.output };
   };
+  // Two steps: Cucumber passes a callback as the last parameter of a step that has no table.
+  Then(STEPS.output, (object: string) => output(object, undefined));
+  Then(STEPS.outputWith, (object: string, table: DataTable) => output(object, table));
 
-  When(STEP_PHRASES.run, function (this: StepsWorld, table: DataTable) {
-    run(state(this), table);
-  });
-
-  When(STEP_PHRASES.runAgain, function (this: StepsWorld, table: DataTable) {
-    const s = state(this);
-    if (s.urn === undefined) throw new Error('"I run the operation again with:" repeats a call; start with "When I run the operation with:"');
-    if (!options.idempotency) throw new Error('"I run the operation again with:" needs the idempotency helper: pass idempotency: { idempotencyOf } to registerOperationSteps');
-    run(s, table);
-  });
-
-  Then(STEP_PHRASES.firstAnswer, function (this: StepsWorld) {
-    const s = state(this);
-    const { urn, result } = lastRun(this);
-    if (!s.firstOutput) throw new Error('no run of the scenario succeeded, so there is no first answer');
-    assertOutput(result, s.firstOutput.value as Record<string, unknown>, urn);
-  });
-
-  Then(STEP_PHRASES.output, function (this: StepsWorld, table: DataTable) {
-    const { urn, result } = lastRun(this);
-    assertOutput(result, tableToObject(table.raw(), contract(urn).output.fields, 'output', urn), urn);
-  });
-
-  Then(STEP_PHRASES.rejected, function (this: StepsWorld, fieldName: string) {
-    const { urn, result } = lastRun(this);
-    assertRejectedOn(result, fieldName, contract(urn).input.fields, urn);
-  });
-
-  Then(STEP_PHRASES.rejectedBy, function (this: StepsWorld, invariantUrn: string) {
-    const { urn, result } = lastRun(this);
-    const invariants = (contract(urn).input.invariants ?? []).map((i) => i.urn);
-    if (!invariants.includes(invariantUrn)) {
-      throw new Error(`${invariantUrn} is not an invariant of the input of ${urn} (invariants: ${invariants.length > 0 ? invariants.join(', ') : 'none'})`);
+  const rejected = (step: 'run' | 'check', rule: string, definition: string): void => {
+    const { name, result } = need(step);
+    if (result.ok) throw new Error(`${name} accepted the ${step === 'run' ? 'input' : 'value'}; expected it to break ${rule} of ${definition}`);
+    if (step === 'run' && result.kind !== 'InputRejected') throw new Error(`${name} gave ${result.kind}, not InputRejected: ${show(result.failures)}`);
+    if (!result.failures.some((f) => f.rule === rule && f.definition === definition)) {
+      throw new Error(`the ${step === 'run' ? 'input' : 'value'} does not break ${rule} of ${definition}; it breaks ${show(result.failures)}`);
     }
-    assertRejectedBy(result, invariantUrn, urn);
-  });
+  };
+  Then(STEPS.inputRejected, (rule: string, definition: string) => rejected('run', rule, definition));
+  Then(STEPS.valueRejected, (rule: string, definition: string) => rejected('check', rule, definition));
 
-  Then(STEP_PHRASES.failsWith, function (this: StepsWorld, errorUrn: string) {
-    const { urn, result } = lastRun(this);
-    declaredError(urn, errorUrn);
-    assertFailsWith(result, errorUrn, urn);
-  });
-
-  Then(STEP_PHRASES.failsWithFields, function (this: StepsWorld, errorUrn: string, table: DataTable) {
-    const { urn, result } = lastRun(this);
-    const expected = tableToObject(table.raw(), declaredError(urn, errorUrn).fields, 'error', errorUrn);
-    assertFailsWith(result, errorUrn, urn, expected);
-  });
-
-  Then(STEP_PHRASES.emits, function (this: StepsWorld, eventUrn: string) {
-    const { urn, result } = lastRun(this);
-    declaredEvent(urn, eventUrn);
-    assertEmits(result, eventUrn, urn);
-  });
-
-  Then(STEP_PHRASES.emitsWithFields, function (this: StepsWorld, eventUrn: string, table: DataTable) {
-    const { urn, result } = lastRun(this);
-    const expected = tableToObject(table.raw(), declaredEvent(urn, eventUrn).fields, 'event', eventUrn);
-    assertEmits(result, eventUrn, urn, expected);
-  });
-
-  Then(STEP_PHRASES.recordedAs, function (this: StepsWorld, eventUrn: string) {
-    const { urn, result } = lastRun(this);
-    recordedEvent(urn, eventUrn);
-    assertRecordedAs(result, eventUrn, urn);
-  });
-
-  Then(STEP_PHRASES.recordedAsWithFields, function (this: StepsWorld, eventUrn: string, table: DataTable) {
-    const { urn, result } = lastRun(this);
-    const expected = tableToObject(table.raw(), recordedEvent(urn, eventUrn).fields, 'event', eventUrn);
-    assertRecordedAs(result, eventUrn, urn, expected);
-  });
-
-  Then(STEP_PHRASES.notDue, function (this: StepsWorld) {
-    const { urn, result } = lastRun(this);
-    assertNotDue(result, urn);
-  });
-
-  Then(STEP_PHRASES.nothingChanges, function (this: StepsWorld) {
-    const { urn, result } = lastRun(this);
-    assertNothingChanges(result, urn, options.commit);
-  });
-
-  Then(STEP_PHRASES.emitsNone, function (this: StepsWorld) {
-    const { urn, result } = lastRun(this);
-    assertEmitsNone(result, urn);
-  });
-
-  Then(STEP_PHRASES.emitsNoneOf, function (this: StepsWorld, eventUrn: string) {
-    const { urn, result } = lastRun(this);
-    declaredEvent(urn, eventUrn);
-    assertEmitsNoneOf(result, eventUrn, urn);
+  Then(STEPS.accepted, () => {
+    const { name, result } = need('check');
+    if (!result.ok) throw new Error(`${name} rejected the value: ${show(result.failures)}`);
   });
 }

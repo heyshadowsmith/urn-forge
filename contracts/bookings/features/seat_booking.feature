@@ -1,124 +1,77 @@
-@urn:corpus:bookings:booking:operation:seat_booking
 Feature: Seat the party of a booking
+  # Only staff of the restaurant of the booking seat it.
 
-  Scenario: A CONFIRMED booking moves to SEATED
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
-      | reference |
-      | CNFRMD22  |
-    Then the output is:
-      | reference | state |
-      | CNFRMD22  | SEATED |
-    And the operation emits "urn:corpus:bookings:booking:event:booking_seated":
-      | event_id                             | reference | restaurant_id                        | state     | party_size | local_date | local_time | time_zone    | occurred_at          | guest_id                             |
-      | 16fd2706-8baf-433b-82eb-8c7fed5c9b0e | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED    | 4          | 2026-12-24 | 19:30      | Europe/Paris | 2026-11-22T10:00:00Z | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
+  Scenario: Staff seat a CONFIRMED booking, which becomes SEATED with one BookingSeated event
+    When I run "seat_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24T19:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "booking_change"
 
   Scenario Outline: A booking in another state cannot move
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state   | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state> | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
-      | reference |
-      | CNFRMD22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:invalid_state":
+    When I run "seat_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone | stored_booking.refund_amount | stored_booking.cancelled_at |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24T19:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state>              | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        | <refund_amount>              | <cancelled_at>              |
+    Then the output is "invalid_state":
       | reference | state   |
-      | CNFRMD22  | <state> |
-    And the operation emits no event
+      | ABCDEFGH  | <state> |
 
     Examples:
-      | state |
-      | SEATED |
-      | COMPLETED |
-      | CANCELLED |
-      | NO_SHOW |
-
-  Scenario: A reference that is not valid is rejected
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
-      | reference |
-      | BOOKING1  |
-    Then the input is rejected on "reference"
+      | state     | refund_amount | cancelled_at         |
+      | SEATED    |               |                      |
+      | COMPLETED |               |                      |
+      | CANCELLED | 0             | 2026-11-20T08:00:00Z |
+      | NO_SHOW   |               |                      |
 
   Scenario: An unknown reference is not found
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And there is no current booking
-    When I run the operation with:
+    When I run "seat_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z |
+    Then the output is "booking_not_found":
       | reference |
-      | XXXXXXXX  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:booking_not_found"
-    And the operation emits no event
+      | ABCDEFGH  |
 
-  Scenario: A booking of another restaurant is forbidden
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
+  Scenario: A booking is forbidden to staff of another restaurant
+    When I run "seat_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 9b2c1f00-1111-4222-8333-444455556666 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
       | reference |
-      | FRBDDN22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
-    And the operation emits no event
+      | ABCDEFGH  |
 
-  Scenario: A guest cannot seat a booking, even with its reference, its contact and the id of its restaurant
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | guest | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | email           | phone        |
-      | CNFRMD22  | ada@example.com | +33612345678 |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden":
+  Scenario: A booking is forbidden to staff of another restaurant who present its contact
+    When I run "seat_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 9b2c1f00-1111-4222-8333-444455556666 | ada@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
       | reference |
-      | CNFRMD22  |
-    And the operation emits no event
+      | ABCDEFGH  |
 
-  Scenario: Staff with no restaurant cannot seat a booking
-    Given the caller is:
-      | role  |
-      | staff |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
-    When I run the operation with:
+  Scenario: A booking is forbidden to a guest who presents another email
+    When I run "seat_booking" with:
+      | reference | caller.role | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | eve@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
       | reference |
-      | CNFRMD22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
-    And the operation emits no event
+      | ABCDEFGH  |
 
-  Scenario Outline: A presented email or phone that is not valid is rejected
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
-    When I run the operation with:
-      | reference | email   | phone   |
-      | CNFRMD22  | <email> | <phone> |
-    Then the input is rejected on "<field>"
+  Scenario: A booking is forbidden to a guest who presents no contact
+    When I run "seat_booking" with:
+      | reference | caller.role | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
+      | reference |
+      | ABCDEFGH  |
 
-    Examples:
-      | field | email         | phone         |
-      | email | not-an-email  |               |
-      | phone |               | 0612345678    |
-      | phone |               | +012345678    |
-      | phone |               | +1234567890123456 |
+  Scenario: A booking is forbidden to a guest with its contact and the id of its restaurant
+    When I run "seat_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | ada@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
+      | reference |
+      | ABCDEFGH  |
+
+  Scenario: A request that names another booking than the one loaded is rejected
+    When I run "seat_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ZZZZZZZZ  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the input is rejected by "names_the_booking" of "booking_ref"

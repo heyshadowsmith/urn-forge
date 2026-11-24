@@ -1,686 +1,891 @@
 # Expense claims: employees claim expenses with receipt lines, managers decide, finance pays.
+# The shell gives each operation the caller as it authenticated them, the time of the call (now), and
+# the stored claim that the request names (stored_claim), when there is one. A refusal is an output.
 manifest:
   namespace: corpus
   domain: claims
   version: 1.0.0
-  caller: auth.entity.caller
-  # Callers ignore a property, an event, a refusal code or an enum value that they do not know.
+  # Callers ignore a property, an output or a choice that they do not know.
   compatibility:
     callers: ignore-unknown
 
-# Values
+definitions:
+  # Who calls
 
-auth.field.role:
-  primitive: enum
-  values: [employee, manager, finance, clock]
-  description: The role of the caller, as the shell authenticated them; finance users pay claims, and clock is the shell's clock, which calls the timed changes
+  role:
+    description: The role of the caller, as the shell authenticated them; finance users pay claims, and clock is the shell's clock, which reports overdue claims
+    type: string
+    rules:
+      - enum: [employee, manager, finance, clock]
 
-claim.field.claim_id:
-  primitive: string
-  regex: 'CLM-[0-9]{10}'
-  description: The identifier of a claim, which the domain assigns on creation
-claim.field.version:
-  primitive: integer
-  min: 1
-  description: The version of a claim; each change makes it 1 higher
-claim.field.state:
-  primitive: enum
-  values: [DRAFT, SUBMITTED, APPROVED, REJECTED, WITHDRAWN, PAID]
-  moves:
-    DRAFT: [SUBMITTED]
-    SUBMITTED: [APPROVED, REJECTED, WITHDRAWN]
-    REJECTED: [DRAFT]
-    APPROVED: [PAID]
-  description: The state of a claim
-# The currencies the domain pays claims in, each an active ISO 4217 code with 2 minor units, so an
-# amount of scale 2 fits each of them (roadmap decision 9: urn-forge ships no ISO 4217 list).
-claim.field.currency:
-  primitive: enum
-  values: [CHF, EUR, GBP, USD]
-  description: The ISO 4217 code of the currency of a claim, one of CHF, EUR, GBP or USD; the lines and the total of the claim are in it
-claim.field.total:
-  primitive: decimal
-  exclusiveMin: "0"
-  scale: 2
-  description: The sum of the line amounts of a claim, in the currency of the claim
-claim.field.purpose:
-  primitive: string
-  minLength: 1
-  maxLength: 500
-  description: Why the employee spent the money
-claim.field.employee_id:
-  primitive: string
-  description: The employee who owns a claim
-claim.field.manager_id:
-  primitive: string
-  description: The employee id of the manager of the employee who owns a claim, as the employee directory names them; the shell stores it with the claim
-claim.field.actor_id:
-  primitive: string
-  description: The user who makes a request
-claim.field.idempotency_key:
-  primitive: string
-  description: A key that the caller may send with a change, so that a repeat of the request within 24 hours returns the first answer and changes nothing
-claim.field.reason:
-  primitive: string
-  minLength: 10
-  maxLength: 500
-  description: Why a manager rejected a claim
-claim.field.submitted_at:
-  primitive: timestamp
-  description: When the claim was last submitted, ISO 8601 in UTC
-claim.field.overdue_reported_at:
-  primitive: timestamp
-  description: When the claim was reported as waiting for a decision for 30 days since its last submission, ISO 8601 in UTC
+  employee_id:
+    description: The id of an employee, as the employee directory names them
+    type: string
+    rules:
+      - minLength: 1
 
-line.field.category:
-  primitive: enum
-  values: [TRAVEL, LODGING, MEALS, MILEAGE, SUPPLIES, TRAINING, OTHER]
-  description: The kind of an expense
-line.field.expense_date:
-  primitive: date
-  description: The calendar day of an expense, with no time zone
-line.field.description:
-  primitive: string
-  minLength: 1
-  maxLength: 200
-  description: What an expense was
-line.field.amount:
-  primitive: decimal
-  exclusiveMin: "0"
-  max: "10000.00"
-  scale: 2
-  description: The amount of one expense, in the currency of the claim
-line.field.distance_km:
-  primitive: decimal
-  min: "1"
-  max: "2000"
-  description: The distance of a MILEAGE expense, in kilometres
+  manager_id:
+    description: The employee id of the manager of the employee who owns a claim, as the shell reads it from the employee directory when the claim is created
+    type: employee_id
 
-receipt.field.sha256:
-  primitive: string
-  regex: '[0-9a-f]{64}'
-  description: The SHA-256 hash of a receipt file, which identifies the file
-receipt.field.media_type:
-  primitive: enum
-  values: [application/pdf, image/jpeg, image/png]
-  description: The type of a receipt file, PDF, JPEG or PNG
-receipt.field.size_bytes:
-  primitive: integer
-  min: 1
-  max: 10485760
-  description: The size of a receipt file in bytes, at most 10 MB
+  actor_id:
+    description: The employee id of the user who makes a request, as the request names them
+    type: employee_id
 
-event.field.event_id:
-  primitive: string
-  format: uuid
-  description: The unique identifier of an event, for deduplication
-event.field.occurred_at:
-  primitive: timestamp
-  description: When a change happened, ISO 8601 in UTC
+  caller:
+    description: Who calls, as the shell authenticated them; the shell's clock has the role clock and no employee id
+    type: object
+    properties: [role, employee_id]
+    rules:
+      - required: [role]
 
-# Entities
+  # Times
 
-auth.entity.caller:
-  description: Who calls, as the shell authenticated them; the shell's clock has the role clock and no employee id
-  fields:
-    - ref: auth.field.role
-    - ref: claim.field.employee_id
-      required: false
+  utc_time:
+    description: A time, ISO 8601 in UTC (2026-11-24T10:00:00Z)
+    type: string
+    rules:
+      - format: date-time
+      - pattern: 'Z$'
 
-receipt.entity.receipt:
-  description: A receipt file for an expense
-  key: receipt.field.sha256
-  fields:
-    - ref: receipt.field.sha256
-    - ref: receipt.field.media_type
-    - ref: receipt.field.size_bytes
+  now:
+    description: The time of the call, as the shell's clock gives it
+    type: utc_time
 
-line.entity.line:
-  description: One expense of a claim
-  fields:
-    - ref: line.field.category
-    - ref: line.field.expense_date
-    - ref: line.field.description
-    - ref: line.field.amount
-    - ref: receipt.entity.receipt
-      required: false
-    - ref: line.field.distance_km
-      required: false
+  submitted_at:
+    description: When the claim was last submitted
+    type: utc_time
 
-line.invariant.receipt_above_25:
-  description: A line other than MILEAGE with an amount above 25.00 carries a receipt
-  on: line.entity.line
-  rule: category = 'MILEAGE' or amount <= 25 or receipt is present
-  reportOn: receipt
-  message: A line with an amount above 25.00 needs a receipt
-line.invariant.mileage_has_distance:
-  description: A MILEAGE line carries a distance and no receipt
-  on: line.entity.line
-  rule: category != 'MILEAGE' or distance_km is present and receipt is absent
-  reportOn: distance_km
-  message: A MILEAGE line needs a distance and no receipt
-line.invariant.distance_only_for_mileage:
-  description: Only a MILEAGE line carries a distance
-  on: line.entity.line
-  rule: category = 'MILEAGE' or distance_km is absent
-  reportOn: distance_km
-  message: Only a MILEAGE line can have a distance
+  overdue_reported_at:
+    description: When the claim was reported as waiting for a decision for 30 days since its last submission
+    type: utc_time
 
-claim.entity.draft:
-  description: A request to create a draft claim
-  fields:
-    - ref: claim.field.idempotency_key
-      required: false
-    - ref: claim.field.actor_id
-    - ref: claim.field.employee_id
-    - ref: claim.field.purpose
-    - ref: claim.field.currency
-    - ref: line.entity.line
-      as: lines
-      many: { minItems: 1, maxItems: 50 }
-claim.entity.draft_edit:
-  description: A request to replace the purpose, currency and lines of a draft or rejected claim
-  fields:
-    - ref: claim.field.idempotency_key
-      required: false
-    - ref: claim.field.claim_id
-    - ref: claim.field.version
-    - ref: claim.field.actor_id
-    - ref: claim.field.purpose
-    - ref: claim.field.currency
-    - ref: line.entity.line
-      as: lines
-      many: { minItems: 1, maxItems: 50 }
-claim.entity.change:
-  description: A request to move a claim to its next state, with the version the caller last read
-  fields:
-    - ref: claim.field.idempotency_key
-      required: false
-    - ref: claim.field.claim_id
-    - ref: claim.field.version
-    - ref: claim.field.actor_id
-claim.entity.rejection:
-  description: A request to reject a claim, with the reason
-  fields:
-    - ref: claim.field.idempotency_key
-      required: false
-    - ref: claim.field.claim_id
-    - ref: claim.field.version
-    - ref: claim.field.actor_id
-    - ref: claim.field.reason
-claim.entity.lookup:
-  description: A request to read a claim
-  fields:
-    - ref: claim.field.claim_id
-    - ref: claim.field.actor_id
+  occurred_at:
+    description: When a change happened
+    type: utc_time
 
-claim.entity.answer:
-  description: The answer to a change of a claim
-  fields:
-    - ref: claim.field.claim_id
-    - ref: claim.field.state
-    - ref: claim.field.total
-    - ref: claim.field.currency
-    - ref: claim.field.version
-claim.entity.submission_answer:
-  description: The answer to a submission, with when the claim was submitted
-  fields:
-    - ref: claim.field.claim_id
-    - ref: claim.field.state
-    - ref: claim.field.total
-    - ref: claim.field.currency
-    - ref: claim.field.version
-    - ref: claim.field.submitted_at
-claim.entity.claim_ref:
-  description: The claim that the shell's clock acts on
-  fields:
-    - ref: claim.field.idempotency_key
-      required: false
-    - ref: claim.field.claim_id
-claim.entity.rejection_answer:
-  description: The answer to a rejection, with its reason
-  fields:
-    - ref: claim.field.claim_id
-    - ref: claim.field.state
-    - ref: claim.field.total
-    - ref: claim.field.currency
-    - ref: claim.field.version
-    - ref: claim.field.reason
-claim.entity.claim:
-  description: A claim as it is stored
-  key: claim.field.claim_id
-  fields:
-    - ref: claim.field.claim_id
-    - ref: claim.field.version
-    - ref: claim.field.employee_id
-    - ref: claim.field.manager_id
-    - ref: claim.field.state
-    - ref: claim.field.purpose
-    - ref: claim.field.currency
-    - ref: claim.field.total
-    - ref: line.entity.line
-      as: lines
-      many: { minItems: 1, maxItems: 50 }
-    - ref: claim.field.reason
-      required: false
-    - ref: claim.field.submitted_at
-      required: false
-    - ref: claim.field.overdue_reported_at
-      required: false
-  # A claim id is never used by another claim, also after the claim is gone: the Postgres extra keeps
-  # each id in "used"."claim", which insertClaimClaim adds to and nothing deletes from.
-  unique:
-    - by: [claim_id]
-      forever: true
+  # A claim
 
-claim.invariant.total_is_sum:
-  description: The total of a claim is the sum of its line amounts
-  on: claim.entity.claim
-  rule: 'total = sum(line in lines: line.amount)'
-  reportOn: total
-  message: The total must be the sum of the line amounts
-# The shell stores the submitted_at of the answer of submit_claim in the record, as each submission
-# sets it, so a SUBMITTED claim holds when it was last submitted.
-claim.invariant.submitted_has_time:
-  description: A submitted claim holds when it was last submitted
-  on: claim.entity.claim
-  rule: state != 'SUBMITTED' or submitted_at is present
-  reportOn: submitted_at
-  message: A submitted claim needs the time of its submission
+  claim_id:
+    description: The identifier of a claim, which the domain assigns on creation
+    type: string
+    rules:
+      - pattern: '^CLM-[0-9]{10}$'
 
-# Refusals
+  version:
+    description: The version of a claim; each change makes it 1 higher
+    type: integer
+    rules:
+      - minimum: 1
 
-# Each operation rejects an input that does not parse with invalid_request, with the issues.
-claim.error.invalid_request:
-  description: The request does not parse, or breaks a rule of its values
-  category: validation
-  retryable: false
-  message: The request is not valid
-claim.error.not_found:
-  description: No claim has this id
-  category: not_found
-  retryable: false
-  message: No claim {claim_id}
-  fields:
-    - ref: claim.field.claim_id
-claim.error.forbidden:
-  description: The caller may not make this request
-  category: forbidden
-  retryable: false
-  message: The user {actor_id} may not make this request
-  fields:
-    - ref: claim.field.actor_id
-claim.error.invalid_state:
-  description: The claim is in a state that does not allow this request
-  category: precondition
-  retryable: false
-  message: The claim {claim_id} is {state}
-  fields:
-    - ref: claim.field.claim_id
-    - ref: claim.field.state
-claim.error.version_conflict:
-  description: The claim changed after the caller read it
-  category: conflict
-  retryable: false
-  message: The claim {claim_id} is no longer at version {version}
-  fields:
-    - ref: claim.field.claim_id
-    - ref: claim.field.version
-claim.error.duplicate_receipt:
-  description: The receipt file is already on a line of a claim that is not rejected or withdrawn
-  category: conflict
-  retryable: false
-  message: The receipt {sha256} is already on a claim
-  fields:
-    - ref: receipt.field.sha256
-claim.error.clock_only:
-  description: Only the shell's clock may report a claim as overdue
-  category: forbidden
-  retryable: false
-  message: Only the clock may report the claim {claim_id} as overdue
-  fields:
-    - ref: claim.field.claim_id
+  state:
+    description: The state of a claim
+    type: string
+    rules:
+      - enum: [DRAFT, SUBMITTED, APPROVED, REJECTED, WITHDRAWN, PAID]
 
-# Events
+  # The currencies the domain pays claims in, each an active ISO 4217 code with 2 minor units, so an
+  # amount in cents fits each of them (urn-forge ships no ISO 4217 list).
+  currency:
+    description: The ISO 4217 code of the currency of a claim, one of CHF, EUR, GBP or USD, each with 2 minor units; the lines and the total of the claim are in it
+    type: string
+    rules:
+      - enum: [CHF, EUR, GBP, USD]
 
-claim.event.claim_submitted:
-  description: A claim moved to SUBMITTED
-  fields: &change_fields
-    - ref: event.field.event_id
-    - ref: claim.field.claim_id
-    - ref: claim.field.employee_id
-    - ref: claim.field.total
-    - ref: claim.field.currency
-    - ref: claim.field.state
-    - ref: claim.field.actor_id
-    - ref: event.field.occurred_at
-  delivery: &delivery
-    id: event_id
-    orderBy: claim_id
-claim.event.claim_approved:
-  description: A claim moved to APPROVED
-  fields: *change_fields
-  delivery: *delivery
-claim.event.claim_withdrawn:
-  description: A claim moved to WITHDRAWN
-  fields: *change_fields
-  delivery: *delivery
-claim.event.claim_paid:
-  description: A claim moved to PAID
-  fields: *change_fields
-  delivery: *delivery
-claim.event.claim_rejected:
-  description: A claim moved to REJECTED, with the reason
-  fields:
-    - ref: event.field.event_id
-    - ref: claim.field.claim_id
-    - ref: claim.field.employee_id
-    - ref: claim.field.total
-    - ref: claim.field.currency
-    - ref: claim.field.state
-    - ref: claim.field.actor_id
-    - ref: event.field.occurred_at
-    - ref: claim.field.reason
-  delivery: *delivery
-claim.event.claim_decision_overdue:
-  description: A claim waits in SUBMITTED for a decision for 30 days since its last submission; its state does not change
-  fields:
-    - ref: event.field.event_id
-    - ref: claim.field.claim_id
-    - ref: claim.field.employee_id
-    - ref: claim.field.manager_id
-    - ref: claim.field.total
-    - ref: claim.field.currency
-    - ref: claim.field.state
-    - ref: claim.field.submitted_at
-    - ref: event.field.occurred_at
-  delivery: *delivery
+  total:
+    description: The sum of the line amounts of a claim, in cents (hundredths) of the currency of the claim
+    type: integer
+    rules:
+      - exclusiveMinimum: 0
 
-# Operations
+  purpose:
+    description: Why the employee spent the money
+    type: string
+    rules:
+      - minLength: 1
+      - maxLength: 500
 
-claim.operation.create_draft:
-  description: Create a draft claim for the employee who calls
-  input: claim.entity.draft
-  output: claim.entity.answer
-  idempotency:
-    key: input.idempotency_key
-    scope: [caller.role, caller.employee_id]
-    window: 24 hours
-  ensures:
-    - output.currency = input.currency
-    - 'output.total = sum(line in input.lines: line.amount)'
-  callers:
-    allow:
-      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = input.employee_id
-    otherwise: claim.error.forbidden
-  rejects: claim.error.invalid_request
-  errors: [claim.error.invalid_request, claim.error.forbidden, claim.error.duplicate_receipt]
-claim.operation.edit_draft:
-  description: Replace the purpose, currency and lines of a draft claim; a rejected claim goes back to DRAFT
-  input: claim.entity.draft_edit
-  output: claim.entity.answer
-  idempotency:
-    key: input.idempotency_key
-    scope: [caller.role, caller.employee_id]
-    window: 24 hours
-  changes:
-    entity: claim.entity.claim
-    from: [DRAFT, REJECTED]
-    to: DRAFT
-    missing: claim.error.not_found
-    otherwise: claim.error.invalid_state
-  requires:
-    - rule: input.version = current.version
-      otherwise: claim.error.version_conflict
-      fill: { version: input.version }
-  ensures:
-    - output.version = input.version + 1
-    - output.currency = input.currency
-    - 'output.total = sum(line in input.lines: line.amount)'
-  callers:
-    allow:
-      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
-    otherwise: claim.error.forbidden
-  rejects: claim.error.invalid_request
-  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict, claim.error.duplicate_receipt]
-claim.operation.submit_claim:
-  description: Submit a draft claim for a decision
-  input: claim.entity.change
-  output: claim.entity.submission_answer
-  idempotency:
-    key: input.idempotency_key
-    scope: [caller.role, caller.employee_id]
-    window: 24 hours
-  changes:
-    entity: claim.entity.claim
-    from: [DRAFT]
-    to: SUBMITTED
-    missing: claim.error.not_found
-    otherwise: claim.error.invalid_state
-  requires:
-    - rule: input.version = current.version
-      otherwise: claim.error.version_conflict
-      fill: { version: input.version }
-  ensures:
-    - output.version = input.version + 1
-    - output.total = current.total
-    - output.currency = current.currency
-    - output.submitted_at = now
-    - event.claim_id = output.claim_id
-    - event.employee_id = current.employee_id
-    - event.total = output.total
-    - event.currency = output.currency
-    - event.state = output.state
-    - event.actor_id = input.actor_id
-  callers:
-    allow:
-      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
-    otherwise: claim.error.forbidden
-  rejects: claim.error.invalid_request
-  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
-  emits:
-    - event: claim.event.claim_submitted
-claim.operation.withdraw_claim:
-  description: Withdraw a submitted claim
-  input: claim.entity.change
-  output: claim.entity.answer
-  idempotency:
-    key: input.idempotency_key
-    scope: [caller.role, caller.employee_id]
-    window: 24 hours
-  changes:
-    entity: claim.entity.claim
-    from: [SUBMITTED]
-    to: WITHDRAWN
-    missing: claim.error.not_found
-    otherwise: claim.error.invalid_state
-  requires:
-    - rule: input.version = current.version
-      otherwise: claim.error.version_conflict
-      fill: { version: input.version }
-  ensures:
-    - output.version = input.version + 1
-    - output.total = current.total
-    - output.currency = current.currency
-    - event.claim_id = output.claim_id
-    - event.employee_id = current.employee_id
-    - event.total = output.total
-    - event.currency = output.currency
-    - event.state = output.state
-    - event.actor_id = input.actor_id
-  callers:
-    allow:
-      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
-    otherwise: claim.error.forbidden
-  rejects: claim.error.invalid_request
-  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
-  emits:
-    - event: claim.event.claim_withdrawn
-claim.operation.approve_claim:
-  description: Approve a submitted claim
-  input: claim.entity.change
-  output: claim.entity.answer
-  idempotency:
-    key: input.idempotency_key
-    scope: [caller.role, caller.employee_id]
-    window: 24 hours
-  changes:
-    entity: claim.entity.claim
-    from: [SUBMITTED]
-    to: APPROVED
-    missing: claim.error.not_found
-    otherwise: claim.error.invalid_state
-  requires:
-    - rule: input.version = current.version
-      otherwise: claim.error.version_conflict
-      fill: { version: input.version }
-  ensures:
-    - output.version = input.version + 1
-    - output.total = current.total
-    - output.currency = current.currency
-    - event.claim_id = output.claim_id
-    - event.employee_id = current.employee_id
-    - event.total = output.total
-    - event.currency = output.currency
-    - event.state = output.state
-    - event.actor_id = input.actor_id
-  callers:
-    allow:
-      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.manager_id and caller.employee_id != current.employee_id
-    otherwise: claim.error.forbidden
-  rejects: claim.error.invalid_request
-  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
-  emits:
-    - event: claim.event.claim_approved
-claim.operation.reject_claim:
-  description: Reject a submitted claim with a reason
-  input: claim.entity.rejection
-  output: claim.entity.rejection_answer
-  idempotency:
-    key: input.idempotency_key
-    scope: [caller.role, caller.employee_id]
-    window: 24 hours
-  changes:
-    entity: claim.entity.claim
-    from: [SUBMITTED]
-    to: REJECTED
-    missing: claim.error.not_found
-    otherwise: claim.error.invalid_state
-  requires:
-    - rule: input.version = current.version
-      otherwise: claim.error.version_conflict
-      fill: { version: input.version }
-  ensures:
-    - output.version = input.version + 1
-    - output.total = current.total
-    - output.currency = current.currency
-    - output.reason = input.reason
-    - event.claim_id = output.claim_id
-    - event.employee_id = current.employee_id
-    - event.total = output.total
-    - event.currency = output.currency
-    - event.state = output.state
-    - event.actor_id = input.actor_id
-    - event.reason = input.reason
-  callers:
-    allow:
-      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.manager_id
-    otherwise: claim.error.forbidden
-  rejects: claim.error.invalid_request
-  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
-  emits:
-    - event: claim.event.claim_rejected
-claim.operation.mark_paid:
-  description: Mark an approved claim paid
-  input: claim.entity.change
-  output: claim.entity.answer
-  idempotency:
-    key: input.idempotency_key
-    scope: [caller.role, caller.employee_id]
-    window: 24 hours
-  changes:
-    entity: claim.entity.claim
-    from: [APPROVED]
-    to: PAID
-    missing: claim.error.not_found
-    otherwise: claim.error.invalid_state
-  requires:
-    - rule: input.version = current.version
-      otherwise: claim.error.version_conflict
-      fill: { version: input.version }
-  ensures:
-    - output.version = input.version + 1
-    - output.total = current.total
-    - output.currency = current.currency
-    - event.claim_id = output.claim_id
-    - event.employee_id = current.employee_id
-    - event.total = output.total
-    - event.currency = output.currency
-    - event.state = output.state
-    - event.actor_id = input.actor_id
-  callers:
-    allow:
-      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.role = 'finance'
-    otherwise: claim.error.forbidden
-  rejects: claim.error.invalid_request
-  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden, claim.error.invalid_state, claim.error.version_conflict]
-  emits:
-    - event: claim.event.claim_paid
-claim.operation.get_claim:
-  description: Read a claim by its id
-  input: claim.entity.lookup
-  output: claim.entity.claim
-  reads:
-    entity: claim.entity.claim
-    missing: claim.error.not_found
-  callers:
-    allow:
-      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.employee_id
-      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.employee_id = current.manager_id
-      - caller.employee_id is present and input.actor_id = caller.employee_id and caller.role = 'finance'
-    otherwise: claim.error.forbidden
-  rejects: claim.error.invalid_request
-  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.forbidden]
-# The shell's clock calls it for each claim that selectClaimReportOverdueDue gives. A claim is due
-# 30 days after its last submission, until it holds a mark of this submission: a mark older than
-# submitted_at is from an earlier submission, before a rejection and a new submission.
-claim.operation.report_overdue:
-  description: Report a claim that waits in SUBMITTED for a decision for 30 days since its last submission, once, with no change of state
-  input: claim.entity.claim_ref
-  output: claim.entity.claim
-  idempotency:
-    key: input.idempotency_key
-    scope: [caller.role, caller.employee_id]
-    window: 24 hours
-  changes:
-    entity: claim.entity.claim
-    from: [SUBMITTED]
-    missing: claim.error.not_found
-    otherwise: claim.error.invalid_state
-  due: current.submitted_at is present and (current.overdue_reported_at is absent or current.overdue_reported_at < current.submitted_at) and now >= current.submitted_at + 30 days
-  ensures:
-    - output.state = current.state
-    - output.overdue_reported_at is present and output.overdue_reported_at = now
-    - current.submitted_at is present and output.submitted_at is present and output.submitted_at = current.submitted_at
-    - output.version = current.version
-    - output.employee_id = current.employee_id
-    - output.manager_id = current.manager_id
-    - output.total = current.total
-    - output.currency = current.currency
-    - output.purpose = current.purpose
-    - event.claim_id = current.claim_id
-    - event.employee_id = current.employee_id
-    - event.manager_id = current.manager_id
-    - event.total = current.total
-    - event.currency = current.currency
-    - event.state = current.state
-    - current.submitted_at is present and event.submitted_at = current.submitted_at
-    - event.occurred_at = now
-  callers:
-    allow:
-      - caller.role = 'clock'
-    otherwise: claim.error.clock_only
-  rejects: claim.error.invalid_request
-  errors: [claim.error.invalid_request, claim.error.not_found, claim.error.invalid_state, claim.error.clock_only]
-  emits:
-    - event: claim.event.claim_decision_overdue
+  reason:
+    description: Why a manager rejected a claim
+    type: string
+    rules:
+      - minLength: 10
+      - maxLength: 500
+
+  idempotency_key:
+    description: A key that the caller may send with a change, so that a repeat of the request within 24 hours returns the first answer and changes nothing; the shell keeps the answers
+    type: string
+    rules:
+      - minLength: 1
+
+  # Lines and receipts
+
+  category:
+    description: The kind of an expense
+    type: string
+    rules:
+      - enum: [TRAVEL, LODGING, MEALS, MILEAGE, SUPPLIES, TRAINING, OTHER]
+
+  expense_date:
+    description: The calendar day of an expense, with no time zone
+    type: string
+    rules:
+      - format: date
+
+  description:
+    description: What an expense was
+    type: string
+    rules:
+      - minLength: 1
+      - maxLength: 200
+
+  amount:
+    description: The amount of one expense, in cents (hundredths) of the currency of the claim, more than 0.00 and at most 10000.00
+    type: integer
+    rules:
+      - exclusiveMinimum: 0
+      - maximum: 1000000
+
+  distance_km:
+    description: The distance of a MILEAGE expense, in kilometres
+    type: number
+    rules:
+      - minimum: 1
+      - maximum: 2000
+
+  sha256:
+    description: The SHA-256 hash of a receipt file, which identifies the file
+    type: string
+    rules:
+      - pattern: '^[0-9a-f]{64}$'
+
+  media_type:
+    description: The type of a receipt file, PDF, JPEG or PNG
+    type: string
+    rules:
+      - enum: [application/pdf, image/jpeg, image/png]
+
+  size_bytes:
+    description: The size of a receipt file in bytes, at most 10 MB
+    type: integer
+    rules:
+      - minimum: 1
+      - maximum: 10485760
+
+  receipt:
+    description: A receipt file for an expense, as the caller declares it
+    type: object
+    identifier: sha256
+    properties: [sha256, media_type, size_bytes]
+    rules:
+      - required: [sha256, media_type, size_bytes]
+
+  line:
+    description: One expense of a claim
+    type: object
+    properties: [category, expense_date, description, amount, receipt, distance_km]
+    rules:
+      - required: [category, expense_date, description, amount]
+      - receipt_above_25
+      - mileage_has_distance
+      - distance_only_for_mileage
+
+  lines:
+    description: The lines of a claim
+    type: array
+    items: line
+    rules:
+      - minItems: 1
+      - maxItems: 50
+
+  receipts_in_use:
+    description: The hashes of the receipts of the request that the shell found on lines of other claims that are not REJECTED or WITHDRAWN
+    type: array
+    items: sha256
+
+  claim:
+    description: A claim as it is stored
+    type: object
+    identifier: claim_id
+    properties: [claim_id, version, employee_id, manager_id, state, purpose, currency, total, lines, reason, submitted_at, overdue_reported_at]
+    rules:
+      - required: [claim_id, version, employee_id, manager_id, state, purpose, currency, total, lines]
+      - total_is_sum
+      - submitted_has_time
+      - lines_dated_for_submission
+
+  stored_claim:
+    description: The claim that the request names, as the shell loaded it before the call; absent when no claim has the id
+    type: claim
+
+  # Events: each is part of the output of the change that it tells
+
+  event_id:
+    description: The unique identifier of an event, a UUID, for deduplication; the shell makes one for each call that can tell a change
+    type: string
+    rules:
+      - pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+
+  claim_submitted:
+    description: A claim moved to SUBMITTED
+    type: object
+    properties: [event_id, claim_id, employee_id, total, currency, state, actor_id, occurred_at]
+    rules:
+      - required: [event_id, claim_id, employee_id, total, currency, state, actor_id, occurred_at]
+
+  claim_withdrawn:
+    description: A claim moved to WITHDRAWN
+    type: object
+    properties: [event_id, claim_id, employee_id, total, currency, state, actor_id, occurred_at]
+    rules:
+      - required: [event_id, claim_id, employee_id, total, currency, state, actor_id, occurred_at]
+
+  claim_approved:
+    description: A claim moved to APPROVED
+    type: object
+    properties: [event_id, claim_id, employee_id, total, currency, state, actor_id, occurred_at]
+    rules:
+      - required: [event_id, claim_id, employee_id, total, currency, state, actor_id, occurred_at]
+
+  claim_rejected:
+    description: A claim moved to REJECTED, with the reason
+    type: object
+    properties: [event_id, claim_id, employee_id, total, currency, state, actor_id, occurred_at, reason]
+    rules:
+      - required: [event_id, claim_id, employee_id, total, currency, state, actor_id, occurred_at, reason]
+
+  claim_paid:
+    description: A claim moved to PAID
+    type: object
+    properties: [event_id, claim_id, employee_id, total, currency, state, actor_id, occurred_at]
+    rules:
+      - required: [event_id, claim_id, employee_id, total, currency, state, actor_id, occurred_at]
+
+  claim_decision_overdue:
+    description: A claim waits in SUBMITTED for a decision for 30 days since its last submission; its state does not change
+    type: object
+    properties: [event_id, claim_id, employee_id, manager_id, total, currency, state, submitted_at, occurred_at]
+    rules:
+      - required: [event_id, claim_id, employee_id, manager_id, total, currency, state, submitted_at, occurred_at]
+
+  # Requests
+
+  draft:
+    description: A request to create a draft claim
+    type: object
+    properties: [idempotency_key, caller, actor_id, employee_id, manager_id, purpose, currency, lines, receipts_in_use]
+    rules:
+      - required: [caller, actor_id, employee_id, manager_id, purpose, currency, lines, receipts_in_use]
+
+  draft_edit:
+    description: A request to replace the purpose, currency and lines of a draft or rejected claim, with the version the caller last read
+    type: object
+    properties: [idempotency_key, caller, claim_id, version, actor_id, purpose, currency, lines, receipts_in_use, stored_claim]
+    rules:
+      - required: [caller, claim_id, version, actor_id, purpose, currency, lines, receipts_in_use]
+      - names_the_stored_claim
+
+  change:
+    description: A request to move a claim to its next state, with the version the caller last read
+    type: object
+    properties: [idempotency_key, caller, now, event_id, claim_id, version, actor_id, stored_claim]
+    rules:
+      - required: [caller, now, event_id, claim_id, version, actor_id]
+      - names_the_stored_claim
+
+  submission:
+    description: A request to submit a draft claim, with the version the caller last read
+    type: object
+    properties: [idempotency_key, caller, now, event_id, claim_id, version, actor_id, stored_claim]
+    rules:
+      - required: [caller, now, event_id, claim_id, version, actor_id]
+      - names_the_stored_claim
+      - lines_dated_for_now
+
+  rejection:
+    description: A request to reject a claim with the reason, with the version the caller last read
+    type: object
+    properties: [idempotency_key, caller, now, event_id, claim_id, version, actor_id, reason, stored_claim]
+    rules:
+      - required: [caller, now, event_id, claim_id, version, actor_id, reason]
+      - names_the_stored_claim
+
+  lookup:
+    description: A request to read a claim
+    type: object
+    properties: [caller, claim_id, actor_id, stored_claim]
+    rules:
+      - required: [caller, claim_id, actor_id]
+      - names_the_stored_claim
+
+  overdue_check:
+    description: A request of the shell's clock to report a claim that waits for a decision
+    type: object
+    properties: [idempotency_key, caller, now, event_id, claim_id, stored_claim]
+    rules:
+      - required: [caller, now, event_id, claim_id]
+      - names_the_stored_claim
+      - claim_is_due
+
+  # Answers
+
+  submitted:
+    description: The answer to a submission, the claim as it is now, and the event that tells it
+    type: object
+    properties: [claim, claim_submitted]
+    rules:
+      - required: [claim, claim_submitted]
+
+  withdrawn:
+    description: The answer to a withdrawal, the claim as it is now, and the event that tells it
+    type: object
+    properties: [claim, claim_withdrawn]
+    rules:
+      - required: [claim, claim_withdrawn]
+
+  approved:
+    description: The answer to an approval, the claim as it is now, and the event that tells it
+    type: object
+    properties: [claim, claim_approved]
+    rules:
+      - required: [claim, claim_approved]
+
+  rejected:
+    description: The answer to a rejection, the claim as it is now with the reason, and the event that tells it
+    type: object
+    properties: [claim, claim_rejected]
+    rules:
+      - required: [claim, claim_rejected]
+
+  paid:
+    description: The answer to a payment, the claim as it is now, and the event that tells it
+    type: object
+    properties: [claim, claim_paid]
+    rules:
+      - required: [claim, claim_paid]
+
+  overdue_reported:
+    description: The answer to a report of an overdue claim, the claim with the mark of the report, and the event that tells it
+    type: object
+    properties: [claim, claim_decision_overdue]
+    rules:
+      - required: [claim, claim_decision_overdue]
+
+  # Refusals
+
+  not_found:
+    description: No claim has the id of the request
+    type: object
+    properties: [claim_id]
+    rules:
+      - required: [claim_id]
+
+  forbidden:
+    description: The caller may not make this request; it names the role of the caller, and the user the request names, if any
+    type: object
+    properties: [role, actor_id]
+    rules:
+      - required: [role]
+
+  invalid_state:
+    description: The claim is in a state that does not allow this request
+    type: object
+    properties: [claim_id, state]
+    rules:
+      - required: [claim_id, state]
+
+  version_conflict:
+    description: The claim changed after the caller read it; it names the version the caller sent
+    type: object
+    properties: [claim_id, version]
+    rules:
+      - required: [claim_id, version]
+
+  duplicate_receipt:
+    description: A receipt file of the request is already on a line of a claim that is not rejected or withdrawn, or on two lines of the request
+    type: object
+    properties: [sha256]
+    rules:
+      - required: [sha256]
+
+rules:
+  # Rules of values
+
+  receipt_above_25:
+    description: A line other than MILEAGE with an amount above 25.00 carries a receipt
+    rule: self.category == 'MILEAGE' || self.amount <= 2500 || has(self.receipt)
+    message: A line with an amount above 25.00 needs a receipt
+
+  mileage_has_distance:
+    description: A MILEAGE line carries a distance and no receipt
+    rule: self.category != 'MILEAGE' || (has(self.distance_km) && !has(self.receipt))
+    message: A MILEAGE line needs a distance and no receipt
+
+  distance_only_for_mileage:
+    description: Only a MILEAGE line carries a distance
+    rule: self.category == 'MILEAGE' || !has(self.distance_km)
+    message: Only a MILEAGE line can have a distance
+
+  total_is_sum:
+    description: The total of a claim is the sum of its line amounts
+    rule: self.total == self.lines.map(l, l.amount).sum()
+    message: The total must be the sum of the line amounts
+
+  submitted_has_time:
+    description: A claim that left DRAFT holds when it was last submitted
+    rule: self.state == 'DRAFT' || has(self.submitted_at)
+    message: A submitted claim needs the time of its submission
+
+  # A day E is at most the day of the time S, and at most 90 days before it: E <= S, and E + 91 days > S.
+  lines_dated_for_submission:
+    description: Each expense of a claim that left DRAFT is on the day of its last submission (in UTC) or on one of the 90 days before
+    rule: >-
+      self.state == 'DRAFT' || !has(self.submitted_at) ||
+      self.lines.all(l, timestamp(l.expense_date + 'T00:00:00Z') <= timestamp(self.submitted_at) &&
+      timestamp(l.expense_date + 'T00:00:00Z') + duration('2184h') > timestamp(self.submitted_at))
+    message: An expense date must be on the day of the submission or on one of the 90 days before
+
+  lines_dated_for_now:
+    description: Each expense of a draft that is submitted is on the day of the call (in UTC) or on one of the 90 days before
+    rule: >-
+      !has(self.stored_claim) || self.stored_claim.state != 'DRAFT' ||
+      self.stored_claim.lines.all(l, timestamp(l.expense_date + 'T00:00:00Z') <= timestamp(self.now) &&
+      timestamp(l.expense_date + 'T00:00:00Z') + duration('2184h') > timestamp(self.now))
+    message: An expense date must be on the day of the submission or on one of the 90 days before
+
+  names_the_stored_claim:
+    description: The stored claim, if any, is the claim that the request names
+    rule: '!has(self.stored_claim) || self.stored_claim.claim_id == self.claim_id'
+    message: The stored claim is not the claim of the request
+
+  claim_is_due:
+    description: A submitted claim is reported once it has waited 30 days since its last submission, and only once for each submission
+    rule: >-
+      !has(self.stored_claim) || self.stored_claim.state != 'SUBMITTED' ||
+      (has(self.stored_claim.submitted_at) &&
+      (!has(self.stored_claim.overdue_reported_at) || timestamp(self.stored_claim.overdue_reported_at) < timestamp(self.stored_claim.submitted_at)) &&
+      timestamp(self.now) >= timestamp(self.stored_claim.submitted_at) + duration('720h'))
+    message: The claim is not due for a report
+
+  # Who may call
+
+  caller_creates_own_claim:
+    description: The caller is the employee who makes the request and owns the new claim
+    rule: has(input.caller.employee_id) && input.actor_id == input.caller.employee_id && input.caller.employee_id == input.employee_id
+    message: The caller may create a claim only for themselves
+
+  caller_may_not_create:
+    description: The caller is not the employee who makes the request and owns the new claim
+    rule: '!(has(input.caller.employee_id) && input.actor_id == input.caller.employee_id && input.caller.employee_id == input.employee_id)'
+    message: The caller may create this claim
+
+  caller_owns_the_claim:
+    description: The caller is the employee who makes the request and owns the stored claim
+    rule: >-
+      has(input.stored_claim) && has(input.caller.employee_id) &&
+      input.actor_id == input.caller.employee_id && input.caller.employee_id == input.stored_claim.employee_id
+    message: Only the employee who owns the claim may make this request
+
+  caller_does_not_own_the_claim:
+    description: The caller is not the employee who makes the request and owns the stored claim
+    rule: >-
+      has(input.stored_claim) && !(has(input.caller.employee_id) &&
+      input.actor_id == input.caller.employee_id && input.caller.employee_id == input.stored_claim.employee_id)
+    message: The caller owns the claim
+
+  caller_is_the_other_manager:
+    description: The caller makes the request, is the manager of the stored claim, and does not own it
+    rule: >-
+      has(input.stored_claim) && has(input.caller.employee_id) && input.actor_id == input.caller.employee_id &&
+      input.caller.employee_id == input.stored_claim.manager_id && input.caller.employee_id != input.stored_claim.employee_id
+    message: Only the manager of the claimant may approve a claim, and never their own
+
+  caller_is_not_the_other_manager:
+    description: The caller does not make the request, is not the manager of the stored claim, or owns it
+    rule: >-
+      has(input.stored_claim) && !(has(input.caller.employee_id) && input.actor_id == input.caller.employee_id &&
+      input.caller.employee_id == input.stored_claim.manager_id && input.caller.employee_id != input.stored_claim.employee_id)
+    message: The caller may approve the claim
+
+  caller_is_the_manager:
+    description: The caller makes the request and is the manager of the stored claim
+    rule: >-
+      has(input.stored_claim) && has(input.caller.employee_id) && input.actor_id == input.caller.employee_id &&
+      input.caller.employee_id == input.stored_claim.manager_id
+    message: Only the manager of the claimant may reject a claim
+
+  caller_is_not_the_manager:
+    description: The caller does not make the request or is not the manager of the stored claim
+    rule: >-
+      has(input.stored_claim) && !(has(input.caller.employee_id) && input.actor_id == input.caller.employee_id &&
+      input.caller.employee_id == input.stored_claim.manager_id)
+    message: The caller may reject the claim
+
+  caller_is_finance:
+    description: The caller makes the request and is a finance user
+    rule: has(input.caller.employee_id) && input.actor_id == input.caller.employee_id && input.caller.role == 'finance'
+    message: Only a finance user may mark a claim paid
+
+  caller_is_not_finance:
+    description: The caller does not make the request or is not a finance user
+    rule: '!(has(input.caller.employee_id) && input.actor_id == input.caller.employee_id && input.caller.role == ''finance'')'
+    message: The caller is a finance user
+
+  caller_may_read:
+    description: The caller makes the request and owns the stored claim, is its manager, or is a finance user
+    rule: >-
+      has(input.stored_claim) && has(input.caller.employee_id) && input.actor_id == input.caller.employee_id &&
+      (input.caller.employee_id == input.stored_claim.employee_id || input.caller.employee_id == input.stored_claim.manager_id || input.caller.role == 'finance')
+    message: Only the owner of the claim, their manager and finance users may read it
+
+  caller_may_not_read:
+    description: The caller does not make the request, or does not own the stored claim, is not its manager and is not a finance user
+    rule: >-
+      has(input.stored_claim) && !(has(input.caller.employee_id) && input.actor_id == input.caller.employee_id &&
+      (input.caller.employee_id == input.stored_claim.employee_id || input.caller.employee_id == input.stored_claim.manager_id || input.caller.role == 'finance'))
+    message: The caller may read the claim
+
+  caller_is_the_clock:
+    description: The caller is the shell's clock
+    rule: input.caller.role == 'clock'
+    message: Only the clock may report a claim as overdue
+
+  caller_is_not_the_clock:
+    description: The caller is not the shell's clock
+    rule: input.caller.role != 'clock'
+    message: The caller is the clock
+
+  # The stored claim and its state
+
+  claim_was_found:
+    description: A claim has the id of the request
+    rule: has(input.stored_claim)
+    message: No claim has the id of the request
+
+  claim_was_not_found:
+    description: No claim has the id of the request
+    rule: '!has(input.stored_claim)'
+    message: A claim has the id of the request
+
+  was_draft_or_rejected:
+    description: The stored claim was DRAFT or REJECTED
+    rule: has(input.stored_claim) && input.stored_claim.state in ['DRAFT', 'REJECTED']
+    message: The claim was not DRAFT or REJECTED
+
+  was_not_draft_or_rejected:
+    description: The stored claim was not DRAFT or REJECTED
+    rule: has(input.stored_claim) && !(input.stored_claim.state in ['DRAFT', 'REJECTED'])
+    message: The claim was DRAFT or REJECTED
+
+  was_draft:
+    description: The stored claim was DRAFT
+    rule: has(input.stored_claim) && input.stored_claim.state == 'DRAFT'
+    message: The claim was not DRAFT
+
+  was_not_draft:
+    description: The stored claim was not DRAFT
+    rule: has(input.stored_claim) && input.stored_claim.state != 'DRAFT'
+    message: The claim was DRAFT
+
+  was_submitted:
+    description: The stored claim was SUBMITTED
+    rule: has(input.stored_claim) && input.stored_claim.state == 'SUBMITTED'
+    message: The claim was not SUBMITTED
+
+  was_not_submitted:
+    description: The stored claim was not SUBMITTED
+    rule: has(input.stored_claim) && input.stored_claim.state != 'SUBMITTED'
+    message: The claim was SUBMITTED
+
+  was_approved:
+    description: The stored claim was APPROVED
+    rule: has(input.stored_claim) && input.stored_claim.state == 'APPROVED'
+    message: The claim was not APPROVED
+
+  was_not_approved:
+    description: The stored claim was not APPROVED
+    rule: has(input.stored_claim) && input.stored_claim.state != 'APPROVED'
+    message: The claim was APPROVED
+
+  version_matches:
+    description: The request names the version of the stored claim
+    rule: has(input.stored_claim) && input.version == input.stored_claim.version
+    message: The claim is no longer at the version of the request
+
+  version_does_not_match:
+    description: The request names another version than the stored claim has
+    rule: has(input.stored_claim) && input.version != input.stored_claim.version
+    message: The claim is at the version of the request
+
+  # The answers
+
+  creates_the_draft:
+    description: A new claim is a DRAFT at version 1, of the employee, their manager, and the purpose, currency and lines of the request
+    rule: >-
+      output.state == 'DRAFT' && output.version == 1 && output.employee_id == input.employee_id &&
+      output.manager_id == input.manager_id && output.purpose == input.purpose && output.currency == input.currency &&
+      output.lines == input.lines && !has(output.submitted_at) && !has(output.reason) && !has(output.overdue_reported_at)
+    message: A new claim must be a DRAFT at version 1 with the values of the request
+
+  edits_the_draft:
+    description: An edit makes the claim a DRAFT with the purpose, currency and lines of the request, and keeps its id, owner and manager
+    rule: >-
+      has(input.stored_claim) && output.state == 'DRAFT' && output.claim_id == input.stored_claim.claim_id &&
+      output.employee_id == input.stored_claim.employee_id && output.manager_id == input.stored_claim.manager_id &&
+      output.purpose == input.purpose && output.currency == input.currency && output.lines == input.lines
+    message: An edit may change only the purpose, currency and lines, and makes the claim a DRAFT
+
+  next_version:
+    description: The claim is at the version of the request plus 1
+    rule: output.version == input.version + 1
+    message: The new version must be 1 higher than the version of the request
+
+  keeps_the_claim:
+    description: The claim keeps its id, owner, manager, purpose, currency, total and lines
+    rule: >-
+      has(input.stored_claim) && output.claim.claim_id == input.stored_claim.claim_id &&
+      output.claim.employee_id == input.stored_claim.employee_id && output.claim.manager_id == input.stored_claim.manager_id &&
+      output.claim.purpose == input.stored_claim.purpose && output.claim.currency == input.stored_claim.currency &&
+      output.claim.total == input.stored_claim.total && output.claim.lines == input.stored_claim.lines
+    message: The change may change only the state, the version and what the change records
+
+  keeps_the_submission:
+    description: The claim keeps the time of its last submission
+    rule: >-
+      has(input.stored_claim) && has(input.stored_claim.submitted_at) && has(output.claim.submitted_at) &&
+      output.claim.submitted_at == input.stored_claim.submitted_at
+    message: The change may not change the time of the last submission
+
+  claim_at_next_version:
+    description: The claim is at the version of the request plus 1
+    rule: output.claim.version == input.version + 1
+    message: The new version must be 1 higher than the version of the request
+
+  moves_to_submitted:
+    description: The claim is SUBMITTED, and holds the time of the call as its submission
+    rule: output.claim.state == 'SUBMITTED' && has(output.claim.submitted_at) && output.claim.submitted_at == input.now
+    message: The claim must be SUBMITTED at the time of the call
+
+  moves_to_withdrawn:
+    description: The claim is WITHDRAWN
+    rule: output.claim.state == 'WITHDRAWN'
+    message: The claim must be WITHDRAWN
+
+  moves_to_approved:
+    description: The claim is APPROVED
+    rule: output.claim.state == 'APPROVED'
+    message: The claim must be APPROVED
+
+  moves_to_rejected:
+    description: The claim is REJECTED, with the reason of the request
+    rule: output.claim.state == 'REJECTED' && has(output.claim.reason) && output.claim.reason == input.reason
+    message: The claim must be REJECTED with the reason of the request
+
+  moves_to_paid:
+    description: The claim is PAID
+    rule: output.claim.state == 'PAID'
+    message: The claim must be PAID
+
+  answers_the_stored_claim:
+    description: The answer is the stored claim
+    rule: has(input.stored_claim) && output == input.stored_claim
+    message: The answer must be the claim of the request
+
+  marks_the_report:
+    description: The claim is unchanged but for the time of the report, which is the time of the call
+    rule: >-
+      has(input.stored_claim) && has(input.stored_claim.submitted_at) && has(output.claim.submitted_at) &&
+      has(output.claim.overdue_reported_at) && output.claim.overdue_reported_at == input.now &&
+      output.claim.submitted_at == input.stored_claim.submitted_at && output.claim.state == input.stored_claim.state &&
+      output.claim.version == input.stored_claim.version && output.claim.claim_id == input.stored_claim.claim_id &&
+      output.claim.employee_id == input.stored_claim.employee_id && output.claim.manager_id == input.stored_claim.manager_id &&
+      output.claim.purpose == input.stored_claim.purpose && output.claim.currency == input.stored_claim.currency &&
+      output.claim.total == input.stored_claim.total && output.claim.lines == input.stored_claim.lines
+    message: A report may change only the time of the report, which is the time of the call
+
+  receipts_are_free:
+    description: No receipt of the request is in use on another claim that is not rejected or withdrawn, or on two lines of the request
+    rule: >-
+      input.lines.all(l, !has(l.receipt) || (!(l.receipt.sha256 in input.receipts_in_use) &&
+      input.lines.exists_one(m, has(m.receipt) && m.receipt.sha256 == l.receipt.sha256)))
+    message: A receipt of the request is already in use
+
+  receipt_in_use:
+    description: The refused receipt is on a line of the request, and is in use on another claim that is not rejected or withdrawn, or on two lines of the request
+    rule: >-
+      input.lines.exists(l, has(l.receipt) && output.sha256 == l.receipt.sha256 && (l.receipt.sha256 in input.receipts_in_use ||
+      !input.lines.exists_one(m, has(m.receipt) && m.receipt.sha256 == l.receipt.sha256)))
+    message: The receipt is not in use
+
+  # The events
+
+  tells_the_submission:
+    description: The event names the claim, its owner, total, currency and new state, the user who made the request, and the time and the event id of the call
+    rule: >-
+      output.claim_submitted.claim_id == output.claim.claim_id && output.claim_submitted.employee_id == output.claim.employee_id &&
+      output.claim_submitted.total == output.claim.total && output.claim_submitted.currency == output.claim.currency &&
+      output.claim_submitted.state == output.claim.state && output.claim_submitted.actor_id == input.actor_id &&
+      output.claim_submitted.occurred_at == input.now && output.claim_submitted.event_id == input.event_id
+    message: The event must tell the change of the claim
+
+  tells_the_withdrawal:
+    description: The event names the claim, its owner, total, currency and new state, the user who made the request, and the time and the event id of the call
+    rule: >-
+      output.claim_withdrawn.claim_id == output.claim.claim_id && output.claim_withdrawn.employee_id == output.claim.employee_id &&
+      output.claim_withdrawn.total == output.claim.total && output.claim_withdrawn.currency == output.claim.currency &&
+      output.claim_withdrawn.state == output.claim.state && output.claim_withdrawn.actor_id == input.actor_id &&
+      output.claim_withdrawn.occurred_at == input.now && output.claim_withdrawn.event_id == input.event_id
+    message: The event must tell the change of the claim
+
+  tells_the_approval:
+    description: The event names the claim, its owner, total, currency and new state, the user who made the request, and the time and the event id of the call
+    rule: >-
+      output.claim_approved.claim_id == output.claim.claim_id && output.claim_approved.employee_id == output.claim.employee_id &&
+      output.claim_approved.total == output.claim.total && output.claim_approved.currency == output.claim.currency &&
+      output.claim_approved.state == output.claim.state && output.claim_approved.actor_id == input.actor_id &&
+      output.claim_approved.occurred_at == input.now && output.claim_approved.event_id == input.event_id
+    message: The event must tell the change of the claim
+
+  tells_the_rejection:
+    description: The event names the claim, its owner, total, currency and new state, the user who made the request, the time and the event id of the call, and the reason of the request
+    rule: >-
+      output.claim_rejected.claim_id == output.claim.claim_id && output.claim_rejected.employee_id == output.claim.employee_id &&
+      output.claim_rejected.total == output.claim.total && output.claim_rejected.currency == output.claim.currency &&
+      output.claim_rejected.state == output.claim.state && output.claim_rejected.actor_id == input.actor_id &&
+      output.claim_rejected.occurred_at == input.now && output.claim_rejected.event_id == input.event_id && output.claim_rejected.reason == input.reason
+    message: The event must tell the change of the claim
+
+  tells_the_payment:
+    description: The event names the claim, its owner, total, currency and new state, the user who made the request, and the time and the event id of the call
+    rule: >-
+      output.claim_paid.claim_id == output.claim.claim_id && output.claim_paid.employee_id == output.claim.employee_id &&
+      output.claim_paid.total == output.claim.total && output.claim_paid.currency == output.claim.currency &&
+      output.claim_paid.state == output.claim.state && output.claim_paid.actor_id == input.actor_id &&
+      output.claim_paid.occurred_at == input.now && output.claim_paid.event_id == input.event_id
+    message: The event must tell the change of the claim
+
+  tells_the_overdue_claim:
+    description: The event names the claim, its owner, manager, total, currency, state and last submission, and the time and the event id of the call
+    rule: >-
+      has(output.claim.submitted_at) &&
+      output.claim_decision_overdue.claim_id == output.claim.claim_id && output.claim_decision_overdue.employee_id == output.claim.employee_id &&
+      output.claim_decision_overdue.manager_id == output.claim.manager_id && output.claim_decision_overdue.total == output.claim.total &&
+      output.claim_decision_overdue.currency == output.claim.currency && output.claim_decision_overdue.state == output.claim.state &&
+      output.claim_decision_overdue.submitted_at == output.claim.submitted_at && output.claim_decision_overdue.occurred_at == input.now && output.claim_decision_overdue.event_id == input.event_id
+    message: The event must tell the overdue claim
+
+  # The refusals
+
+  not_found_names_the_claim:
+    description: The refusal names the claim id of the request
+    rule: output.claim_id == input.claim_id
+    message: The refusal names another claim
+
+  forbidden_names_the_caller:
+    description: The refusal names the role of the caller and the user that the request names
+    rule: output.role == input.caller.role && has(output.actor_id) && output.actor_id == input.actor_id
+    message: The refusal names another caller
+
+  forbidden_names_the_role:
+    description: The refusal names the role of the caller
+    rule: output.role == input.caller.role
+    message: The refusal names another role
+
+  invalid_state_names_the_claim:
+    description: The refusal names the claim of the request and its state
+    rule: has(input.stored_claim) && output.claim_id == input.claim_id && output.state == input.stored_claim.state
+    message: The refusal names another claim or state
+
+  conflict_names_the_version:
+    description: The refusal names the claim and the version of the request
+    rule: output.claim_id == input.claim_id && output.version == input.version
+    message: The refusal names another claim or version
+
+operations:
+  create_draft:
+    description: Create a draft claim for the employee who calls
+    input: draft
+    output:
+      - claim: [caller_creates_own_claim, receipts_are_free, creates_the_draft]
+      - forbidden: [caller_may_not_create, forbidden_names_the_caller]
+      - duplicate_receipt: [caller_creates_own_claim, receipt_in_use]
+
+  edit_draft:
+    description: Replace the purpose, currency and lines of a draft claim; a rejected claim goes back to DRAFT
+    input: draft_edit
+    output:
+      - claim: [caller_owns_the_claim, was_draft_or_rejected, version_matches, receipts_are_free, edits_the_draft, next_version]
+      - not_found: [claim_was_not_found, not_found_names_the_claim]
+      - forbidden: [caller_does_not_own_the_claim, forbidden_names_the_caller]
+      - invalid_state: [caller_owns_the_claim, was_not_draft_or_rejected, invalid_state_names_the_claim]
+      - version_conflict: [caller_owns_the_claim, was_draft_or_rejected, version_does_not_match, conflict_names_the_version]
+      - duplicate_receipt: [caller_owns_the_claim, was_draft_or_rejected, version_matches, receipt_in_use]
+
+  submit_claim:
+    description: Submit a draft claim for a decision
+    input: submission
+    output:
+      - submitted: [caller_owns_the_claim, was_draft, version_matches, keeps_the_claim, claim_at_next_version, moves_to_submitted, tells_the_submission]
+      - not_found: [claim_was_not_found, not_found_names_the_claim]
+      - forbidden: [caller_does_not_own_the_claim, forbidden_names_the_caller]
+      - invalid_state: [caller_owns_the_claim, was_not_draft, invalid_state_names_the_claim]
+      - version_conflict: [caller_owns_the_claim, was_draft, version_does_not_match, conflict_names_the_version]
+
+  withdraw_claim:
+    description: Withdraw a submitted claim
+    input: change
+    output:
+      - withdrawn: [caller_owns_the_claim, was_submitted, version_matches, keeps_the_claim, keeps_the_submission, claim_at_next_version, moves_to_withdrawn, tells_the_withdrawal]
+      - not_found: [claim_was_not_found, not_found_names_the_claim]
+      - forbidden: [caller_does_not_own_the_claim, forbidden_names_the_caller]
+      - invalid_state: [caller_owns_the_claim, was_not_submitted, invalid_state_names_the_claim]
+      - version_conflict: [caller_owns_the_claim, was_submitted, version_does_not_match, conflict_names_the_version]
+
+  approve_claim:
+    description: Approve a submitted claim
+    input: change
+    output:
+      - approved: [caller_is_the_other_manager, was_submitted, version_matches, keeps_the_claim, keeps_the_submission, claim_at_next_version, moves_to_approved, tells_the_approval]
+      - not_found: [claim_was_not_found, not_found_names_the_claim]
+      - forbidden: [caller_is_not_the_other_manager, forbidden_names_the_caller]
+      - invalid_state: [caller_is_the_other_manager, was_not_submitted, invalid_state_names_the_claim]
+      - version_conflict: [caller_is_the_other_manager, was_submitted, version_does_not_match, conflict_names_the_version]
+
+  reject_claim:
+    description: Reject a submitted claim with a reason
+    input: rejection
+    output:
+      - rejected: [caller_is_the_manager, was_submitted, version_matches, keeps_the_claim, keeps_the_submission, claim_at_next_version, moves_to_rejected, tells_the_rejection]
+      - not_found: [claim_was_not_found, not_found_names_the_claim]
+      - forbidden: [caller_is_not_the_manager, forbidden_names_the_caller]
+      - invalid_state: [caller_is_the_manager, was_not_submitted, invalid_state_names_the_claim]
+      - version_conflict: [caller_is_the_manager, was_submitted, version_does_not_match, conflict_names_the_version]
+
+  mark_paid:
+    description: Mark an approved claim paid
+    input: change
+    output:
+      - paid: [caller_is_finance, claim_was_found, was_approved, version_matches, keeps_the_claim, keeps_the_submission, claim_at_next_version, moves_to_paid, tells_the_payment]
+      - not_found: [caller_is_finance, claim_was_not_found, not_found_names_the_claim]
+      - forbidden: [caller_is_not_finance, forbidden_names_the_caller]
+      - invalid_state: [caller_is_finance, was_not_approved, invalid_state_names_the_claim]
+      - version_conflict: [caller_is_finance, was_approved, version_does_not_match, conflict_names_the_version]
+
+  get_claim:
+    description: Read a claim by its id
+    input: lookup
+    output:
+      - claim: [caller_may_read, answers_the_stored_claim]
+      - not_found: [claim_was_not_found, not_found_names_the_claim]
+      - forbidden: [caller_may_not_read, forbidden_names_the_caller]
+
+  # The shell's clock calls it for each claim that is due: SUBMITTED for 30 days since its last
+  # submission, and not reported since. The input rule claim_is_due rejects a call for another claim.
+  report_overdue:
+    description: Report a claim that waits in SUBMITTED for a decision for 30 days since its last submission, once, with no change of state
+    input: overdue_check
+    output:
+      - overdue_reported: [caller_is_the_clock, was_submitted, marks_the_report, tells_the_overdue_claim]
+      - not_found: [caller_is_the_clock, claim_was_not_found, not_found_names_the_claim]
+      - forbidden: [caller_is_not_the_clock, forbidden_names_the_role]
+      - invalid_state: [caller_is_the_clock, was_not_submitted, invalid_state_names_the_claim]

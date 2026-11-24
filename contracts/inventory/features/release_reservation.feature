@@ -1,197 +1,68 @@
-@urn-forge:strict
-@urn:corpus:inventory:reservation:operation:release_reservation
 Feature: Release a reservation
+  The order system gives the stock of an active or partly shipped reservation back. The shell loads
+  the reservation and the stored level of each of its lines.
 
-  # Only the order system may release a reservation; the scenarios below run as the order system.
-  Background:
-    Given the caller is:
-      | role         |
-      | order_system |
+  Scenario: An active reservation gives back every line
+    When I run "release_reservation" with:
+      | caller.role  | now                      | idempotency_key | reservation_id                       | stored_reservation                                                                                                                                                                                                                                                                                                           | stored_levels                                                                                                                                                                                     |
+      | order_system | 2026-11-22T10:00:00.000Z | release-0001    | 3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13 | {"reservation_id": "3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13", "order_id": "ORD-1", "state": "ACTIVE", "reservation_lines": [{"sku": "WIDGET-1", "location": "AMS-B-0142", "quantity": 10, "shipped": 0}, {"sku": "GADGET-2", "location": "AMS-B-0143", "quantity": 5, "shipped": 0}], "expires_at": "2026-11-22T10:30:00.000Z"} | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400}, {"sku": "GADGET-2", "location": "AMS-B-0143", "on_hand": 50, "reserved": 40, "available": 10}] |
+    Then the output is "reservation_changed":
+      | levels                                                                                                                                                                                           |
+      | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 90, "available": 410}, {"sku": "GADGET-2", "location": "AMS-B-0143", "on_hand": 50, "reserved": 35, "available": 15}] |
 
-  Scenario Outline: An active or partly shipped reservation is released and gives its stock back
-    Given the current reservation is:
-      | result   | reservation_id                       | order_id | state   | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | <state> | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
-    When I run the operation with:
-      | idempotency_key   | reservation_id                       |
-      | <idempotency_key> | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
-    Then the output is:
-      | reservation_id                       | state    |
-      | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | RELEASED |
-    And the operation emits "urn:corpus:inventory:reservation:event:reservation_released":
-      | event_id                             | reservation_id                       | quantity_changed | level                                                                               | occurred_at              |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | 10               | { sku: WIDGET-1, location: AMS-B-0142, on_hand: 500, reserved: 90, available: 410 } | 2026-11-22T10:00:00.000Z |
+  Scenario: A partly shipped reservation gives back the units it still holds
+    When I run "release_reservation" with:
+      | caller.role  | now                      | idempotency_key | reservation_id                       | stored_reservation                                                                                                                                                                                                                                                                                                                      | stored_levels                                                                                                                                                                                     |
+      | order_system | 2026-11-22T10:00:00.000Z | release-0001    | 3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13 | {"reservation_id": "3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13", "order_id": "ORD-1", "state": "PARTIALLY_SHIPPED", "reservation_lines": [{"sku": "WIDGET-1", "location": "AMS-B-0142", "quantity": 10, "shipped": 4}, {"sku": "GADGET-2", "location": "AMS-B-0143", "quantity": 5, "shipped": 5}], "expires_at": "2026-11-22T10:30:00.000Z"} | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400}, {"sku": "GADGET-2", "location": "AMS-B-0143", "on_hand": 50, "reserved": 40, "available": 10}] |
+    Then the output is "reservation_changed":
+      | levels                                                                                            |
+      | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 94, "available": 406}] |
 
-    Examples:
-      | state             | idempotency_key  |
-      | ACTIVE            | rel-0001         |
-      | PARTIALLY_SHIPPED | =repeat(64, "x") |
-
-  Scenario Outline: An idempotency key shorter than 8 or longer than 64 characters is rejected
-    Given the current reservation is:
-      | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE  | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
-    When I run the operation with:
-      | idempotency_key   | reservation_id                       |
-      | <idempotency_key> | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
-    Then the input is rejected on "idempotency_key"
-
-    Examples:
-      | idempotency_key  |
-      | rel-001          |
-      | =repeat(65, "x") |
-
-  Scenario: A reservation id that is not a UUID is rejected
-    Given the current reservation is:
-      | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE  | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
-    When I run the operation with:
-      | idempotency_key | reservation_id |
-      | rel-0002        | RES-1          |
-    Then the input is rejected on "reservation_id"
-
-  Scenario: An unknown reservation is refused
-    Given there is no current reservation
-    When I run the operation with:
-      | idempotency_key | reservation_id                       |
-      | rel-0003        | 00000000-0000-4000-8000-000000000000 |
-    Then the operation fails with "urn:corpus:inventory:reservation:error:reservation_not_found":
-      | reservation_id                       |
-      | 00000000-0000-4000-8000-000000000000 |
-    And the operation emits no event
+  Scenario: An unknown reservation is not found
+    When I run "release_reservation" with:
+      | caller.role  | now                      | idempotency_key | reservation_id                       | stored_levels                                                                                                                                                                                     |
+      | order_system | 2026-11-22T10:00:00.000Z | release-0001    | 3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13 | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400}, {"sku": "GADGET-2", "location": "AMS-B-0143", "on_hand": 50, "reserved": 40, "available": 10}] |
+    Then the output is "reservation_not_found":
+      | error_code            | reservation_id                       |
+      | RESERVATION_NOT_FOUND | 3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13 |
 
   Scenario Outline: A shipped, released or expired reservation cannot be released
-    Given the current reservation is:
-      | result   | reservation_id                       | order_id | state   | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | <state> | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
-    When I run the operation with:
-      | idempotency_key | reservation_id                       |
-      | rel-0004        | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
-    Then the operation fails with "urn:corpus:inventory:reservation:error:invalid_state":
-      | reservation_id                       | state   |
-      | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | <state> |
-    And the operation emits no event
+    When I run "release_reservation" with:
+      | caller.role  | now                      | idempotency_key | reservation_id                       | stored_reservation   | stored_levels                                                                                                                                                                                     |
+      | order_system | 2026-11-22T10:00:00.000Z | release-0001    | 3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13 | <stored_reservation> | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400}, {"sku": "GADGET-2", "location": "AMS-B-0143", "on_hand": 50, "reserved": 40, "available": 10}] |
+    Then the output is "invalid_state":
+      | error_code    | state   |
+      | INVALID_STATE | <state> |
 
     Examples:
-      | state    |
-      | SHIPPED  |
-      | RELEASED |
-      | EXPIRED  |
+      | state    | stored_reservation                                                                                                                                                                                                                                 |
+      | SHIPPED  | {"reservation_id": "3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13", "order_id": "ORD-1", "state": "SHIPPED", "reservation_lines": [{"sku": "WIDGET-1", "location": "AMS-B-0142", "quantity": 10, "shipped": 10}], "expires_at": "2026-11-22T10:30:00.000Z"} |
+      | RELEASED | {"reservation_id": "3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13", "order_id": "ORD-1", "state": "RELEASED", "reservation_lines": [{"sku": "WIDGET-1", "location": "AMS-B-0142", "quantity": 10, "shipped": 0}], "expires_at": "2026-11-22T10:30:00.000Z"} |
+      | EXPIRED  | {"reservation_id": "3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13", "order_id": "ORD-1", "state": "EXPIRED", "reservation_lines": [{"sku": "WIDGET-1", "location": "AMS-B-0142", "quantity": 10, "shipped": 0}], "expires_at": "2026-11-22T10:30:00.000Z"}  |
 
-  Scenario Outline: A repeat with the same key and body within 24 hours returns the first answer and changes nothing
-    Given the time is "2026-11-22T10:00:00.000Z"
-    And the current reservation is:
-      | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
-    When I run the operation with:
-      | idempotency_key | reservation_id                       |
-      | rel-idem-0001   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
-    And the time is "<again>"
-    And I run the operation again with:
-      | idempotency_key | reservation_id                       |
-      | rel-idem-0001   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
-    Then the answer is the first answer
-    And the operation emits no event
+  Scenario Outline: Another caller may not release a reservation
+    When I run "release_reservation" with:
+      | caller.role | now                      | idempotency_key | reservation_id                       | stored_reservation                                                                                                                                                                                                                                                                                                           | stored_levels                                                                                                                                                                                     |
+      | <role>      | 2026-11-22T10:00:00.000Z | release-0001    | 3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13 | {"reservation_id": "3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13", "order_id": "ORD-1", "state": "ACTIVE", "reservation_lines": [{"sku": "WIDGET-1", "location": "AMS-B-0142", "quantity": 10, "shipped": 0}, {"sku": "GADGET-2", "location": "AMS-B-0143", "quantity": 5, "shipped": 0}], "expires_at": "2026-11-22T10:30:00.000Z"} | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400}, {"sku": "GADGET-2", "location": "AMS-B-0143", "on_hand": 50, "reserved": 40, "available": 10}] |
+    Then the output is "forbidden":
+      | error_code | role   |
+      | FORBIDDEN  | <role> |
 
     Examples:
-      | again                    |
-      | 2026-11-22T10:00:00.000Z |
-      | 2026-11-23T09:59:59.999Z |
+      | role            |
+      | warehouse_staff |
+      | clock           |
 
-  Scenario Outline: The same key with another body within 24 hours is refused with idempotency_conflict
-    Given the time is "2026-11-22T10:00:00.000Z"
-    And the current reservation is:
-      | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
-    When I run the operation with:
-      | idempotency_key | reservation_id                       |
-      | rel-idem-0002   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
-    And the time is "<again>"
-    And I run the operation again with:
-      | idempotency_key | reservation_id                       |
-      | rel-idem-0002   | 6b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d5e |
-    Then the operation fails with "urn:corpus:inventory:request:error:idempotency_conflict":
-      | idempotency_key |
-      | rel-idem-0002   |
-    And the operation emits no event
+  Scenario Outline: A release request that breaks a rule is rejected
+    When I run "release_reservation" with:
+      | caller.role  | now                      | idempotency_key   | reservation_id   | stored_reservation   | stored_levels                                                                                                                                                                                     |
+      | order_system | 2026-11-22T10:00:00.000Z | <idempotency_key> | <reservation_id> | <stored_reservation> | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400}, {"sku": "GADGET-2", "location": "AMS-B-0143", "on_hand": 50, "reserved": 40, "available": 10}] |
+    Then the input is rejected by "<rule>" of "<definition>"
 
     Examples:
-      | again                    |
-      | 2026-11-22T10:00:00.000Z |
-      | 2026-11-23T09:59:59.999Z |
-
-  Scenario: 24 hours after the first answer the key is free, and a call with the same body runs again
-    Given the time is "2026-11-22T10:00:00.000Z"
-    And the current reservation is:
-      | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
-    When I run the operation with:
-      | idempotency_key | reservation_id                       |
-      | rel-idem-0003   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
-    And the time is "2026-11-23T10:00:00.000Z"
-    And I run the operation again with:
-      | idempotency_key | reservation_id                       |
-      | rel-idem-0003   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
-    Then the operation emits "urn:corpus:inventory:reservation:event:reservation_released":
-      | event_id                             |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 |
-
-  Scenario: 24 hours after the first answer the key is free, and a call for another reservation runs again
-    Given the time is "2026-11-22T10:00:00.000Z"
-    And the current reservation is:
-      | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
-    When I run the operation with:
-      | idempotency_key | reservation_id                       |
-      | rel-idem-0003   | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
-    And the time is "2026-11-23T10:00:00.000Z"
-    And the current reservation is:
-      | result   | reservation_id                       | order_id | state  | lines                                                   | expires_at               |
-      | RESERVED | 6b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d5e | ORD-2    | ACTIVE | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
-    And I run the operation again with:
-      | idempotency_key | reservation_id                       |
-      | rel-idem-0003   | 6b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d5e |
-    Then the operation emits "urn:corpus:inventory:reservation:event:reservation_released":
-      | event_id                             |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 |
-
-  Scenario Outline: Any caller other than the order system is refused
-    Given the caller is:
-      | role                 |
-      | <role>               |
-    And the current reservation is:
-      | result   | reservation_id                       | order_id | state   | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | ACTIVE  | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
-    When I run the operation with:
-      | idempotency_key | reservation_id                       |
-      | rel-0101        | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
-    Then the operation fails with "urn:corpus:inventory:access:error:forbidden":
-      | role   |
-      | <role> |
-    And the operation emits no event
-
-    Examples:
-      | role                 |
-      | purchasing_system    |
-      | warehouse_staff      |
-      | warehouse_supervisor |
-      | clock                |
-
-  Scenario Outline: A refused caller does not learn the state of the reservation
-    Given the caller is:
-      | role                 |
-      | <role>               |
-    And the current reservation is:
-      | result   | reservation_id                       | order_id | state   | lines                                                   | expires_at               |
-      | RESERVED | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d | ORD-1    | SHIPPED | [{ sku: WIDGET-1, location: AMS-B-0142, quantity: 10 }] | 2026-11-22T10:30:00.000Z |
-    When I run the operation with:
-      | idempotency_key | reservation_id                       |
-      | rel-0101        | 5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d |
-    Then the operation fails with "urn:corpus:inventory:access:error:forbidden":
-      | role   |
-      | <role> |
-    And the operation emits no event
-
-    Examples:
-      | role                 |
-      | warehouse_staff      |
+      | rule                  | definition      | idempotency_key                                                   | reservation_id                       | stored_reservation                                                                                                                                                                                                                                                                                                           |
+      | names_the_reservation | release_request | release-0001                                                      | 9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f | {"reservation_id": "3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13", "order_id": "ORD-1", "state": "ACTIVE", "reservation_lines": [{"sku": "WIDGET-1", "location": "AMS-B-0142", "quantity": 10, "shipped": 0}, {"sku": "GADGET-2", "location": "AMS-B-0143", "quantity": 5, "shipped": 0}], "expires_at": "2026-11-22T10:30:00.000Z"} |
+      | pattern               | reservation_id  | release-0001                                                      | R-1                                  |                                                                                                                                                                                                                                                                                                                              |
+      | minLength             | idempotency_key | short                                                             | 3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13 |                                                                                                                                                                                                                                                                                                                              |
+      | maxLength             | idempotency_key | kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk | 3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13 |                                                                                                                                                                                                                                                                                                                              |
+      | required              | release_request |                                                                   | 3f2b8c1e-9a4d-4c7e-8b1f-2d6e5a9c0b13 |                                                                                                                                                                                                                                                                                                                              |

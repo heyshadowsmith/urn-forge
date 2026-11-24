@@ -1,128 +1,100 @@
 # Add a test fixture
 
-This guide is for contributors who change urn-forge itself. A fixture is a manifest and the exact output that `compile` gives for it. The harness in `tests/fixtures.test.ts` compiles each fixture and compares the result with the expected files, byte for byte. Thus any change to the output of urn-forge shows as a diff that a reviewer can read.
+This guide is for contributors who change urn-forge itself. A fixture is a small project in `packages/urn-forge/tests/fixtures/`: a manifest, its committed generated files, a core and features. The tests compile it, run its generated code and run its scenarios. Thus a change to the output of urn-forge shows as a diff that a reviewer can read.
 
 ## Before you start
 
 - You have a clone of urn-forge, and `npm ci` ran in the root folder.
-- `npm test` passes.
-- You know what the fixture must show: a manifest that compiles, or a manifest with problems.
+- `npm test` and `npm run typecheck` pass.
+- You know what the fixture must show.
 
 Commands run from `packages/urn-forge`.
 
-## Know the layout
+## Choose: the booking fixture, an inline manifest or a new fixture
 
-Each folder below `tests/fixtures/` is one fixture:
+The only fixture at this time is `booking`: a restaurant booking. It was the target of the redesign, and it uses each construct of the [redesign notes](../planning/manifest-redesign-notes.md):
+
+- definitions of the six types, and a definition as the type of another;
+- an identifier, and lists of values and of objects;
+- rules with and without parameters, and standard rules;
+- CEL over lists and times;
+- a deprecated definition;
+- an operation with rules for each output.
+
+Its config has `coverage: 'error'` and a Postgres table.
+
+- **To test a construct that compiles,** add it to the booking fixture. Most tests read it, so a new construct gets the generated code, the scenarios, the gates and the Postgres schema at no extra cost.
+- **To test a mistake,** write a small manifest inline in the test, not a fixture. `tests/model.test.ts`, `tests/rules.test.ts` and `tests/diff.test.ts` do this. To break the booking fixture in one place, use the helper `changed` of `tests/target.test.ts`.
+- **Make a new fixture** only if the booking fixture cannot hold the case, for example a different config.
+
+## Know the layout
 
 | File | Content |
 | --- | --- |
-| `domain.manifest.yaml` | The manifest. Necessary |
-| `urn-forge.config.ts` | A config whose `plugins` list replaces the default plugins. Optional |
-| `expected/ir.json` | The canonical IR, if the manifest compiles |
-| `expected/<file>.generated.ts` | Each generated file, with its header and fingerprint, if the manifest compiles |
-| `expected/diagnostics.json` | The diagnostics, if the manifest does not compile. Then `expected/` has no other file |
+| `domain.manifest.yaml` | The manifest |
+| `urn-forge.config.ts` | The config. It imports `defineConfig` from `../../../src/config.js`, sets `out: 'generated'`, `core: 'core.ts'` and `tsconfig: '../../../tsconfig.json'`, and sets `coverage: 'error'` |
+| `core.ts` | The core: `export const core = { … } satisfies DomainCore` |
+| `features/*.feature` | The scenarios |
+| `features/support/steps.ts` | Calls `registerSteps` from `../../../../../src/gherkin/steps.js` with the generated file and the core |
+| `generated/` | The files that `compile` writes. They are committed |
 
-The folders at this time are `math`, `shop`, `primitives`, `errors-valibot`, `invalid-structure`, `broken-references`, `conflicting-constraints` and `replaced-constraints`. Add to a fixture that has the same purpose before you make a new one. For example:
+The package tsconfig includes `tests`, so `npm run typecheck` type-checks the core and the generated file of each fixture.
 
-- `primitives` has one field for each primitive and each constraint, and an entity with lists. Tests parse values through its generated schemas.
-- `invalid-structure` has structure problems that pass 1 finds.
-- `conflicting-constraints` has fields that pass 7 refuses.
-- `replaced-constraints` has constraints that pass 1 refuses, such as `oneOf` and `notEqual`.
+## Change the booking fixture
 
-## Add a fixture that compiles
-
-1. Make the folder `tests/fixtures/<name>/`.
-2. Write `domain.manifest.yaml` in it.
-3. Run the harness with `-u`. It writes the files in `expected/`:
+1. Change `tests/fixtures/booking/domain.manifest.yaml`.
+2. Compile the fixture:
 
    ```bash
-   npx vitest run tests/fixtures.test.ts -u
+   node bin/urn-forge.js compile --config tests/fixtures/booking/urn-forge.config.ts
    ```
 
-   The first run fails, because it cannot see the files that it writes. The test that compares the file list shows an empty list. This is the output for a fixture named `shipping`, with the manifest of tutorial 3:
+   The output names each file:
 
    ```
-    FAIL  tests/fixtures.test.ts > fixture shipping > compiles without diagnostics to the expected IR and files
-   AssertionError: expected [] to deeply equal [ 'domain.runtime.generated.ts', …(2) ]
-
-   - Expected
-   + Received
-
-   - [
-   -   "domain.runtime.generated.ts",
-   -   "domain.schemas.generated.ts",
-   -   "ir.json",
-   - ]
-   + []
+   wrote      tests/fixtures/booking/generated/domain.generated.ts
+   unchanged  tests/fixtures/booking/generated/schema.generated.sql
    ```
 
-4. Run the harness again, without `-u`:
+3. If the change adds an operation, an output or a rule of a definition, add a scenario for it to `features/seat.feature`. If the change adds an operation, add its function to `core.ts`.
+4. Verify the fixture:
 
    ```bash
-   npx vitest run tests/fixtures.test.ts
+   node bin/urn-forge.js verify --config tests/fixtures/booking/urn-forge.config.ts
    ```
 
-   All tests pass.
+   Gates 1 to 4 must pass. The fixture has one warning, `deprecated-use`, on purpose.
 
-5. Examine each file in `expected/`. From now on, a change to these files is a change to the output of urn-forge.
+5. Run the tests. Some tests count parts of the fixture, and fail when the count changes:
+   - `tests/features.test.ts` expects the number of scenarios;
+   - `tests/target.test.ts` expects the diagnostics of the fixture;
+   - `tests/gherkin-gate.test.ts` expects the summary of gate 3;
+   - `tests/cli.test.ts` expects some lines of the manifest, such as the line of a diagnostic.
 
-The determinism test (`tests/determinism.test.ts`) also compiles each fixture that compiles. It runs the CLI with a Turkish locale and the time zone `Pacific/Chatham`, and compares the bytes with `expected/`. You do not have to do more for it.
+   Correct each count to the new value, after you examine that it is correct.
 
-## Add a fixture with a plugin config
+6. Examine the diff of `generated/`. Make sure that each change is a change that you intended.
 
-To test one plugin alone, or a plugin with options, add `urn-forge.config.ts` to the fixture folder. The harness loads it with the real config loader and reads only its `plugins` list.
+## Add a new fixture
 
-The `errors-valibot` fixture runs the Valibot plugin alone. It tested the error schemas before the FCIS plugin supported errors:
+1. Make the folder `tests/fixtures/<name>/`, with the files of the layout. Copy the config and `features/support/steps.ts` of the booking fixture.
+2. Write the manifest, the core and the features.
+3. Compile the fixture, then verify it, with `--config tests/fixtures/<name>/urn-forge.config.ts`.
+4. Add a test file, `tests/<name>.test.ts`, that does these checks:
+   - The committed generated file is the file that `compileManifest` and `generate` give. Copy the first test of `tests/generated.test.ts`.
+   - Cucumber runs the features and they pass. Copy `tests/features.test.ts`, with the folder of the new fixture.
+   - The generated checks and the harness do what the fixture must show.
+5. Run `npm test` and `npm run typecheck` from the root folder.
 
-<<< @/../packages/urn-forge/tests/fixtures/errors-valibot/urn-forge.config.ts
-
-A plugin with options uses the tuple form. This is the config for the example plugin of [Add a plugin](./add-a-plugin.md):
-
-```ts
-export default { plugins: [['urn-list', { exportName: 'SHIPPING_URNS' }]] };
-```
-
-Then run the harness twice, as in the steps above.
-
-## Add a fixture that fails
-
-1. Write a manifest that has the problems to test.
-2. Run the harness with `-u`, then without `-u`, as above.
-3. Examine `expected/diagnostics.json`. It has each diagnostic with its code, its line and column, its URN and its message.
-
-   For a `weight_grams` field with `min: 40000` and `max: 30000`, the file is:
-
-   ```json
-   [
-     {
-       "code": "incoherent-constraints",
-       "location": {
-         "column": 8,
-         "line": 9
-       },
-       "message": "urn:demo:shipping:parcel:field:weight_grams: min (40000) is greater than max (30000), so no value is valid",
-       "severity": "error",
-       "urn": "urn:demo:shipping:parcel:field:weight_grams"
-     }
-   ]
-   ```
-
-A fixture fails if `compile` gives one error or more. A plugin error, such as `unsupported-construct`, counts too. A fixture that fails has no generated files in `expected/`. The harness needs at least one fixture that compiles and one that fails.
-
-## Update a fixture after a change
-
-1. Change the manifest, or change urn-forge.
-2. If the fixture changes from a pass to a failure, or back, delete its `expected/` folder first. `-u` writes files, but it does not delete a file that is no longer correct.
-3. Run the harness with `-u`, then without `-u`.
-4. Examine the diff with `git diff tests/fixtures`. Make sure that each change is a change that you intended.
+If you change the generated code later, compile each fixture again with the others. [CONTRIBUTING.md](../CONTRIBUTING.md) gives the list of commands.
 
 ## Result
 
-`npx vitest run tests/fixtures.test.ts` passes, and `expected/` holds exactly what `compile` gives for the manifest.
+`npm test` compiles the fixture, compares its generated files byte for byte, and runs its scenarios.
 
 ## Related pages
 
-- [Add a primitive](./add-a-primitive.md)
-- [Add a plugin](./add-a-plugin.md)
+- [Add a domain](./add-a-domain.md)
+- [Dogfooding](./dogfooding.md)
+- [How urn-forge is built](./architecture.md)
 - [Diagnostics](../docs/reference/diagnostics.md)
-- [Determinism and the fingerprint](../docs/explanation/how-urn-forge-proves-it.md)
