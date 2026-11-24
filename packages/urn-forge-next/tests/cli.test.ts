@@ -102,6 +102,27 @@ describe('verify', () => {
   });
 });
 
+describe('diff', () => {
+  it('passes a manifest against itself', async () => {
+    const dir = copy();
+    expect((await run(dir, ['diff', 'domain.manifest.yaml', 'domain.manifest.yaml'])).out).toEqual(['diff passed: 0 change(s), 0 breaking, 0.1.0 → 0.1.0']);
+  });
+
+  it('fails a breaking change within one major version, and passes it across a new one', async () => {
+    const dir = copy();
+    const manifest = join(dir, 'domain.manifest.yaml');
+    edit(manifest, (t) => t.replace('version: 0.1.0', 'version: 1.0.0'));
+    cpSync(manifest, join(dir, 'old.yaml'));
+    edit(manifest, (t) => t.replace('version: 1.0.0', 'version: 1.1.0').replace('      - maximum: 12', '      - maximum: 10'));
+    const minor = await run(dir, ['diff', 'old.yaml', 'domain.manifest.yaml']);
+    expect(minor.code).toBe(1);
+    expect(minor.out).toEqual(['breaking    definitions.party_size  maximum is now 10, not 12: it accepts less']);
+    expect(minor.err).toEqual(['diff failed: 1 change(s), 1 breaking, 1.0.0 → 1.1.0: 1.0.0 → 1.1.0 keeps the major version 1; a breaking change needs a new major version']);
+    edit(manifest, (t) => t.replace('version: 1.1.0', 'version: 2.0.0'));
+    expect((await run(dir, ['diff', 'old.yaml', 'domain.manifest.yaml'])).out.at(-1)).toBe('diff passed: 1 change(s), 1 breaking, 1.0.0 → 2.0.0: allowed, as 2.0.0 is a new major version');
+  });
+});
+
 describe('the command line', () => {
   it('reports a config option that does not exist', async () => {
     const dir = copy();
