@@ -29,8 +29,8 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 15 | Applying rules | A definition or an operation has a `rules:` array, like `properties`: rule names, with a parameter where the rule has one (`- minimum: 1`, `- even`, `- required: [reference]`) |
 | 16 | Structure and rules | Structure is what a value is: `description`, `type`, `properties`, `items`, `identifier`. Everything that must be true of it is a rule in `rules:`, including `required` and `enum`. The JSON Schema keywords are a standard set of rules that urn-forge ships |
 | 17 | Types | JSON Schema's six: `string`, `number`, `integer`, `boolean`, `object`, `array`. A date is a `string` with the rule `format: date`, a timestamp a `string` with `format: date-time` |
-| 19 | Standard set | Any value: `enum`, `const`. Numbers: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`. Strings: `minLength`, `maxLength`, `pattern`, `format` (only `date` and `date-time`). Arrays: `minItems`, `maxItems`, `uniqueItems`. Objects: `required`. Anything else a user declares |
 | 18 | Exact amounts | No decimal type. An exact amount, such as money, is an `integer` of its smallest unit (cents) |
+| 19 | Standard set | Any value: `enum`, `const`. Numbers: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`. Strings: `minLength`, `maxLength`, `pattern`, `format` (only `date` and `date-time`). Arrays: `minItems`, `maxItems`, `uniqueItems`. Objects: `required`. Anything else a user declares |
 
 ## Open
 
