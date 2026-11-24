@@ -25,5 +25,5 @@ it('the features of the booking fixture pass', async () => {
   stream.on('data', (chunk: Buffer) => output.push(chunk.toString()));
   const { success } = await runCucumber(runConfiguration, { cwd, stdout: stream, stderr: stream });
   expect(success, output.join('')).toBe(true);
-  expect(output.join('')).toMatch(/^28 scenarios \(28 passed\)$/m);
+  expect(output.join('')).toMatch(/^29 scenarios \(29 passed\)$/m);
 }, 30_000);

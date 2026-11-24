@@ -22,7 +22,7 @@ it('passes the booking fixture, which covers every operation, output and rule', 
   const outcome = gate(feature);
   expect(outcome.problems).toEqual([]);
   expect(outcome.pass).toBe(true);
-  expect(outcome.summary).toBe('1 feature(s), 28 scenario(s), 1/1 operation(s) run, 23 rule(s) broken');
+  expect(outcome.summary).toBe('1 feature(s), 29 scenario(s), 1/1 operation(s) run, 23 rule(s) broken');
 });
 
 describe('a gap', () => {
@@ -34,7 +34,7 @@ describe('a gap', () => {
   });
 
   it('is an output that no scenario answers', () => {
-    const text = feature.replace(/Then the output is "invalid_state":/, 'Then the output is "booking":');
+    const text = feature.replace(/Then the output is "invalid_state"/g, 'Then the output is "booking"');
     expect(problems(text)).toContain('warning uncovered-output: no scenario of seat_booking answers invalid_state; add one that ends with Then the output is "invalid_state"');
   });
 

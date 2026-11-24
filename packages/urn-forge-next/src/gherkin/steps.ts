@@ -25,7 +25,8 @@ import { tableValue, type DefinitionsTable } from './cells.js';
 export const STEPS = {
   run: /^I run "([^"]+)" with:$/,
   check: /^I check an? "([^"]+)" with:$/,
-  output: /^the output is "([^"]+)":?$/,
+  output: /^the output is "([^"]+)"$/,
+  outputWith: /^the output is "([^"]+)":$/,
   inputRejected: /^the input is rejected by "([^"]+)" of "([^"]+)"$/,
   valueRejected: /^the value is rejected by "([^"]+)" of "([^"]+)"$/,
   accepted: /^the value is accepted$/,
@@ -70,7 +71,7 @@ export function registerSteps(options: StepOptions): void {
     last = { step: 'check', name: definition, result: options.check(definition as never, value) };
   });
 
-  Then(STEPS.output, (object: string, table?: DataTable) => {
+  const output = (object: string, table: DataTable | undefined): void => {
     const { name, result } = need('run');
     if (!result.ok) throw new Error(`${name} did not answer: ${result.kind ?? 'refused'}: ${show(result.failures)}`);
     if (result.output !== object) throw new Error(`${name} answered ${result.output}, not ${object}`);
@@ -82,7 +83,10 @@ export function registerSteps(options: StepOptions): void {
         throw new Error(`${object}.${key} is ${JSON.stringify(actual[key])}, not ${JSON.stringify(value)}`);
       }
     }
-  });
+  };
+  // Two steps: Cucumber passes a callback as the last parameter of a step that has no table.
+  Then(STEPS.output, (object: string) => output(object, undefined));
+  Then(STEPS.outputWith, (object: string, table: DataTable) => output(object, table));
 
   const rejected = (step: 'run' | 'check', rule: string, definition: string): void => {
     const { name, result } = need(step);

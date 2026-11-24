@@ -172,7 +172,7 @@ function show(path: Path): string {
 export function readManifest(text: string, diagnostics: Diagnostics, options: { readonly ruleName?: RegExp } = {}): ManifestDecl | undefined {
   const document = parseDocument(text, { uniqueKeys: true });
   if (document.errors.length > 0) {
-    for (const error of document.errors) diagnostics.error('yaml-syntax', [], error.message);
+    for (const error of document.errors) diagnostics.error('yaml-syntax', [], error.message.split('\n')[0]!, error.linePos?.[0]?.line);
     return undefined;
   }
   if (!isMap(document.contents)) {

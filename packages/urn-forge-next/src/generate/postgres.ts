@@ -106,6 +106,7 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, self: string | Rea
             return types.get(e)?.kind === 'int' ? `TRUNC(${left}::NUMERIC / ${right})::BIGINT` : `(${left} / ${right})`;
           default:
             if (['+', '-'].includes(e.op) && types.get(e)?.kind === 'list') throw new Untranslatable();
+            if (e.op === '+' && types.get(e)?.kind === 'string') return `(${left} || ${right})`;
             return `(${left} ${e.op} ${right})`;
         }
       }

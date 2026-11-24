@@ -47,6 +47,14 @@ describe('compile', () => {
     expect(err).toContain('domain.manifest.yaml:23  error  rule-argument  minimum: "one" is not a number; bound is a number that a value is compared with');
   });
 
+  it('reports a YAML error at its line', async () => {
+    const dir = copy();
+    edit(join(dir, 'domain.manifest.yaml'), (t) => t.replace('  invalid_state:\n', '  invalid_state:\n   bad: [\n'));
+    const { err } = await run(dir, ['compile']);
+    expect(err[0]).toMatch(/^domain\.manifest\.yaml:(\d+) {2}error {2}yaml-syntax {2}/);
+    expect(Number(/:(\d+)/.exec(err[0]!)![1])).toBeGreaterThan(100);
+  });
+
   it('removes a generated file that it no longer makes', async () => {
     const dir = copy();
     writeFileSync(join(dir, 'generated', 'old.generated.ts'), '');

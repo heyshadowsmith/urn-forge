@@ -63,7 +63,7 @@ export function lineOf(text: string, path: Path): number | undefined {
 
 function showDiagnostics(io: CliIo, file: string, text: string, diagnostics: readonly Diagnostic[]): void {
   for (const d of diagnostics) {
-    const line = lineOf(text, d.path);
+    const line = d.line ?? lineOf(text, d.path);
     io.stderr(`${file}${line ? `:${line}` : ''}  ${d.severity}  ${d.code}  ${d.message}`);
   }
 }

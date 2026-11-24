@@ -68,7 +68,7 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
         } else if ((m = STEPS.check.exec(text))) {
           operation = undefined;
           if (!model.definitions[m[1]!]) unknown(`${m[1]} is not a definition of the manifest`);
-        } else if ((m = STEPS.output.exec(text))) {
+        } else if ((m = STEPS.output.exec(text) ?? STEPS.outputWith.exec(text))) {
           const object = m[1]!;
           const contract = operation ? model.operations[operation] : undefined;
           if (contract) {

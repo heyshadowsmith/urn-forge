@@ -7,14 +7,16 @@ export interface Diagnostic {
   readonly severity: 'error' | 'warning';
   readonly path: Path;
   readonly message: string;
+  /** The line, when the path cannot give it: a YAML error. */
+  readonly line?: number;
 }
 
 /** Collects the diagnostics of one load. */
 export class Diagnostics {
   readonly list: Diagnostic[] = [];
 
-  error(code: string, path: Path, message: string): void {
-    this.list.push({ code, severity: 'error', path, message });
+  error(code: string, path: Path, message: string, line?: number): void {
+    this.list.push({ code, severity: 'error', path, message, ...(line ? { line } : {}) });
   }
 
   warning(code: string, path: Path, message: string): void {

@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { describe, expect, it } from 'vitest';
 import { compileManifest } from '../src/index.js';
-import { postgresProblems } from '../src/generate/postgres.js';
+import { postgresProblems, postgresSchema } from '../src/generate/postgres.js';
 
 const schema = readFileSync(new URL('./fixtures/booking/generated/schema.generated.sql', import.meta.url), 'utf8');
 
@@ -58,6 +58,39 @@ describe('the booking table', () => {
   it('names the rules that SQL cannot say', () => {
     expect(schema).toContain('-- Not in SQL; the harness checks these rules: tables: maxItems; tables: uniqueItems; contact: required; booking: total_is_the_dishes');
   });
+});
+
+it('joins two strings with ||, not +', () => {
+  const manifest = `manifest:
+  namespace: demo
+  domain: dates
+  version: 0.1.0
+definitions:
+  code:
+    description: A code
+    type: string
+  day:
+    description: A day
+    type: string
+    rules:
+      - format: date
+  holiday:
+    description: A holiday
+    type: object
+    identifier: code
+    properties: [code, day]
+    rules:
+      - required: [code, day]
+      - after_2000
+rules:
+  after_2000:
+    description: After 2000
+    rule: timestamp(self.day + 'T00:00:00Z') > timestamp('2000-01-01T00:00:00Z')
+    message: Before 2000
+`;
+  const compiled = compileManifest(manifest);
+  const sql = postgresSchema(compiled.model!, compiled.applications, { tables: ['holiday'] });
+  expect(sql).toContain(`CHECK (((("day" || 'T00:00:00Z'))::TIMESTAMPTZ > ('2000-01-01T00:00:00Z')::TIMESTAMPTZ))`);
 });
 
 describe('the postgres config', () => {

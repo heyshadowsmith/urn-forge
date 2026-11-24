@@ -22,6 +22,12 @@ Feature: Seat a booking
       | completed |
       | cancelled |
 
+  Scenario: A seated booking is refused
+    When I run "seat_booking" with:
+      | reference | stored_booking.reference | stored_booking.party_size | stored_booking.state | stored_booking.starts_at | stored_booking.ends_at | stored_booking.contact.email |
+      | ABCDEFGH  | ABCDEFGH                 | 2                         | seated               | 2026-11-24T19:00:00Z     | 2026-11-24T21:00:00Z   | ada@example.com              |
+    Then the output is "invalid_state"
+
   Scenario: A request that names another booking is rejected
     When I run "seat_booking" with:
       | reference | stored_booking.reference | stored_booking.party_size | stored_booking.state | stored_booking.starts_at | stored_booking.ends_at | stored_booking.contact.email |
