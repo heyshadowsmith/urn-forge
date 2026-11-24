@@ -25,9 +25,11 @@ function problems(text: string): { code: string; path: string }[] {
 const target = { names: it, syntax: it, rules: it, all: it };
 
 describe('the booking fixture', () => {
-  target.all('loads with no diagnostic', () => {
+  target.all('loads with no error, and warns of the deprecated note that booking uses', () => {
     const { model, diagnostics } = loadManifest(fixture);
-    expect(diagnostics).toEqual([]);
+    expect(diagnostics).toEqual([
+      { code: 'deprecated-use', severity: 'warning', path: ['definitions', 'booking', 'properties', 6], message: 'booking uses the deprecated definition note' },
+    ]);
     expect(model).toBeDefined();
   });
 });

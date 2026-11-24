@@ -86,6 +86,8 @@ function facts(expr: Expr, when: boolean): Set<string> {
 
 class Checker {
   readonly problems: RuleProblem[] = [];
+  /** The type of each node that typed, for the code generator: `/` on two ints is a division of ints. */
+  readonly types = new Map<Expr, CelType>();
 
   constructor(private readonly scope: Scope) {}
 
@@ -96,6 +98,12 @@ class Checker {
 
   /** The type of `expr`, or undefined after a problem. `guards` are the properties shown present. */
   type(expr: Expr, names: Readonly<Record<string, CelType>>, guards: ReadonlySet<string>): CelType | undefined {
+    const type = this.infer(expr, names, guards);
+    if (type) this.types.set(expr, type);
+    return type;
+  }
+
+  private infer(expr: Expr, names: Readonly<Record<string, CelType>>, guards: ReadonlySet<string>): CelType | undefined {
     switch (expr.kind) {
       case 'int':
         return INT;
@@ -210,7 +218,12 @@ class Checker {
   }
 
   private call(expr: Expr & { kind: 'call' }, names: Readonly<Record<string, CelType>>, guards: ReadonlySet<string>): CelType | undefined {
-    if (expr.fn === 'has') return this.select(expr.args[0] as Expr & { kind: 'select' }, names, guards, true) ? BOOL : undefined;
+    if (expr.fn === 'has') {
+      const select = expr.args[0] as Expr & { kind: 'select' };
+      const type = this.select(select, names, guards, true);
+      if (type) this.types.set(select, type);
+      return type ? BOOL : undefined;
+    }
     const target = expr.target ?? expr.args[0]!;
     const value = this.type(target, names, guards);
     if (!value) return undefined;
@@ -240,8 +253,11 @@ class Checker {
 }
 
 /** The type of a rule in a scope, and its problems. */
-export function checkRule(expr: Expr, scope: Scope): { readonly type: CelType | undefined; readonly problems: readonly RuleProblem[] } {
+export function checkRule(
+  expr: Expr,
+  scope: Scope,
+): { readonly type: CelType | undefined; readonly problems: readonly RuleProblem[]; readonly types: ReadonlyMap<Expr, CelType> } {
   const checker = new Checker(scope);
   const type = checker.type(expr, scope.names, new Set());
-  return { type, problems: checker.problems };
+  return { type, problems: checker.problems, types: checker.types };
 }

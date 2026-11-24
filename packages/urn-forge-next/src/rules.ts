@@ -6,25 +6,36 @@
  */
 import { readFileSync } from 'node:fs';
 import { BOOL, checkRule, DOUBLE, INT, STRING, type CelType, type PropertyType, type Scope } from './cel/check.js';
+import type { Expr } from './cel/parse.js';
 import { Diagnostics, type Path } from './diagnostics.js';
 import { readManifest, RULE_NAME, type RuleUse } from './manifest.js';
 import { buildModel, requiredOf, type Definition, type Model, type Rule } from './model.js';
 
-/** The standard set, loaded once. A problem in it is a bug in urn-forge. */
-let standardModel: Model | undefined;
+/** The standard set, loaded once, with the uses of its rules in its own definitions. A problem in it is a bug in urn-forge. */
+let standardSet: { readonly model: Model; readonly applications: readonly Application[] } | undefined;
 
-export function standard(): Model {
-  if (standardModel) return standardModel;
+function loadStandard(): NonNullable<typeof standardSet> {
+  if (standardSet) return standardSet;
   const diagnostics = new Diagnostics();
   const text = readFileSync(new URL('./standard.manifest.yaml', import.meta.url), 'utf8');
   const decl = readManifest(text, diagnostics, { ruleName: RULE_NAME });
   const model = decl ? buildModel(decl, diagnostics) : undefined;
   if (!model || diagnostics.hasErrors) throw new Error(`the standard set has problems: ${JSON.stringify(diagnostics.list)}`);
   // The standard set's own uses are checked against itself.
-  checkRules(model, model, diagnostics);
+  const applications = checkRules(model, model, diagnostics);
   if (diagnostics.hasErrors) throw new Error(`the standard set has problems: ${JSON.stringify(diagnostics.list)}`);
-  standardModel = model;
-  return model;
+  standardSet = { model, applications };
+  return standardSet;
+}
+
+/** The standard set of rules: the keywords of JSON Schema. */
+export function standard(): Model {
+  return loadStandard().model;
+}
+
+/** The uses of rules in the standard set's own definitions, such as a count of 0 or more. */
+export function standardApplications(): readonly Application[] {
+  return loadStandard().applications;
 }
 
 /** The CEL type of a definition's value. */
@@ -103,8 +114,26 @@ function notAValue(value: unknown, definition: Definition, model: Model): string
   }
 }
 
-/** Checks each use of a rule in `model`. Rules are looked up in `model`, then in `standardSet`. */
-export function checkRules(model: Model, standardSet: Model, diagnostics: Diagnostics): void {
+/** Where a rule is applied: a definition, an output of an operation, or an operation. */
+export type Place =
+  | { readonly kind: 'definition'; readonly definition: string }
+  | { readonly kind: 'output'; readonly operation: string; readonly object: string }
+  | { readonly kind: 'operation'; readonly operation: string };
+
+/** A use of a rule that checks: the rule, its arguments by parameter, and the type of each node. */
+export interface Application {
+  readonly use: RuleUse;
+  readonly rule: Rule & { readonly expr: Expr };
+  /** The model that declares the rule: the manifest, or the standard set. */
+  readonly owner: Model;
+  readonly place: Place;
+  readonly arguments: Readonly<Record<string, unknown>>;
+  readonly types: ReadonlyMap<Expr, CelType>;
+}
+
+/** Checks each use of a rule in `model`, and gives the uses that check. Rules are looked up in `model`, then in `standardSet`. */
+export function checkRules(model: Model, standardSet: Model, diagnostics: Diagnostics): Application[] {
+  const applications: Application[] = [];
   // A manifest's rule cannot take the name of a standard rule: a reader would not know which one applies.
   if (model !== standardSet) {
     for (const rule of Object.values(model.rules)) {
@@ -120,7 +149,7 @@ export function checkRules(model: Model, standardSet: Model, diagnostics: Diagno
   };
   const properties = propertiesOf(model);
 
-  const apply = (use: RuleUse, names: Record<string, CelType>, where: string): void => {
+  const apply = (use: RuleUse, names: Record<string, CelType>, where: string, place: Place): void => {
     const found = find(use.rule);
     if (!found) {
       diagnostics.error('unknown-rule', use.path, `${use.rule} is not a rule of this manifest or a standard rule`);
@@ -135,18 +164,22 @@ export function checkRules(model: Model, standardSet: Model, diagnostics: Diagno
       names: { ...names, ...Object.fromEntries(parameters.map((p) => [p, celType(owner.definitions[p]!, owner)])) },
       properties,
     };
-    const { type, problems } = checkRule(rule.expr, scope);
+    const { type, problems, types } = checkRule(rule.expr, scope);
     for (const problem of problems) {
       const hint = problem.code === 'rule-scope' ? ` (applied to ${where})` : '';
       diagnostics.error(problem.code, use.path, `${rule.name}: ${problem.message}${hint}`);
     }
-    if (problems.length === 0 && type && type.kind !== 'bool') {
+    if (problems.length > 0 || !type) return;
+    if (type.kind !== 'bool') {
       diagnostics.error('rule-type', use.path, `${rule.name} gives the type ${type.kind}; a rule must give a bool`);
+      return;
     }
+    const args = parameters.length === 1 ? { [parameters[0]!]: use.argument!.value } : parameters.length === 0 ? {} : (use.argument!.value as Record<string, unknown>);
+    applications.push({ use, rule: rule as Application['rule'], owner, place, arguments: args, types });
   };
 
   for (const definition of Object.values(model.definitions)) {
-    for (const use of definition.rules) apply(use, { self: celType(definition, model) }, `the definition ${definition.name}`);
+    for (const use of definition.rules) apply(use, { self: celType(definition, model) }, `the definition ${definition.name}`, { kind: 'definition', definition: definition.name });
   }
   for (const operation of Object.values(model.operations)) {
     const object = (name: string): CelType | undefined => {
@@ -158,12 +191,17 @@ export function checkRules(model: Model, standardSet: Model, diagnostics: Diagno
     for (const output of operation.outputs) {
       const type = object(output.object);
       if (!type) continue;
-      for (const use of output.rules) apply(use, { input, output: type }, `the output ${output.object} of ${operation.name}`);
+      for (const use of output.rules) {
+        apply(use, { input, output: type }, `the output ${output.object} of ${operation.name}`, { kind: 'output', operation: operation.name, object: output.object });
+      }
     }
     // The operation's own rules hold whichever output comes back: they read output only when there is one.
     const only = operation.outputs.length === 1 ? object(operation.outputs[0]!.object) : undefined;
-    for (const use of operation.rules) apply(use, { input, ...(only ? { output: only } : {}) }, `the operation ${operation.name}`);
+    for (const use of operation.rules) {
+      apply(use, { input, ...(only ? { output: only } : {}) }, `the operation ${operation.name}`, { kind: 'operation', operation: operation.name });
+    }
   }
+  return applications;
 }
 
 /** The parameters of a use, when its argument fits them: none, one value, or a map by parameter name. */
