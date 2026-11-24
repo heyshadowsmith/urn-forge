@@ -52,7 +52,7 @@ definitions:
     type: string
     deprecated: true
     rules:
-      - maxLength: 500
+      - maxLength: 20
 
   table_number:
     description: The number of a table
