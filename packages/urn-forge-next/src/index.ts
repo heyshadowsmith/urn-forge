@@ -5,10 +5,12 @@
 import { Diagnostics } from './diagnostics.js';
 import { readManifest } from './manifest.js';
 import { buildModel, type Model } from './model.js';
+import { checkRules, standard } from './rules.js';
 
 export type { Diagnostic, Path } from './diagnostics.js';
 export type { BaseType, RuleUse } from './manifest.js';
 export type { Definition, Model, Rule } from './model.js';
+export { standard } from './rules.js';
 export { parseRule, CelSyntaxError, type Expr } from './cel/parse.js';
 export { print } from './cel/print.js';
 export { checkRule, type CelType, type Scope, type PropertyType, type RuleProblem } from './cel/check.js';
@@ -18,5 +20,6 @@ export function loadManifest(text: string): { readonly model: Model | undefined;
   const diagnostics = new Diagnostics();
   const decl = readManifest(text, diagnostics);
   const model = decl ? buildModel(decl, diagnostics) : undefined;
+  if (model) checkRules(model, standard(), diagnostics);
   return { model: diagnostics.hasErrors ? undefined : model, diagnostics: diagnostics.list };
 }

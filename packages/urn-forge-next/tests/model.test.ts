@@ -80,7 +80,9 @@ describe('rules', () => {
   });
 
   it('read a use with no argument, and a use with one', () => {
-    const { model } = load("definitions:\n  sku:\n    description: A SKU\n    type: string\n    rules:\n      - trimmed\n      - maxLength: 12\n");
+    const { model } = load(
+      "definitions:\n  sku:\n    description: A SKU\n    type: string\n    rules:\n      - trimmed\n      - maxLength: 12\nrules:\n  trimmed:\n    description: Not empty\n    rule: size(self) > 0\n    message: Must not be empty\n",
+    );
     expect(model?.definitions['sku']?.rules).toEqual([
       { rule: 'trimmed', path: ['definitions', 'sku', 'rules', 0] },
       { rule: 'maxLength', argument: { value: 12 }, path: ['definitions', 'sku', 'rules', 1] },
@@ -96,7 +98,10 @@ describe('operations', () => {
   });
 
   it('read each output with its own rules', () => {
-    const { model } = load(objects + 'operations:\n  add:\n    description: Add a line\n    input: line\n    output:\n      - line: [kept]\n');
+    const { model } = load(
+      objects +
+        'operations:\n  add:\n    description: Add a line\n    input: line\n    output:\n      - line: [kept]\nrules:\n  kept:\n    description: The line is kept\n    rule: output == input\n    message: The line changed\n',
+    );
     expect(model?.operations['add']?.outputs).toEqual([
       { object: 'line', rules: [{ rule: 'kept', path: ['operations', 'add', 'output', 0, 'line', 0] }], path: ['operations', 'add', 'output', 0] },
     ]);

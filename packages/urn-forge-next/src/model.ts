@@ -24,8 +24,8 @@ export interface Definition extends DefinitionDecl {
 }
 
 export interface Rule extends RuleDecl {
-  /** The parsed rule. */
-  readonly expr: Expr;
+  /** The parsed rule, or undefined when it does not parse (rule-syntax). */
+  readonly expr: Expr | undefined;
 }
 
 export interface Model {
@@ -116,6 +116,7 @@ export function buildModel(decl: ManifestDecl, diagnostics: Diagnostics): Model 
       rules[rule.name] = { ...rule, expr: parseRule(rule.text) };
     } catch (error) {
       if (!(error instanceof CelSyntaxError)) throw error;
+      rules[rule.name] = { ...rule, expr: undefined };
       diagnostics.error('rule-syntax', [...rule.path, 'rule'], `${rule.name}: ${error.message}, at column ${error.at + 1} of the rule`);
     }
   }
