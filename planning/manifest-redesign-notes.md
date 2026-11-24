@@ -39,6 +39,7 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 25 | CEL times | A rule turns a time string into a timestamp with `timestamp(...)`, written in each rule: no type implied by `format`. `duration(...)`, comparisons, a timestamp plus or minus a duration, and the difference of two timestamps. No calendar months and no date arithmetic: a `format: date` string compares as text |
 | 26 | Description and message | Every definition and every rule has a `description`: what it is, for a reader of the contract (docs, generated comments, database comments). A rule also has a `message`: the text of a failure, with its parameters filled (`Must be at least {bound}`). A failure also carries the rule's name, so an app can show its own wording |
 | 27 | Deprecation | JSON Schema's `deprecated: true` on any piece: the generated code is marked `@deprecated`, and a live piece that uses it gets a warning. No `sunset` (remove the piece; `diff` reports it), no `supersededBy` (the `description` says what to use), no dates and no notice policy (they belong to the running service) |
+| 28 | Versions | No `stability`. `diff` judges a breaking change by semver: allowed (and listed) in `0.x`, in a pre-release (`2.0.0-alpha.1`) and across a major bump; an error within one major version (`1.4.0` → `1.5.0`) |
 
 ## Open
 
@@ -47,5 +48,5 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 - Operations: `input`, `output` (one of several objects), `rules`. Where today's `requires`, `ensures`, `callers`, `changes`, `moves` and `refuses` go.
 - `message` on an error object.
 - Out of the manifest, maybe extras later: `idempotency`, `due`, `delivery`, the outbox, `recordAs`.
-- `compatibility`, `stability`.
+- `compatibility` (`callers: ignore-unknown`): in the manifest, or a `diff` setting in the config.
 - The fate of PR #90 (the integrity plan), which assumes today's operations.
