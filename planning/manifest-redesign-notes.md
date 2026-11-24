@@ -35,6 +35,7 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 21 | Parameter types | No "same type as the value". As in JSON Schema, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` and `multipleOf` take a `number` (an integer is a number). `enum` and `const` are for strings: their parameter is a `string`, or an `array` of strings. A choice of numbers is a user's own rule, or `minimum` and `maximum` |
 | 22 | Rule language | A subset of CEL (Common Expression Language), as Kubernetes and Buf's protovalidate use it with schemas. Every urn-forge rule is valid CEL. `self` is the value the rule applies to. urn-forge parses the subset itself, to translate rules to SQL, compare them in `diff` and check them in tests. Before/after (CEL's `oldSelf` in Kubernetes transition rules) is a reference for operations |
 | 23 | CEL core | `self`; properties and paths (`self.contact.email`); parameters by their definition's name; `==`, `!=`, `<`, `<=`, `>`, `>=`; `&&`, `\|\|`, `!`, parentheses; `+`, `-`, `*`, `/`, `%`; `in`; `has()`; literals. An optional property is used only after `has()` (a stricter check than CEL, still valid CEL). Anything else in CEL is added only for a real need |
+| 24 | CEL lists | `all`, `exists`, `size`, and `map` with `sum()` (from the Kubernetes CEL list extension) for totals. Not yet: `exists_one`, `filter`, `min()`, `max()` |
 
 ## Open
 
@@ -44,5 +45,5 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 - `message` on an error object.
 - Out of the manifest, maybe extras later: `idempotency`, `due`, `delivery`, the outbox, `recordAs`.
 - Lifecycle, `compatibility`, `stability`.
-- The parts of CEL in the subset: lists, dates and times.
+- The parts of CEL in the subset: dates and times.
 - The fate of PR #90 (the integrity plan), which assumes today's operations.
