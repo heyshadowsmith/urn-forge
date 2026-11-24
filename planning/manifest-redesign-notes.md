@@ -46,9 +46,9 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 32 | A definition as a type | `type` can name another definition: `from_account: { type: account }` is an account, with all its rules, and can add its own. So an object holds two values of one kind under two definitions (`from_account`, `to_account`) |
 | 33 | No `link` | A reference to another object is a value whose `type` is that object's identifier definition (`restaurant_ref: { type: restaurant_number }`). The harness sees only input and output, so "it exists" is the user's code's job (it loads the object into the input). Foreign keys are settled with storage |
 | 34 | Compatibility | Stays in the manifest's header, `compatibility: { callers: ignore-unknown }`: a promise that callers tolerate what they do not recognise in outputs, so a new output or a new choice in an output is compatible for `diff`. Without it, both are breaking |
+| 35 | Out of the manifest | `idempotency`, `due`, `delivery` (and the outbox), `recordAs` and `callers` leave the manifest. `due`, `recordAs` and `callers` are objects and rules that users write (the caller is a property of the input). `idempotency` and `delivery` may come back as optional extras outside the manifest: libraries built on the generated code, not keywords |
 
 ## Open
 
 - Storage: the Postgres extra (tables, foreign keys, `unique` across stored records) once operations no longer load records.
-- Out of the manifest, maybe extras later: `idempotency`, `due`, `delivery`, the outbox, `recordAs`.
 - The fate of PR #90 (the integrity plan), which assumes today's operations.
