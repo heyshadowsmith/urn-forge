@@ -36,6 +36,7 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 22 | Rule language | A subset of CEL (Common Expression Language), as Kubernetes and Buf's protovalidate use it with schemas. Every urn-forge rule is valid CEL. `self` is the value the rule applies to. urn-forge parses the subset itself, to translate rules to SQL, compare them in `diff` and check them in tests. Before/after (CEL's `oldSelf` in Kubernetes transition rules) is a reference for operations |
 | 23 | CEL core | `self`; properties and paths (`self.contact.email`); parameters by their definition's name; `==`, `!=`, `<`, `<=`, `>`, `>=`; `&&`, `\|\|`, `!`, parentheses; `+`, `-`, `*`, `/`, `%`; `in`; `has()`; literals. An optional property is used only after `has()` (a stricter check than CEL, still valid CEL). Anything else in CEL is added only for a real need |
 | 24 | CEL lists | `all`, `exists`, `size`, and `map` with `sum()` (from the Kubernetes CEL list extension) for totals. Not yet: `exists_one`, `filter`, `min()`, `max()` |
+| 25 | CEL times | A rule turns a time string into a timestamp with `timestamp(...)`, written in each rule: no type implied by `format`. `duration(...)`, comparisons, a timestamp plus or minus a duration, and the difference of two timestamps. No calendar months and no date arithmetic: a `format: date` string compares as text |
 
 ## Open
 
@@ -45,5 +46,4 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 - `message` on an error object.
 - Out of the manifest, maybe extras later: `idempotency`, `due`, `delivery`, the outbox, `recordAs`.
 - Lifecycle, `compatibility`, `stability`.
-- The parts of CEL in the subset: dates and times.
 - The fate of PR #90 (the integrity plan), which assumes today's operations.
