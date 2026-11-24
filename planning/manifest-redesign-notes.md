@@ -16,19 +16,22 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 2 | Layout | Pieces are grouped by kind, not named by kind |
 | 3 | One concept | Fields and entities are one concept, in one section, `definitions:`. An object is a definition with `type: object` |
 | 4 | Type | `type`, not `primitive` |
-| 5 | Choices | `type: string` with `enum: [...]` (JSON Schema), not `type: enum` |
-| 6 | Limits | JSON Schema words: `pattern`, `minimum`, `maximum`, `minLength`, `maxLength` |
-| 7 | Objects | `properties: [names of shared definitions]` and `required: [...]`. No renaming or narrowing in place |
-| 8 | Lists | A definition with `type: array`, `items`, `minItems`, `maxItems`, `uniqueItems` |
+| 5 | Choices | `type: string` with the rule `enum: [...]` (JSON Schema), not `type: enum` |
+| 6 | Limits | JSON Schema words: `pattern`, `minimum`, `maximum`, `minLength`, `maxLength`. They are rules (decision 16) |
+| 7 | Objects | `properties: [names of shared definitions]`, and the rule `required: [...]`. No renaming or narrowing in place |
+| 8 | Lists | A definition with `type: array` and `items` (one shared definition); `minItems`, `maxItems`, `uniqueItems` are rules |
 | 9 | Embedding | The name of an object definition in `properties` (or in `items`) embeds it |
-| 10 | Identity | `key` on an object (ours: JSON Schema has none). `link: <object>` on a definition holds that object's key |
+| 10 | Identity | `identifier: <property>` on an object (renamed from `key`; ours, as JSON Schema has none): the property that tells two objects of that kind apart. It must be required and one value. Its uses in storage and operations are revisited with operations |
 | 11 | Errors | No `category`, no `retryable`. Errors and events are objects; the operation gives them their role |
 | 12 | Keywords | Keywords are parameterised rules. The JSON Schema keywords are a standard set that urn-forge ships; users declare their own the same way. `diff` compares parameters, and the form of the rule gives the direction |
 | 13 | Diffing rules | Every rule has a name. Added: accepts less. Removed: accepts more. Text edited: breaking both ways |
-| 14 | Reusable rules | A top-level `rules:` section declares them, with a parameter (`at_least: { rule: value >= n }`). A definition of any type uses one as a keyword (`at_least: 1`) |
-| 15 | One-off rules | `constraints:` on a definition of any type: named rules, each with `rule` and `message`. A rule on a simple value reads `value` |
+| 14 | Where rules live | All rule text is in the top-level `rules:` section, each with a name, `rule`, `message`, and optional parameters. No rule text anywhere else |
+| 15 | Applying rules | A definition or an operation has a `rules:` array, like `properties`: rule names, with a parameter where the rule has one (`- minimum: 1`, `- even`, `- required: [reference]`) |
+| 16 | Structure and rules | Structure is what a value is: `description`, `type`, `properties`, `items`, `identifier`. Everything that must be true of it is a rule in `rules:`, including `required` and `enum`. The JSON Schema keywords are a standard set of rules that urn-forge ships |
 
 ## Open
+
+- Parked until operations: `link`; two values of one definition in one object (`before`/`after`, `from`/`to`); `type` naming another definition.
 
 - Operations: `input`, `output` (one of several objects), `rules`. Where today's `requires`, `ensures`, `callers`, `changes`, `moves` and `refuses` go.
 - `message` on an object; `format` (`date`, `date-time`, `email`); decimals.
