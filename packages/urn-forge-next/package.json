@@ -1,0 +1,25 @@
+{
+  "name": "urn-forge-next",
+  "version": "0.2.0",
+  "description": "The redesigned urn-forge: definitions, rules and operations. It replaces urn-forge at the switch.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "~5.9",
+    "vitest": "^5.1.1"
+  }
+}
