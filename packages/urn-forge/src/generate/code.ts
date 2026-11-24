@@ -41,100 +41,111 @@ export function fillMessage(message: string, args: Readonly<Record<string, unkno
 function runtimeSource(): string {
   const text = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8');
   // Failure is the type of a check's result: it stays exported.
-  return text.replace(/^\/\*\*[\s\S]*?\*\/\n\n/, '').replace(/^export (?!interface Failure)/gm, '');
+  return text
+    .replace(/^\/\*\*[\s\S]*?\*\/\n/, '')
+    .replace(/^import \* as v from 'valibot';\n\n?/m, '')
+    .replace(/^export (?!interface Failure)/gm, '');
 }
 
-/** The code of one use of a rule on `value` at `path`, which pushes a failure when it breaks. */
-function ruleCode(application: Application, definition: string, indent: string): string {
+/** The action of one use of a rule in the pipe of a schema. */
+function ruleAction(application: Application, definition: string): string {
   const args = application.arguments;
   const names: Record<string, string> = { self: 'value' };
   for (const [parameter, argument] of Object.entries(args)) names[parameter] = JSON.stringify(argument);
-  const check = emitRule(application.rule.expr, application.types, names);
+  const test = emitRule(application.rule.expr, application.types, names);
   const message = fillMessage(application.rule.message, args);
-  return [
-    `${indent}if (!$holds(() => ${check})) {`,
-    `${indent}  failures.push({ definition: ${JSON.stringify(definition)}, rule: ${JSON.stringify(application.rule.name)}, path, message: ${JSON.stringify(message)} });`,
-    `${indent}  ok = false;`,
-    `${indent}}`,
-  ].join('\n');
+  return `$rule(${JSON.stringify(definition)}, ${JSON.stringify(application.rule.name)}, ${JSON.stringify(message)}, (value: any) => ${test})`;
 }
 
-const STRUCTURE: Readonly<Record<string, { readonly test: string; readonly message: string }>> = {
-  string: { test: "typeof value === 'string'", message: 'Must be a string' },
-  integer: { test: 'Number.isSafeInteger(value)', message: 'Must be an integer' },
-  number: { test: "typeof value === 'number' && Number.isFinite(value)", message: 'Must be a number' },
-  boolean: { test: "typeof value === 'boolean'", message: 'Must be true or false' },
-  array: { test: 'Array.isArray(value)', message: 'Must be a list' },
-  object: { test: '$isObject(value)', message: 'Must be an object' },
+/** The name of a definition's schema: `party_size` → `PartySizeSchema`. */
+export function schemaName(definition: string): string {
+  return `${pascal(definition)}Schema`;
+}
+
+/** The base schema of each type, with the message of a value of the wrong type. */
+const BASE: Readonly<Record<string, string>> = {
+  string: "v.string('Must be a string')",
+  integer: "v.pipe(v.number('Must be an integer'), v.integer('Must be an integer'))",
+  number: "v.pipe(v.number('Must be a number'), v.finite('Must be a number'))",
+  boolean: "v.boolean('Must be true or false')",
 };
 
-/** The check of each definition: its structure, then its rules. */
-export function checkFunctions(model: Model, applications: readonly Application[]): string {
-  const byDefinition = new Map<string, Application[]>();
+/**
+ * A Valibot schema for each definition, `<Name>Schema`: its structure, then its rules in a pipe. The
+ * schemas come in the order of their uses; a schema that a cycle reaches again is v.lazy.
+ */
+export function schemasCode(model: Model, applications: readonly Application[]): string {
+  const rulesOf = new Map<string, Application[]>();
   for (const application of applications) {
     if (application.place.kind !== 'definition') continue;
-    const list = byDefinition.get(application.place.definition) ?? [];
+    const list = rulesOf.get(application.place.definition) ?? [];
     list.push(application);
-    byDefinition.set(application.place.definition, list);
+    rulesOf.set(application.place.definition, list);
   }
   const lines: string[] = [];
-  for (const definition of Object.values(model.definitions)) {
-    const own = byDefinition.get(definition.name) ?? [];
-    const name = JSON.stringify(definition.name);
-    lines.push(`function check_${definition.name}(value: unknown, path: string, failures: Failure[]): boolean {`);
-    if (definition.root !== definition.name) {
-      // A definition whose type names another definition: that definition's check, then its own rules.
-      lines.push(`  if (!check_${definition.root}(value, path, failures)) return false;`);
-    } else {
-      const structure = STRUCTURE[definition.base]!;
-      lines.push(`  if (!(${structure.test})) {`);
-      lines.push(`    failures.push({ definition: ${name}, rule: 'type', path, message: ${JSON.stringify(structure.message)} });`);
-      lines.push('    return false;');
-      lines.push('  }');
-      if (definition.base === 'array') {
-        lines.push('  let items = true;');
-        lines.push(`  (value as unknown[]).forEach((item, index) => {`);
-        lines.push(`    if (!check_${definition.items}(item, $item(path, index), failures)) items = false;`);
-        lines.push('  });');
-        lines.push('  if (!items) return false;');
+  const done = new Set<string>();
+  const active = new Set<string>();
+  const ref = (name: string): string => (done.has(name) ? schemaName(name) : `v.lazy(() => ${schemaName(name)})`);
+  const emit = (name: string): void => {
+    if (done.has(name) || active.has(name)) return;
+    active.add(name);
+    const definition = model.definitions[name]!;
+    let structure: string;
+    if (definition.root !== name) {
+      emit(definition.type);
+      structure = ref(definition.type);
+    } else if (definition.base === 'array') {
+      emit(definition.items!);
+      structure = `v.array(${ref(definition.items!)}, 'Must be a list')`;
+    } else if (definition.base === 'object') {
+      const required = new Set<string>();
+      for (const a of rulesOf.get(name) ?? []) {
+        if (a.rule.name === 'required' && a.owner !== model) for (const p of a.arguments['property_names'] as string[]) required.add(p);
       }
-      if (definition.base === 'object') {
-        const properties = definition.properties ?? [];
-        lines.push(`  const object = value as Record<string, unknown>;`);
-        lines.push('  let properties = true;');
-        lines.push('  for (const key of Object.keys(object)) {');
-        lines.push(`    if (object[key] === undefined) continue;`);
-        lines.push(`    switch (key) {`);
-        for (const property of properties) {
-          lines.push(`      case ${JSON.stringify(property)}:`);
-          lines.push(`        if (!check_${property}(object[key], $at(path, key), failures)) properties = false;`);
-          lines.push('        break;');
-        }
-        lines.push('      default:');
-        lines.push(
-          `        failures.push({ definition: ${name}, rule: 'properties', path: $at(path, key), message: ${JSON.stringify(`Must be one of the properties of ${definition.name}: ${properties.join(', ')}`)} });`,
-        );
-        lines.push('        properties = false;');
-        lines.push('    }');
-        lines.push('  }');
-        lines.push('  if (!properties) return false;');
-      }
-    }
-    if (own.length > 0) {
-      lines.push('  let ok = true;');
-      // `required` first: the other rules of an object read its required properties.
-      const required = own.filter((a) => a.rule.name === 'required' && a.owner !== model);
-      const others = own.filter((a) => !required.includes(a));
-      for (const application of required) lines.push(ruleCode(application, definition.name, '  '));
-      if (required.length > 0 && others.length > 0) lines.push('  if (!ok) return false;');
-      for (const application of others) lines.push(ruleCode(application, definition.name, '  '));
-      lines.push('  return ok;');
+      for (const property of definition.properties ?? []) emit(property);
+      const entries = (definition.properties ?? []).map((p) => `${p}: ${required.has(p) ? ref(p) : `v.optional(${ref(p)})`}`);
+      structure = `v.strictObject({ ${entries.join(', ')} }, 'Must be an object')`;
     } else {
-      lines.push('  return true;');
+      structure = BASE[definition.base]!;
     }
-    lines.push('}', '');
-  }
+    // required is the structure of the object; the other rules run in the pipe.
+    const rules = (rulesOf.get(name) ?? []).filter((a) => !(a.rule.name === 'required' && a.owner !== model)).map((a) => ruleAction(a, name));
+    const value = rules.length > 0 ? `v.pipe(${[structure, ...rules].join(',\n  ')})` : structure;
+    lines.push(`/** ${definition.description}${definition.deprecated ? ' @deprecated' : ''} */`, `export const ${schemaName(name)} = ${value};`, '');
+    active.delete(name);
+    done.add(name);
+  };
+  for (const name of Object.keys(model.definitions)) emit(name);
   return lines.join('\n');
+}
+
+/** The message of the required rule of each object: what a missing property gives. */
+function requiredMessages(model: Model, applications: readonly Application[]): Record<string, string> {
+  const messages: Record<string, string> = {};
+  for (const a of applications) {
+    if (a.place.kind === 'definition' && a.rule.name === 'required' && a.owner !== model) messages[a.place.definition] = fillMessage(a.rule.message, a.arguments);
+  }
+  return messages;
+}
+
+/** The check of each definition, with its schema: `check_<name>(value, path, failures)`. */
+export function checkFunctions(model: Model, applications: readonly Application[]): string {
+  const shapes = Object.fromEntries(
+    Object.values(model.definitions).map((d) => {
+      const root = model.definitions[d.root]!;
+      return [d.name, { base: d.base, root: d.root, ...(root.items ? { items: root.items } : {}), ...(root.properties ? { properties: root.properties } : {}) }];
+    }),
+  );
+  return [
+    schemasCode(model, applications),
+    `const SHAPES: Readonly<Record<string, Shape>> = ${JSON.stringify(shapes)};`,
+    '',
+    `const REQUIRED: Readonly<Record<string, string>> = ${JSON.stringify(requiredMessages(model, applications))};`,
+    '',
+    ...Object.keys(model.definitions).map(
+      (d) => `function check_${d}(value: unknown, path: string, failures: Failure[]): boolean {\n  return $validate(${schemaName(d)}, ${JSON.stringify(d)}, value, path, failures, SHAPES, REQUIRED);\n}\n`,
+    ),
+  ].join('\n');
 }
 
 /** The TypeScript type of each definition. */
@@ -214,7 +225,8 @@ export interface GeneratedFile {
 /** The checks of a model as JavaScript, for the compiler: a check of each definition, by name. */
 export function checksModule(model: Model, applications: readonly Application[]): string {
   const checks = `return { ${Object.keys(model.definitions).map((d) => `${d}: check_${d}`).join(', ')} };`;
-  return ['(() => {', runtimeSource(), checkFunctions(model, applications), checks, '})()'].join('\n');
+  // Inside a function, a schema is not exported.
+  return ['((v) => {', runtimeSource(), checkFunctions(model, applications).replace(/^export /gm, ''), checks, '})'].join('\n');
 }
 
 /** The header of a generated file. */
@@ -223,6 +235,7 @@ export function header(source: string, fingerprint: string): string {
     `// Generated by urn-forge from ${source}. Do not edit: change the manifest, then run urn-forge compile.`,
     `// fingerprint ${fingerprint}`,
     '/* eslint-disable */',
+    "import * as v from 'valibot';",
     '',
   ].join('\n');
 }

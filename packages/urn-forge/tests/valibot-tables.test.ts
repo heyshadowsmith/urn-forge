@@ -10,7 +10,7 @@ import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { schemas: it.fails, columns: it.fails, lists: it.fails, store: it.fails };
+const target = { schemas: it, columns: it.fails, lists: it.fails, store: it.fails };
 
 const GENERATED = './fixtures/booking/generated/domain.generated.js';
 const STORE = './fixtures/booking/generated/domain.store.generated.js';

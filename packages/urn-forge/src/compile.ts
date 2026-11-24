@@ -4,6 +4,7 @@
  */
 import { createHash } from 'node:crypto';
 import ts from 'typescript';
+import * as v from 'valibot';
 import type { UrnForgeConfig } from './config.js';
 import { Diagnostics, type Diagnostic } from './diagnostics.js';
 import { checksModule, generatedFile, type GeneratedFile } from './generate/code.js';
@@ -25,7 +26,7 @@ type Checks = Readonly<Record<string, (value: unknown, path: string, failures: F
 /** The checks of a model, run in the compiler: the same code as the generated file. */
 function checksOf(model: Model, applications: readonly Application[]): Checks {
   const js = ts.transpileModule(checksModule(model, applications), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  return new Function(`return ${js.trim().replace(/;$/, '')}`)() as Checks;
+  return (new Function(`return ${js.trim().replace(/;$/, '')}`)() as (valibot: typeof v) => Checks)(v);
 }
 
 let standardChecks: Checks | undefined;
