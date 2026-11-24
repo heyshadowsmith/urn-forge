@@ -40,12 +40,13 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 26 | Description and message | Every definition and every rule has a `description`: what it is, for a reader of the contract (docs, generated comments, database comments). A rule also has a `message`: the text of a failure, with its parameters filled (`Must be at least {bound}`). A failure also carries the rule's name, so an app can show its own wording |
 | 27 | Deprecation | JSON Schema's `deprecated: true` on any piece: the generated code is marked `@deprecated`, and a live piece that uses it gets a warning. No `sunset` (remove the piece; `diff` reports it), no `supersededBy` (the `description` says what to use), no dates and no notice policy (they belong to the running service) |
 | 28 | Versions | No `stability`. `diff` judges a breaking change by semver: allowed (and listed) in `0.x`, in a pre-release (`2.0.0-alpha.1`) and across a major bump; an error within one major version (`1.4.0` → `1.5.0`) |
+| 29 | Operations | An operation is a TypeSpec-style signature: `input` (one object), `output` (a list: one of these objects), and a `rules:` array. Nothing else. No `changes`, `from`, `to`, `moves`, `requires`, `ensures` or `errors`: a refusal is one of the outputs, an ordinary object; a stored record the code loaded is a property of the input; before and after are the input's record and the output. Richer patterns (before/after, deciders) are things users build from signatures and rules |
 
 ## Open
 
 - Parked until operations: `compatibility` (`callers: ignore-unknown`), in the manifest or as a `diff` setting; `link`; two values of one definition in one object (`before`/`after`, `from`/`to`); `type` naming another definition.
 
-- Operations: `input`, `output` (one of several objects), `rules`. Where today's `requires`, `ensures`, `callers`, `changes`, `moves` and `refuses` go.
+- In an operation's rule: what `self` is, and how a rule tells which output came back.
 - `message` on an error object.
 - Out of the manifest, maybe extras later: `idempotency`, `due`, `delivery`, the outbox, `recordAs`.
 - The fate of PR #90 (the integrity plan), which assumes today's operations.
