@@ -22,7 +22,7 @@ function problems(text: string): { code: string; path: string }[] {
 }
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { names: it.fails, rules: it.fails, all: it.fails };
+const target = { names: it, rules: it.fails, all: it };
 
 describe('the booking fixture', () => {
   target.all('loads with no diagnostic', () => {
