@@ -31,6 +31,7 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 17 | Types | JSON Schema's six: `string`, `number`, `integer`, `boolean`, `object`, `array`. A date is a `string` with the rule `format: date`, a timestamp a `string` with `format: date-time` |
 | 18 | Exact amounts | No decimal type. An exact amount, such as money, is an `integer` of its smallest unit (cents) |
 | 19 | Standard set | Any value: `enum`, `const`. Numbers: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`. Strings: `minLength`, `maxLength`, `pattern`, `format` (only `date` and `date-time`). Arrays: `minItems`, `maxItems`, `uniqueItems`. Objects: `required`. Anything else a user declares |
+| 20 | Parameters | A rule lists its parameters by name, `parameters: [count]`, as shared definitions in `definitions:`, the same way `properties` lists values. The rule's text and message use those names (`value >= count`, `{count}`). The standard set's own definitions live in urn-forge's namespace, so they never clash with a user's names |
 
 ## Open
 
