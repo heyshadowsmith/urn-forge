@@ -51,4 +51,4 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 
 ## Open
 
-- The fate of PR #90 (the integrity plan), which assumes today's operations.
+- A plan for the change: the steps from today's urn-forge, each commit green; the six example contracts, the corpus score, and users' existing manifests.
