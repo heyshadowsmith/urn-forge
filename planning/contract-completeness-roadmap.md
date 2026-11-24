@@ -253,6 +253,7 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
     - **Rules that the manifests leave out**, which `requires` and `ensures` can state today: for example, that the answer has the merchant, the method or the party size of the request, and that the loaded record is the one that the request names.
     - **Real holes**: windows over a local time (D3), a manager from another domain (D1), facts about a file, and a string function.
 17. The [manifest redesign](./manifest-redesign-notes.md) (Nov 24, 2026): a smaller manifest of definitions, rules and operations, in JSON Schema's words, with rules in a subset of CEL. Most of the faults that the audit found are in features that the redesign removes, so it replaces the integrity plan. The [redesign plan](./manifest-redesign-plan.md) builds it.
+18. urn-forge 0.2.0, the redesign, built (Nov 24, 2026). Done: 44.8%, 64 of 143. The six contracts are written again in the new manifest, and each promise is judged again. The holes with the most promises are now C3 (21: states, and two calls that load one record at the same time), C1 (10) and D4 (9).
 
 ## Risks
 

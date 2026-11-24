@@ -49,6 +49,6 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 35 | Out of the manifest | `idempotency`, `due`, `delivery` (and the outbox), `recordAs` and `callers` leave the manifest. `due`, `recordAs` and `callers` are objects and rules that users write (the caller is a property of the input). `idempotency` and `delivery` may come back as optional extras outside the manifest: libraries built on the generated code, not keywords |
 | 36 | Storage | A schema-only Postgres extra: it reads the manifest and writes tables, columns, `CHECK` constraints and child tables. No runtime code (no `commit`, `commitOnce`, `runOnce`, `load` or outbox). Its own config chooses the objects that become tables, foreign keys, and uniqueness across stored records: database facts stay out of the manifest |
 
-## Open
+## Built
 
-- The plan for the change: [manifest-redesign-plan.md](./manifest-redesign-plan.md). urn-forge is at `0.1.0` and not published, so the only manifests to move are ours. The new compiler is built next to the old one, then replaces it.
+The [plan](./manifest-redesign-plan.md) built these decisions into urn-forge 0.2.0, in one pull request. Where the build differs from a decision, the plan says so.

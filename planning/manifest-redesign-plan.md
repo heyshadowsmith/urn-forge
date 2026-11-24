@@ -79,6 +79,17 @@ Each phase is one pull request, with one commit for each step.
 - The six contracts, the domains and the docs use it.
 - The corpus score is true for the new manifest.
 
+## What was built (Nov 24, 2026)
+
+All five phases are in one pull request, with one commit for each step. The build differs from this plan and from the notes in these places:
+
+- **No Valibot.** The generated file is plain TypeScript with no import: a type and a check for each definition, and the harness. The compiler runs the same checks on the arguments of rules.
+- **Postgres: JSONB, not child tables.** A property that is a list or an embedded object is a JSONB column. Its rules are named in a comment of the schema, and the harness checks them.
+- **`multipleOf` is for integers.** CEL has `%` only for integers.
+- **The standard set needs more of CEL:** `exists_one` (for `uniqueItems`), `matches()` (for `pattern` and `format`), and `size()` of a string (for the lengths).
+- **Gherkin steps:** `When I run "<operation>" with:`, `When I check a "<definition>" with:`, `Then the output is "<output>"` (with or without a table), `Then the input is rejected by "<rule>" of "<definition>"`, `Then the value is rejected by …` and `Then the value is accepted`.
+- **The score:** 64 of 143 promises (44.8%), up from 49 (34.3%). Each promise was judged again with the test of declared. A promise about stored records that two calls at the same time can break is a workaround (C3, C1 or C2), in every contract: no generated check sees the store.
+
 ## Risks
 
 - **The corpus score can go down.** Promises declared with `callers`, `idempotency` or `due` are now modelled by users, and some may become workarounds. The score must be true, not high.
