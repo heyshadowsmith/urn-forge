@@ -1,9 +1,9 @@
 /**
- * The Postgres schema of the objects that the config names as tables, `schema.generated.sql`. It is
- * a schema only: no runtime code. Each table has a column for each property and the identifier as its
- * primary key. A property that is a list or an embedded object is a JSONB column. The rules that SQL
- * can say are CHECK constraints; a comment names each rule that it cannot say, which the harness
- * checks. The config adds foreign keys (references) and unique values (unique).
+ * The Postgres schema of the objects that the config names as tables, `schema.generated.sql`. Each
+ * table is keyed by its identifier. An embedded object is columns, and a list is a child table
+ * (src/generate/tables.ts). The rules that SQL can say are CHECK constraints, UNIQUE constraints, or
+ * constraint triggers that count the rows of a list; a comment names each rule that SQL cannot say,
+ * which the harness checks. The config adds foreign keys (references) and unique values (unique).
  */
 import type { CelType } from '../cel/check.js';
 import type { Expr } from '../cel/parse.js';
@@ -135,6 +135,11 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: reado
   return sql(expr);
 }
 
+/** The SQL type of a column: a position (a key column with no definition) is an INTEGER. */
+function sqlType(column: Column): string {
+  return column.definition === undefined && column.base === 'integer' ? 'INTEGER' : SCALAR_TYPES[column.base]!;
+}
+
 const SCALAR_TYPES: Readonly<Record<string, string>> = { string: 'TEXT', integer: 'BIGINT', number: 'DOUBLE PRECISION', boolean: 'BOOLEAN' };
 
 /** The problems of the postgres config: tables that are not objects with an identifier, and wrong names. */
@@ -175,6 +180,13 @@ export function postgresProblems(model: Model, config: PostgresConfig): Diagnost
     for (const problem of tableProblems) problems.push({ code: 'postgres-column', severity: 'error', path: ['postgres', 'tables', problem.table], message: problem.message });
   }
   return problems;
+}
+
+/** The names of a schema that Postgres would cut: longer than 63 bytes. Constraints, functions and triggers too. */
+export function longNames(schema: string): string[] {
+  const names = new Set<string>();
+  for (const [, name] of schema.matchAll(/"((?:[^"]|"")+)"/g)) if (Buffer.byteLength(name!.replace(/""/g, '"')) > 63) names.add(name!);
+  return [...names];
 }
 
 /** The schema of the tables of the config: a table for each object, and a child table for each list. */
@@ -224,7 +236,7 @@ export function postgresSchema(model: Model, applications: readonly Application[
     };
 
     for (const column of [...table.parentKey, ...(table.kind === 'root' ? [] : [table.key.at(-1)!])]) {
-      columns.push(`${ident(column.name)} ${column.name.endsWith('position') ? 'INTEGER' : SCALAR_TYPES[column.base]} NOT NULL`);
+      columns.push(`${ident(column.name)} ${sqlType(column)} NOT NULL`);
     }
     for (const column of table.columns) {
       columns.push(`${ident(column.name)} ${SCALAR_TYPES[column.base]}${column.notNull ? ' NOT NULL' : ''}`);
@@ -238,7 +250,9 @@ export function postgresSchema(model: Model, applications: readonly Application[
     }
     // The rules of each object of the row: the row itself, and each embedded object.
     for (const object of table.objects) {
-      const presence = object.optional && Object.keys(object.columns).length > 0 ? `(${Object.values(object.columns).filter((c) => !c.startsWith('has_')).map((c) => `${ident(c)} IS NOT NULL`).join(' OR ')})` : undefined;
+      // An optional object is present when a column of one of its values is: not a flag of one of its lists.
+      const valueColumns = Object.values(object.columns).filter((name) => table.columns.some((c) => c.name === name && c.definition !== undefined));
+      const presence = object.optional && valueColumns.length > 0 ? `(${valueColumns.map((c) => `${ident(c)} IS NOT NULL`).join(' OR ')})` : undefined;
       const prefix = object.path.length > 0 ? `${object.path.join('_')}_` : '';
       for (const name of chain(object.definition)) {
         for (const application of rulesOf(name)) {
@@ -303,7 +317,7 @@ export function postgresSchema(model: Model, applications: readonly Application[
 function countTrigger(qualified: (name: string) => string, table: Table, count: { readonly min?: number; readonly max?: number }): string[] {
   const list = table.list!;
   const parent = list.parent;
-  const params = table.parentKey.map((c, i) => `k${i} ${c.name.endsWith('position') ? 'INTEGER' : SCALAR_TYPES[c.base]}`).join(', ');
+  const params = table.parentKey.map((c, i) => `k${i} ${sqlType(c)}`).join(', ');
   const parentMatch = parent.key.map((c, i) => `${ident(c.name)} = k${i}`).join(' AND ');
   const childMatch = table.parentKey.map((c, i) => `${ident(c.name)} = k${i}`).join(' AND ');
   const fn = qualified(`${table.name}_count`);

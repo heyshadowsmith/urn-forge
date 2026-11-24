@@ -8,7 +8,7 @@ import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
 import type { Diagnostic, Path } from './diagnostics.js';
-import { postgresProblems } from './generate/postgres.js';
+import { longNames, postgresProblems, postgresSchema } from './generate/postgres.js';
 import { initProject, nameProblem } from './init.js';
 import { boundaryGate } from './verify/boundary.js';
 import { completenessGate, coreProgram } from './verify/completeness.js';
@@ -136,6 +136,12 @@ function compileProject(io: CliIo, p: Project): { compiled: Compiled & { model: 
   if (!compiled.model) return undefined;
   if (p.config.postgres) {
     const problems = postgresProblems(compiled.model, p.config.postgres);
+    if (problems.length === 0) {
+      // Every name of the schema, also of a constraint, a function or a trigger, must fit in 63 bytes.
+      for (const name of longNames(postgresSchema(compiled.model, compiled.applications, p.config.postgres))) {
+        problems.push({ code: 'postgres-column', severity: 'error', path: ['postgres'], message: `${name} is longer than 63 bytes, the most that Postgres takes for a name` });
+      }
+    }
     for (const problem of problems) io.stderr(`${display(io, p.configPath)}  error  ${problem.code}  ${problem.path.join('.')}: ${problem.message}`);
     if (problems.length > 0) return undefined;
   }

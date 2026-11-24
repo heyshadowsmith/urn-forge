@@ -7,7 +7,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { describe, expect, it } from 'vitest';
 import { compileManifest } from '../src/index.js';
 import ts from 'typescript';
-import { postgresProblems, postgresSchema } from '../src/generate/postgres.js';
+import { longNames, postgresProblems, postgresSchema } from '../src/generate/postgres.js';
 import { storeFile } from '../src/generate/store.js';
 
 const schema = readFileSync(new URL('./fixtures/booking/generated/schema.generated.sql', import.meta.url), 'utf8');
@@ -263,4 +263,8 @@ describe('every committed schema of the repository', () => {
     await db.exec(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'));
     await db.close();
   });
+});
+
+it('names each name of a schema that Postgres would cut, also of a constraint', () => {
+  expect(longNames(`CONSTRAINT "${'a'.repeat(64)}" CHECK (TRUE), "short"`)).toEqual(['a'.repeat(64)]);
 });
