@@ -33,6 +33,7 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 19 | Standard set | Any value: `enum`, `const`. Numbers: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`. Strings: `minLength`, `maxLength`, `pattern`, `format` (only `date` and `date-time`). Arrays: `minItems`, `maxItems`, `uniqueItems`. Objects: `required`. Anything else a user declares |
 | 20 | Parameters | A rule lists its parameters by name, `parameters: [count]`, as shared definitions in `definitions:`, the same way `properties` lists values. The rule's text and message use those names (`value >= count`, `{count}`). The standard set's own definitions live in urn-forge's namespace, so they never clash with a user's names |
 | 21 | Parameter types | No "same type as the value". As in JSON Schema, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` and `multipleOf` take a `number` (an integer is a number). `enum` and `const` are for strings: their parameter is a `string`, or an `array` of strings. A choice of numbers is a user's own rule, or `minimum` and `maximum` |
+| 22 | Rule language | A subset of CEL (Common Expression Language), as Kubernetes and Buf's protovalidate use it with schemas. Every urn-forge rule is valid CEL. `self` is the value the rule applies to. urn-forge parses the subset itself, to translate rules to SQL, compare them in `diff` and check them in tests. Before/after (CEL's `oldSelf` in Kubernetes transition rules) is a reference for operations |
 
 ## Open
 
@@ -42,5 +43,5 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 - `message` on an error object.
 - Out of the manifest, maybe extras later: `idempotency`, `due`, `delivery`, the outbox, `recordAs`.
 - Lifecycle, `compatibility`, `stability`.
-- The rule language itself.
+- The parts of CEL in the subset: lists, dates and times.
 - The fate of PR #90 (the integrity plan), which assumes today's operations.
