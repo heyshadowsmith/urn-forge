@@ -1,53 +1,24 @@
 /**
- * urn-forge's public entry point (`import … from 'urn-forge'`).
- *
- * Subpaths:
- *   urn-forge/config    defineConfig, for urn-forge.config.ts
- *   urn-forge/cucumber  registerOperationSteps, the generic Cucumber steps
- *
- * The entry points are TypeScript source, run through tsx like the CLI; there is no build
- * step yet. tests/public-api.test.ts lists every export, so a change here is deliberate.
+ * urn-forge: a manifest of definitions, rules and operations, compiled into a checked TypeScript
+ * harness, Gherkin coverage, a Postgres schema and a diff of breaking changes.
  */
+import { compileManifest } from './compile.js';
+import type { Diagnostic } from './diagnostics.js';
+import type { Model } from './model.js';
 
-// Compile and verify
-export { compile, unsupportedConstructs, type CompileOptions, type CompileResult, type PluginEntry } from './engine.js';
-export { classify, diffManifests, usesOf, type Change, type ChangeClass, type ClassifyOptions, type DiffOptions, type DiffResult } from './diff/index.js';
-export { verify, GATES, type VerifyOptions, type VerifyResult } from './verify/index.js';
-export type { Gate, GateContext, GateNumber, GateOutcome, GateResult } from './verify/types.js';
+export type { Diagnostic, Path } from './diagnostics.js';
+export type { BaseType, RuleUse } from './manifest.js';
+export type { Definition, Model, Rule } from './model.js';
+export { standard } from './rules.js';
+export { parseRule, CelSyntaxError, type Expr } from './cel/parse.js';
+export { print } from './cel/print.js';
+export { checkRule, type CelType, type Scope, type PropertyType, type RuleProblem } from './cel/check.js';
 
-// Config
-export { defineConfig, type PluginSpec, type UrnForgeConfig } from './config.js';
+export { compileManifest, generate, fingerprint, GENERATED_FILE, type Compiled } from './compile.js';
+export type { Failure } from './generate/runtime.js';
 
-// Diagnostics
-export {
-  DIAGNOSTIC_CODES,
-  diagnosticJson,
-  formatDiagnostic,
-  type Diagnostic,
-  type DiagnosticCode,
-  type Severity,
-  type SourceLocation,
-} from './diagnostics.js';
-
-// The IR
-export { invariantsOf, statusOf, valueField } from './ir/types.js';
-export { liveIr } from './ir/lifecycle.js';
-export type { ErrorCategory, IREmbedRef, IREntity, IRError, IREvent, IRField, IRFieldRef, IRInvariant, IRLinkRef, IROperation, IRPropertyRef, Lifecycle, ListRule, MessagePart, UniversalIR, Urn } from './ir/types.js';
-export type { RuleExpr } from './rules/index.js';
-
-// Plugins
-export { DEFAULT_PLUGINS, PLUGINS, type PluginName } from './plugins/index.js';
-export type {
-  CodegenPlugin,
-  GeneratedArtifact,
-  PluginDiagnostic,
-  PluginOutput,
-  PluginSupport,
-} from './plugins/plugin.interface.js';
-
-// Registries
-export { KIND_NAMES, type KindName } from './kinds/index.js';
-export { PRIMITIVE_NAMES, type ConstraintValue, type Primitive } from './primitives/index.js';
-export { handlerName, ruleName, schemaNames, toBrandIdentifier, toUrn, type UrnParts } from './naming.js';
-
-export { GENERATOR_VERSION } from './version.js';
+/** Reads a manifest: the model when it has no error, and every diagnostic. */
+export function loadManifest(text: string): { readonly model: Model | undefined; readonly diagnostics: readonly Diagnostic[] } {
+  const { model, diagnostics } = compileManifest(text);
+  return { model, diagnostics };
+}

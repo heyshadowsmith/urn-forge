@@ -1,72 +1,61 @@
-@urn-forge:strict
-@urn:corpus:claims:claim:operation:get_claim
-Feature: Get a claim
+Feature: Read a claim
 
-  Scenario Outline: The employee who owns the claim, their manager or a finance user reads it by its id
-    Given the caller is:
-      | role   | employee_id   |
-      | <role> | <employee_id> |
-    And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose              | currency | total  | lines                                                                                                                                                                                                                                                                                                                | submitted_at         |
-      | CLM-0000000123 | 3       | E-1001      | M-3003     | SUBMITTED | Client visit in Lyon | EUR      | 120.00 | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 25.00 }] | 2026-10-20T09:00:00Z |
-    When I run the operation with:
-      | claim_id       | actor_id      |
-      | CLM-0000000123 | <employee_id> |
-    Then the output is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose              | total  | currency | lines                                                                                                                                                                                                                                                                                                                | reason | submitted_at         |
-      | CLM-0000000123 | 3       | E-1001      | M-3003     | SUBMITTED | Client visit in Lyon | 120.00 | EUR      | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 25.00 }] |        | 2026-10-20T09:00:00Z |
+  The owner of a claim, their manager and finance users may read it; the answer is the stored claim.
 
-    Examples:
-      | role     | employee_id |
-      | employee | E-1001      |
-      | manager  | M-3003      |
-      | finance  | F-4004      |
+  Scenario: The owner reads their claim
+    When I run "get_claim" with:
+      | caller.role | caller.employee_id | claim_id       | actor_id | stored_claim                                                                                                                                                                                                                                                                                                                           |
+      | employee    | emp-1              | CLM-0000000123 | emp-1    | {"claim_id": "CLM-0000000123", "version": 2, "employee_id": "emp-1", "manager_id": "mgr-1", "state": "SUBMITTED", "purpose": "Client visit in Bern", "currency": "EUR", "total": 2000, "lines": [{"category": "MEALS", "expense_date": "2026-11-03", "description": "Lunch", "amount": 2000}], "submitted_at": "2026-11-10T09:00:00Z"} |
+    Then the output is "claim":
+      | claim_id       | state     | total | currency | version | lines                                                                                         |
+      | CLM-0000000123 | SUBMITTED | 2000  | EUR      | 2       | [{"category": "MEALS", "expense_date": "2026-11-03", "description": "Lunch", "amount": 2000}] |
 
-  Scenario: A malformed claim id is rejected
-    Given the caller is:
-      | role     | employee_id |
-      | employee | E-1001      |
-    And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose              | currency | total  | lines                                                                                                                                                                                                                                                                                                                | submitted_at         |
-      | CLM-0000000123 | 3       | E-1001      | M-3003     | SUBMITTED | Client visit in Lyon | EUR      | 120.00 | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 25.00 }] | 2026-10-20T09:00:00Z |
-    When I run the operation with:
-      | claim_id | actor_id |
-      | CLM-12   | E-1001   |
-    Then the input is rejected on "claim_id"
-    And the operation fails with "urn:corpus:claims:claim:error:invalid_request"
-    And nothing changes
-
-  Scenario: A claim that does not exist is not found
-    Given the caller is:
-      | role     | employee_id |
-      | employee | E-1001      |
-    And there is no current claim
-    When I run the operation with:
-      | claim_id       | actor_id |
-      | CLM-0000000404 | E-1001   |
-    Then the operation fails with "urn:corpus:claims:claim:error:not_found":
+  Scenario: The manager of the owner reads the claim
+    When I run "get_claim" with:
+      | caller.role | caller.employee_id | claim_id       | actor_id | stored_claim                                                                                                                                                                                                                                                                                                                           |
+      | manager     | mgr-1              | CLM-0000000123 | mgr-1    | {"claim_id": "CLM-0000000123", "version": 2, "employee_id": "emp-1", "manager_id": "mgr-1", "state": "SUBMITTED", "purpose": "Client visit in Bern", "currency": "EUR", "total": 2000, "lines": [{"category": "MEALS", "expense_date": "2026-11-03", "description": "Lunch", "amount": 2000}], "submitted_at": "2026-11-10T09:00:00Z"} |
+    Then the output is "claim":
       | claim_id       |
-      | CLM-0000000404 |
-    And nothing changes
+      | CLM-0000000123 |
 
-  Scenario Outline: Any other caller, or a caller who names another actor, is refused
-    Given the caller is:
-      | role   | employee_id   |
-      | <role> | <employee_id> |
-    And the current claim is:
-      | claim_id       | version | employee_id | manager_id | state     | purpose              | currency | total  | lines                                                                                                                                                                                                                                                                                                                | submitted_at         |
-      | CLM-0000000123 | 3       | E-1001      | M-3003     | SUBMITTED | Client visit in Lyon | EUR      | 120.00 | [{ category: TRAVEL, expense_date: 2026-11-02, description: Train to Lyon, amount: 95.00, receipt: { sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, media_type: application/pdf, size_bytes: 48213 } }, { category: MEALS, expense_date: 2026-11-02, description: Lunch, amount: 25.00 }] | 2026-10-20T09:00:00Z |
-    When I run the operation with:
-      | claim_id       | actor_id   |
-      | CLM-0000000123 | <actor_id> |
-    Then the operation fails with "urn:corpus:claims:claim:error:forbidden":
-      | actor_id   |
-      | <actor_id> |
-    And nothing changes
+  Scenario: A finance user reads the claim
+    When I run "get_claim" with:
+      | caller.role | caller.employee_id | claim_id       | actor_id | stored_claim                                                                                                                                                                                                                                                                                                                           |
+      | finance     | fin-1              | CLM-0000000123 | fin-1    | {"claim_id": "CLM-0000000123", "version": 2, "employee_id": "emp-1", "manager_id": "mgr-1", "state": "SUBMITTED", "purpose": "Client visit in Bern", "currency": "EUR", "total": 2000, "lines": [{"category": "MEALS", "expense_date": "2026-11-03", "description": "Lunch", "amount": 2000}], "submitted_at": "2026-11-10T09:00:00Z"} |
+    Then the output is "claim":
+      | claim_id       |
+      | CLM-0000000123 |
 
-    Examples:
-      | role     | employee_id | actor_id |
-      | employee | E-2002      | E-2002   |
-      | manager  | M-5005      | M-5005   |
-      | employee | E-1001      | E-2002   |
-      | finance  | F-4004      | E-1001   |
+  Scenario: Another employee may not read the claim
+    When I run "get_claim" with:
+      | caller.role | caller.employee_id | claim_id       | actor_id | stored_claim                                                                                                                                                                                                                                                                                                                           |
+      | employee    | emp-2              | CLM-0000000123 | emp-2    | {"claim_id": "CLM-0000000123", "version": 2, "employee_id": "emp-1", "manager_id": "mgr-1", "state": "SUBMITTED", "purpose": "Client visit in Bern", "currency": "EUR", "total": 2000, "lines": [{"category": "MEALS", "expense_date": "2026-11-03", "description": "Lunch", "amount": 2000}], "submitted_at": "2026-11-10T09:00:00Z"} |
+    Then the output is "forbidden":
+      | role     | actor_id |
+      | employee | emp-2    |
+
+  Scenario: A claim that does not exist is refused
+    When I run "get_claim" with:
+      | caller.role | caller.employee_id | claim_id       | actor_id |
+      | employee    | emp-1              | CLM-0000000123 | emp-1    |
+    Then the output is "not_found":
+      | claim_id       |
+      | CLM-0000000123 |
+
+  Scenario: A stored claim that is not the claim of the request is rejected
+    When I run "get_claim" with:
+      | caller.role | caller.employee_id | claim_id       | actor_id | stored_claim                                                                                                                                                                                                                                                                                                                           |
+      | employee    | emp-1              | CLM-0000000999 | emp-1    | {"claim_id": "CLM-0000000123", "version": 2, "employee_id": "emp-1", "manager_id": "mgr-1", "state": "SUBMITTED", "purpose": "Client visit in Bern", "currency": "EUR", "total": 2000, "lines": [{"category": "MEALS", "expense_date": "2026-11-03", "description": "Lunch", "amount": 2000}], "submitted_at": "2026-11-10T09:00:00Z"} |
+    Then the input is rejected by "names_the_stored_claim" of "lookup"
+
+  Scenario: A request with no actor is rejected
+    When I run "get_claim" with:
+      | caller.role | caller.employee_id | claim_id       | stored_claim                                                                                                                                                                                                                                                                                                                           |
+      | employee    | emp-1              | CLM-0000000123 | {"claim_id": "CLM-0000000123", "version": 2, "employee_id": "emp-1", "manager_id": "mgr-1", "state": "SUBMITTED", "purpose": "Client visit in Bern", "currency": "EUR", "total": 2000, "lines": [{"category": "MEALS", "expense_date": "2026-11-03", "description": "Lunch", "amount": 2000}], "submitted_at": "2026-11-10T09:00:00Z"} |
+    Then the input is rejected by "required" of "lookup"
+
+  Scenario: A stored claim whose total is not the sum of its lines is rejected
+    When I run "get_claim" with:
+      | caller.role | caller.employee_id | claim_id       | actor_id | stored_claim                                                                                                                                                                                                                                                                                                                           |
+      | employee    | emp-1              | CLM-0000000123 | emp-1    | {"claim_id": "CLM-0000000123", "version": 2, "employee_id": "emp-1", "manager_id": "mgr-1", "state": "SUBMITTED", "purpose": "Client visit in Bern", "currency": "EUR", "total": 2500, "lines": [{"category": "MEALS", "expense_date": "2026-11-03", "description": "Lunch", "amount": 2000}], "submitted_at": "2026-11-10T09:00:00Z"} |
+    Then the input is rejected by "total_is_sum" of "claim"

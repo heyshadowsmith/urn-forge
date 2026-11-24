@@ -2,7 +2,7 @@
 
 The manifest is one YAML file that declares one domain. The default name is `domain.manifest.yaml`. This manifest uses each kind except `invariant`:
 
-<<< @/../packages/urn-forge/tests/fixtures/shop/domain.manifest.yaml
+<<< @/../packages/urn-forge/tests/fixtures/booking/domain.manifest.yaml
 
 ## The file
 

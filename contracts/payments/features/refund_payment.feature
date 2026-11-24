@@ -1,368 +1,49 @@
-@urn-forge:strict
-@urn:corpus:payments:refund:operation:refund_payment
 Feature: Refund a payment
 
-  Scenario: A part of a captured payment is refunded, and the payment becomes partially refunded
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 1      | k               |
-    Then the output is:
-      | refund_id                   | payment_id                   | amount | currency | captured_amount | refunded_total | created_at           |
-      | re_000000000000000000000002 | pay_captured0000000000000000 | 1      | EUR      | 5000            | 1              | 2026-11-22T10:00:00Z |
-    And the operation emits "urn:corpus:payments:payment:event:partially_refunded":
-      | payment_id                   | merchant_id | amount | currency | previous_status | new_status         | occurred_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | captured        | partially_refunded | 2026-11-22T10:00:00Z |
-    And the operation emits no "urn:corpus:payments:payment:event:refunded"
-
-  Scenario: A part of what is left of a partially refunded payment is refunded, and the payment stays partially refunded
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status             | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_partiallyrefunded0000000 | mer_1       | 5000   | EUR      | card   | partially_refunded | 5000            | 2000            | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key  |
-      | mer_1       | pay_partiallyrefunded0000000 | 1000   | =repeat(64, "k") |
-    Then the output is:
-      | refund_id                   | payment_id                   | amount | currency | captured_amount | refunded_total | created_at           |
-      | re_000000000000000000000002 | pay_partiallyrefunded0000000 | 1000   | EUR      | 5000            | 3000           | 2026-11-22T10:00:00Z |
-    And the operation emits "urn:corpus:payments:payment:event:partially_refunded":
-      | payment_id                   | merchant_id | amount | currency | previous_status    | new_status         | occurred_at          |
-      | pay_partiallyrefunded0000000 | mer_1       | 5000   | EUR      | partially_refunded | partially_refunded | 2026-11-22T10:00:00Z |
-
-  Scenario: A refund of all of a captured payment makes the payment refunded
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 5000   | refund-1        |
-    Then the output is:
-      | amount | captured_amount | refunded_total |
-      | 5000   | 5000            | 5000           |
-    And the operation emits "urn:corpus:payments:payment:event:refunded":
-      | payment_id                   | previous_status | new_status | occurred_at          |
-      | pay_captured0000000000000000 | captured        | refunded   | 2026-11-22T10:00:00Z |
-    And the operation emits no "urn:corpus:payments:payment:event:partially_refunded"
-
-  Scenario: A refund of all that is left of a partially refunded payment makes the payment refunded
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status             | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_partiallyrefunded0000000 | mer_1       | 5000   | EUR      | card   | partially_refunded | 5000            | 2000            | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_partiallyrefunded0000000 | 3000   | refund-1        |
-    Then the output is:
-      | amount | captured_amount | refunded_total |
-      | 3000   | 5000            | 5000           |
-    And the operation emits "urn:corpus:payments:payment:event:refunded":
-      | payment_id                   | previous_status    | new_status | occurred_at          |
-      | pay_partiallyrefunded0000000 | partially_refunded | refunded   | 2026-11-22T10:00:00Z |
-
-  Scenario Outline: A refund that would take more than the captured amount is refused
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount   | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | <amount> | refund-2        |
-    Then the operation fails with "urn:corpus:payments:refund:error:amount_exceeds_captured":
-      | amount   | currency | captured_amount | refunded_amount |
-      | <amount> | EUR      | 5000            | 0               |
-    And the operation emits no event
+  Scenario Outline: A captured payment is refunded in part or in full
+    When I run "refund_payment" with:
+      | merchant_id | payment_id                  | amount   | idempotency_key | stored_payment.payment_id   | stored_payment.merchant_id | stored_payment.amount | stored_payment.currency | stored_payment.method | stored_payment.status | stored_payment.captured_amount | stored_payment.refunded_amount | stored_payment.created_at | stored_payment.captured_at | caller.key_kind | caller.merchant_id | now   | event_id                             |
+      | m_1         | pay_aaaaaaaaaaaaaaaaaaaaaaaa | <amount> | refund-1        | pay_aaaaaaaaaaaaaaaaaaaaaaaa | m_1                        | 5000                  | EUR                     | card                  | <status>              | 4000                           | <refunded>                     | 2026-05-20T10:00:00Z      | 2026-05-28T10:00:00Z       | secret          | m_1                | <now> | 00000000-0000-4000-8000-000000000001 |
+    Then the output is "refund_made":
+      | payment_event                                                                                                                                                                                                                                                        |
+      | {"event_id": "00000000-0000-4000-8000-000000000001", "event_type": "payment.<new_status>", "payment_id": "pay_aaaaaaaaaaaaaaaaaaaaaaaa", "merchant_id": "m_1", "amount": 5000, "currency": "EUR", "previous_status": "<status>", "new_status": "<new_status>", "occurred_at": "<now>"} |
 
     Examples:
-      | amount   |
-      | 5001     |
-      | 99999999 |
+      | amount | status             | refunded | now                  | new_status         |
+      | 1000   | captured           | 0        | 2026-06-01T10:00:00Z | partially_refunded |
+      | 4000   | captured           | 0        | 2026-06-01T10:00:00Z | refunded           |
+      | 1000   | partially_refunded | 1000     | 2026-06-01T10:00:00Z | partially_refunded |
+      | 3000   | partially_refunded | 1000     | 2026-11-24T10:00:00Z | refunded           |
 
-  Scenario: A refund that would take more than is left of a partially refunded payment is refused
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status             | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_partiallyrefunded0000000 | mer_1       | 5000   | EUR      | card   | partially_refunded | 5000            | 2000            | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_partiallyrefunded0000000 | 3001   | refund-2        |
-    Then the operation fails with "urn:corpus:payments:refund:error:amount_exceeds_captured":
-      | amount | currency | captured_amount | refunded_amount |
-      | 3001   | EUR      | 5000            | 2000            |
-    And the operation emits no event
-
-  Scenario Outline: A request with a value out of its limits is rejected on that value
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id   | amount   | idempotency_key   |
-      | mer_1       | <payment_id> | <amount> | <idempotency_key> |
-    Then the input is rejected on "<field>"
+  Scenario Outline: A refund is refused
+    When I run "refund_payment" with:
+      | merchant_id | payment_id                  | amount   | idempotency_key | stored_payment.payment_id   | stored_payment.merchant_id | stored_payment.amount | stored_payment.currency | stored_payment.method | stored_payment.status | stored_payment.captured_amount | stored_payment.refunded_amount | stored_payment.created_at | stored_payment.captured_at | caller.key_kind | caller.merchant_id | now   | event_id                             |
+      | m_1         | pay_aaaaaaaaaaaaaaaaaaaaaaaa | <amount> | <key>           | pay_aaaaaaaaaaaaaaaaaaaaaaaa | <owner>                    | 5000                  | EUR                     | card                  | <status>              | <captured>                     | <refunded>                     | 2026-05-20T10:00:00Z      | <captured_at>              | <kind>          | <caller_merchant>  | <now> | 00000000-0000-4000-8000-000000000001 |
+    Then the output is "<output>"
 
     Examples:
-      | field           | payment_id                   | amount    | idempotency_key  |
-      | amount          | pay_captured0000000000000000 | 0         | refund-3         |
-      | amount          | pay_captured0000000000000000 | 100000000 | refund-3         |
-      | payment_id      | pay_captured                 | 1         | refund-3         |
-      | idempotency_key | pay_captured0000000000000000 | 1         | ""               |
-      | idempotency_key | pay_captured0000000000000000 | 1         | =repeat(65, "k") |
-      | idempotency_key | pay_captured0000000000000000 | 1         | ="a\u0007b"      |
+      | output                  | amount | key                    | owner | status     | captured | refunded | captured_at          | kind      | caller_merchant | now                      |
+      | amount_exceeds_captured | 3001   | refund-1               | m_1   | captured   | 4000     | 1000     | 2026-05-28T10:00:00Z | secret    | m_1             | 2026-06-01T10:00:00Z     |
+      | refund_window_closed    | 1000   | refund-1               | m_1   | captured   | 4000     | 0        | 2026-05-28T10:00:00Z | secret    | m_1             | 2026-11-24T10:00:00.001Z |
+      | invalid_state           | 1000   | refund-1               | m_1   | authorized | 0        | 0        |                      | secret    | m_1             | 2026-06-01T10:00:00Z     |
+      | invalid_state           | 1000   | refund-1               | m_1   | refunded   | 4000     | 4000     | 2026-05-28T10:00:00Z | secret    | m_1             | 2026-06-01T10:00:00Z     |
+      | idempotency_conflict    | 1000   | used-with-another-body | m_1   | captured   | 4000     | 0        | 2026-05-28T10:00:00Z | secret    | m_1             | 2026-06-01T10:00:00Z     |
+      | not_found               | 1000   | refund-1               | m_2   | captured   | 4000     | 0        | 2026-05-28T10:00:00Z | secret    | m_1             | 2026-06-01T10:00:00Z     |
+      | forbidden               | 1000   | refund-1               | m_1   | captured   | 4000     | 0        | 2026-05-28T10:00:00Z | read_only | m_1             | 2026-06-01T10:00:00Z     |
+      | unauthorized            | 1000   | refund-1               | m_1   | captured   | 4000     | 0        | 2026-05-28T10:00:00Z | none      |                 | 2026-06-01T10:00:00Z     |
 
-  Scenario Outline: A payment that is not captured cannot be refunded
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at   |
-      | pay_payment00000000000000000 | mer_1       | 5000   | EUR      | card   | <status> | 0               | 0               | 2026-11-22T10:00:00Z | <captured_at> |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_payment00000000000000000 | 100    | refund-4        |
-    Then the operation fails with "urn:corpus:payments:payment:error:invalid_state":
-      | status   |
-      | <status> |
-    And the operation emits no event
+  Scenario Outline: A refund that breaks a rule is rejected
+    When I run "refund_payment" with:
+      | merchant_id | payment_id   | amount   | idempotency_key | stored_payment.payment_id   | stored_payment.merchant_id | stored_payment.amount | stored_payment.currency | stored_payment.method | stored_payment.status | stored_payment.captured_amount | stored_payment.refunded_amount | stored_payment.created_at | stored_payment.captured_at | caller.key_kind | caller.merchant_id | now                  | event_id                             |
+      | m_1         | <payment_id> | <amount> | refund-1        | pay_aaaaaaaaaaaaaaaaaaaaaaaa | m_1                        | 5000                  | EUR                     | card                  | <status>              | <captured>                     | <refunded>                     | 2026-05-20T10:00:00Z      | <captured_at>              | secret          | m_1                | 2026-06-01T10:00:00Z | 00000000-0000-4000-8000-000000000001 |
+    Then the input is rejected by "<rule>" of "<definition>"
 
     Examples:
-      | status     | captured_at |
-      | pending    |             |
-      | authorized |             |
-      | voided     |             |
-
-  Scenario: A payment refunded in full cannot be refunded again
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_payment00000000000000000 | mer_1       | 5000   | EUR      | card   | refunded | 5000            | 5000            | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_payment00000000000000000 | 100    | refund-4        |
-    Then the operation fails with "urn:corpus:payments:payment:error:invalid_state":
-      | status   |
-      | refunded |
-    And the operation emits no event
-
-  Scenario: A refund exactly 180 days after the capture is allowed
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-05-26T09:00:00Z | 2026-05-26T10:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 100    | refund-5        |
-    Then the output is:
-      | payment_id                   | amount | refunded_total | created_at           |
-      | pay_captured0000000000000000 | 100    | 100            | 2026-11-22T10:00:00Z |
-    And the operation emits "urn:corpus:payments:payment:event:partially_refunded":
-      | payment_id                   | previous_status | new_status         | occurred_at          |
-      | pay_captured0000000000000000 | captured        | partially_refunded | 2026-11-22T10:00:00Z |
-
-  Scenario: A refund a millisecond before the end of the 180 days is allowed
-    Given the time is "2026-11-22T09:59:59.999Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-05-26T09:00:00Z | 2026-05-26T10:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 100    | refund-5        |
-    Then the output is:
-      | payment_id                   | amount | refunded_total | created_at               |
-      | pay_captured0000000000000000 | 100    | 100            | 2026-11-22T09:59:59.999Z |
-    And the operation emits "urn:corpus:payments:payment:event:partially_refunded":
-      | payment_id                   | previous_status | new_status         | occurred_at              |
-      | pay_captured0000000000000000 | captured        | partially_refunded | 2026-11-22T09:59:59.999Z |
-
-  Scenario: A refund a millisecond after the 180 days is refused
-    Given the time is "2026-11-22T10:00:00.001Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-05-26T09:00:00Z | 2026-05-26T10:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 100    | refund-5        |
-    Then the operation fails with "urn:corpus:payments:refund:error:refund_window_closed"
-    And the operation emits no event
-
-  Scenario: A refund a second after the 180 days is refused
-    Given the time is "2026-11-22T10:00:01Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-05-26T09:00:00Z | 2026-05-26T10:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 100    | refund-5        |
-    Then the operation fails with "urn:corpus:payments:refund:error:refund_window_closed"
-    And the operation emits no event
-
-  Scenario: A partially refunded payment captured more than 180 days ago can no longer be refunded
-    Given the time is "2026-11-23T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status             | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | partially_refunded | 5000            | 2000            | 2026-05-26T09:00:00Z | 2026-05-26T10:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 100    | refund-5        |
-    Then the operation fails with "urn:corpus:payments:refund:error:refund_window_closed"
-    And the operation emits no event
-
-  Scenario: A repeat with the same key and the same body within 24 hours gets the first answer, and refunds nothing more
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 100    | refund-8        |
-    And the time is "2026-11-23T09:59:59.999Z"
-    And I run the operation again with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 100    | refund-8        |
-    Then the answer is the first answer
-    And the operation emits no event
-
-  Scenario: A repeat with the same key and the same body after 24 hours is a new refund
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 100    | refund-9        |
-    And the time is "2026-11-23T10:00:00Z"
-    And I run the operation again with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 100    | refund-9        |
-    Then the operation emits "urn:corpus:payments:payment:event:partially_refunded":
-      | payment_id                   | new_status         | occurred_at          |
-      | pay_captured0000000000000000 | partially_refunded | 2026-11-23T10:00:00Z |
-
-  Scenario: An idempotency key that an earlier, different request used is refused
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 100    | used-key        |
-    And I run the operation again with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 200    | used-key        |
-    Then the operation fails with "urn:corpus:payments:payment:error:idempotency_conflict":
-      | idempotency_key |
-      | used-key        |
-    And the operation emits no event
-
-  Scenario Outline: A key of another merchant, a read-only key, or the clock is refused as not found
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind   | merchant_id   |
-      | <key_kind> | <merchant_id> |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_captured0000000000000000 | 100    | refund-6        |
-    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
-    And the operation emits no event
-
-    Examples:
-      | key_kind  | merchant_id |
-      | secret    | mer_2       |
-      | read_only | mer_1       |
-      | clock     |             |
-
-  Scenario: A payment of another merchant is not found
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind   | merchant_id   |
-      | secret     | mer_2         |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_2       | pay_captured0000000000000000 | 100    | refund-6        |
-    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
-    And the operation emits no event
-
-  Scenario: A request that names a merchant other than the one of the key is not found
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind   | merchant_id   |
-      | secret     | mer_1         |
-    And the current payment is:
-      | payment_id                   | merchant_id | amount | currency | method | status   | captured_amount | refunded_amount | created_at           | captured_at          |
-      | pay_captured0000000000000000 | mer_1       | 5000   | EUR      | card   | captured | 5000            | 0               | 2026-11-22T10:00:00Z | 2026-11-01T09:00:00Z |
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_2       | pay_captured0000000000000000 | 100    | refund-6        |
-    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
-    And the operation emits no event
-
-  Scenario: An unknown payment is not found
-    Given the time is "2026-11-22T10:00:00Z"
-    And the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And there is no current payment
-    When I run the operation with:
-      | merchant_id | payment_id                   | amount | idempotency_key |
-      | mer_1       | pay_unknown00000000000000000 | 100    | refund-7        |
-    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
-    And the operation emits no event
+      | rule                              | definition     | payment_id                  | amount | status   | captured  | refunded | captured_at          |
+      | names_the_payment                 | refund_request | pay_bbbbbbbbbbbbbbbbbbbbbbbb | 1000   | captured | 4000      | 0        | 2026-05-28T10:00:00Z |
+      | required                          | refund_request | pay_aaaaaaaaaaaaaaaaaaaaaaaa |        | captured | 4000      | 0        | 2026-05-28T10:00:00Z |
+      | captured_payment_has_capture_time | payment        | pay_aaaaaaaaaaaaaaaaaaaaaaaa | 1000   | captured | 4000      | 0        |                      |
+      | amounts_within_payment            | payment        | pay_aaaaaaaaaaaaaaaaaaaaaaaa | 1000   | captured | 4000      | 4001     | 2026-05-28T10:00:00Z |
+      | minimum                           | total          | pay_aaaaaaaaaaaaaaaaaaaaaaaa | 1000   | captured | 4000      | -1       | 2026-05-28T10:00:00Z |
+      | maximum                           | total          | pay_aaaaaaaaaaaaaaaaaaaaaaaa | 1000   | captured | 100000000 | 0        | 2026-05-28T10:00:00Z |
+      | enum                              | status         | pay_aaaaaaaaaaaaaaaaaaaaaaaa | 1000   | settled  | 4000      | 0        | 2026-05-28T10:00:00Z |

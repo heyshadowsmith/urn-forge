@@ -1,8 +1,8 @@
-# The traceability chain, end to end. Any broken link turns
-# the build red: a missing handler (gate 1), a feature table header that is not a field
-# (gate 3), a hand-edited generated file (gate 4), or a failing scenario. A second job
-# builds the docs site, so a broken page or dead link fails too. The same checks also run
-# on self/, urn-forge's own domain.
+# The traceability chain, end to end. Any broken link turns the build red: a missing function
+# of the core (gate 1), a shell that skips the harness (gate 2), an operation, output or rule
+# that no scenario covers (gate 3), a hand-edited generated file (gate 4), or a failing
+# scenario. A second job builds the docs site, so a broken page or dead link fails too. The
+# same checks also run on self/, urn-forge's own domain.
 name: CI
 
 on:
@@ -39,9 +39,8 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm test
 
-      # Vitest does not type-check. This runs tsc over src/, tests/, example/ and self/, so
-      # the type-level tests (`@ts-expect-error`) are enforced too: a missing handler, a
-      # plain value where a branded one belongs, or a primitive a plugin does not handle.
+      # Vitest does not type-check. This runs tsc over src/, tests/ and the domains, so the
+      # generated files and the cores that satisfy them type-check too.
       - name: typecheck
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck
@@ -56,7 +55,7 @@ jobs:
         working-directory: packages/urn-forge
         run: npx cucumber-js
 
-      # urn-forge's own domain (self/): the toolchain's pure functions, declared and
+      # urn-forge's own domain (self/): two of the toolchain's pure functions, declared and
       # traced with urn-forge, so the chain is checked on a second domain.
       - name: urn-forge verify (self)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -68,12 +67,11 @@ jobs:
         working-directory: packages/urn-forge
         run: npx cucumber-js --profile self
 
-      # The insurance domain: dates, exact decimals, an optional field and
-      # invariants, strict from the start.
+      # The insurance domain: times, optional properties, rules across properties and a
+      # Postgres schema, strict from the start.
       - name: urn-forge verify (insurance)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         working-directory: packages/urn-forge
-        # insurance/urn-forge.config.ts fixes its reference date: a test domain must not depend on the day.
         run: npm run verify:insurance
 
       - name: cucumber-js (insurance)

@@ -1,639 +1,1113 @@
+# Customer subscriptions to priced plans, with trials, plan changes, pauses, cancellation and
+# invoices. The shell loads the stored records that a call needs into its input (stored_subscription,
+# new_plan, existing_subscription, stored_invoice, …), and gives the caller and the time of the call
+# (now). The core answers one of the outputs of each operation; the harness checks the answer.
 manifest:
   namespace: corpus
   domain: subscriptions
   version: 1.0.0
-  # Callers ignore a property, an event, a refusal code or an enum value that they do not know.
+  # Callers ignore a property, an output or a choice that they do not know.
   compatibility:
     callers: ignore-unknown
 
-# Identifiers
+definitions:
+  # Identifiers
 
-subscription.field.subscription_id:
-  primitive: string
-  regex: 'sub_[a-z0-9]{24}'
-  description: The id of a subscription, "sub_" and 24 lowercase letters or digits
-plan.field.plan_id:
-  primitive: string
-  regex: 'plan_[a-z0-9-]{1,40}'
-  description: The id of a plan, "plan_" and 1 to 40 lowercase letters, digits or hyphens
-customer.field.customer_id:
-  primitive: string
-  minLength: 1
-  description: The id of the customer who holds the subscription
-invoice.field.invoice_id:
-  primitive: string
-  minLength: 1
-  description: The id of an invoice
+  subscription_id:
+    description: The id of a subscription, "sub_" and 24 lowercase letters or digits
+    type: string
+    rules:
+      - pattern: '^sub_[a-z0-9]{24}$'
 
-# Money
+  plan_id:
+    description: The id of a plan, "plan_" and 1 to 40 lowercase letters, digits or hyphens
+    type: string
+    rules:
+      - pattern: '^plan_[a-z0-9-]{1,40}$'
 
-money.field.amount_minor:
-  primitive: integer
-  min: 0
-  max: 99999999
-  description: An amount in minor units of its currency, for example cents
-# The ISO 4217 codes that this domain accepts. urn-forge ships no currency registry: the
-# contract lists its own, and a new currency is a new enum value.
-money.field.currency:
-  primitive: enum
-  values: [EUR, GBP, USD]
-  description: A three-letter uppercase ISO 4217 currency code that the domain accepts, EUR, GBP or USD
-money.entity.money:
-  description: A money amount and its currency
-  fields:
-    - ref: money.field.amount_minor
-    - ref: money.field.currency
+  scheduled_plan_id:
+    description: The plan that a subscription moves to at the end of its period
+    type: plan_id
 
-# Plans
+  customer_id:
+    description: The id of the customer who holds a subscription
+    type: string
+    rules:
+      - minLength: 1
 
-plan.field.billing_period:
-  primitive: enum
-  values: [month, year]
-  description: The unit of the billing period of a plan
-plan.field.interval_count:
-  primitive: integer
-  min: 1
-  max: 12
-  description: The number of billing period units between two invoices
-plan.entity.plan:
-  description: A priced plan that a customer can subscribe to
-  key: plan.field.plan_id
-  fields:
-    - ref: plan.field.plan_id
-    - ref: plan.field.billing_period
-    - ref: plan.field.interval_count
-    - ref: money.entity.money
-      as: price
-plan.invariant.yearly_interval_is_one:
-  description: A yearly plan has an interval count of exactly 1
-  on: plan.entity.plan
-  rule: billing_period != 'year' or interval_count = 1
-  reportOn: interval_count
-  message: A yearly plan has an interval count of 1
+  invoice_id:
+    description: The id of an invoice
+    type: string
+    rules:
+      - minLength: 1
 
-# Requests in common
+  # Times
 
-request.field.idempotency_key:
-  primitive: string
-  minLength: 1
-  maxLength: 255
-  description: A key that the caller can send so that a repeat of the same request has no second effect
+  utc_time:
+    description: An instant in ISO 8601, in UTC with a trailing Z
+    type: string
+    rules:
+      - format: date-time
+      - pattern: 'Z$'
 
-# Subscriptions
+  now:
+    description: The time of the call, which the shell gives
+    type: utc_time
 
-subscription.field.quantity:
-  primitive: integer
-  min: 1
-  max: 10000
-  description: The number of units of the plan
-subscription.field.trial_days:
-  primitive: integer
-  min: 0
-  max: 730
-  description: The number of days of the trial
-subscription.field.trial_end:
-  primitive: date
-  description: The day that the trial ends
-subscription.field.status:
-  primitive: enum
-  values: [trialing, active, past_due, paused, canceled, expired]
-  moves:
-    trialing: [active, past_due, paused, canceled, expired]
-    active: [trialing, past_due, paused, canceled, expired]
-    past_due: [trialing, active, paused, canceled, expired]
-    paused: [trialing, active, past_due, canceled, expired]
-  description: The status of a subscription
-billing.field.period_start:
-  primitive: timestamp
-  description: The start of a billing period, ISO 8601 in UTC
-billing.field.period_end:
-  primitive: timestamp
-  description: The end of a billing period, ISO 8601 in UTC
-subscription.field.proration:
-  primitive: enum
-  values: [immediate, none, at_period_end]
-  description: How a plan change is billed and when it takes effect
-subscription.field.resume_on:
-  primitive: date
-  description: The day that a paused subscription resumes
-subscription.field.trial_will_end_sent_at:
-  primitive: timestamp
-  description: When subscription.trial_will_end was published for the trial, once
-subscription.field.cancel_mode:
-  primitive: enum
-  values: [immediately, at_period_end]
-  description: When a cancellation takes effect
+  # Callers
 
-subscription.entity.subscription:
-  description: A customer's subscription to a plan
-  key: subscription.field.subscription_id
-  fields:
-    - ref: subscription.field.subscription_id
-    - ref: customer.field.customer_id
-    - ref: plan.entity.plan
-    # The id of the plan, as a column of the record, so that the unique entry below can name it.
-    - ref: plan.field.plan_id
-    - ref: subscription.field.quantity
-    - ref: subscription.field.status
-    - ref: billing.field.period_start
-      as: current_period_start
-    - ref: billing.field.period_end
-      as: current_period_end
-    - ref: subscription.field.trial_end
-      required: false
-    - ref: plan.field.plan_id
-      as: scheduled_plan_id
-      required: false
-    - ref: subscription.field.resume_on
-      required: false
-    - ref: subscription.field.cancel_mode
-      as: cancel_at
-      required: false
-    - ref: subscription.field.trial_will_end_sent_at
-      required: false
-  # A customer has at most one live (not canceled, not expired) subscription to a plan. The postgres
-  # plugin makes a partial unique index of it; commitOnce answers a clash with conflict, and writes nothing.
-  unique:
-    - by: [customer_id, plan_id]
-      when: status != 'canceled' and status != 'expired'
-      otherwise: subscription.error.conflict
-subscription.invariant.plan_id_is_plan:
-  description: The plan id of a subscription is the id of its plan
-  on: subscription.entity.subscription
-  rule: plan_id = plan.plan_id
-  reportOn: plan_id
-  message: The plan id must be the id of the plan
+  caller_kind:
+    description: Who makes a call, a customer, merchant staff, or the shell's clock
+    type: string
+    rules:
+      - enum: [customer, staff, clock]
 
-subscription.entity.create_request:
-  description: A request to subscribe a customer to a plan
-  fields:
-    - ref: customer.field.customer_id
-    - ref: plan.field.plan_id
-    - ref: subscription.field.quantity
-    - ref: subscription.field.trial_days
-      required: false
-    - ref: subscription.field.trial_end
-      required: false
-    - ref: request.field.idempotency_key
-      required: false
-subscription.invariant.trial_days_or_trial_end:
-  description: A create request has trial days or a trial end, never both
-  on: subscription.entity.create_request
-  rule: trial_days is absent or trial_end is absent
-  reportOn: trial_end
-  message: Send trial days or a trial end, not both
+  staff_role:
+    description: A role of a member of the merchant's staff, such as billing-admin
+    type: string
+    rules:
+      - minLength: 1
 
-subscription.entity.lookup:
-  description: The subscription to read
-  fields:
-    - ref: subscription.field.subscription_id
+  staff_roles:
+    description: The roles of a member of the merchant's staff
+    type: array
+    items: staff_role
+    rules:
+      - uniqueItems
 
-subscription.entity.list_request:
-  description: The subscriptions of a customer to list, optionally with one status only
-  fields:
-    - ref: customer.field.customer_id
-    - ref: subscription.field.status
-      required: false
-subscription.entity.subscription_list:
-  description: A list of subscriptions
-  fields:
-    - ref: subscription.entity.subscription
-      as: subscriptions
-      many: { unique: true }
+  caller:
+    description: The caller of an operation, as the shell authenticated it
+    type: object
+    properties: [caller_kind, customer_id, staff_roles]
+    rules:
+      - required: [caller_kind]
+      - customer_has_id
+      - roles_are_for_staff
 
-subscription.entity.change_plan_request:
-  description: A request to move a subscription to a different plan
-  fields:
-    - ref: subscription.field.subscription_id
-    - ref: plan.field.plan_id
-    - ref: subscription.field.proration
-    - ref: request.field.idempotency_key
-      required: false
+  # Money
 
-subscription.entity.pause_request:
-  description: A request to pause a subscription, optionally until a resume day
-  fields:
-    - ref: subscription.field.subscription_id
-    - ref: subscription.field.resume_on
-      required: false
-    - ref: request.field.idempotency_key
-      required: false
+  amount_minor:
+    description: An amount in minor units of its currency, for example cents
+    type: integer
+    rules:
+      - minimum: 0
+      - maximum: 99999999
 
-subscription.entity.resume_request:
-  description: A request to resume a paused subscription
-  fields:
-    - ref: subscription.field.subscription_id
-    - ref: request.field.idempotency_key
-      required: false
+  # urn-forge ships no currency registry: the contract lists the ISO 4217 codes that it accepts.
+  currency:
+    description: A three-letter uppercase ISO 4217 currency code that the domain accepts, EUR, GBP or USD
+    type: string
+    rules:
+      - enum: [EUR, GBP, USD]
 
-subscription.entity.cancel_request:
-  description: A request to cancel a subscription
-  fields:
-    - ref: subscription.field.subscription_id
-    - ref: subscription.field.cancel_mode
-    - ref: request.field.idempotency_key
-      required: false
+  money:
+    description: A money amount and its currency
+    type: object
+    properties: [amount_minor, currency]
+    rules:
+      - required: [amount_minor, currency]
 
-# Invoices
+  price:
+    description: The price of a plan for each billing period
+    type: money
 
-invoice.field.status:
-  primitive: enum
-  values: [draft, open, paid, void, uncollectible]
-  moves:
-    draft: [open, paid, void, uncollectible]
-    open: [draft, paid, void, uncollectible]
-    uncollectible: [draft, open, paid, void]
-  description: The status of an invoice
-invoice.field.line_quantity:
-  primitive: integer
-  min: 1
-  description: The number of units on an invoice line
-invoice.entity.line:
-  description: One line of an invoice
-  fields:
-    - ref: invoice.field.line_quantity
-      as: quantity
-    - ref: money.entity.money
-      as: amount
-invoice.entity.invoice:
-  description: The invoice of one billing period of a subscription
-  key: invoice.field.invoice_id
-  fields:
-    - ref: invoice.field.invoice_id
-    - ref: subscription.field.subscription_id
-    - ref: invoice.field.status
-    - ref: billing.field.period_start
-    - ref: billing.field.period_end
-    - ref: plan.field.billing_period
-    - ref: plan.field.interval_count
-    - ref: invoice.entity.line
-      as: lines
-      many: true
-    - ref: money.entity.money
-      as: total
-invoice.invariant.period_end_after_start:
-  description: An invoice's period ends after it starts
-  on: invoice.entity.invoice
-  rule: period_end > period_start
-  message: An invoice period must end after it starts
-invoice.invariant.monthly_period:
-  description: The period of an invoice billed in months ends that many calendar months after it starts, on the last day of a month that lacks the start's day
-  on: invoice.entity.invoice
-  rule: billing_period != 'month' or period_end = period_start + interval_count months
-  reportOn: period_end
-  message: The period must end the invoice's number of calendar months after it starts
-invoice.invariant.yearly_period:
-  description: The period of an invoice billed yearly ends 12 calendar months after it starts
-  on: invoice.entity.invoice
-  rule: billing_period != 'year' or period_end = period_start + 12 months
-  reportOn: period_end
-  message: The period must end 12 calendar months after it starts
-invoice.invariant.total_is_sum:
-  description: An invoice's total is the sum of its line amounts, in minor units
-  on: invoice.entity.invoice
-  rule: 'total.amount_minor = sum(line in lines: line.amount.amount_minor)'
-  reportOn: total.amount_minor
-  message: The total must be the sum of the line amounts
+  # Plans
 
-invoice.entity.lookup:
-  description: The invoice to read
-  fields:
-    - ref: invoice.field.invoice_id
-invoice.entity.list_request:
-  description: The invoices of a subscription to list, optionally with one status only
-  fields:
-    - ref: subscription.field.subscription_id
-    - ref: invoice.field.status
-      required: false
-invoice.entity.invoice_list:
-  description: A list of invoices
-  fields:
-    - ref: invoice.entity.invoice
-      as: invoices
-      many: { unique: true }
+  billing_period:
+    description: The unit of the billing period of a plan
+    type: string
+    rules:
+      - enum: [month, year]
 
-# Errors
+  interval_count:
+    description: The number of billing period units between two invoices
+    type: integer
+    rules:
+      - minimum: 1
+      - maximum: 12
 
-subscription.error.invalid_trial_end:
-  description: The explicit trial end is not after the day of the request, or is more than 730 days after it
-  category: validation
-  retryable: false
-  message: A trial end of {trial_end} must be after the day of the request and at most 730 days after it
-  fields:
-    - ref: subscription.field.trial_end
-subscription.error.invalid_resume_date:
-  description: The resume day is not from 1 to 90 days after the day of the request
-  category: validation
-  retryable: false
-  message: A resume day of {resume_on} must be from 1 to 90 days after the day of the request
-  fields:
-    - ref: subscription.field.resume_on
+  plan:
+    description: A priced plan that a customer can subscribe to
+    type: object
+    identifier: plan_id
+    properties: [plan_id, billing_period, interval_count, price]
+    rules:
+      - required: [plan_id, billing_period, interval_count, price]
+      - yearly_interval_is_one
 
-subscription.error.not_found:
-  description: No subscription has this id
-  category: not_found
-  retryable: false
-  message: No subscription {subscription_id}
-  fields:
-    - ref: subscription.field.subscription_id
-invoice.error.not_found:
-  description: No invoice has this id
-  category: not_found
-  retryable: false
-  message: No invoice {invoice_id}
-  fields:
-    - ref: invoice.field.invoice_id
-subscription.error.conflict:
-  description: The customer already has a subscription to this plan that is not canceled or expired
-  category: conflict
-  retryable: false
-  message: Customer {customer_id} already has a subscription to {plan_id}
-  fields:
-    - ref: customer.field.customer_id
-    - ref: plan.field.plan_id
-subscription.error.invalid_state_transition:
-  description: The subscription cannot make this change from its current status
-  category: precondition
-  retryable: false
-  message: A subscription that is {status} cannot make this change
-  fields:
-    - ref: subscription.field.subscription_id
-    - ref: subscription.field.status
-request.error.conflict:
-  description: The idempotency key was sent before, within 24 hours, with a different request
-  category: conflict
-  retryable: false
-  message: The idempotency key {idempotency_key} belongs to a different request
-  fields:
-    - ref: request.field.idempotency_key
-subscription.error.currency_mismatch:
-  description: The new plan has a different currency than the subscription
-  category: precondition
-  retryable: false
-  message: The plan is in {plan_currency}, the subscription is in {subscription_currency}
-  fields:
-    - ref: money.field.currency
-      as: plan_currency
-    - ref: money.field.currency
-      as: subscription_currency
+  new_plan:
+    description: The plan that a change moves to, as stored, which the shell loads
+    type: plan
 
-# Events
+  # Subscriptions
 
-event.field.event_id:
-  primitive: string
-  format: uuid
-  description: The unique id of an event
-event.field.occurred_at:
-  primitive: timestamp
-  description: The time the event occurred, ISO 8601 in UTC
+  idempotency_key:
+    description: A key that the caller can send so that a repeat of the same request has no second effect
+    type: string
+    rules:
+      - minLength: 1
+      - maxLength: 255
 
-subscription.event.created:
-  description: A subscription was created
-  fields:
-    - ref: event.field.event_id
-    - ref: subscription.field.subscription_id
-    - ref: event.field.occurred_at
-  delivery:
-    id: event_id
-    orderBy: subscription_id
-subscription.event.updated:
-  description: A subscription changed its plan, paused or resumed
-  fields:
-    - ref: event.field.event_id
-    - ref: subscription.field.subscription_id
-    - ref: event.field.occurred_at
-  delivery:
-    id: event_id
-    orderBy: subscription_id
-subscription.event.canceled:
-  description: A subscription was canceled
-  fields:
-    - ref: event.field.event_id
-    - ref: subscription.field.subscription_id
-    - ref: event.field.occurred_at
-  delivery:
-    id: event_id
-    orderBy: subscription_id
-subscription.event.trial_will_end:
-  description: The trial of a subscription ends within 3 days
-  fields:
-    - ref: event.field.event_id
-    - ref: subscription.field.subscription_id
-    - ref: event.field.occurred_at
-  delivery:
-    id: event_id
-    orderBy: subscription_id
-invoice.event.created:
-  description: An invoice was created
-  fields:
-    - ref: event.field.event_id
-    - ref: subscription.field.subscription_id
-    - ref: invoice.field.invoice_id
-    - ref: event.field.occurred_at
-  delivery:
-    id: event_id
-    orderBy: subscription_id
-invoice.event.paid:
-  description: An invoice was paid
-  fields:
-    - ref: event.field.event_id
-    - ref: subscription.field.subscription_id
-    - ref: invoice.field.invoice_id
-    - ref: event.field.occurred_at
-  delivery:
-    id: event_id
-    orderBy: subscription_id
+  quantity:
+    description: The number of units of the plan
+    type: integer
+    rules:
+      - minimum: 1
+      - maximum: 10000
 
-# Operations
+  trial_days:
+    description: The number of days of the trial
+    type: integer
+    rules:
+      - minimum: 0
+      - maximum: 730
 
-subscription.operation.create_subscription:
-  description: Subscribe a customer to a plan, with an optional trial
-  input: subscription.entity.create_request
-  output: subscription.entity.subscription
-  idempotency:
-    key: input.idempotency_key
-    window: 24 hours
-    otherwise: request.error.conflict
-  requires:
-    - rule: input.trial_end is absent or input.trial_end > today and input.trial_end <= today + 730
-      otherwise: subscription.error.invalid_trial_end
-  ensures:
-    - input.trial_days is present and input.trial_days > 0 or input.trial_end is present or output.status = 'active'
-    - input.trial_days is absent or input.trial_days = 0 or output.status = 'trialing'
-    - input.trial_end is absent or output.status = 'trialing'
-    - output.current_period_start = now
-    - output.customer_id = input.customer_id
-    - output.plan_id = input.plan_id
-    - input.trial_end is absent or output.trial_end is present and output.trial_end = input.trial_end
-    - input.trial_days is absent or input.trial_days = 0 or output.trial_end is present and output.trial_end = today + input.trial_days
-    - input.trial_end is present or input.trial_days is present and input.trial_days > 0 or output.trial_end is absent
-    - output.trial_end is absent or output.trial_end >= today + 3 or output.trial_will_end_sent_at is present and output.trial_will_end_sent_at = now
-    - output.trial_end is absent or output.trial_end < today + 3 or output.trial_will_end_sent_at is absent
-    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
-  errors:
-    - subscription.error.invalid_trial_end
-    - subscription.error.conflict
-    - request.error.conflict
-  emits:
-    - event: subscription.event.created
-    - event: subscription.event.trial_will_end
-      when: output.trial_end is present and output.trial_end < today + 3
-    - event: invoice.event.created
-      when: output.trial_end is absent
-    - event: invoice.event.paid
-      when: output.trial_end is absent
-subscription.operation.read_subscription:
-  description: Read one subscription
-  input: subscription.entity.lookup
-  output: subscription.entity.subscription
-  ensures:
-    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
-  errors:
-    - subscription.error.not_found
-subscription.operation.list_subscriptions:
-  description: List the subscriptions of a customer
-  input: subscription.entity.list_request
-  output: subscription.entity.subscription_list
-  ensures:
-    - "all(s in output.subscriptions: s.plan.billing_period = 'month' and s.current_period_end = s.current_period_start + s.plan.interval_count months or s.plan.billing_period = 'year' and s.current_period_end = s.current_period_start + 12 months)"
-subscription.operation.change_plan:
-  description: Move a subscription to a different plan of the same currency; a plan with another billing period starts a new period now
-  input: subscription.entity.change_plan_request
-  output: subscription.entity.subscription
-  idempotency:
-    key: input.idempotency_key
-    window: 24 hours
-    otherwise: request.error.conflict
-  changes:
-    entity: subscription.entity.subscription
-    from: [trialing, active, past_due, paused]
-    otherwise: subscription.error.invalid_state_transition
-    missing: subscription.error.not_found
-  ensures:
-    - input.proration != 'at_period_end' or output.scheduled_plan_id is present and output.scheduled_plan_id = input.plan_id
-    - input.proration != 'at_period_end' or output.plan = current.plan
-    - input.proration = 'at_period_end' or output.plan_id = input.plan_id
-    - output.current_period_start = current.current_period_start or output.current_period_start = now
-    - output.plan.billing_period != current.plan.billing_period or output.plan.interval_count != current.plan.interval_count or output.current_period_start = current.current_period_start
-    - output.plan.billing_period = current.plan.billing_period and output.plan.interval_count = current.plan.interval_count or output.current_period_start = now
-    - current.trial_will_end_sent_at is absent or output.trial_will_end_sent_at is present and output.trial_will_end_sent_at = current.trial_will_end_sent_at
-    - current.trial_end is absent or output.trial_end is present and output.trial_end = current.trial_end
-    - event.subscription_id = output.subscription_id
-    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
-  errors:
-    - subscription.error.not_found
-    - subscription.error.currency_mismatch
-    - subscription.error.invalid_state_transition
-    # The customer has a live subscription to the new plan already: the unique entry of the subscription.
-    - subscription.error.conflict
-    - request.error.conflict
-  emits:
-    - event: subscription.event.updated
-subscription.operation.pause_subscription:
-  description: Pause an active or trialing subscription
-  input: subscription.entity.pause_request
-  output: subscription.entity.subscription
-  idempotency:
-    key: input.idempotency_key
-    window: 24 hours
-    otherwise: request.error.conflict
-  changes:
-    entity: subscription.entity.subscription
-    from: [active, trialing]
-    to: paused
-    otherwise: subscription.error.invalid_state_transition
-    missing: subscription.error.not_found
-  requires:
-    - rule: input.resume_on is absent or input.resume_on >= today + 1 and input.resume_on <= today + 90
-      otherwise: subscription.error.invalid_resume_date
-      fill: { resume_on: input.resume_on }
-  ensures:
-    - event.subscription_id = output.subscription_id
-    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
-  errors:
-    - subscription.error.not_found
-    - subscription.error.invalid_state_transition
-    - subscription.error.invalid_resume_date
-    - request.error.conflict
-  emits:
-    - event: subscription.event.updated
-subscription.operation.resume_subscription:
-  description: Resume a paused subscription
-  input: subscription.entity.resume_request
-  output: subscription.entity.subscription
-  idempotency:
-    key: input.idempotency_key
-    window: 24 hours
-    otherwise: request.error.conflict
-  changes:
-    entity: subscription.entity.subscription
-    from: [paused]
-    to: active
-    otherwise: subscription.error.invalid_state_transition
-    missing: subscription.error.not_found
-  ensures:
-    - event.subscription_id = output.subscription_id
-    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
-  errors:
-    - subscription.error.not_found
-    - subscription.error.invalid_state_transition
-    - request.error.conflict
-  emits:
-    - event: subscription.event.updated
-subscription.operation.cancel_subscription:
-  description: Cancel a subscription now or at the end of its period
-  input: subscription.entity.cancel_request
-  output: subscription.entity.subscription
-  idempotency:
-    key: input.idempotency_key
-    window: 24 hours
-    otherwise: request.error.conflict
-  changes:
-    entity: subscription.entity.subscription
-    from: [trialing, active, past_due, paused]
-    to: [canceled, trialing, active, past_due, paused]
-    otherwise: subscription.error.invalid_state_transition
-    missing: subscription.error.not_found
-  ensures:
-    - current.trial_will_end_sent_at is absent or output.trial_will_end_sent_at is present and output.trial_will_end_sent_at = current.trial_will_end_sent_at
-    - current.trial_end is absent or output.trial_end is present and output.trial_end = current.trial_end
-    - event.subscription_id = output.subscription_id
-    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
-  errors:
-    - subscription.error.not_found
-    - subscription.error.invalid_state_transition
-    - request.error.conflict
-  emits:
-    - event: subscription.event.canceled
-subscription.operation.announce_trial_end:
-  description: Publish subscription.trial_will_end once, 3 days before the trial ends, with no change of status; the shell's clock calls it
-  input: subscription.entity.lookup
-  output: subscription.entity.subscription
-  changes:
-    entity: subscription.entity.subscription
-    from: [trialing]
-    otherwise: subscription.error.invalid_state_transition
-    missing: subscription.error.not_found
-  due: current.trial_will_end_sent_at is absent and current.trial_end is present and today >= current.trial_end - 3
-  ensures:
-    - output.trial_will_end_sent_at is present and output.trial_will_end_sent_at = now
-    - current.trial_end is absent or output.trial_end is present and output.trial_end = current.trial_end
-    - event.subscription_id = output.subscription_id
-    - output.plan.billing_period = 'month' and output.current_period_end = output.current_period_start + output.plan.interval_count months or output.plan.billing_period = 'year' and output.current_period_end = output.current_period_start + 12 months
-  errors:
-    - subscription.error.not_found
-    - subscription.error.invalid_state_transition
-  emits:
-    - event: subscription.event.trial_will_end
-invoice.operation.read_invoice:
-  description: Read one invoice
-  input: invoice.entity.lookup
-  output: invoice.entity.invoice
-  errors:
-    - invoice.error.not_found
-invoice.operation.list_invoices:
-  description: List the invoices of a subscription
-  input: invoice.entity.list_request
-  output: invoice.entity.invoice_list
-  errors:
-    - subscription.error.not_found
+  trial_end:
+    description: The day that the trial ends
+    type: string
+    rules:
+      - format: date
+
+  subscription_status:
+    description: The status of a subscription
+    type: string
+    rules:
+      - enum: [trialing, active, past_due, paused, canceled, expired]
+
+  current_period_start:
+    description: The start of the current billing period of a subscription
+    type: utc_time
+
+  current_period_end:
+    description: The end of the current billing period of a subscription
+    type: utc_time
+
+  proration:
+    description: How a plan change is billed and when it takes effect
+    type: string
+    rules:
+      - enum: [immediate, none, at_period_end]
+
+  resume_on:
+    description: The day that a paused subscription resumes
+    type: string
+    rules:
+      - format: date
+
+  trial_will_end_sent_at:
+    description: When subscription.trial_will_end was published for the trial, once
+    type: utc_time
+
+  cancel_mode:
+    description: When a cancellation takes effect
+    type: string
+    rules:
+      - enum: [immediately, at_period_end]
+
+  cancel_at:
+    description: When a subscription is canceled, for a cancellation at the end of its period
+    type: cancel_mode
+
+  subscription:
+    description: A customer's subscription to a plan
+    type: object
+    identifier: subscription_id
+    properties:
+      - subscription_id
+      - customer_id
+      - plan
+      - plan_id
+      - quantity
+      - subscription_status
+      - current_period_start
+      - current_period_end
+      - trial_end
+      - scheduled_plan_id
+      - resume_on
+      - cancel_at
+      - trial_will_end_sent_at
+    rules:
+      - required: [subscription_id, customer_id, plan, plan_id, quantity, subscription_status, current_period_start, current_period_end]
+      - plan_id_is_plan
+      - period_ends_after_start
+
+  stored_subscription:
+    description: The subscription that the request names, as stored before the call; absent when no subscription has its id
+    type: subscription
+
+  existing_subscription:
+    description: A live (not canceled, not expired) subscription of the customer to the plan, as stored, which the shell found
+    type: subscription
+
+  subscriptions:
+    description: A list of subscriptions, each one once
+    type: array
+    items: subscription
+    rules:
+      - uniqueItems
+
+  stored_subscriptions:
+    description: The stored subscriptions that the shell loaded for a list
+    type: subscriptions
+
+  # Events
+
+  event_id:
+    description: The unique id of an event, a UUID in lowercase
+    type: string
+    rules:
+      - pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+
+  event_type:
+    description: The type of an event
+    type: string
+    rules:
+      - enum: [subscription.created, subscription.updated, subscription.canceled, subscription.trial_will_end, invoice.created, invoice.paid]
+
+  occurred_at:
+    description: The time an event occurred
+    type: utc_time
+
+  event:
+    description: An event that the domain publishes
+    type: object
+    properties: [event_id, event_type, subscription_id, invoice_id, occurred_at]
+    rules:
+      - required: [event_id, event_type, subscription_id, occurred_at]
+      - invoice_event_names_invoice
+
+  events:
+    description: The events that a call publishes
+    type: array
+    items: event
+    rules:
+      - event_ids_differ
+
+  subscription_change:
+    description: A subscription after a call, and the events that the call publishes
+    type: object
+    properties: [subscription, events]
+    rules:
+      - required: [subscription, events]
+      - events_name_the_subscription
+
+  # Invoices
+
+  invoice_status:
+    description: The status of an invoice
+    type: string
+    rules:
+      - enum: [draft, open, paid, void, uncollectible]
+
+  line_quantity:
+    description: The number of units on an invoice line
+    type: integer
+    rules:
+      - minimum: 1
+
+  amount:
+    description: The amount of an invoice line
+    type: money
+
+  line:
+    description: One line of an invoice
+    type: object
+    properties: [line_quantity, amount]
+    rules:
+      - required: [line_quantity, amount]
+
+  lines:
+    description: The lines of an invoice
+    type: array
+    items: line
+
+  total:
+    description: The total of an invoice
+    type: money
+
+  period_start:
+    description: The start of the billing period of an invoice
+    type: utc_time
+
+  period_end:
+    description: The end of the billing period of an invoice
+    type: utc_time
+
+  invoice:
+    description: The invoice of one billing period of a subscription
+    type: object
+    identifier: invoice_id
+    properties: [invoice_id, subscription_id, invoice_status, period_start, period_end, billing_period, interval_count, lines, total]
+    rules:
+      - required: [invoice_id, subscription_id, invoice_status, period_start, period_end, billing_period, interval_count, lines, total]
+      - invoice_period_ends_after_start
+      - total_is_sum
+      - lines_in_total_currency
+
+  stored_invoice:
+    description: The invoice that the request names, as stored; absent when no invoice has its id
+    type: invoice
+
+  invoices:
+    description: A list of invoices, each one once
+    type: array
+    items: invoice
+    rules:
+      - uniqueItems
+
+  stored_invoices:
+    description: The stored invoices that the shell loaded for a list
+    type: invoices
+
+  # Requests
+
+  create_request:
+    description: A request to subscribe a customer to a plan, with the plan as stored
+    type: object
+    properties: [customer_id, plan_id, quantity, trial_days, trial_end, idempotency_key, caller, now, plan, existing_subscription]
+    rules:
+      - required: [customer_id, plan_id, quantity, caller, now, plan]
+      - trial_days_or_trial_end
+      - trial_end_in_window
+      - names_the_plan
+      - existing_is_the_customers_live_one
+
+  subscription_lookup:
+    description: A request to read a subscription, with the subscription as stored
+    type: object
+    properties: [subscription_id, caller, stored_subscription]
+    rules:
+      - required: [subscription_id, caller]
+      - names_the_subscription
+
+  list_request:
+    description: The subscriptions of a customer to list, optionally with one status only, with the stored subscriptions
+    type: object
+    properties: [customer_id, subscription_status, caller, stored_subscriptions]
+    rules:
+      - required: [customer_id, caller, stored_subscriptions]
+
+  subscription_list:
+    description: A list of subscriptions
+    type: object
+    properties: [subscriptions]
+    rules:
+      - required: [subscriptions]
+
+  change_plan_request:
+    description: A request to move a subscription to a different plan, with the subscription and the new plan as stored
+    type: object
+    properties: [subscription_id, plan_id, proration, idempotency_key, caller, now, stored_subscription, new_plan, existing_subscription]
+    rules:
+      - required: [subscription_id, plan_id, proration, caller, now, new_plan]
+      - names_the_subscription
+      - names_the_new_plan
+      - existing_is_the_holders_live_one
+
+  pause_request:
+    description: A request to pause a subscription, optionally until a resume day, with the subscription as stored
+    type: object
+    properties: [subscription_id, resume_on, idempotency_key, caller, now, stored_subscription]
+    rules:
+      - required: [subscription_id, caller, now]
+      - names_the_subscription
+      - resume_on_in_window
+
+  resume_request:
+    description: A request to resume a paused subscription, with the subscription as stored
+    type: object
+    properties: [subscription_id, idempotency_key, caller, now, stored_subscription]
+    rules:
+      - required: [subscription_id, caller, now]
+      - names_the_subscription
+
+  cancel_request:
+    description: A request to cancel a subscription, with the subscription as stored
+    type: object
+    properties: [subscription_id, cancel_mode, idempotency_key, caller, now, stored_subscription]
+    rules:
+      - required: [subscription_id, cancel_mode, caller, now]
+      - names_the_subscription
+
+  announce_request:
+    description: A call of the shell's clock to announce the end of a trial, with the subscription as stored
+    type: object
+    properties: [subscription_id, caller, now, stored_subscription]
+    rules:
+      - required: [subscription_id, caller, now]
+      - names_the_subscription
+
+  invoice_lookup:
+    description: A request to read an invoice, with the invoice and its subscription as stored
+    type: object
+    properties: [invoice_id, caller, stored_invoice, stored_subscription]
+    rules:
+      - required: [invoice_id, caller]
+      - names_the_invoice
+      - subscription_is_the_invoices
+
+  invoice_list_request:
+    description: The invoices of a subscription to list, optionally with one status only, with the subscription and its stored invoices
+    type: object
+    properties: [subscription_id, invoice_status, caller, stored_subscription, stored_invoices]
+    rules:
+      - required: [subscription_id, caller, stored_invoices]
+      - names_the_subscription
+
+  invoice_list:
+    description: A list of invoices
+    type: object
+    properties: [invoices]
+    rules:
+      - required: [invoices]
+
+  # Refusals
+
+  subscription_not_found:
+    description: No subscription has this id
+    type: object
+    properties: [subscription_id]
+    rules:
+      - required: [subscription_id]
+
+  invoice_not_found:
+    description: No invoice has this id
+    type: object
+    properties: [invoice_id]
+    rules:
+      - required: [invoice_id]
+
+  conflict:
+    description: The customer already has a subscription to this plan that is not canceled or expired
+    type: object
+    properties: [customer_id, plan_id]
+    rules:
+      - required: [customer_id, plan_id]
+
+  invalid_state_transition:
+    description: The subscription cannot make this change in its current status
+    type: object
+    properties: [subscription_id, subscription_status]
+    rules:
+      - required: [subscription_id, subscription_status]
+
+  plan_currency:
+    description: The currency of the plan that a change moves to
+    type: currency
+
+  subscription_currency:
+    description: The currency of the current plan of a subscription
+    type: currency
+
+  currency_mismatch:
+    description: The new plan has a different currency than the subscription
+    type: object
+    properties: [plan_currency, subscription_currency]
+    rules:
+      - required: [plan_currency, subscription_currency]
+
+  forbidden:
+    description: The caller may not make this call
+    type: object
+    properties: [caller]
+    rules:
+      - required: [caller]
+
+rules:
+  # Rules of values
+
+  customer_has_id:
+    description: A customer who calls is named by their customer id
+    rule: self.caller_kind != 'customer' || has(self.customer_id)
+    message: A customer caller has a customer id
+
+  roles_are_for_staff:
+    description: Only merchant staff have staff roles
+    rule: self.caller_kind == 'staff' || !has(self.staff_roles)
+    message: Only staff have staff roles
+
+  yearly_interval_is_one:
+    description: A yearly plan has an interval count of exactly 1
+    rule: self.billing_period != 'year' || self.interval_count == 1
+    message: A yearly plan has an interval count of 1
+
+  plan_id_is_plan:
+    description: The plan id of a subscription is the id of its plan
+    rule: self.plan_id == self.plan.plan_id
+    message: The plan id must be the id of the plan
+
+  period_ends_after_start:
+    description: The current period of a subscription ends after it starts
+    rule: timestamp(self.current_period_end) > timestamp(self.current_period_start)
+    message: A period must end after it starts
+
+  invoice_event_names_invoice:
+    description: An invoice event names its invoice, and no other event names one
+    rule: "(self.event_type in ['invoice.created', 'invoice.paid']) == has(self.invoice_id)"
+    message: An invoice event, and only an invoice event, names an invoice
+
+  event_ids_differ:
+    description: No two events of a call have the same id
+    rule: self.all(e, self.exists_one(f, f.event_id == e.event_id))
+    message: Two events have the same id
+
+  events_name_the_subscription:
+    description: Each event of a call carries the id of the subscription of the call
+    rule: self.events.all(e, e.subscription_id == self.subscription.subscription_id)
+    message: An event names another subscription
+
+  invoice_period_ends_after_start:
+    description: An invoice's period ends after it starts
+    rule: timestamp(self.period_end) > timestamp(self.period_start)
+    message: An invoice period must end after it starts
+
+  total_is_sum:
+    description: An invoice's total is the sum of its line amounts, in minor units
+    rule: self.total.amount_minor == self.lines.map(l, l.amount.amount_minor).sum()
+    message: The total must be the sum of the line amounts
+
+  lines_in_total_currency:
+    description: Each line of an invoice is in the currency of its total
+    rule: self.lines.all(l, l.amount.currency == self.total.currency)
+    message: Each line must be in the currency of the total
+
+  trial_days_or_trial_end:
+    description: A create request has trial days or a trial end, never both
+    rule: '!has(self.trial_days) || !has(self.trial_end)'
+    message: Send trial days or a trial end, not both
+
+  # The day of the call is the UTC date of now. A day D is after it when D at midnight UTC is after
+  # now, and at most 730 days after it when D at midnight, less 730 days, is now or before.
+  trial_end_in_window:
+    description: An explicit trial end is after the day of the call, and at most 730 days after it
+    rule: >-
+      !has(self.trial_end) ||
+      (timestamp(self.trial_end + 'T00:00:00Z') > timestamp(self.now) &&
+       timestamp(self.trial_end + 'T00:00:00Z') - duration('17520h') <= timestamp(self.now))
+    message: A trial end must be after the day of the request and at most 730 days after it
+
+  names_the_plan:
+    description: The request names the plan that was loaded
+    rule: self.plan.plan_id == self.plan_id
+    message: The request names another plan than the one loaded
+
+  existing_is_the_customers_live_one:
+    description: The existing subscription that was loaded is a live subscription of the customer to the plan
+    rule: >-
+      !has(self.existing_subscription) ||
+      (self.existing_subscription.customer_id == self.customer_id &&
+       self.existing_subscription.plan_id == self.plan_id &&
+       self.existing_subscription.subscription_status in ['trialing', 'active', 'past_due', 'paused'])
+    message: The existing subscription is not a live subscription of the customer to the plan
+
+  names_the_subscription:
+    description: The request names the subscription that was loaded
+    rule: '!has(self.stored_subscription) || self.stored_subscription.subscription_id == self.subscription_id'
+    message: The request names another subscription than the one loaded
+
+  names_the_new_plan:
+    description: The request names the new plan that was loaded
+    rule: self.new_plan.plan_id == self.plan_id
+    message: The request names another plan than the one loaded
+
+  existing_is_the_holders_live_one:
+    description: The existing subscription that was loaded is another live subscription of the same customer to the new plan
+    rule: >-
+      !has(self.existing_subscription) ||
+      (has(self.stored_subscription) &&
+       self.existing_subscription.customer_id == self.stored_subscription.customer_id &&
+       self.existing_subscription.subscription_id != self.stored_subscription.subscription_id &&
+       self.existing_subscription.plan_id == self.plan_id &&
+       self.existing_subscription.subscription_status in ['trialing', 'active', 'past_due', 'paused'])
+    message: The existing subscription is not another live subscription of the customer to the new plan
+
+  # As trial_end_in_window: 90 days are 2160 hours.
+  resume_on_in_window:
+    description: A resume day is from 1 to 90 days after the day of the call
+    rule: >-
+      !has(self.resume_on) ||
+      (timestamp(self.resume_on + 'T00:00:00Z') > timestamp(self.now) &&
+       timestamp(self.resume_on + 'T00:00:00Z') - duration('2160h') <= timestamp(self.now))
+    message: A resume day must be from 1 to 90 days after the day of the request
+
+  names_the_invoice:
+    description: The request names the invoice that was loaded
+    rule: '!has(self.stored_invoice) || self.stored_invoice.invoice_id == self.invoice_id'
+    message: The request names another invoice than the one loaded
+
+  subscription_is_the_invoices:
+    description: With a stored invoice, the subscription that was loaded is the invoice's
+    rule: >-
+      !has(self.stored_invoice) ||
+      (has(self.stored_subscription) && self.stored_subscription.subscription_id == self.stored_invoice.subscription_id)
+    message: The subscription loaded is not the invoice's
+
+  # Rules of callers
+
+  caller_is_billing_admin:
+    description: The caller is a member of the merchant's staff with the billing-admin role
+    rule: input.caller.caller_kind == 'staff' && has(input.caller.staff_roles) && 'billing-admin' in input.caller.staff_roles
+    message: The caller is not staff with the billing-admin role
+
+  caller_is_not_billing_admin:
+    description: The caller is not a member of the merchant's staff with the billing-admin role
+    rule: "!(input.caller.caller_kind == 'staff' && has(input.caller.staff_roles) && 'billing-admin' in input.caller.staff_roles)"
+    message: The caller is staff with the billing-admin role
+
+  caller_holds_the_stored:
+    description: The caller is not a customer, or is the customer who holds the stored subscription
+    rule: >-
+      input.caller.caller_kind != 'customer' ||
+      (has(input.caller.customer_id) && has(input.stored_subscription) &&
+       input.stored_subscription.customer_id == input.caller.customer_id)
+    message: A customer may only use their own subscriptions
+
+  caller_does_not_hold_the_stored:
+    description: The caller is a customer who does not hold the stored subscription
+    rule: >-
+      input.caller.caller_kind == 'customer' && has(input.stored_subscription) &&
+      (!has(input.caller.customer_id) || input.stored_subscription.customer_id != input.caller.customer_id)
+    message: The caller holds the subscription, or is not a customer
+
+  caller_may_list:
+    description: The caller is not a customer, or is the customer whose subscriptions are listed
+    rule: input.caller.caller_kind != 'customer' || (has(input.caller.customer_id) && input.caller.customer_id == input.customer_id)
+    message: A customer may only list their own subscriptions
+
+  caller_may_not_list:
+    description: The caller is a customer who asks for another customer's subscriptions
+    rule: input.caller.caller_kind == 'customer' && (!has(input.caller.customer_id) || input.caller.customer_id != input.customer_id)
+    message: The caller may list these subscriptions
+
+  caller_is_not_a_customer:
+    description: The caller is not a customer
+    rule: input.caller.caller_kind != 'customer'
+    message: A customer may not make this call
+
+  caller_is_a_customer:
+    description: The caller is a customer
+    rule: input.caller.caller_kind == 'customer'
+    message: The caller is not a customer
+
+  forbidden_names_the_caller:
+    description: A refusal for the caller names the caller of the request
+    rule: output.caller == input.caller
+    message: The refusal names another caller
+
+  # Rules of the stored records
+
+  nothing_stored:
+    description: No subscription has the id of the request
+    rule: '!has(input.stored_subscription)'
+    message: The subscription exists
+
+  not_found_names_the_request:
+    description: The refusal names the subscription of the request
+    rule: output.subscription_id == input.subscription_id
+    message: The refusal names another subscription
+
+  subscription_was_stored:
+    description: A subscription has the id of the request
+    rule: has(input.stored_subscription)
+    message: No subscription has the id of the request
+
+  no_live_subscription:
+    description: The customer has no live subscription to the plan
+    rule: '!has(input.existing_subscription)'
+    message: The customer has a live subscription to the plan
+
+  has_live_subscription:
+    description: The customer has a live subscription to the plan
+    rule: has(input.existing_subscription)
+    message: The customer has no live subscription to the plan
+
+  conflict_names_the_request:
+    description: The conflict names the customer and the plan of the request
+    rule: output.customer_id == input.customer_id && output.plan_id == input.plan_id
+    message: The conflict names another customer or plan
+
+  conflict_names_the_holder:
+    description: The conflict names the holder of the subscription and the new plan
+    rule: has(input.stored_subscription) && output.customer_id == input.stored_subscription.customer_id && output.plan_id == input.plan_id
+    message: The conflict names another customer or plan
+
+  stored_is_live:
+    description: The stored subscription is trialing, active, past due or paused
+    rule: has(input.stored_subscription) && input.stored_subscription.subscription_status in ['trialing', 'active', 'past_due', 'paused']
+    message: The subscription is canceled or expired
+
+  stored_is_ended:
+    description: The stored subscription is canceled or expired
+    rule: has(input.stored_subscription) && input.stored_subscription.subscription_status in ['canceled', 'expired']
+    message: The subscription is not canceled or expired
+
+  names_the_stored_state:
+    description: The refusal names the subscription and its stored status
+    rule: >-
+      has(input.stored_subscription) && output.subscription_id == input.subscription_id &&
+      output.subscription_status == input.stored_subscription.subscription_status
+    message: The refusal names another subscription or status
+
+  # Create
+
+  creates_from_the_request:
+    description: A new subscription is of the customer, the plan and the quantity of the request, and its first period starts now
+    rule: >-
+      output.subscription.customer_id == input.customer_id &&
+      output.subscription.plan == input.plan &&
+      output.subscription.quantity == input.quantity &&
+      output.subscription.current_period_start == input.now
+    message: The subscription is not the one the request asked for
+
+  create_status:
+    description: A new subscription is trialing with more than 0 trial days or a trial end, and active otherwise
+    rule: >-
+      (((has(input.trial_days) && input.trial_days > 0) || has(input.trial_end)) && output.subscription.subscription_status == 'trialing') ||
+      (!((has(input.trial_days) && input.trial_days > 0) || has(input.trial_end)) && output.subscription.subscription_status == 'active')
+    message: A subscription with a trial is trialing, and active otherwise
+
+  create_trial_end:
+    description: A new subscription has the explicit trial end of the request, a trial end with more than 0 trial days, and none otherwise
+    rule: >-
+      (!has(input.trial_end) || (has(output.subscription.trial_end) && output.subscription.trial_end == input.trial_end)) &&
+      (!has(input.trial_days) || input.trial_days == 0 || has(output.subscription.trial_end)) &&
+      (has(input.trial_end) || (has(input.trial_days) && input.trial_days > 0) || !has(output.subscription.trial_end))
+    message: The trial end is not the one the request asked for
+
+  # A trial end D is less than 3 days after the day of the call when D at midnight UTC, less 48
+  # hours, is now or before.
+  create_trial_notice:
+    description: A trial that ends less than 3 days after the day of the call is announced at once, and marked; any other is not
+    rule: >-
+      (!has(output.subscription.trial_end) && !has(output.subscription.trial_will_end_sent_at) &&
+       !output.events.exists(e, e.event_type == 'subscription.trial_will_end')) ||
+      (has(output.subscription.trial_end) &&
+       timestamp(output.subscription.trial_end + 'T00:00:00Z') - duration('48h') <= timestamp(input.now) &&
+       has(output.subscription.trial_will_end_sent_at) && output.subscription.trial_will_end_sent_at == input.now &&
+       output.events.exists_one(e, e.event_type == 'subscription.trial_will_end')) ||
+      (has(output.subscription.trial_end) &&
+       timestamp(output.subscription.trial_end + 'T00:00:00Z') - duration('48h') > timestamp(input.now) &&
+       !has(output.subscription.trial_will_end_sent_at) &&
+       !output.events.exists(e, e.event_type == 'subscription.trial_will_end'))
+    message: A trial that ends within 3 days is announced at create, and only such a trial
+
+  create_events:
+    description: A create publishes one subscription.created, and one invoice.created and one invoice.paid when there is no trial
+    rule: >-
+      output.events.all(e, e.event_type in ['subscription.created', 'subscription.trial_will_end', 'invoice.created', 'invoice.paid']) &&
+      output.events.exists_one(e, e.event_type == 'subscription.created') &&
+      ((has(output.subscription.trial_end) && !output.events.exists(e, e.event_type in ['invoice.created', 'invoice.paid'])) ||
+       (!has(output.subscription.trial_end) &&
+        output.events.exists_one(e, e.event_type == 'invoice.created') &&
+        output.events.exists_one(e, e.event_type == 'invoice.paid')))
+    message: A create publishes subscription.created, and the first invoice when there is no trial
+
+  events_occur_now:
+    description: Each event of a call occurs at the time of the call
+    rule: output.events.all(e, e.occurred_at == input.now)
+    message: An event occurs at another time than the call
+
+  # Read and list
+
+  is_the_stored_subscription:
+    description: The answer is the stored subscription
+    rule: has(input.stored_subscription) && output == input.stored_subscription
+    message: The answer is not the stored subscription
+
+  lists_the_matching_subscriptions:
+    description: The list holds each stored subscription of the customer, with the status asked for if any, and no other
+    rule: >-
+      output.subscriptions.all(s, s in input.stored_subscriptions && s.customer_id == input.customer_id &&
+        (!has(input.subscription_status) || s.subscription_status == input.subscription_status)) &&
+      input.stored_subscriptions.all(s, !(s.customer_id == input.customer_id &&
+        (!has(input.subscription_status) || s.subscription_status == input.subscription_status)) || s in output.subscriptions)
+    message: The list is not the customer's subscriptions with the status asked for
+
+  # Changes of a stored subscription
+
+  keeps_the_terms:
+    description: The subscription keeps its id, customer, plan, quantity and current period
+    rule: >-
+      has(input.stored_subscription) &&
+      output.subscription.subscription_id == input.stored_subscription.subscription_id &&
+      output.subscription.customer_id == input.stored_subscription.customer_id &&
+      output.subscription.plan == input.stored_subscription.plan &&
+      output.subscription.quantity == input.stored_subscription.quantity &&
+      output.subscription.current_period_start == input.stored_subscription.current_period_start &&
+      output.subscription.current_period_end == input.stored_subscription.current_period_end
+    message: The subscription changed its id, customer, plan, quantity or period
+
+  keeps_the_trial:
+    description: The subscription keeps its trial end and the mark of its trial notice
+    rule: >-
+      has(input.stored_subscription) &&
+      (!has(input.stored_subscription.trial_end) ||
+        (has(output.subscription.trial_end) && output.subscription.trial_end == input.stored_subscription.trial_end)) &&
+      (has(input.stored_subscription.trial_end) || !has(output.subscription.trial_end)) &&
+      (!has(input.stored_subscription.trial_will_end_sent_at) ||
+        (has(output.subscription.trial_will_end_sent_at) &&
+         output.subscription.trial_will_end_sent_at == input.stored_subscription.trial_will_end_sent_at)) &&
+      (has(input.stored_subscription.trial_will_end_sent_at) || !has(output.subscription.trial_will_end_sent_at))
+    message: The subscription changed its trial end or the mark of its trial notice
+
+  one_updated_event:
+    description: The call publishes exactly one event, subscription.updated
+    rule: size(output.events) == 1 && output.events.all(e, e.event_type == 'subscription.updated')
+    message: The call publishes exactly one subscription.updated
+
+  # Change plan
+
+  same_currency:
+    description: The new plan has the currency of the subscription's plan
+    rule: has(input.stored_subscription) && input.new_plan.price.currency == input.stored_subscription.plan.price.currency
+    message: The new plan has another currency
+
+  other_currency:
+    description: The new plan has another currency than the subscription's plan
+    rule: has(input.stored_subscription) && input.new_plan.price.currency != input.stored_subscription.plan.price.currency
+    message: The new plan has the same currency
+
+  currency_mismatch_names_the_currencies:
+    description: The refusal names the currency of the new plan and of the subscription
+    rule: >-
+      has(input.stored_subscription) &&
+      output.plan_currency == input.new_plan.price.currency &&
+      output.subscription_currency == input.stored_subscription.plan.price.currency
+    message: The refusal names other currencies
+
+  changes_the_plan:
+    description: >-
+      A change keeps the subscription's id, customer, quantity and status. With at_period_end it keeps the plan and
+      schedules the new one; otherwise the new plan is the plan
+    rule: >-
+      has(input.stored_subscription) &&
+      output.subscription.subscription_id == input.stored_subscription.subscription_id &&
+      output.subscription.customer_id == input.stored_subscription.customer_id &&
+      output.subscription.quantity == input.stored_subscription.quantity &&
+      output.subscription.subscription_status == input.stored_subscription.subscription_status &&
+      (input.proration != 'at_period_end' ||
+        (output.subscription.plan == input.stored_subscription.plan &&
+         has(output.subscription.scheduled_plan_id) && output.subscription.scheduled_plan_id == input.plan_id)) &&
+      (input.proration == 'at_period_end' ||
+        (output.subscription.plan == input.new_plan && !has(output.subscription.scheduled_plan_id)))
+    message: The change is not the one the request asked for
+
+  change_period:
+    description: A change keeps the current period when the plan keeps its period, and starts a new period now otherwise
+    rule: >-
+      has(input.stored_subscription) &&
+      (!(input.proration == 'at_period_end' ||
+         (input.new_plan.billing_period == input.stored_subscription.plan.billing_period &&
+          input.new_plan.interval_count == input.stored_subscription.plan.interval_count)) ||
+        (output.subscription.current_period_start == input.stored_subscription.current_period_start &&
+         output.subscription.current_period_end == input.stored_subscription.current_period_end)) &&
+      (input.proration == 'at_period_end' ||
+        (input.new_plan.billing_period == input.stored_subscription.plan.billing_period &&
+         input.new_plan.interval_count == input.stored_subscription.plan.interval_count) ||
+        output.subscription.current_period_start == input.now)
+    message: The period is not kept for the same period, or not started now for another one
+
+  # Pause and resume
+
+  stored_may_pause:
+    description: The stored subscription is active or trialing
+    rule: has(input.stored_subscription) && input.stored_subscription.subscription_status in ['active', 'trialing']
+    message: Only an active or trialing subscription can be paused
+
+  stored_may_not_pause:
+    description: The stored subscription is neither active nor trialing
+    rule: has(input.stored_subscription) && !(input.stored_subscription.subscription_status in ['active', 'trialing'])
+    message: The subscription can be paused
+
+  pauses:
+    description: The subscription is paused, until the resume day of the request if any
+    rule: >-
+      output.subscription.subscription_status == 'paused' &&
+      ((has(input.resume_on) && has(output.subscription.resume_on) && output.subscription.resume_on == input.resume_on) ||
+       (!has(input.resume_on) && !has(output.subscription.resume_on)))
+    message: The subscription is not paused until the resume day of the request
+
+  stored_is_paused:
+    description: The stored subscription is paused
+    rule: has(input.stored_subscription) && input.stored_subscription.subscription_status == 'paused'
+    message: Only a paused subscription can be resumed
+
+  stored_is_not_paused:
+    description: The stored subscription is not paused
+    rule: has(input.stored_subscription) && input.stored_subscription.subscription_status != 'paused'
+    message: The subscription is paused
+
+  resumes:
+    description: The subscription is active, with no resume day
+    rule: output.subscription.subscription_status == 'active' && !has(output.subscription.resume_on)
+    message: The subscription is not active
+
+  # Cancel
+
+  cancels:
+    description: Cancelling immediately makes the subscription canceled; at the period end, it keeps its status and is marked to cancel then
+    rule: >-
+      has(input.stored_subscription) &&
+      (input.cancel_mode != 'immediately' || output.subscription.subscription_status == 'canceled') &&
+      (input.cancel_mode != 'at_period_end' ||
+        (output.subscription.subscription_status == input.stored_subscription.subscription_status &&
+         has(output.subscription.cancel_at) && output.subscription.cancel_at == 'at_period_end'))
+    message: The cancellation is not the one the request asked for
+
+  one_canceled_event:
+    description: The call publishes exactly one event, subscription.canceled
+    rule: size(output.events) == 1 && output.events.all(e, e.event_type == 'subscription.canceled')
+    message: The call publishes exactly one subscription.canceled
+
+  # Announce the trial end. A trial end D is due when the day of the call is D less 3 days or later:
+  # D at midnight UTC, less 72 hours, is now or before.
+
+  trial_end_is_due:
+    description: The stored subscription is trialing, its trial ends within 3 days of the day of the call, and it was not announced
+    rule: >-
+      has(input.stored_subscription) &&
+      input.stored_subscription.subscription_status == 'trialing' &&
+      !has(input.stored_subscription.trial_will_end_sent_at) &&
+      has(input.stored_subscription.trial_end) &&
+      timestamp(input.stored_subscription.trial_end + 'T00:00:00Z') - duration('72h') <= timestamp(input.now)
+    message: The end of the trial is not due to be announced
+
+  trial_end_is_not_due:
+    description: The stored subscription is not trialing, was announced, or its trial ends more than 3 days after the day of the call
+    rule: >-
+      has(input.stored_subscription) &&
+      !(input.stored_subscription.subscription_status == 'trialing' &&
+        !has(input.stored_subscription.trial_will_end_sent_at) &&
+        has(input.stored_subscription.trial_end) &&
+        timestamp(input.stored_subscription.trial_end + 'T00:00:00Z') - duration('72h') <= timestamp(input.now))
+    message: The end of the trial is due to be announced
+
+  announces_the_trial_end:
+    description: The subscription keeps its status and its trial end, and is marked as announced now
+    rule: >-
+      has(input.stored_subscription) &&
+      output.subscription.subscription_status == input.stored_subscription.subscription_status &&
+      has(input.stored_subscription.trial_end) && has(output.subscription.trial_end) &&
+      output.subscription.trial_end == input.stored_subscription.trial_end &&
+      has(output.subscription.trial_will_end_sent_at) && output.subscription.trial_will_end_sent_at == input.now
+    message: The subscription is not marked as announced now, or changed its status or trial end
+
+  one_trial_will_end_event:
+    description: The call publishes exactly one event, subscription.trial_will_end
+    rule: size(output.events) == 1 && output.events.all(e, e.event_type == 'subscription.trial_will_end')
+    message: The call publishes exactly one subscription.trial_will_end
+
+  # Invoices
+
+  is_the_stored_invoice:
+    description: The answer is the stored invoice
+    rule: has(input.stored_invoice) && output == input.stored_invoice
+    message: The answer is not the stored invoice
+
+  no_invoice_stored:
+    description: No invoice has the id of the request
+    rule: '!has(input.stored_invoice)'
+    message: The invoice exists
+
+  invoice_not_found_names_the_request:
+    description: The refusal names the invoice of the request
+    rule: output.invoice_id == input.invoice_id
+    message: The refusal names another invoice
+
+  lists_the_matching_invoices:
+    description: The list holds each stored invoice of the subscription, with the status asked for if any, and no other
+    rule: >-
+      output.invoices.all(i, i in input.stored_invoices && i.subscription_id == input.subscription_id &&
+        (!has(input.invoice_status) || i.invoice_status == input.invoice_status)) &&
+      input.stored_invoices.all(i, !(i.subscription_id == input.subscription_id &&
+        (!has(input.invoice_status) || i.invoice_status == input.invoice_status)) || i in output.invoices)
+    message: The list is not the subscription's invoices with the status asked for
+
+operations:
+  create_subscription:
+    description: Subscribe a customer to a plan, with an optional trial
+    input: create_request
+    output:
+      - subscription_change:
+          [caller_is_billing_admin, no_live_subscription, creates_from_the_request, create_status, create_trial_end, create_trial_notice, create_events, events_occur_now]
+      - conflict: [caller_is_billing_admin, has_live_subscription, conflict_names_the_request]
+      - forbidden: [caller_is_not_billing_admin, forbidden_names_the_caller]
+
+  read_subscription:
+    description: Read one subscription
+    input: subscription_lookup
+    output:
+      - subscription: [caller_holds_the_stored, is_the_stored_subscription]
+      - subscription_not_found: [nothing_stored, not_found_names_the_request]
+      - forbidden: [caller_does_not_hold_the_stored, forbidden_names_the_caller]
+
+  list_subscriptions:
+    description: List the subscriptions of a customer
+    input: list_request
+    output:
+      - subscription_list: [caller_may_list, lists_the_matching_subscriptions]
+      - forbidden: [caller_may_not_list, forbidden_names_the_caller]
+
+  change_plan:
+    description: Move a subscription to a different plan of the same currency; a plan with another billing period starts a new period now
+    input: change_plan_request
+    output:
+      - subscription_change:
+          [caller_is_billing_admin, stored_is_live, same_currency, no_live_subscription, changes_the_plan, change_period, keeps_the_trial, one_updated_event, events_occur_now]
+      - subscription_not_found: [nothing_stored, not_found_names_the_request]
+      - invalid_state_transition: [caller_is_billing_admin, stored_is_ended, names_the_stored_state]
+      - currency_mismatch: [caller_is_billing_admin, stored_is_live, other_currency, currency_mismatch_names_the_currencies]
+      - conflict: [caller_is_billing_admin, stored_is_live, same_currency, has_live_subscription, conflict_names_the_holder]
+      - forbidden: [caller_is_not_billing_admin, forbidden_names_the_caller]
+
+  pause_subscription:
+    description: Pause an active or trialing subscription
+    input: pause_request
+    output:
+      - subscription_change: [caller_holds_the_stored, stored_may_pause, pauses, keeps_the_terms, keeps_the_trial, one_updated_event, events_occur_now]
+      - subscription_not_found: [nothing_stored, not_found_names_the_request]
+      - invalid_state_transition: [caller_holds_the_stored, stored_may_not_pause, names_the_stored_state]
+      - forbidden: [caller_does_not_hold_the_stored, forbidden_names_the_caller]
+
+  resume_subscription:
+    description: Resume a paused subscription
+    input: resume_request
+    output:
+      - subscription_change: [caller_holds_the_stored, stored_is_paused, resumes, keeps_the_terms, keeps_the_trial, one_updated_event, events_occur_now]
+      - subscription_not_found: [nothing_stored, not_found_names_the_request]
+      - invalid_state_transition: [caller_holds_the_stored, stored_is_not_paused, names_the_stored_state]
+      - forbidden: [caller_does_not_hold_the_stored, forbidden_names_the_caller]
+
+  cancel_subscription:
+    description: Cancel a subscription now or at the end of its period
+    input: cancel_request
+    output:
+      - subscription_change: [caller_holds_the_stored, stored_is_live, cancels, keeps_the_terms, keeps_the_trial, one_canceled_event, events_occur_now]
+      - subscription_not_found: [nothing_stored, not_found_names_the_request]
+      - invalid_state_transition: [caller_holds_the_stored, stored_is_ended, names_the_stored_state]
+      - forbidden: [caller_does_not_hold_the_stored, forbidden_names_the_caller]
+
+  announce_trial_end:
+    description: Publish subscription.trial_will_end once, 3 days before the trial ends, with no change of status; the shell's clock calls it
+    input: announce_request
+    output:
+      - subscription_change: [caller_is_not_a_customer, trial_end_is_due, announces_the_trial_end, keeps_the_terms, one_trial_will_end_event, events_occur_now]
+      - subscription_not_found: [nothing_stored, not_found_names_the_request]
+      - invalid_state_transition: [caller_is_not_a_customer, trial_end_is_not_due, names_the_stored_state]
+      - forbidden: [caller_is_a_customer, forbidden_names_the_caller]
+
+  read_invoice:
+    description: Read one invoice
+    input: invoice_lookup
+    output:
+      - invoice: [caller_holds_the_stored, is_the_stored_invoice]
+      - invoice_not_found: [no_invoice_stored, invoice_not_found_names_the_request]
+      - forbidden: [caller_does_not_hold_the_stored, forbidden_names_the_caller]
+
+  list_invoices:
+    description: List the invoices of a subscription
+    input: invoice_list_request
+    output:
+      - invoice_list: [subscription_was_stored, caller_holds_the_stored, lists_the_matching_invoices]
+      - subscription_not_found: [nothing_stored, not_found_names_the_request]
+      - forbidden: [caller_does_not_hold_the_stored, forbidden_names_the_caller]

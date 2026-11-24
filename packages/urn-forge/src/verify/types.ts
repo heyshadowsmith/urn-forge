@@ -1,56 +1,17 @@
-/**
- * The gate framework for `urn-forge verify`.
- *
- * A gate is a number, a name and a `run` that returns a summary and its problems. A gate
- * passes when none of its problems is an error, so a gate can report warnings and still
- * pass: boundary coverage needs that for its warn-then-ratchet adoption.
- */
-import type { Diagnostic } from '../diagnostics.js';
-import type { GeneratedArtifact } from '../plugins/plugin.interface.js';
-import type { UniversalIR } from '../ir/types.js';
-import type { FeatureIndex } from './feature-index.js';
-
-/** The five gates. */
-export type GateNumber = 1 | 2 | 3 | 4 | 5;
-
-/** What every gate may read. Built once per `verify`. */
-export interface GateContext {
-  readonly cwd: string;
-  readonly ir: UniversalIR;
-  /** The fresh compile's files. */
-  readonly files: readonly GeneratedArtifact[];
-  readonly outDir: string;
-  readonly corePath: string;
-  readonly tsconfigPath: string;
-  readonly featuresDir: string;
-  readonly features: FeatureIndex;
-  /** Gate 3's coverage mode: whether coverage gaps outside strict features are warnings or errors. */
-  readonly boundaryCoverage: 'warn' | 'error';
-  /** Gate 2: the shell's files and directories (config `shell`), absolute. */
-  readonly shellPaths?: readonly string[];
+/** A problem that a gate finds in a project: a file, an optional line, and a message. */
+export interface GateProblem {
+  readonly code: string;
+  readonly severity: 'error' | 'warning';
+  readonly file: string;
+  readonly line?: number;
+  readonly message: string;
 }
 
+/** The outcome of a gate: whether it passes, a one-line summary, and its problems. */
 export interface GateOutcome {
-  /** One line describing what was checked, printed whether or not the gate passed. */
+  readonly gate: number;
+  readonly name: string;
+  readonly pass: boolean;
   readonly summary: string;
-  /** Every problem the gate found, each with its `file` set. Warnings do not fail the gate. */
-  readonly problems: readonly Diagnostic[];
-}
-
-export interface Gate {
-  readonly number: GateNumber;
-  readonly name: string;
-  run(context: GateContext): GateOutcome | Promise<GateOutcome>;
-}
-
-export interface GateResult extends GateOutcome {
-  readonly gate: GateNumber;
-  readonly name: string;
-  /** No problem is an error. */
-  readonly ok: boolean;
-}
-
-/** Paths are printed relative to this directory with forward slashes. */
-export function displayPath(cwd: string, path: string, relative: (from: string, to: string) => string): string {
-  return relative(cwd, path).split('\\').join('/') || '.';
+  readonly problems: readonly GateProblem[];
 }

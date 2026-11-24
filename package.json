@@ -10,8 +10,8 @@
     "docs"
   ],
   "scripts": {
-    "test": "npm run test --workspace urn-forge && npm run test --workspace urn-forge-next",
-    "typecheck": "npm run typecheck --workspace urn-forge && npm run typecheck --workspace urn-forge-next",
+    "test": "npm run test --workspace urn-forge",
+    "typecheck": "npm run typecheck --workspace urn-forge",
     "verify:example": "npm run verify:example --workspace urn-forge",
     "verify:self": "npm run verify:self --workspace urn-forge",
     "verify:tutorial": "npm run verify:tutorial --workspace urn-forge",

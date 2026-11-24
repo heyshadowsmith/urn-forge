@@ -1,116 +1,99 @@
-# urn-forge's own domain: the pure functions of the toolchain, declared with urn-forge.
-# Only what urn-forge can express lives here. See self/README.md for what is still blocked.
+# urn-forge's own domain: two pure functions of the compiler, declared with urn-forge. The core
+# calls the functions the compiler really uses, so the scenarios test the toolchain, not a copy.
 manifest:
   namespace: urn_forge
   domain: toolchain
-  version: 0.1.0
-  stability: experimental
+  version: 0.2.0
 
-naming.field.context:
-  primitive: string
-  regex: '[a-z][a-z0-9_]{0,62}'
-  description: The context segment of a short key, such as policy
-naming.field.identifier:
-  primitive: string
-  regex: '[a-z][a-z0-9_]{0,62}'
-  description: The identifier segment of a short key, such as deductible_amount
-naming.field.brand_identifier:
-  primitive: string
-  regex: '[A-Z][A-Za-z0-9]*'
-  description: The PascalCase name that generated code uses for an atom
+definitions:
+  definition_name:
+    description: The name of a definition of a manifest, in lowercase snake_case, such as party_size
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
 
-naming.entity.segment_pair:
-  description: The context and identifier segments of a short key
-  fields: [{ ref: naming.field.context }, { ref: naming.field.identifier }]
-naming.entity.brand:
-  description: The brand identifier derived from a segment pair
-  fields: [{ ref: naming.field.brand_identifier }]
+  type_name:
+    description: The name of the TypeScript type that the generated file gives a definition, such as PartySize
+    type: string
+    rules:
+      - pattern: '^[A-Z][A-Za-z0-9]*$'
 
-naming.operation.to_brand_identifier:
-  description: Derive the PascalCase brand identifier of an atom from its context and identifier
-  input: naming.entity.segment_pair
-  output: naming.entity.brand
+  naming_request:
+    description: A definition whose type is named
+    type: object
+    properties: [definition_name]
+    rules:
+      - required: [definition_name]
 
-naming.field.namespace:
-  primitive: string
-  regex: '[a-z][a-z0-9_]{0,62}'
-  description: The namespace segment of a URN, such as acme
-naming.field.domain:
-  primitive: string
-  regex: '[a-z][a-z0-9_]{0,62}'
-  description: The domain segment of a URN, such as insurance
-naming.field.kind:
-  primitive: enum
-  values: [field, entity, invariant, operation, event, error]
-  description: The kind segment of a URN; the kinds the compiler supports
-naming.field.urn:
-  primitive: string
-  regex: 'urn(:[a-z][a-z0-9_]{0,62}){5}'
-  description: A full URN
+  named_type:
+    description: The type name of a definition
+    type: object
+    properties: [type_name]
+    rules:
+      - required: [type_name]
 
-naming.entity.atom_address:
-  description: The five segments that address an atom
-  fields:
-    - ref: naming.field.namespace
-    - ref: naming.field.domain
-    - ref: naming.field.context
-    - ref: naming.field.kind
-    - ref: naming.field.identifier
-naming.entity.expanded:
-  description: The URN an atom address expands to
-  fields: [{ ref: naming.field.urn }]
+  version:
+    description: A semver version of a manifest, such as 1.4.0 or 2.0.0-alpha.1
+    type: string
+    rules:
+      - pattern: '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
 
-naming.operation.to_urn:
-  description: Expand an atom address to its URN, urn:<namespace>:<domain>:<context>:<kind>:<identifier>
-  input: naming.entity.atom_address
-  output: naming.entity.expanded
+  from_version:
+    description: The version of the old manifest
+    type: version
 
-# Short keys and their errors.
-naming.field.short_key:
-  primitive: string
-  minLength: 1
-  description: A manifest key as written, such as policy.field.deductible_amount
-naming.field.kind_segment:
-  primitive: string
-  regex: '[a-z]+'
-  description: The middle segment of a short key, whether or not it is a kind
+  to_version:
+    description: The version of the new manifest
+    type: version
 
-naming.entity.short_key_request:
-  description: A short key to parse
-  fields: [{ ref: naming.field.short_key }]
-naming.entity.short_key_parts:
-  description: The three segments of a valid short key
-  fields:
-    - ref: naming.field.context
-    - ref: naming.field.kind
-    - ref: naming.field.identifier
+  reason:
+    description: Why the versions allow a breaking change or not
+    type: string
+    rules:
+      - minLength: 1
 
-naming.error.invalid_short_key:
-  description: The key does not have the form <context>.<kind>.<identifier> in lowercase snake_case
-  category: validation
-  retryable: false
-  message: Short key {short_key} is not <context>.<kind>.<identifier> in lowercase snake_case
-  fields: [{ ref: naming.field.short_key }]
-naming.error.unsupported_kind:
-  description: The kind is a kind of urn-forge but the compiler does not support it yet
-  # The compiler supports every kind, so this error can no longer happen.
-  # It stays as a tombstone, so its URN is never used again.
-  status: sunset
-  category: validation
-  retryable: false
-  message: Kind {kind_segment} in {short_key} is not supported yet
-  fields: [{ ref: naming.field.short_key }, { ref: naming.field.kind_segment }]
-naming.error.unknown_kind:
-  description: The kind is not a kind of urn-forge
-  category: validation
-  retryable: false
-  message: Kind {kind_segment} in {short_key} is not a kind
-  fields: [{ ref: naming.field.short_key }, { ref: naming.field.kind_segment }]
+  version_change:
+    description: The versions of two manifests that diff compares
+    type: object
+    properties: [from_version, to_version]
+    rules:
+      - required: [from_version, to_version]
 
-naming.operation.parse_short_key:
-  description: Split a short key into its context, kind and identifier
-  input: naming.entity.short_key_request
-  output: naming.entity.short_key_parts
-  errors:
-    - naming.error.invalid_short_key
-    - naming.error.unknown_kind
+  breaking_allowed:
+    description: The versions allow a breaking change
+    type: object
+    properties: [reason]
+    rules:
+      - required: [reason]
+
+  breaking_refused:
+    description: The versions do not allow a breaking change
+    type: object
+    properties: [reason]
+    rules:
+      - required: [reason]
+
+rules:
+  at_most_the_name_and_value:
+    description: A type name drops the underscores of the definition name, and adds Value at most (for a name that the generated file uses itself)
+    rule: size(output.type_name) <= size(input.definition_name) + 5
+    message: The type name is longer than the definition name and Value
+
+  stable_and_final:
+    description: A breaking change is refused only for a stable version (1.0.0 or later) that is not a pre-release
+    rule: "!input.to_version.matches(r'^0\\.') && !input.to_version.matches(r'^[0-9]+\\.[0-9]+\\.[0-9]+-')"
+    message: A 0.x version or a pre-release allows a breaking change
+
+operations:
+  to_type_name:
+    description: Name the TypeScript type of a definition, as the generated file does
+    input: naming_request
+    output:
+      - named_type: [at_most_the_name_and_value]
+
+  judge_version_change:
+    description: Whether the versions of two manifests allow a breaking change, as diff judges it by semver
+    input: version_change
+    output:
+      - breaking_allowed: []
+      - breaking_refused: [stable_and_final]

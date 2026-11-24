@@ -1,1 +1,0 @@
-compatible urn:demo:shop:order:error:out_of_stock

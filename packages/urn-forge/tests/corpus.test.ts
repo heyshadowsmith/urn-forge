@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { checkCorpus, main, score } from '../scripts/corpus.js';
 
 const CONFIG = 'minimum: 50\nholes:\n  A1: Rules over lists\n  B1: Either-or shapes\n';
-const MANIFEST = 'manifest:\n  namespace: demo\n  domain: pay\n  version: 1.0.0\npay.field.amount:\n  primitive: integer\n  description: An amount\n';
+const MANIFEST = 'manifest:\n  namespace: demo\n  domain: pay\n  version: 1.0.0\ndefinitions:\n  amount:\n    description: An amount\n    type: integer\n';
 
 let roots: string[] = [];
 afterEach(() => {
@@ -25,7 +25,7 @@ function corpus(promises: string, { config = CONFIG, manifest = MANIFEST as stri
   return root;
 }
 
-const DECLARED = '  P01:\n    promise: An amount is an integer\n    status: declared\n    by: [pay.field.amount]\n';
+const DECLARED = '  P01:\n    promise: An amount is an integer\n    status: declared\n    by: [definitions.amount]\n';
 const NOT_DECLARABLE = '  P02:\n    promise: The total is the sum of the lines\n    status: not-declarable\n    hole: A1\n';
 
 describe('the corpus checker', () => {
@@ -36,7 +36,7 @@ describe('the corpus checker', () => {
   });
 
   it('counts a workaround as 0', () => {
-    const workaround = '  P03:\n    promise: A card payment has a card number\n    status: workaround\n    by: [pay.field.amount]\n    hole: B1\n';
+    const workaround = '  P03:\n    promise: A card payment has a card number\n    status: workaround\n    by: [definitions.amount]\n    hole: B1\n';
     const report = checkCorpus(corpus(DECLARED + workaround + NOT_DECLARABLE));
     expect(report.problems).toEqual([]);
     expect(score(report.promises)).toBe(33.3);
@@ -45,13 +45,13 @@ describe('the corpus checker', () => {
   it.each([
     ['a promise with no status', '  P01:\n    promise: An amount is an integer\n', 'pay.P01: has no status'],
     ['a status that does not exist', '  P01:\n    promise: An amount\n    status: done\n', 'pay.P01: status "done" is not one of declared, workaround, not-declarable'],
-    ['a declared promise with no by', '  P01:\n    promise: An amount\n    status: declared\n', 'pay.P01: a declared promise needs by, the atoms that state it'],
-    ['a short key that is not an atom', '  P01:\n    promise: An amount\n    status: declared\n    by: [pay.field.total]\n', 'pay.P01: pay.field.total is not an atom or a header key of pay/domain.manifest.yaml'],
+    ['a declared promise with no by', '  P01:\n    promise: An amount\n    status: declared\n', 'pay.P01: a declared promise needs by, the parts that state it'],
+    ['a part that the manifest does not have', '  P01:\n    promise: An amount\n    status: declared\n    by: [definitions.total]\n', 'pay.P01: definitions.total is not a part or a header key of pay/domain.manifest.yaml'],
     ['a not-declarable promise with no hole', '  P01:\n    promise: A total\n    status: not-declarable\n', 'pay.P01: a not-declarable promise needs hole, the hole of the roadmap that would declare it'],
-    ['a workaround with no hole', '  P01:\n    promise: A card\n    status: workaround\n    by: [pay.field.amount]\n', 'pay.P01: a workaround promise needs hole, the hole of the roadmap that would declare it'],
+    ['a workaround with no hole', '  P01:\n    promise: A card\n    status: workaround\n    by: [definitions.amount]\n', 'pay.P01: a workaround promise needs hole, the hole of the roadmap that would declare it'],
     ['a hole that corpus.yaml does not list', '  P01:\n    promise: A total\n    status: not-declarable\n    hole: Z9\n', 'pay.P01: hole Z9 is not in corpus.yaml'],
     ['a declared promise with a hole', DECLARED + '    hole: A1\n', 'pay.P01: a declared promise has no hole'],
-    ['a not-declarable promise with by', '  P01:\n    promise: A total\n    status: not-declarable\n    hole: A1\n    by: [pay.field.amount]\n', 'pay.P01: a not-declarable promise has no by'],
+    ['a not-declarable promise with by', '  P01:\n    promise: A total\n    status: not-declarable\n    hole: A1\n    by: [definitions.amount]\n', 'pay.P01: a not-declarable promise has no by'],
     ['an ID that is not P and digits', '  X1:\n    promise: An amount\n    status: not-declarable\n    hole: A1\n', 'pay.X1: an ID is P and two or more digits'],
     ['a promise with no text', '  P01:\n    status: declared\n', 'pay.P01: needs promise, one sentence'],
   ])('refuses %s', (_, promises, problem) => {
@@ -62,15 +62,15 @@ describe('the corpus checker', () => {
     const header = '  P01:\n    promise: Nothing is removed\n    status: declared\n    by: [manifest.version]\n';
     expect(checkCorpus(corpus(header)).problems).toEqual([]);
     expect(checkCorpus(corpus(header.replace('manifest.version', 'manifest.compatibility'))).problems).toEqual([
-      'pay.P01: manifest.compatibility is not an atom or a header key of pay/domain.manifest.yaml',
+      'pay.P01: manifest.compatibility is not a part or a header key of pay/domain.manifest.yaml',
     ]);
   });
 
   it('refuses by when the contract has no manifest', () => {
-    expect(checkCorpus(corpus(DECLARED, { manifest: null })).problems).toContain('pay.P01: by names atoms, but pay has no domain.manifest.yaml');
+    expect(checkCorpus(corpus(DECLARED, { manifest: null })).problems).toContain('pay.P01: by names parts, but pay has no domain.manifest.yaml');
   });
 
-  it('accepts promises with no manifest yet when none names an atom', () => {
+  it('accepts promises with no manifest yet when none names a part', () => {
     expect(checkCorpus(corpus(NOT_DECLARABLE, { manifest: null })).problems).toEqual([]);
   });
 

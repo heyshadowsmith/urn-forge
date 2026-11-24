@@ -1,184 +1,230 @@
 contract: payments
 description: "Takes payments from buyers on behalf of merchants by card or bank transfer, captures or voids them, and refunds them."
+# How the manifest is read below: each call's input holds the caller (the kind of key that the shell
+# authenticated, and its merchant), the time of the call (now), the event id and the stored record
+# that the shell loaded by the id of the request. Each answer that creates or changes a payment holds
+# the payment as it is after the call (and the refund), which the shell stores as it is, and the one
+# event of the change. A stored record that the shell loads is taken as the input says it is; where
+# two calls that load the same record at once can break a promise, that promise is a workaround.
 promises:
-  # Workaround: No ensures ties the answer to the request: a request for 1000 USD can be answered, emitted and stored as 5000 EUR. get_payment, void and expire can answer captured and refunded amounts of 0.
+  # Declared: definitions.amount is an integer from 1 to 99999999 (minimum, maximum) and
+  # definitions.currency an enum of ISO 4217 codes; every object that holds an amount (payment,
+  # refund, payment_event, capture_exceeds_authorized, amount_exceeds_captured, and the
+  # create-payment request) requires a currency. A capture or refund request names its amount in
+  # the currency of the payment, and the rules tie each answer's amounts and currency to the
+  # request and the stored payment (creates_the_payment, captures_the_amount, makes_the_refund,
+  # refunds_the_payment, keeps_the_payment, returns_the_payment).
   P01:
     promise: "An amount is a whole number of minor currency units (for example cents) from 1 to 99999999, paired with an ISO 4217 currency code of three uppercase letters."
-    status: workaround
-    by: [payment.field.amount, payment.field.currency, payment.entity.create_payment_request, payment.entity.payment, payment.entity.capture_result, refund.entity.refund, payment.operation.capture_payment, refund.operation.refund_payment]
-    hole: A2
+    status: declared
+    by: [definitions.amount, definitions.currency, definitions.payment, definitions.refund, definitions.payment_event, definitions.create_payment_request, rules.creates_the_payment, rules.captures_the_amount, rules.makes_the_refund, rules.refunds_the_payment, rules.keeps_the_payment, rules.returns_the_payment]
+  # Declared: the pattern of definitions.payment_id and definitions.refund_id, anchored.
   P02:
     promise: "A payment id is the prefix \"pay_\" followed by 24 lowercase letters or digits, and a refund id is the prefix \"re_\" followed by 24 lowercase letters or digits."
     status: declared
-    by: [payment.field.payment_id, refund.field.refund_id]
-  # The method is an enum and each shape is an invariant over optional properties: the
-  # generated type is not a union of a card payment and a bank transfer payment.
+    by: [definitions.payment_id, definitions.refund_id]
+  # Declared: definitions.method is an enum of card and bank_transfer, and the rules
+  # card_payment_has_card and bank_transfer_has_iban_and_no_card of the create-payment request
+  # reject any other shape at the boundary. The generated type is not a union, but no request of
+  # another shape passes runOperation.
   P03:
     promise: "A payment method is exactly one of \"card\" or \"bank_transfer\", and a card payment must carry card details while a bank transfer payment must carry an IBAN and must not carry card details."
-    status: workaround
-    by: [payment.field.method, payment.entity.create_payment_request, payment.invariant.card_payment_has_card, payment.invariant.bank_transfer_has_iban_and_no_card]
-    hole: B1
-  # The Luhn check is missing. The security code is 3 or 4 digits for any card: that 4 digits
-  # are only for American Express depends on the card number, which no rule can read.
+    status: declared
+    by: [definitions.method, definitions.create_payment_request, rules.card_payment_has_card, rules.bank_transfer_has_iban_and_no_card]
+  # Workaround: the Luhn check is missing, as the CEL subset has no way to read the digits of a
+  # string one by one: a 16-digit number that fails Luhn passes every check. The rest is declared:
+  # the 12 to 19 digits, the month 1 to 12, the four-digit year, and security_code_fits_the_brand
+  # (4 digits for a number that starts with 34 or 37, American Express, and 3 for any other).
   P04:
     promise: "A card number is 12 to 19 digits that pass the Luhn check, its expiry month is 1 to 12, its expiry year is four digits, and its security code is 3 digits, or 4 digits for American Express."
     status: workaround
-    by: [card.entity.card_details, card.field.card_number, card.field.exp_month, card.field.exp_year, card.field.security_code]
+    by: [definitions.card, definitions.card_number, definitions.exp_month, definitions.exp_year, definitions.security_code, rules.security_code_fits_the_brand]
     hole: E1
-  # The form and the length are declared; the mod-97 check is missing.
+  # Workaround: the form and the length (2 + 2 + up to 30 = at most 34) are declared; the mod-97
+  # check is missing, so an IBAN with wrong check digits passes every check.
   P05:
     promise: "An IBAN is a two-letter country code, two check digits and up to 30 letters or digits, at most 34 characters in total, and passes the mod-97 check."
     status: workaround
-    by: [payment.field.iban]
+    by: [definitions.iban]
     hole: E1
-  # The metadata is a list of key and value entries, unique by key, not a map. "Printable" is
-  # read as "no Unicode control or format character".
+  # Declared: create_payment_request requires the merchant id, amount, currency, method and
+  # idempotency key; the key has minLength 1, maxLength 64 and the pattern ^\P{C}*$ ("printable" is
+  # read as no Unicode control, format, private-use or unassigned character); the description has
+  # maxLength 255; the metadata is at most 20 entries (maxItems) with one entry for each key
+  # (one_entry_for_each_key), so the list of entries holds what a map would.
   P06:
     promise: "A create-payment request must contain a merchant id, an amount, a currency, a payment method, and an idempotency key of 1 to 64 printable characters, and may contain a description of at most 255 characters and up to 20 metadata entries."
-    status: workaround
-    by: [payment.entity.create_payment_request, payment.field.merchant_id, payment.field.amount, payment.field.currency, payment.field.method, payment.field.idempotency_key, payment.field.description, payment.entity.metadata_entry]
-    hole: B3
-  # The sum is a requires rule of create_payment, so a mismatch answers invalid_request.
+    status: declared
+    by: [definitions.create_payment_request, definitions.merchant_id, definitions.amount, definitions.currency, definitions.method, definitions.idempotency_key, definitions.description, definitions.metadata, definitions.metadata_entry, rules.one_entry_for_each_key]
+  # Declared: definitions.line_items has minItems 1 and maxItems 100, a line item requires a
+  # quantity (minimum 1) and a unit amount (minimum 0), and every answer of create_payment but
+  # invalid_request holds line_items_add_up (the amount is the sum of quantity times unit amount),
+  # while invalid_request holds line_items_do_not_add_up.
   P07:
     promise: "When a create-payment request carries line items, there are 1 to 100 of them, each has a quantity of at least 1 and a non-negative unit amount, and the payment amount equals the sum of quantity times unit amount over all lines."
     status: declared
-    by: [payment.entity.create_payment_request, payment.entity.line_item, payment.field.quantity, payment.field.unit_amount, payment.operation.create_payment, payment.error.invalid_request]
+    by: [definitions.line_items, definitions.line_item, definitions.quantity, definitions.unit_amount, operations.create_payment, rules.line_items_add_up, rules.line_items_do_not_add_up]
+  # Declared: the operations create_payment, capture_payment, void_payment, refund_payment,
+  # get_payment and get_refund.
   P08:
     promise: "A caller can create a payment, capture it, void it, refund it, and read a payment or refund by id."
     status: declared
-    by: [payment.operation.create_payment, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.operation.get_payment, refund.operation.get_refund]
-  # The statuses of a success, "pending only for a bank transfer", the payload of a success and
-  # the refusals of the core are declared. A request that breaks a field limit is refused at the
-  # boundary as an input rejection, not as the declared error invalid_request: the manifest
-  # cannot give that refusal its name, and the shell must map it.
+    by: [operations.create_payment, operations.capture_payment, operations.void_payment, operations.refund_payment, operations.get_payment, operations.get_refund]
+  # Workaround: the success (payment_changed, whose payment requires the id, amount, currency and
+  # status; creates_the_payment makes it authorized or pending, and pending_only_for_bank_transfer
+  # keeps pending to bank transfers) and the six refusals are outputs, each with the rules of when
+  # it comes back. Lost: a request that breaks a value's rule (an amount of 0, a currency that is not
+  # a code) is rejected by runOperation as InputRejected, not answered as invalid_request; the
+  # manifest cannot name that rejection, so the shell must map it. Other promises add refusals that
+  # this one does not list (idempotency_conflict, not_found, unauthorized, forbidden).
   P09:
     promise: "Creating a payment answers either \"authorized\", \"pending\" (bank transfers only) or a refusal named one of \"invalid_request\", \"card_declined\", \"insufficient_funds\", \"expired_card\", \"unsupported_currency\" or \"fraud_suspected\", and every success carries the payment id, amount, currency and status."
     status: workaround
-    by: [payment.operation.create_payment, payment.entity.created_payment, payment.field.initial_status, payment.invariant.pending_only_for_bank_transfer, payment.error.invalid_request, payment.error.card_declined, payment.error.insufficient_funds, payment.error.expired_card, payment.error.unsupported_currency, payment.error.fraud_suspected]
+    by: [operations.create_payment, definitions.payment_changed, definitions.payment, rules.creates_the_payment, rules.pending_only_for_bank_transfer, definitions.invalid_request, definitions.card_declined, definitions.insufficient_funds, definitions.expired_card, definitions.unsupported_currency, definitions.fraud_suspected]
     hole: A3
-  # The authorized amount is the amount of the stored payment.
+  # Declared: the capture request's amount is optional and an amount (minimum 1).
+  # capture_within_authorized holds for a capture (the amount is at most the stored payment's
+  # amount, which is the authorized amount), capture_exceeds_authorized_amount for the refusal
+  # capture_exceeds_authorized, and captures_the_amount makes the captured amount the request's, or
+  # the stored amount when the request has none.
   P10:
     promise: "A capture request may carry an amount, which must be at least 1 and at most the authorized amount, and if it is omitted the full authorized amount is captured."
     status: declared
-    by: [payment.operation.capture_payment, payment.entity.capture_request, payment.field.amount, payment.entity.capture_result, payment.invariant.captured_within_authorized, payment.error.capture_exceeds_authorized]
-  # Workaround: The refund total is the shell's write: two refunds from the same loaded record both pass the from guard and total more than the capture; a runOnce repeat through commit writes a stale total. No invariant states refunded <= captured <= amount.
+    by: [operations.capture_payment, definitions.capture_request, definitions.amount, rules.capture_within_authorized, rules.capture_exceeds_authorized_amount, rules.captures_the_amount, definitions.capture_exceeds_authorized]
+  # Workaround: one refund is declared: refund_within_captured on refund_made and
+  # refund_exceeds_captured on amount_exceeds_captured compare the stored refunded amount plus this
+  # refund with the captured amount, the new total is stored in the answer (makes_the_refund,
+  # refunds_the_payment), and the tables check refunded_total <= captured_amount on each row. Lost:
+  # two refunds that load the same stored payment at once both pass, and the second write keeps only
+  # one of them in refunded_amount, so the refund rows sum to more than the capture while every check
+  # and every row's CHECK passes.
   P11:
     promise: "A refund request carries an amount of at least 1, and the sum of all refunds on a payment never exceeds the captured amount, otherwise the refund is refused as \"amount_exceeds_captured\"."
     status: workaround
-    by: [refund.operation.refund_payment, refund.entity.refund_request, payment.field.amount, payment.entity.payment, payment.field.refunded_amount, refund.entity.refund, refund.invariant.refunds_within_captured, refund.error.amount_exceeds_captured]
+    by: [operations.refund_payment, definitions.refund_request, definitions.amount, definitions.payment, definitions.refund, rules.amounts_within_payment, rules.refunds_within_captured, rules.refund_within_captured, rules.refund_exceeds_captured, rules.makes_the_refund, rules.refunds_the_payment, definitions.amount_exceeds_captured]
     hole: C3
+  # Declared: makes_the_refund requires output.refund.currency == input.stored_payment.currency.
   P12:
     promise: "A refund always has the same currency as the payment it refunds."
     status: declared
-    by: [refund.operation.refund_payment, refund.entity.refund, payment.field.currency]
-  # Workaround: The refund answer has no status, so the shell gives the stored status. A fully refunded payment written as captured passes every check, and a further refund is answered amount_exceeds_captured instead of invalid_state.
+    by: [operations.refund_payment, definitions.refund, rules.makes_the_refund]
+  # Workaround: each move has an operation, now including the bank's (settle_payment: pending to
+  # authorized or failed), and each success states its move over input.stored_payment.status and
+  # output.payment.status (was_pending with settles_the_transfer, was_authorized with
+  # captures_the_amount, becomes_voided or is_due with becomes_expired, was_captured with
+  # refunds_the_payment), while invalid_state holds the complement (cannot_capture_or_void,
+  # is_not_due, was_not_pending, was_not_captured). Lost: the move is checked against the record the
+  # shell loaded, not the one in the table: a void and a capture that load the same authorized
+  # payment both pass, and the table ends captured then voided, a move that no check sees.
   P13:
     promise: "A payment moves only along these steps: pending to authorized or failed, authorized to captured, voided or expired, captured to partially_refunded or refunded, and partially_refunded to refunded; any other requested move is refused as \"invalid_state\"."
     status: workaround
-    by: [payment.field.status, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.error.invalid_state]
+    by: [definitions.status, operations.settle_payment, operations.capture_payment, operations.void_payment, operations.expire_payment, operations.refund_payment, rules.was_pending, rules.settles_the_transfer, rules.was_authorized, rules.captures_the_amount, rules.becomes_voided, rules.is_due, rules.becomes_expired, rules.was_captured, rules.refunds_the_payment, rules.cannot_capture_or_void, rules.is_not_due, rules.was_not_pending, rules.was_not_captured, definitions.invalid_state]
     hole: C3
+  # Workaround: void_payment's success holds was_authorized and its invalid_state
+  # cannot_capture_or_void; refund_payment's success holds was_captured (captured or partially
+  # refunded) and its invalid_state was_not_captured. Lost, as for P13: the rules read the record
+  # the shell loaded, so a void that loaded the payment before a capture was stored voids a captured
+  # payment while every check passes.
   P14:
     promise: "Only an authorized payment that has not been captured can be voided, and only a captured or partially refunded payment can be refunded."
-    status: declared
-    by: [payment.operation.void_payment, refund.operation.refund_payment, payment.field.status, payment.error.invalid_state]
-  # Workaround: A refusal is not stored: a create refused with insufficient_funds and sent again with the same key and body runs again and can be authorized.
+    status: workaround
+    by: [operations.void_payment, operations.refund_payment, rules.was_authorized, rules.cannot_capture_or_void, rules.was_captured, rules.was_not_captured, definitions.invalid_state]
+    hole: C3
+  # Workaround: the key is a definition and idempotency_conflict an output that names it
+  # (names_the_key). Lost: everything else. Keeping the first answer for 24 hours, answering it
+  # again for the same body, and refusing another body are the shell's; nothing in the input says
+  # that an earlier request exists, so a repeat creates a second payment while every check passes.
   P15:
     promise: "A second request with the same idempotency key and the same body from the same merchant within 24 hours returns the original answer without creating a second payment or refund, and one with the same key but a different body is refused as \"idempotency_conflict\"."
     status: workaround
-    by: [payment.operation.create_payment, refund.operation.refund_payment, payment.field.idempotency_key, payment.field.merchant_id, auth.entity.caller, payment.error.idempotency_conflict]
+    by: [definitions.idempotency_key, definitions.idempotency_conflict, rules.names_the_key, operations.create_payment, operations.refund_payment]
     hole: C2
-  # Workaround: No ensures ties merchant_id to the request or the stored payment: void or expire can answer another merchant, and commit stores it. Fixable with ensures.
+  # Declared: a payment and a refund require one merchant_id; every answer that is not a refusal
+  # holds is_the_merchants_secret_key or is_the_merchants_key (the key's merchant is the request's)
+  # and names_the_merchants_payment or names_the_merchants_refund (the stored record's merchant is
+  # the request's), and not_found holds is_another_merchants_secret_key,
+  # is_not_the_merchants_payment_to_change, is_not_the_merchants_payment_to_read or
+  # is_not_the_merchants_refund. A merchant that the key does not belong to is an unknown merchant
+  # to that caller. The answers keep the merchant (creates_the_payment, keeps_the_payment,
+  # makes_the_refund, returns_the_payment). A payment id that names no stored record is the
+  # shell's not_found, which this promise does not name.
   P16:
     promise: "Every payment belongs to exactly one merchant, and a request naming an unknown merchant or a payment of another merchant is refused as \"not_found\"."
-    status: workaround
-    by: [payment.entity.payment, refund.entity.refund, payment.field.merchant_id, auth.entity.caller, payment.operation.create_payment, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.operation.get_payment, refund.operation.get_refund, payment.error.not_found]
-    hole: A2
-  # Workaround: No ensures ties the method to the request: a card payment answered as bank_transfer is never due, and capture on day 21 succeeds. Fixable with ensures.
+    status: declared
+    by: [definitions.payment, definitions.refund, definitions.merchant_id, definitions.caller, rules.is_the_merchants_secret_key, rules.is_the_merchants_key, rules.names_the_merchants_payment, rules.names_the_merchants_refund, rules.is_another_merchants_secret_key, rules.is_not_the_merchants_payment_to_change, rules.is_not_the_merchants_payment_to_read, rules.is_not_the_merchants_refund, rules.creates_the_payment, rules.keeps_the_payment, rules.makes_the_refund, rules.returns_the_payment, definitions.not_found]
+  # Workaround: "can no longer be captured" is declared: is_within_7_days on capture (and void)
+  # compares the time of the call with created_at, the time of authorization of a card payment, and
+  # expire_payment's success holds is_due and becomes_expired, only for the clock (is_the_clock).
+  # Lost: the move to expired happens only if the shell's clock calls expire_payment on time; a
+  # clock that never calls leaves the payment authorized while every check passes.
   P17:
     promise: "An authorized card payment that is not captured within 7 days moves to expired and can no longer be captured."
     status: workaround
-    by: [payment.operation.expire_payment, payment.operation.capture_payment, payment.operation.void_payment, payment.operation.create_payment, payment.field.status, payment.field.method, payment.field.created_at, payment.entity.payment, payment.invariant.pending_only_for_bank_transfer, payment.event.expired, auth.field.key_kind, auth.entity.caller, auth.invariant.key_has_merchant, payment.error.invalid_state]
-    hole: A2
-  # The stored payment holds when it was captured (captured_at; an invariant makes it present in
-  # captured, partially_refunded and refunded), and capture_payment ensures output.captured_at =
-  # now, the time of the capture that the shell gives. refund_payment requires
-  # current.captured_at is present and now <= current.captured_at + 180 days, otherwise
-  # refund_window_closed: "at most 180 days after" is <=, so a refund on the instant 180 days
-  # after the capture is allowed and one a millisecond later is refused. The runtime checks it
-  # before the handler, after the state (a payment that is not captured is invalid_state). As
-  # for refunded_amount (P11), the shell stores the answer's captured_at in the record.
+    by: [operations.expire_payment, operations.capture_payment, rules.is_within_7_days, rules.cannot_capture_or_void, rules.is_due, rules.is_not_due, rules.becomes_expired, rules.is_the_clock, definitions.payment]
+    hole: E3
+  # Declared: captures_the_amount stores captured_at = now, the time of the capture, and
+  # captured_payment_has_capture_time keeps it in a captured or refunded payment (and in the table).
+  # refund_made and amount_exceeds_captured hold is_within_refund_window, now <= captured_at + 180
+  # days (4320h), and refund_window_closed holds refund_window_is_closed, the complement: a refund
+  # on the instant 180 days after the capture is allowed, one a millisecond later is refused.
   P18:
     promise: "A refund can be requested at most 180 days after the payment was captured, after which it is refused as \"refund_window_closed\"."
     status: declared
-    by: [refund.operation.refund_payment, payment.operation.capture_payment, payment.entity.payment, payment.entity.capture_result, payment.field.captured_at, payment.invariant.captured_payment_has_capture_time, refund.error.refund_window_closed]
+    by: [operations.refund_payment, rules.captures_the_amount, rules.captured_payment_has_capture_time, rules.is_within_refund_window, rules.refund_window_is_closed, definitions.captured_at, definitions.refund_window_closed]
+  # Declared: every time (now, created_at, captured_at, occurred_at) is of type time, a string with
+  # format date-time and the pattern Z$.
   P19:
     promise: "All timestamps in requests, answers and events are UTC in ISO 8601 format with a trailing \"Z\"."
     status: declared
-    by: [payment.field.created_at, payment.field.occurred_at, payment.field.captured_at]
-  # Declared for each call that changes the status: create_payment emits exactly one of
-  # payment.authorized (when output.status = 'authorized') or payment.pending (when
-  # output.status = 'pending'); capture_payment exactly one payment.captured; void_payment
-  # exactly one payment.voided; refund_payment exactly one of payment.partially_refunded (when
-  # output.refunded_total < output.captured_amount) or payment.refunded (when
-  # output.refunded_total = output.captured_amount). Its ensures state the values of the event:
-  # the payment id, merchant id, amount and currency of the payment, new_status (the status of
-  # the answer, or the one that the event's name says for a refund), previous_status = the
-  # stored status (absent on create, which has no earlier status), and the event id comes from
-  # the shell (delivery.id, newEventId), and event.occurred_at = now in each of the four
-  # operations: the time of the change is the time of the call, which the shell gives (E2 is
-  # met). The move authorized to expired now has a call, expire_payment, the timed change of
-  # P17, which emits exactly one payment.expired with the same ensures. Lost: the moves pending to
-  # authorized and pending to failed (a bank transfer that arrives, or does not) still have no
-  # call: they come from the bank, not from a merchant nor from a time that the contract knows,
-  # so no event is stated for them, payment.failed does not exist, and nothing states that such a
-  # move publishes one (E3).
+    by: [definitions.time, definitions.now, definitions.created_at, definitions.captured_at, definitions.occurred_at]
+  # Workaround: each call that changes the status answers exactly one payment_event (a required
+  # property of payment_changed and refund_made), and the moves from pending now have a call
+  # (settle_payment). event_type_names_the_status makes its name payment.<new_status>, and
+  # announces_the_new_payment and announces_the_change give it the event id of the call, the
+  # payment's id, merchant, amount and currency, the previous status (the stored one; none on
+  # create), the new status (the answer's) and the time of the call. Lost, as for P13: the previous
+  # status is the loaded record's, so two calls that load the same payment publish events whose
+  # previous statuses do not follow the changes the table went through.
   P20:
     promise: "Each change of payment status publishes exactly one event named \"payment.<new_status>\" carrying the event id, payment id, merchant id, amount, currency, previous status, new status and the time of the change."
     status: workaround
-    by: [payment.operation.create_payment, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.operation.expire_payment, payment.event.pending, payment.event.authorized, payment.event.captured, payment.event.voided, payment.event.partially_refunded, payment.event.refunded, payment.event.expired, payment.field.event_id, payment.field.occurred_at]
-    hole: E3
-  # Each event has delivery { id: event_id, orderBy: payment_id }, and the contract uses the
-  # Postgres plugin, so the outbox keeps the delivery: insertEvents writes the events in the
-  # transaction of the change (none is lost), a row stays until markPublished (at least once),
-  # nextEvents gives the events of one payment in the order they were written, with a sequence 1
-  # higher each time, and event_id is the primary key of the outbox. The shell gives event_id
-  # (newEventId), and a sent again event keeps it, so a consumer can discard a duplicate by it.
-  # The transport is the user's: it sends what nextEvents gives, then calls markPublished.
+    by: [definitions.payment_event, definitions.event_type, definitions.event_id, definitions.payment_changed, definitions.refund_made, rules.event_type_names_the_status, rules.announces_the_new_payment, rules.announces_the_change, operations.create_payment, operations.capture_payment, operations.void_payment, operations.expire_payment, operations.settle_payment, operations.refund_payment]
+    hole: C3
+  # Workaround: each event has an event_id (a UUID that the shell gives in the input and the event
+  # carries), so a consumer can discard a duplicate. Lost: delivery. The manifest has no outbox and
+  # no delivery; publishing each event at least once and in the order of one payment's changes is the
+  # shell's, and an event that is never sent breaks the promise while every check passes.
   P21:
     promise: "Events are delivered at least once, in the order of the changes for any one payment, and a consumer can discard duplicates by event id."
-    status: declared
-    by: [payment.event.pending, payment.event.authorized, payment.event.captured, payment.event.voided, payment.event.partially_refunded, payment.event.refunded, payment.event.expired, payment.field.event_id, payment.field.payment_id]
-  # Stated: the caller carries the kind of its key (secret or read_only) and its merchant;
-  # create, capture, void and refund allow only caller.key_kind = 'secret' of the merchant of the
-  # request and of the payment; get_payment and get_refund allow either kind of that merchant.
-  # So a read-only key cannot write, and a key of another merchant can do nothing to a payment.
-  # The shell's clock is a caller too (key_kind clock, with no merchant): each of these rules
-  # needs caller.merchant_id is present, so the clock can do none of these, and only it may call
-  # expire_payment (P17).
-  # Lost: the names of the refusals. An operation has one callers.otherwise, and P16 needs it to
-  # be not_found, so a read-only key that tries to write is answered not_found, not "forbidden";
-  # callers cannot answer forbidden for one failed condition and not_found for another, and no
-  # other rule may read the caller. "unauthorized" (no key, or a key that is not valid) is
-  # authentication, which stays in the shell: the runtime takes no caller as a ContractViolation,
-  # not as a refusal, and the manifest cannot state that the shell answers "unauthorized". So
-  # the manifest keeps who may do what; the shell keeps the key and "unauthorized"; "forbidden"
-  # is kept by no one.
+    status: workaround
+    by: [definitions.payment_event, definitions.event_id]
+    hole: D4
+  # Declared: the caller is a property of each input, with the kind of its key. create, capture,
+  # void and refund succeed only for is_the_merchants_secret_key; get_payment and get_refund for
+  # is_the_merchants_key (secret or read-only). unauthorized holds has_no_key (no key or one that is
+  # not valid, key_kind none) and forbidden holds is_not_a_secret_key on a write, or
+  # is_not_a_merchant_key on a read, so a read-only key that writes is forbidden. Read with P16: a
+  # secret key of another merchant is refused as not_found, which P16 asks for, rather than
+  # forbidden. Telling a key from no key is the shell's authentication, which the input records.
   P22:
     promise: "Only a merchant's own secret API key may create, capture, void or refund its payments, while a read-only key may only read them, and any other caller is refused as \"unauthorized\" or \"forbidden\"."
-    status: workaround
-    by: [auth.entity.caller, auth.field.key_kind, payment.field.merchant_id, payment.operation.create_payment, payment.operation.capture_payment, payment.operation.void_payment, refund.operation.refund_payment, payment.operation.get_payment, refund.operation.get_refund]
-    hole: D2
-  # Workaround: Nothing ties last4 to the card number: the security code or the first 4 digits pass the format. The rule needs a string function.
+    status: declared
+    by: [definitions.caller, definitions.key_kind, rules.key_has_merchant, rules.is_the_merchants_secret_key, rules.is_the_merchants_key, rules.has_no_key, rules.is_not_a_secret_key, rules.is_not_a_merchant_key, rules.is_not_the_clock, rules.is_not_the_bank, definitions.unauthorized, definitions.forbidden, operations.create_payment, operations.capture_payment, operations.void_payment, operations.refund_payment, operations.get_payment, operations.get_refund]
+  # Declared: no answer or event has a property for a card number or a security code (an object
+  # with an unknown property is rejected), the only card data is card_summary (brand, last4, expiry),
+  # and shows_the_card makes last4 the end of the request's card number, the expiry the card's, and
+  # the payment id not hold the card number. Later answers keep the stored card_summary.
   P23:
     promise: "Answers and events never contain a full card number or security code, showing at most the card brand, the last 4 digits and the expiry."
-    status: workaround
-    by: [card.entity.card_summary, card.field.brand, card.field.last4, payment.entity.created_payment, payment.entity.payment]
-    hole: A2
-  # Within the major version, urn-forge diff refuses a removed or renamed field or refusal name. It also refuses a new
-  # event type, which the promise allows: callers are not said to ignore unknown values. The 12 months for which a
-  # major version is supported is how long the operator runs it, which nothing that urn-forge builds can check.
+    status: declared
+    by: [definitions.card_summary, definitions.payment, definitions.payment_event, rules.shows_the_card, rules.keeps_the_payment, rules.captures_the_amount, rules.refunds_the_payment, rules.returns_the_payment]
+  # Workaround: within the major version, urn-forge diff refuses a removed or renamed property or
+  # output; compatibility callers: ignore-unknown makes a new output or a new choice in an output (a
+  # new event_type) compatible. Lost: the 12 months for which a major version is supported is how
+  # long the operator runs it, which nothing that urn-forge builds can check.
   P24:
     promise: "Within one major API version, fields and refusal names are never removed or renamed, new optional fields and new event types may be added, and a major version is supported for at least 12 months after its successor is released."
     status: workaround
-    by: [manifest.version]
+    by: [manifest.version, manifest.compatibility]
     hole: E4

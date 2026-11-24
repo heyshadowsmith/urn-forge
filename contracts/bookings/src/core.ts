@@ -1,23 +1,22 @@
-// A small bookings core. Each operation on a booking gets it as `current` (get_booking through
-// reads). Who may call is not the core's: the manifest states it in callers, and the runtime
-// checks it before the handler runs.
-import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
-import type { BookingBookingInput } from './generated/domain.schemas.generated';
+// A small bookings core. The shell loads what a call needs into its input: the booking as stored
+// (absent when no booking has the reference), the caller, the time of the call, and for create the
+// first call with the same idempotency key. The harness, runOperation, checks the input before the core
+// runs and the answer after, with the rules of the output that comes back: who may call, the states,
+// the windows of time and the events are rules of the manifest, and the core answers by them.
+import { answer, type Booking, type BookingEvent, type BookingRef, type DomainCore, type EventType } from './generated/domain.generated';
 
+// The shell would give fresh ids; this core gives fixed ones, so that a scenario can check them.
+const EVENT_ID = '16fd2706-8baf-433b-82eb-8c7fed5c9b0e';
 const GUEST_ID = 'a8098c1a-f86e-41da-bd5c-00c04fd430c8';
-// seat_booking and complete_booking read no time, so the shell gives them none: their events carry this one.
-const NOW = '2026-11-22T10:00:00Z';
 const TIME_ZONE = 'Europe/Paris';
 const DURATION = 120;
-
-type Booking = BookingBookingInput;
-
-// The windows of time (booking, change and cancel deadline, refund, no-show) are requires and ensures rules over
-// now and starts_at in the manifest: the runtime refuses before this core runs. The core converts no time zone:
-// starts_at is the start, which the client gives in UTC, and the local date, time and zone are the guest's values.
+const DEPOSIT_PER_GUEST = 2000;
+const HOUR = 3_600_000;
 
 /** The start times that have no free table in this small core. */
 const FULL = ['20:00', '23:45'];
+
+const at = (text: string): number => Date.parse(text);
 
 /**
  * Up to 5 other start times for a full one: on the same local date, at most 2 hours before or after it,
@@ -31,7 +30,7 @@ function alternativesTo(starts_at: string, local_date: string, local_time: strin
     .map((offset) => {
       const start = requested + offset;
       return {
-        starts_at: new Date(Date.parse(starts_at) + offset * 60_000).toISOString().replace('.000Z', 'Z'),
+        starts_at: new Date(at(starts_at) + offset * 60_000).toISOString().replace('.000Z', 'Z'),
         local_date,
         local_time: `${String(Math.floor(start / 60)).padStart(2, '0')}:${String(start % 60).padStart(2, '0')}`,
         party_size,
@@ -39,9 +38,11 @@ function alternativesTo(starts_at: string, local_date: string, local_time: strin
     });
 }
 
-/** The event of a change; the shell gives its event_id (newEventId), and the outbox its order. */
-function eventOf(booking: Booking, occurred_at: string) {
+/** The event of a change to a booking. */
+function eventOf(booking: Booking, event_type: EventType, occurred_at: string): BookingEvent {
   return {
+    event_id: EVENT_ID,
+    event_type,
     occurred_at,
     reference: booking.reference,
     restaurant_id: booking.restaurant_id,
@@ -54,15 +55,45 @@ function eventOf(booking: Booking, occurred_at: string) {
   };
 }
 
+/** Whether the caller may act on the booking: a guest who presents its email or phone, or staff of its restaurant. */
+function mayAct({ caller, email, phone }: BookingRef, booking: Booking): boolean {
+  if (caller.role === 'staff') return caller.restaurant_id !== undefined && caller.restaurant_id === booking.restaurant_id;
+  return (email !== undefined && email === booking.email) || (phone !== undefined && phone === booking.phone);
+}
+
+const isStaffOf = ({ caller }: BookingRef, booking: Booking): boolean =>
+  caller.role === 'staff' && caller.restaurant_id !== undefined && caller.restaurant_id === booking.restaurant_id;
+
+/** The window of a booking: from 90 days to 2 hours before the start, both edges included. */
+const inWindow = (now: string, starts_at: string): boolean => at(now) >= at(starts_at) - 90 * 24 * HOUR && at(now) <= at(starts_at) - 2 * HOUR;
+
+/** The same value, item by item and property by property. */
+function same(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((item, i) => same(item, b[i]));
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null || Array.isArray(a) || Array.isArray(b)) return false;
+  const x = a as Record<string, unknown>;
+  const y = b as Record<string, unknown>;
+  const keys = new Set([...Object.keys(x), ...Object.keys(y)]);
+  return [...keys].every((k) => same(x[k], y[k]));
+}
+
 export const core = {
-  'urn:corpus:bookings:booking:operation:create_booking': (request, _current, now) => {
-    // A repeat with the same idempotency key never reaches the core: runOnce in the store file answers it.
-    const { restaurant_id, starts_at, local_date, local_time, party_size, deposit_token } = request;
-    if (deposit_token === 'declined') return fail('urn:corpus:bookings:booking:error:payment_declined');
-    if (FULL.includes(local_time)) {
-      return fail('urn:corpus:bookings:booking:error:no_availability', { local_date, local_time, time_zone: TIME_ZONE, party_size, alternatives: alternativesTo(starts_at, local_date, local_time, party_size) });
+  create_booking: ({ booking_request, now, first_call }) => {
+    const { restaurant_id, starts_at, local_date, local_time, party_size, contact, idempotency_key, deposit_token } = booking_request;
+    if (party_size >= 13) return answer('party_too_large_for_online', { party_size });
+    if (party_size >= 7 && deposit_token === undefined) return answer('deposit_required', { party_size });
+    if (first_call) {
+      // A repeat with the same key in 24 hours gives the first answer, and stores and publishes nothing.
+      if (same(first_call.booking_request, booking_request)) return answer('repeated', { confirmation: first_call.confirmation });
+      return answer('invalid_request', { idempotency_key });
     }
-    const deposit = party_size >= 7 ? { deposit_amount: `${party_size * 20}.00`, deposit_per_guest: '20.00', currency: 'EUR' } : {};
+    if (!inWindow(now, starts_at)) return answer('outside_booking_window', { starts_at, local_date, local_time });
+    if (FULL.includes(local_time)) {
+      return answer('no_availability', { local_date, local_time, time_zone: TIME_ZONE, party_size, alternatives: alternativesTo(starts_at, local_date, local_time, party_size) });
+    }
+    if (deposit_token === 'declined') return answer('payment_declined', { deposit_token });
+    const deposit = party_size >= 7 ? { deposit_amount: party_size * DEPOSIT_PER_GUEST, deposit_per_guest: DEPOSIT_PER_GUEST, currency: 'EUR' } : {};
     const confirmation = {
       reference: 'NEWBK234',
       restaurant_id,
@@ -75,48 +106,105 @@ export const core = {
       duration_minutes: DURATION,
       ...deposit,
     };
-    return ok(confirmation, [
-      emit('urn:corpus:bookings:booking:event:booking_created', eventOf({ ...confirmation, state: 'CONFIRMED' }, now)),
-    ]);
-  },
-
-  'urn:corpus:bookings:booking:operation:get_booking': (_request, current) => ok(current),
-
-  'urn:corpus:bookings:booking:operation:change_booking': ({ starts_at, local_date, local_time, party_size }, current, now) => {
-    const booking = {
-      ...current,
-      starts_at: starts_at ?? current.starts_at,
-      local_date: local_date ?? current.local_date,
-      local_time: local_time ?? current.local_time,
-      party_size: party_size ?? current.party_size,
+    const booking: Booking = {
+      reference: confirmation.reference,
+      restaurant_id,
+      state: 'CONFIRMED',
+      starts_at,
+      local_date,
+      local_time,
+      time_zone: TIME_ZONE,
+      party_size,
+      duration_minutes: DURATION,
+      ...(deposit.deposit_amount !== undefined ? { deposit_amount: deposit.deposit_amount } : {}),
+      ...(contact.email !== undefined ? { email: contact.email } : {}),
+      ...(contact.phone !== undefined ? { phone: contact.phone } : {}),
     };
-    return ok(booking, [emit('urn:corpus:bookings:booking:event:booking_changed', eventOf(booking, now))]);
+    return answer('booked', { confirmation, booking, booking_event: eventOf(booking, 'BookingCreated', now) });
   },
 
-  'urn:corpus:bookings:booking:operation:cancel_booking': ({ reference }, current, now) => {
-    // A second cancellation gives the first answer again, and changes nothing.
-    if (current.state === 'CANCELLED') {
-      return ok({ reference, state: 'CANCELLED' as const, refund_amount: current.deposit_amount ?? '0.00', cancelled_at: '2026-11-20T08:00:00Z' });
+  get_booking: (request) => {
+    const { reference, stored_booking } = request;
+    if (!stored_booking) return answer('booking_not_found', { reference });
+    if (!mayAct(request, stored_booking)) return answer('forbidden', { reference });
+    return answer('booking', stored_booking);
+  },
+
+  change_booking: (request) => {
+    const { reference, stored_booking, now, starts_at, local_date, local_time, party_size, deposit_token } = request;
+    if (!stored_booking) return answer('booking_not_found', { reference });
+    if (!mayAct(request, stored_booking)) return answer('forbidden', { reference });
+    if (stored_booking.state !== 'CONFIRMED') return answer('invalid_state', { reference, state: stored_booking.state });
+    // The deadline reads the start as it is stored, before the change.
+    if (at(now) > at(stored_booking.starts_at) - 2 * HOUR) return answer('change_deadline_passed', { reference });
+    if (party_size !== undefined && party_size >= 13) return answer('party_too_large_for_online', { party_size });
+    if (party_size !== undefined && party_size >= 7 && deposit_token === undefined) return answer('deposit_required', { party_size });
+    if (starts_at !== undefined && !inWindow(now, starts_at)) {
+      return answer('outside_booking_window', {
+        starts_at,
+        local_date: local_date ?? stored_booking.local_date,
+        local_time: local_time ?? stored_booking.local_time,
+      });
     }
-    const fullRefund = Date.parse(now) <= Date.parse(current.starts_at) - 24 * 3_600_000;
-    const refund_amount = fullRefund ? (current.deposit_amount ?? '0.00') : '0.00';
-    return ok({ reference, state: 'CANCELLED' as const, refund_amount, cancelled_at: now }, [
-      emit('urn:corpus:bookings:booking:event:booking_cancelled', eventOf({ ...current, state: 'CANCELLED' }, now)),
-    ]);
+    const booking: Booking = {
+      ...stored_booking,
+      starts_at: starts_at ?? stored_booking.starts_at,
+      local_date: local_date ?? stored_booking.local_date,
+      local_time: local_time ?? stored_booking.local_time,
+      party_size: party_size ?? stored_booking.party_size,
+    };
+    return answer('booking_change', { booking, booking_event: eventOf(booking, 'BookingChanged', now) });
   },
 
-  'urn:corpus:bookings:booking:operation:seat_booking': (_request, current) => {
-    const booking = { ...current, state: 'SEATED' as const };
-    return ok(booking, [emit('urn:corpus:bookings:booking:event:booking_seated', eventOf(booking, NOW))]);
+  cancel_booking: (request) => {
+    const { reference, stored_booking, now } = request;
+    if (!stored_booking) return answer('booking_not_found', { reference });
+    if (!mayAct(request, stored_booking)) return answer('forbidden', { reference });
+    // A second cancellation gives the first answer again, at any time, and changes nothing.
+    if (stored_booking.state === 'CANCELLED' && stored_booking.refund_amount !== undefined && stored_booking.cancelled_at !== undefined) {
+      return answer('already_cancelled', {
+        cancellation: { reference, state: 'CANCELLED' as const, refund_amount: stored_booking.refund_amount, cancelled_at: stored_booking.cancelled_at },
+      });
+    }
+    if (stored_booking.state !== 'CONFIRMED') return answer('invalid_state', { reference, state: stored_booking.state });
+    if (at(now) > at(stored_booking.starts_at) - 2 * HOUR) return answer('change_deadline_passed', { reference });
+    const fullRefund = at(now) <= at(stored_booking.starts_at) - 24 * HOUR;
+    const refund_amount = fullRefund ? (stored_booking.deposit_amount ?? 0) : 0;
+    const booking: Booking = { ...stored_booking, state: 'CANCELLED', refund_amount, cancelled_at: now };
+    return answer('cancelled', {
+      cancellation: { reference, state: 'CANCELLED' as const, refund_amount, cancelled_at: now },
+      booking,
+      booking_event: eventOf(booking, 'BookingCancelled', now),
+    });
   },
 
-  'urn:corpus:bookings:booking:operation:complete_booking': (_request, current) => {
-    const booking = { ...current, state: 'COMPLETED' as const };
-    return ok(booking, [emit('urn:corpus:bookings:booking:event:booking_completed', eventOf(booking, NOW))]);
+  seat_booking: (request) => {
+    const { reference, stored_booking, now } = request;
+    if (!stored_booking) return answer('booking_not_found', { reference });
+    if (!isStaffOf(request, stored_booking)) return answer('forbidden', { reference });
+    if (stored_booking.state !== 'CONFIRMED') return answer('invalid_state', { reference, state: stored_booking.state });
+    const booking: Booking = { ...stored_booking, state: 'SEATED' };
+    return answer('booking_change', { booking, booking_event: eventOf(booking, 'BookingSeated', now) });
   },
 
-  'urn:corpus:bookings:booking:operation:mark_no_show': (_request, current, now) => {
-    const booking = { ...current, state: 'NO_SHOW' as const };
-    return ok(booking, [emit('urn:corpus:bookings:booking:event:booking_no_show', eventOf(booking, now))]);
+  complete_booking: (request) => {
+    const { reference, stored_booking, now } = request;
+    if (!stored_booking) return answer('booking_not_found', { reference });
+    if (!isStaffOf(request, stored_booking)) return answer('forbidden', { reference });
+    if (stored_booking.state !== 'SEATED') return answer('invalid_state', { reference, state: stored_booking.state });
+    const booking: Booking = { ...stored_booking, state: 'COMPLETED' };
+    return answer('booking_change', { booking, booking_event: eventOf(booking, 'BookingCompleted', now) });
   },
-} satisfies DomainCoreImplementation;
+
+  mark_no_show: (request) => {
+    const { reference, stored_booking, now } = request;
+    if (!stored_booking) return answer('booking_not_found', { reference });
+    if (!isStaffOf(request, stored_booking)) return answer('forbidden', { reference });
+    // From 15 minutes after the start onward, that edge included.
+    if (stored_booking.state !== 'CONFIRMED' || at(now) < at(stored_booking.starts_at) + 15 * 60_000) {
+      return answer('invalid_state', { reference, state: stored_booking.state });
+    }
+    const booking: Booking = { ...stored_booking, state: 'NO_SHOW' };
+    return answer('booking_change', { booking, booking_event: eventOf(booking, 'BookingNoShow', now) });
+  },
+} satisfies DomainCore;

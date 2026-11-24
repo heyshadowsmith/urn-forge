@@ -1,0 +1,85 @@
+Feature: Accept a transfer
+  Only the recipient accepts a transfer, within 72 hours of the offer and until 2 hours before the event starts.
+
+  Scenario Outline: The recipient gets a new ISSUED ticket code for the same place, and the old code is VOID
+    When I run "accept_transfer" with:
+      | transfer_id                          | caller                                                                        | called_at   | stored_transfer                                                                                                                                                                                               | stored_ticket                                                                                                                                                                                                                                                               | show                                                                                                                                            |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | {"caller_id": "cy", "caller_email": "cy@example.com", "caller_role": "buyer"} | <called_at> | {"transfer_id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", "ticket_code": "ABCDEFGH23456789", "recipient_email": "cy@example.com", "offered_at": "2026-12-01T19:00:00Z", "accept_until": "2026-12-04T19:00:00Z"} | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 5000, "currency": "USD"}} | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+    Then the output is "accepted_transfer":
+      | new_ticket                                                                                                                                                                                                                                                       | void_ticket                                                  | ticket_transferred                                                                                                                                                                                                  |
+      | {"ticket_code": "ABCDEFGHJKLMNPAA", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "cy", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}} | {"ticket_code": "ABCDEFGH23456789", "ticket_status": "VOID"} | {"message_id": "00000000-0000-4000-8000-000000000001", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "ticket_code": "ABCDEFGHJKLMNPAA", "void_ticket_code": "ABCDEFGH23456789", "occurred_at": "<called_at>"} |
+
+    Examples:
+      | called_at            |
+      | 2026-12-02T10:00:00Z |
+      | 2026-12-04T19:00:00Z |
+
+  Scenario: An acceptance more than 72 hours after the offer is refused with TRANSFER_EXPIRED
+    When I run "accept_transfer" with:
+      | transfer_id                          | caller                                                                        | called_at                | stored_transfer                                                                                                                                                                                               | stored_ticket                                                                                                                                                                                                                                                               | show                                                                                                                                            |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | {"caller_id": "cy", "caller_email": "cy@example.com", "caller_role": "buyer"} | 2026-12-04T19:00:00.001Z | {"transfer_id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", "ticket_code": "ABCDEFGH23456789", "recipient_email": "cy@example.com", "offered_at": "2026-12-01T19:00:00Z", "accept_until": "2026-12-04T19:00:00Z"} | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 5000, "currency": "USD"}} | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+    Then the output is "transfer_expired":
+      | transfer_id                          | accept_until         |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | 2026-12-04T19:00:00Z |
+
+  Scenario: An acceptance 2 hours before the start is refused with TRANSFER_WINDOW_CLOSED
+    When I run "accept_transfer" with:
+      | transfer_id                          | caller                                                                        | called_at            | stored_transfer                                                                                                                                                                                               | stored_ticket                                                                                                                                                                                                                                                               | show                                                                                                                                            |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | {"caller_id": "cy", "caller_email": "cy@example.com", "caller_role": "buyer"} | 2026-12-12T18:00:00Z | {"transfer_id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", "ticket_code": "ABCDEFGH23456789", "recipient_email": "cy@example.com", "offered_at": "2026-12-11T19:00:00Z", "accept_until": "2026-12-14T19:00:00Z"} | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 5000, "currency": "USD"}} | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+    Then the output is "transfer_window_closed":
+      | ticket_code      | starts_at            |
+      | ABCDEFGH23456789 | 2026-12-12T20:00:00Z |
+
+  Scenario: An unknown transfer is refused with TRANSFER_NOT_FOUND
+    When I run "accept_transfer" with:
+      | transfer_id                          | caller                                                                        | called_at            |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | {"caller_id": "cy", "caller_email": "cy@example.com", "caller_role": "buyer"} | 2026-12-02T10:00:00Z |
+    Then the output is "transfer_not_found":
+      | transfer_id                          |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
+
+  Scenario Outline: A caller who is not the recipient is refused with FORBIDDEN
+    When I run "accept_transfer" with:
+      | transfer_id                          | caller   | called_at            | stored_transfer                                                                                                                                                                                               | stored_ticket                                                                                                                                                                                                                                                               | show                                                                                                                                            |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | <caller> | 2026-12-02T10:00:00Z | {"transfer_id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", "ticket_code": "ABCDEFGH23456789", "recipient_email": "cy@example.com", "offered_at": "2026-12-01T19:00:00Z", "accept_until": "2026-12-04T19:00:00Z"} | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 5000, "currency": "USD"}} | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+    Then the output is "forbidden":
+      | caller_id   |
+      | <caller_id> |
+
+    Examples:
+      | caller_id | caller                                                                          |
+      | ada       | {"caller_id": "ada", "caller_role": "buyer"}                                    |
+      | dee       | {"caller_id": "dee", "caller_email": "dee@example.com", "caller_role": "buyer"} |
+
+  Scenario Outline: A transfer whose ticket is not TRANSFER_PENDING is refused with INVALID_TICKET_STATE
+    When I run "accept_transfer" with:
+      | transfer_id                          | caller                                                                        | called_at            | stored_transfer                                                                                                                                                                                               | stored_ticket | show                                                                                                                                            |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | {"caller_id": "cy", "caller_email": "cy@example.com", "caller_role": "buyer"} | 2026-12-02T10:00:00Z | {"transfer_id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", "ticket_code": "ABCDEFGH23456789", "recipient_email": "cy@example.com", "offered_at": "2026-12-01T19:00:00Z", "accept_until": "2026-12-04T19:00:00Z"} | <ticket>      | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+    Then the output is "invalid_ticket_state":
+      | ticket_code      | ticket_status |
+      | ABCDEFGH23456789 | <status>      |
+
+    Examples:
+      | status   | ticket                                                                                                                                                                                                                                                              |
+      | ISSUED   | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}}   |
+      | USED     | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "USED", "price": {"amount_minor": 5000, "currency": "USD"}}     |
+      | REFUNDED | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "REFUNDED", "price": {"amount_minor": 5000, "currency": "USD"}} |
+      | VOID     | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "VOID", "price": {"amount_minor": 5000, "currency": "USD"}}     |
+
+  Scenario Outline: An acceptance whose stored records do not fit the request is rejected
+    When I run "accept_transfer" with:
+      | transfer_id   | caller                                                                        | called_at            | stored_transfer                                                                                                                                                                                               | stored_ticket | show   |
+      | <transfer_id> | {"caller_id": "cy", "caller_email": "cy@example.com", "caller_role": "buyer"} | 2026-12-02T10:00:00Z | {"transfer_id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", "ticket_code": "ABCDEFGH23456789", "recipient_email": "cy@example.com", "offered_at": "2026-12-01T19:00:00Z", "accept_until": "2026-12-04T19:00:00Z"} | <ticket>      | <show> |
+    Then the input is rejected by "<rule>" of "acceptance"
+
+    Examples:
+      | rule                   | transfer_id                          | ticket                                                                                                                                                                                                                                                                      | show                                                                                                                                            |
+      | names_the_transfer     | aa9c8d7e-6f50-4b4c-9d3e-2f1a0b9c8d7e | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 5000, "currency": "USD"}} | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+      | ticket_of_the_transfer | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | {"ticket_code": "ZYXWVUTS98765432", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 5000, "currency": "USD"}} | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+      | show_of_the_ticket     | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 5000, "currency": "USD"}} | {"event_id": "5e0b1c2d-3a4b-4c5d-8e6f-9a0b1c2d3e4f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+
+  Scenario: An acceptance without a caller is rejected
+    When I run "accept_transfer" with:
+      | transfer_id                          | called_at            | stored_transfer                                                                                                                                                                                               | stored_ticket                                                                                                                                                                                                                                                               | show                                                                                                                                            |
+      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | 2026-12-02T10:00:00Z | {"transfer_id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", "ticket_code": "ABCDEFGH23456789", "recipient_email": "cy@example.com", "offered_at": "2026-12-01T19:00:00Z", "accept_until": "2026-12-04T19:00:00Z"} | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 5000, "currency": "USD"}} | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+    Then the input is rejected by "required" of "acceptance"

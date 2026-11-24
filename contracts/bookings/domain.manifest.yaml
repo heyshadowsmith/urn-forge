@@ -1,622 +1,1016 @@
+# The bookings contract: guests and restaurant staff book, change and cancel tables.
+# The shell loads what a call needs into its input: the booking as it is stored, the caller as the shell
+# authenticated them, the time of the call from its clock, and for create the first call with the same
+# idempotency key. The shell stores and publishes what an output holds: the booking and its event.
 manifest:
   namespace: corpus
   domain: bookings
   version: 1.0.0
-  caller: auth.entity.caller
+  compatibility:
+    callers: ignore-unknown
 
-# Values
+definitions:
+  # Values
 
-booking.field.reference:
-  primitive: string
-  regex: '[A-HJ-NP-Z2-9]{8}'
-  description: The booking reference, 8 characters from A-Z without I and O, and digits 2-9
-booking.field.restaurant_id:
-  primitive: string
-  format: uuid
-  description: The identifier of the restaurant
-booking.field.starts_at:
-  primitive: timestamp
-  description: The start of the booking, an instant in UTC; every window of time reads it. The client converts the local time of the guest to it
-booking.field.local_date:
-  primitive: date
-  description: The day of the booking as the guest gave it, in the time zone of the restaurant; no rule ties it to starts_at
-booking.field.local_time:
-  primitive: string
-  regex: '([01][0-9]|2[0-3]):(00|15|30|45)'
-  description: The start time of the booking as the guest gave it, HH:MM on a 15-minute boundary, in the time zone of the restaurant; no rule ties it to starts_at
-booking.field.time_zone:
-  primitive: string
-  regex: 'UTC|[A-Z][A-Za-z_]+(/[A-Za-z0-9_+-]+){1,2}'
-  description: The IANA time zone name of the restaurant, for example Europe/Paris, to show the local time; no rule converts it
-booking.field.party_size:
-  primitive: integer
-  min: 1
-  max: 20
-  description: The number of guests, a whole number from 1 to 20
-booking.field.special_requests:
-  primitive: string
-  maxLength: 500
-  description: Free text from the guest, at most 500 characters
-booking.field.dietary_tag:
-  primitive: enum
-  values: [vegetarian, vegan, gluten_free, nut_allergy, halal, kosher, dairy_free, shellfish_allergy, egg_allergy, soy_allergy, pescatarian]
-  description: A dietary need from the published set
-booking.field.idempotency_key:
-  primitive: string
-  minLength: 16
-  maxLength: 64
-  description: A key that the client makes for one create request, 16 to 64 characters
-booking.field.deposit_token:
-  primitive: string
-  description: A token from the payment provider that pays the deposit
-booking.field.state:
-  primitive: enum
-  values: [CONFIRMED, SEATED, COMPLETED, CANCELLED, NO_SHOW]
-  moves:
-    CONFIRMED: [SEATED, CANCELLED, NO_SHOW]
-    SEATED: [COMPLETED]
-  description: The state of a booking
-booking.field.confirmed_state:
-  primitive: enum
-  values: [CONFIRMED]
-  description: The state of a booking that was just made
-booking.field.duration_minutes:
-  primitive: integer
-  min: 1
-  description: How long the table is booked, in minutes
-booking.field.deposit_amount:
-  primitive: decimal
-  exclusiveMin: "0"
-  scale: 2
-  description: The deposit charged for the booking, in the currency of the restaurant
-booking.field.deposit_per_guest:
-  primitive: decimal
-  exclusiveMin: "0"
-  scale: 2
-  description: The deposit for each guest, in the currency of the restaurant
-booking.field.currency:
-  primitive: string
-  regex: '[A-Z]{3}'
-  description: The ISO 4217 code of the single currency that the restaurant publishes
-booking.field.refund_amount:
-  primitive: decimal
-  min: "0"
-  scale: 2
-  description: The part of the deposit that goes back to the guest
-booking.field.cancelled_at:
-  primitive: timestamp
-  description: When the booking was cancelled, in UTC
+  reference:
+    description: The booking reference, 8 characters from A-Z without I and O, and digits 2-9
+    type: string
+    rules:
+      - pattern: '^[A-HJ-NP-Z2-9]{8}$'
 
-guest.field.name:
-  primitive: string
-  minLength: 1
-  maxLength: 100
-  description: The name of the guest, 1 to 100 characters
-guest.field.email:
-  primitive: string
-  format: email
-  description: The email address of the guest
-guest.field.phone:
-  primitive: string
-  regex: '\+[1-9][0-9]{0,14}'
-  description: The phone number of the guest in E.164 form, at most 15 digits
-guest.field.guest_id:
-  primitive: string
-  format: uuid
-  description: An opaque identifier of the guest, with no personal detail in it
+  restaurant_id:
+    description: The identifier of the restaurant, a UUID
+    type: string
+    rules:
+      - pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 
-auth.field.role:
-  primitive: enum
-  values: [guest, staff]
-  description: Who calls, as the shell authenticated them; a guest presents the reference and the contact of a booking
+  starts_at:
+    description: The start of the booking, an instant in UTC; every window of time reads it. The client converts the local time of the guest to it
+    type: string
+    rules:
+      - format: date-time
+      - in_utc
 
-event.field.event_id:
-  primitive: string
-  format: uuid
-  description: The identifier of one event, for de-duplication
-event.field.occurred_at:
-  primitive: timestamp
-  description: When the change happened, in UTC
+  local_date:
+    description: The day of the booking as the guest gave it, in the time zone of the restaurant; no rule ties it to starts_at
+    type: string
+    rules:
+      - format: date
 
-# Entities
+  local_time:
+    description: The start time of the booking as the guest gave it, HH:MM on a 15-minute boundary, in the time zone of the restaurant; no rule ties it to starts_at
+    type: string
+    rules:
+      - pattern: '^([01][0-9]|2[0-3]):(00|15|30|45)$'
 
-auth.entity.caller:
-  description: Who calls, as the shell authenticated them; staff carry the restaurant they work for
-  fields:
-    - ref: auth.field.role
-    - ref: booking.field.restaurant_id
-      required: false
+  time_zone:
+    description: The IANA time zone name of the restaurant, for example Europe/Paris, to show the local time; no rule converts it
+    type: string
+    rules:
+      - pattern: '^(UTC|[A-Z][A-Za-z_]+(/[A-Za-z0-9_+-]+){1,2})$'
 
-guest.entity.contact:
-  description: How the restaurant reaches the guest
-  fields:
-    - ref: guest.field.name
-    - ref: guest.field.email
-      required: false
-    - ref: guest.field.phone
-      required: false
+  party_size:
+    description: The number of guests, a whole number from 1 to 20
+    type: integer
+    rules:
+      - minimum: 1
+      - maximum: 20
 
-guest.invariant.email_or_phone:
-  description: A contact has an email address, a phone number, or both
-  on: guest.entity.contact
-  rule: email is present or phone is present
-  reportOn: email
-  message: A contact needs an email address or a phone number
+  special_requests:
+    description: Free text from the guest, at most 500 characters
+    type: string
+    rules:
+      - maxLength: 500
 
-booking.entity.create_request:
-  description: A request to book a table
-  fields:
-    - ref: booking.field.restaurant_id
-    - ref: booking.field.starts_at
-    - ref: booking.field.local_date
-    - ref: booking.field.local_time
-    - ref: booking.field.party_size
-    - ref: guest.entity.contact
-    - ref: booking.field.idempotency_key
-    - ref: booking.field.special_requests
-      required: false
-    - ref: booking.field.dietary_tag
-      as: dietary_tags
-      required: false
-      many: { maxItems: 10, unique: true }
-    - ref: booking.field.deposit_token
-      required: false
+  dietary_tag:
+    description: A dietary need from the published set
+    type: string
+    rules:
+      - enum: [vegetarian, vegan, gluten_free, nut_allergy, halal, kosher, dairy_free, shellfish_allergy, egg_allergy, soy_allergy, pescatarian]
 
-booking.entity.confirmation:
-  description: The answer to a booking that was made
-  fields:
-    - ref: booking.field.reference
-    - ref: booking.field.restaurant_id
-    - ref: booking.field.confirmed_state
-      as: status
-    - ref: booking.field.starts_at
-    - ref: booking.field.local_date
-    - ref: booking.field.local_time
-    - ref: booking.field.time_zone
-    - ref: booking.field.party_size
-    - ref: booking.field.duration_minutes
-    - ref: booking.field.deposit_amount
-      required: false
-    - ref: booking.field.deposit_per_guest
-      required: false
-    - ref: booking.field.currency
-      required: false
+  dietary_tags:
+    description: The dietary needs of the party, at most 10, each once
+    type: array
+    items: dietary_tag
+    rules:
+      - maxItems: 10
+      - uniqueItems
 
-booking.invariant.deposit_has_terms:
-  description: A deposit comes with the amount for each guest and the currency
-  on: booking.entity.confirmation
-  rule: deposit_amount is absent or deposit_per_guest is present and currency is present
-  message: A deposit needs the amount for each guest and the currency
+  idempotency_key:
+    description: A key that the client makes for one create request, 16 to 64 characters
+    type: string
+    rules:
+      - minLength: 16
+      - maxLength: 64
 
-# The deposit is the amount for each guest times the party size, exact in decimals (P09).
-booking.invariant.deposit_is_per_guest:
-  description: A deposit is the amount for each guest times the party size
-  on: booking.entity.confirmation
-  rule: deposit_amount is absent or deposit_per_guest is absent or deposit_amount = party_size * deposit_per_guest
-  reportOn: deposit_amount
-  message: A deposit must be the amount for each guest times the party size
+  deposit_token:
+    description: A token from the payment provider that pays the deposit
+    type: string
 
-booking.entity.booking:
-  description: A booking as it is now
-  key: booking.field.reference
-  fields:
-    - ref: booking.field.reference
-    - ref: booking.field.restaurant_id
-    - ref: booking.field.state
-    - ref: booking.field.starts_at
-    - ref: booking.field.local_date
-    - ref: booking.field.local_time
-    - ref: booking.field.time_zone
-    - ref: booking.field.party_size
-    - ref: booking.field.duration_minutes
-    - ref: booking.field.deposit_amount
-      required: false
-    - ref: guest.field.email
-      required: false
-    - ref: guest.field.phone
-      required: false
-  # A reference is given to one booking only, also after that booking is gone (P01).
-  unique:
-    - by: [reference]
-      forever: true
+  state:
+    description: The state of a booking
+    type: string
+    rules:
+      - enum: [CONFIRMED, SEATED, COMPLETED, CANCELLED, NO_SHOW]
 
-booking.entity.booking_ref:
-  description: The booking that a call is about; a guest also presents the email or the phone of its contact
-  fields:
-    - ref: booking.field.reference
-    - ref: guest.field.email
-      required: false
-    - ref: guest.field.phone
-      required: false
+  status:
+    description: The state of a booking that was just made
+    type: string
+    rules:
+      - const: CONFIRMED
 
-booking.entity.change_request:
-  description: A request to move a booking or change its party size; a guest also presents the email or the phone of its contact
-  fields:
-    - ref: booking.field.reference
-    - ref: guest.field.email
-      required: false
-    - ref: guest.field.phone
-      required: false
-    - ref: booking.field.starts_at
-      required: false
-    - ref: booking.field.local_date
-      required: false
-    - ref: booking.field.local_time
-      required: false
-    - ref: booking.field.party_size
-      required: false
+  duration_minutes:
+    description: How long the table is booked, in minutes
+    type: integer
+    rules:
+      - minimum: 1
 
-booking.invariant.move_has_starts_at:
-  description: A move gives the new start as starts_at with the new local date or time, and starts_at comes only with a move
-  on: booking.entity.change_request
-  rule: starts_at is present and (local_date is present or local_time is present) or starts_at is absent and local_date is absent and local_time is absent
-  reportOn: starts_at
-  message: A new start needs starts_at with the local date or time that the guest gave
+  deposit_amount:
+    description: The deposit charged for the booking, in cents of the currency of the restaurant
+    type: integer
+    rules:
+      - exclusiveMinimum: 0
 
-booking.entity.alternative:
-  description: Another start time that has a free table, offered when the requested one has none
-  fields:
-    - ref: booking.field.starts_at
-    - ref: booking.field.local_date
-    - ref: booking.field.local_time
-    - ref: booking.field.party_size
+  deposit_per_guest:
+    description: The deposit for each guest, in cents of the currency of the restaurant
+    type: integer
+    rules:
+      - exclusiveMinimum: 0
 
-booking.entity.cancellation:
-  description: The answer to a cancellation
-  fields:
-    - ref: booking.field.reference
-    - ref: booking.field.state
-    - ref: booking.field.refund_amount
-    - ref: booking.field.cancelled_at
+  currency:
+    description: The ISO 4217 code of the single currency that the restaurant publishes
+    type: string
+    rules:
+      - pattern: '^[A-Z]{3}$'
 
-# Errors
+  refund_amount:
+    description: The part of the deposit that goes back to the guest, in cents
+    type: integer
+    rules:
+      - minimum: 0
 
-booking.error.invalid_request:
-  description: The idempotency key was used before with a different request
-  category: conflict
-  retryable: false
-  message: The idempotency key {idempotency_key} belongs to a different request
-  fields:
-    - ref: booking.field.idempotency_key
-booking.error.outside_booking_window:
-  description: The start time is less than 2 hours or more than 90 days away
-  category: precondition
-  retryable: false
-  message: A booking that starts at {starts_at} ({local_date} {local_time} local time) is outside the booking window
-  fields:
-    - ref: booking.field.starts_at
-    - ref: booking.field.local_date
-    - ref: booking.field.local_time
-booking.error.no_availability:
-  description: No table is free for the party at that time; up to 5 other start times on the same day may be offered
-  category: conflict
-  retryable: true
-  message: No table for {party_size} at {local_time} ({time_zone}) on {local_date}
-  fields:
-    - ref: booking.field.local_date
-    - ref: booking.field.local_time
-    - ref: booking.field.time_zone
-    - ref: booking.field.party_size
-    - ref: booking.entity.alternative
-      as: alternatives
-      required: false
-      many: { maxItems: 5, unique: [local_time] }
-booking.error.deposit_required:
-  description: A party of 7 or more needs a deposit payment token
-  category: validation
-  retryable: false
-  message: A party of {party_size} needs a deposit
-  fields:
-    - ref: booking.field.party_size
-booking.error.payment_declined:
-  description: The payment provider declined the deposit
-  category: precondition
-  retryable: true
-  message: The deposit payment was declined
-booking.error.party_too_large_for_online:
-  description: A party of 13 or more books by phone
-  category: validation
-  retryable: false
-  message: A party of {party_size} must book by phone
-  fields:
-    - ref: booking.field.party_size
-booking.error.booking_not_found:
-  description: No booking has this reference
-  category: not_found
-  retryable: false
-  message: No booking {reference}
-  fields:
-    - ref: booking.field.reference
-booking.error.invalid_state:
-  description: The booking is not in a state that allows this change
-  category: precondition
-  retryable: false
-  message: Booking {reference} is {state}
-  fields:
-    - ref: booking.field.reference
-    - ref: booking.field.state
-booking.error.change_deadline_passed:
-  description: The booking starts in less than 2 hours, so the guest can no longer change or cancel it
-  category: precondition
-  retryable: false
-  message: Booking {reference} can no longer be changed
-  fields:
-    - ref: booking.field.reference
-booking.error.forbidden:
-  description: The caller may not act on this booking
-  category: forbidden
-  retryable: false
-  message: You may not act on booking {reference}
-  fields:
-    - ref: booking.field.reference
+  cancelled_at:
+    description: When the booking was cancelled, in UTC
+    type: string
+    rules:
+      - format: date-time
+      - in_utc
 
-# Events
+  name:
+    description: The name of the guest, 1 to 100 characters
+    type: string
+    rules:
+      - minLength: 1
+      - maxLength: 100
 
-booking.event.booking_created:
-  description: A booking was made
-  fields: &event_fields
-    - ref: event.field.event_id
-    - ref: event.field.occurred_at
-    - ref: booking.field.reference
-    - ref: booking.field.restaurant_id
-    - ref: booking.field.state
-    - ref: booking.field.party_size
-    - ref: booking.field.local_date
-    - ref: booking.field.local_time
-    - ref: booking.field.time_zone
-    - ref: guest.field.guest_id
-  delivery: &delivery
-    id: event_id
-    orderBy: reference
-booking.event.booking_changed:
-  description: The date, the time or the party size of a booking changed
-  fields: *event_fields
-  delivery: *delivery
-booking.event.booking_cancelled:
-  description: A booking was cancelled
-  fields: *event_fields
-  delivery: *delivery
-booking.event.booking_seated:
-  description: The party of a booking was seated
-  fields: *event_fields
-  delivery: *delivery
-booking.event.booking_completed:
-  description: The party of a booking left
-  fields: *event_fields
-  delivery: *delivery
-booking.event.booking_no_show:
-  description: The party of a booking did not come
-  fields: *event_fields
-  delivery: *delivery
+  email:
+    description: The email address of the guest
+    type: string
+    rules:
+      - pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
 
-# Operations
+  phone:
+    description: The phone number of the guest in E.164 form, at most 15 digits
+    type: string
+    rules:
+      - pattern: '^\+[1-9][0-9]{0,14}$'
 
-booking.operation.create_booking:
-  description: Book a table
-  input: booking.entity.create_request
-  output: booking.entity.confirmation
-  # A repeat with the same key in 24 hours returns the first answer and runs nothing (runOnce in the
-  # store file); the same key with another body is refused with INVALID_REQUEST. The key has no owner.
-  idempotency:
-    key: input.idempotency_key
-    window: 24 hours
-    otherwise: booking.error.invalid_request
-  # Any caller may book: P19 is about the bookings that exist.
-  callers:
-    allow: any
-  requires:
-    - rule: input.party_size < 13
-      otherwise: booking.error.party_too_large_for_online
-    - rule: input.party_size < 7 or input.deposit_token is present
-      otherwise: booking.error.deposit_required
-    # The booking window: from 90 days to 2 hours before the start, both edges included.
-    - rule: now >= input.starts_at - 90 days and now <= input.starts_at - 2 hours
-      otherwise: booking.error.outside_booking_window
-  # A refusal for no availability offers other start times on the requested local date, within 2 hours of the
-  # requested start, for the same party.
-  refuses:
-    - error: booking.error.no_availability
-      ensures:
-        - 'all(alt in error.alternatives: alt.local_date = input.local_date)'
-        - 'all(alt in error.alternatives: alt.starts_at >= input.starts_at - 2 hours and alt.starts_at <= input.starts_at + 2 hours)'
-        - 'all(alt in error.alternatives: alt.party_size = input.party_size)'
-  errors:
-    - booking.error.invalid_request
-    - booking.error.outside_booking_window
-    - booking.error.no_availability
-    - booking.error.deposit_required
-    - booking.error.payment_declined
-    - booking.error.party_too_large_for_online
-  emits:
-    - event: booking.event.booking_created
-  ensures:
-    - output.starts_at = input.starts_at
-    - event.reference = output.reference
-    - event.restaurant_id = output.restaurant_id
-    - event.state = output.status
-    - event.party_size = output.party_size
-    - event.local_date = output.local_date
-    - event.local_time = output.local_time
-    - event.time_zone = output.time_zone
-booking.operation.get_booking:
-  description: Read a booking
-  input: booking.entity.booking_ref
-  output: booking.entity.booking
-  reads:
-    entity: booking.entity.booking
-    missing: booking.error.booking_not_found
-  callers:
-    allow:
-      - caller.role = 'guest' and input.reference = current.reference and input.email is present and current.email is present and input.email = current.email
-      - caller.role = 'guest' and input.reference = current.reference and input.phone is present and current.phone is present and input.phone = current.phone
-      - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
-    otherwise: booking.error.forbidden
-  errors:
-    - booking.error.booking_not_found
-    - booking.error.forbidden
-booking.operation.change_booking:
-  description: Change the date, the time or the party size of a booking
-  input: booking.entity.change_request
-  output: booking.entity.booking
-  changes:
-    entity: booking.entity.booking
-    from: [CONFIRMED]
-    otherwise: booking.error.invalid_state
-    missing: booking.error.booking_not_found
-  callers:
-    allow:
-      - caller.role = 'guest' and input.reference = current.reference and input.email is present and current.email is present and input.email = current.email
-      - caller.role = 'guest' and input.reference = current.reference and input.phone is present and current.phone is present and input.phone = current.phone
-      - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
-    otherwise: booking.error.forbidden
-  # The deadline reads the start of the booking as it is, before the change.
-  requires:
-    - rule: now <= current.starts_at - 2 hours
-      otherwise: booking.error.change_deadline_passed
-  errors:
-    - booking.error.booking_not_found
-    - booking.error.invalid_state
-    - booking.error.change_deadline_passed
-    - booking.error.forbidden
-  emits:
-    - event: booking.event.booking_changed
-  ensures:
-    - input.starts_at is present and output.starts_at = input.starts_at or input.starts_at is absent and output.starts_at = current.starts_at
-    - event.reference = output.reference
-    - event.restaurant_id = output.restaurant_id
-    - event.state = output.state
-    - event.party_size = output.party_size
-    - event.local_date = output.local_date
-    - event.local_time = output.local_time
-    - event.time_zone = output.time_zone
-booking.operation.cancel_booking:
-  description: Cancel a booking, with the refund of its deposit
-  input: booking.entity.booking_ref
-  output: booking.entity.cancellation
-  changes:
-    entity: booking.entity.booking
-    from: [CONFIRMED, CANCELLED]
-    to: CANCELLED
-    otherwise: booking.error.invalid_state
-    missing: booking.error.booking_not_found
-  callers:
-    allow:
-      - caller.role = 'guest' and input.reference = current.reference and input.email is present and current.email is present and input.email = current.email
-      - caller.role = 'guest' and input.reference = current.reference and input.phone is present and current.phone is present and input.phone = current.phone
-      - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
-    otherwise: booking.error.forbidden
-  # A repeat on a CANCELLED booking is a success at any time (P18); a cancellation is refused from 2 hours before the start.
-  requires:
-    - rule: current.state = 'CANCELLED' or now <= current.starts_at - 2 hours
-      otherwise: booking.error.change_deadline_passed
-  # The refund: never more than the deposit, and none with no deposit; on a cancellation (not a repeat) the full
-  # deposit 24 hours or more before the start, and nothing later.
-  ensures:
-    - current.deposit_amount is absent and output.refund_amount = 0 or current.deposit_amount is present and output.refund_amount <= current.deposit_amount
-    - current.state = 'CANCELLED' or now > current.starts_at - 24 hours or current.deposit_amount is absent or output.refund_amount = current.deposit_amount
-    - current.state = 'CANCELLED' or now <= current.starts_at - 24 hours or output.refund_amount = 0
-    - event.reference = output.reference
-    - event.restaurant_id = current.restaurant_id
-    - event.state = output.state
-    - event.party_size = current.party_size
-    - event.local_date = current.local_date
-    - event.local_time = current.local_time
-    - event.time_zone = current.time_zone
-  errors:
-    - booking.error.booking_not_found
-    - booking.error.invalid_state
-    - booking.error.change_deadline_passed
-    - booking.error.forbidden
-  # A repeat on a CANCELLED booking changes nothing, so it publishes no event; the event. rules
-  # are checked on a success with the event.
-  emits:
-    - event: booking.event.booking_cancelled
-      when: current.state = 'CONFIRMED'
-booking.operation.seat_booking:
-  description: Staff seat the party of a booking
-  input: booking.entity.booking_ref
-  output: booking.entity.booking
-  changes:
-    entity: booking.entity.booking
-    from: [CONFIRMED]
-    to: SEATED
-    otherwise: booking.error.invalid_state
-    missing: booking.error.booking_not_found
-  callers:
-    allow:
-      - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
-    otherwise: booking.error.forbidden
-  errors:
-    - booking.error.booking_not_found
-    - booking.error.invalid_state
-    - booking.error.forbidden
-  emits:
-    - event: booking.event.booking_seated
-  ensures:
-    - event.reference = output.reference
-    - event.restaurant_id = output.restaurant_id
-    - event.state = output.state
-    - event.party_size = output.party_size
-    - event.local_date = output.local_date
-    - event.local_time = output.local_time
-    - event.time_zone = output.time_zone
-booking.operation.complete_booking:
-  description: Staff close the booking when the party leaves
-  input: booking.entity.booking_ref
-  output: booking.entity.booking
-  changes:
-    entity: booking.entity.booking
-    from: [SEATED]
-    to: COMPLETED
-    otherwise: booking.error.invalid_state
-    missing: booking.error.booking_not_found
-  callers:
-    allow:
-      - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
-    otherwise: booking.error.forbidden
-  errors:
-    - booking.error.booking_not_found
-    - booking.error.invalid_state
-    - booking.error.forbidden
-  emits:
-    - event: booking.event.booking_completed
-  ensures:
-    - event.reference = output.reference
-    - event.restaurant_id = output.restaurant_id
-    - event.state = output.state
-    - event.party_size = output.party_size
-    - event.local_date = output.local_date
-    - event.local_time = output.local_time
-    - event.time_zone = output.time_zone
-booking.operation.mark_no_show:
-  description: Staff mark a booking whose party did not come
-  input: booking.entity.booking_ref
-  output: booking.entity.booking
-  changes:
-    entity: booking.entity.booking
-    from: [CONFIRMED]
-    to: NO_SHOW
-    otherwise: booking.error.invalid_state
-    missing: booking.error.booking_not_found
-  callers:
-    allow:
-      - caller.role = 'staff' and caller.restaurant_id is present and caller.restaurant_id = current.restaurant_id
-    otherwise: booking.error.forbidden
-  # From 15 minutes after the start onward, that edge included.
-  requires:
-    - rule: now >= current.starts_at + 15 minutes
-      otherwise: booking.error.invalid_state
-  errors:
-    - booking.error.booking_not_found
-    - booking.error.invalid_state
-    - booking.error.forbidden
-  emits:
-    - event: booking.event.booking_no_show
-  ensures:
-    - event.reference = output.reference
-    - event.restaurant_id = output.restaurant_id
-    - event.state = output.state
-    - event.party_size = output.party_size
-    - event.local_date = output.local_date
-    - event.local_time = output.local_time
-    - event.time_zone = output.time_zone
+  guest_id:
+    description: An opaque identifier of the guest, a UUID with no personal detail in it
+    type: string
+    rules:
+      - pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+
+  role:
+    description: Who calls, as the shell authenticated them; a guest presents the reference and the contact of a booking
+    type: string
+    rules:
+      - enum: [guest, staff]
+
+  event_id:
+    description: The identifier of one event, a UUID, for de-duplication
+    type: string
+    rules:
+      - pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+
+  event_type:
+    description: What happened to the booking
+    type: string
+    rules:
+      - enum: [BookingCreated, BookingChanged, BookingCancelled, BookingSeated, BookingCompleted, BookingNoShow]
+
+  occurred_at:
+    description: When the change happened, in UTC
+    type: string
+    rules:
+      - format: date-time
+      - in_utc
+
+  now:
+    description: The time of the call, in UTC, from the clock of the shell
+    type: string
+    rules:
+      - format: date-time
+      - in_utc
+
+  called_at:
+    description: When an earlier call was made, in UTC
+    type: string
+    rules:
+      - format: date-time
+      - in_utc
+
+  # Objects
+
+  caller:
+    description: Who calls, as the shell authenticated them; staff carry the restaurant they work for
+    type: object
+    properties: [role, restaurant_id]
+    rules:
+      - required: [role]
+      - staff_works_for_a_restaurant
+
+  contact:
+    description: How the restaurant reaches the guest
+    type: object
+    properties: [name, email, phone]
+    rules:
+      - required: [name]
+      - email_or_phone
+
+  booking_request:
+    description: The body of a request to book a table, as the client sent it
+    type: object
+    properties: [restaurant_id, starts_at, local_date, local_time, party_size, contact, idempotency_key, special_requests, dietary_tags, deposit_token]
+    rules:
+      - required: [restaurant_id, starts_at, local_date, local_time, party_size, contact, idempotency_key]
+
+  confirmation:
+    description: The answer to a booking that was made
+    type: object
+    properties: [reference, restaurant_id, status, starts_at, local_date, local_time, time_zone, party_size, duration_minutes, deposit_amount, deposit_per_guest, currency]
+    rules:
+      - required: [reference, restaurant_id, status, starts_at, local_date, local_time, time_zone, party_size, duration_minutes]
+      - deposit_has_terms
+      - deposit_is_per_guest
+
+  first_call:
+    description: The first call with the same idempotency key in the last 24 hours that was answered with a booking, as the shell stored it
+    type: object
+    properties: [booking_request, confirmation, called_at]
+    rules:
+      - required: [booking_request, confirmation, called_at]
+
+  create_request:
+    description: A request to book a table, with the time of the call and the first call with its key, if the shell has one
+    type: object
+    properties: [booking_request, now, first_call]
+    rules:
+      - required: [booking_request, now]
+      - first_call_has_the_key
+      - first_call_is_recent
+
+  booking:
+    description: A booking as it is stored
+    type: object
+    identifier: reference
+    properties: [reference, restaurant_id, state, starts_at, local_date, local_time, time_zone, party_size, duration_minutes, deposit_amount, email, phone, refund_amount, cancelled_at]
+    rules:
+      - required: [reference, restaurant_id, state, starts_at, local_date, local_time, time_zone, party_size, duration_minutes]
+      - cancellation_is_recorded
+
+  stored_booking:
+    description: The booking as it is stored before the call; absent when no booking has the reference
+    type: booking
+
+  booking_ref:
+    description: A call about one booking, with the booking as stored; a guest also presents the email or the phone of its contact
+    type: object
+    properties: [reference, email, phone, caller, now, stored_booking]
+    rules:
+      - required: [reference, caller, now]
+      - names_the_booking
+
+  change_request:
+    description: A request to move a booking or change its party size, with the booking as stored; a guest also presents the email or the phone of its contact
+    type: object
+    properties: [reference, email, phone, caller, now, stored_booking, starts_at, local_date, local_time, party_size, deposit_token]
+    rules:
+      - required: [reference, caller, now]
+      - names_the_booking
+      - move_has_starts_at
+
+  alternative:
+    description: Another start time that has a free table, offered when the requested one has none
+    type: object
+    properties: [starts_at, local_date, local_time, party_size]
+    rules:
+      - required: [starts_at, local_date, local_time, party_size]
+
+  alternatives:
+    description: The other start times offered, at most 5, each at another local time
+    type: array
+    items: alternative
+    rules:
+      - maxItems: 5
+      - each_at_another_time
+
+  booking_event:
+    description: The event of a change to a booking; it refers to the guest only by guest_id
+    type: object
+    properties: [event_id, event_type, occurred_at, reference, restaurant_id, state, party_size, local_date, local_time, time_zone, guest_id]
+    rules:
+      - required: [event_id, event_type, occurred_at, reference, restaurant_id, state, party_size, local_date, local_time, time_zone, guest_id]
+
+  cancellation:
+    description: The answer to a cancellation
+    type: object
+    properties: [reference, state, refund_amount, cancelled_at]
+    rules:
+      - required: [reference, state, refund_amount, cancelled_at]
+
+  # Outputs that change a booking: the record to store and its one event
+
+  booked:
+    description: A booking was made; the answer, the record to store and its event
+    type: object
+    properties: [confirmation, booking, booking_event]
+    rules:
+      - required: [confirmation, booking, booking_event]
+
+  repeated:
+    description: The answer of the first call with the same idempotency key, given again; nothing is stored or published
+    type: object
+    properties: [confirmation]
+    rules:
+      - required: [confirmation]
+
+  booking_change:
+    description: A booking changed; the record to store and its event
+    type: object
+    properties: [booking, booking_event]
+    rules:
+      - required: [booking, booking_event]
+
+  cancelled:
+    description: A booking was cancelled; the answer, the record to store and its event
+    type: object
+    properties: [cancellation, booking, booking_event]
+    rules:
+      - required: [cancellation, booking, booking_event]
+
+  already_cancelled:
+    description: The booking was cancelled before; the answer of that cancellation, given again; nothing is stored or published
+    type: object
+    properties: [cancellation]
+    rules:
+      - required: [cancellation]
+
+  # Refusals
+
+  invalid_request:
+    description: INVALID_REQUEST. The idempotency key was used before with a different request
+    type: object
+    properties: [idempotency_key]
+    rules:
+      - required: [idempotency_key]
+
+  outside_booking_window:
+    description: OUTSIDE_BOOKING_WINDOW. The start time is less than 2 hours or more than 90 days away
+    type: object
+    properties: [starts_at, local_date, local_time]
+    rules:
+      - required: [starts_at]
+
+  no_availability:
+    description: NO_AVAILABILITY. No table is free for the party at that time; up to 5 other start times may be offered
+    type: object
+    properties: [local_date, local_time, time_zone, party_size, alternatives]
+    rules:
+      - required: [local_date, local_time, time_zone, party_size]
+
+  deposit_required:
+    description: DEPOSIT_REQUIRED. A party of 7 or more needs a deposit payment token
+    type: object
+    properties: [party_size]
+    rules:
+      - required: [party_size]
+
+  payment_declined:
+    description: PAYMENT_DECLINED. The payment provider declined the deposit
+    type: object
+    properties: [deposit_token]
+    rules:
+      - required: [deposit_token]
+
+  party_too_large_for_online:
+    description: PARTY_TOO_LARGE_FOR_ONLINE. A party of 13 or more books by phone
+    type: object
+    properties: [party_size]
+    rules:
+      - required: [party_size]
+
+  booking_not_found:
+    description: BOOKING_NOT_FOUND. No booking has this reference
+    type: object
+    properties: [reference]
+    rules:
+      - required: [reference]
+
+  invalid_state:
+    description: INVALID_STATE. The booking is not in a state that allows this change
+    type: object
+    properties: [reference, state]
+    rules:
+      - required: [reference, state]
+
+  change_deadline_passed:
+    description: CHANGE_DEADLINE_PASSED. The booking starts in less than 2 hours, so the guest can no longer change or cancel it
+    type: object
+    properties: [reference]
+    rules:
+      - required: [reference]
+
+  forbidden:
+    description: FORBIDDEN. The caller may not act on this booking
+    type: object
+    properties: [reference]
+    rules:
+      - required: [reference]
+
+rules:
+  # Rules of values
+
+  in_utc:
+    description: The time is in UTC, written with a trailing Z
+    rule: self.matches('Z$')
+    message: Must be a time in UTC, with a trailing Z
+
+  staff_works_for_a_restaurant:
+    description: Staff carry the restaurant they work for
+    rule: self.role != 'staff' || has(self.restaurant_id)
+    message: Staff need a restaurant
+
+  email_or_phone:
+    description: A contact has an email address, a phone number, or both
+    rule: has(self.email) || has(self.phone)
+    message: A contact needs an email address or a phone number
+
+  deposit_has_terms:
+    description: A deposit comes with the amount for each guest and the currency
+    rule: '!has(self.deposit_amount) || (has(self.deposit_per_guest) && has(self.currency))'
+    message: A deposit needs the amount for each guest and the currency
+
+  deposit_is_per_guest:
+    description: A deposit is the amount for each guest times the party size
+    rule: '!has(self.deposit_amount) || !has(self.deposit_per_guest) || self.deposit_amount == self.party_size * self.deposit_per_guest'
+    message: A deposit must be the amount for each guest times the party size
+
+  first_call_has_the_key:
+    description: The first call that the shell gives has the idempotency key of this request
+    rule: '!has(self.first_call) || self.first_call.booking_request.idempotency_key == self.booking_request.idempotency_key'
+    message: The first call has another idempotency key
+
+  first_call_is_recent:
+    description: The first call that the shell gives was made in the 24 hours before this one
+    rule: >-
+      !has(self.first_call) ||
+      (timestamp(self.first_call.called_at) <= timestamp(self.now) &&
+      timestamp(self.now) <= timestamp(self.first_call.called_at) + duration('24h'))
+    message: The first call was not made in the last 24 hours
+
+  cancellation_is_recorded:
+    description: A cancelled booking records its refund and the time of its cancellation
+    rule: self.state != 'CANCELLED' || (has(self.refund_amount) && has(self.cancelled_at))
+    message: A cancelled booking needs its refund and the time of its cancellation
+
+  names_the_booking:
+    description: The booking that the shell loaded is the one the request names
+    rule: '!has(self.stored_booking) || self.reference == self.stored_booking.reference'
+    message: The request names another booking than the one loaded
+
+  move_has_starts_at:
+    description: A move gives the new start as starts_at with the new local date or time, and starts_at comes only with a move
+    rule: >-
+      (has(self.starts_at) && (has(self.local_date) || has(self.local_time))) ||
+      (!has(self.starts_at) && !has(self.local_date) && !has(self.local_time))
+    message: A new start needs starts_at with the local date or time that the guest gave
+
+  each_at_another_time:
+    description: No two alternatives have the same local time
+    rule: self.all(a, self.exists_one(b, b.local_time == a.local_time))
+    message: Two alternatives have the same local time
+
+  # Who may call
+
+  booking_was_found:
+    description: A booking has the reference
+    rule: has(input.stored_booking)
+    message: No booking has the reference
+
+  booking_was_not_found:
+    description: No booking has the reference
+    rule: '!has(input.stored_booking)'
+    message: A booking has the reference
+
+  caller_may_act:
+    description: >-
+      The caller is a guest who presents the email or the phone of the booking, or staff of the restaurant of the booking
+    rule: >-
+      has(input.stored_booking) && (
+      (input.caller.role == 'guest' && has(input.email) && has(input.stored_booking.email) && input.email == input.stored_booking.email) ||
+      (input.caller.role == 'guest' && has(input.phone) && has(input.stored_booking.phone) && input.phone == input.stored_booking.phone) ||
+      (input.caller.role == 'staff' && has(input.caller.restaurant_id) && input.caller.restaurant_id == input.stored_booking.restaurant_id))
+    message: The caller may not act on this booking
+
+  caller_may_not_act:
+    description: >-
+      The booking was found, and the caller is neither a guest who presents its email or phone nor staff of its restaurant
+    rule: >-
+      has(input.stored_booking) && !(
+      (input.caller.role == 'guest' && has(input.email) && has(input.stored_booking.email) && input.email == input.stored_booking.email) ||
+      (input.caller.role == 'guest' && has(input.phone) && has(input.stored_booking.phone) && input.phone == input.stored_booking.phone) ||
+      (input.caller.role == 'staff' && has(input.caller.restaurant_id) && input.caller.restaurant_id == input.stored_booking.restaurant_id))
+    message: The caller may act on this booking
+
+  staff_may_act:
+    description: The caller is staff of the restaurant of the booking
+    rule: >-
+      has(input.stored_booking) && input.caller.role == 'staff' && has(input.caller.restaurant_id) &&
+      input.caller.restaurant_id == input.stored_booking.restaurant_id
+    message: Only staff of the restaurant may do this
+
+  staff_may_not_act:
+    description: The booking was found, and the caller is not staff of its restaurant
+    rule: >-
+      has(input.stored_booking) && !(input.caller.role == 'staff' && has(input.caller.restaurant_id) &&
+      input.caller.restaurant_id == input.stored_booking.restaurant_id)
+    message: The caller is staff of the restaurant
+
+  # States
+
+  was_confirmed:
+    description: The booking was CONFIRMED
+    rule: has(input.stored_booking) && input.stored_booking.state == 'CONFIRMED'
+    message: The booking was not CONFIRMED
+
+  was_not_confirmed:
+    description: The booking was not CONFIRMED
+    rule: has(input.stored_booking) && input.stored_booking.state != 'CONFIRMED'
+    message: The booking was CONFIRMED
+
+  was_seated:
+    description: The booking was SEATED
+    rule: has(input.stored_booking) && input.stored_booking.state == 'SEATED'
+    message: The booking was not SEATED
+
+  was_not_seated:
+    description: The booking was not SEATED
+    rule: has(input.stored_booking) && input.stored_booking.state != 'SEATED'
+    message: The booking was SEATED
+
+  was_cancelled:
+    description: The booking was CANCELLED
+    rule: has(input.stored_booking) && input.stored_booking.state == 'CANCELLED'
+    message: The booking was not CANCELLED
+
+  was_neither_confirmed_nor_cancelled:
+    description: The booking was neither CONFIRMED nor CANCELLED
+    rule: has(input.stored_booking) && input.stored_booking.state != 'CONFIRMED' && input.stored_booking.state != 'CANCELLED'
+    message: The booking was CONFIRMED or CANCELLED
+
+  is_confirmed:
+    description: The booking is CONFIRMED after the call
+    rule: output.booking.state == 'CONFIRMED'
+    message: The booking is not CONFIRMED
+
+  is_seated:
+    description: The booking is SEATED after the call
+    rule: output.booking.state == 'SEATED'
+    message: The booking is not SEATED
+
+  is_completed:
+    description: The booking is COMPLETED after the call
+    rule: output.booking.state == 'COMPLETED'
+    message: The booking is not COMPLETED
+
+  is_no_show:
+    description: The booking is NO_SHOW after the call
+    rule: output.booking.state == 'NO_SHOW'
+    message: The booking is not NO_SHOW
+
+  # Times
+
+  two_hours_before_start:
+    description: The call is 2 hours or more before the start of the booking
+    rule: has(input.stored_booking) && timestamp(input.now) <= timestamp(input.stored_booking.starts_at) - duration('2h')
+    message: The booking starts in less than 2 hours
+
+  less_than_two_hours_before_start:
+    description: The call is less than 2 hours before the start of the booking
+    rule: has(input.stored_booking) && timestamp(input.now) > timestamp(input.stored_booking.starts_at) - duration('2h')
+    message: The booking starts in 2 hours or more
+
+  fifteen_minutes_after_start:
+    description: The call is 15 minutes or more after the start of the booking
+    rule: has(input.stored_booking) && timestamp(input.now) >= timestamp(input.stored_booking.starts_at) + duration('15m')
+    message: The booking started less than 15 minutes ago
+
+  cannot_be_marked_no_show:
+    description: The booking is not CONFIRMED, or started less than 15 minutes ago
+    rule: >-
+      has(input.stored_booking) && (input.stored_booking.state != 'CONFIRMED' ||
+      timestamp(input.now) < timestamp(input.stored_booking.starts_at) + duration('15m'))
+    message: The booking can be marked NO_SHOW
+
+  in_the_booking_window:
+    description: The call is from 90 days to 2 hours before the requested start, both edges included
+    rule: >-
+      timestamp(input.now) >= timestamp(input.booking_request.starts_at) - duration('2160h') &&
+      timestamp(input.now) <= timestamp(input.booking_request.starts_at) - duration('2h')
+    message: The start is outside the booking window
+
+  outside_the_booking_window:
+    description: The call is more than 90 days or less than 2 hours before the requested start
+    rule: >-
+      timestamp(input.now) < timestamp(input.booking_request.starts_at) - duration('2160h') ||
+      timestamp(input.now) > timestamp(input.booking_request.starts_at) - duration('2h')
+    message: The start is in the booking window
+
+  move_in_the_booking_window:
+    description: A new start is from 90 days to 2 hours after the call, both edges included
+    rule: >-
+      !has(input.starts_at) ||
+      (timestamp(input.now) >= timestamp(input.starts_at) - duration('2160h') &&
+      timestamp(input.now) <= timestamp(input.starts_at) - duration('2h'))
+    message: The new start is outside the booking window
+
+  move_outside_the_booking_window:
+    description: A new start is more than 90 days or less than 2 hours after the call
+    rule: >-
+      has(input.starts_at) &&
+      (timestamp(input.now) < timestamp(input.starts_at) - duration('2160h') ||
+      timestamp(input.now) > timestamp(input.starts_at) - duration('2h'))
+    message: The new start is in the booking window
+
+  # Party size and deposit
+
+  party_fits_online:
+    description: The party has fewer than 13 guests
+    rule: input.booking_request.party_size < 13
+    message: A party of 13 or more books by phone
+
+  party_too_large:
+    description: The party has 13 or more guests
+    rule: input.booking_request.party_size >= 13
+    message: The party has fewer than 13 guests
+
+  deposit_token_if_needed:
+    description: A party of 7 or more gives a deposit token
+    rule: input.booking_request.party_size < 7 || has(input.booking_request.deposit_token)
+    message: A party of 7 or more needs a deposit
+
+  deposit_token_missing:
+    description: A party of 7 to 12 gives no deposit token
+    rule: input.booking_request.party_size >= 7 && input.booking_request.party_size < 13 && !has(input.booking_request.deposit_token)
+    message: The request needs no deposit token, or has one
+
+  paid_with_a_token:
+    description: The request gives a deposit token
+    rule: has(input.booking_request.deposit_token) && output.deposit_token == input.booking_request.deposit_token
+    message: The refusal names another deposit token than the request
+
+  new_party_fits_online:
+    description: A new party size is less than 13
+    rule: '!has(input.party_size) || input.party_size < 13'
+    message: A party of 13 or more books by phone
+
+  new_party_too_large:
+    description: A new party size is 13 or more
+    rule: has(input.party_size) && input.party_size >= 13
+    message: The new party has fewer than 13 guests
+
+  new_deposit_token_if_needed:
+    description: A new party size of 7 or more comes with a deposit token
+    rule: '!has(input.party_size) || input.party_size < 7 || has(input.deposit_token)'
+    message: A party of 7 or more needs a deposit
+
+  new_deposit_token_missing:
+    description: A new party size of 7 to 12 comes with no deposit token
+    rule: has(input.party_size) && input.party_size >= 7 && input.party_size < 13 && !has(input.deposit_token)
+    message: The change needs no deposit token, or has one
+
+  names_the_party:
+    description: The refusal names the party size of the request
+    rule: output.party_size == input.booking_request.party_size
+    message: The refusal names another party size
+
+  names_the_new_party:
+    description: The refusal names the new party size of the request
+    rule: has(input.party_size) && output.party_size == input.party_size
+    message: The refusal names another party size
+
+  # Create
+
+  is_not_a_repeat:
+    description: No call with the same idempotency key was answered with a booking in the last 24 hours
+    rule: '!has(input.first_call)'
+    message: The idempotency key was used in the last 24 hours
+
+  repeats_the_first_answer:
+    description: A repeat of the first call with the same body gets the first answer again
+    rule: >-
+      has(input.first_call) && input.first_call.booking_request == input.booking_request &&
+      output.confirmation == input.first_call.confirmation
+    message: A repeat must give the first answer, to the same request
+
+  reuses_the_key:
+    description: The idempotency key was used in the last 24 hours with a different body
+    rule: >-
+      has(input.first_call) && input.first_call.booking_request != input.booking_request &&
+      output.idempotency_key == input.booking_request.idempotency_key
+    message: The key was not used with a different request
+
+  confirms_the_request:
+    description: The confirmation gives the restaurant, the start, the local date and time and the party size of the request
+    rule: >-
+      output.confirmation.restaurant_id == input.booking_request.restaurant_id &&
+      output.confirmation.starts_at == input.booking_request.starts_at &&
+      output.confirmation.local_date == input.booking_request.local_date &&
+      output.confirmation.local_time == input.booking_request.local_time &&
+      output.confirmation.party_size == input.booking_request.party_size
+    message: The confirmation does not match the request
+
+  records_the_confirmation:
+    description: The record to store is the confirmed booking, with the email and the phone of the contact
+    rule: >-
+      output.booking.reference == output.confirmation.reference &&
+      output.booking.restaurant_id == output.confirmation.restaurant_id &&
+      output.booking.state == 'CONFIRMED' &&
+      output.booking.starts_at == output.confirmation.starts_at &&
+      output.booking.local_date == output.confirmation.local_date &&
+      output.booking.local_time == output.confirmation.local_time &&
+      output.booking.time_zone == output.confirmation.time_zone &&
+      output.booking.party_size == output.confirmation.party_size &&
+      output.booking.duration_minutes == output.confirmation.duration_minutes &&
+      ((has(output.booking.deposit_amount) && has(output.confirmation.deposit_amount) && output.booking.deposit_amount == output.confirmation.deposit_amount) ||
+      (!has(output.booking.deposit_amount) && !has(output.confirmation.deposit_amount))) &&
+      ((has(output.booking.email) && has(input.booking_request.contact.email) && output.booking.email == input.booking_request.contact.email) ||
+      (!has(output.booking.email) && !has(input.booking_request.contact.email))) &&
+      ((has(output.booking.phone) && has(input.booking_request.contact.phone) && output.booking.phone == input.booking_request.contact.phone) ||
+      (!has(output.booking.phone) && !has(input.booking_request.contact.phone))) &&
+      !has(output.booking.refund_amount) && !has(output.booking.cancelled_at)
+    message: The record to store is not the confirmed booking
+
+  names_the_requested_start:
+    description: The refusal names the start of the request
+    rule: >-
+      output.starts_at == input.booking_request.starts_at &&
+      has(output.local_date) && output.local_date == input.booking_request.local_date &&
+      has(output.local_time) && output.local_time == input.booking_request.local_time
+    message: The refusal names another start
+
+  names_the_new_start:
+    description: The refusal names the new start of the request
+    rule: has(input.starts_at) && output.starts_at == input.starts_at
+    message: The refusal names another start
+
+  names_the_requested_time:
+    description: The refusal names the local date, the local time and the party size of the request
+    rule: >-
+      output.local_date == input.booking_request.local_date &&
+      output.local_time == input.booking_request.local_time &&
+      output.party_size == input.booking_request.party_size
+    message: The refusal names another time or party size
+
+  offers_nearby_times:
+    description: Each alternative is on the requested local date, within 2 hours of the requested start, for the same party size
+    rule: >-
+      !has(output.alternatives) || output.alternatives.all(a,
+      a.local_date == input.booking_request.local_date &&
+      a.party_size == input.booking_request.party_size &&
+      timestamp(a.starts_at) >= timestamp(input.booking_request.starts_at) - duration('2h') &&
+      timestamp(a.starts_at) <= timestamp(input.booking_request.starts_at) + duration('2h'))
+    message: An alternative is on another date, more than 2 hours away, or for another party size
+
+  # Changes to a stored booking
+
+  answers_the_stored_booking:
+    description: The answer is the booking as it is stored
+    rule: has(input.stored_booking) && output == input.stored_booking
+    message: The answer is not the stored booking
+
+  keeps_all_but_the_state:
+    description: The record to store is the stored booking; only its state, refund and cancellation time may change
+    rule: >-
+      has(input.stored_booking) &&
+      output.booking.reference == input.stored_booking.reference &&
+      output.booking.restaurant_id == input.stored_booking.restaurant_id &&
+      output.booking.starts_at == input.stored_booking.starts_at &&
+      output.booking.local_date == input.stored_booking.local_date &&
+      output.booking.local_time == input.stored_booking.local_time &&
+      output.booking.time_zone == input.stored_booking.time_zone &&
+      output.booking.party_size == input.stored_booking.party_size &&
+      output.booking.duration_minutes == input.stored_booking.duration_minutes &&
+      ((has(output.booking.deposit_amount) && has(input.stored_booking.deposit_amount) && output.booking.deposit_amount == input.stored_booking.deposit_amount) ||
+      (!has(output.booking.deposit_amount) && !has(input.stored_booking.deposit_amount))) &&
+      ((has(output.booking.email) && has(input.stored_booking.email) && output.booking.email == input.stored_booking.email) ||
+      (!has(output.booking.email) && !has(input.stored_booking.email))) &&
+      ((has(output.booking.phone) && has(input.stored_booking.phone) && output.booking.phone == input.stored_booking.phone) ||
+      (!has(output.booking.phone) && !has(input.stored_booking.phone)))
+    message: The record to store changes more than its state
+
+  applies_the_change:
+    description: >-
+      The record to store is the stored booking with the new start, local date, local time and party size of the
+      request, where it gives them; the rest stays as stored
+    rule: >-
+      has(input.stored_booking) &&
+      output.booking.reference == input.stored_booking.reference &&
+      output.booking.restaurant_id == input.stored_booking.restaurant_id &&
+      output.booking.time_zone == input.stored_booking.time_zone &&
+      output.booking.duration_minutes == input.stored_booking.duration_minutes &&
+      ((has(input.starts_at) && output.booking.starts_at == input.starts_at) || (!has(input.starts_at) && output.booking.starts_at == input.stored_booking.starts_at)) &&
+      ((has(input.local_date) && output.booking.local_date == input.local_date) || (!has(input.local_date) && output.booking.local_date == input.stored_booking.local_date)) &&
+      ((has(input.local_time) && output.booking.local_time == input.local_time) || (!has(input.local_time) && output.booking.local_time == input.stored_booking.local_time)) &&
+      ((has(input.party_size) && output.booking.party_size == input.party_size) || (!has(input.party_size) && output.booking.party_size == input.stored_booking.party_size)) &&
+      ((has(output.booking.email) && has(input.stored_booking.email) && output.booking.email == input.stored_booking.email) ||
+      (!has(output.booking.email) && !has(input.stored_booking.email))) &&
+      ((has(output.booking.phone) && has(input.stored_booking.phone) && output.booking.phone == input.stored_booking.phone) ||
+      (!has(output.booking.phone) && !has(input.stored_booking.phone)))
+    message: The record to store is not the stored booking with the change
+
+  refunds_by_the_deadline:
+    description: >-
+      With no deposit, the refund is 0; with a deposit, the full deposit 24 hours or more before the start, and 0 later
+    rule: >-
+      has(input.stored_booking) && (
+      (!has(input.stored_booking.deposit_amount) && output.cancellation.refund_amount == 0) ||
+      (has(input.stored_booking.deposit_amount) &&
+      timestamp(input.now) <= timestamp(input.stored_booking.starts_at) - duration('24h') &&
+      output.cancellation.refund_amount == input.stored_booking.deposit_amount) ||
+      (has(input.stored_booking.deposit_amount) &&
+      timestamp(input.now) > timestamp(input.stored_booking.starts_at) - duration('24h') &&
+      output.cancellation.refund_amount == 0))
+    message: The refund is not the deposit by the deadline
+
+  records_the_cancellation:
+    description: The answer and the record to store are CANCELLED now, with the same refund
+    rule: >-
+      output.cancellation.reference == input.reference &&
+      output.cancellation.state == 'CANCELLED' &&
+      output.cancellation.cancelled_at == input.now &&
+      output.booking.state == 'CANCELLED' &&
+      has(output.booking.refund_amount) && output.booking.refund_amount == output.cancellation.refund_amount &&
+      has(output.booking.cancelled_at) && output.booking.cancelled_at == output.cancellation.cancelled_at
+    message: The cancellation is not recorded as answered
+
+  repeats_the_cancellation:
+    description: A cancellation of a CANCELLED booking answers the refund and the time of the first cancellation
+    rule: >-
+      has(input.stored_booking) && has(input.stored_booking.refund_amount) && has(input.stored_booking.cancelled_at) &&
+      output.cancellation.reference == input.reference &&
+      output.cancellation.state == 'CANCELLED' &&
+      output.cancellation.refund_amount == input.stored_booking.refund_amount &&
+      output.cancellation.cancelled_at == input.stored_booking.cancelled_at
+    message: The answer is not the first cancellation
+
+  # Refusals of a stored booking
+
+  names_the_request:
+    description: The refusal names the booking of the request
+    rule: output.reference == input.reference
+    message: The refusal names another booking
+
+  names_the_stored_state:
+    description: The refusal names the state of the booking as stored
+    rule: has(input.stored_booking) && output.state == input.stored_booking.state
+    message: The refusal names another state
+
+  # Events
+
+  event_describes_the_booking:
+    description: >-
+      The event carries the reference, the restaurant, the new state, the party size, the local date, time and time
+      zone of the record to store, and the time of the call
+    rule: >-
+      output.booking_event.reference == output.booking.reference &&
+      output.booking_event.restaurant_id == output.booking.restaurant_id &&
+      output.booking_event.state == output.booking.state &&
+      output.booking_event.party_size == output.booking.party_size &&
+      output.booking_event.local_date == output.booking.local_date &&
+      output.booking_event.local_time == output.booking.local_time &&
+      output.booking_event.time_zone == output.booking.time_zone &&
+      output.booking_event.occurred_at == input.now
+    message: The event does not describe the change
+
+  event_is_created:
+    description: The event is BookingCreated
+    rule: output.booking_event.event_type == 'BookingCreated'
+    message: The event is not BookingCreated
+
+  event_is_changed:
+    description: The event is BookingChanged
+    rule: output.booking_event.event_type == 'BookingChanged'
+    message: The event is not BookingChanged
+
+  event_is_cancelled:
+    description: The event is BookingCancelled
+    rule: output.booking_event.event_type == 'BookingCancelled'
+    message: The event is not BookingCancelled
+
+  event_is_seated:
+    description: The event is BookingSeated
+    rule: output.booking_event.event_type == 'BookingSeated'
+    message: The event is not BookingSeated
+
+  event_is_completed:
+    description: The event is BookingCompleted
+    rule: output.booking_event.event_type == 'BookingCompleted'
+    message: The event is not BookingCompleted
+
+  event_is_no_show:
+    description: The event is BookingNoShow
+    rule: output.booking_event.event_type == 'BookingNoShow'
+    message: The event is not BookingNoShow
+
+# Each output lists the rules that hold when it comes back. The refusals are in order: a refusal holds the
+# negation of each one before it, so one request has one answer.
+operations:
+  create_booking:
+    description: Book a table. Any caller may book
+    input: create_request
+    output:
+      - party_too_large_for_online: [party_too_large, names_the_party]
+      - deposit_required: [party_fits_online, deposit_token_missing, names_the_party]
+      - repeated: [party_fits_online, deposit_token_if_needed, repeats_the_first_answer]
+      - invalid_request: [party_fits_online, deposit_token_if_needed, reuses_the_key]
+      - outside_booking_window: [party_fits_online, deposit_token_if_needed, is_not_a_repeat, outside_the_booking_window, names_the_requested_start]
+      - no_availability: [party_fits_online, deposit_token_if_needed, is_not_a_repeat, in_the_booking_window, names_the_requested_time, offers_nearby_times]
+      - payment_declined: [party_fits_online, deposit_token_if_needed, is_not_a_repeat, in_the_booking_window, paid_with_a_token]
+      - booked:
+          - party_fits_online
+          - deposit_token_if_needed
+          - is_not_a_repeat
+          - in_the_booking_window
+          - confirms_the_request
+          - records_the_confirmation
+          - event_describes_the_booking
+          - event_is_created
+
+  get_booking:
+    description: Read a booking
+    input: booking_ref
+    output:
+      - booking_not_found: [booking_was_not_found, names_the_request]
+      - forbidden: [caller_may_not_act, names_the_request]
+      - booking: [caller_may_act, answers_the_stored_booking]
+
+  change_booking:
+    description: Change the date, the time or the party size of a booking. The deadline reads the start as stored
+    input: change_request
+    output:
+      - booking_not_found: [booking_was_not_found, names_the_request]
+      - forbidden: [caller_may_not_act, names_the_request]
+      - invalid_state: [caller_may_act, was_not_confirmed, names_the_request, names_the_stored_state]
+      - change_deadline_passed: [caller_may_act, was_confirmed, less_than_two_hours_before_start, names_the_request]
+      - party_too_large_for_online: [caller_may_act, was_confirmed, two_hours_before_start, new_party_too_large, names_the_new_party]
+      - deposit_required: [caller_may_act, was_confirmed, two_hours_before_start, new_party_fits_online, new_deposit_token_missing, names_the_new_party]
+      - outside_booking_window: [caller_may_act, was_confirmed, two_hours_before_start, new_party_fits_online, new_deposit_token_if_needed, move_outside_the_booking_window, names_the_new_start]
+      - booking_change:
+          - caller_may_act
+          - was_confirmed
+          - two_hours_before_start
+          - new_party_fits_online
+          - new_deposit_token_if_needed
+          - move_in_the_booking_window
+          - is_confirmed
+          - applies_the_change
+          - event_describes_the_booking
+          - event_is_changed
+
+  cancel_booking:
+    description: Cancel a booking, with the refund of its deposit. A cancellation of a CANCELLED booking gives the first answer at any time
+    input: booking_ref
+    output:
+      - booking_not_found: [booking_was_not_found, names_the_request]
+      - forbidden: [caller_may_not_act, names_the_request]
+      - already_cancelled: [caller_may_act, was_cancelled, repeats_the_cancellation]
+      - invalid_state: [caller_may_act, was_neither_confirmed_nor_cancelled, names_the_request, names_the_stored_state]
+      - change_deadline_passed: [caller_may_act, was_confirmed, less_than_two_hours_before_start, names_the_request]
+      - cancelled:
+          - caller_may_act
+          - was_confirmed
+          - two_hours_before_start
+          - keeps_all_but_the_state
+          - records_the_cancellation
+          - refunds_by_the_deadline
+          - event_describes_the_booking
+          - event_is_cancelled
+
+  seat_booking:
+    description: Staff seat the party of a booking
+    input: booking_ref
+    output:
+      - booking_not_found: [booking_was_not_found, names_the_request]
+      - forbidden: [staff_may_not_act, names_the_request]
+      - invalid_state: [staff_may_act, was_not_confirmed, names_the_request, names_the_stored_state]
+      - booking_change: [staff_may_act, was_confirmed, is_seated, keeps_all_but_the_state, event_describes_the_booking, event_is_seated]
+
+  complete_booking:
+    description: Staff close the booking when the party leaves
+    input: booking_ref
+    output:
+      - booking_not_found: [booking_was_not_found, names_the_request]
+      - forbidden: [staff_may_not_act, names_the_request]
+      - invalid_state: [staff_may_act, was_not_seated, names_the_request, names_the_stored_state]
+      - booking_change: [staff_may_act, was_seated, is_completed, keeps_all_but_the_state, event_describes_the_booking, event_is_completed]
+
+  mark_no_show:
+    description: Staff mark a booking whose party did not come, from 15 minutes after its start, that edge included
+    input: booking_ref
+    output:
+      - booking_not_found: [booking_was_not_found, names_the_request]
+      - forbidden: [staff_may_not_act, names_the_request]
+      - invalid_state: [staff_may_act, cannot_be_marked_no_show, names_the_request, names_the_stored_state]
+      - booking_change: [staff_may_act, was_confirmed, fifteen_minutes_after_start, is_no_show, keeps_all_but_the_state, event_describes_the_booking, event_is_no_show]

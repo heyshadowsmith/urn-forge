@@ -1,79 +1,12 @@
-@urn-forge:strict
-@urn:corpus:inventory:stock:operation:get_stock
-Feature: Read the stock of a SKU at a location
+Feature: Read the stock of one SKU at one location
+  The shell loads the stored stock level of the SKU at the location, when there is one. Any
+  authenticated caller may read the stock.
 
-  # Any authenticated caller may read the stock; the scenarios below run as warehouse staff.
-  Background:
-    Given the caller is:
-      | role            |
-      | warehouse_staff |
-
-  Scenario Outline: A stock level has on-hand, reserved and available counts
-    When I run the operation with:
-      | sku   | location   |
-      | <sku> | <location> |
-    Then the output is:
-      | sku   | location   | on_hand | reserved | available |
-      | <sku> | <location> | 500     | 100      | 400       |
-
-    Examples:
-      | sku               | location   |
-      | WIDGET-1          | AMS-B-0142 |
-      | A1B               | ROT-Z-0000 |
-      | =repeat(16, "Z9") | AMS-A-9999 |
-
-  Scenario Outline: A SKU that is too short, too long, or not uppercase letters, digits and inner hyphens is rejected
-    When I run the operation with:
-      | sku   | location   |
-      | <sku> | AMS-B-0142 |
-    Then the input is rejected on "sku"
-
-    Examples:
-      | sku              |
-      | AB               |
-      | =repeat(33, "A") |
-      | -WIDGET          |
-      | WIDGET-          |
-      | widget-1         |
-      | WIDGET_1         |
-
-  Scenario Outline: A location that is not WAREHOUSE-ZONE-BIN is rejected
-    When I run the operation with:
-      | sku      | location   |
-      | WIDGET-1 | <location> |
-    Then the input is rejected on "location"
-
-    Examples:
-      | location    |
-      | AMS-B-142   |
-      | AM-B-0142   |
-      | AMS-BB-0142 |
-      | ams-b-0142  |
-
-  Scenario: An unknown SKU is refused
-    When I run the operation with:
-      | sku         | location   |
-      | NO-SUCH-SKU | AMS-B-0142 |
-    Then the operation fails with "urn:corpus:inventory:stock:error:unknown_sku":
-      | sku         |
-      | NO-SUCH-SKU |
-
-  Scenario: An unknown location is refused
-    When I run the operation with:
-      | sku      | location   |
-      | WIDGET-1 | ZZZ-Z-9999 |
-    Then the operation fails with "urn:corpus:inventory:stock:error:unknown_location":
-      | location   |
-      | ZZZ-Z-9999 |
-
-  Scenario Outline: Any authenticated caller may read the stock
-    Given the caller is:
-      | role   |
-      | <role> |
-    When I run the operation with:
-      | sku      | location   |
-      | WIDGET-1 | AMS-B-0142 |
-    Then the output is:
+  Scenario Outline: Any caller reads the stored stock level
+    When I run "get_stock" with:
+      | caller.role | sku      | location   | stored_level                                                                                     |
+      | <role>      | WIDGET-1 | AMS-B-0142 | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400} |
+    Then the output is "stock_level":
       | sku      | location   | on_hand | reserved | available |
       | WIDGET-1 | AMS-B-0142 | 500     | 100      | 400       |
 
@@ -83,4 +16,31 @@ Feature: Read the stock of a SKU at a location
       | purchasing_system    |
       | warehouse_staff      |
       | warehouse_supervisor |
-      | clock                |
+
+  Scenario: A SKU with no stored level is unknown
+    When I run "get_stock" with:
+      | caller.role  | sku         | location   |
+      | order_system | NO-SUCH-SKU | AMS-B-0142 |
+    Then the output is "unknown_sku":
+      | error_code  | sku         |
+      | UNKNOWN_SKU | NO-SUCH-SKU |
+
+  Scenario: A location of no warehouse is unknown
+    When I run "get_stock" with:
+      | caller.role  | sku      | location   |
+      | order_system | WIDGET-1 | ZZZ-Z-9999 |
+    Then the output is "unknown_location":
+      | error_code       | location   |
+      | UNKNOWN_LOCATION | ZZZ-Z-9999 |
+
+  Scenario: A loaded level of another SKU is rejected
+    When I run "get_stock" with:
+      | caller.role  | sku      | location   | stored_level                                                                                     |
+      | order_system | GADGET-2 | AMS-B-0142 | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400} |
+    Then the input is rejected by "level_is_the_query" of "stock_query"
+
+  Scenario: A query with no caller is rejected
+    When I run "get_stock" with:
+      | sku      | location   |
+      | WIDGET-1 | AMS-B-0142 |
+    Then the input is rejected by "required" of "stock_query"

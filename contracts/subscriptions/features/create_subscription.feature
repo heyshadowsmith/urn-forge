@@ -1,212 +1,96 @@
-@urn-forge:strict
-@urn:corpus:subscriptions:subscription:operation:create_subscription
 Feature: Create a subscription
+  Staff with the billing-admin role subscribe a customer to a plan, which the shell loads. The time
+  of the call is now; the day of the request is its UTC date. The harness checks each answer against
+  the rules of its output: the status, the trial, the trial notice and the events.
 
-  Scenario Outline: A subscription without a trial is active and bills its first invoice
-    Given the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id   | plan_id   | quantity   | idempotency_key   |
-      | <customer_id> | <plan_id> | <quantity> | <idempotency_key> |
-    Then the output is:
-      | subscription_id              | customer_id   | quantity   | status | trial_end | trial_will_end_sent_at |
-      | sub_nnnnnnnnnnnnnnnnnnnnnnnn | <customer_id> | <quantity> | active |           |                        |
-    And the operation emits "urn:corpus:subscriptions:subscription:event:created":
-      | subscription_id              | occurred_at          |
-      | sub_nnnnnnnnnnnnnnnnnnnnnnnn | 2026-11-22T10:00:00Z |
-    And the operation emits "urn:corpus:subscriptions:invoice:event:created":
-      | subscription_id              | invoice_id |
-      | sub_nnnnnnnnnnnnnnnnnnnnnnnn | in_1       |
-    And the operation emits "urn:corpus:subscriptions:invoice:event:paid":
-      | subscription_id              | invoice_id |
-      | sub_nnnnnnnnnnnnnnnnnnnnnnnn | in_1       |
-    And the operation emits no "urn:corpus:subscriptions:subscription:event:trial_will_end"
+  Scenario Outline: A subscription without a trial is active, starts its period now and bills its first invoice
+    When I run "create_subscription" with:
+      | customer_id | plan_id    | quantity   | trial_days   | idempotency_key   | caller.caller_kind | caller.staff_roles | now                  | plan                                                                                                         |
+      | cus_1       | plan_basic | <quantity> | <trial_days> | <idempotency_key> | staff              | [billing-admin]    | 2026-11-22T10:00:00Z | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} |
+    Then the output is "subscription_change"
 
     Examples:
-      | customer_id | plan_id                    | quantity | idempotency_key   |
-      | cus_1       | plan_basic                 | 1        |                   |
-      | c           | plan_a                     | 10000    | k                 |
-      | cus_1       | ="plan_" + repeat(40, "x") | 3        | =repeat(255, "k") |
-      | cus_1       | plan_pro-yearly-2          | 2        |                   |
+      | quantity | trial_days | idempotency_key |
+      | 1        |            |                 |
+      | 10000    | 0          | k               |
 
-  Scenario Outline: The subscription shows the billing period of its plan
-    Given the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id   | quantity |
-      | cus_1       | <plan_id> | 1        |
-    Then the output is:
-      | plan   |
-      | <plan> |
+  Scenario: The first period of a monthly plan ends on the last day of a shorter month
+    When I run "create_subscription" with:
+      | customer_id | plan_id    | quantity | caller.caller_kind | caller.staff_roles | now                  | plan                                                                                                         |
+      | cus_1       | plan_basic | 2        | staff              | [billing-admin]    | 2026-01-31T10:00:00Z | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} |
+    Then the output is "subscription_change":
+      | subscription |
+      | {"subscription_id": "sub_1c6xsp00k30tv30k5231i06n", "customer_id": "cus_1", "plan": {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}}, "plan_id": "plan_basic", "quantity": 2, "subscription_status": "active", "current_period_start": "2026-01-31T10:00:00Z", "current_period_end": "2026-02-28T10:00:00Z"} |
 
-    Examples:
-      | plan_id                  | plan                                                                                                                  |
-      | plan_pro-yearly-2        | { plan_id: plan_pro-yearly-2, billing_period: year, interval_count: 1, price: { amount_minor: 1500, currency: EUR } }        |
-      | plan_team-quarterly      | { plan_id: plan_team-quarterly, billing_period: month, interval_count: 3, price: { amount_minor: 1500, currency: EUR } }     |
-      | plan_team-annual-monthly | { plan_id: plan_team-annual-monthly, billing_period: month, interval_count: 12, price: { amount_minor: 1500, currency: EUR } } |
+  Scenario: A trial of 14 days ends 14 days after today and is left to the clock
+    When I run "create_subscription" with:
+      | customer_id | plan_id             | quantity | trial_days | caller.caller_kind | caller.staff_roles | now                  | plan                                                                                                                  |
+      | cus_1       | plan_team-quarterly | 1        | 14         | staff              | [billing-admin]    | 2026-11-30T10:00:00Z | {"plan_id": "plan_team-quarterly", "billing_period": "month", "interval_count": 3, "price": {"amount_minor": 4500, "currency": "EUR"}} |
+    Then the output is "subscription_change":
+      | subscription |
+      | {"subscription_id": "sub_0waf70n1w60jsy1esislt0py", "customer_id": "cus_1", "plan": {"plan_id": "plan_team-quarterly", "billing_period": "month", "interval_count": 3, "price": {"amount_minor": 4500, "currency": "EUR"}}, "plan_id": "plan_team-quarterly", "quantity": 1, "subscription_status": "trialing", "current_period_start": "2026-11-30T10:00:00Z", "current_period_end": "2027-02-28T10:00:00Z", "trial_end": "2026-12-14"} |
 
-  Scenario Outline: Trial days of 0 make an active subscription, and more than 0 a trialing one
-    Given the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_days   |
-      | cus_1       | plan_basic | 1        | <trial_days> |
-    Then the output is:
-      | status   | trial_end   |
-      | <status> | <trial_end> |
-
-    Examples:
-      | trial_days | status   | trial_end  |
-      | 0          | active   |            |
-      | 14         | trialing | 2026-12-06 |
-      | 730        | trialing | 2028-11-21 |
-
-  Scenario: Trial days count from today, the UTC date of the time of the request
-    Given the time is "2026-11-23T00:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_days |
-      | cus_1       | plan_basic | 1        | 2          |
-    Then the output is:
-      | status   | trial_end  | trial_will_end_sent_at |
-      | trialing | 2026-11-25 | 2026-11-23T00:00:00Z   |
-    And the operation emits "urn:corpus:subscriptions:subscription:event:trial_will_end":
-      | subscription_id              |
-      | sub_nnnnnnnnnnnnnnnnnnnnnnnn |
-
-  Scenario Outline: A trial shorter than 3 days announces its end at once, and keeps the mark so that the clock does not announce it again
-    Given the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_days   | trial_end   |
-      | cus_1       | plan_basic | 1        | <trial_days> | <trial_end> |
-    Then the output is:
-      | status   | trial_will_end_sent_at |
-      | trialing | 2026-11-22T10:00:00Z   |
-    And the operation emits "urn:corpus:subscriptions:subscription:event:trial_will_end":
-      | subscription_id              |
-      | sub_nnnnnnnnnnnnnnnnnnnnnnnn |
-    And the operation emits no "urn:corpus:subscriptions:invoice:event:created"
-    And the operation emits no "urn:corpus:subscriptions:invoice:event:paid"
+  Scenario Outline: A trial that ends less than 3 days after today is announced at once and marked
+    When I run "create_subscription" with:
+      | customer_id | plan_id    | quantity | trial_days   | trial_end   | caller.caller_kind | caller.staff_roles | now                  | plan                                                                                                         |
+      | cus_1       | plan_basic | 1        | <trial_days> | <trial_end> | staff              | [billing-admin]    | 2026-11-22T10:00:00Z | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} |
+    Then the output is "subscription_change"
 
     Examples:
       | trial_days | trial_end  |
       | 2          |            |
       |            | 2026-11-23 |
       |            | 2026-11-24 |
+      | 3          |            |
+      |            | 2026-11-25 |
+      | 730        |            |
 
-  Scenario Outline: An explicit trial end in the window is accepted; a trial of 3 days or more is left to the clock, with no mark
-    Given the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_end   |
-      | cus_1       | plan_basic | 1        | <trial_end> |
-    Then the output is:
-      | status   | trial_end   | trial_will_end_sent_at |
-      | trialing | <trial_end> |                        |
-    And the operation emits "urn:corpus:subscriptions:subscription:event:created"
-    And the operation emits no "urn:corpus:subscriptions:subscription:event:trial_will_end"
-    And the operation emits no "urn:corpus:subscriptions:invoice:event:created"
-    And the operation emits no "urn:corpus:subscriptions:invoice:event:paid"
+  Scenario Outline: An explicit trial end from tomorrow to 730 days after today is accepted, at either edge of the day
+    When I run "create_subscription" with:
+      | customer_id | plan_id    | quantity | trial_end   | caller.caller_kind | caller.staff_roles | now   | plan                                                                                                         |
+      | cus_1       | plan_basic | 1        | <trial_end> | staff              | [billing-admin]    | <now> | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} |
+    Then the output is "subscription_change"
 
     Examples:
-      | trial_end  |
-      | 2028-11-21 |
-      | 2026-11-25 |
+      | now                  | trial_end  |
+      | 2026-11-22T10:00:00Z | 2026-11-23 |
+      | 2026-11-22T10:00:00Z | 2028-11-21 |
+      | 2026-11-22T23:59:59Z | 2026-11-23 |
+      | 2026-11-22T00:00:00Z | 2028-11-21 |
 
-  Scenario Outline: A request that breaks a field limit is rejected
-    Given the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id   | plan_id   | quantity   | trial_days   | idempotency_key   |
-      | <customer_id> | <plan_id> | <quantity> | <trial_days> | <idempotency_key> |
-    Then the input is rejected on "<field>"
-
-    Examples:
-      | field           | customer_id | plan_id                                | quantity | trial_days | idempotency_key   |
-      | customer_id     | ""          | plan_basic                             | 1        |            |                   |
-      | plan_id         | cus_1       | plan_                                  | 1        |            |                   |
-      | plan_id         | cus_1       | ="plan_" + repeat(41, "x")  | 1        |            |                   |
-      | plan_id         | cus_1       | plan_Basic                             | 1        |            |                   |
-      | plan_id         | cus_1       | basic                                  | 1        |            |                   |
-      | quantity        | cus_1       | plan_basic                             | 0        |            |                   |
-      | quantity        | cus_1       | plan_basic                             | 10001    |            |                   |
-      | quantity        | cus_1       | plan_basic                             | 1.5      |            |                   |
-      | trial_days      | cus_1       | plan_basic                             | 1        | -1         |                   |
-      | trial_days      | cus_1       | plan_basic                             | 1        | 731        |                   |
-      | idempotency_key | cus_1       | plan_basic                             | 1        |            | ""                |
-      | idempotency_key | cus_1       | plan_basic                             | 1        |            | =repeat(256, "k") |
-
-  Scenario: Trial days and a trial end together are rejected
-    Given the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_days | trial_end  |
-      | cus_1       | plan_basic | 1        | 14         | 2026-12-06 |
-    Then the input is rejected by "urn:corpus:subscriptions:subscription:invariant:trial_days_or_trial_end"
-
-  Scenario Outline: A trial end that is not after today, or more than 730 days after today, is refused, at 2026-11-22T10:00:00Z
-    Given the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_end   |
-      | cus_1       | plan_basic | 1        | <trial_end> |
-    Then the operation fails with "urn:corpus:subscriptions:subscription:error:invalid_trial_end":
-      | trial_end   |
-      | <trial_end> |
-    And the operation emits no event
+  Scenario Outline: A trial end today or before, or more than 730 days after today, is rejected
+    When I run "create_subscription" with:
+      | customer_id | plan_id    | quantity | trial_end   | caller.caller_kind | caller.staff_roles | now   | plan                                                                                                         |
+      | cus_1       | plan_basic | 1        | <trial_end> | staff              | [billing-admin]    | <now> | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} |
+    Then the input is rejected by "trial_end_in_window" of "create_request"
 
     Examples:
-      | trial_end  |
-      | 2026-11-22 |
-      | 2026-11-01 |
-      | 2028-11-22 |
+      | now                  | trial_end  |
+      | 2026-11-22T10:00:00Z | 2026-11-22 |
+      | 2026-11-22T10:00:00Z | 2026-11-01 |
+      | 2026-11-22T10:00:00Z | 2028-11-22 |
+      | 2026-11-23T00:00:00Z | 2026-11-23 |
+      | 2026-11-21T23:59:59Z | 2028-11-21 |
 
-  Scenario Outline: A trial end that is not after today, or more than 730 days after today, is refused, at 2026-11-23T00:00:00Z
-    Given the time is "2026-11-23T00:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_end   |
-      | cus_1       | plan_basic | 1        | <trial_end> |
-    Then the operation fails with "urn:corpus:subscriptions:subscription:error:invalid_trial_end":
-      | trial_end   |
-      | <trial_end> |
-    And the operation emits no event
+  Scenario: A request with trial days and a trial end is rejected
+    When I run "create_subscription" with:
+      | customer_id | plan_id    | quantity | trial_days | trial_end  | caller.caller_kind | caller.staff_roles | now                  | plan                                                                                                         |
+      | cus_1       | plan_basic | 1        | 14         | 2026-12-06 | staff              | [billing-admin]    | 2026-11-22T10:00:00Z | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} |
+    Then the input is rejected by "trial_days_or_trial_end" of "create_request"
 
-    Examples:
-      | trial_end  |
-      | 2026-11-23 |
-      | 2028-11-23 |
+  Scenario: A request that names another plan than the one loaded is rejected
+    When I run "create_subscription" with:
+      | customer_id | plan_id  | quantity | caller.caller_kind | caller.staff_roles | now                  | plan                                                                                                         |
+      | cus_1       | plan_pro | 1        | staff              | [billing-admin]    | 2026-11-22T10:00:00Z | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} |
+    Then the input is rejected by "names_the_plan" of "create_request"
 
-  Scenario Outline: Today is the UTC date of the time of the request, at 2026-11-22T23:59:59.999Z
-    Given the time is "2026-11-22T23:59:59.999Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_end   |
-      | cus_1       | plan_basic | 1        | <trial_end> |
-    Then the output is:
-      | status   | trial_end   |
-      | trialing | <trial_end> |
-
-    Examples:
-      | trial_end  |
-      | 2026-11-23 |
-
-  Scenario Outline: Today is the UTC date of the time of the request, at 2026-11-23T00:00:00Z
-    Given the time is "2026-11-23T00:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity | trial_end   |
-      | cus_1       | plan_basic | 1        | <trial_end> |
-    Then the output is:
-      | status   | trial_end   |
-      | trialing | <trial_end> |
-
-    Examples:
-      | trial_end  |
-      | 2026-11-24 |
-      | 2028-11-22 |
-
-  Scenario Outline: A second subscription of a customer to a plan that it has a live subscription to is a conflict, and nothing changes
-    Given these subscription records are stored:
-      | subscription_id              | customer_id | plan_id    | status   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | plan_basic | <status> |
-    And the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity |
-      | cus_1       | plan_basic | 1        |
-    Then the operation fails with "urn:corpus:subscriptions:subscription:error:conflict":
+  Scenario Outline: A customer with a live subscription to the plan gets conflict
+    When I run "create_subscription" with:
+      | customer_id | plan_id    | quantity | caller.caller_kind | caller.staff_roles | now                  | plan                                                                                                         | existing_subscription.subscription_id | existing_subscription.customer_id | existing_subscription.plan                                                                                   | existing_subscription.plan_id | existing_subscription.quantity | existing_subscription.subscription_status | existing_subscription.current_period_start | existing_subscription.current_period_end |
+      | cus_1       | plan_basic | 1        | staff              | [billing-admin]    | 2026-11-22T10:00:00Z | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | sub_aaaaaaaaaaaaaaaaaaaaaaaa          | cus_1                             | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic                    | 1                              | <status>                                  | 2026-11-01T00:00:00Z                       | 2026-12-01T00:00:00Z                     |
+    Then the output is "conflict":
       | customer_id | plan_id    |
       | cus_1       | plan_basic |
-    And nothing changes
 
     Examples:
       | status   |
@@ -215,106 +99,72 @@ Feature: Create a subscription
       | past_due |
       | paused   |
 
-  Scenario Outline: A canceled or expired subscription of the customer to the plan does not stop a new one
-    Given these subscription records are stored:
-      | subscription_id              | customer_id | plan_id    | status   |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | cus_1       | plan_basic | <status> |
-    And the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity |
-      | cus_1       | plan_basic | 1        |
-    Then the output is:
-      | subscription_id              | customer_id | plan_id    | status |
-      | sub_nnnnnnnnnnnnnnnnnnnnnnnn | cus_1       | plan_basic | active |
-    And the operation emits "urn:corpus:subscriptions:subscription:event:created"
+  Scenario Outline: An existing subscription that is not the customer's live one to the plan is rejected
+    When I run "create_subscription" with:
+      | customer_id | plan_id    | quantity | caller.caller_kind | caller.staff_roles | now                  | plan                                                                                                         | existing_subscription.subscription_id | existing_subscription.customer_id | existing_subscription.plan                                                                                   | existing_subscription.plan_id | existing_subscription.quantity | existing_subscription.subscription_status | existing_subscription.current_period_start | existing_subscription.current_period_end |
+      | cus_1       | plan_basic | 1        | staff              | [billing-admin]    | 2026-11-22T10:00:00Z | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | sub_aaaaaaaaaaaaaaaaaaaaaaaa          | <customer_id>                     | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} | plan_basic                    | 1                              | <status>                                  | 2026-11-01T00:00:00Z                       | 2026-12-01T00:00:00Z                     |
+    Then the input is rejected by "existing_is_the_customers_live_one" of "create_request"
 
     Examples:
-      | status   |
-      | canceled |
-      | expired  |
+      | customer_id | status   |
+      | cus_2       | active   |
+      | cus_1       | canceled |
+      | cus_1       | expired  |
 
-  Scenario Outline: A live subscription to another plan, or of another customer, does not stop a new one
-    Given these subscription records are stored:
-      | subscription_id              | customer_id   | plan_id   | status |
-      | sub_aaaaaaaaaaaaaaaaaaaaaaaa | <customer_id> | <plan_id> | active |
-    And the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity |
-      | cus_1       | plan_basic | 1        |
-    Then the output is:
-      | subscription_id              | customer_id | plan_id    | status |
-      | sub_nnnnnnnnnnnnnnnnnnnnnnnn | cus_1       | plan_basic | active |
+  Scenario Outline: Only staff with the billing-admin role may create a subscription
+    When I run "create_subscription" with:
+      | customer_id | plan_id    | quantity | caller.caller_kind | caller.customer_id | caller.staff_roles | now                  | plan                                                                                                         |
+      | cus_1       | plan_basic | 1        | <kind>             | <customer>         | <roles>            | 2026-11-22T10:00:00Z | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} |
+    Then the output is "forbidden":
+      | caller   |
+      | <caller> |
 
     Examples:
-      | customer_id | plan_id         |
-      | cus_1       | plan_pro-yearly |
-      | cus_2       | plan_basic      |
+      | kind     | customer | roles     | caller                                                |
+      | customer | cus_1    |           | {"caller_kind": "customer", "customer_id": "cus_1"}  |
+      | staff    |          | [support] | {"caller_kind": "staff", "staff_roles": ["support"]} |
+      | staff    |          |           | {"caller_kind": "staff"}                              |
+      | clock    |          |           | {"caller_kind": "clock"}                              |
 
-  Scenario: A repeat of the same key and the same body within 24 hours returns the first answer and has no second effect
-    Given the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity | idempotency_key |
-      | cus_1       | plan_basic | 1        | key-1           |
-    And the time is "2026-11-23T09:59:59Z"
-    And I run the operation again with:
-      | customer_id | plan_id    | quantity | idempotency_key |
-      | cus_1       | plan_basic | 1        | key-1           |
-    Then the answer is the first answer
-    And the operation emits no event
-
-  Scenario: A repeat of the same key with a different body within 24 hours is refused with conflict
-    Given the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity | idempotency_key |
-      | cus_1       | plan_basic | 1        | key-1           |
-    And I run the operation again with:
-      | customer_id | plan_id    | quantity | idempotency_key |
-      | cus_1       | plan_basic | 2        | key-1           |
-    Then the operation fails with "urn:corpus:subscriptions:request:error:conflict":
-      | idempotency_key |
-      | key-1           |
-    And the operation emits no event
-
-  Scenario: After 24 hours the same key is free, and the request runs again
-    Given the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity | idempotency_key |
-      | cus_1       | plan_basic | 1        | key-1           |
-    And the time is "2026-11-23T10:00:00Z"
-    And I run the operation again with:
-      | customer_id | plan_id    | quantity | idempotency_key |
-      | cus_1       | plan_basic | 1        | key-1           |
-    Then the operation emits "urn:corpus:subscriptions:subscription:event:created"
-
-  Scenario: A repeat without a key is a new request, and runs again
-    Given the time is "2026-11-22T10:00:00Z"
-    When I run the operation with:
-      | customer_id | plan_id    | quantity |
-      | cus_1       | plan_basic | 1        |
-    And I run the operation again with:
-      | customer_id | plan_id    | quantity |
-      | cus_1       | plan_basic | 1        |
-    Then the operation emits "urn:corpus:subscriptions:subscription:event:created"
-
-  Scenario Outline: The first period starts now and ends the plan's number of calendar months later, on the last day of a month that lacks the start's day
-    Given the time is "<now>"
-    When I run the operation with:
-      | customer_id | plan_id   | quantity | trial_days   |
-      | cus_1       | <plan_id> | 1        | <trial_days> |
-    Then the output is:
-      | current_period_start | current_period_end   |
-      | <now>                | <current_period_end> |
+  Scenario Outline: A request that breaks a limit is rejected
+    When I run "create_subscription" with:
+      | customer_id   | plan_id   | quantity   | trial_days   | trial_end   | idempotency_key   | caller.caller_kind | caller.staff_roles | now   | plan                                                                                                         |
+      | <customer_id> | <plan_id> | <quantity> | <trial_days> | <trial_end> | <idempotency_key> | staff              | [billing-admin]    | <now> | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} |
+    Then the input is rejected by "<rule>" of "<definition>"
 
     Examples:
-      | now                  | plan_id                  | trial_days | current_period_end   |
-      | 2026-01-31T10:00:00Z | plan_basic               |            | 2026-02-28T10:00:00Z |
-      | 2028-01-31T10:00:00Z | plan_basic               |            | 2028-02-29T10:00:00Z |
-      | 2026-03-31T10:00:00Z | plan_basic               |            | 2026-04-30T10:00:00Z |
-      | 2026-05-31T00:00:00Z | plan_basic               | 14         | 2026-06-30T00:00:00Z |
-      | 2026-12-31T23:59:59Z | plan_basic               |            | 2027-01-31T23:59:59Z |
-      | 2026-01-30T10:00:00Z | plan_basic               |            | 2026-02-28T10:00:00Z |
-      | 2026-02-28T10:00:00Z | plan_basic               |            | 2026-03-28T10:00:00Z |
-      | 2026-11-22T10:00:00Z | plan_basic               |            | 2026-12-22T10:00:00Z |
-      | 2026-11-30T10:00:00Z | plan_team-quarterly      |            | 2027-02-28T10:00:00Z |
-      | 2026-01-31T10:00:00Z | plan_team-annual-monthly |            | 2027-01-31T10:00:00Z |
-      | 2028-02-29T10:00:00Z | plan_pro-yearly          |            | 2029-02-28T10:00:00Z |
+      | rule      | definition      | customer_id | plan_id    | quantity | trial_days | trial_end  | idempotency_key | now                       |
+      | minLength | customer_id     | ""          | plan_basic | 1        |            |            |                 | 2026-11-22T10:00:00Z      |
+      | pattern   | plan_id         | cus_1       | plan_Basic | 1        |            |            |                 | 2026-11-22T10:00:00Z      |
+      | pattern   | plan_id         | cus_1       | basic      | 1        |            |            |                 | 2026-11-22T10:00:00Z      |
+      | pattern   | plan_id         | cus_1       | plan_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx | 1 |  |      |                 | 2026-11-22T10:00:00Z      |
+      | minimum   | quantity        | cus_1       | plan_basic | 0        |            |            |                 | 2026-11-22T10:00:00Z      |
+      | maximum   | quantity        | cus_1       | plan_basic | 10001    |            |            |                 | 2026-11-22T10:00:00Z      |
+      | minimum   | trial_days      | cus_1       | plan_basic | 1        | -1         |            |                 | 2026-11-22T10:00:00Z      |
+      | maximum   | trial_days      | cus_1       | plan_basic | 1        | 731        |            |                 | 2026-11-22T10:00:00Z      |
+      | format    | trial_end       | cus_1       | plan_basic | 1        |            | 2026/12/01 |                 | 2026-11-22T10:00:00Z      |
+      | minLength | idempotency_key | cus_1       | plan_basic | 1        |            |            | ""              | 2026-11-22T10:00:00Z      |
+      | maxLength | idempotency_key | cus_1       | plan_basic | 1        |            |            | kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk | 2026-11-22T10:00:00Z |
+      | format    | utc_time        | cus_1       | plan_basic | 1        |            |            |                 | 2026-11-22 10:00:00       |
+      | pattern   | utc_time        | cus_1       | plan_basic | 1        |            |            |                 | 2026-11-22T10:00:00+01:00 |
+
+  Scenario Outline: A caller that breaks a rule is rejected
+    When I run "create_subscription" with:
+      | customer_id | plan_id    | quantity | caller.caller_kind | caller.customer_id | caller.staff_roles | now                  | plan                                                                                                         |
+      | cus_1       | plan_basic | 1        | <kind>             | <customer>         | <roles>            | 2026-11-22T10:00:00Z | {"plan_id": "plan_basic", "billing_period": "month", "interval_count": 1, "price": {"amount_minor": 1500, "currency": "EUR"}} |
+    Then the input is rejected by "<rule>" of "<definition>"
+
+    Examples:
+      | rule                | definition  | kind     | customer | roles                          |
+      | enum                | caller_kind | robot    |          |                                |
+      | required            | caller      |          | cus_1    |                                |
+      | customer_has_id     | caller      | customer |          |                                |
+      | roles_are_for_staff | caller      | customer | cus_1    | [billing-admin]                |
+      | minLength           | staff_role  | staff    |          | [""]                           |
+      | uniqueItems         | staff_roles | staff    |          | [billing-admin, billing-admin] |
+
+  Scenario: A request with no plan is rejected
+    When I run "create_subscription" with:
+      | customer_id | plan_id    | quantity | caller.caller_kind | caller.staff_roles | now                  |
+      | cus_1       | plan_basic | 1        | staff              | [billing-admin]    | 2026-11-22T10:00:00Z |
+    Then the input is rejected by "required" of "create_request"

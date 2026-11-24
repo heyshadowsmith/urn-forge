@@ -1,251 +1,75 @@
-@urn-forge:strict
-Feature: Transfer a ticket
+Feature: Transfer a ticket to a recipient
+  The buyer of an ISSUED ticket offers it to a recipient until 2 hours before the event starts. The recipient
+  accepts it within 72 hours of the offer, and gets a new ticket code for the same place; the old code is VOID.
 
-  @urn:corpus:ticketing:transfer:operation:transfer_ticket
-  Scenario: An ISSUED ticket is offered to a recipient for 72 hours
-    Given the time is "2026-12-01T19:00:00Z"
-    And the current ticket is:
-      | ticket_code      | event_id                             | place_kind | section | row | seat_number | ticket_status    | price                                 | starts_at            |
-      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | seated     | A1      | C   | 12          | ISSUED           | { amount_minor: 5000, currency: EUR } | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | ticket_code      | recipient_email   |
-      | ABCDEFGH23456789 | friend@example.com |
-    Then the output is:
-      | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-01T19:00:00Z | 2026-12-04T19:00:00Z |
+  Scenario: An ISSUED ticket is offered for 72 hours, and is TRANSFER_PENDING
+    When I run "transfer_ticket" with:
+      | ticket_code      | recipient_email | caller                                       | called_at            | stored_ticket                                                                                                                                                                                                                                                     | show                                                                                                                                            |
+      | ABCDEFGH23456789 | cy@example.com  | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-01T19:00:00Z | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}} | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+    Then the output is "offered_transfer":
+      | transfer                                                                                                                                                                                                      | pending_ticket                                                           |
+      | {"transfer_id": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", "ticket_code": "ABCDEFGH23456789", "recipient_email": "cy@example.com", "offered_at": "2026-12-01T19:00:00Z", "accept_until": "2026-12-04T19:00:00Z"} | {"ticket_code": "ABCDEFGH23456789", "ticket_status": "TRANSFER_PENDING"} |
 
-  @urn:corpus:ticketing:transfer:operation:transfer_ticket
-  Scenario Outline: A ticket code or an email that is not valid is rejected at the boundary
-    Given the time is "2026-12-01T19:00:00Z"
-    And the current ticket is:
-      | ticket_code      | event_id                             | place_kind | section | row | seat_number | ticket_status    | price                                 | starts_at            |
-      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | seated     | A1      | C   | 12          | ISSUED           | { amount_minor: 5000, currency: EUR } | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | ticket_code   | recipient_email   |
-      | <ticket_code> | <recipient_email> |
-    Then the input is rejected on "<field>"
+  Scenario: A transfer just before 2 hours before the start is offered
+    When I run "transfer_ticket" with:
+      | ticket_code      | recipient_email | caller                                       | called_at                | stored_ticket                                                                                                                                                                                                                                                     | show                                                                                                                                            |
+      | ABCDEFGH23456789 | cy@example.com  | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-12T17:59:59.999Z | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}} | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+    Then the output is "offered_transfer"
 
-    Examples:
-      | field           | ticket_code      | recipient_email    |
-      | ticket_code     | ABCDEFGHI3456789 | friend@example.com |
-      | ticket_code     | ABCDEFGH2345678  | friend@example.com |
-      | recipient_email | ABCDEFGH23456789 | not-an-email       |
-
-  @urn:corpus:ticketing:transfer:operation:transfer_ticket
-  Scenario Outline: Only an ISSUED ticket can be transferred; USED, REFUNDED and VOID are final
-    Given the time is "2026-12-01T19:00:00Z"
-    And the current ticket is:
-      | ticket_code      | event_id                             | place_kind | section | row | seat_number | ticket_status    | price                                 | starts_at            |
-      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | seated     | A1      | C   | 12          | <ticket_status>          | { amount_minor: 5000, currency: EUR } | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | ticket_code      | recipient_email    |
-      | ABCDEFGH23456789 | friend@example.com |
-    Then the operation fails with "urn:corpus:ticketing:ticket:error:invalid_ticket_state":
-      | ticket_code      | ticket_status |
-      | ABCDEFGH23456789 | <ticket_status>       |
-    And the operation emits no event
-
-    Examples:
-      | ticket_status    |
-      | TRANSFER_PENDING |
-      | USED             |
-      | REFUNDED         |
-      | VOID             |
-
-  @urn:corpus:ticketing:transfer:operation:transfer_ticket
-  Scenario: A transfer a millisecond before 2 hours before the start of the event is accepted
-    Given the time is "2026-12-12T17:59:59.999Z"
-    And the current ticket is:
-      | ticket_code      | event_id                             | place_kind | section | row | seat_number | ticket_status    | price                                 | starts_at            |
-      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | seated     | A1      | C   | 12          | ISSUED           | { amount_minor: 5000, currency: EUR } | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | ticket_code      | recipient_email    |
-      | ABCDEFGH23456789 | friend@example.com |
-    Then the output is:
-      | ticket_code      | recipient_email    | offered_at               | accept_until             |
-      | ABCDEFGH23456789 | friend@example.com | 2026-12-12T17:59:59.999Z | 2026-12-15T17:59:59.999Z |
-
-  @urn:corpus:ticketing:transfer:operation:transfer_ticket
-  Scenario: A transfer at 2 hours before the start of the event is refused
-    Given the time is "2026-12-12T18:00:00Z"
-    And the current ticket is:
-      | ticket_code      | event_id                             | place_kind | section | row | seat_number | ticket_status    | price                                 | starts_at            |
-      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | seated     | A1      | C   | 12          | ISSUED           | { amount_minor: 5000, currency: EUR } | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | ticket_code      | recipient_email    |
-      | ABCDEFGH23456789 | friend@example.com |
-    Then the operation fails with "urn:corpus:ticketing:transfer:error:transfer_window_closed":
+  Scenario: A transfer 2 hours before the start is refused with TRANSFER_WINDOW_CLOSED
+    When I run "transfer_ticket" with:
+      | ticket_code      | recipient_email | caller                                       | called_at            | stored_ticket                                                                                                                                                                                                                                                     | show                                                                                                                                            |
+      | ABCDEFGH23456789 | cy@example.com  | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-12T18:00:00Z | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}} | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+    Then the output is "transfer_window_closed":
       | ticket_code      | starts_at            |
       | ABCDEFGH23456789 | 2026-12-12T20:00:00Z |
-    And the operation emits no event
 
-  @urn:corpus:ticketing:transfer:operation:transfer_ticket
-  Scenario: A transfer after the start of the event is refused
-    Given the time is "2026-12-12T21:00:00Z"
-    And the current ticket is:
-      | ticket_code      | event_id                             | place_kind | section | row | seat_number | ticket_status    | price                                 | starts_at            |
-      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | seated     | A1      | C   | 12          | ISSUED           | { amount_minor: 5000, currency: EUR } | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | ticket_code      | recipient_email    |
-      | ABCDEFGH23456789 | friend@example.com |
-    Then the operation fails with "urn:corpus:ticketing:transfer:error:transfer_window_closed":
-      | ticket_code      | starts_at            |
-      | ABCDEFGH23456789 | 2026-12-12T20:00:00Z |
-    And the operation emits no event
+  Scenario: An unknown ticket is refused with TICKET_NOT_FOUND
+    When I run "transfer_ticket" with:
+      | ticket_code      | recipient_email | caller                                       | called_at            |
+      | ABCDEFGH23456789 | cy@example.com  | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-01T19:00:00Z |
+    Then the output is "ticket_not_found":
+      | ticket_code      |
+      | ABCDEFGH23456789 |
 
-  @urn:corpus:ticketing:transfer:operation:accept_transfer
-  Scenario: An accepted transfer voids the old code and gives a new code for the same seat
-    Given the time is "2026-12-01T19:00:00Z"
-    And the current transfer is:
-      | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         | starts_at            |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-01T19:00:00Z | 2026-12-04T19:00:00Z | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | transfer_id                          |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
-    Then the output is:
-      | ticket_code      | section | row | seat_number | ticket_status |
-      | NEWXCDE234567892 | A1      | C   | 12          | ISSUED        |
-    And the operation emits "urn:corpus:ticketing:ticket:event:ticket_transferred":
-      | message_id                           | event_id                             | ticket_code      | void_ticket_code | occurred_at          |
-      | 00000000-0000-4000-8000-000000000001 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | NEWXCDE234567892 | ABCDEFGH23456789 | 2026-12-01T19:00:00Z |
+  Scenario: Another buyer than the owner of the ticket is refused with FORBIDDEN
+    When I run "transfer_ticket" with:
+      | ticket_code      | recipient_email | caller                                       | called_at            | stored_ticket                                                                                                                                                                                                                                                     | show                                                                                                                                            |
+      | ABCDEFGH23456789 | cy@example.com  | {"caller_id": "bob", "caller_role": "buyer"} | 2026-12-01T19:00:00Z | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}} | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+    Then the output is "forbidden":
+      | caller_id |
+      | bob       |
 
-  @urn:corpus:ticketing:transfer:operation:accept_transfer
-  Scenario: A transfer identifier that is not a UUID is rejected at the boundary when accepting
-    Given the time is "2026-12-01T19:00:00Z"
-    And the current transfer is:
-      | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         | starts_at            |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-01T19:00:00Z | 2026-12-04T19:00:00Z | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | transfer_id |
-      | transfer-1  |
-    Then the input is rejected on "transfer_id"
-
-  @urn:corpus:ticketing:transfer:operation:accept_transfer
-  Scenario: A transfer accepted a millisecond before 2 hours before the start of the event becomes the recipient's ticket
-    Given the time is "2026-12-12T17:59:59.999Z"
-    And the current transfer is:
-      | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         | starts_at            |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-10T19:00:00Z | 2026-12-13T19:00:00Z | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | transfer_id                          |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
-    Then the output is:
+  Scenario Outline: A ticket that is not ISSUED is refused with INVALID_TICKET_STATE
+    When I run "transfer_ticket" with:
+      | ticket_code      | recipient_email | caller                                       | called_at            | stored_ticket | show                                                                                                                                            |
+      | ABCDEFGH23456789 | cy@example.com  | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-01T19:00:00Z | <ticket>      | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+    Then the output is "invalid_ticket_state":
       | ticket_code      | ticket_status |
-      | NEWXCDE234567892 | ISSUED        |
-
-  @urn:corpus:ticketing:transfer:operation:accept_transfer
-  Scenario: A transfer accepted at 2 hours before the start of the event is refused
-    Given the time is "2026-12-12T18:00:00Z"
-    And the current transfer is:
-      | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         | starts_at            |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-10T19:00:00Z | 2026-12-13T19:00:00Z | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | transfer_id                          |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
-    Then the operation fails with "urn:corpus:ticketing:transfer:error:transfer_window_closed":
-      | ticket_code      | starts_at            |
-      | ABCDEFGH23456789 | 2026-12-12T20:00:00Z |
-    And the operation emits no event
-
-  @urn:corpus:ticketing:transfer:operation:accept_transfer
-  Scenario: A transfer accepted after the start of the event is refused
-    Given the time is "2026-12-12T21:00:00Z"
-    And the current transfer is:
-      | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         | starts_at            |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-10T19:00:00Z | 2026-12-13T19:00:00Z | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | transfer_id                          |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
-    Then the operation fails with "urn:corpus:ticketing:transfer:error:transfer_window_closed":
-      | ticket_code      | starts_at            |
-      | ABCDEFGH23456789 | 2026-12-12T20:00:00Z |
-    And the operation emits no event
-
-  @urn:corpus:ticketing:transfer:operation:accept_transfer
-  Scenario: A transfer accepted exactly 72 hours after the offer becomes the recipient's ticket
-    Given the time is "2026-12-04T19:00:00Z"
-    And the current transfer is:
-      | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         | starts_at            |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-01T19:00:00Z | 2026-12-04T19:00:00Z | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | transfer_id                          |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
-    Then the output is:
-      | ticket_code      | ticket_status |
-      | NEWXCDE234567892 | ISSUED        |
-    And the operation emits "urn:corpus:ticketing:ticket:event:ticket_transferred":
-      | message_id                           | event_id                             | ticket_code      | void_ticket_code | occurred_at          |
-      | 00000000-0000-4000-8000-000000000001 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | NEWXCDE234567892 | ABCDEFGH23456789 | 2026-12-04T19:00:00Z |
-
-  @urn:corpus:ticketing:transfer:operation:accept_transfer
-  Scenario Outline: A transfer accepted more than 72 hours after the offer is refused
-    Given the time is "<now>"
-    And the current transfer is:
-      | transfer_id                          | ticket_code      | recipient_email    | offered_at           | accept_until         | starts_at            |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | ABCDEFGH23456789 | friend@example.com | 2026-12-01T19:00:00Z | 2026-12-04T19:00:00Z | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | transfer_id                          |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
-    Then the operation fails with "urn:corpus:ticketing:transfer:error:transfer_expired":
-      | transfer_id                          | accept_until         |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d | 2026-12-04T19:00:00Z |
-    And the operation emits no event
+      | ABCDEFGH23456789 | <status>      |
 
     Examples:
-      | now                      |
-      | 2026-12-04T19:00:00.001Z |
-      | 2026-12-10T19:00:00Z     |
+      | status           | ticket                                                                                                                                                                                                                                                                      |
+      | TRANSFER_PENDING | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 5000, "currency": "USD"}} |
+      | USED             | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "USED", "price": {"amount_minor": 5000, "currency": "USD"}}             |
+      | REFUNDED         | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "REFUNDED", "price": {"amount_minor": 5000, "currency": "USD"}}         |
+      | VOID             | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "VOID", "price": {"amount_minor": 5000, "currency": "USD"}}             |
 
-  @urn:corpus:ticketing:transfer:operation:accept_transfer
-  Scenario: An unknown transfer cannot be accepted
-    Given the time is "2026-12-01T19:00:00Z"
-    And there is no current transfer
-    When I run the operation with:
-      | transfer_id                          |
-      | 00000000-0000-4000-8000-000000000404 |
-    Then the operation fails with "urn:corpus:ticketing:transfer:error:transfer_not_found":
-      | transfer_id                          |
-      | 00000000-0000-4000-8000-000000000404 |
-    And the operation emits no event
-
-  @urn:corpus:ticketing:transfer:operation:cancel_transfer
-  Scenario: A cancelled transfer moves the ticket from TRANSFER_PENDING back to ISSUED
-    Given the current ticket is:
-      | ticket_code      | event_id                             | place_kind | section | row | seat_number | ticket_status    | price                                 | starts_at            |
-      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | seated     | A1      | C   | 12          | TRANSFER_PENDING | { amount_minor: 5000, currency: EUR } | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | transfer_id                          |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
-    Then the output is:
-      | ticket_code      | ticket_status |
-      | ABCDEFGH23456789 | ISSUED        |
-    And the operation emits no event
-
-  @urn:corpus:ticketing:transfer:operation:cancel_transfer
-  Scenario: A transfer identifier that is not a UUID is rejected at the boundary when cancelling
-    Given the current ticket is:
-      | ticket_code      | event_id                             | place_kind | section | row | seat_number | ticket_status    | price                                 | starts_at            |
-      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | seated     | A1      | C   | 12          | TRANSFER_PENDING | { amount_minor: 5000, currency: EUR } | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | transfer_id |
-      | transfer-1  |
-    Then the input is rejected on "transfer_id"
-
-  @urn:corpus:ticketing:transfer:operation:cancel_transfer
-  Scenario Outline: Only a TRANSFER_PENDING ticket can go back to ISSUED
-    Given the current ticket is:
-      | ticket_code      | event_id                             | place_kind | section | row | seat_number | ticket_status    | price                                 | starts_at            |
-      | ABCDEFGH23456789 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | seated     | A1      | C   | 12          | <ticket_status>          | { amount_minor: 5000, currency: EUR } | 2026-12-12T20:00:00Z |
-    When I run the operation with:
-      | transfer_id                          |
-      | 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d |
-    Then the operation fails with "urn:corpus:ticketing:ticket:error:invalid_ticket_state":
-      | ticket_code      | ticket_status |
-      | ABCDEFGH23456789 | <ticket_status>       |
+  Scenario Outline: A transfer request that breaks a rule is rejected
+    When I run "transfer_ticket" with:
+      | ticket_code | recipient_email | caller                                       | called_at            | stored_ticket                                                                                                                                                                                                                                                     | show   |
+      | <code>      | <email>         | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-01T19:00:00Z | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}} | <show> |
+    Then the input is rejected by "<rule>" of "<definition>"
 
     Examples:
-      | ticket_status |
-      | ISSUED   |
-      | USED     |
-      | REFUNDED |
-      | VOID     |
+      | rule               | definition       | code             | email          | show                                                                                                                                            |
+      | names_the_ticket   | transfer_request | ZYXWVUTS98765432 | cy@example.com | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+      | show_of_the_ticket | transfer_request | ABCDEFGH23456789 | cy@example.com | {"event_id": "5e0b1c2d-3a4b-4c5d-8e6f-9a0b1c2d3e4f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+      | pattern            | email            | ABCDEFGH23456789 | cy             | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+      | pattern            | ticket_code      | ABCDEFGHIJKLMNOP | cy@example.com | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+
+  Scenario: A stored ticket without its event is rejected
+    When I run "transfer_ticket" with:
+      | ticket_code      | recipient_email | caller                                       | called_at            | stored_ticket                                                                                                                                                                                                                                                     |
+      | ABCDEFGH23456789 | cy@example.com  | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-01T19:00:00Z | {"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}} |
+    Then the input is rejected by "show_of_the_ticket" of "transfer_request"

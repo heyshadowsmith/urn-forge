@@ -1,84 +1,45 @@
-@urn-forge:strict
-@urn:corpus:payments:refund:operation:get_refund
 Feature: Read a refund
 
-  Scenario Outline: A merchant reads its refund with a secret or a read-only key
-    Given the caller is:
-      | key_kind   | merchant_id |
-      | <key_kind> | mer_1       |
-    And the current refund is:
-      | refund_id                   | payment_id                   | merchant_id | amount | currency | captured_amount | refunded_total | created_at           |
-      | re_000000000000000000000001 | pay_partiallyrefunded0000000 | mer_1       | 2000   | EUR      | 5000            | 2000           | 2026-11-22T10:00:00Z |
-    When I run the operation with:
-      | merchant_id | refund_id                   |
-      | mer_1       | re_000000000000000000000001 |
-    Then the output is:
-      | refund_id                   | payment_id                   | merchant_id | amount | currency | captured_amount | refunded_total | created_at           |
-      | re_000000000000000000000001 | pay_partiallyrefunded0000000 | mer_1       | 2000   | EUR      | 5000            | 2000           | 2026-11-22T10:00:00Z |
+  Scenario Outline: A key of the merchant reads its refund as it is stored
+    When I run "get_refund" with:
+      | merchant_id | refund_id                  | stored_refund                                                                                                                                                                                                                                        | caller.key_kind | caller.merchant_id |
+      | m_1         | re_cccccccccccccccccccccccc | {"refund_id": "re_cccccccccccccccccccccccc", "payment_id": "pay_aaaaaaaaaaaaaaaaaaaaaaaa", "merchant_id": "m_1", "amount": 1000, "currency": "EUR", "captured_amount": 5000, "refunded_total": 1000, "created_at": "2026-11-22T10:00:00Z"} | <kind>          | m_1                |
+    Then the output is "refund":
+      | refund_id                  | amount | refunded_total |
+      | re_cccccccccccccccccccccccc | 1000   | 1000           |
 
     Examples:
-      | key_kind  |
+      | kind      |
       | secret    |
       | read_only |
 
-  Scenario: A refund id that does not have its form is rejected
-    Given the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And there is no current refund
-    When I run the operation with:
-      | merchant_id | refund_id                    |
-      | mer_1       | re_0000000000000000000000001 |
-    Then the input is rejected on "refund_id"
-
-  Scenario: An unknown refund is not found
-    Given the caller is:
-      | key_kind | merchant_id |
-      | secret   | mer_1       |
-    And there is no current refund
-    When I run the operation with:
-      | merchant_id | refund_id                   |
-      | mer_1       | re_000000000000000000000009 |
-    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
-
-  Scenario Outline: A key of another merchant, or the clock, is refused as not found
-    Given the caller is:
-      | key_kind   | merchant_id   |
-      | <key_kind> | <merchant_id> |
-    And the current refund is:
-      | refund_id                   | payment_id                   | merchant_id | amount | currency | captured_amount | refunded_total | created_at           |
-      | re_000000000000000000000001 | pay_partiallyrefunded0000000 | mer_1       | 2000   | EUR      | 5000            | 2000           | 2026-11-22T10:00:00Z |
-    When I run the operation with:
-      | merchant_id | refund_id                   |
-      | mer_1       | re_000000000000000000000001 |
-    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
+  Scenario Outline: A read is refused
+    When I run "get_refund" with:
+      | merchant_id | refund_id                  | stored_refund                                                                                                                                                                                                                                          | caller.key_kind | caller.merchant_id |
+      | m_1         | re_cccccccccccccccccccccccc | {"refund_id": "re_cccccccccccccccccccccccc", "payment_id": "pay_aaaaaaaaaaaaaaaaaaaaaaaa", "merchant_id": "<owner>", "amount": 1000, "currency": "EUR", "captured_amount": 5000, "refunded_total": 1000, "created_at": "2026-11-22T10:00:00Z"} | <kind>          | <caller_merchant>  |
+    Then the output is "<output>"
 
     Examples:
-      | key_kind  | merchant_id |
-      | secret    | mer_2       |
-      | read_only | mer_2       |
-      | clock     |             |
+      | output       | owner | kind      | caller_merchant |
+      | not_found    | m_2   | read_only | m_1             |
+      | not_found    | m_1   | secret    | m_2             |
+      | forbidden    | m_1   | bank      |                 |
+      | unauthorized | m_1   | none      |                 |
 
-  Scenario: A refund of another merchant is not found
-    Given the caller is:
-      | key_kind   | merchant_id   |
-      | secret     | mer_2         |
-    And the current refund is:
-      | refund_id                   | payment_id                   | merchant_id | amount | currency | captured_amount | refunded_total | created_at           |
-      | re_000000000000000000000001 | pay_partiallyrefunded0000000 | mer_1       | 2000   | EUR      | 5000            | 2000           | 2026-11-22T10:00:00Z |
-    When I run the operation with:
-      | merchant_id | refund_id                   |
-      | mer_2       | re_000000000000000000000001 |
-    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
+  Scenario Outline: A read that breaks a rule is rejected
+    When I run "get_refund" with:
+      | merchant_id | refund_id   | stored_refund                                                                                                                                                                                                                                        | caller.key_kind | caller.merchant_id |
+      | m_1         | <refund_id> | {"refund_id": "re_cccccccccccccccccccccccc", "payment_id": "pay_aaaaaaaaaaaaaaaaaaaaaaaa", "merchant_id": "m_1", "amount": 1000, "currency": "EUR", "captured_amount": 5000, "refunded_total": <total>, "created_at": "2026-11-22T10:00:00Z"} | read_only       | m_1                |
+    Then the input is rejected by "<rule>" of "<definition>"
 
-  Scenario: A request that names a merchant other than the one of the key is not found
-    Given the caller is:
-      | key_kind   | merchant_id   |
-      | secret     | mer_1         |
-    And the current refund is:
-      | refund_id                   | payment_id                   | merchant_id | amount | currency | captured_amount | refunded_total | created_at           |
-      | re_000000000000000000000001 | pay_partiallyrefunded0000000 | mer_1       | 2000   | EUR      | 5000            | 2000           | 2026-11-22T10:00:00Z |
-    When I run the operation with:
-      | merchant_id | refund_id                   |
-      | mer_2       | re_000000000000000000000001 |
-    Then the operation fails with "urn:corpus:payments:payment:error:not_found"
+    Examples:
+      | rule                    | definition    | refund_id                  | total |
+      | names_the_refund        | refund_lookup | re_dddddddddddddddddddddddd | 1000  |
+      | pattern                 | refund_id     | re_1                       | 1000  |
+      | refunds_within_captured | refund        | re_cccccccccccccccccccccccc | 6000  |
+
+  Scenario: A read with no stored refund is rejected
+    When I run "get_refund" with:
+      | merchant_id | refund_id                  | caller.key_kind | caller.merchant_id |
+      | m_1         | re_cccccccccccccccccccccccc | read_only       | m_1                |
+    Then the input is rejected by "required" of "refund_lookup"

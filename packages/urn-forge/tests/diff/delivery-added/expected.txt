@@ -1,1 +1,0 @@
-breaking urn:demo:delivery:payment:event:authorized

@@ -1,1 +1,0 @@
-compatible urn:demo:states:booking:field:state

@@ -1,158 +1,101 @@
-@urn:corpus:bookings:booking:operation:mark_no_show
 Feature: Mark a booking whose party did not come
+  # Only staff of the restaurant of the booking mark it.
 
-  # The shell gives the time of each call; a scenario that needs another one says so.
-  Background:
-    Given the time is "2026-11-22T10:00:00Z"
-
-  # The booking starts at 2026-11-22T09:00:00Z (10:00 in Paris): NO_SHOW from 09:15:00Z onward, that instant included.
-  Scenario Outline: A CONFIRMED booking moves to NO_SHOW from 15 minutes after its start
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the time is "<now>"
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
-      | reference |
-      | CNFRMD22  |
-    Then the output is:
-      | reference | state   |
-      | CNFRMD22  | NO_SHOW |
-    And the operation emits "urn:corpus:bookings:booking:event:booking_no_show":
-      | event_id                             | reference | restaurant_id                        | state   | party_size | local_date | local_time | time_zone    | occurred_at | guest_id                             |
-      | 16fd2706-8baf-433b-82eb-8c7fed5c9b0e | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | NO_SHOW | 4          | 2026-11-22 | 10:00      | Europe/Paris | <now>       | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
-
-    Examples:
-      | now                      |
-      | 2026-11-22T09:15:00Z     |
-      | 2026-11-22T09:15:00.001Z |
-      | 2026-11-22T10:00:00Z     |
+  Scenario: Staff mark a CONFIRMED booking NO_SHOW, with one BookingNoShow event
+    When I run "mark_no_show" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24T19:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "booking_change"
 
   Scenario Outline: A booking in another state cannot move
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state   | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state> | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
-      | reference |
-      | CNFRMD22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:invalid_state":
+    When I run "mark_no_show" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone | stored_booking.refund_amount | stored_booking.cancelled_at |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24T19:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state>              | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        | <refund_amount>              | <cancelled_at>              |
+    Then the output is "invalid_state":
       | reference | state   |
-      | CNFRMD22  | <state> |
-    And the operation emits no event
+      | ABCDEFGH  | <state> |
 
     Examples:
-      | state |
-      | SEATED |
-      | COMPLETED |
-      | CANCELLED |
-      | NO_SHOW |
+      | state     | refund_amount | cancelled_at         |
+      | SEATED    |               |                      |
+      | COMPLETED |               |                      |
+      | CANCELLED | 0             | 2026-11-20T08:00:00Z |
+      | NO_SHOW   |               |                      |
 
-  Scenario Outline: A confirmed booking cannot be marked NO_SHOW before 15 minutes after its start
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the time is "<now>"
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
-      | reference |
-      | CNFRMD22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:invalid_state":
+  Scenario Outline: A CONFIRMED booking becomes NO_SHOW from 15 minutes after its start, that edge included
+    When I run "mark_no_show" with:
+      | reference | caller.role | caller.restaurant_id                 | now   | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <now> | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "booking_change"
+
+    Examples:
+      | now                  |
+      | 2026-12-24T18:45:00Z |
+      | 2026-12-25T02:00:00Z |
+
+  Scenario Outline: A CONFIRMED booking cannot be marked NO_SHOW before 15 minutes after its start
+    When I run "mark_no_show" with:
+      | reference | caller.role | caller.restaurant_id                 | now   | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <now> | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "invalid_state":
       | reference | state     |
-      | CNFRMD22  | CONFIRMED |
-    And the operation emits no event
+      | ABCDEFGH  | CONFIRMED |
 
     Examples:
-      | now                      |
-      | 2026-11-22T09:14:59.999Z |
-      | 2026-11-22T09:00:00Z     |
-      | 2026-11-22T08:00:00Z     |
-
-  Scenario: A reference that is not valid is rejected
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
-      | reference |
-      | BOOKING1  |
-    Then the input is rejected on "reference"
+      | now                  |
+      | 2026-12-24T18:44:59Z |
+      | 2026-12-24T16:00:00Z |
 
   Scenario: An unknown reference is not found
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And there is no current booking
-    When I run the operation with:
+    When I run "mark_no_show" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z |
+    Then the output is "booking_not_found":
       | reference |
-      | XXXXXXXX  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:booking_not_found"
-    And the operation emits no event
+      | ABCDEFGH  |
 
-  Scenario: A booking of another restaurant is forbidden
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | CONFIRMED | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
+  Scenario: A booking is forbidden to staff of another restaurant
+    When I run "mark_no_show" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 9b2c1f00-1111-4222-8333-444455556666 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
       | reference |
-      | FRBDDN22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
-    And the operation emits no event
+      | ABCDEFGH  |
 
-  Scenario: A guest cannot mark NO_SHOW a booking, even with its reference, its contact and the id of its restaurant
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | guest | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | email           | phone        |
-      | CNFRMD22  | ada@example.com | +33612345678 |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden":
+  Scenario: A booking is forbidden to staff of another restaurant who present its contact
+    When I run "mark_no_show" with:
+      | reference | caller.role | caller.restaurant_id                 | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 9b2c1f00-1111-4222-8333-444455556666 | ada@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
       | reference |
-      | CNFRMD22  |
-    And the operation emits no event
+      | ABCDEFGH  |
 
-  Scenario: Staff with no restaurant cannot mark NO_SHOW a booking
-    Given the caller is:
-      | role  |
-      | staff |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-11-22T09:00:00Z | 2026-11-22 | 10:00      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
-    When I run the operation with:
+  Scenario: A booking is forbidden to a guest who presents another email
+    When I run "mark_no_show" with:
+      | reference | caller.role | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | eve@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
       | reference |
-      | CNFRMD22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
-    And the operation emits no event
+      | ABCDEFGH  |
 
-  Scenario Outline: A presented email or phone that is not valid is rejected
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
-    When I run the operation with:
-      | reference | email   | phone   |
-      | CNFRMD22  | <email> | <phone> |
-    Then the input is rejected on "<field>"
+  Scenario: A booking is forbidden to a guest who presents no contact
+    When I run "mark_no_show" with:
+      | reference | caller.role | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
+      | reference |
+      | ABCDEFGH  |
 
-    Examples:
-      | field | email         | phone         |
-      | email | not-an-email  |               |
-      | phone |               | 0612345678    |
-      | phone |               | +012345678    |
-      | phone |               | +1234567890123456 |
+  Scenario: A booking is forbidden to a guest with its contact and the id of its restaurant
+    When I run "mark_no_show" with:
+      | reference | caller.role | caller.restaurant_id                 | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | ada@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
+      | reference |
+      | ABCDEFGH  |
+
+  Scenario: A request that names another booking than the one loaded is rejected
+    When I run "mark_no_show" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ZZZZZZZZ  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the input is rejected by "names_the_booking" of "booking_ref"

@@ -1,23 +1,46 @@
-@urn-forge:strict
-@urn:corpus:ticketing:show:operation:cancel_event
 Feature: Cancel an event
+  The organizer cancels an event: EventCancelled, and a TicketRefunded per ISSUED or TRANSFER_PENDING ticket.
 
-  Scenario: A cancelled event is published, and its tickets are refunded
-    When I run the operation with:
-      | event_id                             |
-      | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f |
-    Then the output is:
-      | event_id                             | cancelled_at         |
-      | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01T19:00:00Z |
-    And the operation emits "urn:corpus:ticketing:show:event:event_cancelled":
-      | message_id                           | event_id                             | occurred_at          |
-      | 00000000-0000-4000-8000-000000000001 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01T19:00:00Z |
-    And the operation emits "urn:corpus:ticketing:ticket:event:ticket_refunded":
-      | message_id                           | ticket_code      |
-      | 00000000-0000-4000-8000-000000000003 | ZYXWVUTS98765432 |
+  Scenario: A cancelled event refunds its ISSUED and TRANSFER_PENDING tickets, and no other
+    When I run "cancel_event" with:
+      | event_id                             | caller                                             | called_at            | show                                                                                                                                            | stored_tickets                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+      | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | {"caller_id": "org-1", "caller_role": "organizer"} | 2026-12-05T09:00:00Z | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} | [{"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}}, {"ticket_code": "ZYXWVUTS98765432", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "standing", "section": "FLOOR", "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 3000, "currency": "USD"}}, {"ticket_code": "HJKLMNPQ23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "USED", "price": {"amount_minor": 5000, "currency": "USD"}}] |
+    Then the output is "cancelled_event":
+      | event_id                             | cancelled_at         | event_cancelled                                                                                                                                                                                                 | refunded_tickets                                                                                                                     | tickets_refunded                                                                                                                                                                                                                                                                                                                                                             |
+      | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-05T09:00:00Z | {"message_id": "00000000-0000-4000-8000-000000000001", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "affected_tickets": ["ABCDEFGH23456789", "ZYXWVUTS98765432"], "occurred_at": "2026-12-05T09:00:00Z"} | [{"ticket_code": "ABCDEFGH23456789", "ticket_status": "REFUNDED"}, {"ticket_code": "ZYXWVUTS98765432", "ticket_status": "REFUNDED"}] | [{"message_id": "00000000-0000-4000-8000-000000000002", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "ticket_code": "ABCDEFGH23456789", "occurred_at": "2026-12-05T09:00:00Z"}, {"message_id": "00000000-0000-4000-8000-000000000003", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "ticket_code": "ZYXWVUTS98765432", "occurred_at": "2026-12-05T09:00:00Z"}] |
 
-  Scenario: An event identifier that is not a UUID is rejected at the boundary
-    When I run the operation with:
-      | event_id  |
-      | concert-1 |
-    Then the input is rejected on "event_id"
+  Scenario: A caller who is not the organizer is refused with FORBIDDEN
+    When I run "cancel_event" with:
+      | event_id                             | caller                                       | called_at            | show                                                                                                                                            | stored_tickets                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+      | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | {"caller_id": "ada", "caller_role": "buyer"} | 2026-12-05T09:00:00Z | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} | [{"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}}, {"ticket_code": "ZYXWVUTS98765432", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "standing", "section": "FLOOR", "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 3000, "currency": "USD"}}, {"ticket_code": "HJKLMNPQ23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "USED", "price": {"amount_minor": 5000, "currency": "USD"}}] |
+    Then the output is "forbidden":
+      | caller_id |
+      | ada       |
+
+  Scenario Outline: A cancellation whose stored records do not fit it is rejected
+    When I run "cancel_event" with:
+      | event_id                             | caller                                             | called_at            | show   | stored_tickets |
+      | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | {"caller_id": "org-1", "caller_role": "organizer"} | 2026-12-05T09:00:00Z | <show> | <tickets>      |
+    Then the input is rejected by "<rule>" of "event_cancellation"
+
+    Examples:
+      | rule                | show                                                                                                                                            | tickets                                                                                                                                                                                                                                                             |
+      | names_the_show      | {"event_id": "5e0b1c2d-3a4b-4c5d-8e6f-9a0b1c2d3e4f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} | [{"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}}] |
+      | tickets_of_the_show | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} | [{"ticket_code": "ABCDEFGH23456789", "event_id": "5e0b1c2d-3a4b-4c5d-8e6f-9a0b1c2d3e4f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}}] |
+
+  Scenario Outline: An event that breaks a rule is rejected
+    When I run "cancel_event" with:
+      | event_id                             | caller                                             | called_at            | show   | stored_tickets                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+      | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | {"caller_id": "org-1", "caller_role": "organizer"} | 2026-12-05T09:00:00Z | <show> | [{"ticket_code": "ABCDEFGH23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "ISSUED", "price": {"amount_minor": 5000, "currency": "USD"}}, {"ticket_code": "ZYXWVUTS98765432", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "standing", "section": "FLOOR", "ticket_status": "TRANSFER_PENDING", "price": {"amount_minor": 3000, "currency": "USD"}}, {"ticket_code": "HJKLMNPQ23456789", "event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "buyer_id": "ada", "place_kind": "seated", "section": "A1", "row": "C", "seat_number": 12, "ticket_status": "USED", "price": {"amount_minor": 5000, "currency": "USD"}}] |
+    Then the input is rejected by "<rule>" of "<definition>"
+
+    Examples:
+      | rule     | definition | show                                                                                                                                     |
+      | required | show       | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z"}                       |
+      | pattern  | time_zone  | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Paris"} |
+
+  Scenario: A cancellation without the stored tickets is rejected
+    When I run "cancel_event" with:
+      | event_id                             | caller                                             | called_at            | show                                                                                                                                            |
+      | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | {"caller_id": "org-1", "caller_role": "organizer"} | 2026-12-05T09:00:00Z | {"event_id": "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", "organizer_id": "org-1", "starts_at": "2026-12-12T20:00:00Z", "time_zone": "Europe/Paris"} |
+    Then the input is rejected by "required" of "event_cancellation"

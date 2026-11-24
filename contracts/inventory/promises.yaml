@@ -1,131 +1,191 @@
 contract: inventory
 description: "Tracks on-hand, reserved and available stock of products per warehouse location, and lets order, purchasing and warehouse systems receive, reserve, release, ship and adjust that stock."
+# How the manifest models the service: the shell authenticates the caller, reads the clock and loads
+# the stored records that a call reads (stock levels, the reservation, the order's open reservation)
+# into the input; an answer carries the new state of the records it changes and the events of the
+# change, and a refusal carries none. No generated check sees the store itself: two calls that load the
+# same records at the same time can both pass every check and both be stored. A promise about stored
+# records that such calls can break is a workaround (C3), however exactly the rules state one call.
 promises:
+  # sku: minLength 3, maxLength 32, and a pattern of A-Z, 0-9 and hyphens with no hyphen at either end.
   P01:
     promise: "A SKU is 3 to 32 characters of uppercase letters A-Z, digits 0-9 and hyphens, and never starts or ends with a hyphen."
     status: declared
-    by: [stock.field.sku]
+    by: [definitions.sku]
+  # location: the pattern ^[A-Z]{3}-[A-Z]-[0-9]{4}$.
   P02:
     promise: "A location code has the form WAREHOUSE-ZONE-BIN, where the warehouse is 3 uppercase letters, the zone is 1 uppercase letter and the bin is 4 digits (for example \"AMS-B-0142\")."
     status: declared
-    by: [stock.field.location]
+    by: [definitions.location]
+  # Every count is type integer. quantity (minimum 1, maximum 100000) is the quantity of each line of
+  # receive_goods, reserve_stock and ship_reservation (release takes no quantity); requested is a
+  # quantity; on_hand, reserved, available and shipped are integers of 0 or more; delta and
+  # quantity_changed are integers.
   P03:
     promise: "Every quantity in a request or answer is a whole number of units; quantities in receive, reserve, release and ship requests are between 1 and 100000 inclusive."
     status: declared
-    by: [stock.field.quantity, stock.entity.line, stock.field.on_hand, stock.field.reserved, stock.field.available, adjustment.field.delta, event.field.quantity_changed]
+    by: [definitions.quantity, definitions.line, definitions.requested, definitions.on_hand, definitions.reserved, definitions.available, definitions.shipped, definitions.delta, definitions.quantity_changed]
+  # stock_level requires the three counts, each has minimum 0, and the rule
+  # available_is_on_hand_minus_reserved holds on every stock level, in any answer or event.
   P04:
     promise: "Every stock level reported for a SKU at a location carries on-hand, reserved and available counts, where reserved and available are each at least 0 and available always equals on-hand minus reserved."
     status: declared
-    by: [stock.entity.stock_level, stock.field.reserved, stock.field.available, stock.invariant.available_is_on_hand_minus_reserved]
+    by: [definitions.stock_level, definitions.reserved, definitions.available, rules.available_is_on_hand_minus_reserved]
+  # adjustment requires delta and reason; delta is an integer from -100000 to 100000 with the rule
+  # not_zero; reason is an enum of the five codes.
   P05:
     promise: "An adjustment carries a signed non-zero quantity delta between -100000 and 100000 and a reason code that is one of DAMAGED, LOST, FOUND, CYCLE_COUNT or CORRECTION."
     status: declared
-    by: [adjustment.entity.adjustment, adjustment.field.delta, adjustment.field.reason]
+    by: [definitions.adjustment, definitions.delta, rules.not_zero, definitions.reason]
+  # reserve_request requires order_id and reserve_lines; reserve_lines has minItems 1, maxItems 100
+  # and one_line_per_pair; each line requires sku, location and quantity (minimum 1).
   P06:
     promise: "A reservation request names an order id and has 1 to 100 lines, each with a SKU, a location and a quantity of at least 1, and no SKU-location pair appears twice in the same request."
     status: declared
-    by: [reservation.entity.reserve_request, reservation.field.order_id, stock.entity.line, stock.field.sku, stock.field.location, stock.field.quantity]
-  # The six operations are the ones offered to callers. ExpireReservation is a seventh operation of the manifest, but only the shell's own clock (caller role clock) may call it, so no caller is offered it; its request also carries the idempotency key.
+    by: [definitions.reserve_request, definitions.order_id, definitions.reserve_lines, rules.one_line_per_pair, definitions.line, definitions.sku, definitions.location, definitions.quantity]
+  # The manifest has the six operations, and a seventh, expire_reservation, that only the shell's clock
+  # may call (by_clock on each of its answers but forbidden), so no caller is offered it. Each write
+  # request (receive, reserve, release, ship, adjust, and expire) requires idempotency_key, of
+  # minLength 8 and maxLength 64.
   P07:
     promise: "The service offers exactly these operations - GetStock, ReceiveGoods, ReserveStock, ReleaseReservation, ShipReservation and AdjustStock - and each write request must carry a caller-chosen idempotency key of 8 to 64 characters."
     status: declared
-    by: [stock.operation.get_stock, receipt.operation.receive_goods, reservation.operation.reserve_stock, reservation.operation.release_reservation, reservation.operation.ship_reservation, adjustment.operation.adjust_stock, request.field.idempotency_key]
-  # Stated and checked: the answer lines equal the request lines both ways (ensures, all/any), RESERVED with a reservation id, a refusal gives no commit statement (nothing changes), and each listed short line is a request line with its requested quantity and requested > available (refuses). Not stated: that every short line is listed - available stock is not stored or read, so no rule can name the lines that are short.
+    by: [operations.get_stock, operations.receive_goods, operations.reserve_stock, operations.release_reservation, operations.ship_reservation, operations.adjust_stock, operations.expire_reservation, rules.by_clock, definitions.idempotency_key, definitions.receive_request, definitions.reserve_request, definitions.release_request, definitions.ship_request, definitions.adjustment]
+  # Workaround: the rules state one call exactly, but two reservations that load the same levels at once both see enough stock, both pass covers_every_line, and both are stored: the stock is reserved twice.
   P08:
     promise: "ReserveStock is all-or-nothing - it either reserves every line in full and answers RESERVED with a reservation id, or reserves nothing and answers INSUFFICIENT_STOCK listing each short line with its requested and available quantity."
     status: workaround
-    by: [reservation.operation.reserve_stock, reservation.field.result, reservation.field.reservation_id, stock.error.insufficient_stock, stock.entity.short_line]
-    hole: A2
-  # Seven codes are declared errors, each with a message. FORBIDDEN is not: who may call is outside the manifest. A rejection at the boundary is not the error INVALID_REQUEST; the shell maps it.
+    by: [operations.reserve_stock, definitions.reserve_request, definitions.stored_levels, definitions.reservation_made, definitions.result, rules.covers_every_line, rules.is_reserved_active, rules.reserves_the_stock, definitions.insufficient_stock, definitions.short_line, rules.lists_the_short_lines, rules.a_reserved_line_is_unknown, rules.has_an_open_reservation]
+    hole: C3
+  # Workaround: each refusal object carries error_code (an enum of the eight codes, the code fixed per
+  # object by code_is) and error_message, and FORBIDDEN is now stated by the caller rules. Two breaks:
+  # a request that breaks a rule gets InputRejected from runOperation, with rule names and messages, not
+  # a refusal with INVALID_REQUEST, so the shell must map it; and IDEMPOTENCY_CONFLICT is a refusal that
+  # only the shell gives (the idempotency_conflict object), as idempotency is outside the manifest.
   P09:
     promise: "Every refusal answer carries exactly one error code from INVALID_REQUEST, UNKNOWN_SKU, UNKNOWN_LOCATION, INSUFFICIENT_STOCK, RESERVATION_NOT_FOUND, INVALID_STATE, FORBIDDEN or IDEMPOTENCY_CONFLICT, plus a human-readable message."
     status: workaround
-    by: [request.error.invalid_request, stock.error.unknown_sku, stock.error.unknown_location, stock.error.insufficient_stock, reservation.error.reservation_not_found, reservation.error.invalid_state, request.error.idempotency_conflict]
-    hole: D2
-  # The answer has lines of the same shape. That they are the requested lines, one for one, is a rule between the request and the answer.
+    by: [definitions.error_code, definitions.error_message, rules.code_is, definitions.invalid_request, definitions.unknown_sku, definitions.unknown_location, definitions.insufficient_stock, definitions.reservation_not_found, definitions.invalid_state, definitions.open_reservation_exists, definitions.forbidden, definitions.idempotency_conflict]
+    hole: C2
+  # reserves_the_lines on reservation_made: the reservation has as many lines as the request, and each
+  # requested line has a reservation line with the same SKU, location and quantity (and nothing
+  # shipped); with one_line_per_pair on both lists, that is one for one.
   P10:
     promise: "A successful ReserveStock answer contains one line per requested line, with the same SKU, location and quantity as requested."
-    status: workaround
-    by: [reservation.entity.reservation, stock.entity.line]
-    hole: A2
-  # Shipping in full (no lines) or per line, and the refusal invalid_request, are declared. The bound "not more than still reserved on the line" depends on the stored reservation and lives in the core.
+    status: declared
+    by: [operations.reserve_stock, rules.reserves_the_lines, definitions.reservation_lines, rules.one_line_per_pair]
+  # Workaround: the rules state one call exactly, but two shipments of one reservation that load it at once both pass ships_the_lines, and both are stored: more is shipped than was reserved.
   P11:
     promise: "ShipReservation ships either the whole reservation or a stated quantity per line that is never more than the quantity still reserved on that line, and a larger quantity is refused with INVALID_REQUEST."
     status: workaround
-    by: [reservation.entity.ship_request, stock.entity.line, request.error.invalid_request]
-    hole: A2
-  # The refusal insufficient_stock is declared. Its condition needs the stored counts, and "changes nothing" is not stated.
+    by: [operations.ship_reservation, definitions.ship_request, definitions.ship_lines, definitions.reserved_line, rules.ships_the_lines, rules.ships_more_than_held, definitions.invalid_request]
+    hole: C3
+  # Workaround: the rules state one call exactly, but two adjustments that load the same level at once both pass adjusts_the_level, and the second overwrites the first: on-hand can fall below the reserved quantity.
   P12:
     promise: "An adjustment with a negative delta that would make on-hand fall below the quantity currently reserved is refused with INSUFFICIENT_STOCK and changes nothing."
     status: workaround
-    by: [adjustment.operation.adjust_stock, stock.error.insufficient_stock]
-    hole: A2
-  # Declared: the reservation is a table of the Postgres extra, and its entity has unique. (a) by [reservation_id], forever: true: the primary key keeps the id unique, and the store writes each id into "used"."reservation" (UNIQUE by value), which keeps it when the reservation is gone, so no other reservation gets it again. (b) by [order_id] when state = 'ACTIVE' or state = 'PARTIALLY_SHIPPED' (open: the reservation still holds stock), otherwise reservation.error.open_reservation_exists: a partial unique index refuses a second open reservation of an order, and commitOnce answers the declared refusal (conflict, with the order_id) and writes nothing; ReserveStock declares that error.
-  # The scenarios of ReserveStock store an ACTIVE and a PARTIALLY_SHIPPED reservation of the order and reserve again (open_reservation_exists, nothing changes), and store a RELEASED, EXPIRED and SHIPPED one, or an open one of another order (reserved). The core does not know the other records; the shell must write each call with commitOnce, or a clash is a database error and not the declared refusal.
+    by: [operations.adjust_stock, definitions.adjustment, definitions.stored_level, rules.adjusts_the_level, rules.is_short_of_the_delta, definitions.available, definitions.insufficient_stock]
+    hole: C3
+  # Workaround: the reservation is a table with reservation_id as its primary key, so two stored
+  # reservations never share an id; and reserve_stock answers reservation_made only when the order has
+  # no open reservation (no_open_reservation, with the loaded open_reservation). Not stated: that an id
+  # is never used again after its reservation is gone (the core picks the id, and nothing keeps the used
+  # ones), and the schema has no unique index on an order's open reservations, so two concurrent
+  # reservations of one order both pass. The Postgres extra's unique has no condition.
   P13:
     promise: "A reservation id is unique across the service and is never reused, and at most one open reservation exists per order id."
-    status: declared
-    by: [reservation.entity.reservation, reservation.field.reservation_id, reservation.field.order_id, reservation.field.state, reservation.error.open_reservation_exists, reservation.operation.reserve_stock]
-  # Workaround: Release, ship and expire answer only the status, so the shell builds the stored reservation in writes. The runtime checks only the answered state: SHIPPED answered and ACTIVE stored passes every check.
+    status: workaround
+    by: [definitions.reservation, definitions.reservation_id, definitions.open_reservation, rules.open_reservation_is_the_orders, rules.no_open_reservation, rules.has_an_open_reservation, operations.reserve_stock]
+    hole: C1
+  # Workaround: the rules state one call exactly, but two calls that load the same ACTIVE reservation at once (a release and a shipment) both pass their rules, and the last one stored wins: a reservation can move from RELEASED to SHIPPED.
   P14:
     promise: "A reservation is in one of the states ACTIVE, PARTIALLY_SHIPPED, SHIPPED, RELEASED or EXPIRED, may move only from ACTIVE to PARTIALLY_SHIPPED, SHIPPED, RELEASED or EXPIRED and from PARTIALLY_SHIPPED to SHIPPED or RELEASED, and SHIPPED, RELEASED and EXPIRED are final."
     status: workaround
-    by: [reservation.field.state, reservation.error.invalid_state, reservation.operation.release_reservation, reservation.operation.ship_reservation, reservation.operation.expire_reservation]
+    by: [definitions.state, definitions.reservation, rules.shipping_matches_state, definitions.stored_reservation, rules.is_reserved_active, rules.was_open, rules.was_not_open, rules.was_active, rules.was_not_active, rules.is_released, rules.is_shipped_or_partly, rules.is_expired, rules.keeps_the_identity, operations.reserve_stock, operations.release_reservation, operations.ship_reservation, operations.expire_reservation]
     hole: C3
-  # Workaround: runOnce gives a repeat as a plain success, and commit runs writes(output) again: a repeated AdjustStock writes the stock again and can undo a receive made in between. A repeated ReserveStock throws a duplicate key.
+  # Workaround: each write request requires an idempotency key, and idempotency_conflict is the
+  # shell's refusal. A repeat within 24 hours that returns the first answer, and the refusal of the same
+  # key with another body, are behaviour of the shell over earlier calls: no rule sees an earlier call,
+  # so a repeated request changes stock again while every check passes.
   P15:
     promise: "A write request repeated with the same idempotency key and the same body within 24 hours returns the original answer without changing stock again, and the same key with a different body is refused with IDEMPOTENCY_CONFLICT."
     status: workaround
-    by: [request.field.idempotency_key, request.error.idempotency_conflict, receipt.operation.receive_goods, reservation.operation.reserve_stock, reservation.operation.release_reservation, reservation.operation.ship_reservation, reservation.operation.expire_reservation, adjustment.operation.adjust_stock]
+    by: [definitions.idempotency_key, definitions.idempotency_conflict, definitions.receive_request, definitions.reserve_request, definitions.release_request, definitions.ship_request, definitions.expire_request, definitions.adjustment]
     hole: C2
-  # The expiry is declared: ReserveStock ensures output.expires_at = now + 30 minutes when the request has no time-to-live, and now + input.ttl_minutes minutes when it has one (1 to 10080 minutes, a field limit); ExpireReservation changes the reservation from ACTIVE only to EXPIRED (a partly shipped, shipped or released one answers invalid_state) with due: now >= current.expires_at, so the runtime refuses a call before the expiry time as not due; only the shell's clock (caller role clock) may call it; the reservation is a table, so the store file has selectReservationExpireReservationDue(now, limit), from the same rule. The scenarios show the default, each time-to-live bound, the expiry at the exact time and later, not due 1 ms before, and each other state refused.
-  # "Its stock becomes available again" is not stated. The stock levels are other records, which the manifest does not store or load: the answer is the reservation's state, and ReservationExpired (one per line in the core) is emits of zero or more with values not tied to the change, as for ReleaseReservation (P18). A change to other records in a timed change is outside the clock plan (E3).
+  # Workaround: a reservation without a time-to-live expires 30 minutes after the call
+  # (expires_after_30_minutes); ttl_minutes is 1 to 10080, and with it the expiry is 1 minute to 7 days
+  # after the call (expires_within_a_week), but not exactly ttl_minutes later: duration() takes only a
+  # literal. expire_reservation answers reservation_changed only for an ACTIVE reservation whose expiry
+  # time has come (was_active, is_due), and gives its held units back (gives_back_the_held_stock); an
+  # early call answers invalid_request (is_not_due). Not stated: that the expiry happens at all. The
+  # shell's clock must call expire_reservation, and nothing checks that it does.
   P16:
     promise: "An ACTIVE reservation that is neither shipped nor released expires 30 minutes after creation unless the request set a time-to-live between 1 minute and 7 days, and its stock becomes available again."
     status: workaround
-    by: [reservation.field.ttl_minutes, reservation.field.expires_at, reservation.operation.reserve_stock, reservation.operation.expire_reservation, reservation.event.reservation_expired, access.field.role]
+    by: [definitions.ttl_minutes, definitions.expires_at, rules.expires_after_30_minutes, rules.expires_within_a_week, operations.expire_reservation, rules.was_active, rules.is_due, rules.is_not_due, rules.is_expired, rules.gives_back_the_held_stock, rules.by_clock]
     hole: E3
-  # The two timestamps are occurred_at (in every event) and expires_at (in the answers about a reservation); no request has one. Each is a timestamp with precision: 3: UTC with a trailing Z and exactly 3 digits after the second. The generated schema refuses another form in an answer or an event (a ContractViolation), and the scenarios check the 3-digit values of both.
+  # Every time of a request, an answer or an event is a utc_time: format date-time and the pattern
+  # YYYY-MM-DDTHH:MM:SS.mmmZ, UTC with exactly 3 digits after the second. They are now (the time of
+  # the call), expires_at and occurred_at; check() and runOperation refuse any other form.
   P17:
     promise: "All timestamps in requests, answers and events are UTC in ISO 8601 format with a trailing \"Z\" and millisecond precision."
     status: declared
-    by: [event.field.occurred_at, reservation.field.expires_at]
-  # The six events and their fields are declared: an event id (from the shell), the SKU, the location, the quantity changed, the stock level and a time. AdjustStock counts its event: exactly one stock_adjusted on each success. The rest is not stated:
-  # - ReceiveGoods, ReserveStock and ShipReservation change several SKU-locations, one event per line; ReleaseReservation and ExpireReservation (the shell's clock) give back each line of the reservation. A count { event } is one per success, so "one event per changed line" cannot be stated, and these keep emits of zero or more.
-  # - The values are not tied to the change: an ensures with event. needs exactly one event per success, and AdjustStock also emits StockDepleted when the count drops to 0 (P20), so it cannot read the event; the other operations have one event per line.
-  # - The time of the change is a value of the core, not of a clock (E2).
+    by: [definitions.utc_time, definitions.now, definitions.expires_at, definitions.occurred_at]
+  # Workaround: each answer that changes stock carries its events: one_event_per_level gives exactly one
+  # event of the operation's type for each changed stock level, with that level (new on-hand and
+  # available) and the time of the call; stock_event requires an event id, the SKU, the location and the
+  # quantity changed, which receipt_events_move_the_lines, reserve_events_move_the_lines,
+  # held_events_move_the_lines and shipped_events_move_the_lines tie to the change; adjust_stock has
+  # exactly one StockAdjusted (one_adjusted_event). Not stated: that the shell publishes the events of
+  # an answer. Publication is outside the manifest.
   P18:
     promise: "For every successful change to stock the service publishes exactly one event of type StockReceived, StockReserved, ReservationReleased, ReservationExpired, StockShipped or StockAdjusted, carrying an event id, the SKU, the location, the quantity changed, the new on-hand and available counts and the time of the change."
     status: workaround
-    by: [stock.event.stock_received, reservation.event.stock_reserved, reservation.event.reservation_released, reservation.event.reservation_expired, reservation.event.stock_shipped, adjustment.event.stock_adjusted, adjustment.operation.adjust_stock, event.field.event_id, stock.field.sku, stock.field.location, event.field.quantity_changed, stock.entity.stock_level, event.field.occurred_at]
+    by: [definitions.stock_event, definitions.event_type, definitions.event_id, definitions.quantity_changed, definitions.level, definitions.occurred_at, definitions.events, rules.one_event_per_level, rules.receipt_events_move_the_lines, rules.reserve_events_move_the_lines, rules.held_events_move_the_lines, rules.shipped_events_move_the_lines, rules.one_adjusted_event]
     hole: D4
-  # Workaround: The outbox sequence is MAX(sequence) + 1 over the rows still stored. After the published rows are deleted, as the docs allow, the sequence starts again at 1.
+  # Workaround: each event has an event id (event_id). At-least-once delivery, the same id in each
+  # copy, the order per SKU and location and a sequence number that increases by 1 are behaviour of the
+  # delivery, which is outside the manifest; the events carry no sequence, as the core does not know it.
   P19:
     promise: "Events are delivered at least once, may be duplicated but carry the same event id when they are, and events for the same SKU and location arrive in the order the changes happened, each with a per-SKU-location sequence number that increases by 1."
     status: workaround
-    by: [stock.event.stock_received, reservation.event.stock_reserved, reservation.event.reservation_released, reservation.event.reservation_expired, reservation.event.stock_shipped, adjustment.event.stock_adjusted, stock.event.stock_depleted, event.field.event_id, event.field.sequence, stock.field.sku, stock.field.location]
+    by: [definitions.stock_event, definitions.stock_depleted, definitions.event_id]
     hole: D4
-  # AdjustStock states it: exactly one StockDepleted when output.available = 0, and none otherwise (emits { event, when }). ReserveStock does not: it reserves several lines, so it needs one StockDepleted for each line whose count drops to 0, which a count of one per success cannot state, and its answer does not carry the available counts for a when rule.
+  # Workaround: only reserve_stock and adjust_stock lower an available count (ship takes the same units
+  # off on-hand and reserved, the others add). reserve_stock has exactly one StockDepleted for each
+  # changed level whose available count is 0 and none for another (depletes_at_zero); adjust_stock has
+  # one when the new level's available count is 0 and none otherwise (depletes_at_zero_once). Not
+  # stated: that the shell publishes them.
   P20:
     promise: "Whenever the available count for a SKU at a location drops to 0 the service publishes a StockDepleted event for that SKU and location."
     status: workaround
-    by: [stock.event.stock_depleted, reservation.operation.reserve_stock, adjustment.operation.adjust_stock]
-    hole: A2
-  # Workaround: The runtime answers RESERVATION_NOT_FOUND for an unknown id before it checks callers, so a caller with no access gets NOT_FOUND instead of FORBIDDEN, and learns which ids exist.
+    by: [definitions.stock_depleted, definitions.depletions, rules.depletes_at_zero, rules.depletes_at_zero_once, operations.reserve_stock, operations.adjust_stock]
+    hole: D4
+  # Each input requires the caller, whom the shell authenticated. Each answer of reserve, release and
+  # ship holds by_order_system, of receive_goods by_receiving_caller (warehouse staff or the purchasing
+  # system), of adjust_stock by_supervisor; forbidden holds the opposite rule and names the role. So an
+  # allowed caller never gets FORBIDDEN and another caller gets nothing else, also not
+  # RESERVATION_NOT_FOUND. get_stock has no caller rule: any authenticated caller.
   P21:
     promise: "Only the order system may call ReserveStock, ReleaseReservation and ShipReservation; only warehouse staff and the purchasing system may call ReceiveGoods; only warehouse supervisors may call AdjustStock; any authenticated caller may call GetStock, and other calls are refused with FORBIDDEN."
-    status: workaround
-    by: [access.entity.caller, access.field.role, access.error.forbidden, reservation.operation.reserve_stock, reservation.operation.release_reservation, reservation.operation.ship_reservation, receipt.operation.receive_goods, adjustment.operation.adjust_stock, stock.operation.get_stock]
-    hole: D2
-  # The purchase order, the 1 to 200 lines and the new on-hand count of each line are declared. "New on-hand = previous on-hand + received" needs the stored count.
+    status: declared
+    by: [definitions.caller, definitions.role, definitions.forbidden, rules.by_order_system, rules.not_by_order_system, rules.by_receiving_caller, rules.not_by_receiving_caller, rules.by_supervisor, rules.not_by_supervisor, rules.names_the_role, operations.reserve_stock, operations.release_reservation, operations.ship_reservation, operations.receive_goods, operations.adjust_stock, operations.get_stock]
+  # Workaround: receive_request requires purchase_order_id and 1 to 200 receipt_lines; the receipt
+  # names the purchase order and has one stock level per line (receives_each_line), and for a line
+  # whose SKU-location pair occurs once, the new on-hand is the stored on-hand plus the received
+  # quantity. A pair that occurs on two lines is not stated: the previous count of the second line is
+  # the count after the first, and the subset of CEL has no index or filter to say it.
   P22:
     promise: "ReceiveGoods names a purchase order id and 1 to 200 lines, and the answer reports for each line the new on-hand count, which equals the previous on-hand plus the received quantity."
     status: workaround
-    by: [receipt.entity.receive_request, receipt.field.purchase_order_id, receipt.entity.receipt, stock.field.on_hand]
+    by: [definitions.receive_request, definitions.purchase_order_id, definitions.receipt_lines, definitions.receipt, rules.names_the_purchase_order, rules.receives_each_line]
     hole: A2
-  # Workaround: early-sunset runs only with a reference date, and this contract's CI gives none: a sunset the day after the deprecation passes diff and compile.
+  # Workaround: compatibility callers: ignore-unknown states that callers ignore what they do not know,
+  # and diff judges a removal or rename within major version 1 as an error. The notice of at least 6
+  # months between deprecation and removal is not in the manifest (deprecated has no date), and diff
+  # is not one of the generated checks.
   P23:
     promise: "Within a major version of the contract, fields, operations, error codes and event types are only added, never removed or renamed, callers must ignore fields they do not know, and a removed element stays supported for at least 6 months after it is announced as deprecated."
     status: workaround
-    by: [manifest.compatibility]
+    by: [manifest.compatibility, manifest.version]
     hole: E4

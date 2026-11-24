@@ -1,432 +1,243 @@
 /**
- * urn-forge CLI: `compile`, `verify` and `diff`, plus `init` for a new project.
- *
- *   urn-forge init    [--namespace <name>] [--domain <name>]
- *   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--reference-date <YYYY-MM-DD>] [--format text|json]
- *   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--reference-date <YYYY-MM-DD>] [--format text|json]
- *   urn-forge diff    <old manifest> <new manifest> [--config <file>] [--format text|json]
- *
- * Each setting comes from its flag, else from the config file (`--config`, or
- * `urn-forge.config.ts` in the current directory when it exists), else its default.
- *
- * Text diagnostics print to stderr as `<file>:<line>:<col>  <severity>  <code>  <message>`;
- * messages lead with the manifest key or URN. `--format json` prints JSON lines to stdout
- * instead (diagnostics, then files or gates, then one result line), for CI annotations.
- * Exit codes: 0 success, 1 error diagnostics or a failed gate, 2 usage error.
+ * The command line: init, compile, verify and diff.
  */
-import { access, readFile } from 'node:fs/promises';
-import { dirname, relative, resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { diffManifests } from './diff/index.js';
-import { isCalendarDate } from './primitives/exact.js';
-import { diagnosticJson, formatDiagnostic, hasErrors, relativePaths, type Diagnostic } from './diagnostics.js';
-import { CONFIG_FILE, loadConfig, pluginEntries, type UrnForgeConfig } from './config.js';
-import { compile, type PluginEntry } from './engine.js';
-import { DEFAULT_PLUGINS } from './plugins/index.js';
-import { initProject, segmentProblem } from './init.js';
-import { GATES, verify } from './verify/index.js';
-import { GENERATOR_VERSION } from './version.js';
-import { removeOrphanFiles, writeGeneratedFiles } from './write.js';
+import { isNode, LineCounter, parseDocument } from 'yaml';
+import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
+import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
+import type { Diagnostic, Path } from './diagnostics.js';
+import { postgresProblems } from './generate/postgres.js';
+import { initProject, nameProblem } from './init.js';
+import { boundaryGate } from './verify/boundary.js';
+import { completenessGate, coreProgram } from './verify/completeness.js';
+import { driftGate } from './verify/drift.js';
+import { gherkinGate } from './verify/gherkin.js';
+import type { GateOutcome } from './verify/types.js';
+import { writeGenerated } from './write.js';
+
+export const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version as string;
 
 export interface CliIo {
   readonly cwd: string;
-  readonly stdout: (line: string) => void;
-  readonly stderr: (line: string) => void;
+  readonly stdout: (text: string) => void;
+  readonly stderr: (text: string) => void;
 }
 
-const defaultIo: CliIo = {
-  cwd: process.cwd(),
-  stdout: (line) => process.stdout.write(`${line}\n`),
-  stderr: (line) => process.stderr.write(`${line}\n`),
-};
-
-const USAGE = `urn-forge ${GENERATOR_VERSION}
+const USAGE = `urn-forge ${VERSION}
 
 Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
-  urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--reference-date <YYYY-MM-DD>] [--format text|json]
-  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--reference-date <YYYY-MM-DD>] [--format text|json]
-  urn-forge diff    <old manifest> <new manifest> [--config <file>] [--format text|json]
+  urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>]
+  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
+  urn-forge diff    <old manifest> <new manifest>
 
 Options:
   --namespace <name> init: the namespace of the starter manifest (default: app)
   --domain <name>    init: the domain of the starter manifest (default: starter)
-  --config <file>    Config file (default: ${CONFIG_FILE}, when it exists). Flags override it. diff reads the postgres plugin's tables from it
-  --manifest <file>  Manifest YAML (default: domain.manifest.yaml)
-  --out <dir>        Directory for generated files (default: src/generated)
-  --format <format>  text (default) or json: JSON lines on stdout, for CI annotations
-  --reference-date <YYYY-MM-DD>
-                     The day that sunset dates are compared with (default: referenceDate in the config; never the clock)
-  --core <file>      verify: core entry exporting \`satisfies DomainCoreImplementation\` (default: src/core.ts)
-  --features <dir>   verify: directory searched for .feature files (default: features)
-  --tsconfig <file>  verify: tsconfig whose options gate 1 type-checks with (default: tsconfig.json)`;
+  --config <file>    The config (default: ${CONFIG_FILE}, when it exists). Flags override it
+  --manifest <file>  The manifest (default: domain.manifest.yaml)
+  --out <dir>        The directory of the generated files (default: src/generated)
+  --core <file>      verify: the core, which exports … satisfies DomainCore (default: src/core.ts)
+  --features <dir>   verify: the directory of the .feature files (default: features)
+  --tsconfig <file>  verify: the tsconfig of gate 1 (default: tsconfig.json)`;
 
-/** Paths printed relative to cwd with forward slashes, so output does not depend on the machine. */
+class UsageError extends Error {}
+
+/** A path as the output shows it: relative to the working directory, with forward slashes. */
 function display(io: CliIo, path: string): string {
   return relative(io.cwd, path).split('\\').join('/') || '.';
 }
 
-function printDiagnostics(io: CliIo, file: string, diagnostics: readonly Diagnostic[]): void {
-  for (const d of diagnostics) io.stderr(formatDiagnostic(d, file));
+/** The line of a path in a YAML text, or of the nearest part of it that exists. */
+export function lineOf(text: string, path: Path): number | undefined {
+  const counter = new LineCounter();
+  const document = parseDocument(text, { lineCounter: counter, keepSourceTokens: true });
+  for (let length = path.length; length >= 0; length--) {
+    const node = document.getIn(path.slice(0, length), true);
+    if (isNode(node) && node.range) return counter.linePos(node.range[0]).line;
+  }
+  return undefined;
 }
 
-class UsageError extends Error {}
+function showDiagnostics(io: CliIo, file: string, text: string, diagnostics: readonly Diagnostic[]): void {
+  for (const d of diagnostics) {
+    const line = d.line ?? lineOf(text, d.path);
+    io.stderr(`${file}${line ? `:${line}` : ''}  ${d.severity}  ${d.code}  ${d.message}`);
+  }
+}
 
-const FORMAT_OPTION = { format: { type: 'string', default: 'text' } } as const;
+interface Project {
+  readonly config: UrnForgeConfig;
+  readonly configPath: string;
+  readonly base: string;
+  readonly manifestPath: string;
+  readonly outDir: string;
+}
 
-/** Options shared by both commands. No defaults here: an absent flag falls back to the config. */
-const PATH_OPTIONS = {
+const OPTIONS = {
   config: { type: 'string' },
   manifest: { type: 'string' },
   out: { type: 'string' },
-  'reference-date': { type: 'string' },
+  core: { type: 'string' },
+  features: { type: 'string' },
+  tsconfig: { type: 'string' },
+  namespace: { type: 'string' },
+  domain: { type: 'string' },
 } as const;
 
-const DEFAULTS = {
-  manifest: 'domain.manifest.yaml',
-  out: 'src/generated',
-  core: 'src/core.ts',
-  features: 'features',
-  tsconfig: 'tsconfig.json',
-} as const;
-
-type PathSetting = keyof typeof DEFAULTS;
-
-interface Settings {
-  /** Absolute path of each setting. */
-  readonly paths: Readonly<Record<PathSetting, string>>;
-  readonly plugins: readonly PluginEntry[];
-  /** Gate 3's coverage mode, from the config. */
-  readonly boundaryCoverage: 'warn' | 'error';
-  /** Pass 8's reference date: the flag, else the config. */
-  readonly referenceDate?: string;
-  /** Gate 2: the shell's paths from the config, absolute. */
-  readonly shellPaths: readonly string[];
-  /** Display path of the config file, when one was loaded. */
-  readonly configLabel?: string;
-}
-
-/** Problems with the plugin list belong to the config that set it, when there is one. */
-function attributePluginProblems(diagnostics: readonly Diagnostic[], configLabel: string | undefined): readonly Diagnostic[] {
-  if (configLabel === undefined) return diagnostics;
-  return diagnostics.map((d) =>
-    d.file === undefined && (d.code === 'missing-plugin' || d.code === 'plugin-config') ? { ...d, file: configLabel } : d,
-  );
-}
-
-/** Flag (relative to cwd), else config, else default (both relative to the config file's directory, or cwd with no config). */
-async function resolveSettings(
-  io: CliIo,
-  flags: Partial<Record<PathSetting | 'config' | 'reference-date', string>>,
-): Promise<{ ok: true; settings: Settings } | { ok: false; diagnostics: readonly Diagnostic[] }> {
+async function project(io: CliIo, values: Record<string, string | undefined>): Promise<Project | undefined> {
+  const configPath = values['config'] ? resolve(io.cwd, values['config']) : join(io.cwd, CONFIG_FILE);
   let config: UrnForgeConfig = {};
-  let configDir = io.cwd;
-  let configLabel: string | undefined;
-  const configPath = resolve(io.cwd, flags.config ?? CONFIG_FILE);
-  const configExists = await access(configPath).then(
-    () => true,
-    () => false,
-  );
-  if (flags.config !== undefined || configExists) {
-    const loaded = await loadConfig(configPath, display(io, configPath), io.cwd);
-    if (!loaded.ok) return loaded;
+  if (values['config'] || existsSync(configPath)) {
+    if (!existsSync(configPath)) {
+      io.stderr(`${display(io, configPath)}  error  config-unreadable  the config does not exist`);
+      return undefined;
+    }
+    const loaded = await loadConfig(configPath);
+    if (!loaded.ok) {
+      for (const problem of loaded.problems) io.stderr(`${display(io, configPath)}  error  config-invalid  ${problem}`);
+      return undefined;
+    }
     config = loaded.config;
-    configDir = dirname(configPath);
-    configLabel = display(io, configPath);
   }
-
-  let plugins = DEFAULT_PLUGINS;
-  if (config.plugins !== undefined) {
-    const entries = pluginEntries(config.plugins, display(io, configPath));
-    if (!entries.ok) return entries;
-    plugins = entries.entries;
-  }
-
-  const path = (key: PathSetting): string => {
-    const flag = flags[key];
-    if (flag !== undefined) return resolve(io.cwd, flag);
-    const fromConfig = config[key];
-    // A config describes the project in its own directory, so its defaults start there too.
-    return resolve(configDir, fromConfig ?? DEFAULTS[key]);
-  };
-  const paths = Object.fromEntries((Object.keys(DEFAULTS) as PathSetting[]).map((key) => [key, path(key)]));
-  const flagDate = flags['reference-date'];
-  if (flagDate !== undefined && !isCalendarDate(flagDate)) throw new UsageError(`--reference-date must be a date YYYY-MM-DD, not "${flagDate}"`);
-  const referenceDate = flagDate ?? config.referenceDate;
+  // A path of the config is relative to the config; a path of a flag to the working directory.
+  const base = dirname(configPath);
+  const path = (flag: string | undefined, option: string | undefined, fallback: string): string =>
+    flag !== undefined ? resolve(io.cwd, flag) : resolve(base, option ?? fallback);
   return {
-    ok: true,
-    settings: {
-      paths: paths as Settings['paths'],
-      plugins,
-      boundaryCoverage: config.boundaryCoverage ?? 'warn',
-      shellPaths: (config.shell ?? []).map((p) => resolve(configDir, p)),
-      ...(referenceDate === undefined ? {} : { referenceDate }),
-      ...(configLabel === undefined ? {} : { configLabel }),
+    config: {
+      ...config,
+      core: path(values['core'], config.core, 'src/core.ts'),
+      features: path(values['features'], config.features, 'features'),
+      tsconfig: path(values['tsconfig'], config.tsconfig, 'tsconfig.json'),
+      shell: (config.shell ?? []).map((s) => resolve(base, s)),
     },
+    configPath,
+    base,
+    manifestPath: path(values['manifest'], config.manifest, 'domain.manifest.yaml'),
+    outDir: path(values['out'], config.out, 'src/generated'),
   };
 }
 
-function outputFormat(value: string): 'text' | 'json' {
-  if (value === 'text' || value === 'json') return value;
-  throw new UsageError(`--format must be text or json, not "${value}"`);
+/** Reads and compiles the manifest; shows its diagnostics. Undefined when it cannot be read or has an error. */
+function compileProject(io: CliIo, p: Project): { compiled: Compiled & { model: NonNullable<Compiled['model']> }; files: ReturnType<typeof generate> } | undefined {
+  let text: string;
+  try {
+    text = readFileSync(p.manifestPath, 'utf8');
+  } catch {
+    io.stderr(`${display(io, p.manifestPath)}  error  manifest-unreadable  the manifest does not exist`);
+    return undefined;
+  }
+  const compiled = compileManifest(text);
+  showDiagnostics(io, display(io, p.manifestPath), text, compiled.diagnostics);
+  if (!compiled.model) return undefined;
+  if (p.config.postgres) {
+    const problems = postgresProblems(compiled.model, p.config.postgres);
+    for (const problem of problems) io.stderr(`${display(io, p.configPath)}  error  ${problem.code}  ${problem.path.join('.')}: ${problem.message}`);
+    if (problems.length > 0) return undefined;
+  }
+  // The header names the manifest relative to the config, so that it does not depend on the working directory.
+  const source = relative(p.base, p.manifestPath).split('\\').join('/');
+  const files = generate(compiled as Compiled & { model: NonNullable<Compiled['model']> }, source, p.config);
+  return { compiled: compiled as Compiled & { model: NonNullable<Compiled['model']> }, files };
 }
 
-async function runInit(args: string[], io: CliIo): Promise<number> {
-  const { values } = parseArgs({
-    args,
-    options: { namespace: { type: 'string', default: 'app' }, domain: { type: 'string', default: 'starter' } },
-    strict: true,
-    allowPositionals: false,
-  });
-  const problem = segmentProblem('--namespace', values.namespace) ?? segmentProblem('--domain', values.domain);
-  if (problem) {
-    io.stderr(`urn-forge: ${problem}`);
-    return 2;
+async function compileCommand(io: CliIo, argv: readonly string[]): Promise<number> {
+  const { values, positionals } = parseArgs({ args: [...argv], options: OPTIONS, strict: true, allowPositionals: true });
+  if (positionals.length > 0) throw new UsageError(`compile takes no argument: ${positionals.join(' ')}`);
+  const p = await project(io, values);
+  if (!p) return 1;
+  const result = compileProject(io, p);
+  if (!result) return 1;
+  for (const line of await writeGenerated(p.outDir, result.files)) io.stdout(`${line.status.padEnd(10)} ${display(io, line.path)}`);
+  return 0;
+}
+
+function features(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  if (!statSync(dir).isDirectory()) return [dir];
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? features(join(dir, e.name)) : e.name.endsWith('.feature') ? [join(dir, e.name)] : [])).sort();
+}
+
+async function verifyCommand(io: CliIo, argv: readonly string[]): Promise<number> {
+  const { values, positionals } = parseArgs({ args: [...argv], options: OPTIONS, strict: true, allowPositionals: true });
+  if (positionals.length > 0) throw new UsageError(`verify takes no argument: ${positionals.join(' ')}`);
+  const p = await project(io, values);
+  if (!p) {
+    io.stderr('verify failed: the config is not valid');
+    return 1;
   }
-  const result = await initProject({ cwd: io.cwd, namespace: values.namespace, domain: values.domain });
+  const result = compileProject(io, p);
+  if (!result) {
+    io.stderr('verify failed: the manifest does not compile');
+    return 1;
+  }
+  const show = (path: string): string => display(io, path);
+  const generatedPath = join(p.outDir, GENERATED_FILE);
+  const coreOptions = { corePath: p.config.core!, generatedPath, tsconfigPath: p.config.tsconfig!, show };
+  const program = coreProgram(coreOptions);
+  const outcomes: GateOutcome[] = [
+    completenessGate(coreOptions, program),
+    boundaryGate({ ...coreOptions, shell: p.config.shell ?? [] }, program),
+    gherkinGate({
+      model: result.compiled.model,
+      applications: result.compiled.applications,
+      features: features(p.config.features!).map((path) => ({ path: show(path), text: readFileSync(path, 'utf8') })),
+      coverage: p.config.coverage ?? 'warn',
+    }),
+    await driftGate(p.outDir, result.files, show),
+  ];
+  let warnings = 0;
+  for (const outcome of outcomes) {
+    io.stdout(`gate ${outcome.gate}  ${outcome.name.padEnd(12)}  ${outcome.pass ? 'PASS' : 'FAIL'}  ${outcome.summary}`);
+    for (const problem of outcome.problems) {
+      if (problem.severity === 'warning') warnings++;
+      io.stdout(`    ${problem.file}${problem.line ? `:${problem.line}` : ''}  ${problem.severity}  ${problem.code}  ${problem.message}`);
+    }
+  }
+  const failed = outcomes.filter((o) => !o.pass).map((o) => o.gate);
+  if (failed.length > 0) {
+    io.stderr(`verify failed: gate ${failed.join(', ')}`);
+    return 1;
+  }
+  io.stdout(warnings > 0 ? `verify passed with ${warnings} warning(s) (gates 1, 2, 3, 4)` : 'verify passed (gates 1, 2, 3, 4)');
+  return 0;
+}
+
+async function initCommand(io: CliIo, argv: readonly string[]): Promise<number> {
+  const { values, positionals } = parseArgs({ args: [...argv], options: OPTIONS, strict: true, allowPositionals: true });
+  if (positionals.length > 0) throw new UsageError(`init takes no argument: ${positionals.join(' ')}`);
+  const namespace = values['namespace'] ?? 'app';
+  const domain = values['domain'] ?? 'starter';
+  const problem = nameProblem('--namespace', namespace) ?? nameProblem('--domain', domain);
+  if (problem) throw new UsageError(problem);
+  const result = await initProject({ cwd: io.cwd, namespace, domain });
   if (!result.ok) {
-    io.stderr(`urn-forge: ${result.message}`);
+    io.stderr(result.message);
     return 1;
   }
   for (const line of result.lines) io.stdout(line);
-  // The starter's generated files, so verify and the scenarios run at once.
-  const compiled = await runCompile([], io);
-  if (compiled === 0) io.stdout('next: npm run verify, then npm run test:features');
-  return compiled;
+  io.stdout('next: npm install, then npx urn-forge compile, then npx urn-forge verify');
+  return 0;
 }
 
-async function runCompile(args: string[], io: CliIo): Promise<number> {
-  const { values } = parseArgs({
-    args,
-    options: { ...PATH_OPTIONS, ...FORMAT_OPTION },
-    strict: true,
-    allowPositionals: false,
-  });
-  const format = outputFormat(values.format);
-  const resolved = await resolveSettings(io, values);
-  const manifestLabel = resolved.ok ? display(io, resolved.settings.paths.manifest) : '';
-
-  const report = (diagnostics: readonly Diagnostic[]) => {
-    if (format === 'json') for (const d of diagnostics) io.stdout(diagnosticJson(d, manifestLabel));
-    else printDiagnostics(io, manifestLabel, diagnostics);
-  };
-  const finish = (ok: boolean, fingerprint?: string): number => {
-    if (format === 'json') {
-      io.stdout(JSON.stringify({ type: 'result', ok, ...(fingerprint === undefined ? {} : { fingerprint }) }));
-    } else if (fingerprint !== undefined) {
-      io.stdout(`fingerprint ${fingerprint}`);
-    }
-    return ok ? 0 : 1;
-  };
-
-  if (!resolved.ok) {
-    report(resolved.diagnostics);
-    return finish(false);
-  }
-  const { paths, plugins, configLabel, referenceDate } = resolved.settings;
-
-  let source: string;
-  try {
-    source = await readFile(paths.manifest, 'utf8');
-  } catch (error) {
-    report([{ code: 'manifest-unreadable', severity: 'error', message: `cannot read manifest: ${relativePaths((error as Error).message, io.cwd)}` }]);
-    return finish(false);
-  }
-
-  const result = compile(source, plugins, referenceDate === undefined ? {} : { referenceDate });
-  report(attributePluginProblems(result.diagnostics, configLabel));
-  if (hasErrors(result.diagnostics)) return finish(false);
-
-  for (const { path, changed } of await writeGeneratedFiles(paths.out, result.files)) {
-    if (format === 'json') io.stdout(JSON.stringify({ type: 'file', path: display(io, path), changed }));
-    else io.stdout(`${changed ? 'wrote     ' : 'unchanged '} ${display(io, path)}`);
-  }
-  // A file from an earlier compile that this one no longer writes would fail gate 4.
-  for (const path of await removeOrphanFiles(paths.out, result.files)) {
-    if (format === 'json') io.stdout(JSON.stringify({ type: 'file', path: display(io, path), changed: true, removed: true }));
-    else io.stdout(`removed    ${display(io, path)}`);
-  }
-  return finish(true, result.fingerprint);
-}
-
-/** The short keys of the postgres plugin's tables in a config's plugin list, if it has one. */
-function postgresTables(specs: UrnForgeConfig['plugins']): readonly string[] {
-  for (const spec of specs ?? []) {
-    if (typeof spec !== 'string' && spec[0] === 'postgres') return ((spec[1] as { tables?: readonly string[] }).tables ?? []);
-  }
-  return [];
-}
-
-async function runDiff(args: string[], io: CliIo): Promise<number> {
-  const { values, positionals } = parseArgs({ args, options: { config: { type: 'string' }, ...FORMAT_OPTION }, strict: true, allowPositionals: true });
-  const format = outputFormat(values.format);
-  if (positionals.length !== 2) throw new UsageError('diff needs two manifests: <old manifest> <new manifest>');
-  const [oldPath, newPath] = positionals.map((p) => resolve(io.cwd, p)) as [string, string];
-  const [oldLabel, newLabel] = [display(io, oldPath), display(io, newPath)];
-
-  // The config is optional: diff reads only the postgres plugin's tables from it, for the Stored use.
-  let tables: readonly string[] = [];
-  const configPath = resolve(io.cwd, values.config ?? CONFIG_FILE);
-  const configExists = await access(configPath).then(() => true, () => false);
-  if (values.config !== undefined || configExists) {
-    const loaded = await loadConfig(configPath, display(io, configPath), io.cwd);
-    if (!loaded.ok) {
-      if (format === 'json') {
-        for (const d of loaded.diagnostics) io.stdout(diagnosticJson(d));
-        io.stdout(JSON.stringify({ type: 'result', ok: false, breaking: 0, compatible: 0, lifecycle: 0 }));
-      } else {
-        printDiagnostics(io, '', loaded.diagnostics);
-        io.stderr('diff failed: the config is not valid');
-      }
-      return 1;
-    }
-    tables = postgresTables(loaded.config.plugins);
-  }
-
-  const read = async (path: string, label: string): Promise<string | Diagnostic> =>
-    readFile(path, 'utf8').catch((error: Error) => ({ code: 'manifest-unreadable', severity: 'error', file: label, message: `cannot read manifest: ${relativePaths(error.message, io.cwd)}` }) as Diagnostic);
-  const sources = [await read(oldPath, oldLabel), await read(newPath, newLabel)];
-  const unreadable = sources.filter((s): s is Diagnostic => typeof s !== 'string');
-  const finish = (ok: boolean, counts: { breaking: number; compatible: number; lifecycle: number }) => {
-    if (format === 'json') io.stdout(JSON.stringify({ type: 'result', ok, ...counts }));
-    return ok ? 0 : 1;
-  };
-  if (unreadable.length > 0) {
-    if (format === 'json') for (const d of unreadable) io.stdout(diagnosticJson(d));
-    else {
-      printDiagnostics(io, '', unreadable);
-      io.stderr('diff failed: a manifest cannot be read');
-    }
-    return finish(false, { breaking: 0, compatible: 0, lifecycle: 0 });
-  }
-
-  const result = diffManifests(sources[0] as string, sources[1] as string, { tables });
-  if (!result.ok) {
-    const label = result.which === 'old' ? oldLabel : newLabel;
-    if (format === 'json') for (const d of result.diagnostics) io.stdout(diagnosticJson(d, label));
-    else {
-      printDiagnostics(io, label, result.diagnostics);
-      io.stderr(`diff failed: ${label} does not compile`);
-    }
-    return finish(false, { breaking: 0, compatible: 0, lifecycle: 0 });
-  }
-
-  const count = (c: string) => result.changes.filter((x) => x.class === c).length;
-  const counts = { breaking: count('breaking'), compatible: count('compatible'), lifecycle: count('lifecycle') };
-  const ok = result.experimental || counts.breaking === 0;
-  if (format === 'json') {
-    for (const change of result.changes) {
-      if (change.class !== 'breaking') io.stdout(JSON.stringify({ type: 'change', class: change.class, urn: change.urn, message: change.message }));
-    }
-    for (const d of result.breaking) io.stdout(diagnosticJson(d, newLabel));
-    return finish(ok, counts);
-  }
-  for (const change of result.changes) io.stdout(`${change.class.padEnd(10)}  ${change.urn}  ${change.message}`);
-  const summary = `${counts.breaking} breaking, ${counts.compatible} compatible, ${counts.lifecycle} lifecycle change(s)`;
-  if (counts.breaking === 0) io.stdout(`diff passed: ${summary}`);
-  else if (result.experimental) io.stdout(`diff passed: ${summary}; the breaking changes are warnings, because ${oldLabel} is experimental`);
-  else io.stderr(`diff failed: ${summary}`);
-  return ok ? 0 : 1;
-}
-
-async function runVerify(args: string[], io: CliIo): Promise<number> {
-  const { values } = parseArgs({
-    args,
-    options: {
-      ...PATH_OPTIONS,
-      core: { type: 'string' },
-      features: { type: 'string' },
-      tsconfig: { type: 'string' },
-      ...FORMAT_OPTION,
-    },
-    strict: true,
-    allowPositionals: false,
-  });
-  const format = outputFormat(values.format);
-  const resolved = await resolveSettings(io, values);
-  if (!resolved.ok) {
-    if (format === 'json') {
-      for (const d of resolved.diagnostics) io.stdout(diagnosticJson(d));
-      io.stdout(JSON.stringify({ type: 'result', ok: false, failedGates: [], warnings: 0 }));
-    } else {
-      printDiagnostics(io, '', resolved.diagnostics);
-      io.stderr('verify failed: the config is not valid');
-    }
-    return 1;
-  }
-  const { paths, plugins } = resolved.settings;
-  const result = await verify({
-    cwd: io.cwd,
-    manifestPath: paths.manifest,
-    outDir: paths.out,
-    corePath: paths.core,
-    featuresDir: paths.features,
-    tsconfigPath: paths.tsconfig,
-    plugins,
-    boundaryCoverage: resolved.settings.boundaryCoverage,
-    shellPaths: resolved.settings.shellPaths,
-    ...(resolved.settings.referenceDate === undefined ? {} : { referenceDate: resolved.settings.referenceDate }),
-  });
-
-  const manifestLabel = display(io, paths.manifest);
-  const diagnostics = attributePluginProblems(result.diagnostics, resolved.settings.configLabel);
-  const failed = result.gates.filter((g) => !g.ok).map((g) => g.gate);
-
-  const warnings = [...diagnostics, ...result.gates.flatMap((g) => g.problems)].filter((d) => d.severity === 'warning').length;
-
-  if (format === 'json') {
-    for (const d of diagnostics) io.stdout(diagnosticJson(d, manifestLabel));
-    for (const gate of result.gates) {
-      for (const problem of gate.problems) io.stdout(diagnosticJson(problem, manifestLabel, { gate: gate.gate }));
-    }
-    for (const { gate, name, ok, summary } of result.gates) {
-      io.stdout(JSON.stringify({ type: 'gate', gate, name, ok, summary }));
-    }
-    io.stdout(JSON.stringify({ type: 'result', ok: result.ok, failedGates: failed, warnings, sunsetDatesChecked: result.sunsetDatesChecked }));
-    return result.ok ? 0 : 1;
-  }
-
-  printDiagnostics(io, manifestLabel, diagnostics);
-  if (!result.sunsetDatesChecked) io.stdout('note: sunset dates are not checked: set --reference-date or referenceDate in the config');
-  for (const gate of result.gates) {
-    io.stdout(`gate ${gate.gate}  ${gate.name.padEnd(12)}  ${gate.ok ? 'PASS' : 'FAIL'}  ${gate.summary}`);
-    for (const problem of gate.problems) {
-      for (const line of formatDiagnostic(problem, manifestLabel).split('\n')) io.stdout(`    ${line}`);
-    }
-  }
-  if (result.ok) {
-    io.stdout(verifyPassedLine(result.gates.map((g) => g.gate), warnings));
-    return 0;
-  }
-  const unreadable = diagnostics.some((d) => d.code === 'manifest-unreadable');
-  io.stderr(
-    failed.length > 0
-      ? `verify failed: gate ${failed.join(', ')}`
-      : `verify failed: the manifest ${unreadable ? 'cannot be read' : 'does not compile'}`,
-  );
-  return 1;
-}
-
-/** `verify passed [with N warning(s)] (gates 1, 2, 3, 4; gate 5 is urn-forge diff)`; a gate that is not built is named too. */
-export function verifyPassedLine(ran: readonly number[], warnings: number): string {
-  // Gate 5 compares two manifests, so it is its own command, not a gate of verify.
-  const notBuilt = ([1, 2, 3, 4] as const).filter((n) => !GATES.some((g) => g.number === n));
-  const scope = `gates ${ran.join(', ')}${notBuilt.map((n) => `; gate ${n} is not built`).join('')}; gate 5 is urn-forge diff`;
-  return `verify passed${warnings > 0 ? ` with ${warnings} warning(s)` : ''} (${scope})`;
-}
-
-export async function main(argv: readonly string[], io: CliIo = defaultIo): Promise<number> {
+/** Runs a command. Gives the exit code: 0, 1 for a failure, 2 for a usage error. */
+export async function main(argv: readonly string[], io: CliIo = { cwd: process.cwd(), stdout: (t) => console.log(t), stderr: (t) => console.error(t) }): Promise<number> {
   const [command, ...rest] = argv;
   try {
     switch (command) {
       case 'init':
-        return await runInit(rest, io);
+        return await initCommand(io, rest);
       case 'compile':
-        return await runCompile(rest, io);
+        return await compileCommand(io, rest);
       case 'verify':
-        return await runVerify(rest, io);
-      case 'diff':
-        return await runDiff(rest, io);
+        return await verifyCommand(io, rest);
+      case 'diff': {
+        const { diffCommand } = await import('./diff/command.js');
+        return await diffCommand(io, rest);
+      }
       case undefined:
       case '--help':
       case '-h':
@@ -434,7 +245,7 @@ export async function main(argv: readonly string[], io: CliIo = defaultIo): Prom
         io.stdout(USAGE);
         return command === undefined ? 2 : 0;
       case '--version':
-        io.stdout(GENERATOR_VERSION);
+        io.stdout(VERSION);
         return 0;
       default:
         io.stderr(`unknown command "${command}"\n\n${USAGE}`);
@@ -448,3 +259,5 @@ export async function main(argv: readonly string[], io: CliIo = defaultIo): Prom
     throw error;
   }
 }
+
+export { UsageError };

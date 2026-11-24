@@ -1,183 +1,263 @@
-# The insurance domain. It uses dates, exact
-# decimals, an optional field and invariants, so each part of the rule language has a real use.
+# The insurance domain: policies with coverages, issued and cancelled. Times are strings in the
+# format date-time, which rules read with timestamp(); amounts are integers of cents. A cancellation
+# loads the policy as it is stored, and an event is a part of the output it belongs to.
 manifest:
   namespace: acme
   domain: insurance
-  version: 0.1.0
+  version: 0.2.0
 
-customer.field.customer_id:
-  primitive: string
-  format: uuid
-  description: The identifier of a customer
-customer.field.name:
-  primitive: string
-  minLength: 1
-  description: The full name of a customer
+definitions:
+  # Customers.
+  customer_id:
+    description: The identifier of a customer, a UUID
+    type: string
+    rules:
+      - pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 
-customer.entity.customer:
-  description: A person who holds policies
-  key: customer.field.customer_id
-  fields:
-    - ref: customer.field.customer_id
-    - ref: customer.field.name
+  name:
+    description: The full name of a customer
+    type: string
+    rules:
+      - minLength: 1
 
-policy.field.peril:
-  primitive: enum
-  values: [fire, flood, theft]
-  description: A kind of damage that a policy covers
-policy.field.limit:
-  primitive: decimal
-  scale: 2
-  description: The most that a policy pays for one peril
-policy.field.note:
-  primitive: string
-  description: Free text about a coverage
-  # Retired for remark, which is limited in length. Callers receive both until the sunset.
-  status: deprecated
-  supersededBy: policy.field.remark
-  sunsetDate: 2027-06-30
-policy.field.remark:
-  primitive: string
-  maxLength: 40
-  description: Free text about a coverage, at most 40 characters
+  customer:
+    description: A person who holds policies
+    type: object
+    identifier: customer_id
+    properties: [customer_id, name]
+    rules:
+      - required: [customer_id, name]
 
-policy.field.policy_id:
-  primitive: string
-  format: uuid
-  description: The identifier of a policy
-policy.field.effective_date:
-  primitive: date
-  description: The first day that the policy covers
-policy.field.expiry_date:
-  primitive: date
-  description: The last day that the policy covers
-policy.field.premium:
-  primitive: decimal
-  exclusiveMin: "0"
-  scale: 2
-  description: The price of the policy for its whole term
-policy.field.deductible:
-  primitive: decimal
-  min: "0"
-  scale: 2
-  description: The amount of a claim that the holder pays first
-policy.field.cancellation_date:
-  primitive: date
-  description: The day from which the policy stops
-policy.field.refund:
-  primitive: decimal
-  min: "0"
-  scale: 2
-  description: The part of the premium that goes back to the holder
+  # Coverages.
+  peril:
+    description: A kind of damage that a policy covers
+    type: string
+    rules:
+      - enum: [fire, flood, theft]
 
-policy.entity.coverage:
-  description: One peril that a policy covers, up to a limit
-  key: policy.field.peril
-  fields:
-    - ref: policy.field.peril
-    - ref: policy.field.limit
-    - ref: policy.field.note
-      required: false
-    - ref: policy.field.remark
-      required: false
+  limit:
+    description: The most that a policy pays for one peril, in cents
+    type: integer
+    rules:
+      - exclusiveMinimum: 0
 
-policy.entity.policy:
-  description: An issued insurance policy
-  # What a link to a policy holds, and the primary key of its table.
-  key: policy.field.policy_id
-  fields:
-    - ref: policy.field.policy_id
-    # The customer who holds the policy: the policy holds the customer's key.
-    - link: customer.entity.customer
-      as: holder
-    # Each peril at most once: a list of coverage objects, unique by their key.
-    - ref: policy.entity.coverage
-      as: coverages
-      many: { minItems: 1, maxItems: 3, unique: true }
-    - ref: policy.field.effective_date
-    - ref: policy.field.expiry_date
-    - ref: policy.field.premium
-    - ref: policy.field.deductible
-      required: false
-policy.entity.cancellation:
-  description: A request to stop a policy, with the terms it needs
-  fields:
-    - ref: policy.field.effective_date
-    - ref: policy.field.expiry_date
-    - ref: policy.field.premium
-    - ref: policy.field.cancellation_date
-policy.entity.refund_quote:
-  description: The refund for a cancellation
-  fields:
-    - ref: policy.field.refund
+  remark:
+    description: Free text about a coverage, at most 40 characters
+    type: string
+    rules:
+      - maxLength: 40
 
-policy.invariant.limit_is_positive:
-  description: A coverage pays something
-  on: policy.entity.coverage
-  rule: limit > 0
-  message: The limit of a coverage must be more than 0
-policy.invariant.term_is_positive:
-  description: A policy ends after it starts
-  on: policy.entity.policy
-  rule: expiry_date > effective_date
-  message: The expiry date must be after the effective date
-policy.invariant.deductible_below_premium:
-  description: A deductible, when there is one, is less than the premium
-  on: policy.entity.policy
-  rule: deductible is absent or deductible < premium
-  message: The deductible must be less than the premium
-policy.invariant.cancellation_within_term:
-  description: A policy can stop only on a day that it covers
-  on: policy.entity.cancellation
-  rule: cancellation_date >= effective_date and cancellation_date <= expiry_date
-  message: The cancellation date must be inside the term of the policy
+  coverage:
+    description: One peril that a policy covers, up to a limit
+    type: object
+    properties: [peril, limit, remark]
+    rules:
+      - required: [peril, limit]
 
-# Events: the facts that the operations return on success, and the audit record of a refusal.
-policy.event.policy_issued:
-  description: A policy was issued
-  fields:
-    - ref: policy.field.policy_id
-    - link: customer.entity.customer
-      as: holder
-    - ref: policy.field.premium
-policy.event.policy_cancelled:
-  description: A policy stopped, with the refund for the days it does not cover
-  fields:
-    - ref: policy.field.cancellation_date
-    - ref: policy.field.refund
-policy.event.refund_refused:
-  description: A cancellation was refused because its refund was below the minimum, for an audit trail
-  fields:
-    - ref: policy.field.refund
-    # Optional, so the error's fields can build the event.
-    - ref: policy.field.cancellation_date
-      required: false
+  coverages:
+    description: The perils that a policy covers, each one once
+    type: array
+    items: coverage
+    rules:
+      - minItems: 1
+      - maxItems: 3
+      - one_coverage_per_peril
 
-policy.error.refund_below_minimum:
-  description: The refund is too small to pay out
-  category: precondition
-  retryable: false
-  message: A refund of {refund} is below the minimum of 1.00
-  fields:
-    - ref: policy.field.refund
-  recordAs: policy.event.refund_refused
+  # Policies.
+  policy_id:
+    description: The identifier of a policy, a UUID
+    type: string
+    rules:
+      - pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 
-policy.operation.issue_policy:
-  description: Issue a policy as requested
-  input: policy.entity.policy
-  output: policy.entity.policy
-  emits: [policy.event.policy_issued]
-policy.operation.cancel_policy:
-  description: Stop a policy and calculate the refund for the days it does not cover
-  input: policy.entity.cancellation
-  output: policy.entity.refund_quote
-  errors:
-    - policy.error.refund_below_minimum
-  emits: [policy.event.policy_cancelled]
+  holder:
+    description: The customer who holds the policy
+    type: customer_id
 
-# Days: at the end, so the line numbers that the docs quote do not move.
-policy.invariant.term_at_most_a_year:
-  description: A policy lasts one year at most, also in a leap year
-  on: policy.entity.policy
-  rule: expiry_date - effective_date <= 366
-  message: A policy can last 366 days at most
+  effective_at:
+    description: When the cover of the policy starts
+    type: string
+    rules:
+      - format: date-time
+
+  expires_at:
+    description: When the cover of the policy ends
+    type: string
+    rules:
+      - format: date-time
+
+  premium:
+    description: The price of the policy for its whole term, in cents
+    type: integer
+    rules:
+      - exclusiveMinimum: 0
+
+  deductible:
+    description: The amount of a claim that the holder pays first, in cents
+    type: integer
+    rules:
+      - minimum: 0
+
+  policy:
+    description: An issued insurance policy
+    type: object
+    identifier: policy_id
+    properties: [policy_id, holder, coverages, effective_at, expires_at, premium, deductible]
+    rules:
+      - required: [policy_id, holder, coverages, effective_at, expires_at, premium]
+      - term_is_positive
+      - term_at_most_a_year
+      - deductible_below_premium
+
+  policy_issued:
+    description: The event that a policy was issued
+    type: object
+    properties: [policy_id, holder, premium]
+    rules:
+      - required: [policy_id, holder, premium]
+
+  issued:
+    description: The policy as issued, with its event
+    type: object
+    properties: [policy, policy_issued]
+    rules:
+      - required: [policy, policy_issued]
+
+  # Cancellations.
+  stored_policy:
+    description: The policy as it is stored, before the call
+    type: policy
+
+  cancelled_at:
+    description: When the policy stops
+    type: string
+    rules:
+      - format: date-time
+
+  cancellation:
+    description: A request to stop a policy, with the policy as stored
+    type: object
+    properties: [stored_policy, cancelled_at]
+    rules:
+      - required: [stored_policy, cancelled_at]
+      - cancellation_within_term
+
+  refund:
+    description: The part of the premium that goes back to the holder, in cents
+    type: integer
+    rules:
+      - minimum: 0
+
+  policy_cancelled:
+    description: The event that a policy stopped, with the refund for the days it does not cover
+    type: object
+    properties: [policy_id, cancelled_at, refund]
+    rules:
+      - required: [policy_id, cancelled_at, refund]
+
+  refund_quote:
+    description: The refund of a cancellation, the part of the premium for the time after it, with its event
+    type: object
+    properties: [refund, policy_cancelled]
+    rules:
+      - required: [refund, policy_cancelled]
+
+  refund_refused:
+    description: The event that a cancellation was refused because its refund was below the minimum, for an audit trail
+    type: object
+    properties: [policy_id, cancelled_at, refund]
+    rules:
+      - required: [policy_id, cancelled_at, refund]
+
+  refund_below_minimum:
+    description: The refund is too small to pay out, with the event that records the refusal
+    type: object
+    properties: [refund, refund_refused]
+    rules:
+      - required: [refund, refund_refused]
+
+rules:
+  one_coverage_per_peril:
+    description: A policy covers each peril once
+    rule: self.all(c, self.exists_one(d, d.peril == c.peril))
+    message: A peril is covered more than once
+
+  term_is_positive:
+    description: A policy ends after it starts
+    rule: timestamp(self.expires_at) > timestamp(self.effective_at)
+    message: The cover must end after it starts
+
+  term_at_most_a_year:
+    description: A policy lasts one year at most, also in a leap year (366 days)
+    rule: timestamp(self.expires_at) - timestamp(self.effective_at) <= duration('8784h')
+    message: A policy can last 366 days at most
+
+  deductible_below_premium:
+    description: A deductible, when there is one, is less than the premium
+    rule: '!has(self.deductible) || self.deductible < self.premium'
+    message: The deductible must be less than the premium
+
+  cancellation_within_term:
+    description: A policy can stop only at a time that it covers
+    rule: >-
+      timestamp(self.cancelled_at) >= timestamp(self.stored_policy.effective_at) &&
+      timestamp(self.cancelled_at) <= timestamp(self.stored_policy.expires_at)
+    message: The policy must stop inside its term
+
+  issued_as_requested:
+    description: A policy is issued as requested
+    rule: output.policy == input
+    message: The policy issued is not the one requested
+
+  announces_the_policy:
+    description: The event names the policy, its holder and its premium
+    rule: >-
+      output.policy_issued.policy_id == input.policy_id &&
+      output.policy_issued.holder == input.holder &&
+      output.policy_issued.premium == input.premium
+    message: The event does not name the policy issued
+
+  refund_at_least_minimum:
+    description: A refund that is paid is 100 cents or more
+    rule: output.refund >= 100
+    message: A refund below 100 cents is not paid
+
+  refund_under_minimum:
+    description: A refund is refused only when it is below 100 cents
+    rule: output.refund < 100
+    message: A refund of 100 cents or more is paid
+
+  refund_at_most_premium:
+    description: A refund is never more than the premium
+    rule: output.refund <= input.stored_policy.premium
+    message: The refund is more than the premium
+
+  announces_the_cancellation:
+    description: The event names the policy, the time it stops and the refund
+    rule: >-
+      output.policy_cancelled.policy_id == input.stored_policy.policy_id &&
+      output.policy_cancelled.cancelled_at == input.cancelled_at &&
+      output.policy_cancelled.refund == output.refund
+    message: The event does not name the cancellation
+
+  records_the_refusal:
+    description: The event of a refusal names the policy, the time it would stop and the refund
+    rule: >-
+      output.refund_refused.policy_id == input.stored_policy.policy_id &&
+      output.refund_refused.cancelled_at == input.cancelled_at &&
+      output.refund_refused.refund == output.refund
+    message: The event does not record the refusal
+
+operations:
+  issue_policy:
+    description: Issue a policy as requested
+    input: policy
+    output:
+      - issued: [issued_as_requested, announces_the_policy]
+
+  cancel_policy:
+    description: Stop a policy and calculate the refund for the days it does not cover
+    input: cancellation
+    output:
+      - refund_quote: [refund_at_least_minimum, refund_at_most_premium, announces_the_cancellation]
+      - refund_below_minimum: [refund_under_minimum, refund_at_most_premium, records_the_refusal]

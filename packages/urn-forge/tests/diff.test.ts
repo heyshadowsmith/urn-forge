@@ -1,116 +1,164 @@
 /**
- * The classifier of `urn-forge diff`. Each directory under
- * tests/diff/ is one rule: an old and a new manifest, and the class of each change.
+ * diff: each change is breaking or compatible by the side of the value, and the version decides
+ * whether the breaking changes are allowed.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { compileManifest } from '../src/index.js';
 import { classify } from '../src/diff/classify.js';
-import { constraintRelation, listRelation } from '../src/diff/relation.js';
-import { main } from '../src/cli.js';
-import { compile } from '../src/engine.js';
-import { toUrn } from '../src/naming.js';
-import type { Urn } from '../src/ir/types.js';
+import { allowsBreaking } from '../src/diff/command.js';
 
-const CASES = fileURLToPath(new URL('./diff', import.meta.url));
-const cases = readdirSync(CASES, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
+const BASE = `manifest:
+  namespace: demo
+  domain: shop
+  version: 1.0.0
+definitions:
+  quantity:
+    description: A quantity
+    type: integer
+    rules:
+      - minimum: 1
+      - maximum: 10
+  sku:
+    description: A SKU
+    type: string
+  status:
+    description: A status
+    type: string
+    rules:
+      - enum: [open, closed]
+  note:
+    description: A note
+    type: string
+  order_request:
+    description: A request
+    type: object
+    properties: [sku, quantity]
+    rules:
+      - required: [sku]
+  order:
+    description: An order
+    type: object
+    properties: [sku, quantity, status]
+    rules:
+      - required: [sku, status]
+  refusal:
+    description: A refusal
+    type: object
+    properties: [sku]
+rules:
+  same_sku:
+    description: The order has the SKU of the request
+    rule: output.sku == input.sku
+    message: Another SKU
+  at_least:
+    description: At least the limit
+    parameters: [quantity]
+    rule: self >= quantity
+    message: At least {quantity}
+operations:
+  place:
+    description: Place an order
+    input: order_request
+    output:
+      - order: [same_sku]
+`;
 
-describe.each(cases)('diff case %s', (name) => {
-  const read = (file: string) => readFileSync(join(CASES, name, file), 'utf8');
-  it('reports the expected class for each changed URN', () => {
-    const [old, now] = [compile(read('old.yaml')).ir!, compile(read('new.yaml')).ir!];
-    const tablesFile = join(CASES, name, 'tables.json');
-    const tables = existsSync(tablesFile)
-      ? (JSON.parse(read('tables.json')) as string[]).map((key) => {
-          const [context, kind, identifier] = key.split('.') as [string, string, string];
-          return toUrn({ namespace: old.meta.namespace, domain: old.meta.domain, context, kind, identifier }) as Urn;
-        })
-      : [];
-    const changes = classify(old, now, { tables });
-    const got = changes.map((c) => `${c.class} ${c.urn}`).sort();
-    const expected = read('expected.txt').trim().split('\n').sort();
-    expect(got, changes.map((c) => `${c.class} ${c.urn}: ${c.message}`).join('\n')).toEqual(expected);
-  });
-});
+function changes(edit: (text: string) => string): string[] {
+  const old = compileManifest(BASE);
+  const next = compileManifest(edit(BASE));
+  expect(old.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+  expect(next.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+  return classify(old as never, next as never).map((c) => `${c.class} ${c.place}: ${c.message}`);
+}
 
-describe('the relation of two sets of constraints', () => {
-  it.each([
-    ['decimal', { min: '0.01' }, { exclusiveMin: '0.01' }, 'narrower'],
-    ['decimal', { exclusiveMin: '0' }, { min: '0' }, 'wider'],
-    ['decimal', { scale: 2 }, { scale: 3 }, 'wider'],
-    ['decimal', {}, { scale: 2 }, 'narrower'],
-    ['decimal', { notIn: ['13.00'] }, { notIn: ['13', '14'] }, 'narrower'],
-    ['integer', { multipleOf: 4 }, { multipleOf: 6 }, 'neither'],
-    ['integer', { min: 1, max: 9 }, { min: 0, max: 8 }, 'neither'],
-    ['timestamp', { max: '2026-01-01T00:00:00Z' }, { max: '2026-01-01T00:00:00.000Z' }, 'equal'],
-    ['date', { min: '2026-01-01' }, { min: '2025-12-31' }, 'wider'],
-    ['enum', { values: ['a', 'b'] }, { values: ['b', 'a'] }, 'equal'],
-    ['boolean', { mustBe: true }, { mustBe: false }, 'neither'],
-    ['string', { format: 'uuid' }, {}, 'wider'],
-  ] as const)('%s %j → %j is %s', (primitive, old, now, relation) => {
-    expect(constraintRelation(primitive, old as never, now as never)).toBe(relation);
-  });
+const ignoreUnknown = (t: string): string => t.replace('  version: 1.0.0\n', '  version: 1.0.0\n  compatibility:\n    callers: ignore-unknown\n');
 
-  it('compares a list rule by its count and uniqueness', () => {
-    expect(listRelation({ minItems: 1 }, { minItems: 1, unique: true })).toBe('narrower');
-    expect(listRelation({ maxItems: 3 }, { maxItems: 5 })).toBe('wider');
-  });
-});
-
-describe('the diff command', () => {
-  const CASE = (name: string, file: string) => `tests/diff/${name}/${file}`;
-  let out: string[];
-  let err: string[];
-  const io = () => ({ cwd: fileURLToPath(new URL('..', import.meta.url)), stdout: (l: string) => out.push(l), stderr: (l: string) => err.push(l) });
-  const run = async (args: string[]) => {
-    out = [];
-    err = [];
-    return main(['diff', ...args, '--config', 'tests/diff/no-config.ts'], io());
-  };
-
-  it('passes, and prints each change, when no change is breaking', async () => {
-    expect(await run([CASE('deprecated', 'old.yaml'), CASE('deprecated', 'new.yaml')])).toBe(0);
-    expect(out).toEqual(['lifecycle   urn:demo:shop:order:field:spare  status active → deprecated', 'diff passed: 0 breaking, 0 compatible, 1 lifecycle change(s)']);
-  });
-
-  it('fails on a breaking change to a live URN', async () => {
-    expect(await run([CASE('input-tightened', 'old.yaml'), CASE('input-tightened', 'new.yaml')])).toBe(1);
-    expect(out).toEqual(['breaking    urn:demo:shop:order:field:qty  max 10 → 5 narrows a value that callers send, which breaks callers that send it']);
-    expect(err).toEqual(['diff failed: 1 breaking, 0 compatible, 0 lifecycle change(s)']);
-  });
-
-  it('passes with a warning while the old manifest is experimental', async () => {
-    expect(await run([CASE('experimental', 'old.yaml'), CASE('experimental', 'new.yaml')])).toBe(0);
-    expect(out.at(-1)).toBe('diff passed: 1 breaking, 0 compatible, 0 lifecycle change(s); the breaking changes are warnings, because tests/diff/experimental/old.yaml is experimental');
+describe('a rule of a definition', () => {
+  it('accepts less on the input: breaking', () => {
+    expect(changes((t) => t.replace('- minimum: 1', '- minimum: 2'))).toEqual(['breaking definitions.quantity: minimum is now 2, not 1: it accepts less']);
   });
 
-  it('writes JSON lines: a change for each compatible or lifecycle change, a diagnostic for each breaking one', async () => {
-    expect(await run([CASE('error-added', 'old.yaml'), CASE('error-added', 'new.yaml'), '--format', 'json'])).toBe(1);
-    expect(out.map((l) => JSON.parse(l))).toEqual([
-      { type: 'change', class: 'compatible', urn: 'urn:demo:shop:order:error:closed', message: 'is new' },
-      {
-        type: 'diagnostic',
-        severity: 'error',
-        code: 'breaking-change',
-        file: 'tests/diff/error-added/new.yaml',
-        urn: 'urn:demo:shop:order:operation:place',
-        message: 'urn:demo:shop:order:operation:place: the new declared error urn:demo:shop:order:error:closed widens a value that callers receive, which breaks callers that receive it',
-      },
-      { type: 'result', ok: false, breaking: 1, compatible: 1, lifecycle: 0 },
+  it('accepts more on the input only: compatible', () => {
+    const sentOnly = BASE.replace('properties: [sku, quantity, status]', 'properties: [sku, status]');
+    const old = compileManifest(sentOnly);
+    const next = compileManifest(sentOnly.replace('- maximum: 10', '- maximum: 20'));
+    expect(classify(old as never, next as never).map((c) => `${c.class} ${c.place}: ${c.message}`)).toEqual([
+      'compatible definitions.quantity: maximum is now 20, not 10: it accepts more',
     ]);
   });
 
-  it('reads the Postgres tables from the config, for the Stored use', async () => {
-    out = [];
-    expect(await main(['diff', CASE('stored-tightened', 'old.yaml'), CASE('stored-tightened', 'new.yaml'), '--config', 'tests/diff/stored-tightened/urn-forge.config.ts'], io())).toBe(1);
-    expect(out[0]).toBe('breaking    urn:demo:shop:order:field:spare  min none → 5 narrows a value that the database stores, which breaks rows already stored');
+  it('accepts more on the output: breaking, unless callers ignore what they do not know', () => {
+    expect(changes((t) => t.replace('[open, closed]', '[open, closed, held]'))).toEqual([
+      'breaking definitions.status: enum is now ["open","closed","held"], not ["open","closed"]: it accepts more',
+    ]);
+    const old = compileManifest(ignoreUnknown(BASE));
+    const next = compileManifest(ignoreUnknown(BASE).replace('[open, closed]', '[open, closed, held]'));
+    expect(classify(old as never, next as never).map((c) => c.class)).toEqual(['compatible']);
   });
 
-  it('reports a manifest that it cannot read, and a call without two manifests', async () => {
-    expect(await run([CASE('deprecated', 'old.yaml'), 'tests/diff/nope.yaml'])).toBe(1);
-    expect(err[0]).toMatch(/^tests\/diff\/nope\.yaml {2}error {2}manifest-unreadable {2}cannot read manifest: ENOENT/u);
-    expect(await run([CASE('deprecated', 'old.yaml')])).toBe(2);
-    expect(err[0]).toMatch(/^diff needs two manifests: <old manifest> <new manifest>/u);
+  it('is new on a value that is only received: compatible', () => {
+    expect(changes((t) => t.replace('      - enum: [open, closed]', '      - enum: [open, closed]\n      - minLength: 4'))).toEqual([
+      'compatible definitions.status: the rule minLength is new: it accepts less',
+    ]);
+  });
+
+  it('is removed from a received value: breaking', () => {
+    expect(changes((t) => t.replace('      - required: [sku, status]', '      - required: [sku]'))).toEqual([
+      'breaking definitions.order: required is now ["sku"], not ["sku","status"]: it accepts more',
+    ]);
+  });
+
+  it('requires more of the input: breaking', () => {
+    expect(changes((t) => t.replace('      - required: [sku]\n  order:', '      - required: [sku, quantity]\n  order:'))).toEqual([
+      'breaking definitions.order_request: required is now ["sku","quantity"], not ["sku"]: it accepts less',
+    ]);
+  });
+
+  it('of the manifest takes its direction from its form: self >= parameter', () => {
+    const use = (n: number) => (t: string) => t.replace('  sku:\n    description: A SKU\n    type: string\n', `  sku:\n    description: A SKU\n    type: string\n`).replace('      - maximum: 10\n', `      - maximum: 10\n      - at_least: ${n}\n`);
+    const old = compileManifest(use(1)(BASE));
+    const next = compileManifest(use(3)(BASE));
+    expect(classify(old as never, next as never).map((c) => `${c.class} ${c.message}`)).toEqual(['breaking at_least is now 3, not 1: it accepts less']);
+  });
+
+  it('whose text changes is breaking where it is used', () => {
+    expect(changes((t) => t.replace('rule: output.sku == input.sku', 'rule: output.sku != input.sku'))).toEqual([
+      'breaking rules.same_sku: the rule is now output.sku != input.sku, not output.sku == input.sku',
+    ]);
+  });
+});
+
+describe('an operation', () => {
+  it('with a new output: breaking, unless callers ignore what they do not know', () => {
+    const add = (t: string) => t.replace('      - order: [same_sku]\n', '      - order: [same_sku]\n      - refusal\n');
+    expect(changes(add)).toEqual(['breaking operations.place: the output refusal is new: callers can get an answer that they do not handle']);
+    expect(classify(compileManifest(ignoreUnknown(BASE)) as never, compileManifest(add(ignoreUnknown(BASE))) as never).map((c) => c.class)).toEqual(['compatible']);
+  });
+
+  it('whose output promises less: breaking; more: compatible', () => {
+    expect(changes((t) => t.replace('      - order: [same_sku]', '      - order'))).toEqual(['breaking operations.place.order: the rule same_sku is removed: the answer promises less']);
+    const none = (t: string) => t.replace('      - order: [same_sku]', '      - order');
+    expect(classify(compileManifest(none(BASE)) as never, compileManifest(BASE) as never).map((c) => `${c.class} ${c.message}`)).toEqual([
+      'compatible the rule same_sku is new: the answer promises more',
+    ]);
+  });
+
+  it('that is removed: breaking; new: compatible', () => {
+    const without = BASE.slice(0, BASE.indexOf('operations:'));
+    expect(classify(compileManifest(BASE) as never, compileManifest(without) as never).map((c) => `${c.class} ${c.place}`)).toContain('breaking operations.place');
+    expect(classify(compileManifest(without) as never, compileManifest(BASE) as never).map((c) => `${c.class} ${c.place}`)).toContain('compatible operations.place');
+  });
+});
+
+describe('the version', () => {
+  it.each([
+    ['1.4.0', '1.5.0', false],
+    ['1.4.0', '2.0.0', true],
+    ['1.4.0', '2.0.0-alpha.1', true],
+    ['2.0.0-alpha.1', '2.0.0-alpha.2', true],
+    ['0.3.0', '0.4.0', true],
+    ['2.0.0', '2.0.1', false],
+  ])('from %s to %s allows a breaking change: %s', (from, to, allowed) => {
+    expect(allowsBreaking(from, to).allowed).toBe(allowed);
   });
 });

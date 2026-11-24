@@ -1,41 +1,36 @@
-// The insurance core. Dates are YYYY-MM-DD strings and amounts are decimal strings, so the
-// arithmetic uses urn-forge/exact: whole days between dates, and decimals with no float.
-import { emit, fail, ok, type DomainCoreImplementation } from './generated/domain.runtime.generated';
-import { compareDecimal, daysBetween, divideDecimal, multiplyDecimal } from 'urn-forge/exact';
+// The insurance core. Times are RFC 3339 strings and amounts are integers of cents, so the
+// arithmetic is exact: whole seconds of the term, and a refund rounded down to the cent.
+import { answer, type DomainCore } from './generated/domain.generated.js';
 
-/** A refund below this amount is not paid: the declared error refund_below_minimum. */
-const MINIMUM_REFUND = '1.00';
+/** A refund below this amount, in cents, is not paid: the output refund_below_minimum. */
+const MINIMUM_REFUND_CENTS = 100;
+
+const seconds = (time: string): number => Math.floor(Date.parse(time) / 1000);
 
 /**
- * The refund of a cancellation: the premium for the days of the term after the cancellation
- * date, rounded down to the cent. The term counts its first and its last day.
+ * The refund of a cancellation: the premium for the time of the term after the cancellation,
+ * rounded down to the cent.
  *
- * Example: a premium of 365.00 for 2026-01-01 to 2026-12-31 (365 days), cancelled on
- * 2026-07-02, refunds the 182 days after it: 365.00 × 182 ÷ 365 = 182.00.
+ * Example: a premium of 36500 cents from 2026-01-01T00:00:00Z to 2027-01-01T00:00:00Z (365 days),
+ * cancelled at 2026-07-02T00:00:00Z, refunds the 183 days after it: 36500 × 183 ÷ 365 = 18300.
  */
-function refundOf(premium: string, effective: string, expiry: string, cancelled: string): string {
-  const term = daysBetween(effective, expiry) + 1;
-  return divideDecimal(multiplyDecimal(premium, String(daysBetween(cancelled, expiry))), String(term), 2, 'floor');
+function refundOf(premium: number, effective: string, expires: string, cancelled: string): number {
+  const term = seconds(expires) - seconds(effective);
+  return Math.floor((premium * (seconds(expires) - seconds(cancelled))) / term);
 }
 
 export const core = {
   // A policy is issued as requested, and the event says so.
-  'urn:acme:insurance:policy:operation:issue_policy': (policy) =>
-    ok({ ...policy }, [
-      emit('urn:acme:insurance:policy:event:policy_issued', { policy_id: policy.policy_id, holder: policy.holder, premium: policy.premium }),
-    ]),
+  issue_policy: (policy) =>
+    answer('issued', { policy, policy_issued: { policy_id: policy.policy_id, holder: policy.holder, premium: policy.premium } }),
 
-  'urn:acme:insurance:policy:operation:cancel_policy': ({ effective_date, expiry_date, premium, cancellation_date }) => {
-    // The invariants make sure that effective_date < expiry_date and that the
-    // cancellation date is inside the term. The refund covers the days after it.
-    const refund = refundOf(premium, effective_date, expiry_date, cancellation_date);
-    // A refund under the minimum is refused, and the error records it as refund_refused.
-    const tooSmall = compareDecimal(refund, MINIMUM_REFUND) < 0;
-    if (tooSmall) {
-      return fail('urn:acme:insurance:policy:error:refund_below_minimum', { refund });
-    }
-    return ok({ refund }, [
-      emit('urn:acme:insurance:policy:event:policy_cancelled', { cancellation_date, refund }),
-    ]);
+  cancel_policy: ({ stored_policy, cancelled_at }) => {
+    // The rules of the input make sure that the cover ends after it starts and that the
+    // cancellation is inside the term.
+    const { policy_id, premium, effective_at, expires_at } = stored_policy;
+    const refund = refundOf(premium, effective_at, expires_at, cancelled_at);
+    const event = { policy_id, cancelled_at, refund };
+    if (refund < MINIMUM_REFUND_CENTS) return answer('refund_below_minimum', { refund, refund_refused: event });
+    return answer('refund_quote', { refund, policy_cancelled: event });
   },
-} satisfies DomainCoreImplementation;
+} satisfies DomainCore;

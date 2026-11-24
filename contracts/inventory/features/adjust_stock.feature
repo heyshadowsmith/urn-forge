@@ -1,208 +1,93 @@
-@urn-forge:strict
-@urn:corpus:inventory:adjustment:operation:adjust_stock
-Feature: Adjust the on-hand stock
+Feature: Adjust stock
+  A warehouse supervisor corrects the on-hand count of one SKU at one location. The shell loads the
+  stored level of the SKU at the location.
 
-  # Only warehouse supervisors may adjust stock; the scenarios below run as a warehouse supervisor.
-  Background:
-    Given the caller is:
-      | role                 |
-      | warehouse_supervisor |
-
-  Scenario Outline: An adjustment changes the on-hand count by its delta, for its reason
-    When I run the operation with:
-      | idempotency_key   | sku   | location   | delta   | reason   |
-      | <idempotency_key> | <sku> | AMS-B-0142 | <delta> | <reason> |
-    Then the output is:
-      | sku   | location   | on_hand   | reserved | available   |
-      | <sku> | AMS-B-0142 | <on_hand> | 100      | <available> |
-    And the operation emits "urn:corpus:inventory:adjustment:event:stock_adjusted":
-      | event_id                             | sku   | location   | quantity_changed | reason   | occurred_at              |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 | <sku> | AMS-B-0142 | <delta>          | <reason> | 2026-11-22T10:00:00.000Z |
-    And the operation emits no "urn:corpus:inventory:stock:event:stock_depleted"
+  Scenario Outline: A delta corrects the on-hand count
+    When I run "adjust_stock" with:
+      | caller.role          | now                      | idempotency_key | sku      | location   | delta   | reason   | stored_level                                                                                     |
+      | warehouse_supervisor | 2026-11-22T10:00:00.000Z | adjust-0001     | WIDGET-1 | AMS-B-0142 | <delta> | <reason> | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400} |
+    Then the output is "adjustment_made":
+      | level   | depletions |
+      | <level> | []         |
 
     Examples:
-      | idempotency_key  | sku                              | delta  | reason      | on_hand | available |
-      | adj-0001         | WIDGET-1                         | -3     | DAMAGED     | 497     | 397       |
-      | =repeat(64, "a") | A1B                              | -1     | LOST        | 499     | 399       |
-      | adj-0003         | ABCDEFGHIJKLMNOPQRSTUVWXYZ-12345 | 100000 | FOUND       | 100500  | 100400    |
-      | adj-0004         | WIDGET-1                         | 7      | CYCLE_COUNT | 507     | 407       |
-      | adj-0005         | WIDGET-1                         | 1      | CORRECTION  | 501     | 401       |
+      | delta  | reason      | level                                                                                                  |
+      | -5     | DAMAGED     | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 495, "reserved": 100, "available": 395}       |
+      | -1     | LOST        | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 499, "reserved": 100, "available": 399}       |
+      | 12     | FOUND       | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 512, "reserved": 100, "available": 412}       |
+      | -399   | CYCLE_COUNT | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 101, "reserved": 100, "available": 1}         |
+      | 100000 | CORRECTION  | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 100500, "reserved": 100, "available": 100400} |
 
-  Scenario: An adjustment that takes the last available unit makes the stock depleted
-    When I run the operation with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-0006        | WIDGET-1 | AMS-B-0142 | -400  | LOST   |
-    Then the operation emits "urn:corpus:inventory:adjustment:event:stock_adjusted":
-      | quantity_changed | level                                                                              |
-      | -400             | { sku: WIDGET-1, location: AMS-B-0142, on_hand: 100, reserved: 100, available: 0 } |
-    And the operation emits "urn:corpus:inventory:stock:event:stock_depleted":
-      | event_id                             | sku      | location   |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000002 | WIDGET-1 | AMS-B-0142 |
+  Scenario: A correction to no available units depletes the stock
+    When I run "adjust_stock" with:
+      | caller.role          | now                      | idempotency_key | sku      | location   | delta | reason  | stored_level                                                                                     |
+      | warehouse_supervisor | 2026-11-22T10:00:00.000Z | adjust-0001     | WIDGET-1 | AMS-B-0142 | -400  | DAMAGED | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400} |
+    Then the output is "adjustment_made":
+      | level                                                                                          |
+      | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 100, "reserved": 100, "available": 0} |
 
-  Scenario Outline: An adjustment below the reserved count is refused and changes nothing
-    When I run the operation with:
-      | idempotency_key | sku      | location   | delta   | reason |
-      | adj-0007        | WIDGET-1 | AMS-B-0142 | <delta> | LOST   |
-    Then the operation fails with "urn:corpus:inventory:stock:error:insufficient_stock":
-      | short_lines   |
-      | <short_lines> |
-    And the operation emits no event
+  Scenario: A delta below the reserved count is refused
+    When I run "adjust_stock" with:
+      | caller.role          | now                      | idempotency_key | sku      | location   | delta | reason  | stored_level                                                                                     |
+      | warehouse_supervisor | 2026-11-22T10:00:00.000Z | adjust-0001     | WIDGET-1 | AMS-B-0142 | -401  | DAMAGED | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400} |
+    Then the output is "insufficient_stock":
+      | error_code         | short_lines                                                                         |
+      | INSUFFICIENT_STOCK | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "requested": 401, "available": 400}] |
 
-    Examples:
-      | delta   | short_lines                                                                  |
-      | -401    | [{ sku: WIDGET-1, location: AMS-B-0142, requested: 401, available: 400 }]    |
-      | -100000 | [{ sku: WIDGET-1, location: AMS-B-0142, requested: 100000, available: 400 }] |
+  Scenario: A SKU with no stored level is unknown
+    When I run "adjust_stock" with:
+      | caller.role          | now                      | idempotency_key | sku         | location   | delta | reason  |
+      | warehouse_supervisor | 2026-11-22T10:00:00.000Z | adjust-0001     | NO-SUCH-SKU | AMS-B-0142 | -5    | DAMAGED |
+    Then the output is "unknown_sku":
+      | error_code  | sku         |
+      | UNKNOWN_SKU | NO-SUCH-SKU |
 
-  Scenario Outline: A delta of 0 or outside -100000 to 100000 is rejected
-    When I run the operation with:
-      | idempotency_key | sku      | location   | delta   | reason |
-      | adj-0008        | WIDGET-1 | AMS-B-0142 | <delta> | LOST   |
-    Then the input is rejected on "delta"
+  Scenario: A location of no warehouse is unknown
+    When I run "adjust_stock" with:
+      | caller.role          | now                      | idempotency_key | sku      | location   | delta | reason  |
+      | warehouse_supervisor | 2026-11-22T10:00:00.000Z | adjust-0001     | WIDGET-1 | ZZZ-Z-9999 | -5    | DAMAGED |
+    Then the output is "unknown_location":
+      | error_code       | location   |
+      | UNKNOWN_LOCATION | ZZZ-Z-9999 |
 
-    Examples:
-      | delta   |
-      | 0       |
-      | -100001 |
-      | 100001  |
-
-  Scenario: A reason that is not one of the codes is rejected
-    When I run the operation with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-0009        | WIDGET-1 | AMS-B-0142 | -1    | STOLEN |
-    Then the input is rejected on "reason"
-
-  Scenario Outline: A SKU or location that breaks its rules is rejected
-    When I run the operation with:
-      | idempotency_key | sku   | location   | delta | reason |
-      | adj-0010        | <sku> | <location> | -1    | LOST   |
-    Then the input is rejected on "<field>"
+  Scenario Outline: Another caller may not adjust stock
+    When I run "adjust_stock" with:
+      | caller.role | now                      | idempotency_key | sku      | location   | delta | reason  | stored_level                                                                                     |
+      | <role>      | 2026-11-22T10:00:00.000Z | adjust-0001     | WIDGET-1 | AMS-B-0142 | -5    | DAMAGED | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400} |
+    Then the output is "forbidden":
+      | error_code | role   |
+      | FORBIDDEN  | <role> |
 
     Examples:
-      | sku              | location   | field    |
-      | AB               | AMS-B-0142 | sku      |
-      | =repeat(33, "A") | AMS-B-0142 | sku      |
-      | WIDGET-1-        | AMS-B-0142 | sku      |
-      | WIDGET-1         | AMS-0142   | location |
+      | role              |
+      | order_system      |
+      | purchasing_system |
+      | warehouse_staff   |
+      | clock             |
 
-  Scenario Outline: An idempotency key shorter than 8 or longer than 64 characters is rejected
-    When I run the operation with:
-      | idempotency_key   | sku      | location   | delta | reason |
-      | <idempotency_key> | WIDGET-1 | AMS-B-0142 | -1    | LOST   |
-    Then the input is rejected on "idempotency_key"
-
-    Examples:
-      | idempotency_key  |
-      | adj-001          |
-      | =repeat(65, "a") |
-
-  Scenario: An adjustment of an unknown SKU is refused
-    When I run the operation with:
-      | idempotency_key | sku         | location   | delta | reason |
-      | adj-0011        | NO-SUCH-SKU | AMS-B-0142 | 1     | FOUND  |
-    Then the operation fails with "urn:corpus:inventory:stock:error:unknown_sku":
-      | sku         |
-      | NO-SUCH-SKU |
-
-  Scenario: An adjustment at an unknown location is refused
-    When I run the operation with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-0012        | WIDGET-1 | ZZZ-Z-9999 | 1     | FOUND  |
-    Then the operation fails with "urn:corpus:inventory:stock:error:unknown_location":
-      | location   |
-      | ZZZ-Z-9999 |
-
-  Scenario Outline: A repeat with the same key and body within 24 hours returns the first answer and changes nothing
-    Given the time is "2026-11-22T10:00:00.000Z"
-    When I run the operation with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-idem-0001   | WIDGET-1 | AMS-B-0142 | 1     | FOUND  |
-    And the time is "<again>"
-    And I run the operation again with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-idem-0001   | WIDGET-1 | AMS-B-0142 | 1     | FOUND  |
-    Then the answer is the first answer
-    And the operation emits no event
+  Scenario Outline: An adjustment that breaks a rule is rejected
+    When I run "adjust_stock" with:
+      | caller.role | now                      | idempotency_key | sku   | location   | delta   | reason   | stored_level   |
+      | <role>      | 2026-11-22T10:00:00.000Z | adjust-0001     | <sku> | <location> | <delta> | <reason> | <stored_level> |
+    Then the input is rejected by "<rule>" of "<definition>"
 
     Examples:
-      | again                    |
-      | 2026-11-22T10:00:00.000Z |
-      | 2026-11-23T09:59:59.999Z |
+      | rule               | definition | role                 | sku                               | location   | delta   | reason     | stored_level                                                                                     |
+      | minimum            | delta      | warehouse_supervisor | WIDGET-1                          | AMS-B-0142 | -100001 | DAMAGED    |                                                                                                  |
+      | maximum            | delta      | warehouse_supervisor | WIDGET-1                          | AMS-B-0142 | 100001  | FOUND      |                                                                                                  |
+      | not_zero           | delta      | warehouse_supervisor | WIDGET-1                          | AMS-B-0142 | 0       | CORRECTION |                                                                                                  |
+      | enum               | reason     | warehouse_supervisor | WIDGET-1                          | AMS-B-0142 | -5      | STOLEN     |                                                                                                  |
+      | enum               | role       | auditor              | WIDGET-1                          | AMS-B-0142 | -5      | DAMAGED    |                                                                                                  |
+      | minLength          | sku        | warehouse_supervisor | AB                                | AMS-B-0142 | -5      | DAMAGED    |                                                                                                  |
+      | maxLength          | sku        | warehouse_supervisor | AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA | AMS-B-0142 | -5      | DAMAGED    |                                                                                                  |
+      | pattern            | sku        | warehouse_supervisor | -WIDGET                           | AMS-B-0142 | -5      | DAMAGED    |                                                                                                  |
+      | pattern            | sku        | warehouse_supervisor | widget-1                          | AMS-B-0142 | -5      | DAMAGED    |                                                                                                  |
+      | pattern            | location   | warehouse_supervisor | WIDGET-1                          | AMS-B-142  | -5      | DAMAGED    |                                                                                                  |
+      | level_is_the_query | adjustment | warehouse_supervisor | WIDGET-1                          | AMS-B-0143 | -5      | DAMAGED    | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400} |
+      | required           | adjustment | warehouse_supervisor | WIDGET-1                          | AMS-B-0142 | -5      |            |                                                                                                  |
 
-  Scenario Outline: The same key with another body within 24 hours is refused with idempotency_conflict
-    Given the time is "2026-11-22T10:00:00.000Z"
-    When I run the operation with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-idem-0002   | WIDGET-1 | AMS-B-0142 | 1     | FOUND  |
-    And the time is "<again>"
-    And I run the operation again with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-idem-0002   | WIDGET-1 | AMS-B-0142 | 2     | FOUND  |
-    Then the operation fails with "urn:corpus:inventory:request:error:idempotency_conflict":
-      | idempotency_key |
-      | adj-idem-0002   |
-    And the operation emits no event
-
-    Examples:
-      | again                    |
-      | 2026-11-22T10:00:00.000Z |
-      | 2026-11-23T09:59:59.999Z |
-
-  Scenario: 24 hours after the first answer the key is free, and a call with the same body runs again
-    Given the time is "2026-11-22T10:00:00.000Z"
-    When I run the operation with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-idem-0003   | WIDGET-1 | AMS-B-0142 | 1     | FOUND  |
-    And the time is "2026-11-23T10:00:00.000Z"
-    And I run the operation again with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-idem-0003   | WIDGET-1 | AMS-B-0142 | 1     | FOUND  |
-    Then the operation emits "urn:corpus:inventory:adjustment:event:stock_adjusted":
-      | event_id                             |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 |
-
-  Scenario: 24 hours after the first answer the key is free, and a call with another body runs again
-    Given the time is "2026-11-22T10:00:00.000Z"
-    When I run the operation with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-idem-0003   | WIDGET-1 | AMS-B-0142 | 1     | FOUND  |
-    And the time is "2026-11-23T10:00:00.000Z"
-    And I run the operation again with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-idem-0003   | WIDGET-1 | AMS-B-0142 | 2     | FOUND  |
-    Then the operation emits "urn:corpus:inventory:adjustment:event:stock_adjusted":
-      | event_id                             |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 |
-
-  Scenario: A refused call does not keep its key, so the key can still be used
-    Given the time is "2026-11-22T10:00:00.000Z"
-    When I run the operation with:
-      | idempotency_key | sku         | location   | delta | reason |
-      | adj-idem-0004   | NO-SUCH-SKU | AMS-B-0142 | 1     | FOUND  |
-    Then the operation fails with "urn:corpus:inventory:stock:error:unknown_sku":
-      | sku         |
-      | NO-SUCH-SKU |
-    When I run the operation again with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-idem-0004   | WIDGET-1 | AMS-B-0142 | 1     | FOUND  |
-    Then the operation emits "urn:corpus:inventory:adjustment:event:stock_adjusted":
-      | event_id                             |
-      | 7d3f1c2a-5b4e-4a6d-9c8b-000000000001 |
-
-  Scenario Outline: Any caller other than a warehouse supervisor is refused
-    Given the caller is:
-      | role                 |
-      | <role>               |
-    When I run the operation with:
-      | idempotency_key | sku      | location   | delta | reason |
-      | adj-0101        | WIDGET-1 | AMS-B-0142 | -1    | LOST   |
-    Then the operation fails with "urn:corpus:inventory:access:error:forbidden":
-      | role   |
-      | <role> |
-    And the operation emits no event
-
-    Examples:
-      | role                 |
-      | order_system         |
-      | purchasing_system    |
-      | warehouse_staff      |
-      | clock                |
+  Scenario: A caller with no role is rejected
+    When I run "adjust_stock" with:
+      | now                      | idempotency_key | sku      | location   | delta | reason  | stored_level                                                                                     | caller |
+      | 2026-11-22T10:00:00.000Z | adjust-0001     | WIDGET-1 | AMS-B-0142 | -5    | DAMAGED | {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400} | {}     |
+    Then the input is rejected by "required" of "caller"

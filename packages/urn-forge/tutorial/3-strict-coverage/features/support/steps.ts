@@ -1,9 +1,6 @@
-// Connects urn-forge's generic steps to this domain's generated runtime and core.
-import { registerOperationSteps } from 'urn-forge/cucumber';
+// Connects the steps of urn-forge to this domain's generated file and core.
+import { registerSteps } from 'urn-forge/cucumber';
 import { core } from '../../src/core';
-import { DispatchMap, executeOperation } from '../../src/generated/domain.runtime.generated';
+import { check, Definitions, Operations, runOperation } from '../../src/generated/domain.generated';
 
-registerOperationSteps({
-  dispatch: DispatchMap,
-  execute: (urn, payload) => executeOperation(urn, payload, core),
-});
+registerSteps({ Definitions, Operations, check, run: (operation, input) => runOperation(core, operation, input) });

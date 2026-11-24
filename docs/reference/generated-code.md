@@ -329,7 +329,7 @@ The manifest of tutorial 2:
 
 The generated runtime file:
 
-<<< @/../packages/urn-forge/tutorial/2-declared-errors/src/generated/domain.runtime.generated.ts
+<<< @/../packages/urn-forge/tutorial/2-declared-errors/src/generated/domain.generated.ts
 
 ## Related pages
 

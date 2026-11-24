@@ -1,107 +1,36 @@
-@urn:corpus:bookings:booking:operation:cancel_booking
 Feature: Cancel a booking
+  # A guest presents the email or the phone of the booking; staff act on the bookings of their restaurant.
 
-  # The shell gives the time of each call; a scenario that needs another one says so.
-  Background:
-    Given the time is "2026-11-22T10:00:00Z"
-
-  # The booking starts at 2026-12-24T18:30:00Z (19:30 in Paris). The full refund runs to 24 hours before it,
-  # 2026-12-23T18:30:00Z included; a cancellation runs to 2 hours before it, 2026-12-24T16:30:00Z included.
   Scenario Outline: A confirmed booking is cancelled; the deposit comes back in full only 24 hours or more before the start
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the time is "<now>"
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount   |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | <deposit_amount> |
-    When I run the operation with:
-      | reference |
-      | CNFRMD22  |
-    Then the output is:
-      | reference | state     | refund_amount   | cancelled_at |
-      | CNFRMD22  | CANCELLED | <refund_amount> | <now>        |
-    And the operation emits "urn:corpus:bookings:booking:event:booking_cancelled":
-      | event_id                             | reference | restaurant_id                        | state     | party_size | local_date | local_time | time_zone    | occurred_at | guest_id                             |
-      | 16fd2706-8baf-433b-82eb-8c7fed5c9b0e | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CANCELLED | 4          | 2026-12-24 | 19:30      | Europe/Paris | <now>       | a8098c1a-f86e-41da-bd5c-00c04fd430c8 |
+    When I run "cancel_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now   | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone | stored_booking.deposit_amount |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <now> | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        | <deposit_amount>              |
+    Then the output is "cancelled":
+      | cancellation                                                                                               |
+      | {"reference": "ABCDEFGH", "state": "CANCELLED", "refund_amount": <refund_amount>, "cancelled_at": "<now>"} |
 
     Examples:
-      | now                      | deposit_amount | refund_amount |
-      | 2026-11-22T10:00:00Z     | 80.00          | 80.00         |
-      | 2026-12-23T18:29:59.999Z | 80.00          | 80.00         |
-      | 2026-12-23T18:30:00Z     | 80.00          | 80.00         |
-      | 2026-12-23T18:30:00.001Z | 80.00          | 0.00          |
-      | 2026-12-24T16:29:59.999Z | 80.00          | 0.00          |
-      | 2026-12-24T16:30:00Z     | 80.00          | 0.00          |
-      | 2026-11-22T10:00:00Z     |                | 0.00          |
+      | now                  | deposit_amount | refund_amount |
+      | 2026-12-23T18:30:00Z | 14000          | 14000         |
+      | 2026-12-23T18:30:01Z | 14000          | 0             |
+      | 2026-12-24T16:30:00Z | 14000          | 0             |
+      | 2026-11-22T10:00:00Z |                | 0             |
 
-  Scenario: A reference that is not valid is rejected
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
-      | reference |
-      | abc       |
-    Then the input is rejected on "reference"
-
-  Scenario: An unknown reference is not found
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And there is no current booking
-    When I run the operation with:
-      | reference |
-      | XXXXXXXX  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:booking_not_found"
-    And the operation emits no event
-
-  Scenario: A booking of another restaurant is forbidden
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | FRBDDN22  | 7c9e6679-7425-40de-944b-e07fc1f90ae7 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
-      | reference |
-      | FRBDDN22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
-    And the operation emits no event
-
-  Scenario: A second cancellation gives the first answer again, with no new event, even after the deadline
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the time is "2026-12-24T18:00:00Z"
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CANCELLED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
-      | reference |
-      | CNFRMD22  |
-    Then the output is:
-      | reference | state     | refund_amount | cancelled_at         |
-      | CNFRMD22  | CANCELLED | 80.00         | 2026-11-20T08:00:00Z |
-    And the operation emits no "urn:corpus:bookings:booking:event:booking_cancelled"
-    And the operation emits no event
+  Scenario: A second cancellation gives the first answer again, with no record or event, even after the deadline
+    When I run "cancel_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone | stored_booking.deposit_amount | stored_booking.refund_amount | stored_booking.cancelled_at |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24T18:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CANCELLED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        | 14000                         | 14000                        | 2026-11-20T08:00:00Z        |
+    Then the output is "already_cancelled":
+      | cancellation                                                                                                    |
+      | {"reference": "ABCDEFGH", "state": "CANCELLED", "refund_amount": 14000, "cancelled_at": "2026-11-20T08:00:00Z"} |
 
   Scenario Outline: A seated, completed or no-show booking cannot be cancelled
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the current booking is:
-      | reference | restaurant_id                        | state   | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state> | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
-      | reference |
-      | CNFRMD22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:invalid_state":
+    When I run "cancel_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | <state>              | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "invalid_state":
       | reference | state   |
-      | CNFRMD22  | <state> |
-    And the operation emits no event
+      | ABCDEFGH  | <state> |
 
     Examples:
       | state     |
@@ -109,145 +38,76 @@ Feature: Cancel a booking
       | COMPLETED |
       | NO_SHOW   |
 
-  Scenario Outline: A booking that starts in less than 2 hours cannot be cancelled
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 |
-    And the time is "<now>"
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          |
-    When I run the operation with:
+  Scenario: A booking that starts in less than 2 hours cannot be cancelled
+    When I run "cancel_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-12-24T16:30:01Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "change_deadline_passed":
       | reference |
-      | CNFRMD22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:change_deadline_passed":
+      | ABCDEFGH  |
+
+  Scenario: An unknown reference is not found
+    When I run "cancel_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z |
+    Then the output is "booking_not_found":
       | reference |
-      | CNFRMD22  |
-    And the operation emits no event
+      | ABCDEFGH  |
 
-    Examples:
-      | now                      |
-      | 2026-12-24T16:30:00.001Z |
-      | 2026-12-24T17:30:00Z     |
-      | 2026-12-24T18:30:00Z     |
-      | 2026-12-24T20:00:00Z     |
-
-  Scenario: A guest cancels a booking whose reference and email they present
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | email |
-      | CNFRMD22  | ada@example.com |
-    Then the output is:
-      | reference | state     | refund_amount |
-      | CNFRMD22  | CANCELLED | 80.00         |
-
-  Scenario: A guest cancels a booking whose reference and phone they present
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | phone |
-      | CNFRMD22  | +33612345678 |
-    Then the output is:
-      | reference | state     | refund_amount |
-      | CNFRMD22  | CANCELLED | 80.00         |
-
-  Scenario Outline: A guest who does not present the contact of the booking cannot cancel it
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | email   | phone   |
-      | CNFRMD22  | <email> | <phone> |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden":
+  Scenario: A booking is forbidden to staff of another restaurant
+    When I run "cancel_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 9b2c1f00-1111-4222-8333-444455556666 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
       | reference |
-      | CNFRMD22  |
-    And the operation emits no event
+      | ABCDEFGH  |
 
-    Examples:
-      | email           | phone        |
-      |                 |              |
-      | eve@example.com |              |
-      |                 | +33600000000 |
-
-  Scenario: A guest who may not act on a booking does not learn its state
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state  | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | SEATED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | email           |
-      | CNFRMD22  | eve@example.com |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
-    And the operation emits no event
-
-  Scenario: Staff with no restaurant cannot cancel a booking
-    Given the caller is:
-      | role  |
-      | staff |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
-    When I run the operation with:
+  Scenario: A booking is forbidden to staff of another restaurant who present its contact
+    When I run "cancel_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 9b2c1f00-1111-4222-8333-444455556666 | ada@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
       | reference |
-      | CNFRMD22  |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
-    And the operation emits no event
+      | ABCDEFGH  |
 
-  Scenario: Staff of another restaurant cannot cancel a booking by presenting its contact
-    Given the caller is:
-      | role  | restaurant_id                        |
-      | staff | 7c9e6679-7425-40de-944b-e07fc1f90ae7 |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | email           | phone        |
-      | CNFRMD22  | ada@example.com | +33612345678 |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
-    And the operation emits no event
+  Scenario: A booking is forbidden to a guest who presents another email
+    When I run "cancel_booking" with:
+      | reference | caller.role | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | eve@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
+      | reference |
+      | ABCDEFGH  |
 
-  Scenario: A guest's contact lets them cancel only the booking of the reference they present
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes | deposit_amount | email           | phone        |
-      | FRBDDN22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 80.00          | ada@example.com | +33612345678 |
-    When I run the operation with:
-      | reference | email           | phone        |
-      | CNFRMD22  | ada@example.com | +33612345678 |
-    Then the operation fails with "urn:corpus:bookings:booking:error:forbidden"
-    And the operation emits no event
+  Scenario: A booking is forbidden to a guest who presents no contact
+    When I run "cancel_booking" with:
+      | reference | caller.role | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "forbidden":
+      | reference |
+      | ABCDEFGH  |
 
-  Scenario Outline: A presented email or phone that is not valid is rejected
-    Given the caller is:
-      | role  |
-      | guest |
-    And the current booking is:
-      | reference | restaurant_id                        | state     | starts_at            | local_date | local_time | time_zone    | party_size | duration_minutes |
-      | CNFRMD22  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              |
-    When I run the operation with:
-      | reference | email   | phone   |
-      | CNFRMD22  | <email> | <phone> |
-    Then the input is rejected on "<field>"
+  Scenario: A booking is forbidden to a guest who presents an email, of a booking with none
+    When I run "cancel_booking" with:
+      | reference | caller.role | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.phone |
+      | ABCDEFGH  | guest       | ada@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | +447911123456        |
+    Then the output is "forbidden":
+      | reference |
+      | ABCDEFGH  |
 
-    Examples:
-      | field | email         | phone         |
-      | email | not-an-email  |               |
-      | phone |               | 0612345678    |
-      | phone |               | +012345678    |
-      | phone |               | +1234567890123456 |
+  Scenario: A guest who presents the email of the booking may act on it
+    When I run "cancel_booking" with:
+      | reference | caller.role | email           | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | ada@example.com | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "cancelled"
+
+  Scenario: A guest who presents the phone of the booking may act on it
+    When I run "cancel_booking" with:
+      | reference | caller.role | phone         | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | guest       | +447911123456 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the output is "cancelled"
+
+  Scenario: A request that names another booking than the one loaded is rejected
+    When I run "cancel_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ZZZZZZZZ  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+    Then the input is rejected by "names_the_booking" of "booking_ref"
