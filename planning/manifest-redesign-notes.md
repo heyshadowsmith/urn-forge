@@ -43,10 +43,9 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 
 ## Open
 
-- Parked until operations: `link`; two values of one definition in one object (`before`/`after`, `from`/`to`); `type` naming another definition.
+- Parked until operations: `compatibility` (`callers: ignore-unknown`), in the manifest or as a `diff` setting; `link`; two values of one definition in one object (`before`/`after`, `from`/`to`); `type` naming another definition.
 
 - Operations: `input`, `output` (one of several objects), `rules`. Where today's `requires`, `ensures`, `callers`, `changes`, `moves` and `refuses` go.
 - `message` on an error object.
 - Out of the manifest, maybe extras later: `idempotency`, `due`, `delivery`, the outbox, `recordAs`.
-- `compatibility` (`callers: ignore-unknown`): in the manifest, or a `diff` setting in the config.
 - The fate of PR #90 (the integrity plan), which assumes today's operations.
