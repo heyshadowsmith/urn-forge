@@ -35,7 +35,7 @@ describe('compile', () => {
     const dir = copy();
     const { code, out } = await run(dir, ['compile']);
     expect(code).toBe(0);
-    expect(out).toEqual(['unchanged  generated/domain.generated.ts']);
+    expect(out).toEqual(['unchanged  generated/domain.generated.ts', 'unchanged  generated/schema.generated.sql']);
   });
 
   it('reports a diagnostic at its line, and writes nothing', async () => {
@@ -50,7 +50,7 @@ describe('compile', () => {
   it('removes a generated file that it no longer makes', async () => {
     const dir = copy();
     writeFileSync(join(dir, 'generated', 'old.generated.ts'), '');
-    expect((await run(dir, ['compile'])).out).toEqual(['unchanged  generated/domain.generated.ts', 'removed    generated/old.generated.ts']);
+    expect((await run(dir, ['compile'])).out).toEqual(['unchanged  generated/domain.generated.ts', 'unchanged  generated/schema.generated.sql', 'removed    generated/old.generated.ts']);
   });
 });
 

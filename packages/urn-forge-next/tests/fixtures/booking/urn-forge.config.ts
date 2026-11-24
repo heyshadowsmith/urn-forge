@@ -5,4 +5,5 @@ export default defineConfig({
   core: 'core.ts',
   tsconfig: '../../../tsconfig.json',
   coverage: 'error',
+  postgres: { tables: ['booking'] },
 });

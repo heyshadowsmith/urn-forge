@@ -8,6 +8,7 @@ import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
 import type { Diagnostic, Path } from './diagnostics.js';
+import { postgresProblems } from './generate/postgres.js';
 import { initProject, nameProblem } from './init.js';
 import { boundaryGate } from './verify/boundary.js';
 import { completenessGate, coreProgram } from './verify/completeness.js';
@@ -69,6 +70,7 @@ function showDiagnostics(io: CliIo, file: string, text: string, diagnostics: rea
 
 interface Project {
   readonly config: UrnForgeConfig;
+  readonly configPath: string;
   readonly base: string;
   readonly manifestPath: string;
   readonly outDir: string;
@@ -112,6 +114,7 @@ async function project(io: CliIo, values: Record<string, string | undefined>): P
       tsconfig: path(values['tsconfig'], config.tsconfig, 'tsconfig.json'),
       shell: (config.shell ?? []).map((s) => resolve(base, s)),
     },
+    configPath,
     base,
     manifestPath: path(values['manifest'], config.manifest, 'domain.manifest.yaml'),
     outDir: path(values['out'], config.out, 'src/generated'),
@@ -130,6 +133,11 @@ function compileProject(io: CliIo, p: Project): { compiled: Compiled & { model: 
   const compiled = compileManifest(text);
   showDiagnostics(io, display(io, p.manifestPath), text, compiled.diagnostics);
   if (!compiled.model) return undefined;
+  if (p.config.postgres) {
+    const problems = postgresProblems(compiled.model, p.config.postgres);
+    for (const problem of problems) io.stderr(`${display(io, p.configPath)}  error  ${problem.code}  ${problem.path.join('.')}: ${problem.message}`);
+    if (problems.length > 0) return undefined;
+  }
   // The header names the manifest relative to the config, so that it does not depend on the working directory.
   const source = relative(p.base, p.manifestPath).split('\\').join('/');
   const files = generate(compiled as Compiled & { model: NonNullable<Compiled['model']> }, source, p.config);
