@@ -8,29 +8,22 @@ These guides come in the order that you meet the tasks.
 
 1. [Install urn-forge](install): make a tarball from a clone, and install it in your project.
 2. [Set up a project](set-up-a-project): make the files that `compile`, `verify` and Cucumber need.
-3. [Add a field](add-a-field): declare a value with a primitive and its constraints.
-4. [Add an entity](add-an-entity): group fields, lists, embedded entities and links.
-5. [Add an operation](add-an-operation): declare an operation, write its handler and tag a feature.
-6. [Declare an error](declare-an-error): give an operation a named rejection.
-7. [Add an invariant](add-an-invariant): declare a rule over the fields of one entity.
-8. [Write scenarios](write-scenarios): use the generic steps, tables and Scenario Outlines.
-9. [Use branded values in the core](use-branded-values): read the branded input of a handler.
-10. [Call an operation from the shell](call-an-operation): call `executeOperation` and handle each result.
-11. [Regenerate the code](regenerate-code): compile and commit after a manifest change.
-12. [Fix a gate that fails](fix-a-failing-gate): find the cause of a failed gate and correct it.
-13. [Run verify in CI](run-verify-in-ci): make `urn-forge verify` a step of your pipeline.
+3. [Add a definition](add-a-definition): declare a value with a type and its rules.
+4. [Add an object or a list](add-an-object-or-a-list): group definitions into an object, or make a list of them.
+5. [Add a rule](add-a-rule): write a rule of your own in the rule language.
+6. [Add an operation](add-an-operation): declare an input and its outputs, and write the function of the core.
+7. [Declare a refusal](declare-a-refusal): give an operation an output that refuses the request.
+8. [Model a stored record, the caller and the time](model-the-input): give the core the data that it cannot read itself.
+9. [Write scenarios](write-scenarios): run operations and break rules with the steps of urn-forge.
+10. [Call an operation](call-an-operation): call `runOperation` from the shell, and handle each result.
+11. [Regenerate code](regenerate-code): compile and commit after a manifest change.
+12. [Fix a failing gate](fix-a-failing-gate): find the cause of a failed gate and correct it.
+13. [Run verify in CI](run-verify-in-ci): make `urn-forge verify` and `urn-forge diff` steps of your pipeline.
 
 ## Extras
 
-- [Store entities in Postgres](store-in-postgres): make tables and statements from the manifest.
-- [Declare states and moves](declare-states): let an operation change a record only from the states that you allow.
-- [Declare preconditions and postconditions](declare-conditions): state the rules between the request, the stored record and the answer.
-- [Declare who may call](declare-callers): state which callers may call each operation, and on which records.
-- [Make a call safe to repeat](make-a-call-safe-to-repeat): give an operation an idempotency key, so a repeat returns the first answer.
-- [Run changes on a clock](run-changes-on-a-clock): state the changes that happen when time passes, and run them from the shell's clock.
-- [Emit an event](emit-an-event): give an operation a fact that the shell publishes.
-- [Change the contract](change-the-contract): retire a URN, and check a change with `urn-forge diff`.
-- [Close boundary gaps](close-boundary-gaps): make coverage gaps errors, or waive a boundary.
+- [Change the contract](change-the-contract): check a change with `urn-forge diff`, and retire a part.
+- [Store objects in Postgres](store-in-postgres): make tables and `CHECK` constraints from the manifest.
 
 ## Related pages
 

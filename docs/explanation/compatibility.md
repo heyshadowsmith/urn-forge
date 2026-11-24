@@ -1,58 +1,56 @@
-# Compatibility and the direction of use
+# Compatibility
 
-A URN never changes its meaning. `urn-forge diff` makes sure of this rule: it compares two manifests and gives each change a class, `compatible`, `breaking` or `lifecycle`. This page tells why the class of a change depends on how the URN is used, why some answers are safe and not exact, and why an old URN stays in the manifest.
+A caller relies on the contract. A change to the manifest can break a caller that worked before. `urn-forge diff` compares two manifests and gives each change a class, `compatible` or `breaking`. Then it reads the versions, and fails if a breaking change has no new major version. This page tells why the class of a change depends on the side of the value, why some answers are safe and not exact, and why the version is the only signal.
 
-## The direction of use
+## The side of a value
 
-A change is breaking if a consumer that worked before the change can fail after it. Who can fail depends on how the URN is used:
+A change is breaking if a caller that worked before the change can fail after it. Who can fail depends on the side of the value:
 
-| Use | The values | A change that breaks them |
+| Side | The values | A change that breaks callers |
 | --- | --- | --- |
-| In | The values that a caller sends: the input of an operation | A change that refuses a value that was correct |
-| Out | The values that a caller receives: the output, the declared errors and the events | A change that allows a value that was not possible |
-| Stored | The values in a table of the `postgres` plugin | The same as In: each old row must stay correct |
+| Sent | The input of an operation, and each definition inside it | A change that refuses a value that was correct: a rule that accepts less |
+| Received | Each output of an operation, and each definition inside it | A change that allows a value that was not possible: a rule that accepts more |
 
-A tighter constraint breaks a caller that sends the value. A wider constraint breaks a caller that receives it. A caller that receives a value of at most 1000 can keep it in a field of that size. If the output can then be 2000, that caller breaks:
+A lower maximum breaks a caller that sends the value. A higher maximum breaks a caller that receives it: a caller that keeps a received value in a column of at most 1000 breaks if the output can be 2000. A definition on both sides breaks on each change of its values.
 
-```
-breaking    urn:demo:shop:order:field:qty  max 10 → 5 narrows a value that callers send, which breaks callers that send it
-breaking    urn:demo:shop:order:field:total  max 1000 → 2000 widens a value that callers receive, which breaks callers that receive it
-```
+For the same reason, a new output is breaking: a caller can get an answer that it does not handle. A contract can say that its callers ignore what they do not know, with `compatibility: { callers: ignore-unknown }` in the header. Then a new output, a new choice of an output value, or a new property of an output cannot make a caller fail, and `diff` reports it as compatible.
 
-A URN with two uses gets the rules of each use, so a field that callers send and receive breaks on each change of its values. For the same reason, a new declared error or a new event is breaking: it widens what callers receive. A contract can say that its callers ignore what they do not know, with `compatibility: { callers: ignore-unknown }` in the header. Then a new kind of answer cannot make a caller fail, and `diff` reports it as compatible. A wider value that a caller reads, such as a larger number, stays breaking.
+## The rules of an answer
 
-The uses come from the old manifest, because the old manifest has the consumers that exist. Storage is a decision of the shell, so `diff` reads the tables from the configuration file. Without `--config`, a stored field can look unused.
+A rule of an output or of an operation is a promise about the answer. A new rule promises more, so it is compatible. A removed rule promises less, so it is breaking: a caller may rely on it.
 
 ## Safe, not exact
 
-For each change, `diff` finds the relation of the new set of correct values to the old set: equal, narrower, wider or neither. Some changes have no simple comparison. Two regular expressions can describe sets that overlap, and two invariant rules have the same problem. `diff` calls each such change "neither", which is breaking for each use:
+`diff` compares each rule by its name and its argument. For `enum` and `required`, it compares the sets. For a rule of the form `self >= bound`, it reads the operator to know whether a larger bound accepts more or less. This works for the standard bounds and for a rule of your own of the same form.
 
-```
-breaking    urn:demo:shop:order:field:code  regex [A-Z]+ → [A-Z]* changes a value that callers send, which breaks callers that send it
-```
+For any other change, `diff` cannot tell whether the new rule accepts more or less. Two regular expressions can describe sets that overlap, and two rules of your own have the same problem. `diff` calls each such change breaking for each side. Also, a rule whose text changed is breaking wherever it is used.
 
-The new pattern only accepts one more value, the empty string, so this change is really compatible. `diff` does not know that. A false "breaking" costs a new URN or a review. A false "compatible" costs a broken consumer in production. When `diff` cannot tell, it gives the answer that cannot hide a break.
+A false "breaking" costs a new major version or a review. A false "compatible" costs a broken caller in production. When `diff` cannot tell, it gives the answer that cannot hide a break.
 
-## The lifecycle and tombstones
+## The version is the signal
 
-Each atom moves from `active` to `deprecated` to `sunset`. A deprecated atom still makes its code, with a `@deprecated` mark and a warning at each reference. A sunset atom makes no code.
+`diff` judges a breaking change by semver:
 
-A sunset atom stays in the manifest as a tombstone. If a person removed it, a different person could later declare the same short key with a new meaning. Old logs and old rows would then name a URN with two meanings. Thus `diff` reports the removal of an atom as breaking.
+- In `0.x`, anything may change. A new domain changes often, and nobody depends on it yet.
+- A pre-release, such as `2.0.0-alpha.1`, may break.
+- A new major version may break.
+- Within one major version, such as `1.4.0` to `1.5.0`, a breaking change fails `diff`.
 
-The lifecycle only moves forward. A step forward is the class `lifecycle`, which needs no action. A step back, for example from `sunset` to `active`, is breaking, because consumers already moved away.
+The manifest has no stability level, no dates and no notice period. Callers read the version, as they do for any package. How long you run an old major version is a promise of your service, not of the manifest.
 
-The deprecation buys the right to remove. The removal of a property from an output breaks callers, unless the target of the property was deprecated in the old manifest. Then the callers had a warning, a replacement and time to move, so `diff` reports a lifecycle change. Thus the deprecation and the removal go in two separate commits.
+## Deprecation, then removal
 
-A new domain changes often, and nobody depends on it yet. The header `stability: experimental` makes each breaking change a warning. The removal of the flag is one-way.
+`deprecated: true` marks a piece that will go. The piece still works, and each use of it gets a warning. The description says what to use in its place. When no caller uses it, remove it in a new major version. `diff` reports the removal as breaking, and the version allows it.
+
+The name of a removed piece can come back later with another meaning. The version makes this visible: it is a new major version, and callers check their use of it.
 
 ## The limits
 
-- `diff` sees values, not meaning. If a field of cents becomes a field of euros with the same constraints, `diff` finds no change.
-- `diff` does not compare the `version` of the header with the class of the changes.
-- urn-forge does not write migrations at this time. A breaking change to a stored field needs a migration of the old rows.
+- `diff` sees values, not meaning. If a definition of cents becomes a definition of euros with the same rules, `diff` finds no change.
+- `diff` does not read the Postgres config. A breaking change to a stored definition needs a migration of the old rows, which urn-forge does not write.
 
 ## Related pages
 
 - [Change the contract](../how-to/change-the-contract)
-- [The CLI](../reference/cli)
+- [Diff and versions](../reference/diff)
 - [The contract](./the-contract)

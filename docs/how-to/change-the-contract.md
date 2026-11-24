@@ -1,412 +1,99 @@
 # Change the contract
 
-A URN never changes its meaning. Callers and stored rows depend on it. This guide shows which changes break callers, makes `urn-forge diff` find them in CI, and shows how to retire or rename an atom without a break.
-
-The examples come from [`packages/urn-forge/insurance/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/insurance/). The commands ran from `packages/urn-forge`. In your project, run them from the folder of `urn-forge.config.ts`, and leave out `--config`.
+Change the manifest, check the change with `urn-forge diff`, and give it the correct version. A change can break callers: a caller that sends a value that the new manifest refuses, or a caller that gets an answer that it does not handle.
 
 ## Before you start
 
-- The manifest compiles. `diff` compiles the two manifests, and stops if one of them does not compile.
-- The old manifest is in git, for example on the branch `main`.
+- You have the manifest as it was before the change, for example from git.
 
-## 1. Know what breaks callers
+## Steps
 
-`diff` finds three uses of each URN. A change breaks a use if it makes a value that worked before fail:
-
-| Use | Where the value goes | A change that breaks |
-| --- | --- | --- |
-| In | The input of an operation: callers send it | A narrower set of values: a tighter constraint, a new required property, a new invariant |
-| Out | The output of an operation, an event, or the payload of a declared error: callers receive it | A wider set of values: a looser constraint, a property that becomes optional, a new enum value, a new declared error, a new event |
-| Stored | A table of the `postgres` plugin: the database stores it | A narrower set of values. The rows in the database must stay valid |
-
-If the header states that callers ignore what they do not know, a new enum value, a new declared error and a new event are compatible. Refer to step 9.
-
-States and moves have rules of their own:
-
-| Change | Class |
-| --- | --- |
-| A new move, or a new state in the `from` of an operation | Compatible |
-| `changes` removed from an operation | Compatible |
-| A removed move, or a removed state in `from` | Breaking: callers that make the move, or whose record is in that state, are refused |
-| A changed `to`, `otherwise` or `entity`, or a changed or removed `missing` | Breaking |
-| A new `missing` | Compatible |
-
-Conditions:
-
-| Change | Class |
-| --- | --- |
-| A new or changed `requires` rule | Breaking: callers that it refuses worked before |
-| A removed `requires` rule | Compatible |
-| A new `ensures` rule | Compatible |
-| A removed or changed `ensures` rule | Breaking: callers can rely on less |
-| A new `refuses` rule | Compatible: a refusal promises more |
-| A removed or changed `refuses` rule | Breaking: callers can rely on less |
-| A new, changed or removed `rejects` | Breaking: callers get another answer for an input that does not parse |
-| A new, changed or removed `unique` entry | Breaking: calls that worked are refused, and rows already stored may clash; or callers can rely on less |
-| `changes` on an operation that had none | Breaking |
-
-A URN that has two uses obeys the rules of both. These changes are also breaking:
-
-- A removed atom, also a sunset atom.
-- A status that moves back, for example `sunset` to `active`.
-- A change of `regex`, `format` or an invariant `rule`. `diff` cannot compare two patterns or two rules.
-
-The rule of thumb: do not change the meaning of a URN that callers use. Declare a new atom, and retire the old one (steps 4 to 7). For the reasons, refer to [Compatibility and the direction of use](../explanation/compatibility).
-
-## 2. Run diff
-
-1. Write the old manifest to a file:
+1. Keep a copy of the manifest before the change. For example, get it from the main branch:
 
    ```bash
-   git show origin/main:./insurance/domain.manifest.yaml > old.manifest.yaml
+   git show main:domain.manifest.yaml > old.manifest.yaml
    ```
 
-2. Give the old manifest first, then the new manifest:
+2. Make the change in `domain.manifest.yaml`.
+3. Change `version` in the header. For a breaking change, increase the major version. In `0.x`, any change is allowed.
+4. Run `diff` with the old manifest first:
 
    ```bash
-   npx urn-forge diff old.manifest.yaml insurance/domain.manifest.yaml --config insurance/urn-forge.config.ts
+   npx urn-forge diff old.manifest.yaml domain.manifest.yaml
    ```
 
-3. If the project uses the `postgres` plugin, give the config. Without it, `diff` does not know which values the database stores. If the current folder has `urn-forge.config.ts`, `diff` reads it without the option.
+5. Read each line. `breaking` is a change that can break a caller. `compatible` is a change that cannot.
+6. If `diff` fails, do one of these:
+   - Make the change compatible. For example, add a new definition in place of a change to the old one.
+   - Increase the major version.
+7. Run `npx urn-forge compile` and `npx urn-forge verify`.
 
-| Exit code | Meaning |
-| --- | --- |
-| `0` | No breaking change, or the old manifest is experimental |
-| `1` | A breaking change, or a manifest does not compile |
-| `2` | The command line is incorrect, for example only one manifest |
+## Example
 
-To run `diff` in CI on each pull request, add this job to your workflow:
-
-```yaml
-  compatibility:
-    if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 2
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - run: npm ci
-
-      - name: urn-forge diff
-        run: |
-          git show HEAD^1:./domain.manifest.yaml > "$RUNNER_TEMP/old.manifest.yaml"
-          npx urn-forge diff "$RUNNER_TEMP/old.manifest.yaml" domain.manifest.yaml --config urn-forge.config.ts
-```
-
-- GitHub checks out a pull request as a merge commit. `HEAD^1` is the tip of the base branch. `fetch-depth: 2` puts it in the clone.
-- Change the paths of the manifest and the config for your project. If the project is in a subfolder, set `working-directory` on the step.
-- If the base branch has no manifest yet, `git show` fails. Add the job after the first manifest is on the base branch.
-
-## 3. Read the result
-
-`diff` writes one line for each change, in URN order, then a summary. Each line has the class, the URN, and what changed:
-
-| Class | Meaning | What to do |
-| --- | --- | --- |
-| `compatible` | No caller and no stored row can fail because of the change | Nothing |
-| `lifecycle` | The status of an atom moved forward, or its `supersededBy` or `sunsetDate` changed | Tell the callers |
-| `breaking` | A caller or a stored row that worked before can fail now | Undo the change. Declare a new atom in its place |
-
-The insurance coverage is in the input and the output of `issue_policy`, and in a table. Thus a tighter `maxLength` on `remark` breaks callers and rows:
+The old manifest is tutorial 2 at version `1.0.0`. The new manifest lowers the maximum weight from 30000 to 20000, adds the zone `regional`, and has the version `1.1.0`:
 
 ```
-breaking    urn:acme:insurance:policy:field:remark  maxLength 40 → 30 narrows a value that callers send and callers receive and the database stores, which breaks callers that send it and rows already stored
-diff failed: 1 breaking, 0 compatible, 0 lifecycle change(s)
+breaking    definitions.weight_grams  maximum is now 20000, not 30000: it accepts less
+compatible  definitions.zone  enum is now ["domestic","international","regional"], not ["domestic","international"]: it accepts more
+diff failed: 2 change(s), 1 breaking, 1.0.0 → 1.1.0: 1.0.0 → 1.1.0 keeps the major version 1; a breaking change needs a new major version
 ```
 
-A new declared error is a result that a caller does not know. Thus it is breaking, also if the error itself is new:
+A caller can send a parcel of 25000 grams, which the new manifest refuses. Thus the lower maximum is breaking. A new zone accepts more, and `zone` is only in the input, so it is compatible.
+
+With the version `2.0.0`, the same change passes:
 
 ```
-compatible  urn:acme:insurance:policy:error:policy_already_cancelled  is new
-breaking    urn:acme:insurance:policy:operation:cancel_policy  the new declared error urn:acme:insurance:policy:error:policy_already_cancelled widens a value that callers receive, which breaks callers that receive it
-diff failed: 1 breaking, 1 compatible, 0 lifecycle change(s)
+breaking    definitions.weight_grams  maximum is now 20000, not 30000: it accepts less
+compatible  definitions.zone  enum is now ["domestic","international","regional"], not ["domestic","international"]: it accepts more
+diff passed: 2 change(s), 1 breaking, 1.0.0 → 2.0.0: allowed, as 2.0.0 is a new major version
 ```
 
-`customer.field.name` is in the `customer` table, but no operation sends or receives it. With the config, a tighter `minLength` is breaking:
+To see the changes without a failure, add `--report`. `diff` then always stops with exit code `0`:
 
-```
-breaking    urn:acme:insurance:customer:field:name  minLength 1 → 2 narrows a value that the database stores, which breaks rows already stored
-diff failed: 1 breaking, 0 compatible, 0 lifecycle change(s)
-```
-
-Without `--config`, the same change is compatible:
-
-```
-compatible  urn:acme:insurance:customer:field:name  minLength 1 → 2 narrows a value that nothing uses
-diff passed: 0 breaking, 1 compatible, 0 lifecycle change(s)
+```bash
+npx urn-forge diff --report old.manifest.yaml domain.manifest.yaml
 ```
 
-A compatible change to a stored atom can need a change to a table, for example a new column. `diff` then adds `; the database needs a migration for it`. urn-forge writes only `CREATE` statements, so you write the migration.
+## Add an output
 
-For JSON output (`--format json`), refer to [The CLI](../reference/cli).
+A new output can break a caller that does not handle it. From tutorial 1 to tutorial 2, `diff` shows:
 
-### Use an experimental manifest
+```
+compatible  definitions.too_heavy_for_express  the definition is new
+breaking    operations.quote_shipping  the output too_heavy_for_express is new: callers can get an answer that they do not handle
+compatible  operations.quote_shipping.quote  the rule fits_express is new: the answer promises more
+compatible  operations.quote_shipping.too_heavy_for_express  the rule over_express_limit is new: the answer promises more
+compatible  operations.quote_shipping.too_heavy_for_express  the rule names_the_weight is new: the answer promises more
+diff passed: 5 change(s), 1 breaking, 0.1.0 → 0.1.0: allowed, as 0.1.0 is a 0.x version, where anything may change
+```
 
-While a manifest is new, its callers expect changes. Add `stability: experimental` to the header:
+If your callers promise to ignore what they do not know, say so in the header:
 
 ```yaml
 manifest:
-  namespace: acme
-  domain: insurance
-  version: 0.1.0
-  stability: experimental
-```
-
-If the old manifest is experimental, each breaking change is a warning, and `diff` stops with exit code 0:
-
-```
-breaking    urn:acme:insurance:policy:field:remark  maxLength 40 → 30 narrows a value that callers send and callers receive and the database stores, which breaks callers that send it and rows already stored
-diff passed: 1 breaking, 0 compatible, 0 lifecycle change(s); the breaking changes are warnings, because old.manifest.yaml is experimental
-```
-
-To publish the manifest, remove `stability: experimental`. From the next change, each breaking change fails. To add `stability: experimental` back is a breaking change.
-
-## 4. Declare the replacement and deprecate the old atom
-
-The insurance domain retires `policy.field.note`, which has no length limit, for `policy.field.remark`.
-
-1. Add the new atom with a new short key, so it gets a new URN.
-2. Add `status`, `supersededBy` and `sunsetDate` to the old atom:
-
-   ```yaml
-   policy.field.note:
-     primitive: string
-     description: Free text about a coverage
-     status: deprecated
-     supersededBy: policy.field.remark
-     sunsetDate: 2027-06-30
-   policy.field.remark:
-     primitive: string
-     maxLength: 40
-     description: Free text about a coverage, at most 40 characters
-   ```
-
-   | Key | Value |
-   | --- | --- |
-   | `status` | `active` (the default), `deprecated` or `sunset`. A status moves forward only |
-   | `supersededBy` | The short key of the replacement. It must be an atom of the same kind |
-   | `deprecatedOn` | Optional. The day that you announced the deprecation, as `YYYY-MM-DD`. A notice counts from it (step 9) |
-   | `sunsetDate` | The first day on which a reference to the atom is an error, as `YYYY-MM-DD` |
-
-   Each kind accepts these keys. If they are not correct, `compile` stops with `invalid-lifecycle`, `wrong-ref-kind` or `unresolved-ref`. Refer to [Diagnostics](../reference/diagnostics).
-
-3. Keep the old atom in each entity that uses it. Add the replacement beside it:
-
-   ```yaml
-   policy.entity.coverage:
-     description: One peril that a policy covers, up to a limit
-     key: policy.field.peril
-     fields:
-       - ref: policy.field.peril
-       - ref: policy.field.limit
-       - ref: policy.field.note
-         required: false
-       - ref: policy.field.remark
-         required: false
-   ```
-
-   With both properties, a caller can move to `remark` at any time before the sunset date.
-
-4. Run `diff`. It shows no breaking change:
-
-```
-compatible  urn:acme:insurance:policy:entity:coverage  adds the optional property "remark"; the database needs a migration for it
-lifecycle   urn:acme:insurance:policy:field:note  status active → deprecated
-compatible  urn:acme:insurance:policy:field:remark  is new
-diff passed: 0 breaking, 2 compatible, 1 lifecycle change(s)
-```
-
-## 5. Read the deprecation warning
-
-Run `compile`. It warns about each active atom that refers to the deprecated atom:
-
-```
-insurance/domain.manifest.yaml:79:12  warning  deprecated-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, which is deprecated (superseded by urn:acme:insurance:policy:field:remark; sunset on 2027-06-30)
-unchanged  insurance/generated/domain.runtime.generated.ts
-unchanged  insurance/generated/domain.schemas.generated.ts
-unchanged  insurance/generated/domain.store.generated.ts
-unchanged  insurance/generated/schema.generated.sql
-fingerprint sha256:ed22ead4fea76af5e6bc9939fd5184c0200f48513c8138dee4e88936bfd9aeb2
-```
-
-- The location is the reference, not the deprecated atom.
-- A warning does not stop `compile` or `verify`.
-- The deprecated atom still makes all of its code. The TypeScript marks it with `@deprecated`, so an editor shows the name crossed out.
-
-## 6. Set the reference date
-
-urn-forge never reads the clock. It compares each `sunsetDate` with a reference date that you give:
-
-- On the command line: `--reference-date 2026-11-21` on `compile` or `verify`.
-- In the config: `referenceDate: '2026-11-21'`. The command line option overrides it.
-
-In CI, use the date of the commit, so one commit always gives one result. Refer to [Run verify in CI](run-verify-in-ci). On or after the sunset date, a reference to the atom is an error:
-
-```
-insurance/domain.manifest.yaml:79:12  error  sunset-ref  urn:acme:insurance:policy:entity:coverage: fields[2].ref refers to urn:acme:insurance:policy:field:note, whose sunset date 2027-06-30 is on or before the reference date 2027-07-01 (superseded by urn:acme:insurance:policy:field:remark); refer to its replacement
-verify failed: the manifest does not compile
-```
-
-Before the sunset date, move each use of the old atom to the replacement:
-
-1. Change the scenarios that send or expect the old property.
-2. Change the core and the shell, if they read or write the old property.
-3. Tell the callers outside your repository to move.
-
-## 7. Sunset the old atom, and keep it
-
-1. Remove the last references to the old atom from the entities of the manifest.
-2. In the same change, set `status: sunset`. Keep `supersededBy` and `sunsetDate`, so a reader can find the replacement.
-3. Run `diff`. The deprecation announced the removal, so `diff` reports lifecycle changes:
-
-```
-lifecycle   urn:acme:insurance:policy:entity:coverage  removes the property "note", whose target urn:acme:insurance:policy:field:note was deprecated
-lifecycle   urn:acme:insurance:policy:field:note  status deprecated → sunset
-diff passed: 0 breaking, 0 compatible, 2 lifecycle change(s)
-```
-
-A sunset atom makes no code: no schema, no type, no SQL, and no handler. If an active atom still refers to it, `compile` stops with `sunset-ref`.
-
-Do not delete the sunset atom. It keeps its URN in use, so no new atom can get that URN with a different meaning. `diff` reports a deletion as a breaking change:
-
-```
-breaking    urn:acme:insurance:policy:field:note  is removed; keep a sunset atom in the manifest, so its URN is never used again
-diff failed: 1 breaking, 0 compatible, 0 lifecycle change(s)
-```
-
-## 8. Rename a required input field without a break
-
-Callers must send a required input field, so they cannot move to a replacement. A new required property is breaking, and so is the changed rule of an invariant that names the field. Thus do not rename it in place. Declare a new operation, and retire the old one:
-
-1. Declare the new field, `policy.field.stop_date`.
-2. Declare a new input entity with the new field, `policy.entity.stop_request`, and its invariants, here `policy.invariant.stop_within_term`.
-3. Declare a new operation, `policy.operation.stop_policy`. Give it the same output, errors and events as the old operation.
-4. Deprecate the old operation:
-
-   ```yaml
-   policy.operation.cancel_policy:
-     description: Stop a policy and calculate the refund for the days it does not cover
-     status: deprecated
-     supersededBy: policy.operation.stop_policy
-     sunsetDate: 2027-12-31
-     # …
-   policy.operation.stop_policy:
-     description: Stop a policy and calculate the refund for the days it does not cover
-     input: policy.entity.stop_request
-     output: policy.entity.refund_quote
-     errors:
-       - policy.error.refund_below_minimum
-     emits: [policy.event.policy_cancelled]
-   ```
-
-5. Write the handler and the scenarios of the new operation. The old operation keeps its handler until its sunset.
-
-`diff` shows no breaking change. An invariant on a new entity is compatible, because no caller sent that entity before:
-
-```
-compatible  urn:acme:insurance:policy:entity:stop_request  is new
-compatible  urn:acme:insurance:policy:field:stop_date  is new
-compatible  urn:acme:insurance:policy:invariant:stop_within_term  is new, on the new entity urn:acme:insurance:policy:entity:stop_request
-lifecycle   urn:acme:insurance:policy:operation:cancel_policy  status active → deprecated
-compatible  urn:acme:insurance:policy:operation:stop_policy  is new
-diff passed: 0 breaking, 4 compatible, 1 lifecycle change(s)
-```
-
-At the sunset date, sunset the old operation as in step 7. Also sunset the old entity and field if nothing else uses them.
-
-## 9. State how the contract changes
-
-The header can state two rules for the whole contract, with `compatibility`:
-
-```yaml
-manifest:
-  namespace: acme
-  domain: insurance
+  namespace: demo
+  domain: booking
   version: 0.1.0
   compatibility:
     callers: ignore-unknown
-    notice: 6 months
 ```
 
-| Key | Value | Effect |
-| --- | --- | --- |
-| `callers` | `ignore-unknown` | Callers ignore a property, a value or a kind of answer that they do not know |
-| `notice` | A number of days or months: `180 days`, `6 months` | The minimum time from the announcement of a deprecation to its sunset date. Months count on the calendar: 6 months after 2026-08-31 is 2027-02-28 |
+Then a new output, a new choice of an `enum` in an output, and a new property of an output are compatible.
 
-Both keys are optional. Any other value stops `compile` with `invalid-compatibility`.
+## Retire a part
 
-### Let callers ignore what they do not know
+1. Add `deprecated: true` to the definition, the rule or the operation. Say in its `description` what to use in its place.
+2. Run `npx urn-forge compile`. Each live part that uses it gets the warning `deprecated-use`, and the generated code marks it `@deprecated`.
+3. When no caller uses it, remove it, and increase the major version. `diff` reports the removal.
 
-Without `callers: ignore-unknown`, a new declared error is breaking (step 3). With it, `diff` reports a new declared error, a new event in `emits`, or a new enum value in a value that callers receive as compatible:
-
-```
-compatible  urn:acme:insurance:policy:error:policy_already_cancelled  is new
-compatible  urn:acme:insurance:policy:operation:cancel_policy  the new declared error urn:acme:insurance:policy:error:policy_already_cancelled widens a value that callers receive, which callers ignore when they do not know it (compatibility.callers)
-diff passed: 0 breaking, 2 compatible, 0 lifecycle change(s)
-```
-
-- The rule of the old manifest applies. Callers read the contract that they have.
-- A removal, a rename and any other wider value stay breaking, for example a larger `max`. A caller that ignores an unknown value cannot ignore a larger number.
-- The rule is for the callers. urn-forge cannot check that they keep it. Write it in the documents that you give them.
-- The generated schemas remove the properties that they do not know from a request. Thus a caller that sends a property of a newer version is not refused.
-
-### Give notice before a removal
-
-With a `notice`, give each deprecated atom with a `sunsetDate` the day of the announcement, `deprecatedOn`:
-
-```yaml
-policy.field.note:
-  primitive: string
-  description: Free text about a coverage
-  status: deprecated
-  supersededBy: policy.field.remark
-  deprecatedOn: 2026-12-31
-  sunsetDate: 2027-06-30
-```
-
-A `sunsetDate` that is less than the notice after `deprecatedOn` stops `compile`:
-
-```
-insurance/domain.manifest.yaml:41:15  error  short-notice  urn:acme:insurance:policy:field:note: sunsetDate 2027-06-30 is less than 6 months after deprecatedOn 2027-01-15; set it on or after 2027-07-15
-```
-
-`compile` also stops with `short-notice` when a `sunsetDate` has no `deprecatedOn`, or a sunset atom has no `sunsetDate`.
-
-`diff` then requires the announcement before the removal:
-
-- It accepts `status: sunset` only for an atom that the old manifest deprecated with a `sunsetDate`, as in step 7.
-- It refuses `status: sunset` for an atom that was not announced.
-- It refuses a changed `deprecatedOn`. The notice counts from the day of the announcement, and that day does not move.
-
-Here `remark` goes to `sunset` with no announcement:
-
-```
-breaking    urn:acme:insurance:policy:entity:coverage  removing the optional property "remark" widens a value that callers send and callers receive and the database stores, which breaks callers that receive it
-breaking    urn:acme:insurance:policy:field:remark  status active → sunset with no notice; compatibility.notice is 6 months, so deprecate it with deprecatedOn and sunsetDate first
-diff failed: 2 breaking, 0 compatible, 0 lifecycle change(s)
-```
-
-With a reference date (step 6), a sunset atom whose `sunsetDate` is after the reference date stops `compile` with `early-sunset`. Keep the atom deprecated until its sunset date.
-
-### A new major version
-
-`diff` refuses a breaking change also when the major version goes up. A new major version is a new manifest beside the old one, and the old version keeps running. How long it runs is your decision, and urn-forge does not check it.
+The manifest has no dates and no notice period. How long you keep a deprecated part is a promise of your service, not of the manifest.
 
 ## Result
 
-- A pull request that changes the meaning of a live URN fails the `compatibility` job.
-- The new atom has its own URN, and callers use it.
-- The old atom has `status: sunset`, and it stays in the manifest.
-- With `compatibility`, the manifest states what callers ignore, and the notice before a removal.
+`diff` passes, and the version of the manifest tells callers whether the change can break them.
 
 ## Related pages
 
-- [Compatibility and the direction of use](../explanation/compatibility)
-- [The CLI](../reference/cli)
-- [The manifest](../reference/manifest)
+- [Diff and versions](../reference/diff)
+- [Compatibility](../explanation/compatibility)
+- [Run verify in CI](run-verify-in-ci)

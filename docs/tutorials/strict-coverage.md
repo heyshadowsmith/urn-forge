@@ -1,22 +1,16 @@
 # Make the domain strict
 
-In this tutorial, you close the boundary gaps of the shipping domain. You tag the feature as strict, add the scenarios that send the edge values, and set `boundaryCoverage: 'error'`. At the end, `verify` passes with no warnings.
+In this tutorial, you make a gap in the scenarios an error, so that `verify` fails when a new output or a new rule has no scenario. Then you add scenarios at the edges of the rules, where a core is most often wrong.
 
-Before you start, do [tutorial 2](./declared-errors). You continue in the same project, `my-shipping/`.
+Before you start, do [tutorial 2](./declared-errors). Run all the commands from the `my-shipping` folder.
 
-## 1. Tag the feature as strict
+## 1. Make a gap an error
 
-Open `features/quote_shipping.feature`. Add the tag `@urn-forge:strict` on a new first line:
+Replace the content of `urn-forge.config.ts` with this content:
 
-```gherkin
-@urn-forge:strict
-@urn:demo:shipping:quote:operation:quote_shipping
-Feature: Shipping quotes
-```
+<<< @/../packages/urn-forge/tutorial/3-strict-coverage/urn-forge.config.ts{6-7}
 
-## 2. Run verify
-
-Run this command:
+Run verify:
 
 ```bash
 npx urn-forge verify
@@ -25,60 +19,50 @@ npx urn-forge verify
 The command shows this output:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
+gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; core satisfies DomainCore
 gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
-gate 3  gherkin       FAIL  1 feature(s), 3 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features
-    features  error  uncovered-boundary  urn:demo:shipping:parcel:field:weight_grams in the input of urn:demo:shipping:quote:operation:quote_shipping has no value at min 1, no value at max 30000, no value at max + 1 (30001)
-    features  error  uncovered-boundary  urn:demo:shipping:parcel:field:zone in the input of urn:demo:shipping:quote:operation:quote_shipping has no value outside values
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
-verify failed: gate 3
+gate 3  gherkin       PASS  1 feature(s), 12 scenario(s), 1/1 operation(s) run, 7 rule(s) broken
+gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
+verify passed (gates 1, 2, 3, 4)
 ```
 
-In a strict feature, the boundary gaps are errors. Each message gives the values that no scenario sends:
+Your scenarios have no gap, so nothing changes.
 
-- For `weight_grams`: `1` (`min`), `30000` (`max`) and `30001` (`max + 1`).
-- For `zone`: a value that is not in the `values` list.
+## 2. See a gap fail verify
 
-## 3. Add the boundary scenarios
+1. Open `features/quote_shipping.feature`, and remove the last scenario, `A refusal needs the weight`.
+2. Run verify:
 
-Add these three scenarios at the end of the feature:
+   ```bash
+   npx urn-forge verify
+   ```
 
-```gherkin
-  Scenario Outline: The lightest and heaviest parcels are accepted
-    When I run the operation with:
-      | weight_grams   | zone     |
-      | <weight_grams> | domestic |
-    Then the output is:
-      | price_cents   |
-      | <price_cents> |
+   The command shows this output:
 
-    Examples:
-      | weight_grams | price_cents |
-      | 1            | 600         |
-      | 30000        | 3500        |
+   ```
+   gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; core satisfies DomainCore
+   gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
+   gate 3  gherkin       FAIL  1 feature(s), 11 scenario(s), 1/1 operation(s) run, 6 rule(s) broken
+       features  error  uncovered-rule  no scenario breaks required of too_heavy_for_express; add one that ends with Then the input is rejected by "required" of "too_heavy_for_express", or Then the value is rejected by …
+   gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
+   verify failed: gate 3
+   ```
 
-  Scenario: A parcel over 30000 grams is rejected at the boundary
-    When I run the operation with:
-      | weight_grams | zone     |
-      | 30001        | domestic |
-    Then the input is rejected on "weight_grams"
+   In tutorial 2, the same gap was a warning. Now it is an error, and `verify` stops with exit code `1`.
 
-  Scenario: An unknown zone is rejected at the boundary
-    When I run the operation with:
-      | weight_grams | zone |
-      | 800          | moon |
-    Then the input is rejected on "zone"
+3. Put the scenario back.
+
+## 3. Find the edges of the rules
+
+Gate 3 asks for one scenario that breaks each rule of a definition. It does not ask for the values at the edges of a rule. A core that is wrong by one at an edge can still pass each scenario.
+
+For example, change the comparison in `src/core.ts` from `>` to `>=`:
+
+```ts
+    if (express && weight_grams >= EXPRESS_LIMIT_GRAMS) return answer('too_heavy_for_express', { weight_grams });
 ```
 
-The operation accepts `1` and `30000`. The schema refuses `30001` and `moon` at the boundary.
-
-Make sure that your feature is the same as this file. The highlighted lines are new:
-
-<<< @/../packages/urn-forge/tutorial/3-strict-coverage/features/quote_shipping.feature{1,34-57 gherkin}
-
-## 4. Run Cucumber
-
-Gate 3 examines only that the scenarios send the values. Cucumber examines that the scenarios pass. Run this command:
+Run Cucumber:
 
 ```bash
 npx cucumber-js
@@ -87,68 +71,98 @@ npx cucumber-js
 The command shows this output:
 
 ```
-..............................
+....................................
 
-10 scenarios (10 passed)
-30 steps (30 passed)
-0m 0.018s (0m 0.003s executing your code)
+12 scenarios (12 passed)
+36 steps (36 passed)
+0m 0.019s (0m 0.004s executing your code)
 ```
 
-## 5. Run verify
+Each scenario passes, but the core now refuses an express parcel of exactly 5000 grams.
 
-Run this command:
+## 4. Add the edge scenarios
+
+Replace the content of `features/quote_shipping.feature` with this content. The highlighted lines are new:
+
+<<< @/../packages/urn-forge/tutorial/3-strict-coverage/features/quote_shipping.feature{26-45 gherkin}
+
+The new scenarios send the lightest and the heaviest parcel that `weight_grams` accepts, and an express parcel of exactly 5000 grams.
+
+Run Cucumber:
 
 ```bash
-npx urn-forge verify
+npx cucumber-js
 ```
 
-The command shows this output:
+The scenario at the edge fails. The output has these lines, among others:
 
 ```
-gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
-gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
-gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features
-    features  note  ratchet-ready  every feature is @urn-forge:strict; set boundaryCoverage: 'error' in the config so new features are strict too
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
-verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
+  1) An express parcel of exactly 5000 grams is quoted # features/quote_shipping.feature:39
+           Error: quote_shipping did not answer: ContractViolation: over_express_limit of quote_shipping: The parcel fits express delivery
+15 scenarios (14 passed, 1 failed)
+45 steps (44 passed, 1 failed)
 ```
 
-All the gaps are closed. The note `ratchet-ready` tells you that all the features are strict.
+The core refused the parcel, but the rule `over_express_limit` allows the refusal only above 5000 grams. The harness found the error.
 
-## 6. Set boundaryCoverage to error
+## 5. Correct the core
 
-The tag makes only this feature strict. A new feature without the tag can have gaps, and `verify` gives only warnings for them. To make each gap an error, change the configuration.
+Change the comparison in `src/core.ts` back from `>=` to `>`. Your core is now the same as this file:
 
-Replace the content of `urn-forge.config.ts` with this content:
+<<< @/../packages/urn-forge/tutorial/3-strict-coverage/src/core.ts
 
-<<< @/../packages/urn-forge/tutorial/3-strict-coverage/urn-forge.config.ts
+## 6. Run Cucumber and verify
 
-## 7. Run verify
+1. Run Cucumber:
 
-Run this command:
+   ```bash
+   npx cucumber-js
+   ```
 
-```bash
-npx urn-forge verify
-```
+   The command shows this output:
 
-The command shows this output:
+   ```
+   .............................................
 
-```
-gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; `core` satisfies DomainCoreImplementation
-gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
-gate 3  gherkin       PASS  1 feature(s), 6 scenario(s), 1/1 operations tagged, 1/1 errors expected, strict: 1/1 features (boundaryCoverage: error)
-gate 4  drift         PASS  2 generated file(s) compared byte for byte against src/generated
-verify passed (gates 1, 2, 3, 4; gate 5 is urn-forge diff)
-```
+   15 scenarios (15 passed)
+   45 steps (45 passed)
+   0m 0.015s (0m 0.003s executing your code)
+   ```
 
-The summary of gate 3 shows `(boundaryCoverage: error)`. Each new gap makes `verify` fail. Your files are the same as the files in `tutorial/3-strict-coverage/`.
+2. Run verify:
+
+   ```bash
+   npx urn-forge verify
+   ```
+
+   The command shows this output:
+
+   ```
+   gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; core satisfies DomainCore
+   gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
+   gate 3  gherkin       PASS  1 feature(s), 15 scenario(s), 1/1 operation(s) run, 7 rule(s) broken
+   gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
+   verify passed (gates 1, 2, 3, 4)
+   ```
+
+Your project is now the same as `packages/urn-forge/tutorial/3-strict-coverage/` in the repository.
+
+## What you built
+
+- A manifest that states the contract: the values that `quote_shipping` accepts, its two outputs, and the rules that say when each output comes back.
+- A core that is a plain function. It does not check its input, and it does no I/O.
+- A harness that checks each input before the core runs, and each answer after it.
+- Scenarios that run each output, break each rule of each definition, and test the edges of the rules.
+- A `verify` that fails when one of these parts no longer agrees with the manifest.
 
 ## Next
 
-You completed the tutorials. To do a specific task, go to the [how-to guides](../how-to/).
+- To call the operation from your application, refer to [Call an operation](../how-to/call-an-operation).
+- To check a change to the manifest, refer to [Change the contract](../how-to/change-the-contract).
+- To run the checks on each pull request, refer to [Run verify in CI](../how-to/run-verify-in-ci).
 
 ## Related pages
 
-- [Close boundary gaps](../how-to/close-boundary-gaps)
+- [Write scenarios](../how-to/write-scenarios)
+- [Verification gates](../reference/verification-gates)
 - [How urn-forge proves it](../explanation/how-urn-forge-proves-it)
-- [The configuration file](../reference/configuration)

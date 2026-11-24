@@ -1,213 +1,94 @@
 # Gherkin steps
 
-The module `urn-forge/cucumber` has generic Cucumber steps for all domains. The steps read the operation from the tags of the scenario. They read the field names and primitives from the generated `DispatchMap`. Gate 3 reads the same step texts.
+urn-forge gives the Cucumber steps of every domain. The steps read the definitions and the operations from the generated file, so they work for any manifest. You write only the `.feature` files.
+
+## Register the steps
+
+In `features/support/steps.ts`:
+
+<<< @/../packages/urn-forge/templates/starter/features/support/steps.ts
+
+`registerSteps` comes from `urn-forge/cucumber`. Its options:
+
+| Option | Value |
+| --- | --- |
+| `Definitions` | The generated `Definitions` |
+| `Operations` | The generated `Operations` |
+| `check` | The generated `check` |
+| `run` | A function from an operation and an input to a result. Use `runOperation` with your core |
+
+Call `registerSteps` one time.
 
 ## The steps
 
-| Step text | Table | Passes if |
-| --- | --- | --- |
-| `the current <entity> is:` | Fields of the entity that the operation changes | The operation has `changes` on this entity. The record goes to `execute` as `{ current }` |
-| `these <entity> records are stored:` | Records of the entity, one row each | The entity has `unique`. After a success, the answer is checked against the records as the indexes do: a clash with `otherwise` is that error. Needs the `unique` option |
-| `the time is "<timestamp>"` | None | Always. The time goes to `execute` as `{ now }` |
-| `the caller is:` | Fields of the caller entity | The domain has a `caller`. The caller goes to `execute` as `{ caller }`. `registerOperationSteps` must have `caller: CallerContract` |
-| `there is no current <entity>` | None | The same. `execute` gets `{ current: null }`: the shell found no record |
-| `I run the operation with:` | Input fields | Always. It calls `execute` and keeps the result |
-| `I run the operation again with:` | Input fields | After a run. With `idempotency` in `registerOperationSteps`, a repeat in the window gets the first answer, as `runOnce` gives it |
-| `the answer is the first answer` | None | The output of the last run is the output of the first run of the scenario that succeeded |
-| `the output is:` | Output fields | The operation succeeded, and the output agrees with the table |
-| `the input is rejected on "<field>"` | None | The result is `InputRejected`, or the declared error of `rejects`, with an issue on the property or inside it |
-| `the input is rejected by "<invariant URN>"` | None | The invariant is an input invariant, and the result is `InputRejected`, or the declared error of `rejects`, with an issue of it |
-| `the operation fails with "<error URN>"` | None | The result is the declared error with this URN |
-| `the operation fails with "<error URN>":` | Error fields | The same, and the error fields agree with the table |
-| `the operation emits "<event URN>"` | None | The operation emits the event, and the result is a success with one or more events with this URN |
-| `the operation emits "<event URN>":` | Event fields | The same, and one event with this URN agrees with the table |
-| `the operation emits no event` | None | The result is a success with no events, or a `DomainError` |
-| `nothing changes` | None | The result is a refusal: a `DomainError` or `InputRejected`. With the `commit` option, `commit` gives no statement for it |
-| `the operation is not due` | None | The operation has `due`, and the result is the `ContractViolation` of a call for a record that is not due |
-| `the operation emits no "<event URN>"` | None | The operation emits the event, and the result is a success with no event with this URN |
-| `the refusal is recorded as "<event URN>"` | None | The result is a `DomainError` whose `record` is this event |
-| `the refusal is recorded as "<event URN>":` | Event fields | The same, and the record agrees with the table |
-
-- `the current <entity> is:`, `there is no current <entity>` and `these <entity> records are stored:` are registered with `Given`, `I run the operation with:` with `When`, the others with `Then`. Cucumber also matches `Given`, `And` and `But`.
-- A quoted value can use double or single quotes.
-- `<field>` is a property of the input entity, not of an embedded entity.
-- `<entity>` is the identifier of the entity in `changes`, for example `booking`. Each scenario of an operation with `changes` gives the record before the operation runs. Refer to [Declare states and moves](../how-to/declare-states).
-- `<error URN>`, `<event URN>` and `<invariant URN>` are full URNs.
-- An issue of an invariant is on its `reportOn` property, else on the first field of its rule. Use `the input is rejected by` to name the rule.
-- `the operation emits` does not examine the count or the sequence of the events.
-
-```gherkin
-    Then the operation fails with "urn:acme:insurance:policy:error:refund_below_minimum":
-      | refund |
-      | 0.00   |
-    And the operation emits no event
-    And the refusal is recorded as "urn:acme:insurance:policy:event:refund_refused":
-      | refund |
-      | 0.00   |
-```
-
-## The operation tag
-
-| Rule | Value |
+| Step | What it does |
 | --- | --- |
-| Form | `@urn:<namespace>:<domain>:<context>:operation:<identifier>` |
-| Where | On the feature, the `Rule` block, the scenario or the `Examples` block |
-| Number | Exactly one operation URN. The same URN two times counts one time |
-| Other tags | Ignored, for example `@wip`, `@urn-forge:strict` or an entity URN |
+| `When I run "<operation>" with:` | Makes the input of the operation from the table, and runs it through `run` |
+| `When I check a "<definition>" with:` | Makes a value of the definition from the table, and checks it with `check`. `an` is also correct: `When I check an "invalid_state" with:` |
+| `Then the output is "<object>"` | The operation answered with this output |
+| `Then the output is "<object>":` | The operation answered with this output, and the output has the values of the table |
+| `Then the input is rejected by "<rule>" of "<definition>"` | The harness refused the input before the core ran, and one failure has this rule and this definition |
+| `Then the value is rejected by "<rule>" of "<definition>"` | The check refused the value, and one failure has this rule and this definition |
+| `Then the value is accepted` | The check accepted the value |
 
-The `Then` steps examine the last result of the scenario. A second `I run the operation with:` replaces the result.
+A `Then` step reads the result of the last `When` step of its scenario. `Then the output is …` and `Then the input is rejected …` need `When I run`. `Then the value is …` needs `When I check`.
+
+`<rule>` can also be `type` or `properties`, the rules of the structure of a value.
 
 ## Tables
 
-A step table has exactly two rows: a header row and one data row. Each header is a property name of the input, the output, the error or the event of the step.
+A table has a header row and one row of values.
 
-### Cell conversion
+- The header names the properties of the input, the value or the output.
+- A path with a dot names a property of an embedded object, for example `stored_booking.state`.
+- An empty cell gives no value: the property is absent.
+- `Then the output is "<object>":` compares only the properties of its table. It compares lists and objects by value. It compares a time as text.
 
-A cell converts with the primitive of its field. A cell with no value puts no key in the object.
+## Cells
 
-| Primitive | Cell | Value |
+The step reads each cell by the type of its definition:
+
+| Type | Cell | Value |
 | --- | --- | --- |
-| All | Empty | No value. The key is absent |
-| `integer`, `float` | A number literal, for example `10`, `-9`, `.5`, `1e3`, `Infinity`, `NaN` | The number |
-| `integer`, `float` | Other text, for example `1,000` | The text. The schema refuses it |
-| `string`, `enum` | `""` | The empty string |
-| `string`, `enum` | Other text | The text, with no change |
-| `decimal`, `date`, `timestamp` | All text | The text, with no change. `12.50` stays `"12.50"` |
-| `boolean` | `true` or `false` | The boolean |
-| `boolean` | Other text | The text. The schema refuses it |
+| `string` | `domestic` | `"domestic"` |
+| `string` | `""` | The empty string |
+| `string` | `"a, b"` | A cell in double quotes is read as JSON: `"a, b"` |
+| `integer`, `number` | `5001`, `-1`, `2.5` | The number |
+| `boolean` | `true`, `false` | The boolean |
+| `array` | `[1, 2]`, `[{"course": "main", "amount": 1500}]` | JSON |
+| `array` | `[Ada, Grace, Alan]` | The items between commas, each read by the type of the item |
+| `array` | `[]` | An empty list |
+| `object` | `{"email": "ada@example.com"}` | JSON |
 
-A link is a plain cell with the value of the key field of the linked entity. To put a `|` in a cell, write `\|`.
+A cell that is not a value of its type is given as text, so that the check reports it. For example, `abc` in an `integer` column gives a failure of the rule `type`.
 
-### List and object cells
+## Errors of a step
 
-| Form | Syntax | Example |
-| --- | --- | --- |
-| List, for a property with `many` | `[` and `]`, values separated by commas | `[fire, flood]`, `[]` |
-| Object, for an embedded entity | `{` and `}`, pairs `name: value` separated by commas | `{ peril: fire, limit: 1000.00 }` |
-| List of objects | A list of objects | `[{ peril: fire, limit: 1 }, { peril: flood, limit: 2 }]` |
-| Bare value | Text up to the next `,`, `]` or `}`, with no spaces at the ends. No comma, bracket, brace or double quote | `fire`, `Smith Ada` |
-| Quoted value | A JSON string literal | `"Smith, Ada"`, `"a \"quoted\" word"`, `""` |
-
-- Each value converts with the primitive of its field. A quoted `"3"` for an `integer` is `3`.
-- An object can leave out a property. It cannot give a property two times.
-- A cell that does not start with the correct bracket stays text, and the schema refuses it.
-- A malformed cell makes the step fail with a message that gives the column, for example `expected "," or "]" (at column <n> of the cell)`. Gate 3 reports it as `invalid-cell`.
-
-### Formula cells
-
-A cell that starts with `=` is a formula. A value inside a list or object cell can also be a formula.
-
-| Form | Example | Value |
-| --- | --- | --- |
-| `repeat(n, "text")` | `=repeat(3, "ab")` | `ababab` |
-| `repeat(n, value)`, for a list | `=repeat(2, fire)` | `[fire, fire]` |
-| `a + b` | `="a@" + repeat(3, "b") + ".io"`, `=[fire] + repeat(2, flood)` | `a@bbb.io`, `[fire, flood, flood]` |
-| A quoted text, a list or an object | `="=x"` | `=x` |
-
-- `n` is from 0 to 10 000. A formula makes at most 1 000 000 characters or items.
-- A formula cannot hold another formula.
-- A text length counts code points.
-- Gate 3 reads formulas in the same way.
-
-### Comparison
-
-`the output is:`, and the table forms of `fails with`, `emits` and `is recorded as`, compare only the columns of the table.
-
-- An empty cell means that the property must be absent.
-- Values must be equal by `===`. `NaN` equals `NaN`.
-- Lists are equal if they have the same items in the same sequence.
-- Embedded objects are equal if they have the same properties with equal values.
-- A `decimal` is text. `12.5` is not equal to `12.50`.
-- A message shortens a text of more than 60 characters and a list of more than 10 items.
-
-## Failure messages
-
-| Step | Condition | Message |
-| --- | --- | --- |
-| All `Then` steps | No operation has run | `no operation has run yet; start with "When I run the operation with:"` |
-| Steps with a table | Not two rows | `expected a header row and exactly one data row, got <n> row(s)` |
-| `I run the operation with:` | No operation tag | `no @urn:<namespace>:<domain>:<context>:operation:<identifier> tag on this scenario or its feature` |
-| `I run the operation with:` | Two operation tags | `more than one operation tag on this scenario: <URN>, <URN>` |
-| `I run the operation with:` | Not in `DispatchMap` | `<operation URN> is not an operation of this domain` |
-| `I run the operation with:`, `the output is:`, `rejected on` | Unknown header or field | `"<header>" is not a field of the <input \| output> of <operation URN> (fields: <names>)` |
-| `the output is:` | No success | `<operation URN> did not succeed: <failure>` |
-| `the output is:` | Values differ | `<operation URN> output differs: <name>: expected <value>, got <value>; …` |
-| `rejected on` | Success | `<operation URN> accepted the input; expected it to be rejected on "<field>"` |
-| `rejected on` | Not `InputRejected` | `<operation URN> failed with <failure>; expected InputRejected on "<field>"` |
-| `rejected on` | No issue on the property | `<operation URN> rejected the input, but not on "<field>": <failure>` |
-| `rejected by` | Not an input invariant | `<invariant URN> is not an invariant of the input of <operation URN> (invariants: <invariant URNs>)` |
-| `rejected by` | Success | `<operation URN> accepted the input; expected it to be rejected by <invariant URN>` |
-| `rejected by` | Not `InputRejected` | `<operation URN> failed with <failure>; expected InputRejected by <invariant URN>` |
-| `rejected by` | No issue of the invariant | `<operation URN> rejected the input, but not by <invariant URN>: <failure>` |
-| `fails with` | Not declared | `<error URN> is not a declared error of <operation URN> (errors: <error URNs>)` |
-| `fails with` | Success | `<operation URN> succeeded; expected it to fail with <error URN>` |
-| `fails with` | Not a `DomainError` | `<operation URN> failed with <failure>; expected the declared error <error URN>` |
-| `fails with` | Another error | `<operation URN> failed with <other error URN> (<message>); expected <error URN>` |
-| `fails with`, `emits`, `is recorded as` | Fields differ | `<URN> fields differ: <name>: expected <value>, got <value>; …` |
-| `fails with`, `emits`, `is recorded as` | Unknown header | `"<header>" is not a field of <URN> (fields: <names>)` |
-| `emits` | Not in `emits` | `<event URN> is not an event of <operation URN> (emits: <event URNs>)` |
-| `emits` | No success | `<operation URN> did not succeed: <failure>; expected it to emit <event URN>` |
-| `emits` | No such event | `<operation URN> did not emit <event URN> (emitted: <event URNs>)` |
-| `nothing changes` | A success | `<operation URN> succeeded; expected it to refuse and change nothing` |
-| `nothing changes` | Not a refusal | `<operation URN> failed with <failure>; expected a refusal` |
-| `nothing changes` | Statements | `<operation URN> refused, but commit gave <n> statement(s) for it` |
-| `emits no event` | Not a success or a `DomainError` | `<operation URN> failed with <failure>; expected it to emit no event` |
-| `emits no event` | Events | `<operation URN> emitted <event URNs>; expected no event` |
-| `is recorded as` | Not a `recordAs` event | `<event URN> records no declared error of <operation URN> (records: <event URNs>)` |
-
-An empty list in a message is `none`, or `nothing` for `emitted`.
-
-| Result | `<failure>` |
+| Message | Cause |
 | --- | --- |
-| `DomainError` | `DomainError <error URN> (<message>)` |
-| `InputRejected`, `ContractViolation`, `UnknownOperation` | `<kind> (<path>: <message>; …)`. An empty path is `(payload)` |
+| `<name> is not an operation; the operations are …` | The operation is not in the manifest |
+| `<name> is not a definition` | The definition is not in the manifest |
+| `<path> is not a property of <definition>` | A column of the table names a property that is not there |
+| `the table must have a header row and one row of values; it has <n> rows` | The table has the wrong number of rows |
+| `<operation> did not answer: <kind>: …` | The harness gave `InputRejected` or `ContractViolation` where the step expected an output |
+| `<operation> answered <output>, not <object>` | The core gave another output |
+| `<object>.<property> is <actual>, not <expected>` | A value of the output is different |
+| `<operation> accepted the input; expected it to break <rule> of <definition>` | The input broke no rule |
+| `the input does not break <rule> of <definition>; it breaks …` | The input broke other rules |
+| `run an operation first: When I run "<operation>" with:` | A `Then` step for an operation has no `When I run` before it |
+
+For example, a core that breaks the rule `fits_express` gives:
 
 ```
-urn:demo:shipping:quote:operation:quote_shipping did not succeed: InputRejected (weight_grams: Invalid value: Expected >=1 but received 0)
+Error: quote_shipping did not answer: ContractViolation: fits_express of quote_shipping: An express parcel can weigh 5000 grams at most
 ```
 
-## `registerOperationSteps`
+## Coverage
 
-```ts
-function registerOperationSteps(options: OperationStepsOptions): void;
-
-interface OperationStepsOptions {
-  readonly dispatch: Readonly<Record<string, OperationContractLike>>;
-  readonly execute: (urn: string, payload: unknown, options: { readonly current?: unknown }) => ExecuteResultLike;
-}
-```
-
-| Option | Description |
-| --- | --- |
-| `dispatch` | The generated `DispatchMap` |
-| `execute` | The function that runs an operation, usually `executeOperation` with your core. `options.current` is the record of `the current <entity> is:`. A domain with `changes` passes `options` on: `executeOperation(urn, payload, core, options)` |
-
-Call it one time, in a support file that Cucumber loads. It registers one `Before` hook and the steps. The support file of tutorial 2:
-
-<<< @/../packages/urn-forge/tutorial/2-declared-errors/features/support/steps.ts
-
-The option types are structural. The generated `DispatchMap` and `executeOperation` agree with them.
-
-## Helpers
-
-The module also exports the functions that the steps use. They do not need Cucumber. Each `assert…` function throws an `Error` with the failure message.
-
-| Function | Signature |
-| --- | --- |
-| `operationUrnFromTags` | `(tags: readonly string[]) => string` |
-| `coerceCell` | `(cell: string, field: PropertyInfoLike) => unknown` |
-| `tableToObject` | `(rows: readonly (readonly string[])[], fields: FieldsLike, side, urn: string) => Record<string, unknown>` |
-| `assertOutput` | `(result: ExecuteResultLike, expected: Record<string, unknown>, urn: string) => void` |
-| `assertRejectedOn` | `(result: ExecuteResultLike, fieldName: string, fields: FieldsLike, urn: string) => void` |
-| `assertRejectedBy` | `(result: ExecuteResultLike, invariantUrn: string, urn: string) => void` |
-| `assertFailsWith` | `(result: ExecuteResultLike, errorUrn: string, urn: string, expected?: Record<string, unknown>) => void` |
-| `assertEmits` | `(result: ExecuteResultLike, eventUrn: string, urn: string, expected?: Record<string, unknown>) => void` |
-| `assertEmitsNone` | `(result: ExecuteResultLike, urn: string) => void` |
-| `assertEmitsNoneOf` | `(result: ExecuteResultLike, eventUrn: string, urn: string) => void` |
-| `assertNotDue` | `(result: ExecuteResultLike, urn: string) => void` |
+Gate 3 of `verify` reads the same steps, and asks for a scenario for each operation, each output and each rule of a definition. Refer to [Verification gates](./verification-gates).
 
 ## Related pages
 
 - [Write scenarios](../how-to/write-scenarios)
-- [Generated code](./generated-code)
 - [Verification gates](./verification-gates)
+- [The generated code](./generated-code)
