@@ -25,10 +25,11 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 11 | Errors | No `category`, no `retryable`. Errors and events are objects; the operation gives them their role |
 | 12 | Keywords | Keywords are parameterised rules. The JSON Schema keywords are a standard set that urn-forge ships; users declare their own the same way. `diff` compares parameters, and the form of the rule gives the direction |
 | 13 | Diffing rules | Every rule has a name. Added: accepts less. Removed: accepts more. Text edited: breaking both ways |
+| 14 | Reusable rules | A top-level `rules:` section declares them, with a parameter (`at_least: { rule: value >= n }`). A definition of any type uses one as a keyword (`at_least: 1`) |
+| 15 | One-off rules | `constraints:` on a definition of any type: named rules, each with `rule` and `message`. A rule on a simple value reads `value` |
 
 ## Open
 
-- Where one-off rules on an object live, and the name of the section that declares keywords.
 - Operations: `input`, `output` (one of several objects), `rules`. Where today's `requires`, `ensures`, `callers`, `changes`, `moves` and `refuses` go.
 - `message` on an object; `format` (`date`, `date-time`, `email`); decimals.
 - Out of the manifest, maybe extras later: `idempotency`, `due`, `delivery`, the outbox, `recordAs`.
