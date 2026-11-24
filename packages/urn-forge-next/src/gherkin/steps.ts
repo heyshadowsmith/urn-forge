@@ -43,6 +43,13 @@ export interface StepOptions {
   readonly run: (operation: never, input: unknown) => Result;
 }
 
+/** A value as JSON with the keys of each object in order, so that two equal values give one text. */
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    typeof v === 'object' && v !== null && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v,
+  );
+}
+
 function show(failures: readonly Failure[]): string {
   return failures.map((f) => `${f.rule} of ${f.definition}${f.path ? ` at ${f.path}` : ''}: ${f.message}`).join('; ');
 }
@@ -79,7 +86,7 @@ export function registerSteps(options: StepOptions): void {
     const expected = tableValue(table.raw(), object, options.Definitions);
     const actual = result.value as Record<string, unknown>;
     for (const [key, value] of Object.entries(expected)) {
-      if (JSON.stringify(actual[key]) !== JSON.stringify(value)) {
+      if (canonical(actual[key]) !== canonical(value)) {
         throw new Error(`${object}.${key} is ${JSON.stringify(actual[key])}, not ${JSON.stringify(value)}`);
       }
     }
