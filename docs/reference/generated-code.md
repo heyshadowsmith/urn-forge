@@ -131,7 +131,7 @@ Each failure has four properties:
 
 An application can show its own text for a rule, by the name in `rule`.
 
-The generated file does not export the type `Failure`. Use `CheckResult` and `OperationResult`, or import `Failure` from `urn-forge`.
+The generated file exports the type `Failure`: `import type { Failure } from './generated/domain.generated'`.
 
 ## check
 

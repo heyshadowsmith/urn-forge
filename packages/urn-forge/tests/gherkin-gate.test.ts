@@ -69,8 +69,25 @@ describe('a step', () => {
       'error unknown-name: seat is not an operation of the manifest',
       'error unknown-name: receipt is not an output of seat_booking',
       'error unknown-name: bookings is not a definition of the manifest',
-      'error unknown-name: smallest is not a rule that a definition applies',
+      'error unknown-name: smallest is not a rule of party_size',
     ]);
+  });
+
+  it('names a rule of the definition it names, and is reported once, at its line', () => {
+    const text = `Feature: Rules
+  Scenario Outline: A rule of another definition
+    When I check a "booking" with:
+      | party_size   |
+      | <party_size> |
+    Then the value is rejected by "enum" of "party_size"
+
+    Examples:
+      | party_size |
+      | 0          |
+      | 13         |
+`;
+    const outcome = gate(text);
+    expect(outcome.problems.filter((p) => p.code === 'unknown-name').map((p) => `${p.line}: ${p.message}`)).toEqual(['6: enum is not a rule of party_size']);
   });
 
   it('that does not parse is feature-syntax', () => {

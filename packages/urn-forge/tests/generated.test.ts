@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { compileManifest, generate } from '../src/index.js';
 import { core } from './fixtures/booking/core.js';
-import { check, Definitions, runOperation, type DomainCore } from './fixtures/booking/generated/domain.generated.js';
+import { check, Definitions, runOperation, type DomainCore, type Failure } from './fixtures/booking/generated/domain.generated.js';
 
 const MANIFEST = 'domain.manifest.yaml';
 const manifest = readFileSync(new URL('./fixtures/booking/domain.manifest.yaml', import.meta.url), 'utf8');
@@ -66,6 +66,12 @@ describe('check', () => {
 
   it('checks a definition named as a type with the rules of that definition', () => {
     expect(breaks('stored_booking', { ...booking, party_size: 0 })).toEqual(['minimum at party_size: Must be at least 1']);
+  });
+
+  it('exports the type of a failure', () => {
+    const result = check('party_size', 0);
+    const failures: readonly Failure[] = result.ok ? [] : result.failures;
+    expect(failures).toEqual([{ definition: 'party_size', rule: 'minimum', path: '', message: 'Must be at least 1' }]);
   });
 
   it('describes each definition for the Gherkin steps', () => {

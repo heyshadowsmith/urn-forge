@@ -63,10 +63,10 @@ describe('compile', () => {
 });
 
 describe('verify', () => {
-  it('passes the booking fixture', async () => {
+  it('passes the booking fixture, with the warning of its deprecated note', async () => {
     const { code, out } = await run(copy(), ['verify']);
     expect(code).toBe(0);
-    expect(out.at(-1)).toBe('verify passed (gates 1, 2, 3, 4)');
+    expect(out.at(-1)).toBe('verify passed with 1 warning(s) (gates 1, 2, 3, 4)');
   });
 
   it('gate 1: fails a core that does not satisfy DomainCore', async () => {
@@ -85,6 +85,21 @@ describe('verify', () => {
     const { code, out } = await run(dir, ['verify']);
     expect(code).toBe(1);
     expect(out).toContain('    shell.ts:3  error  direct-call  core.seat_booking runs the core without the harness; call runOperation(core, …), which checks the input and the answer');
+  });
+
+  it('gate 2: fails a shell that takes a function out of the core', async () => {
+    const dir = copy();
+    writeFileSync(join(dir, 'shell.ts'), "import { core } from './core.js';\n\nexport const { seat_booking } = core;\n");
+    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("coverage: 'error',", "coverage: 'error',\n  shell: ['shell.ts'],"));
+    expect((await run(dir, ['verify'])).out.some((l) => l.includes('shell.ts:3  error  direct-call  { seat_booking } = core takes a function of the core without the harness'))).toBe(true);
+  });
+
+  it('counts the warnings of the manifest', async () => {
+    const dir = copy();
+    edit(join(dir, 'domain.manifest.yaml'), (t) => t.replace('    deprecated: true\n', '    deprecated: true\n').replace('  phone:\n    description: The phone number of a guest\n', '  phone:\n    description: The phone number of a guest\n    deprecated: true\n'));
+    await run(dir, ['compile']);
+    const { out } = await run(dir, ['verify']);
+    expect(out.at(-1)).toBe('verify passed with 2 warning(s) (gates 1, 2, 3, 4)');
   });
 
   it('gate 2: fails a suppressed type check', async () => {

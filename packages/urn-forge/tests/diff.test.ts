@@ -128,6 +128,13 @@ describe('a rule of a definition', () => {
   });
 });
 
+it('calls a change of a definition that no operation uses compatible', () => {
+  const withSpare = BASE.replace('  note:\n    description: A note\n    type: string\n', '  note:\n    description: A note\n    type: string\n    rules:\n      - pattern: a\n');
+  const old = compileManifest(withSpare);
+  const next = compileManifest(withSpare.replace('- pattern: a', '- pattern: b'));
+  expect(classify(old as never, next as never).map((c) => `${c.class} ${c.place}`)).toEqual(['compatible definitions.note']);
+});
+
 describe('an operation', () => {
   it('with a new output: breaking, unless callers ignore what they do not know', () => {
     const add = (t: string) => t.replace('      - order: [same_sku]\n', '      - order: [same_sku]\n      - refusal\n');

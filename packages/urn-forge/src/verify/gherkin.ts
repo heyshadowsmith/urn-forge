@@ -38,25 +38,45 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
   const broken = new Set<string>();
   let scenarios = 0;
 
-  const ruleNames = new Set(applications.filter((a) => a.place.kind === 'definition').map((a) => a.rule.name));
+  // The rules of each definition, as `definition rule`; a definition named as a type has its root's rules too.
+  const applied = new Set<string>();
+  for (const a of applications) {
+    if (a.place.kind !== 'definition') continue;
+    const owner = a.place.definition;
+    for (const d of Object.values(model.definitions)) {
+      for (let x = d; ; x = model.definitions[x.type]!) {
+        if (x.name === owner) applied.add(`${d.name} ${a.rule.name}`);
+        if (x.root === x.name) break;
+      }
+    }
+  }
 
   for (const feature of features) {
     let pickles;
+    // The line of each step of the feature, by the id of its node: a step of an outline has the line of
+    // the outline's step.
+    const lineOf = new Map<string, number>();
     try {
       const document = new Parser(new AstBuilder(IdGenerator.uuid()), new GherkinClassicTokenMatcher()).parse(feature.text);
+      const visit = (node: unknown): void => {
+        if (Array.isArray(node)) return node.forEach(visit);
+        if (typeof node !== 'object' || node === null) return;
+        const record = node as { id?: unknown; keyword?: unknown; location?: { line?: number } };
+        if (typeof record.id === 'string' && typeof record.keyword === 'string' && record.location?.line) lineOf.set(record.id, record.location.line);
+        Object.values(node).forEach(visit);
+      };
+      visit(document.feature);
       pickles = compile(document, feature.path, IdGenerator.uuid());
     } catch (error) {
       problems.push({ code: 'feature-syntax', severity: 'error', file: feature.path, message: (error as Error).message });
       continue;
     }
-    const lineOf = new Map<string, number>();
-    for (const line of feature.text.split('\n').entries()) lineOf.set(line[1].trim(), line[0] + 1);
     for (const pickle of pickles) {
       scenarios++;
       let operation: string | undefined;
       for (const step of pickle.steps) {
         const text = step.text;
-        const line = lineOf.get(`When ${text}`) ?? lineOf.get(`Then ${text}`) ?? lineOf.get(`And ${text}`);
+        const line = step.astNodeIds.map((id) => lineOf.get(id)).find((l) => l !== undefined);
         const unknown = (message: string): void => {
           problems.push({ code: 'unknown-name', severity: 'error', file: feature.path, ...(line ? { line } : {}), message });
         };
@@ -78,7 +98,7 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
         } else if ((m = STEPS.inputRejected.exec(text) ?? STEPS.valueRejected.exec(text))) {
           const [, rule, definition] = m as unknown as [string, string, string];
           if (!model.definitions[definition]) unknown(`${definition} is not a definition of the manifest`);
-          else if (!ruleNames.has(rule) && rule !== 'type' && rule !== 'properties') unknown(`${rule} is not a rule that a definition applies`);
+          else if (!applied.has(`${definition} ${rule}`) && rule !== 'type' && rule !== 'properties') unknown(`${rule} is not a rule of ${definition}`);
           else broken.add(`${definition} ${rule}`);
         }
       }
@@ -115,6 +135,9 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
     });
   }
 
+  // An outline reports a problem of one step once, not once for each row.
+  const unique = new Map(problems.map((p) => [`${p.code} ${p.file} ${p.line ?? ''} ${p.message}`, p]));
+  problems.splice(0, problems.length, ...unique.values());
   const errors = problems.filter((p) => p.severity === 'error').length;
   const operations = Object.keys(model.operations).length;
   return {

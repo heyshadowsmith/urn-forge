@@ -66,7 +66,22 @@ export function boundaryGate(options: BoundaryOptions, coreProgram: ts.Program |
       problems.push({ code: 'suppressed-check', severity: 'error', ...at(source, match.index), message: `@ts-${match[1]} can hide a broken contract; fix the type error` });
     }
     if (!shellFiles.includes(file)) continue;
+    const isCore = (expression: ts.Expression): boolean => {
+      if (!ts.isIdentifier(expression)) return false;
+      let symbol = checker.getSymbolAtLocation(expression);
+      if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+      return symbol !== undefined && coreExports.has(symbol);
+    };
     const visit = (node: ts.Node): void => {
+      // const { quote_shipping } = core takes a function of the core out of it, as core.quote_shipping does.
+      if (ts.isVariableDeclaration(node) && ts.isObjectBindingPattern(node.name) && node.initializer && isCore(node.initializer)) {
+        problems.push({
+          code: 'direct-call',
+          severity: 'error',
+          ...at(source, node.getStart()),
+          message: `${node.getText()} takes a function of the core without the harness; call runOperation(${node.initializer.getText()}, …), which checks the input and the answer`,
+        });
+      }
       if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression)) {
         let symbol = checker.getSymbolAtLocation(node.expression);
         if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);

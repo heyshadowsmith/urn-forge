@@ -5,8 +5,8 @@ Feature: Seat a booking
       | reference | stored_booking.reference | stored_booking.party_size | stored_booking.state | stored_booking.starts_at | stored_booking.ends_at | stored_booking.contact      |
       | ABCDEFGH  | ABCDEFGH                 | 4                         | confirmed            | 2026-11-24T19:00:00Z     | 2026-11-24T21:00:00Z   | {"email": "ada@example.com"} |
     Then the output is "booking":
-      | reference | party_size | state  |
-      | ABCDEFGH  | 4          | seated |
+      | reference | party_size | state  | starts_at                |
+      | ABCDEFGH  | 4          | seated | 2026-11-24T19:00:00.000Z |
 
   Scenario Outline: A booking that is not confirmed is refused
     When I run "seat_booking" with:

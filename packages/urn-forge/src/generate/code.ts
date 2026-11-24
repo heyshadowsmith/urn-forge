@@ -40,7 +40,8 @@ export function fillMessage(message: string, args: Readonly<Record<string, unkno
 /** The helpers of runtime.ts, with no `export`. */
 function runtimeSource(): string {
   const text = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8');
-  return text.replace(/^\/\*\*[\s\S]*?\*\/\n\n/, '').replace(/^export /gm, '');
+  // Failure is the type of a check's result: it stays exported.
+  return text.replace(/^\/\*\*[\s\S]*?\*\/\n\n/, '').replace(/^export (?!interface Failure)/gm, '');
 }
 
 /** The code of one use of a rule on `value` at `path`, which pushes a failure when it breaks. */

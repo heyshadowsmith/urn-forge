@@ -44,10 +44,17 @@ export interface StepOptions {
 }
 
 /** A value as JSON with the keys of each object in order, so that two equal values give one text. */
+const TIME = /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/;
+
+/**
+ * A value as JSON with the keys of each object in order, so that two equal values give one text. A
+ * time is its instant, so that 19:00:00Z and 19:00:00.000Z are equal.
+ */
 function canonical(value: unknown): string {
-  return JSON.stringify(value, (_key, v: unknown) =>
-    typeof v === 'object' && v !== null && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v,
-  );
+  return JSON.stringify(value, (_key, v: unknown) => {
+    if (typeof v === 'string' && TIME.test(v) && !Number.isNaN(Date.parse(v))) return `time ${Date.parse(v)}`;
+    return typeof v === 'object' && v !== null && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : v;
+  });
 }
 
 function show(failures: readonly Failure[]): string {

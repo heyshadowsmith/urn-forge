@@ -31,7 +31,7 @@ Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>]
   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
-  urn-forge diff    <old manifest> <new manifest>
+  urn-forge diff    <old manifest> <new manifest> [--report]
 
 Options:
   --namespace <name> init: the namespace of the starter manifest (default: app)
@@ -41,7 +41,8 @@ Options:
   --out <dir>        The directory of the generated files (default: src/generated)
   --core <file>      verify: the core, which exports … satisfies DomainCore (default: src/core.ts)
   --features <dir>   verify: the directory of the .feature files (default: features)
-  --tsconfig <file>  verify: the tsconfig of gate 1 (default: tsconfig.json)`;
+  --tsconfig <file>  verify: the tsconfig of gate 1 (default: tsconfig.json)
+  --report           diff: list the changes, and do not fail on a breaking change`;
 
 class UsageError extends Error {}
 
@@ -174,6 +175,8 @@ async function verifyCommand(io: CliIo, argv: readonly string[]): Promise<number
     io.stderr('verify failed: the manifest does not compile');
     return 1;
   }
+  // The warnings of the manifest, such as deprecated-use, count with those of the gates.
+  let warnings = result.compiled.diagnostics.filter((d) => d.severity === 'warning').length;
   const show = (path: string): string => display(io, path);
   const generatedPath = join(p.outDir, GENERATED_FILE);
   const coreOptions = { corePath: p.config.core!, generatedPath, tsconfigPath: p.config.tsconfig!, show };
@@ -189,7 +192,6 @@ async function verifyCommand(io: CliIo, argv: readonly string[]): Promise<number
     }),
     await driftGate(p.outDir, result.files, show),
   ];
-  let warnings = 0;
   for (const outcome of outcomes) {
     io.stdout(`gate ${outcome.gate}  ${outcome.name.padEnd(12)}  ${outcome.pass ? 'PASS' : 'FAIL'}  ${outcome.summary}`);
     for (const problem of outcome.problems) {

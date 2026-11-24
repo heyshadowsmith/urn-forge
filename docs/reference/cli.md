@@ -13,7 +13,7 @@ Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>]
   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
-  urn-forge diff    <old manifest> <new manifest>
+  urn-forge diff    <old manifest> <new manifest> [--report]
 
 Options:
   --namespace <name> init: the namespace of the starter manifest (default: app)

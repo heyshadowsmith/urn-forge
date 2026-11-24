@@ -90,7 +90,8 @@ function argumentDirection(application: Application, before: unknown, after: unk
 
 /** The verdict of a change that accepts less, more or both, for a value on these sides. */
 function verdict(direction: Direction, sent: boolean, received: boolean, ignoreUnknown: boolean): ChangeClass {
-  if (direction === 'same') return 'compatible';
+  // A value that no operation sends or receives breaks no caller.
+  if (direction === 'same' || (!sent && !received)) return 'compatible';
   if (direction === 'both') return 'breaking';
   // Accepts less: senders may now be rejected. Accepts more: receivers may get what they do not expect,
   // unless the contract promises that they ignore what they do not know.
@@ -241,5 +242,6 @@ export function classify(old: Side, next: Side): Change[] {
     for (const rule of before.keys()) if (!after.has(rule)) add('breaking', key, `the rule ${rule} is removed: the answer promises less`);
   }
 
-  return changes.sort((x, y) => x.place.localeCompare(y.place));
+  // By code point, not by locale: the order is the same on every machine.
+  return changes.sort((x, y) => (x.place < y.place ? -1 : x.place > y.place ? 1 : 0));
 }
