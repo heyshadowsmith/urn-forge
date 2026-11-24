@@ -37,6 +37,7 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 23 | CEL core | `self`; properties and paths (`self.contact.email`); parameters by their definition's name; `==`, `!=`, `<`, `<=`, `>`, `>=`; `&&`, `\|\|`, `!`, parentheses; `+`, `-`, `*`, `/`, `%`; `in`; `has()`; literals. An optional property is used only after `has()` (a stricter check than CEL, still valid CEL). Anything else in CEL is added only for a real need |
 | 24 | CEL lists | `all`, `exists`, `size`, and `map` with `sum()` (from the Kubernetes CEL list extension) for totals. Not yet: `exists_one`, `filter`, `min()`, `max()` |
 | 25 | CEL times | A rule turns a time string into a timestamp with `timestamp(...)`, written in each rule: no type implied by `format`. `duration(...)`, comparisons, a timestamp plus or minus a duration, and the difference of two timestamps. No calendar months and no date arithmetic: a `format: date` string compares as text |
+| 26 | Description and message | Every definition and every rule has a `description`: what it is, for a reader of the contract (docs, generated comments, database comments). A rule also has a `message`: the text of a failure, with its parameters filled (`Must be at least {bound}`). A failure also carries the rule's name, so an app can show its own wording |
 
 ## Open
 
