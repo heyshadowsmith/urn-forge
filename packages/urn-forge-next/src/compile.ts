@@ -4,6 +4,7 @@
  */
 import { createHash } from 'node:crypto';
 import ts from 'typescript';
+import type { UrnForgeConfig } from './config.js';
 import { Diagnostics, type Diagnostic } from './diagnostics.js';
 import { checksModule, generatedFile, type GeneratedFile } from './generate/code.js';
 import type { Failure } from './generate/runtime.js';
@@ -95,6 +96,6 @@ export function fingerprint(body: string): string {
 }
 
 /** The generated files of a compiled manifest. `source` is the manifest's path, for the header. */
-export function generate(compiled: Compiled & { readonly model: Model }, source: string): GeneratedFile[] {
+export function generate(compiled: Compiled & { readonly model: Model }, source: string, _config: UrnForgeConfig = {}): GeneratedFile[] {
   return [{ path: GENERATED_FILE, content: generatedFile(compiled.model, compiled.applications, source, fingerprint) }];
 }

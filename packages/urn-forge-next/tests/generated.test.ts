@@ -8,7 +8,7 @@ import { compileManifest, generate } from '../src/index.js';
 import { core } from './fixtures/booking/core.js';
 import { check, Definitions, runOperation, type DomainCore } from './fixtures/booking/generated/domain.generated.js';
 
-const MANIFEST = 'tests/fixtures/booking/domain.manifest.yaml';
+const MANIFEST = 'domain.manifest.yaml';
 const manifest = readFileSync(new URL('./fixtures/booking/domain.manifest.yaml', import.meta.url), 'utf8');
 
 const booking = {
