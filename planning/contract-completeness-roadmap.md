@@ -252,7 +252,7 @@ Each item is a plan of its own, with the format of the earlier plans: a target w
     - **Faults in urn-forge** that every contract gets: a repeat of `runOnce` that `commit` writes again; no lock in `runOnce`; an outbox sequence that starts again after published rows are deleted; the `missing` error before the check of `callers`; and the record that the shell builds in `writes` when the answer is not the stored record.
     - **Rules that the manifests leave out**, which `requires` and `ensures` can state today: for example, that the answer has the merchant, the method or the party size of the request, and that the loaded record is the one that the request names.
     - **Real holes**: windows over a local time (D3), a manager from another domain (D1), facts about a file, and a string function.
-17. The [manifest redesign](./manifest-redesign-notes.md) (Nov 24, 2026): a smaller manifest of definitions, rules and operations, in JSON Schema's words, with rules in a subset of CEL. Most of the faults that the audit found are in features that the redesign removes, so it replaces the integrity plan. A plan for the change comes next.
+17. The [manifest redesign](./manifest-redesign-notes.md) (Nov 24, 2026): a smaller manifest of definitions, rules and operations, in JSON Schema's words, with rules in a subset of CEL. Most of the faults that the audit found are in features that the redesign removes, so it replaces the integrity plan. The [redesign plan](./manifest-redesign-plan.md) builds it.
 
 ## Risks
 

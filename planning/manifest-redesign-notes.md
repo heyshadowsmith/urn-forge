@@ -51,4 +51,4 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 
 ## Open
 
-- A plan for the change: the steps from today's urn-forge, each commit green; the six example contracts, the corpus score, and users' existing manifests.
+- The plan for the change: [manifest-redesign-plan.md](./manifest-redesign-plan.md). urn-forge is at `0.1.0` and not published, so the only manifests to move are ours. The new compiler is built next to the old one, then replaces it.
