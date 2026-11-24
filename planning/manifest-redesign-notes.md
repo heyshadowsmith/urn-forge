@@ -43,10 +43,11 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 29 | Operations | An operation is a TypeSpec-style signature: `input` (one object), `output` (a list: one of these objects), and a `rules:` array. Nothing else. No `changes`, `from`, `to`, `moves`, `requires`, `ensures` or `errors`: a refusal is one of the outputs, an ordinary object; a stored record the code loaded is a property of the input; before and after are the input's record and the output. Richer patterns (before/after, deciders) are things users build from signatures and rules |
 | 30 | Names in an operation's rule | `input` and `output`, declared CEL variables. No `self` in an operation's rule, and no `input`/`output` in a value's rule: a rule applied where its names do not exist stops `compile` |
 | 31 | Rules for each output | `output` is a list of entries `- <object>: [rule names]`: the rules that hold when that object comes back. Inside them, `output` is that object, so no rule needs a type test. The operation's own `rules:` hold whichever output came back |
+| 32 | A definition as a type | `type` can name another definition: `from_account: { type: account }` is an account, with all its rules, and can add its own. So an object holds two values of one kind under two definitions (`from_account`, `to_account`) |
 
 ## Open
 
-- Parked until operations: `compatibility` (`callers: ignore-unknown`), in the manifest or as a `diff` setting; `link`; two values of one definition in one object (`before`/`after`, `from`/`to`); `type` naming another definition.
+- Parked until operations: `compatibility` (`callers: ignore-unknown`), in the manifest or as a `diff` setting; `link`.
 
 - `message` on an error object.
 - Out of the manifest, maybe extras later: `idempotency`, `due`, `delivery`, the outbox, `recordAs`.
