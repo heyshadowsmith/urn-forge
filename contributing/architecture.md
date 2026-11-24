@@ -24,7 +24,9 @@ domain.manifest.yaml
    │                            src/generate/code.ts      domain.generated.ts
    │                            src/generate/emit-cel.ts  each rule as TypeScript
    │                            src/generate/runtime.ts   the helpers, copied into the file
-   │                            src/generate/postgres.ts  schema.generated.sql (optional)
+   │                            src/generate/tables.ts    the tables of a value (with postgres)
+   │                            src/generate/postgres.ts  schema.generated.sql (with postgres)
+   │                            src/generate/store.ts     domain.store.generated.ts (with postgres)
    │
    ├─▶ compile writes them                src/cli.ts, src/write.ts
    ├─▶ verify gives them to gates 1 to 4  src/verify/
@@ -85,17 +87,19 @@ The standard set is a manifest in the package: [`src/standard.manifest.yaml`](..
 
 ### Arguments
 
-`compileManifest` checks each argument against the rules of its parameter's definition. For example, `count` has `minimum: 0`, so `minLength: -1` is `rule-argument`. The compiler does not have its own code for this. `checksOf` in `src/compile.ts` transpiles the checks of the generated file and runs them. Thus an argument and a value obey the same code.
+`compileManifest` checks each argument against the rules of its parameter's definition. For example, `count` has `minimum: 0`, so `minLength: -1` is `rule-argument`. The compiler does not have its own code for this. `checksOf` in `src/compile.ts` transpiles the schemas and the checks of the generated file (`checksModule` in `code.ts`), and runs them with Valibot passed in as `v`. Thus an argument and a value obey the same code.
 
 ## The generated file: `generate/`
 
-`generate` writes one TypeScript file, `domain.generated.ts`, and a Postgres schema if the config has `postgres`. The file has no import.
+`generate` writes one TypeScript file, `domain.generated.ts`. If the config has `postgres`, it also writes a Postgres schema and the store file. `domain.generated.ts` imports one package, `valibot`, as `v`. `valibot` is a dependency of `urn-forge`.
 
 | Part | Made by | Content |
 | --- | --- | --- |
-| The helpers | `runtimeSource` in `code.ts` | The functions of `runtime.ts`, copied without `export`: `$eq`, `$in`, `$size`, `$timestamp`, `$holds` and the others. The type `Failure` stays exported |
+| The header | `header` in `code.ts` | The comment, the fingerprint and `import * as v from 'valibot'` |
+| The helpers | `runtimeSource` in `code.ts` | The functions of `runtime.ts`, copied without `export` and without its import of `valibot`: `$eq`, `$in`, `$size`, `$timestamp`, `$holds`, `$rule`, `$validate` and the others. The type `Failure` stays exported |
 | The types | `types` in `code.ts` | A TypeScript type for each definition. `typeName` gives the name: `seat_booking` → `SeatBooking` |
-| The checks | `checkFunctions` in `code.ts` | A `check_<definition>` function for each definition. It checks the structure first (the pseudo-rules `type` and `properties`), then `required`, then the other rules |
+| The schemas | `schemasCode` in `code.ts` | A Valibot schema for each definition, `<Name>Schema`: `v.string()`, `v.number()`, `v.array()`, `v.strictObject()` with `v.optional()` for a property outside `required`. Each other rule is a `$rule`: a `v.check` whose requirement keeps the definition and the rule's name |
+| The checks | `checkFunctions` in `code.ts` | A `check_<definition>` function for each definition. It runs `$validate`, which parses with the schema and makes a `Failure` from each Valibot issue: a check by its rule's name, a wrong type as `type`, an unknown key as `properties`, and absent required keys as one `required` |
 | `Definitions` and `check` | `definitionsCode` in `code.ts` | The base, the items and the properties of each definition, for the Gherkin steps. `check(definition, value)` runs one check |
 | The harness | `operationsCode` in `code.ts` | `DomainCore`, `Operations`, `answer` and `runOperation` |
 
@@ -105,9 +109,22 @@ The standard set is a manifest in the package: [`src/standard.manifest.yaml`](..
 
 The header of a file has a fingerprint: the SHA-256 of its body. The same manifest gives the same bytes on each computer, in each locale and in each time zone. The determinism job of CI makes sure of this. Do not read the clock, the environment or the locale in `src/generate/`.
 
-### The Postgres schema: `postgres.ts`
+### The Postgres schema: `tables.ts` and `postgres.ts`
 
-`postgresSchema` writes a table for each object of `postgres.tables`, with the identifier as its primary key. `toSql` translates a rule to a `CHECK` constraint. A form that SQL cannot say throws `Untranslatable`, and a comment of the schema names the rule. The harness checks that rule. A property that is a list or an embedded object is a JSONB column. `postgresProblems` checks the config (`postgres-config`).
+`buildTables` in `tables.ts` gives the tables of each object of `postgres.tables`. The schema and the store file both use it, so they cannot disagree:
+
+- a value is a column, named by its path, such as `contact_email`;
+- an embedded object is the columns of its parts, at any depth;
+- a list is a child table, `<table>__<path>`, keyed by the parent's key and `position`. A list of values has the column `value`. A list of objects has the columns of the item. A list inside an item is a grandchild table, with `<parent path>_position`;
+- an optional list adds `has_<path>`, a `BOOLEAN`, to its parent.
+
+`buildTables` gives a `TableProblem` for two parts with one column name, a name longer than 63 bytes, or a list of lists. `postgresProblems` reports them as `postgres-column`, after the checks of the config (`postgres-config`).
+
+`postgresSchema` writes each table, with its key as its primary key. `toSql` translates a rule to a `CHECK` constraint in the table that holds its values. A required part of an optional embedded object is a `CHECK` that applies only when the object is present. `uniqueItems` is `UNIQUE NULLS NOT DISTINCT`. `minItems`, `maxItems` and the `has_` flag are in a deferred constraint trigger (`countTrigger`), which counts at the end of the transaction. A form that SQL cannot say throws `Untranslatable`, and a comment of the schema names the rule. The harness checks that rule.
+
+### The store file: `store.ts`
+
+`storeFile` writes `domain.store.generated.ts`. For each table, it writes `insert<Table>`, `delete<Table>`, `replace<Table>`, `select<Table>` and `<table>FromRows`. They describe the tree of `buildTables` as data, and give statements as `{ text, values }`. They make no call: the shell runs the statements with its own driver, in its own transaction. The file imports only the types of `domain.generated.ts`.
 
 ## The CLI: `cli.ts`, `config.ts`, `init.ts`
 

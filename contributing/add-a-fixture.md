@@ -54,6 +54,7 @@ The package tsconfig includes `tests`, so `npm run typecheck` type-checks the co
    ```
    wrote      tests/fixtures/booking/generated/domain.generated.ts
    unchanged  tests/fixtures/booking/generated/schema.generated.sql
+   unchanged  tests/fixtures/booking/generated/domain.store.generated.ts
    ```
 
 3. If the change adds an operation, an output or a rule of a definition, add a scenario for it to `features/seat.feature`. If the change adds an operation, add its function to `core.ts`.

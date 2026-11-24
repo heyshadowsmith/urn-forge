@@ -18,7 +18,7 @@ The functions are synchronous for the same reason. The generated type of a funct
 
 ## A harness, not a framework of the logic
 
-urn-forge does not run your application. It does not route requests, open transactions or call a database. It makes one file, with a check for each definition and a harness for each operation. The business logic stays in your code, in plain TypeScript.
+urn-forge does not run your application. It does not route requests, open transactions or call a database. It makes one file, with a schema and a check for each definition and a harness for each operation. With `postgres` in the config, it also makes a schema of tables and a store file. The store file gives the statements of a write or a read, and the shell runs them with its own driver, in its own transaction. The business logic stays in your code, in plain TypeScript.
 
 The harness checks both sides of the core:
 

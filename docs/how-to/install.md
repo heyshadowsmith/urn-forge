@@ -31,7 +31,7 @@ Install urn-forge in your project from a tarball. urn-forge is not on npm at thi
    npm install /path/to/urn-forge-0.2.0.tgz
    ```
 
-   npm also installs Cucumber, TypeScript, `tsx` and `yaml`.
+   npm also installs Cucumber, TypeScript, `tsx`, Valibot and `yaml`.
 
 6. Make sure that the CLI starts:
 
@@ -49,7 +49,7 @@ urn-forge has no build step. Its entry points are `.ts` files, so plain `node` c
 - Cucumber must register `tsx` first. [Set up a project](set-up-a-project) shows how.
 - To run your own script that imports `urn-forge`, use `npx tsx`.
 
-The generated file does not import urn-forge or another package. At run time, your shell needs only the generated file and your core.
+The generated file does not import urn-forge. It imports only `valibot`, which npm installs with urn-forge. At run time, your shell needs the generated files, `valibot` and your core.
 
 ## Result
 

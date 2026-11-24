@@ -135,9 +135,9 @@ Also not in the subset: `filter`, `min()`, `max()`, type conversions, and custom
 
 ## How a rule runs
 
-- In the generated TypeScript, each rule is plain code. There is no CEL library at run time.
+- In the generated TypeScript, each rule is plain code in a `v.check` of the Valibot schema of its definition. There is no CEL library at run time. Refer to [The generated code](./generated-code).
 - A rule whose evaluation gives an error, such as `timestamp()` of a text that is not a time, or a division by 0, breaks.
-- In the Postgres schema, a rule that SQL can say becomes a `CHECK` constraint. A rule with a macro, a list or a path into a `JSONB` column stays in the harness. Refer to [The Postgres schema](./postgres-schema).
+- In the Postgres schema, a rule that SQL can say becomes a `CHECK` constraint of the table that holds its values. `uniqueItems` is a `UNIQUE` constraint, and `minItems` and `maxItems` are a trigger. A rule with a macro, `sum()` or `size()` of a list stays in the harness. Refer to [The Postgres schema](./postgres-schema).
 
 ## Diagnostics
 

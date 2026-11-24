@@ -50,7 +50,7 @@ In `src/cel/check.ts`, give the type of the form from the types of its parts.
 ## Make the code
 
 1. In `src/generate/emit-cel.ts`, write the form as TypeScript. Where CEL and JavaScript differ, use the types of the checker to choose the code. For example, `/` of two ints goes toward 0, and `==` of two lists compares item by item.
-2. If the form needs a helper, add it to `src/generate/runtime.ts`. Start its name with `$`. `runtimeSource` copies the file into each generated file, so the helper must have no import.
+2. If the form needs a helper, add it to `src/generate/runtime.ts`. Start its name with `$`. `runtimeSource` copies the file into each generated file. It removes the import of `valibot`, because the header of the generated file imports it as `v`. Thus the helper can use `v`, but it must import nothing else.
 3. If CEL gives an error for a value, such as `timestamp()` of a text that is not a time, throw a `RuleError`. `$holds` then counts the rule as broken.
 4. In `src/generate/postgres.ts`, translate the form in `toSql`. If SQL cannot say the form with the same meaning, throw `Untranslatable`. The schema then names the rule in a comment, and the harness checks it.
 5. `diff` compares the canonical text, so it usually needs no change. Change `src/diff/classify.ts` only if the form gives a direction to a new argument.

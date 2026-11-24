@@ -34,7 +34,13 @@ When nothing changed, it shows:
 unchanged  src/generated/domain.generated.ts
 ```
 
-With `postgres` in the config, `compile` also writes `schema.generated.sql`. If you remove `postgres`, the next `compile` removes the file.
+With `postgres` in the config, `compile` also writes `schema.generated.sql` and `domain.store.generated.ts`. If you remove `postgres`, the next `compile` removes the two files:
+
+```
+unchanged  generated/domain.generated.ts
+removed    generated/domain.store.generated.ts
+removed    generated/schema.generated.sql
+```
 
 ## Do not edit a generated file
 
