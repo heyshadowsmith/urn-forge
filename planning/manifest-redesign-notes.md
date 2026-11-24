@@ -28,13 +28,15 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 14 | Where rules live | All rule text is in the top-level `rules:` section, each with a name, `rule`, `message`, and optional parameters. No rule text anywhere else |
 | 15 | Applying rules | A definition or an operation has a `rules:` array, like `properties`: rule names, with a parameter where the rule has one (`- minimum: 1`, `- even`, `- required: [reference]`) |
 | 16 | Structure and rules | Structure is what a value is: `description`, `type`, `properties`, `items`, `identifier`. Everything that must be true of it is a rule in `rules:`, including `required` and `enum`. The JSON Schema keywords are a standard set of rules that urn-forge ships |
+| 17 | Types | JSON Schema's six: `string`, `number`, `integer`, `boolean`, `object`, `array`. A date is a `string` with the rule `format: date`, a timestamp a `string` with `format: date-time` |
+| 18 | Exact amounts | No decimal type. An exact amount, such as money, is an `integer` of its smallest unit (cents) |
 
 ## Open
 
 - Parked until operations: `link`; two values of one definition in one object (`before`/`after`, `from`/`to`); `type` naming another definition.
 
 - Operations: `input`, `output` (one of several objects), `rules`. Where today's `requires`, `ensures`, `callers`, `changes`, `moves` and `refuses` go.
-- `message` on an object; `format` (`date`, `date-time`, `email`); decimals.
+- `message` on an error object; the formats in the standard set (`date`, `date-time`, `email`, ...).
 - Out of the manifest, maybe extras later: `idempotency`, `due`, `delivery`, the outbox, `recordAs`.
 - Lifecycle, `compatibility`, `stability`.
 - The rule language itself.
