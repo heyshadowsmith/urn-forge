@@ -3,6 +3,7 @@
  * base type (one of JSON Schema's six) and its root: the definition that declares its structure. A
  * definition whose type names another definition has the structure of that definition, and adds rules.
  */
+import { CelSyntaxError, parseRule, type Expr } from './cel/parse.js';
 import type { Diagnostics } from './diagnostics.js';
 import {
   BASE_TYPES,
@@ -22,10 +23,15 @@ export interface Definition extends DefinitionDecl {
   readonly root: string;
 }
 
+export interface Rule extends RuleDecl {
+  /** The parsed rule. */
+  readonly expr: Expr;
+}
+
 export interface Model {
   readonly header: ManifestHeader;
   readonly definitions: Readonly<Record<string, Definition>>;
-  readonly rules: Readonly<Record<string, RuleDecl>>;
+  readonly rules: Readonly<Record<string, Rule>>;
   readonly operations: Readonly<Record<string, OperationDecl>>;
 }
 
@@ -101,12 +107,17 @@ export function buildModel(decl: ManifestDecl, diagnostics: Diagnostics): Model 
     if (definition.identifier !== undefined) checkIdentifier(definition, definitions, diagnostics);
   }
 
-  const rules: Record<string, RuleDecl> = {};
+  const rules: Record<string, Rule> = {};
   for (const rule of decl.rules) {
     rule.parameters.forEach((name, index) => {
       if (!known(name)) unknown(name, [...rule.path, 'parameters', index]);
     });
-    rules[rule.name] = rule;
+    try {
+      rules[rule.name] = { ...rule, expr: parseRule(rule.text) };
+    } catch (error) {
+      if (!(error instanceof CelSyntaxError)) throw error;
+      diagnostics.error('rule-syntax', [...rule.path, 'rule'], `${rule.name}: ${error.message}, at column ${error.at + 1} of the rule`);
+    }
   }
 
   const operations: Record<string, OperationDecl> = {};

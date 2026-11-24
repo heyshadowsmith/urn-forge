@@ -22,7 +22,7 @@ function problems(text: string): { code: string; path: string }[] {
 }
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { names: it, rules: it.fails, all: it };
+const target = { names: it, syntax: it, rules: it.fails, all: it };
 
 describe('the booking fixture', () => {
   target.all('loads with no diagnostic', () => {
@@ -53,7 +53,7 @@ describe('names', () => {
 });
 
 describe('rules', () => {
-  target.rules('a rule that does not parse is rule-syntax', () => {
+  target.syntax('a rule that does not parse is rule-syntax', () => {
     const text = changed((m) => (m.rules.is_seated.rule = "output.state == 'seated' &&"));
     expect(problems(text)).toContainEqual({ code: 'rule-syntax', path: 'rules.is_seated.rule' });
   });
