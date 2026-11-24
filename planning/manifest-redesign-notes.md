@@ -34,6 +34,7 @@ Nov 24, 2026. Working notes from a walk-through in chat. Nothing is built yet.
 | 20 | Parameters | A rule lists its parameters by name, `parameters: [count]`, as shared definitions in `definitions:`, the same way `properties` lists values. The rule's text and message use those names (`value >= count`, `{count}`). The standard set's own definitions live in urn-forge's namespace, so they never clash with a user's names |
 | 21 | Parameter types | No "same type as the value". As in JSON Schema, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` and `multipleOf` take a `number` (an integer is a number). `enum` and `const` are for strings: their parameter is a `string`, or an `array` of strings. A choice of numbers is a user's own rule, or `minimum` and `maximum` |
 | 22 | Rule language | A subset of CEL (Common Expression Language), as Kubernetes and Buf's protovalidate use it with schemas. Every urn-forge rule is valid CEL. `self` is the value the rule applies to. urn-forge parses the subset itself, to translate rules to SQL, compare them in `diff` and check them in tests. Before/after (CEL's `oldSelf` in Kubernetes transition rules) is a reference for operations |
+| 23 | CEL core | `self`; properties and paths (`self.contact.email`); parameters by their definition's name; `==`, `!=`, `<`, `<=`, `>`, `>=`; `&&`, `\|\|`, `!`, parentheses; `+`, `-`, `*`, `/`, `%`; `in`; `has()`; literals. An optional property is used only after `has()` (a stricter check than CEL, still valid CEL). Anything else in CEL is added only for a real need |
 
 ## Open
 
