@@ -6,7 +6,9 @@ import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { describe, expect, it } from 'vitest';
 import { compileManifest } from '../src/index.js';
+import ts from 'typescript';
 import { postgresProblems, postgresSchema } from '../src/generate/postgres.js';
+import { storeFile } from '../src/generate/store.js';
 
 const schema = readFileSync(new URL('./fixtures/booking/generated/schema.generated.sql', import.meta.url), 'utf8');
 
@@ -173,6 +175,15 @@ definitions:
 `;
   const compiled = compileManifest(manifest);
   const sql = postgresSchema(compiled.model!, compiled.applications, { tables: ['order'] });
+  type Statement = { text: string; values: readonly unknown[] };
+  /** The store file of the order, run as JavaScript. */
+  const storeModule = (): { insertOrder: (v: unknown) => Statement[]; replaceOrder: (v: unknown) => Statement[]; selectOrder: (id: string) => Statement[]; orderFromRows: (rows: unknown[][]) => unknown } => {
+    const source = storeFile(compiled.model!, ['order'], '').replace(/^import type .*$/m, '');
+    const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
+    const module = { exports: {} as Record<string, (...args: any[]) => Statement[]> };
+    new Function('module', 'exports', js)(module, module.exports);
+    return module.exports as never;
+  };
 
   async function attempt(statements: string[]): Promise<string> {
     const db = new PGlite();
@@ -211,6 +222,28 @@ definitions:
 
   it('refuses rows of an optional list whose flag is false', async () => {
     expect(await attempt([order('', ''), line, `INSERT INTO "shop"."order__notes" ("order_id", "position", "value") VALUES ('o1', 0, 'gift')`])).toBe('order__notes_listed');
+  });
+
+  it('writes an order with lists inside lists as rows, and builds it back', async () => {
+    const store = storeModule();
+    const db = new PGlite();
+    await db.exec(sql);
+    const order = { order_id: 'o1', address: { street: 'Main' }, lines: [{ sku: 'A1', tags: ['x', 'y'] }, { sku: 'B2', tags: [] }] };
+    await db.exec('BEGIN');
+    for (const statement of store.insertOrder(order)) await db.query(statement.text, [...statement.values]);
+    await db.exec('COMMIT');
+    const rows = [];
+    for (const statement of store.selectOrder('o1')) rows.push((await db.query(statement.text, [...statement.values])).rows);
+    expect(store.orderFromRows(rows)).toEqual(order);
+    // An absent optional list and an empty one stay apart.
+    await db.exec('BEGIN');
+    for (const statement of store.replaceOrder({ ...order, notes: [] })) await db.query(statement.text, [...statement.values]);
+    await db.exec('COMMIT');
+    const again = [];
+    for (const statement of store.selectOrder('o1')) again.push((await db.query(statement.text, [...statement.values])).rows);
+    expect(store.orderFromRows(again)).toEqual({ ...order, notes: [] });
+    expect(store.orderFromRows([[], [], [], []])).toBeUndefined();
+    await db.close();
   });
 
   it('refuses a tag two times in one line', async () => {
