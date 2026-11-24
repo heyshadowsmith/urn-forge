@@ -56,7 +56,7 @@ describe('the booking table', () => {
   });
 
   it('names the rules that SQL cannot say', () => {
-    expect(schema).toContain('-- Not in SQL; the harness checks these rules: tables: maxItems; tables: uniqueItems; contact: required; booking: total_is_the_dishes');
+    expect(schema).toContain('-- Not in SQL; the harness checks these rules: tables: maxItems; tables: uniqueItems; tables: minimum of table_number; contact: required; contact: pattern of email; dishes: required of dish; dishes: enum of course; dishes: minimum of amount; booking: total_is_the_dishes');
   });
 });
 

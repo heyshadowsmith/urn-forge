@@ -157,6 +157,23 @@ export function postgresSchema(model: Model, applications: readonly Application[
   const schema = ident(model.header.domain);
   const lines: string[] = [`CREATE SCHEMA IF NOT EXISTS ${schema};`];
   const rulesOf = (definition: string): Application[] => applications.filter((a) => a.place.kind === 'definition' && a.place.definition === definition);
+  // Each rule of a definition and of the definitions inside it, as `rule` or `rule of definition`.
+  const nestedRules = (start: string): string[] => {
+    const found: string[] = [];
+    const seen = new Set<string>();
+    const visit = (name: string): void => {
+      const d = model.definitions[name];
+      if (!d || seen.has(name)) return;
+      seen.add(name);
+      for (const a of rulesOf(name)) found.push(name === start ? a.rule.name : `${a.rule.name} of ${name}`);
+      if (d.root !== name) visit(d.type);
+      const root = model.definitions[d.root];
+      if (root?.items) visit(root.items);
+      root?.properties?.forEach(visit);
+    };
+    visit(start);
+    return found;
+  };
   for (const table of config.tables) {
     const definition = model.definitions[table]!;
     const required = requiredOf(definition);
@@ -176,11 +193,12 @@ export function postgresSchema(model: Model, applications: readonly Application[
         if (d.root === d.name) break;
       }
       for (const name of chain) {
+        if (type === 'JSONB') {
+          // The rules of the column's value and of every value inside it: the harness checks them all.
+          notInSql.push(...nestedRules(name).map((r) => `${property}: ${r}`));
+          continue;
+        }
         for (const application of rulesOf(name)) {
-          if (type === 'JSONB') {
-            notInSql.push(`${property}: ${application.rule.name}`);
-            continue;
-          }
           try {
             checks.push(`CONSTRAINT ${ident(`${table}_${property}_${application.rule.name}`)} CHECK (${toSql(application.rule.expr, application.types, property, application.arguments)})`);
           } catch (error) {
