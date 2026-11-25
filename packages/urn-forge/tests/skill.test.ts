@@ -12,7 +12,7 @@ import { main } from '../src/cli.js';
 import { CODES } from '../src/codes.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { skill: it.fails, init: it.fails };
+const target = { skill: it, init: it.fails };
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const SKILL = join(PACKAGE, 'skills/urn-forge/SKILL.md');
@@ -67,7 +67,7 @@ describe('the skill', () => {
     for (const m of text.matchAll(/(?<![\w-])--([a-z]+)\b/g)) expect(usage, m[0]).toContain(`--${m[1]}`);
     const named = new Set([...text.matchAll(/`([a-z]+(?:-[a-z]+)+)`/g)].map((m) => m[1]!).filter((name) => !NOT_CODES.has(name)));
     for (const name of named) expect(Object.keys(CODES), name).toContain(name);
-    for (const code of Object.keys(CODES)) expect([...named], code).toContain(code);
+    for (const code of Object.keys(CODES)) expect(text, code).toContain(`\`${code}\``);
   });
 
   target.skill('names only paths that exist in a project made by init', async () => {
