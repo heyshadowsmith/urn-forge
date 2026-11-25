@@ -103,3 +103,18 @@ Each must turn CI red:
 - **`AGENTS.md` and the docs say the same thing twice.** The package's file is a reference, short and complete; the docs explain. The completeness test keeps the reference right; the docs link to it.
 - **Gate 5 and a shallow clone.** CI must fetch the base ref. The error names the ref it could not read and says to fetch it.
 - **Gate 5 blocks a fix that is meant to weaken a rule.** That is its purpose: the bump makes the decision visible, and a person approves it in review.
+
+## What was built
+
+Each step is one commit, and each commit is green.
+
+- **Step 1.** `src/codes.ts` lists 41 codes, each with one fix. A diagnostic and a gate problem take a `Code`, so a code with no fix does not type-check. The text output shows the fix on the line after each problem. The type check found one code that the plan's list had missed, `type-cycle`.
+- **Step 2.** `--format json` on `compile`, `verify` and `diff`. A wrong command line is the problem `usage`, with exit code `2`.
+- **Step 3.** `packages/urn-forge/AGENTS.md`. The test checks each standard rule, each function and macro, each step, and each code with its exact fix.
+- **Step 4.** `manifest.schema.json`, JSON Schema 2020-12. It accepts each manifest of the repository (with the placeholders of the starter filled in) and refuses an unknown key, an object with no `properties`, `items` on a string, and a map of two rules in one entry. The standard set is not checked: its rule names are camelCase.
+- **Step 5.** The starter has `AGENTS.md`, `CLAUDE.md` (`@AGENTS.md`) and the schema line. `init` keeps an `AGENTS.md` or a `CLAUDE.md` that exists, and says so: a project with its own instructions is common.
+- **Step 6.** Gate 5 with the codes `removed-rule`, `wider-rule`, `removed-output`, `removed-scenario` and `base-unreadable`. The rules of a removed output are not reported again: `removed-output` names them. When the version allows the change, each change is a warning, so that a reviewer still sees it.
+- **A fix after step 6.** Gate 5 found no feature at the base for a project in a folder of its repository, because `git ls-tree` reads a path from the working folder. A test with a project in a folder now covers it.
+- **Step 7.** The how-to "Work with a coding agent", the CLI reference (JSON, gate 5, the new codes), CI (`--base` in the how-to, and gate 5 on each contract of the corpus on a pull request).
+
+All four sabotages turned CI red: a code with no fix (the type check and the test of the codes), a standard rule missing from `AGENTS.md` (the reference test), a line on stdout in JSON mode (the JSON tests), and a removed rule and scenario (gate 5).

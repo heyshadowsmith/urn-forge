@@ -104,7 +104,7 @@ An input that breaks a rule gets `InputRejected` before the core runs. A refusal
 
 - **One generated TypeScript file**: a type and a Valibot schema for each definition, and `runOperation`, the harness. Each schema is a [Standard Schema](https://standardschema.dev), so tRPC, Hono and form libraries can use it. The file imports only `valibot`.
 - **Cucumber steps that work with each manifest.** You write the `.feature` files.
-- **`urn-forge verify`**, four gates for CI:
+- **`urn-forge verify`**, five gates for CI:
 
   | Gate | It fails when |
   | --- | --- |
@@ -112,9 +112,12 @@ An input that breaks a rule gets `InputRejected` before the core runs. A refusal
   | 2. Boundary | Your application calls the core without the harness |
   | 3. Gherkin | An operation, an output or a rule has no scenario |
   | 4. Drift | A generated file is not the same as the file that `compile` writes now |
+  | 5. Contract | With `--base <ref>`: a change removes a rule, an output or a scenario, or makes a rule accept more, and the version does not increase |
 
 - **`urn-forge diff`**, which fails a change that can break callers, unless the major version increases.
 - **A Postgres schema, if you want one.** It has a `CHECK` constraint for each rule that SQL can state. urn-forge also gives the statements that write and read the rows.
+
+- **Made for coding agents.** `init` writes an `AGENTS.md` for the agent. The package has a reference of one page and a JSON Schema of the manifest. Each problem has a stable code and a fix, also as JSON with `--format json`. Refer to [Work with a coding agent](./how-to/work-with-a-coding-agent).
 
 urn-forge is a harness, not a framework. It does not route requests or open transactions, and your logic stays in your code. This site describes urn-forge 0.2.0. This version is not on npm yet.
 
