@@ -171,7 +171,7 @@ A table has a header row of properties and one row of values. `contact.email` is
 
 | Command | What it does |
 | --- | --- |
-| `urn-forge init [--namespace <n>] [--domain <n>]` | Writes a starter project that passes `verify`, with `AGENTS.md` and `CLAUDE.md` for coding agents |
+| `urn-forge init [--namespace <n>] [--domain <n>]` | Writes a starter project that passes `verify`, with `AGENTS.md`, `CLAUDE.md` and a Claude Code skill for coding agents |
 | `urn-forge compile [--format json]` | Writes the generated files |
 | `urn-forge verify [--base <ref>] [--format json]` | Compiles in memory and runs the gates; writes nothing |
 | `urn-forge diff <old> <new> [--report] [--format json]` | Classifies the changes between two manifests as breaking or compatible |

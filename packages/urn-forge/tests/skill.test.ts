@@ -12,7 +12,7 @@ import { main } from '../src/cli.js';
 import { CODES } from '../src/codes.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { skill: it, init: it.fails };
+const target = { skill: it, init: it };
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const SKILL = join(PACKAGE, 'skills/urn-forge/SKILL.md');

@@ -46,6 +46,7 @@ try {
 
   const init = run('npx', ['urn-forge', 'init', '--namespace', 'acme', '--domain', 'billing'], project);
   expect('urn-forge init', init.code === 0 && init.output.includes('next: npm install, then npx urn-forge compile, then npx urn-forge verify'));
+  expect('init installs the Claude Code skill', readFileSync(join(project, '.claude/skills/urn-forge/SKILL.md'), 'utf8').startsWith('---\nname: urn-forge\n'));
   expect('package.json is an ES module package', JSON.parse(readFileSync(join(project, 'package.json'), 'utf8')).type === 'module');
 
   expect('compile', run('npm', ['run', 'compile'], project).code === 0);
