@@ -21,7 +21,7 @@ Usage:
 
 Each command exits with `0` on a pass (also with warnings), `1` on a failure, and `2` on a wrong command line.
 
-### JSON output
+## JSON output
 
 With `--format json`, `compile`, `verify` and `diff` write one JSON object to stdout, and nothing else. The exit code does not change.
 
