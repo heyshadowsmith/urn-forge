@@ -1,8 +1,8 @@
 # urn-forge
 
-Write the contract of a domain once, in one YAML manifest, and prove in CI that your code keeps it.
+Write the contract of a domain once, in one YAML manifest. Then prove in CI that your code keeps it.
 
-A TypeScript type can say that a function returns a `Booking`. It cannot say that only a confirmed booking is seated. With urn-forge, you write that promise as a named rule:
+A TypeScript type can say that a function returns a `Booking`. It cannot say that you seat only a confirmed booking. With urn-forge, you write that rule in a manifest, with a name:
 
 ```yaml
 rules:
@@ -20,14 +20,14 @@ operations:
       - invalid_state: [was_not_confirmed, names_the_request]
 ```
 
-Suppose a change makes the core seat a cancelled booking:
+A change makes the core seat a cancelled booking:
 
-- **Without urn-forge**, `tsc` passes: the answer is still a `Booking`. The bug ships.
-- **With urn-forge**, the generated harness, `runOperation`, checks every answer, and gives `ContractViolation` with the rule `was_confirmed` in place of the wrong answer.
+- **Without urn-forge**, `tsc` passes, because the answer is still a `Booking`. You release the bug.
+- **With urn-forge**, the generated harness, `runOperation`, checks each answer. In place of the wrong answer, it gives `ContractViolation` with the rule `was_confirmed`.
 
-From the manifest, urn-forge generates one TypeScript file: types, Valibot schemas (Standard Schemas) and `runOperation`, which checks every input before your code runs and every answer after. Optionally, it also writes a Postgres schema with the rules as `CHECK` constraints. `urn-forge verify` fails CI when the core, the shell, the scenarios or the generated files stop agreeing with the manifest, and `urn-forge diff` fails a change that can break callers without a new major version.
+From the manifest, urn-forge generates one TypeScript file. The file has types, Valibot schemas (Standard Schemas) and `runOperation`. `runOperation` checks each input before your code runs, and each answer after it. If you want, urn-forge also writes a Postgres schema with the rules as `CHECK` constraints. `urn-forge verify` fails CI when the core, the shell, the scenarios or the generated files do not agree with the manifest. `urn-forge diff` fails a change that can break callers, unless the major version increases.
 
-The version is 0.2.0, not on npm yet. Read the [documentation](docs/index.md), starting with [the tutorial](docs/tutorials/first-domain.md).
+The version is 0.2.0. This version is not on npm yet. Read the [documentation](docs/index.md), and start with [the tutorial](docs/tutorials/first-domain.md).
 
 ## Try it
 
@@ -49,19 +49,19 @@ An npm-workspaces monorepo:
 
 | Path | What it is |
 | --- | --- |
-| [`packages/urn-forge`](packages/urn-forge) | The CLI (`init`, `compile`, `verify`, `diff`), the Cucumber steps, the tests, and the domains below |
-| [`packages/urn-forge/tests/fixtures/booking`](packages/urn-forge/tests/fixtures/booking) | The reference example: a restaurant booking that uses every construct, with a Postgres schema |
-| [`packages/urn-forge/tutorial`](packages/urn-forge/tutorial) | The end state of each part of the tutorial: a shipping quote |
+| [`packages/urn-forge`](packages/urn-forge) | The CLI (`init`, `compile`, `verify`, `diff`), the Cucumber steps, the tests, and the domains in the rows below |
+| [`packages/urn-forge/tests/fixtures/booking`](packages/urn-forge/tests/fixtures/booking) | The reference example: a restaurant booking that uses all constructs, with a Postgres schema |
+| [`packages/urn-forge/tutorial`](packages/urn-forge/tutorial) | The result of each part of the tutorial: a shipping quote |
 | [`packages/urn-forge/templates/starter`](packages/urn-forge/templates/starter) | The project that `urn-forge init` writes |
-| [`packages/urn-forge/example`](packages/urn-forge/example), [`insurance`](packages/urn-forge/insurance), [`self`](packages/urn-forge/self) | More domains: a math example, an insurance domain with Postgres, and urn-forge's own compiler functions |
-| [`contracts`](contracts) | Six contracts of real domains, each promise with its status |
+| [`packages/urn-forge/example`](packages/urn-forge/example), [`insurance`](packages/urn-forge/insurance), [`self`](packages/urn-forge/self) | More domains: a math example, an insurance domain with Postgres, and the compiler functions of urn-forge |
+| [`contracts`](contracts) | Six contracts of real domains. Each promise in them has a status |
 | [`docs`](docs) | The VitePress documentation site |
-| [`contributing`](contributing) | Guides for changing urn-forge; start at [CONTRIBUTING.md](CONTRIBUTING.md) |
-| [`planning`](planning) | Plans and decisions; not published |
+| [`contributing`](contributing) | Guides for people who change urn-forge. Start at [CONTRIBUTING.md](CONTRIBUTING.md) |
+| [`planning`](planning) | Plans and decisions. We do not publish them |
 
 ## Commands
 
-From the repository root, with Node 22 or newer:
+Run these commands from the root of the repository, with Node 22 or newer:
 
 ```bash
 npm ci                           # install every workspace

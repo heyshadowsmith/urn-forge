@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'urn-forge',
   description:
-    'Write the contract of a domain in one YAML manifest: definitions, rules and operations. urn-forge generates Valibot schemas, types and a harness around your code, and CI fails when the code, the scenarios or a change break the contract.',
+    'Write the contract of a domain in one YAML manifest: definitions, rules and operations. urn-forge generates Valibot schemas, types and a harness around your code. CI fails when the code, the scenarios or a change break the contract.',
   cleanUrls: true,
   appearance: 'dark',
   head: [

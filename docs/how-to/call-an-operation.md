@@ -1,18 +1,18 @@
 # Call an operation from your application
 
-The shell is the code around your core: an HTTP handler, a queue consumer, a CLI. It reads the request, loads what the operation needs into the input, calls the generated `runOperation`, and acts on the result. It never calls a function of the core directly.
+The shell is the code around your core, for example an HTTP handler, a queue consumer or a CLI. The shell reads the request, and loads the data of the operation into the input. Then it calls the generated `runOperation`, and does an action for the result. It never calls a function of the core directly.
 
 ## Handle each result
 
-`runOperation(core, operation, input)` takes an `unknown` input, such as a parsed JSON body. It checks the input, calls the core, then checks the answer against its output's definition and rules. It does not catch an exception of the core.
+`runOperation(core, operation, input)` takes an `unknown` input, such as a parsed JSON body. It checks the input and calls the core. Then it checks the answer against the definition and the rules of its output. It does not catch an exception of the core.
 
-| Result | Meaning | What the shell does |
+| Result | What it tells | What the shell does |
 | --- | --- | --- |
-| `ok: true` | `output` names the output, `value` holds it | Send it. A refusal is a normal answer |
-| `ok: false`, `kind: 'InputRejected'` | The input breaks a rule | Tell the caller; `failures` names each rule |
-| `ok: false`, `kind: 'ContractViolation'` | The core answered what the contract does not allow | A bug: log it, do not send the answer |
+| `ok: true` | `output` names the output, and `value` contains it | Send it. A refusal is a normal answer |
+| `ok: false`, `kind: 'InputRejected'` | The input breaks a rule | Tell the caller. `failures` names each rule |
+| `ok: false`, `kind: 'ContractViolation'` | The core gave an answer that the contract does not allow | This is a bug. Log it, and do not send the answer |
 
-This shell answers HTTP requests for the tutorial's shipping domain, in `src/shell/http.ts`:
+This shell, in `src/shell/http.ts`, answers HTTP requests for the shipping domain of the tutorial:
 
 ```ts
 import { core } from '../core';
@@ -36,7 +36,7 @@ export function handleQuote(body: unknown): { status: number; body: unknown } {
 }
 ```
 
-TypeScript narrows `result.value` by `result.output`. When the manifest gets a new output, the `switch` no longer covers every case and `tsc` reports the missing return. The status codes are the shell's choice; the manifest has none. Real results:
+TypeScript narrows `result.value` by `result.output`. If the manifest gets a new output, the `switch` does not cover all cases, and `tsc` reports that a return is not there. The shell selects the status codes. The manifest has no status codes. These are real results:
 
 ```json
 {"status":200,"body":{"price_cents":800}}
@@ -48,14 +48,14 @@ TypeScript narrows `result.value` by `result.output`. When the manifest gets a n
 
 | Property | Value |
 | --- | --- |
-| `definition` | The definition whose rule broke; for a rule of an output or an operation, the operation |
-| `rule` | The rule's name, or a rule of the structure: `type` (a wrong type), `properties` (an unknown key), `required` (a missing property), `output` (an answer that is not an output of the operation) |
-| `path` | Where the value is: `weight_grams`, `contact.email`, `dishes[0].amount`. In an answer, it starts with `output`. It is `''` for the whole value and for a rule of an output or an operation |
-| `message` | The rule's `message`, with its arguments |
+| `definition` | The definition whose rule broke. For a rule of an output or an operation, it is the operation |
+| `rule` | The name of the rule, or a rule of the structure. `type` is a wrong type. `properties` is an unknown key. `required` is a property that is not there. `output` is an answer that is not an output of the operation |
+| `path` | The location of the value: `weight_grams`, `contact.email`, `dishes[0].amount`. In an answer, it starts with `output`. It is `''` for the full value, and for a rule of an output or an operation |
+| `message` | The `message` of the rule, with its arguments |
 
 ## Let gate 2 check the shell
 
-Name the shell's files and folders in `urn-forge.config.ts`:
+Write the files and folders of the shell in `urn-forge.config.ts`:
 
 ```ts
 import { defineConfig } from 'urn-forge/config';
@@ -67,7 +67,7 @@ export default defineConfig({
 });
 ```
 
-A direct call such as `core.quote_shipping(body)` in a shell file then fails `verify`:
+Then a direct call in a shell file, such as `core.quote_shipping(body)`, fails `verify`:
 
 ```
 gate 2  boundary      FAIL  1 core file(s), 1 shell file(s): 1 problem(s)
@@ -76,17 +76,17 @@ gate 2  boundary      FAIL  1 core file(s), 1 shell file(s): 1 problem(s)
 
 ## The generated file
 
-`urn-forge compile` writes `domain.generated.ts` (in `src/generated` by default). It imports only `valibot`, and the same manifest always gives the same bytes. Do not edit it: gate 4 finds any edit. A definition's name in PascalCase gives its type, and with `Schema`, its schema: `party_size` gives `PartySize` and `PartySizeSchema`.
+`urn-forge compile` writes `domain.generated.ts` (in `src/generated` by default). The file imports only `valibot`, and the same manifest always gives the same bytes. Do not edit the file, because gate 4 finds all edits. The name of a definition in PascalCase is the name of its type. With `Schema` added, it is the name of its schema. For example, `party_size` gives `PartySize` and `PartySizeSchema`.
 
 | Export | What it is |
 | --- | --- |
 | `<Name>` | The type of each definition |
-| `<Name>Schema` | The Valibot schema of each definition, with its rules. It is a [Standard Schema](https://standardschema.dev), so tRPC, Hono or a form library can take it. An issue's `requirement` holds the definition and the rule |
-| `check(definition, value)` | Checks one value, for example before the shell stores it: `{ ok: true, value }` or `{ ok: false, failures }` |
+| `<Name>Schema` | The Valibot schema of each definition, with its rules. It is a [Standard Schema](https://standardschema.dev). tRPC, Hono or a form library can use it. The `requirement` of an issue contains the definition and the rule |
+| `check(definition, value)` | Checks one value, for example before the shell stores it. It gives `{ ok: true, value }` or `{ ok: false, failures }` |
 | `answer(output, value)` | Makes an answer of the core |
 | `DomainCore` | The type of the core: a function for each operation. Your core file exports a value that `satisfies DomainCore` |
 | `runOperation(core, operation, input)` | The harness |
 | `<Operation>Answer`, `OperationResult`, `Failure`, `CheckResult` | The types of answers, results and failures |
 | `Definitions`, `Operations` | The shape of each definition and operation, for the Gherkin steps |
 
-A piece with `deprecated: true` is marked `@deprecated`.
+The generated code marks a part with `deprecated: true` as `@deprecated`.
