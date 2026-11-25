@@ -3,44 +3,54 @@ layout: home
 
 hero:
   name: urn-forge
-  text: Write the contract once. Prove that the code keeps it.
-  tagline: You write the rules of a domain in one YAML manifest. urn-forge generates the types, the schemas and a harness that checks each input and each answer of your code. CI fails when the code, the scenarios or a change break a rule.
+  text: Coding agents write the code. You own the contract.
+  tagline: You write the rules of a domain in one short file that you can review in minutes. A coding agent writes the code and the tests. urn-forge checks each input and each answer of that code, and fails CI when the code, the tests or a change break a rule. The agent cannot remove a check to make it pass.
   actions:
     - theme: brand
       text: Start the tutorial
       link: /tutorials/first-domain
     - theme: alt
-      text: Why it works this way
-      link: /explanation/why-urn-forge
+      text: Set up a project for an agent
+      link: /how-to/work-with-a-coding-agent
   image:
     src: /hero-trace.svg
-    alt: The manifest traced through the generated code and the core to a feature that passes
+    alt: The manifest traced through the generated code and the core to a scenario that passes
 
 features:
   - icon:
       light: /icons/manifest-light.svg
       dark: /icons/manifest-dark.svg
-    title: Declare
-    details: Write definitions, rules and operations in YAML, with the words of JSON Schema (type, required, enum, minimum). Write your own rules as expressions in a subset of CEL.
+    title: You state the rules
+    details: The manifest holds the values, the operations, the answers of each operation and the rules that each answer keeps. Each rule has a name and a message. A change to the rules is a change to one file that you review.
   - icon:
       light: /icons/contracts-light.svg
       dark: /icons/contracts-dark.svg
-    title: Generate
-    details: urn-forge generates TypeScript types, Valibot schemas (Standard Schemas) and runOperation, a harness around your code. It can also generate a Postgres schema, with the rules as constraints.
+    title: The agent writes the code
+    details: urn-forge generates the types of the code. The agent writes one plain function for each operation, and the tests. Each problem that urn-forge finds has a stable code and one sentence that tells the agent what to do.
   - icon:
       light: /icons/gate-light.svg
       dark: /icons/gate-dark.svg
-    title: Prove
-    details: verify fails CI when the code, the scenarios or the generated files do not agree with the manifest. diff fails CI when a change breaks callers and the major version does not increase.
+    title: urn-forge proves it
+    details: A harness checks each input and each answer at run time. Five gates check the code, the tests and the generated files in CI. A change that removes a rule, an answer or a test fails, unless you change the version.
 ---
 
 ## The problem
 
-A restaurant booking has a contract. You seat only a confirmed booking, and when you seat it, only its state changes. A TypeScript type can say that the function returns a `Booking`. It cannot say these two rules. The rules are in a ticket and in tests that have no link to them. When the code changes, nothing fails.
+A coding agent writes code that looks right, and it writes the tests too. Both can be wrong in the same way. A type can say that a function returns a booking. A type cannot say "seat only a confirmed booking". When a check fails, the fastest way to green for an agent is to change the check.
+
+## The split
+
+| Who | Does what |
+| --- | --- |
+| You | Write and review the contract: the rules of the domain. Decide each new version. Say in the tests which answer is correct |
+| The coding agent | Writes the code of each operation and the tests, and runs the checks until they pass |
+| urn-forge | Generates the types and the checks from the contract. Fails CI when the code, the tests or a change do not agree with the contract |
+
+The agent reads its instructions from `AGENTS.md`, which `urn-forge init` writes. Claude Code also gets a skill that runs the loop. You read this site.
 
 ## What you write
 
-You write each rule in a manifest, with a name. This is part of the [booking example](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tests/fixtures/booking):
+This is part of a contract for restaurant bookings ([the full file](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tests/fixtures/booking)):
 
 ```yaml
 rules:
@@ -66,21 +76,19 @@ operations:
       - invalid_state: [was_not_confirmed, names_the_request]
 ```
 
-`seat_booking` gives one of two answers: a `booking`, or the refusal `invalid_state`. Each answer lists the rules that are true when the core gives it. Your business logic is an ordinary function. Its type is the generated `DomainCore`:
+`seat_booking` gives one of two answers: a `booking`, or the refusal `invalid_state`. Each answer lists the rules that are true when the code gives it. The agent writes the code as a plain function, with the type that urn-forge generates:
 
 <<< @/../packages/urn-forge/tests/fixtures/booking/core.ts
 
-## What it finds
+## What it catches
 
-A change removes the check, and now the core seats all bookings:
+The agent "simplifies" the code, and now it seats all bookings:
 
 ```ts
 seat_booking: ({ stored_booking }) => answer('booking', { ...stored_booking, state: 'seated' }),
 ```
 
-**Without urn-forge**, `tsc` passes, because the answer is still a `Booking`. You release the bug.
-
-**With urn-forge**, your application calls the core through the generated `runOperation(core, 'seat_booking', input)`. For a cancelled booking, `runOperation` gives this result in place of the answer:
+The types still check, because the answer is still a booking. But your application calls the code through the generated harness, `runOperation(core, 'seat_booking', input)`. For a cancelled booking, the harness gives this result in place of the answer:
 
 ```json
 {
@@ -98,27 +106,28 @@ seat_booking: ({ stored_booking }) => answer('booking', { ...stored_booking, sta
 }
 ```
 
-An input that breaks a rule gets `InputRejected` before the core runs. A refusal such as `invalid_state` is a normal answer.
+The test of the cancelled booking fails, and so does CI. If the agent then deletes that test, or the rule `was_confirmed`, gate 5 fails the change in CI until you give the contract a new version.
 
 ## What you get
 
-- **One generated TypeScript file**: a type and a Valibot schema for each definition, and `runOperation`, the harness. Each schema is a [Standard Schema](https://standardschema.dev), so tRPC, Hono and form libraries can use it. The file imports only `valibot`.
-- **Cucumber steps that work with each manifest.** You write the `.feature` files.
+- **One generated file**: a type and a schema for each definition, and the harness. Other libraries can use the schemas to check data, for example in a form or an API route. The core and the shell import only this file.
+- **Test steps that work with each contract.** The agent writes the scenarios in plain sentences, such as `Then the output is "quote"`.
 - **`urn-forge verify`**, five gates for CI:
 
   | Gate | It fails when |
   | --- | --- |
-  | 1. Completeness | An operation has no function in the core, or the function has the wrong type |
-  | 2. Boundary | Your application calls the core without the harness |
-  | 3. Gherkin | An operation, an output or a rule has no scenario |
-  | 4. Drift | A generated file is not the same as the file that `compile` writes now |
-  | 5. Contract | With `--base <ref>`: a change removes a rule, an output or a scenario, or makes a rule accept more, and the version does not increase |
+  | 1. Completeness | An operation has no code, or the code has the wrong type |
+  | 2. Boundary | Your application calls the code without the harness, or a file turns off a type check |
+  | 3. Scenarios | An operation, an answer or a rule has no test |
+  | 4. Drift | A generated file was edited by hand, or is not current |
+  | 5. Contract | A change removes a rule, an answer or a test, or makes a rule accept more, and the version does not change |
 
 - **`urn-forge diff`**, which fails a change that can break callers, unless the major version increases.
-- **A Postgres schema, if you want one.** It has a `CHECK` constraint for each rule that SQL can state. urn-forge also gives the statements that write and read the rows.
+- **Output for agents.** Each problem has a stable code and a fix, as text or as JSON.
+- **A Postgres schema, if you want one**, with the rules as database constraints.
 
-- **Made for coding agents.** `init` writes an `AGENTS.md` for the agent. The package has a reference of one page and a JSON Schema of the manifest. Each problem has a stable code and a fix, also as JSON with `--format json`. Refer to [Work with a coding agent](./how-to/work-with-a-coding-agent).
+urn-forge proves that the code keeps the contract. It cannot prove that the contract or the expected values in the tests are correct. That is your part. Refer to [Review an agent's change](./how-to/review-an-agents-change).
 
-urn-forge is a harness, not a framework. It does not route requests or open transactions, and your logic stays in your code. This site describes urn-forge 0.2.0. This version is not on npm yet.
+urn-forge is a harness, not a framework. It does not route requests or open transactions, and the logic stays in your code. This site describes urn-forge 0.2.0, which is not on npm yet.
 
 [Start the tutorial](./tutorials/first-domain). In about 20 minutes, it takes you from `urn-forge init` to a strict `verify`.
