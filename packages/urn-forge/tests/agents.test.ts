@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { fixes: it, json: it.fails, reference: it.fails, schema: it.fails, init: it.fails, base: it.fails };
+const target = { fixes: it, json: it, reference: it.fails, schema: it.fails, init: it.fails, base: it.fails };
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -83,7 +83,7 @@ describe('--format json', () => {
     const dir = copy();
     const compile = await run(dir, ['compile', '--format', 'json']);
     expect(compile.out).toHaveLength(1);
-    expect(JSON.parse(compile.out[0]!)).toMatchObject({ ok: true, problems: [] });
+    expect(JSON.parse(compile.out[0]!)).toMatchObject({ ok: true, files: expect.arrayContaining([{ status: 'unchanged', path: 'generated/domain.generated.ts' }]) });
     const diff = await run(dir, ['diff', 'domain.manifest.yaml', 'domain.manifest.yaml', '--format', 'json']);
     expect(diff.out).toHaveLength(1);
     expect(JSON.parse(diff.out[0]!)).toMatchObject({ ok: true, changes: [] });

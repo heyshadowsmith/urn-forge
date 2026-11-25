@@ -30,9 +30,9 @@ const USAGE = `urn-forge ${VERSION}
 
 Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
-  urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>]
-  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
-  urn-forge diff    <old manifest> <new manifest> [--report]
+  urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
+  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
+  urn-forge diff    <old manifest> <new manifest> [--report] [--format text|json]
 
 Options:
   --namespace <name> init: the namespace of the starter manifest (default: app)
@@ -43,7 +43,8 @@ Options:
   --core <file>      verify: the core, which exports … satisfies DomainCore (default: src/core.ts)
   --features <dir>   verify: the directory of the .feature files (default: features)
   --tsconfig <file>  verify: the tsconfig of gate 1 (default: tsconfig.json)
-  --report           diff: list the changes, and do not fail on a breaking change`;
+  --report           diff: list the changes, and do not fail on a breaking change
+  --format <format>  compile, verify, diff: text (default), or json: one JSON object on stdout, and nothing else`;
 
 class UsageError extends Error {}
 
@@ -299,11 +300,36 @@ async function initCommand(io: CliIo, argv: readonly string[]): Promise<number> 
   return 0;
 }
 
+/** Takes --format <text|json> (or --format=<…>) out of the arguments of a command. */
+function takeFormat(args: readonly string[]): { format: Format; rest: string[] } {
+  const rest: string[] = [];
+  let format: string = 'text';
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === '--format') {
+      format = args[++i] ?? '';
+    } else if (arg.startsWith('--format=')) {
+      format = arg.slice('--format='.length);
+    } else {
+      rest.push(arg);
+    }
+  }
+  if (format !== 'text' && format !== 'json') throw new UsageError(`--format must be text or json, not "${format}"`);
+  return { format, rest };
+}
+
 /** Runs a command. Gives the exit code: 0, 1 for a failure, 2 for a usage error. */
 export async function main(argv: readonly string[], io: CliIo = { cwd: process.cwd(), stdout: (t) => console.log(t), stderr: (t) => console.error(t) }): Promise<number> {
-  const [command, ...rest] = argv;
-  const report = new Report(io, 'text');
+  const [command, ...args] = argv;
+  // --format belongs to compile, verify and diff: it is taken out before their own options are read.
+  let format: Format = 'text';
+  let rest = args;
+  let report = new Report(io, format);
   try {
+    if (command === 'compile' || command === 'verify' || command === 'diff') {
+      ({ format, rest } = takeFormat(args));
+      report = new Report(io, format);
+    }
     switch (command) {
       case 'init':
         return await initCommand(io, rest);
@@ -330,6 +356,10 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
     }
   } catch (error) {
     if (error instanceof UsageError || (error as { code?: string }).code?.startsWith('ERR_PARSE_ARGS')) {
+      if (report.format === 'json') {
+        report.problem({ code: 'usage', severity: 'error', message: (error as Error).message });
+        return report.end(2);
+      }
       io.stderr(`${(error as Error).message}\n\n${USAGE}`);
       return 2;
     }

@@ -36,8 +36,10 @@ export function allowsBreaking(from: string, to: string): { readonly allowed: bo
 export async function diffCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
   const { positionals, values } = parseArgs({ args: [...argv], options: { report: { type: 'boolean' } }, allowPositionals: true, strict: true });
   if (positionals.length !== 2) {
-    io.stderr('diff takes two manifests: urn-forge diff <old manifest> <new manifest>');
-    return 2;
+    const message = 'diff takes two manifests: urn-forge diff <old manifest> <new manifest>';
+    if (report.format === 'json') report.problem({ code: 'usage', severity: 'error', message });
+    else io.stderr(message);
+    return report.end(2, { changes: [] });
   }
   const sides = positionals.map((path) => {
     let text: string;
