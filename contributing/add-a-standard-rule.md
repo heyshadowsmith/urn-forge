@@ -105,7 +105,7 @@ If a manifest has one, rename its rule in the same pull request.
 
 ## Update the docs
 
-1. Add a row to the table "The standard rules" in [Rules and the standard rules](../docs/reference/rule-language.md): the name, the types, the parameter, the rule and the message.
+1. Add a row to the table "The standard rules" in [Rules and the standard rules](../docs/reference/manifest.md): the name, the types, the parameter, the rule and the message.
 2. Run `npm run docs:build` from the root folder.
 
 ## Result
@@ -116,5 +116,5 @@ A manifest can apply the rule with no declaration. `compile` checks each argumen
 
 - [How urn-forge is built](./architecture.md)
 - [Add a form to the CEL subset](./add-a-cel-form.md)
-- [Rules and the standard rules](../docs/reference/rule-language.md)
+- [Rules and the standard rules](../docs/reference/manifest.md)
 - [JSON Schema and CEL](../docs/explanation/why-urn-forge.md)

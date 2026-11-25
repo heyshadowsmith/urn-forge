@@ -40,7 +40,7 @@ export default defineConfig({
         items: [
           { text: 'Write rules and refusals', link: '/how-to/rules-and-refusals' },
           { text: 'Write scenarios', link: '/how-to/write-scenarios' },
-          { text: 'Call an operation from the shell', link: '/how-to/call-an-operation' },
+          { text: 'Call an operation', link: '/how-to/call-an-operation' },
           { text: 'Run verify in CI', link: '/how-to/run-verify-in-ci' },
           { text: 'Change the contract', link: '/how-to/change-the-contract' },
           { text: 'Store objects in Postgres', link: '/how-to/store-in-postgres' },
@@ -49,12 +49,8 @@ export default defineConfig({
       {
         text: 'Reference',
         items: [
-          { text: 'The manifest', link: '/reference/manifest' },
-          { text: 'Rules and the rule language', link: '/reference/rule-language' },
-          { text: 'The generated code and the harness', link: '/reference/generated-code' },
-          { text: 'Gherkin steps', link: '/reference/gherkin-steps' },
-          { text: 'The CLI, the config and the gates', link: '/reference/cli' },
-          { text: 'Diagnostics', link: '/reference/diagnostics' },
+          { text: 'The manifest and its rules', link: '/reference/manifest' },
+          { text: 'The CLI, the config and diagnostics', link: '/reference/cli' },
         ],
       },
       {

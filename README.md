@@ -2,7 +2,7 @@
 
 Write the contract of a domain once, in one YAML manifest, and prove in CI that your code keeps it.
 
-A TypeScript type can say that a function returns a `Booking`. It cannot say that only a confirmed booking is seated, or that seating changes nothing but the state. urn-forge lets you write those promises as rules:
+A TypeScript type can say that a function returns a `Booking`. It cannot say that only a confirmed booking is seated. With urn-forge, you write that promise as a named rule:
 
 ```yaml
 rules:
@@ -20,14 +20,14 @@ operations:
       - invalid_state: [was_not_confirmed, names_the_request]
 ```
 
-The manifest has **definitions** (values and objects, in JSON Schema's words), **rules** (in a subset of CEL, with JSON Schema's keywords as a standard set) and **operations** (an input, the possible outputs, and their rules). From it, urn-forge generates:
+Suppose a change makes the core seat a cancelled booking:
 
-- **Valibot schemas** (Standard Schemas) and types for every definition, and `runOperation`, a harness that checks every input before your code runs and every answer after. A core that seats a cancelled booking gets a `ContractViolation` naming `was_confirmed`, not a silent bug.
-- **Optionally, a Postgres schema** with the rules as `CHECK` constraints, and a store file of the statements that write and read the rows.
+- **Without urn-forge**, `tsc` passes: the answer is still a `Booking`. The bug ships.
+- **With urn-forge**, the generated harness, `runOperation`, checks every answer, and gives `ContractViolation` with the rule `was_confirmed` in place of the wrong answer.
 
-`urn-forge verify` runs four gates: the core has a function of the right type for each operation, the shell calls it only through the harness, scenarios cover every operation, output and rule, and the generated files are current. `urn-forge diff` fails a change that can break callers without a new major version.
+From the manifest, urn-forge generates one TypeScript file: types, Valibot schemas (Standard Schemas) and `runOperation`, which checks every input before your code runs and every answer after. Optionally, it also writes a Postgres schema with the rules as `CHECK` constraints. `urn-forge verify` fails CI when the core, the shell, the scenarios or the generated files stop agreeing with the manifest, and `urn-forge diff` fails a change that can break callers without a new major version.
 
-The version is 0.2.0. It is not on npm yet. Read the [documentation](docs/index.md), starting with [the tutorial](docs/tutorials/first-domain.md).
+The version is 0.2.0, not on npm yet. Read the [documentation](docs/index.md), starting with [the tutorial](docs/tutorials/first-domain.md).
 
 ## Try it
 
@@ -45,7 +45,7 @@ npx cucumber-js
 
 ## Repository layout
 
-This is an npm-workspaces monorepo:
+An npm-workspaces monorepo:
 
 | Path | What it is |
 | --- | --- |
@@ -61,7 +61,7 @@ This is an npm-workspaces monorepo:
 
 ## Commands
 
-Run these from the repository root with Node 22 or newer:
+From the repository root, with Node 22 or newer:
 
 ```bash
 npm ci                           # install every workspace

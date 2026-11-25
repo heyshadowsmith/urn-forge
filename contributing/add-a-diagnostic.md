@@ -1,6 +1,6 @@
 # Add a diagnostic
 
-This guide is for contributors who change urn-forge itself. A diagnostic is a problem that urn-forge finds in the config, the manifest or the project. Each has a code, a severity and a message. A user reads the code in [Diagnostics](../docs/reference/diagnostics.md) to find the cause and the correction. Thus a code is part of the interface of urn-forge.
+This guide is for contributors who change urn-forge itself. A diagnostic is a problem that urn-forge finds in the config, the manifest or the project. Each has a code, a severity and a message. A user reads the code in [Diagnostics](../docs/reference/cli.md) to find the cause and the correction. Thus a code is part of the interface of urn-forge.
 
 ## Before you start
 
@@ -28,7 +28,7 @@ Do not check a problem in a later stage if an earlier stage can find it. For exa
 
 ## Choose the code
 
-1. Look in [Diagnostics](../docs/reference/diagnostics.md) for a code with the same cause and the same correction. If there is one, use it. For example, each problem of shape is `manifest-shape`, because the correction is always "use the keys of The manifest".
+1. Look in [Diagnostics](../docs/reference/cli.md) for a code with the same cause and the same correction. If there is one, use it. For example, each problem of shape is `manifest-shape`, because the correction is always "use the keys of The manifest".
 2. If no code fits, make a new one. The code is in kebab-case and names the cause, not the place: `type-cycle`, `invalid-identifier`, `duplicate-output`.
 3. Choose the severity:
    - `error` if urn-forge cannot make correct files or a correct verdict. An error stops `compile`.
@@ -73,8 +73,8 @@ domain.manifest.yaml:11  error  unknown-rule  positive is not a rule of this man
 
 ## Update the docs
 
-1. Add the code to [Diagnostics](../docs/reference/diagnostics.md), in the table of its stage: the code, the cause and the correction. Add the real output to the block below the table.
-2. For a code of a gate, also add the cause and the correction to [Fix a failing gate](../docs/reference/diagnostics.md).
+1. Add the code to [Diagnostics](../docs/reference/cli.md), in the table of its stage: the code, the cause and the correction. Add the real output to the block below the table.
+2. For a code of a gate, also add the cause and the correction to [Fix a failing gate](../docs/reference/cli.md).
 3. Run `npm run docs:build` from the root folder.
 
 ## Result
@@ -85,5 +85,5 @@ The diagnostic has a code, a test and a row in the reference. A user who gets it
 
 - [How urn-forge is built](./architecture.md)
 - [Add a Gherkin step](./add-a-gherkin-step.md)
-- [Diagnostics](../docs/reference/diagnostics.md)
-- [Fix a failing gate](../docs/reference/diagnostics.md)
+- [Diagnostics](../docs/reference/cli.md)
+- [Fix a failing gate](../docs/reference/cli.md)

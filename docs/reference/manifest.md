@@ -1,113 +1,42 @@
-# The manifest
+# The manifest and its rules
 
-The manifest is one YAML file, `domain.manifest.yaml` by default, with four top-level sections. Only `manifest` is required. A key that this page does not list stops `compile` with `manifest-shape`.
+The manifest is one YAML file, `domain.manifest.yaml` by default. It has four top-level sections; only `manifest` is required. A key that this page does not list stops `compile` with `manifest-shape`. The [booking example](#example) at the end uses every construct.
 
 | Section | Holds |
 | --- | --- |
-| `manifest` | The header |
+| `manifest` | The header: `namespace`, `domain`, `version` (semver, read by `diff`), and the optional `compatibility: { callers: ignore-unknown }` (refer to [Change the contract](../how-to/change-the-contract)). The Postgres schema takes the domain's name |
 | `definitions` | The values: numbers, strings, objects, lists |
-| `rules` | The text of every rule of your own. Refer to [Rules and the rule language](./rule-language) |
-| `operations` | The operations: an input, the outputs, and their rules |
+| `rules` | The text of every rule of your own |
+| `operations` | Each operation: an input, the outputs, and their rules |
 
-The [booking example](#example) at the end of this page uses every construct.
-
-## The header
-
-```yaml
-manifest:
-  namespace: demo
-  domain: booking
-  version: 0.1.0
-  compatibility:
-    callers: ignore-unknown
-```
-
-| Key | Required | Value |
-| --- | --- | --- |
-| `namespace` | Yes | The owner of the domain, for example your organisation |
-| `domain` | Yes | The domain. The Postgres schema has this name |
-| `version` | Yes | A semver version, such as `0.1.0` or `2.0.0-alpha.1`. `diff` reads it |
-| `compatibility` | No | `callers: ignore-unknown`: callers ignore what they do not recognise in an output, so `diff` treats a new output, choice or property of an output as compatible |
-
-## Names and common keys
-
-A name of a namespace, domain, definition, rule or operation is lowercase snake_case: `^[a-z][a-z0-9_]{0,62}$`. A rule of your own cannot take the name of a standard rule.
-
-Every definition, rule and operation has:
-
-| Key | Required | Value |
-| --- | --- | --- |
-| `description` | Yes | What the piece is, for a reader. The generated code and the Postgres schema use it as a comment |
-| `deprecated` | No | `true` marks the piece `@deprecated` in the generated code, and each live use of it gets the warning `deprecated-use`. It still works |
+A name is lowercase snake_case: `^[a-z][a-z0-9_]{0,62}$`. Every definition, rule and operation has a `description`, used as a comment in the generated code and the Postgres schema. `deprecated: true` marks it `@deprecated`, and each live use of it gets the warning `deprecated-use`.
 
 ## Definitions
 
 | Key | For | Value |
 | --- | --- | --- |
 | `type` | Every definition, required | One of the six types, or the name of another definition |
-| `properties` | `type: object`, required | The names of the definitions that are its properties |
-| `items` | `type: array`, required | The name of the definition of each item |
-| `identifier` | `type: object` | The property that tells two objects of this kind apart |
+| `properties` | `object`, required | The names of the definitions that are its properties |
+| `items` | `array`, required | The name of the definition of each item |
+| `identifier` | `object` | A required property, not an object or a list, that tells two objects apart. It is the Postgres primary key |
 | `rules` | Every definition | The rules the value keeps |
 
 Structure (`type`, `properties`, `items`, `identifier`) is what a value is. Everything that must be true of it, including `required` and `enum`, is a rule.
 
-### Types
+| `type` | A value | TypeScript |
+| --- | --- | --- |
+| `string` | Text | `string`, or the union of its `enum` choices |
+| `integer` | A safe integer | `number` |
+| `number` | A finite number | `number` |
+| `boolean` | `true` or `false` | `boolean` |
+| `object` | Named properties, and no others | `interface` |
+| `array` | A list of items | `readonly T[]` |
 
-| `type` | A value | TypeScript | Valibot |
-| --- | --- | --- | --- |
-| `string` | Text | `string`, or the union of its `enum` choices | `v.string()` |
-| `integer` | A safe integer | `number` | `v.number()`, `v.integer()` |
-| `number` | A finite number | `number` | `v.number()`, `v.finite()` |
-| `boolean` | `true` or `false` | `boolean` | `v.boolean()` |
-| `object` | Named properties | `interface` | `v.strictObject()` |
-| `array` | A list of items | `readonly T[]` | `v.array()` |
+There is no date or decimal type. A date is a `string` with `format: date`, a time a `string` with `format: date-time` (`2026-11-24T19:00:00Z`). Money is an `integer` of its smallest unit, such as cents.
 
-There is no date or decimal type. A date is a `string` with `format: date` (`2026-11-24`), a time a `string` with `format: date-time` (`2026-11-24T19:00:00Z`). Money is an `integer` of its smallest unit, such as cents.
-
-### A definition as a type
-
-`type` can name another definition. The new one has that definition's structure and rules, and adds its own:
-
-```yaml
-  stored_booking:
-    description: The booking as it is stored, before the call
-    type: booking
-```
-
-This gives one kind of value two roles (`from_account` and `to_account` of `type: account`), and lets a value refer to another object by its identifier (`holder` of `type: customer_id`). It cannot add `properties`, `items` or `identifier`.
-
-### Objects
-
-```yaml
-  contact:
-    description: How to reach the guest
-    type: object
-    properties: [email, phone]
-    rules:
-      - required: [email]
-```
-
-- A property has the name of its definition, and keeps its rules. It cannot be renamed or narrowed in place.
-- A property that `required` does not list is optional: `?` in TypeScript, and read in a rule only after `has()`.
-- A key that is not a property fails the check with the rule `properties`.
-- An object definition in `properties` embeds that object.
-
-`identifier: <property>` names a required property, of a type other than `object` or `array`, that tells two objects apart. The Postgres schema uses it as the primary key.
-
-### Lists
-
-```yaml
-  tables:
-    description: The tables a booking asks for
-    type: array
-    items: table_number
-    rules:
-      - maxItems: 4
-      - uniqueItems
-```
-
-Each item is a value of the `items` definition, with its rules. The rules of the list, such as `maxItems`, apply to the whole list.
+- **An object** lists its properties by the names of their definitions, which keep their rules: a property cannot be renamed or narrowed in place. A property that `required` does not list is optional (`?` in TypeScript). An object definition in `properties` embeds that object.
+- **A list** has items of its `items` definition, with their rules. The list's own rules, such as `maxItems`, apply to the whole list.
+- **A definition as a type**: `type: booking` makes a definition with the structure and rules of `booking`, plus its own rules. This gives one kind of value two roles (`from_account` and `to_account`), or refers to an object by its identifier (`holder` of `type: customer_id`).
 
 ## Operations
 
@@ -124,12 +53,91 @@ operations:
 | Key | Required | Value |
 | --- | --- | --- |
 | `input` | Yes | One object definition |
-| `output` | Yes | One or more entries, `- <object>: [rule names]`: an object the operation can answer, and the rules that hold when it does. `- quote` and `- quote: []` mean an output with no rule |
+| `output` | Yes | One or more entries, `- <object>: [rule names]`: an object the operation can answer, and the rules that hold when it does. `- quote` means an output with no rule |
 | `rules` | No | Rules that hold for every answer |
 
-There is no key for errors, states, callers or events. A refusal is an output; a stored record, the caller and the time are properties of the input; an event is a property of an output. The core returns exactly one output per call.
+There is no key for errors, states, callers or events. A refusal is an output; a stored record, the caller and the time are properties of the input; an event is a property of an output. The core returns exactly one output per call, so make the rules of the outputs exclude each other.
 
-In a rule of an output, `input` is the input and `output` is that object. The operation's own `rules` can read `input`, and `output` only when there is one output. Make the rules of the outputs exclude each other, so that each input allows one output.
+## Rules
+
+Every rule has a name, and its text is in one place: the top-level `rules` section, or the standard set. Definitions, outputs and operations apply rules by name.
+
+```yaml
+rules:
+  at_least:
+    description: The value is the bound or more
+    parameters: [limit]
+    rule: self >= limit
+    message: Must be at least {limit}
+```
+
+| Key | Required | Value |
+| --- | --- | --- |
+| `description` | Yes | What the rule states, for a reader |
+| `rule` | Yes | An expression that gives `true` when the value keeps the rule |
+| `message` | Yes | The text of a failure. `{name}` puts in a parameter's argument; a list is joined with `, ` |
+| `parameters` | No | Names of definitions. Each is a parameter, with the type of its definition |
+
+A rule with no parameter is applied bare (`- uniqueItems`), with one parameter as `- minimum: 1`, with more as a map: `- between: { low: 1, high: 9 }`. The argument must be a valid value of the parameter's definition, or `compile` stops with `rule-argument`. A rule of your own cannot take a standard rule's name.
+
+| Applied to | The rule reads |
+| --- | --- |
+| A definition | `self`: the value |
+| An output: `- quote: [fits_express]` | `input`, and `output`: that object |
+| An operation's `rules` | `input`, and `output` if the operation has one output |
+
+### The standard rules
+
+JSON Schema's keywords, declared like any rule. A standard rule on another type stops `compile` with `rule-type`.
+
+| Rule | For | Argument |
+| --- | --- | --- |
+| `enum`, `const` | `string` | A list of strings; a string |
+| `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` | `integer`, `number` | A number |
+| `multipleOf` | `integer` | An integer of 1 or more |
+| `minLength`, `maxLength` | `string` | An integer of 0 or more |
+| `pattern` | `string` | A regular expression. It matches part of the text, so anchor it with `^…$` |
+| `format` | `string` | `date` or `date-time` (with fractions of a second, and `Z` or an offset such as `+02:00`) |
+| `minItems`, `maxItems` | `array` | An integer of 0 or more |
+| `uniqueItems` | `array` | none |
+| `required` | `object` | A list of property names |
+
+Each has a message such as `Must be at least {bound}`. For a choice of numbers, use `minimum` and `maximum`, or a rule of your own.
+
+### The rule language
+
+A rule is an expression in a subset of CEL, the Common Expression Language that Kubernetes and protovalidate use with schemas. Every rule that urn-forge accepts is valid CEL. A form outside the subset stops `compile` with `rule-syntax`.
+
+| Type | From | Literals |
+| --- | --- | --- |
+| `int`, `double` | An `integer`, a `number` | `5000`, `-1`, `0.5`, `1e3` |
+| `string` | A `string` | `'confirmed'`, `"confirmed"`, raw `r'^[0-9]{4}$'` |
+| `bool` | A `boolean` | `true`, `false` |
+| `list(T)` | An `array` | `['main', 'dessert']` (not empty) |
+| An object | An `object` | none; read its properties with `.` |
+| `timestamp`, `duration` | `timestamp(s)`, `duration(s)` | |
+
+Operators, from the lowest precedence: `||`; `&&`; `==` `!=` `<` `<=` `>` `>=` `in`; `+` `-`; `*` `/` `%`; `!` and unary `-`; `a.b`. Parentheses change the order.
+
+`==` compares lists and objects by value. `in` tests an item of a list, or a property name of an object. `+` joins strings and lists, and adds a duration to a timestamp. `/` of two ints rounds toward 0, and a division by 0 breaks the rule. `*` and `/` do not mix an int and a double: write `2.0` for a `number`.
+
+| Form | Gives |
+| --- | --- |
+| `has(a.b)` | Whether the property is present |
+| `size(x)`, `x.size()` | The characters of a string, or the items of a list |
+| `s.matches(re)` | Whether the regular expression matches part of the string |
+| `timestamp(s)` | A timestamp from an RFC 3339 string |
+| `duration(s)` | A duration such as `'2h'`, `'30m'`, `'1h30m'` (units `h`, `m`, `s`, `ms`, `us`, `ns`) |
+| `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)` | Whether `p` holds for each, at least one, or exactly one item |
+| `l.map(x, e)`, `l.sum()` | A list of the values of `e`; the total of a list of numbers |
+
+**Optional properties.** A rule reads a property that its object does not require only after a guard, `has(self.deposit) && …` or `!has(self.deposit) || …`, or `compile` stops with `rule-guard`. CEL would fail at run time; urn-forge fails at compile time.
+
+**Times.** A time is a string; each rule that compares it calls `timestamp()`: `timestamp(self.ends_at) > timestamp(self.starts_at) + duration('30m')`. A string that is not a valid time breaks the rule. There are no time zones or months: a day is `'24h'`. A `format: date` string compares as text, which is date order.
+
+**Not in the subset:** `a ? b : c`, `null`, an index `a[0]`, maps, chained comparisons, `filter`, `min()`, `max()`, functions not listed above (such as `startsWith()` or `int()`), triple-quoted strings, and unsigned or hexadecimal numbers.
+
+Each rule becomes plain TypeScript in the Valibot schema of its definition, with no CEL library at run time, and, where SQL can say it, a Postgres constraint.
 
 ## Example
 
