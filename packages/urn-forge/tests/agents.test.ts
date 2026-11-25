@@ -159,10 +159,17 @@ describe('init', () => {
 });
 
 describe('gate 5', () => {
-  /** A copy of the booking fixture in a git repository of its own, with one commit. */
-  function repository(): string {
-    const dir = copy();
-    const git = (...args: string[]): string => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+  /** A copy of the booking fixture in a git repository of its own, with one commit; or in a folder of it. */
+  function repository(folder = false): string {
+    const root = copy();
+    const dir = folder ? join(root, 'project') : root;
+    if (folder) {
+      for (const entry of readdirSync(root)) if (entry !== 'project') cpSync(join(root, entry), join(dir, entry), { recursive: true });
+      for (const entry of readdirSync(root)) if (entry !== 'project') rmSync(join(root, entry), { recursive: true });
+      // One folder deeper: the tsconfig and the imports of src are one more ../ away.
+      edit(join(dir, 'urn-forge.config.ts'), (t) => t.replaceAll('../../../', '../../../../'));
+    }
+    const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
     git('init', '-q', '-b', 'main');
     git('-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-q', '--allow-empty', '-m', 'empty');
     git('add', '.');
@@ -196,6 +203,15 @@ describe('gate 5', () => {
     const result = await run(dir, ['verify', '--base', 'HEAD', '--format', 'json']);
     const json = JSON.parse(result.out[0]!);
     expect(json.problems).toContainEqual(expect.objectContaining({ code: 'removed-scenario' }));
+  });
+
+  it('reads the base of a project in a folder of the repository', async () => {
+    const dir = repository(true);
+    edit(join(dir, 'features', 'seat.feature'), (t) => t.replace(/Scenario: /, 'Scenario: Renamed '));
+    const result = await run(dir, ['verify', '--base', 'HEAD', '--format', 'json']);
+    const json = JSON.parse(result.out[0]!);
+    expect(json.gates.at(-1)).toMatchObject({ gate: 5, pass: false });
+    expect(json.problems).toContainEqual(expect.objectContaining({ code: 'removed-scenario', file: 'features/seat.feature' }));
   });
 });
 

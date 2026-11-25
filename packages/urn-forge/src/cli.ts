@@ -247,7 +247,7 @@ function baseContract(io: CliIo, p: Project, ref: string): ContractGateInput['ol
   }
   const compiled = compileManifest(text);
   if (!compiled.model) return { nothing: `the manifest at ${ref} does not compile` };
-  const names = git(['ls-tree', '-r', '--name-only', ref, '--', inTree(p.config.features!)])
+  const names = git(['ls-tree', '-r', '--full-tree', '--name-only', ref, '--', inTree(p.config.features!)])
     .split('\n')
     .filter((name) => name.endsWith('.feature'));
   const features = names.map((name) => ({ path: display(io, join(root, name)), text: git(['show', `${ref}:${name}`]) }));
