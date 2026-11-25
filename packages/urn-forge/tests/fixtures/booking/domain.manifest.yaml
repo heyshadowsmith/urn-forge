@@ -1,7 +1,7 @@
-# A restaurant booking in the redesigned manifest: the target of phase 1.
-# It uses each construct of the redesign notes: definitions of the six types, a definition as the type
-# of another, an identifier, lists of values and of objects, rules with and without parameters, the
-# standard set, the CEL core, lists and times, and an operation with rules for each output.
+# The contract of a restaurant booking. It uses each construct of a manifest: definitions of each
+# type, a definition as the type of another, an identifier, lists of values and of objects, rules
+# with and without parameters, the standard rules, rules on lists and times, and an operation with
+# rules for each answer.
 manifest:
   namespace: demo
   domain: booking

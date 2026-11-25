@@ -14,7 +14,7 @@ Add `postgres` to `urn-forge.config.ts`, with the objects that become tables. Ea
 | --- | --- |
 | `tables` | The object definitions that become tables |
 | `references` | For a table, a property that holds the identifier of another table. It becomes a `FOREIGN KEY` |
-| `unique` | For a table, lists of properties that two rows cannot share: `unique: { booking: [['restaurant_ref', 'starts_at']] }` |
+| `unique` | For a table, lists of properties that two rows cannot share: for example `unique: { customer: [['email']] }` (a made-up example: no two customers have the same email) |
 
 Then `npx urn-forge compile` also writes `schema.generated.sql` and `domain.store.generated.ts`, and gate 4 checks them. Apply the schema with your migration tool.
 

@@ -13,9 +13,18 @@ Read the diff of `domain.manifest.yaml` first. It is the contract, and it is sho
 
 If the manifest did not change, the contract is the same. Then the change is in the code or the tests only, and the gates and the harness have checked it against the same rules.
 
-## 2. Read what CI says about the change
+## 2. Read each change to the settings of the checks
 
-CI runs gate 5 with `--base` against the target branch, and `urn-forge diff`. Both pass on a weaker contract only when the version changes. Then gate 5 shows each change as a warning:
+The gates cannot see a change to their own settings. Read each change to these files, and ask why the agent made it:
+
+- `urn-forge.config.ts`: for example, `coverage: 'warn'` turns a missing scenario into a warning, and a shorter `shell` list removes files from gate 2.
+- `tsconfig.json`: a looser setting makes gate 1 accept more.
+- `cucumber.json` and `features/support/`: these decide which scenarios run, and how.
+- The CI workflow: for example, a removed `--base` turns off gate 5.
+
+## 3. Read what CI says about the change
+
+CI runs gate 5 with `--base` against the target branch, and `urn-forge diff`. Gate 5 passes a weaker contract only when the version allows it: a new major version, a pre-release, or any new `0.x` version. Then it shows each change as a warning. `diff` passes each change that cannot break a caller, and in `0.x` it passes all changes:
 
 ```
 gate 5  contract      PASS  2 change(s) make the contract weaker than HEAD, allowed by the version 0.1.0 → 0.2.0
@@ -33,7 +42,7 @@ diff passed: 1 change(s), 1 breaking, 0.1.0 → 0.2.0: allowed, as 0.2.0 is a 0.
 
 Each warning is a decision for you. Here, a parcel can now weigh more than 30000 grams. If you did not ask for that, do not merge: the agent removed a check to make CI pass. The new version is the agent's claim that the change is on purpose. You decide if the claim is true.
 
-## 3. Read the new scenarios
+## 4. Read the new scenarios
 
 Open the changed `.feature` files. The gates make sure that each operation, answer and rule has a scenario. They cannot make sure that a scenario expects the correct value. Check:
 
@@ -41,13 +50,13 @@ Open the changed `.feature` files. The gates make sure that each operation, answ
 - **The edges.** A rule such as "5000 grams or less" needs a scenario at 5000 and one at 5001. Gate 3 does not ask for these.
 - **A changed expected value.** If a value in an existing scenario changed, the agent changed what the code must do. That must come from the request.
 
-## 4. Skip what the gates check
+## 5. Skip what the gates check
 
 You do not need to read:
 
 - **The generated files** (`src/generated/`). Gate 4 fails if they are edited by hand or are not current.
 - **The types of the code.** Gate 1 fails if an operation has no code or the code has the wrong type.
-- **How the application calls the code.** Gate 2 fails if a call does not go through the harness, or if a file turns off a type check.
+- **How the shell calls the code.** Gate 2 fails if a file that `shell` names calls the code without the harness, or if a file turns off a type check. Read a new shell file that `shell` does not name.
 - **Each rule in the code.** The harness checks each input and each answer against the rules on each call, also in each scenario.
 
-Read the code of an operation only where a scenario's expected value is in question, or where the logic chooses between answers that are all permitted. The contract says which answers are permitted. The code chooses one, and only the scenarios test that choice.
+Read the code of an operation only where you are not certain of a scenario's expected value, or where the logic chooses between answers that are all permitted. The contract says which answers are permitted. The code chooses one, and only the scenarios test that choice.

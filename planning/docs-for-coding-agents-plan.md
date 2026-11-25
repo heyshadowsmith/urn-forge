@@ -59,3 +59,20 @@ The docs site is for the person. It does not repeat the agent's files. It links 
 
 - **Overclaiming.** The gates prove conformance, not correctness. Each page that says what urn-forge proves also says what it cannot prove. The explanation keeps the table of what each check cannot show.
 - **Losing the person who writes by hand.** Every command is the same for a person, and the tutorial says so.
+
+## What was built
+
+- **Step 0.** `CLAUDE.md` is gone from `init`, the starter, the tests, the package's `AGENTS.md` and the docs.
+- **Steps 1 to 4.** The home page, the navigation ("Your work" and "The parts of a domain"), the new guide "Review an agent's change", the tutorial, the guides, the explanation, the reference pages and both READMEs. Four guides grew by about two lines, for the line that says why you read them.
+- **Step 5.** A fresh agent read the site against the code and reported 28 findings. It re-ran each output, and each matched. The fixes:
+  - **The tutorial was wrong for a new reader.** The starter is strict, so part 3 showed warnings where a reader gets a failure. Part 1 again makes gaps warnings, and part 4 makes them errors. The tutorial now starts a git repository.
+  - **Gate 2 checks only the files that `shell` names.** Four pages said that it checks the whole application. The set-up guide now has a step, "Name the shell", and each claim names the condition.
+  - **The agent can change the version.** Gate 5 then passes, with warnings. The pages no longer say that gate 5 blocks the change. They say that it makes the change visible.
+  - **The gates do not see a change to their own settings**: the config, `tsconfig.json`, `cucumber.json`, `features/support/` and the CI workflow. The review guide has a new step for these files. The set-up guide tells you to protect them, and the contract, with code owners.
+  - **`diff` passes all changes in 0.x.** The review guide said that it needs a new version.
+  - **New sections:** a project that already exists, day-to-day work with an agent, and what agents other than Claude Code do not get from `AGENTS.md`. The CI guide now says how to install the tarball in CI.
+  - **Smaller fixes:** the comment of the booking example no longer names CEL. The `usage` example is inline. The `unique` example is marked as made up. The help block is labelled as its first lines. The page titles are consistent. Some words are now in STE.
+- **Not done here (out of scope: a change to the product):**
+  - The fix texts of `type-cycle` and `rule-syntax`, and the package's `AGENTS.md`, still name other technologies.
+  - The gate 5 fix texts use "bump" and "behaviour".
+  - The starter's `AGENTS.md` does not ask for edge scenarios, or to stop before a weaker rule or a new version.

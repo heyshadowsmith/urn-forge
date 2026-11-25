@@ -16,7 +16,7 @@ urn-forge generates one file, and it does not run your application. The core is 
 
 **What it gives you:** the harness checks each input before the code runs, and each answer after it. An agent's bug in the code becomes a `ContractViolation` that names the rule, not a wrong value in your database. A scenario only gives an input and reads the answer, so the agent's tests are short and easy to review.
 
-**The cost:** the shell does more work. An operation that must get data at its midpoint becomes two operations.
+**The cost:** the shell does more work. An operation that must get data in its middle becomes two operations.
 
 ## General constructs only
 
@@ -40,20 +40,20 @@ The common checks, such as `minimum` and `maxLength`, are rules like your own ru
 
 **What it gives you:** a failure tells which rule broke. A gap in the scenarios names the rule that has no test. Gate 5 can tell that a rule is gone or accepts more. The same rule becomes a check in the code and, where possible, a constraint in the database.
 
-## Gates that an agent cannot argue with
+## Gates that an agent cannot avoid
 
-The checks of urn-forge do not depend on the agent being honest or careful. Each one fails in CI, with a code and one sentence that says what to do.
+The checks of urn-forge do not depend on the agent being careful. Each one fails in CI, with a code and one sentence that says what to do. They have two limits: they do not see a change to their own settings, and the agent can change the version. [Set up a project for an agent](../how-to/work-with-a-coding-agent#_4-protect-the-contract-and-the-settings) tells you how to protect both.
 
 | An agent's shortcut | What stops it |
 | --- | --- |
 | Return a wrong answer | The harness, at run time and in each scenario |
 | Leave an operation without code | Gate 1 |
-| Call the code without the harness, or turn off a type check | Gate 2 |
+| Call the code without the harness from a shell file, or turn off a type check | Gate 2, for the files that `shell` names |
 | Skip a test for a new rule or answer | Gate 3, with `coverage: 'error'` |
 | Edit a generated file | Gate 4 |
-| Delete a rule, an answer or a test, or make a rule accept more | Gate 5, unless the version changes |
+| Delete a rule, an answer or a test, or make a rule accept more | Gate 5, unless the version changes; then you see a warning |
 
-**What it gives you:** you do not need to check that the agent ran the checks or kept them. CI does. When a change must make the contract weaker, the agent must change the version, and you see that in the review.
+**What it gives you:** you do not need to check that the agent ran the checks. CI runs them. When a change must make the contract weaker, the agent must change the version, and you see that in the review.
 
 ## Conformance, not correctness
 

@@ -119,7 +119,7 @@ A rule is an expression in a small language with no loops and no side effects. I
 | An object | An `object` | none; read its properties with `.` |
 | `timestamp`, `duration` | `timestamp(s)`, `duration(s)` | |
 
-These are the operators, from the lowest precedence: `||`; `&&`; `==` `!=` `<` `<=` `>` `>=` `in`; `+` `-`; `*` `/` `%`; `!` and unary `-`; `a.b`. Parentheses change the sequence.
+These are the operators, in the order in which they apply, the last first: `||`; `&&`; `==` `!=` `<` `<=` `>` `>=` `in`; `+` `-`; `*` `/` `%`; `!` and unary `-`; `a.b`. Parentheses change the sequence.
 
 `==` compares lists and objects by value. `in` tests an item of a list, or a property name of an object. `+` joins strings and lists, and adds a duration to a timestamp. `/` of two ints rounds toward 0, and a division by 0 breaks the rule. `*` and `/` do not mix an int and a double. For a `number`, write `2.0`.
 

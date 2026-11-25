@@ -46,15 +46,17 @@ jobs:
       - name: urn-forge diff
         if: ${{ !cancelled() && steps.install.outcome == 'success' && github.event_name == 'pull_request' }}
         run: |
-          git show "origin/${{ github.base_ref }}:domain.manifest.yaml" > base.manifest.yaml
+          git show "origin/${{ github.base_ref }}:./domain.manifest.yaml" > base.manifest.yaml
           npx urn-forge diff base.manifest.yaml domain.manifest.yaml
 ```
 
 `fetch-depth: 0` fetches the base branch, so that `diff` and gate 5 can read the manifest before the change. On a pull request, `--base` runs gate 5 against the base branch. If the project is in a subfolder, set `working-directory` on each step.
 
+urn-forge is not on npm yet. For `npm ci` in CI, commit the tarball to the repository, for example as `vendor/urn-forge-0.2.0.tgz`. Then install it from that path: `npm install ./vendor/urn-forge-0.2.0.tgz`.
+
 | A change that | Fails |
 | --- | --- |
-| Breaks a gate. For example, the core has no function for an operation, or the shell calls the core without the harness. Or a scenario is not there (with `coverage: 'error'`), or a generated file is not current | `verify` |
+| Breaks a gate. For example, the core has no function for an operation, or a shell file that the config names calls the core without the harness. Or a scenario is not there (with `coverage: 'error'`), or a generated file is not current | `verify` |
 | Makes the core give a wrong value, or break a rule of an output | `cucumber-js` |
 | Adds an output that the shell does not handle | `tsc` |
 | Can break a caller without a new major version | `diff` |
@@ -72,4 +74,6 @@ gate 4  drift         FAIL  1 generated file(s) compared byte for byte against s
 
 Correct the first problem first, because this often also corrects other problems. If an error points into a generated file, correct gate 4 first. [The CLI reference](../reference/cli#diagnostics) lists each code with its correction.
 
-Do not disable a gate, because the gates find each attempt to disable them. If you remove `satisfies DomainCore`, gate 1 fails with `core-not-satisfying`. If you put `@ts-ignore` in the core or the shell, gate 2 fails with `suppressed-check`.
+The gates find some attempts to turn them off. If the agent removes `satisfies DomainCore`, gate 1 fails with `core-not-satisfying`. If it puts `@ts-ignore` in the core or the shell, gate 2 fails with `suppressed-check`.
+
+The gates do not find a change to their own settings: `urn-forge.config.ts`, `tsconfig.json`, `cucumber.json`, `features/support/` or this workflow. Make these files, and `domain.manifest.yaml`, need your approval. On GitHub, list them in `CODEOWNERS` and turn on branch protection.

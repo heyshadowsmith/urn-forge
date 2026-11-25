@@ -1,6 +1,6 @@
 # The CLI, the config and diagnostics
 
-Run `npx urn-forge <command>` in a project where urn-forge is installed.
+Run `npx urn-forge <command>` in a project where urn-forge is installed. These are the first lines of `npx urn-forge --help`:
 
 ```
 urn-forge 0.2.0
@@ -33,7 +33,11 @@ With `--format json`, `compile`, `verify` and `diff` write one JSON object to st
 | `gates`, `warnings` | `verify` | Each gate that ran: `gate`, `name`, `pass` and `summary`; the number of warnings |
 | `from`, `to`, `breaking`, `changes`, `allowed`, `why` | `diff` | The versions, the number of breaking changes, each change (`class`, `place`, `message`), and the verdict of the versions |
 
-A wrong command line is a problem with the code `usage`. Refer to [Set up a project for an agent](../how-to/work-with-a-coding-agent) for an example.
+A wrong command line is a problem with the code `usage`:
+
+```json
+{"ok":false,"problems":[{"code":"usage","severity":"error","file":null,"line":null,"path":null,"message":"Unknown option '--nope'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--nope\"","fix":"Run urn-forge --help, and call the command with the arguments and options that it shows."}]}
+```
 
 ## The config
 
@@ -48,7 +52,7 @@ urn-forge reads `urn-forge.config.ts` from the current folder, or from the file 
 | `tsconfig` | `tsconfig.json` | The tsconfig of gate 1 |
 | `shell` | none | Files and folders of the shell, for gate 2 |
 | `coverage` | `'warn'` | With `'error'`, a gap in the scenarios fails gate 3 |
-| `postgres` | none | Writes a Postgres schema and a store file. Refer to [Store objects in Postgres](../how-to/store-in-postgres) |
+| `postgres` | none | Writes a Postgres schema and a store file. Refer to [Objects in Postgres](../how-to/store-in-postgres) |
 
 Your core and your shell import only the generated file. The project also uses `urn-forge/config`, `urn-forge/cucumber` (`registerSteps`) and `urn-forge/register-tsx`. `urn-forge/register-tsx` lets `npx cucumber-js` load TypeScript. For your own tools, `urn-forge` exports `loadManifest`, `compileManifest`, `generate` and the rule parser. Because the entry points are TypeScript source, run code that imports them through a loader such as `tsx`.
 

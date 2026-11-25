@@ -48,7 +48,7 @@ The harness checks these rules on each answer. If the answer of a core breaks on
 
 ## Declare a refusal
 
-urn-forge has no special construct for an error. A refusal is an ordinary object in the `output` list of the operation:
+urn-forge has no special construct for an error. A refusal is an ordinary object in the `output` list of the operation. You decide the refusal and when it applies. The agent does these steps, and you check steps 1, 3 and 4:
 
 1. Add an object for the refusal. Give it the properties that the caller must have to understand the refusal.
 2. Add it to the `output` list.
@@ -87,9 +87,9 @@ The core reads no database, no session and no clock. If an operation uses one of
 
 The record is the state before the call, and the output is the state after the call. A rule of an output can compare them, as `keeps_the_party` does. If the record can be absent, do not put it in `required`. Then add an output whose rule reads `!has(input.stored_booking)`.
 
-**The time.** Declare the time as a `string` with `format: date-time`. Compare it in rules: `timestamp(input.now) <= timestamp(input.stored_booking.starts_at) - duration('2h')`. A scenario gives the time in a cell, so that the core and the scenarios are deterministic.
+**The time.** Declare the time as a `string` with `format: date-time`. Compare it in rules: `timestamp(input.now) <= timestamp(input.stored_booking.starts_at) - duration('2h')`. A scenario gives the time in a cell, so that the core and the scenarios give the same result on each run.
 
-**The caller.** Make an object for the caller, as the shell authenticated the caller. Put the object in the input. Write rules that tell who can do the operation. Add an output, such as `forbidden`, for a caller who cannot do it.
+**The caller.** Make an object for the caller, as the shell identified the caller. Put the object in the input. Write rules that tell who can do the operation. Add an output, such as `forbidden`, for a caller who cannot do it.
 
 ## Return a record and an event
 

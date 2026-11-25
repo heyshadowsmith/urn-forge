@@ -31,7 +31,7 @@ features:
       light: /icons/gate-light.svg
       dark: /icons/gate-dark.svg
     title: urn-forge proves it
-    details: A harness checks each input and each answer at run time. Five gates check the code, the tests and the generated files in CI. A change that removes a rule, an answer or a test fails, unless you change the version.
+    details: A harness checks each input and each answer at run time. Five gates check the code, the tests and the generated files in CI. A change that removes a rule, an answer or a test fails, unless the version changes. Then you see each such change as a warning, and you decide.
 ---
 
 ## The problem
@@ -82,7 +82,7 @@ operations:
 
 ## What it catches
 
-The agent "simplifies" the code, and now it seats all bookings:
+The agent changes the code, and now it seats all bookings:
 
 ```ts
 seat_booking: ({ stored_booking }) => answer('booking', { ...stored_booking, state: 'seated' }),
@@ -106,7 +106,7 @@ The types still check, because the answer is still a booking. But your applicati
 }
 ```
 
-The test of the cancelled booking fails, and so does CI. If the agent then deletes that test, or the rule `was_confirmed`, gate 5 fails the change in CI until you give the contract a new version.
+The test of the cancelled booking fails, and so does CI. If the agent then deletes that test, or the rule `was_confirmed`, gate 5 fails the change in CI. The agent can make gate 5 pass only with a new version of the contract, which you see in the review.
 
 ## What you get
 
@@ -117,14 +117,14 @@ The test of the cancelled booking fails, and so does CI. If the agent then delet
   | Gate | It fails when |
   | --- | --- |
   | 1. Completeness | An operation has no code, or the code has the wrong type |
-  | 2. Boundary | Your application calls the code without the harness, or a file turns off a type check |
+  | 2. Boundary | A shell file (one that the config names) calls the code without the harness, or a file turns off a type check |
   | 3. Scenarios | An operation, an answer or a rule has no test |
   | 4. Drift | A generated file was edited by hand, or is not current |
-  | 5. Contract | A change removes a rule, an answer or a test, or makes a rule accept more, and the version does not change |
+  | 5. Contract | A change removes a rule, an answer or a test, or makes a rule accept more, and the version does not allow it |
 
 - **`urn-forge diff`**, which fails a change that can break callers, unless the major version increases.
 - **Output for agents.** Each problem has a stable code and a fix, as text or as JSON.
-- **A Postgres schema, if you want one**, with the rules as database constraints.
+- **A Postgres schema, if you want one**, with each rule that SQL can state as a database constraint.
 
 urn-forge proves that the code keeps the contract. It cannot prove that the contract or the expected values in the tests are correct. That is your part. Refer to [Review an agent's change](./how-to/review-an-agents-change).
 

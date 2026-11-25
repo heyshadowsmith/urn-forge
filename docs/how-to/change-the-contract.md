@@ -4,11 +4,10 @@ A change to the manifest can break callers. A caller can send a value that the n
 
 ## Steps
 
-1. Save a copy of the manifest before the change: `git show main:domain.manifest.yaml > old.manifest.yaml`.
-2. Change `domain.manifest.yaml` and its `version`.
-3. Run `npx urn-forge diff old.manifest.yaml domain.manifest.yaml`. Put the old manifest first.
-4. If `diff` fails, make the change compatible, or increase the major version. For example, add a new definition, and do not make the old definition narrower.
-5. Run `npx urn-forge compile` and `npx urn-forge verify`.
+1. **You decide** the change, and whether callers must change too.
+2. **Ask the agent** to change `domain.manifest.yaml`, the code and the scenarios. In CI, `urn-forge diff` compares the manifest with the one on the target branch. By hand, run `git show main:domain.manifest.yaml > old.manifest.yaml`, then `npx urn-forge diff old.manifest.yaml domain.manifest.yaml`. Put the old manifest first.
+3. **If `diff` fails**, choose one of two actions. Make the change compatible: for example, add a new definition, and do not make the old definition narrower. Or increase the major version, and tell the callers.
+4. **You check** the new `version` in the review. A new version is your decision, not the agent's.
 
 In this example, the manifest of the tutorial changes from `1.0.0` to `1.1.0`. The maximum weight decreases from 30000 to 20000, and the change adds the zone `regional`.
 

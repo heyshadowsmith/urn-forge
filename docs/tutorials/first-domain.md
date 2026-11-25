@@ -13,6 +13,7 @@ You must have Node.js 22 or later. urn-forge is not on npm yet. In a clone of th
 ```bash
 mkdir my-shipping
 cd my-shipping
+git init
 npm init -y
 npm install /path/to/urn-forge-0.2.0.tgz
 npx urn-forge init --namespace demo --domain shipping
@@ -33,7 +34,13 @@ updated    package.json
 next: npm install, then npx urn-forge compile, then npx urn-forge verify
 ```
 
-The starter is a complete domain that splits a bill. `AGENTS.md` gives the agent its instructions, and `.claude/skills/urn-forge/` gives Claude Code a skill that runs the loop. Start your coding agent in `my-shipping`.
+The starter is a complete domain that splits a bill. `AGENTS.md` gives the agent its instructions, and `.claude/skills/urn-forge/` gives Claude Code a skill that runs the loop.
+
+The starter is strict: a missing scenario fails `verify`. In this tutorial, start with gaps as warnings, so that you can see them. Replace `urn-forge.config.ts`:
+
+<<< @/../packages/urn-forge/tutorial/1-first-domain/urn-forge.config.ts
+
+Part 4 makes it strict again. Commit the project (`git add -A && git commit -m start`), so that later you can compare each change with this one. Then start your coding agent in `my-shipping`.
 
 ## 2. Build the shipping domain
 
@@ -146,7 +153,7 @@ gate 3  gherkin       PASS  1 feature(s), 12 scenario(s), 1/1 operation(s) run, 
 
 ### Make a gap an error
 
-**Ask the agent:** "Make a missing scenario fail `verify`." The agent changes `urn-forge.config.ts`:
+Make a missing scenario fail `verify` again. Change `urn-forge.config.ts` yourself, because this setting is a decision about how strict the checks are:
 
 <<< @/../packages/urn-forge/tutorial/3-strict-coverage/urn-forge.config.ts{6-7}
 
