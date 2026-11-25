@@ -1,7 +1,8 @@
 /**
  * The command line: init, compile, verify and diff.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { isNode, LineCounter, parseDocument } from 'yaml';
@@ -13,6 +14,7 @@ import { longNames, postgresProblems, postgresSchema } from './generate/postgres
 import { initProject, nameProblem } from './init.js';
 import { boundaryGate } from './verify/boundary.js';
 import { completenessGate, coreProgram } from './verify/completeness.js';
+import { contractGate, type ContractGateInput } from './verify/contract.js';
 import { driftGate } from './verify/drift.js';
 import { gherkinGate } from './verify/gherkin.js';
 import type { GateOutcome } from './verify/types.js';
@@ -31,7 +33,7 @@ const USAGE = `urn-forge ${VERSION}
 Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
-  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--format text|json]
+  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--base <ref>] [--format text|json]
   urn-forge diff    <old manifest> <new manifest> [--report] [--format text|json]
 
 Options:
@@ -43,6 +45,7 @@ Options:
   --core <file>      verify: the core, which exports … satisfies DomainCore (default: src/core.ts)
   --features <dir>   verify: the directory of the .feature files (default: features)
   --tsconfig <file>  verify: the tsconfig of gate 1 (default: tsconfig.json)
+  --base <ref>       verify: run gate 5, which compares the contract with the one at this git ref
   --report           diff: list the changes, and do not fail on a breaking change
   --format <format>  compile, verify, diff: text (default), or json: one JSON object on stdout, and nothing else`;
 
@@ -148,6 +151,7 @@ const OPTIONS = {
   core: { type: 'string' },
   features: { type: 'string' },
   tsconfig: { type: 'string' },
+  base: { type: 'string' },
   namespace: { type: 'string' },
   domain: { type: 'string' },
 } as const;
@@ -187,7 +191,7 @@ async function project(io: CliIo, report: Report, values: Record<string, string 
 }
 
 /** Reads and compiles the manifest; shows its diagnostics. Undefined when it cannot be read or has an error. */
-function compileProject(io: CliIo, report: Report, p: Project): { compiled: Compiled & { model: NonNullable<Compiled['model']> }; files: ReturnType<typeof generate> } | undefined {
+function compileProject(io: CliIo, report: Report, p: Project): { compiled: Compiled & { model: NonNullable<Compiled['model']> }; files: ReturnType<typeof generate>; text: string } | undefined {
   let text: string;
   try {
     text = readFileSync(p.manifestPath, 'utf8');
@@ -214,7 +218,40 @@ function compileProject(io: CliIo, report: Report, p: Project): { compiled: Comp
   // The header names the manifest relative to the config, so that it does not depend on the working directory.
   const source = relative(p.base, p.manifestPath).split('\\').join('/');
   const files = generate(compiled as Compiled & { model: NonNullable<Compiled['model']> }, source, p.config);
-  return { compiled: compiled as Compiled & { model: NonNullable<Compiled['model']> }, files };
+  return { compiled: compiled as Compiled & { model: NonNullable<Compiled['model']> }, files, text };
+}
+
+/** The contract at a git ref: the manifest and the features at their paths of the working tree. */
+function baseContract(io: CliIo, p: Project, ref: string): ContractGateInput['old'] {
+  const git = (args: string[]): string =>
+    execFileSync('git', args, { cwd: dirname(p.manifestPath), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+  let root: string;
+  try {
+    root = git(['rev-parse', '--show-toplevel']).trim();
+  } catch {
+    return { problem: 'the manifest is not in a git repository' };
+  }
+  try {
+    git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]);
+  } catch {
+    return { problem: `${ref} is not a commit of this repository: fetch it, with enough history, or give another ref` };
+  }
+  // Paths in the tree of a commit are relative to the root, with forward slashes.
+  const real = (path: string): string => (existsSync(path) ? realpathSync(path) : path);
+  const inTree = (path: string): string => relative(real(root), real(path)).split('\\').join('/');
+  let text: string;
+  try {
+    text = git(['show', `${ref}:${inTree(p.manifestPath)}`]);
+  } catch {
+    return { nothing: `the manifest is new since ${ref}` };
+  }
+  const compiled = compileManifest(text);
+  if (!compiled.model) return { nothing: `the manifest at ${ref} does not compile` };
+  const names = git(['ls-tree', '-r', '--name-only', ref, '--', inTree(p.config.features!)])
+    .split('\n')
+    .filter((name) => name.endsWith('.feature'));
+  const features = names.map((name) => ({ path: display(io, join(root, name)), text: git(['show', `${ref}:${name}`]) }));
+  return { side: { model: compiled.model, applications: compiled.applications }, features };
 }
 
 async function compileCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
@@ -254,17 +291,32 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
   const generatedPath = join(p.outDir, GENERATED_FILE);
   const coreOptions = { corePath: p.config.core!, generatedPath, tsconfigPath: p.config.tsconfig!, show };
   const program = coreProgram(coreOptions);
+  const featureFiles = features(p.config.features!).map((path) => ({ path: show(path), text: readFileSync(path, 'utf8') }));
   const outcomes: GateOutcome[] = [
     completenessGate(coreOptions, program),
     boundaryGate({ ...coreOptions, shell: p.config.shell ?? [] }, program),
     gherkinGate({
       model: result.compiled.model,
       applications: result.compiled.applications,
-      features: features(p.config.features!).map((path) => ({ path: show(path), text: readFileSync(path, 'utf8') })),
+      features: featureFiles,
       coverage: p.config.coverage ?? 'warn',
     }),
     await driftGate(p.outDir, result.files, show),
   ];
+  if (values['base'] !== undefined) {
+    const manifestFile = show(p.manifestPath);
+    outcomes.push(
+      contractGate({
+        base: values['base'],
+        old: baseContract(io, p, values['base']),
+        next: { side: { model: result.compiled.model, applications: result.compiled.applications }, features: featureFiles },
+        at: (path) => {
+          const line = lineOf(result.text, path);
+          return { file: manifestFile, ...(line ? { line } : {}) };
+        },
+      }),
+    );
+  }
   for (const outcome of outcomes) {
     report.out(`gate ${outcome.gate}  ${outcome.name.padEnd(12)}  ${outcome.pass ? 'PASS' : 'FAIL'}  ${outcome.summary}`);
     for (const problem of outcome.problems) {

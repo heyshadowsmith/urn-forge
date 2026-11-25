@@ -68,7 +68,7 @@ function flip(op: string): string {
 const asSet = (value: unknown): Set<string> => new Set(Array.isArray(value) ? value.map((v) => JSON.stringify(v)) : []);
 
 /** The direction of a new argument of a rule: narrower (accepts less), wider, both, or the same. */
-function argumentDirection(application: Application, before: unknown, after: unknown): Direction {
+export function argumentDirection(application: Application, before: unknown, after: unknown): Direction {
   if (JSON.stringify(before) === JSON.stringify(after)) return 'same';
   const { rule } = application;
   // A list that the value must be in (enum), or that the object must have (required).

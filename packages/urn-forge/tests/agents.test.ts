@@ -12,9 +12,11 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import { parse } from 'yaml';
 import { afterEach, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
+import { compileManifest } from '../src/compile.js';
+import { contractGate } from '../src/verify/contract.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { fixes: it, json: it, reference: it, schema: it, init: it, base: it.fails };
+const target = { fixes: it, json: it, reference: it, schema: it, init: it, base: it };
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -180,12 +182,12 @@ describe('gate 5', () => {
     weaken(dir);
     const weaker = await run(dir, ['verify', '--base', 'HEAD']);
     expect(weaker.code).toBe(1);
-    expect(weaker.out.join('\n')).toMatch(/gate 5 {2}contract {4}FAIL/);
+    expect(weaker.out.join('\n')).toMatch(/gate 5 {2}contract +FAIL/);
     expect(weaker.out.join('\n')).toContain('the rule maximum is removed');
     edit(join(dir, 'domain.manifest.yaml'), (t) => t.replace('version: 0.1.0', 'version: 0.2.0'));
     execFileSync(process.execPath, [join(PACKAGE, 'bin/urn-forge.js'), 'compile'], { cwd: dir });
     const bumped = await run(dir, ['verify', '--base', 'HEAD']);
-    expect(bumped.out.join('\n')).toMatch(/gate 5 {2}contract {4}PASS/);
+    expect(bumped.out.join('\n')).toMatch(/gate 5 {2}contract +PASS/);
   });
 
   target.base('fails a removed scenario', async () => {
@@ -194,5 +196,33 @@ describe('gate 5', () => {
     const result = await run(dir, ['verify', '--base', 'HEAD', '--format', 'json']);
     const json = JSON.parse(result.out[0]!);
     expect(json.problems).toContainEqual(expect.objectContaining({ code: 'removed-scenario' }));
+  });
+});
+
+describe('gate 5, without git', () => {
+  const side = (text: string) => {
+    const compiled = compileManifest(text);
+    return { model: compiled.model!, applications: compiled.applications };
+  };
+  const booking = readFileSync(join(FIXTURES, 'booking/domain.manifest.yaml'), 'utf8');
+  const gate = (next: string) =>
+    contractGate({ base: 'main', old: { side: side(booking), features: [] }, next: { side: side(next), features: [] }, at: () => ({ file: 'domain.manifest.yaml' }) });
+
+  it('passes the same contract', () => {
+    expect(gate(booking)).toMatchObject({ gate: 5, pass: true, problems: [] });
+  });
+
+  it('fails a removed output and a required rule that lists fewer properties', () => {
+    const next = booking.replace(/\n      - invalid_state:.*\n(?: {8}- .*\n)*/, '\n').replace('      - required: [reference, state]\n', '      - required: [reference]\n');
+    const outcome = gate(next);
+    expect(outcome.pass).toBe(false);
+    expect(outcome.problems.map((p) => p.code).sort()).toEqual(['removed-output', 'wider-rule']);
+  });
+
+  it('allows a weaker contract with a new major version, as warnings', () => {
+    const next = booking.replace('      - maximum: 12\n', '').replace('version: 0.1.0', 'version: 1.0.0');
+    const outcome = gate(next);
+    expect(outcome.pass).toBe(true);
+    expect(outcome.problems).toEqual([expect.objectContaining({ code: 'removed-rule', severity: 'warning' })]);
   });
 });

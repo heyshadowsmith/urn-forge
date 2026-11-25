@@ -17,7 +17,7 @@ Use `--format json` on `compile`, `verify` and `diff` to get one JSON object: `{
 - Edit a file in the generated folder (`*.generated.ts`, `*.generated.sql`). Gate 4 fails. Change the manifest, and run `compile`.
 - Add `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`. Gate 2 fails. Correct the type error.
 - Call a function of the core directly from the shell (`core.x(…)`, `const { x } = core`). Gate 2 fails. Call `runOperation(core, 'x', input)`.
-- Remove or weaken a rule, an output or a scenario to make a check pass. Correct the core or the scenario. A weaker contract needs a version bump, which a person decides.
+- Remove or weaken a rule, an output or a scenario to make a check pass. Gate 5 (`verify --base <ref>`) fails. Correct the core or the scenario. A weaker contract needs a version bump, which a person decides.
 - Put business logic in the manifest. The manifest states what is true of a value or an answer. The core decides; the shell stores, sends and calls.
 
 ## The manifest
@@ -28,7 +28,7 @@ One YAML file with four sections. Only `manifest` is required. A name is lowerca
 manifest:
   namespace: acme            # required
   domain: bookings           # required; also the Postgres schema
-  version: 0.1.0             # required; semver, read by diff
+  version: 0.1.0             # required; semver, read by diff and gate 5
   compatibility:             # optional
     callers: ignore-unknown  # callers ignore a property or an output they do not know
 
@@ -173,7 +173,7 @@ A table has a header row of properties and one row of values. `contact.email` is
 | --- | --- |
 | `urn-forge init [--namespace <n>] [--domain <n>]` | Writes a starter project that passes `verify`, with `AGENTS.md` and `CLAUDE.md` for coding agents |
 | `urn-forge compile [--format json]` | Writes the generated files |
-| `urn-forge verify [--format json]` | Compiles in memory and runs the gates; writes nothing |
+| `urn-forge verify [--base <ref>] [--format json]` | Compiles in memory and runs the gates; writes nothing |
 | `urn-forge diff <old> <new> [--report] [--format json]` | Classifies the changes between two manifests as breaking or compatible |
 
 Exit codes: `0` pass (also with warnings), `1` failure, `2` wrong command line.
@@ -184,8 +184,9 @@ Exit codes: `0` pass (also with warnings), `1` failure, `2` wrong command line.
 | 2. boundary | The shell calls the core without `runOperation`, or a file suppresses a type check |
 | 3. gherkin | A step names an unknown part, or (with `coverage: 'error'`) an operation, an output or a rule has no scenario |
 | 4. drift | A generated file is not what `compile` writes now |
+| 5. contract | Only with `--base <ref>`: a rule, an output or a scenario of the ref is gone, or a rule accepts more, and the version does not allow it |
 
-`diff` allows a breaking change in `0.x`, in a pre-release, or across a new major version.
+`diff` allows a breaking change in `0.x`, in a pre-release, or across a new major version. Gate 5 allows a weaker contract only when the version also changes: to another `0.x` version, a pre-release, or a new major version. Then each change is a warning. A scenario is known by its name: a renamed scenario counts as removed.
 
 ## The codes
 
