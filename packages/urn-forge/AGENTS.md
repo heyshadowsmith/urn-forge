@@ -17,7 +17,7 @@ Use `--format json` on `compile`, `verify` and `diff` to get one JSON object: `{
 - Edit a file in the generated folder (`*.generated.ts`, `*.generated.sql`). Gate 4 fails. Change the manifest, and run `compile`.
 - Add `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`. Gate 2 fails. Correct the type error.
 - Call a function of the core directly from the shell (`core.x(…)`, `const { x } = core`). Gate 2 fails. Call `runOperation(core, 'x', input)`.
-- Remove or weaken a rule, an output or a scenario to make a check pass. Gate 5 (`verify --base <ref>`) fails. Correct the core or the scenario. A weaker contract needs a version bump, which a person decides.
+- Remove or weaken a rule, an output or a scenario to make a check pass. Gate 5 (`verify --base <ref>`) fails. Correct the core or the scenario. A weaker contract needs a new `version`, which a person decides: stop and ask.
 - Put business logic in the manifest. The manifest states what is true of a value or an answer. The core decides; the shell stores, sends and calls.
 
 ## The manifest
@@ -201,7 +201,7 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `yaml-syntax` | Correct the YAML at the line that the problem gives. |
 | `manifest-shape` | Use only the keys that the message lists, with values of the type that it names; manifest.schema.json has the full shape. |
 | `unknown-definition` | Add the definition to definitions:, or correct the name to one that is in definitions:. |
-| `type-cycle` | Give one definition of the cycle a type of JSON Schema (string, number, integer, boolean, object or array) in place of the name of another definition. |
+| `type-cycle` | Give one definition of the cycle a base type (string, number, integer, boolean, object or array) in place of the name of another definition. |
 | `duplicate-property` | Remove the second copy of the name from properties:. |
 | `unknown-property` | Add the name to properties: of the object, or remove it from the rule. |
 | `not-an-object` | Make the input or the output of the operation a definition of type: object. |
@@ -211,7 +211,7 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `standard-name` | Give the rule of the manifest a name that is not the name of a standard rule. |
 | `unknown-rule` | Add the rule to rules:, or correct the name to a rule of the manifest or a standard rule. |
 | `rule-argument` | Give the rule an argument that its parameters accept, or no argument when the rule has no parameters. |
-| `rule-syntax` | Write the rule in the CEL subset of urn-forge: the names, operators, functions and macros of the reference. |
+| `rule-syntax` | Write the rule in the rule language of urn-forge: the names, operators, functions and macros of the reference. |
 | `rule-type` | Change the rule so that each part has the type that the message names, and the rule gives a bool. |
 | `rule-guard` | Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) \|\| self.x > 0. |
 | `rule-scope` | Use only the names that the message lists: self, input, output, the parameters of the rule, and the variable of a macro. |
@@ -231,7 +231,7 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `uncovered-rule` | Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>". |
 | `drift` | Run urn-forge compile, and do not edit a generated file by hand. |
 | `base-unreadable` | Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists. |
-| `removed-rule` | Put the rule back; if the contract must accept more, bump manifest.version to a new major version (in 0.x, to a new version) and say why in the change. |
-| `wider-rule` | Put the argument back; if the contract must accept more, bump manifest.version to a new major version (in 0.x, to a new version) and say why in the change. |
-| `removed-output` | Put the output back; if the operation must no longer give it, bump manifest.version to a new major version (in 0.x, to a new version). |
-| `removed-scenario` | Put the scenario back, or bump manifest.version to a new major version (in 0.x, to a new version) when the behaviour it tests is removed on purpose. |
+| `removed-rule` | Put the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
+| `wider-rule` | Put the argument or the text of the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
+| `removed-output` | Put the output back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
+| `removed-scenario` | Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |

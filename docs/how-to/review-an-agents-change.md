@@ -29,9 +29,9 @@ CI runs gate 5 with `--base` against the target branch, and `urn-forge diff`. Ga
 ```
 gate 5  contract      PASS  2 change(s) make the contract weaker than HEAD, allowed by the version 0.1.0 → 0.2.0
     domain.manifest.yaml:10  warning  removed-rule  the rule maximum is removed from definitions.weight_grams
-      fix: Put the rule back; if the contract must accept more, bump manifest.version to a new major version (in 0.x, to a new version) and say why in the change.
+      fix: Put the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.
     features/quote_shipping.feature  warning  removed-scenario  1 of the 4 scenarios "A parcel that breaks a rule is rejected at the boundary" are removed
-      fix: Put the scenario back, or bump manifest.version to a new major version (in 0.x, to a new version) when the behaviour it tests is removed on purpose.
+      fix: Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.
 verify passed with 2 warning(s) (gates 1, 2, 3, 4, 5)
 ```
 

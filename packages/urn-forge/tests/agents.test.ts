@@ -242,3 +242,20 @@ describe('gate 5, without git', () => {
     expect(outcome.problems).toEqual([expect.objectContaining({ code: 'removed-rule', severity: 'warning' })]);
   });
 });
+
+describe('the guardrails', () => {
+  it('give each agent the edges and when to stop, in the starter AGENTS.md', () => {
+    const text = readFileSync(join(PACKAGE, 'templates/starter/AGENTS.md'), 'utf8');
+    expect(text).toMatch(/edge of each rule/);
+    expect(text).toMatch(/## Stop and ask a person/);
+    for (const when of ['remove or weaken a rule', 'new `version`', 'cannot be written in the rule language']) expect(text, when).toContain(when);
+  });
+
+  it('never tell the agent to change the version on its own', async () => {
+    const { CODES } = await import('../src/codes.js');
+    for (const [code, { fix }] of Object.entries(CODES)) {
+      expect(fix, code).not.toMatch(/\bbump\b/i);
+      if (/version/.test(fix)) expect(fix, code).toMatch(/ask a person/);
+    }
+  });
+});

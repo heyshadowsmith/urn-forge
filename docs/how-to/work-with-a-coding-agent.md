@@ -22,7 +22,7 @@ The skill tells Claude Code to:
 
 The skill lets Claude Code run `npx urn-forge` and `npx cucumber-js` with no permission prompt. These commands write only the starter files (`init`) and the generated files.
 
-Other agents get `AGENTS.md`, but not the skill. `AGENTS.md` does not tell them items 4 and 6 to 8. Ask for them in your request: "Add scenarios at the edges of each rule. Ask me before you weaken a rule or change the version."
+Other agents get `AGENTS.md`, but not the skill. `AGENTS.md` gives them the same rules: the edges (item 4), and when to stop and ask (items 6 to 8). The skill adds the order of the work and a table of the codes.
 
 ## 2. Name the shell
 
@@ -44,9 +44,9 @@ An agent that cannot make a check pass can remove the check. Gate 5 finds this. 
 ```
 gate 5  contract      FAIL  2 change(s) make the contract weaker than HEAD, and the version 0.1.0 → 0.1.0 does not allow it
     domain.manifest.yaml:10  error  removed-rule  the rule maximum is removed from definitions.weight_grams
-      fix: Put the rule back; if the contract must accept more, bump manifest.version to a new major version (in 0.x, to a new version) and say why in the change.
+      fix: Put the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.
     features/quote_shipping.feature  error  removed-scenario  1 of the 4 scenarios "A parcel that breaks a rule is rejected at the boundary" are removed
-      fix: Put the scenario back, or bump manifest.version to a new major version (in 0.x, to a new version) when the behaviour it tests is removed on purpose.
+      fix: Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.
 verify failed: gate 5
 ```
 

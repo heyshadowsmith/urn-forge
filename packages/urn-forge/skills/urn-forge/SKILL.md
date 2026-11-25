@@ -54,7 +54,7 @@ When a scenario fails in `cucumber-js`:
 
 - `ContractViolation: <rule> of <definition>`: the core gave an answer that breaks a rule of the contract. Correct the core.
 - `InputRejected` where the scenario expects an answer: the input of the scenario breaks a rule. Correct the table of the scenario, if the request does not change the rule.
-- A wrong value, such as `quote.price_cents is 601, not 600`: decide from the request which one is right. Change the expected value only when the request changes that behaviour.
+- A wrong value, such as `quote.price_cents is 601, not 600`: decide from the request which one is right. Change the expected value only when the request changes what the code must do.
 
 ## 5. Stop and ask a person
 
