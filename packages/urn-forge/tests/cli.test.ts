@@ -157,6 +157,7 @@ describe('the command line', () => {
     edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("coverage: 'error',", "coverage: 'error',\n  plugins: [],") );
     expect((await run(dir, ['compile'])).err).toEqual([
       'urn-forge.config.ts  error  config-invalid  config.plugins is not an option; the options are manifest, out, core, features, tsconfig, shell, coverage, postgres',
+      '  fix: Change the config to use only the options of defineConfig, with the types that the message names.',
     ]);
   });
 

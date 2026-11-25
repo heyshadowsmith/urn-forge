@@ -61,11 +61,13 @@ The `uncovered-` codes are warnings, or errors with `coverage: 'error'`. An `Exa
 
 ## Diagnostics
 
-A problem of the config or the manifest is one line, with the line in the manifest. An `error` stops the command, but a `warning` does not. Each message tells you what to do:
+A problem of the config or the manifest is one line, with the line in the manifest, and a second line with the fix. An `error` stops the command, but a `warning` does not:
 
 ```
 domain.manifest.yaml:13  error  unknown-rule  positive is not a rule of this manifest or a standard rule
+  fix: Add the rule to rules:, or correct the name to a rule of the manifest or a standard rule.
 domain.manifest.yaml:75  error  rule-guard  over_express_limit: input.express can be absent: read it after has(input.express) &&, or after !has(input.express) ||
+  fix: Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) || self.x > 0.
 ```
 
 | Code | Cause |

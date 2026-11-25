@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { fixes: it.fails, json: it.fails, reference: it.fails, schema: it.fails, init: it.fails, base: it.fails };
+const target = { fixes: it, json: it.fails, reference: it.fails, schema: it.fails, init: it.fails, base: it.fails };
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -49,7 +49,7 @@ function sourceCodes(): Set<string> {
       if (entry.isDirectory()) walk(path);
       else if (entry.name.endsWith('.ts')) {
         const text = readFileSync(path, 'utf8');
-        for (const m of text.matchAll(/(?:code: |\.(?:error|warning)\(|problem\()'([a-z]+(?:-[a-z]+)*)'/g)) codes.add(m[1]!);
+        for (const m of text.matchAll(/(?:code: |\.(?:error|warning)\(\s*|problem\()'([a-z]+(?:-[a-z]+)*)'/g)) codes.add(m[1]!);
       }
     }
   };
@@ -59,7 +59,7 @@ function sourceCodes(): Set<string> {
 
 describe('the codes', () => {
   target.fixes('give each code that the source can give a fix', async () => {
-    const { CODES } = (await import(`../src/${'codes'}.js`)) as { CODES: Record<string, { fix: string }> };
+    const { CODES } = (await import('../src/codes.js')) as { CODES: Record<string, { fix: string }> };
     const codes = sourceCodes();
     expect(codes.size).toBeGreaterThan(25);
     for (const code of codes) expect(CODES[code]?.fix, code).toMatch(/\S/);

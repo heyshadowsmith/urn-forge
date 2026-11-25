@@ -132,6 +132,7 @@ Because `express` is optional, a rule reads `input.express` only after `has(inpu
 
 ```
 domain.manifest.yaml:75  error  rule-guard  over_express_limit: input.express can be absent: read it after has(input.express) &&, or after !has(input.express) ||
+  fix: Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) || self.x > 0.
 ```
 
 Run `npx urn-forge compile`, then `npx urn-forge verify`:
@@ -139,7 +140,9 @@ Run `npx urn-forge compile`, then `npx urn-forge verify`:
 ```
 gate 3  gherkin       PASS  1 feature(s), 10 scenario(s), 1/1 operation(s) run, 6 rule(s) broken
     features  warning  uncovered-output  no scenario of quote_shipping answers too_heavy_for_express; add one that ends with Then the output is "too_heavy_for_express"
+      fix: Add a scenario of the operation that ends with Then the output is "<output>".
     features  warning  uncovered-rule  no scenario breaks required of too_heavy_for_express; add one that ends with Then the input is rejected by "required" of "too_heavy_for_express", or Then the value is rejected by …
+      fix: Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".
 gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
 verify passed with 2 warning(s) (gates 1, 2, 3, 4)
 ```
@@ -181,6 +184,7 @@ To see the effect, remove the last scenario, `A refusal needs the weight`. Then 
 ```
 gate 3  gherkin       FAIL  1 feature(s), 11 scenario(s), 1/1 operation(s) run, 6 rule(s) broken
     features  error  uncovered-rule  no scenario breaks required of too_heavy_for_express; add one that ends with Then the input is rejected by "required" of "too_heavy_for_express", or Then the value is rejected by …
+      fix: Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".
 gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
 verify failed: gate 3
 ```

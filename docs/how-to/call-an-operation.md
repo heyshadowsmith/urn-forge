@@ -72,6 +72,7 @@ Then a direct call in a shell file, such as `core.quote_shipping(body)`, fails `
 ```
 gate 2  boundary      FAIL  1 core file(s), 1 shell file(s): 1 problem(s)
     src/shell/http.ts:6  error  direct-call  core.quote_shipping runs the core without the harness; call runOperation(core, …), which checks the input and the answer
+      fix: Call the core through runOperation(core, operation, input), which checks the input and the answer.
 ```
 
 ## The generated file

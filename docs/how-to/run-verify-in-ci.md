@@ -66,6 +66,7 @@ Read the indented lines below the gate that shows `FAIL`. Each line is one probl
 ```
 gate 4  drift         FAIL  1 generated file(s) compared byte for byte against src/generated
     src/generated/domain.generated.ts:424  error  drift  the generated file is not current; run urn-forge compile
+      fix: Run urn-forge compile, and do not edit a generated file by hand.
 ```
 
 Correct the first problem first, because this often also corrects other problems. If an error points into a generated file, correct gate 4 first. [The CLI reference](../reference/cli#diagnostics) lists each code with its correction.

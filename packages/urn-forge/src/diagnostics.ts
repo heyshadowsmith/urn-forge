@@ -1,9 +1,11 @@
+import type { Code } from './codes.js';
+
 /** The place of a value in a manifest, as a path of keys and list indexes. */
 export type Path = readonly (string | number)[];
 
 /** A problem in a manifest: a code, its place as a path of keys, and a message. */
 export interface Diagnostic {
-  readonly code: string;
+  readonly code: Code;
   readonly severity: 'error' | 'warning';
   readonly path: Path;
   readonly message: string;
@@ -15,11 +17,11 @@ export interface Diagnostic {
 export class Diagnostics {
   readonly list: Diagnostic[] = [];
 
-  error(code: string, path: Path, message: string, line?: number): void {
+  error(code: Code, path: Path, message: string, line?: number): void {
     this.list.push({ code, severity: 'error', path, message, ...(line ? { line } : {}) });
   }
 
-  warning(code: string, path: Path, message: string): void {
+  warning(code: Code, path: Path, message: string): void {
     this.list.push({ code, severity: 'warning', path, message });
   }
 
