@@ -7,7 +7,7 @@ A coding agent opens a pull request. CI is green. This page tells you what to re
 Read the diff of `domain.manifest.yaml` first. It is the contract, and it is short. For each change, ask:
 
 - **Is this what I asked for?** A new rule, answer or operation must come from the request, not from the agent's guess.
-- **Does each rule say the right thing?** Read the `rule` and the `message`. A limit of `5000` where you meant `5000 or less` is a real bug, and no gate can find it.
+- **Does each rule say the right thing?** Read the `rule` and the `message`. `weight_grams >= 5000` where you meant `weight_grams > 5000` is a real bug, and no gate can find it.
 - **Do the rules of the answers exclude each other?** If two answers of an operation can both be true for one input, the code can give either one.
 - **Does a refusal name what the caller needs?** A refusal is an answer. It carries the values that tell the caller what went wrong.
 
