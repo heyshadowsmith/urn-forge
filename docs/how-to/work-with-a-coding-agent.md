@@ -4,7 +4,7 @@ urn-forge is made for a coding agent, such as Claude Code, Codex or Cursor, to u
 
 ## Give the agent its instructions
 
-`urn-forge init` writes two files for agents:
+`urn-forge init` writes two files for all agents:
 
 - `AGENTS.md` tells the agent the loop of the project, the files that it must not edit, and where the reference is. Codex, Cursor, Copilot and other agents read this file.
 - `CLAUDE.md` has one line, `@AGENTS.md`. Claude Code reads it, and then reads `AGENTS.md`.
@@ -12,6 +12,22 @@ urn-forge is made for a coding agent, such as Claude Code, Codex or Cursor, to u
 If one of these files is already there, `init` keeps it. Then add a line to your file that points at `node_modules/urn-forge/AGENTS.md`.
 
 The reference is `node_modules/urn-forge/AGENTS.md`. It is one page with each key of the manifest, each standard rule, each function of the rule language, each step, and each code with its fix. It is the reference of the installed version, and the agent can read it offline.
+
+## Give Claude Code the skill
+
+`urn-forge init` also writes a Claude Code skill, `.claude/skills/urn-forge/SKILL.md`. Claude Code loads a skill from this folder with no install step. Commit the folder, and your team gets the skill too.
+
+`AGENTS.md` is in the context of each session, so it is short. The skill loads only when the work is on the domain: when a request changes a definition, a rule, an output or an operation, or when `compile`, `verify` or `cucumber-js` fails. You can also start it with `/urn-forge`. The skill tells Claude Code to:
+
+1. Change the contract first, in the manifest.
+2. Compile, then write the core until the types check.
+3. Write a scenario for each operation, output and rule, and a scenario at each edge of a rule.
+4. Run `verify --format json` and `cucumber-js` until both pass, and correct each problem at the place that its code names.
+5. Stop and ask you before it removes or weakens a rule, an output or a scenario, before it changes the `version`, and when a rule cannot be written in the rule language.
+
+The skill lets Claude Code run `npx urn-forge` and `npx cucumber-js` with no permission prompt, for the turn in which the skill loads. These commands write only the generated files.
+
+The skill holds the procedure only. For each fact, it points at `node_modules/urn-forge/AGENTS.md`, which changes with the version that you install. If your project does not have the skill, copy the folder `node_modules/urn-forge/skills/urn-forge` to `.claude/skills/urn-forge`. If you already have a skill there, `init` keeps it.
 
 ## Let the agent read the problems as JSON
 
