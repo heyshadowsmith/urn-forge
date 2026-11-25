@@ -88,6 +88,8 @@ operations:
 - There is no key for errors, events, callers or stored records. A refusal is an output. A stored record, the caller and the time are properties of the input. An event is a property of an output.
 - There is no date or decimal type. A date is a `string` with `format: date`; a time is a `string` with `format: date-time`; money is an `integer` of cents.
 
+The JSON Schema of the manifest is `node_modules/urn-forge/manifest.schema.json`. It checks the keys and the shape of each value before `compile`; `compile` also checks the names between the parts, the rules and their arguments.
+
 ## The standard rules
 
 | Rule | For | Argument |

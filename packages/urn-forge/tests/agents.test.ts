@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { fixes: it, json: it, reference: it, schema: it.fails, init: it.fails, base: it.fails };
+const target = { fixes: it, json: it, reference: it, schema: it, init: it.fails, base: it.fails };
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -109,15 +109,26 @@ describe('the schema of the manifest', () => {
   target.schema('accepts each manifest of the fixtures, the domains and the contracts, and refuses an unknown key', () => {
     const schema = JSON.parse(readFileSync(join(PACKAGE, 'manifest.schema.json'), 'utf8')) as object;
     const validate = new Ajv2020({ allErrors: true }).compile(schema);
-    const manifests = execFileSync('git', ['ls-files', '*.manifest.yaml'], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n');
+    // The standard set is not a manifest of a project: its rules have the camelCase names of JSON Schema.
+    const manifests = execFileSync('git', ['ls-files', '*.manifest.yaml'], { cwd: ROOT, encoding: 'utf8' })
+      .trim()
+      .split('\n')
+      .filter((file) => !file.endsWith('src/standard.manifest.yaml'));
     expect(manifests.length).toBeGreaterThan(8);
     for (const file of manifests) {
-      const ok = validate(parse(readFileSync(join(ROOT, file), 'utf8')));
+      // The starter's template has the placeholders of init.
+      const text = readFileSync(join(ROOT, file), 'utf8').replaceAll('{{namespace}}', 'app').replaceAll('{{domain}}', 'starter');
+      const ok = validate(parse(text));
       expect(ok ? [] : validate.errors, file).toEqual([]);
     }
     const booking = parse(readFileSync(join(FIXTURES, 'booking/domain.manifest.yaml'), 'utf8')) as { definitions: Record<string, Record<string, unknown>> };
     booking.definitions['party_size']!['minimum'] = 1;
     expect(validate(booking)).toBe(false);
+    const shape = (definition: object): boolean => validate({ manifest: { namespace: 'a', domain: 'b', version: '0.1.0' }, definitions: { x: definition } });
+    expect(shape({ description: 'X', type: 'object', properties: [] })).toBe(true);
+    expect(shape({ description: 'X', type: 'object' })).toBe(false);
+    expect(shape({ description: 'X', type: 'string', items: 'y' })).toBe(false);
+    expect(shape({ description: 'X', type: 'string', rules: [{ minLength: 1, maxLength: 2 }] })).toBe(false);
     const pkg = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as { files: string[] };
     expect(pkg.files).toContain('manifest.schema.json');
   });
