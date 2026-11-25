@@ -37,6 +37,7 @@
     "@cucumber/messages": "^35.0.0",
     "tsx": "^4.23.15",
     "typescript": "~5.9",
+    "valibot": "^1.5.0",
     "yaml": "^2.9.1"
   },
   "devDependencies": {

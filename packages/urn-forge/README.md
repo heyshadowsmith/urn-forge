@@ -3,10 +3,10 @@
 Write the contract of a domain in one YAML manifest, and get a TypeScript harness that checks your code against it.
 
 - **Declare** definitions, rules and operations, in the words of JSON Schema (`type`, `properties`, `required`, `enum`, `minimum`, …). Write your own rules in a subset of CEL.
-- **Generate** one TypeScript file with no dependencies: a type and a check for each definition, and `runOperation`, a harness that checks the input before your core runs and the answer after it.
+- **Generate** one TypeScript file: a type and a Valibot schema for each definition, `check`, and `runOperation`, a harness that checks the input before your core runs and the answer after it. Each schema is a Standard Schema, so tRPC, Hono and form libraries can use it. The file imports only `valibot`, a dependency of urn-forge.
 - **Prove** with `urn-forge verify`: the core has a function for each operation, the shell calls it only through the harness, a scenario covers each output and each rule, and the generated files are current.
 - **Compare** two manifests with `urn-forge diff`: each change is breaking or compatible for callers, judged by semver.
-- **Store** objects in Postgres: an optional schema with a `CHECK` constraint for each rule that SQL can state.
+- **Store** objects in Postgres: an optional schema with a column for each value, a child table for each list, and a `CHECK` constraint for each rule that SQL can state. A store file gives the statements that write and read the rows, for your own driver.
 
 ## Start
 

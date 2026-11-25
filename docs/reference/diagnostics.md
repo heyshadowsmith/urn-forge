@@ -20,11 +20,15 @@ An `error` stops the command. A `warning` does not.
 | `config-unreadable` | `--config` names a file that does not exist | Correct the path |
 | `config-invalid` | The config does not load, or an option is wrong | Correct the option that the message names. Refer to [The configuration file](./configuration) |
 | `postgres-config` | An entry of `postgres` names a table, a property or a reference that is not correct | Correct the entry. Refer to [The Postgres schema](./postgres-schema) |
+| `postgres-column` | A table of `postgres` has two parts that give one column name, a table or a column name longer than 63 bytes, or a list of lists | Rename a property, give it a shorter name, or put the inner list in an object |
 
 ```
 nothere.yaml  error  manifest-unreadable  the manifest does not exist
 bad.config.ts  error  config-invalid  config.coverage must be 'warn' or 'error'
 urn-forge.config.ts  error  postgres-config  postgres.tables.0: parcel has no identifier; a table needs one for its primary key
+urn-forge.config.ts  error  postgres-column  postgres.tables.order__grid: grid is a list of lists, which is not a table of Postgres
+urn-forge.config.ts  error  postgres-column  postgres.tables.order: two parts give the column contact_email
+urn-forge.config.ts  error  postgres-column  postgres.tables.order__the_sizes_that_the_buyer_asks_for_in_the_order_of_the_shop: order__the_sizes_that_the_buyer_asks_for_in_the_order_of_the_shop is longer than 63 bytes, the most that Postgres takes for a name
 ```
 
 ## The shape of the manifest

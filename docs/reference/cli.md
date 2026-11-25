@@ -103,6 +103,21 @@ npx urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>]
 wrote      src/generated/domain.generated.ts
 ```
 
+With `postgres` in the config, `compile` writes three files. In the root of the urn-forge repository, this command compiles the booking fixture:
+
+```bash
+node packages/urn-forge/bin/urn-forge.js compile --config packages/urn-forge/tests/fixtures/booking/urn-forge.config.ts
+```
+
+The command shows this output:
+
+```
+packages/urn-forge/tests/fixtures/booking/domain.manifest.yaml:124  warning  deprecated-use  booking uses the deprecated definition note
+unchanged  packages/urn-forge/tests/fixtures/booking/generated/domain.generated.ts
+unchanged  packages/urn-forge/tests/fixtures/booking/generated/schema.generated.sql
+unchanged  packages/urn-forge/tests/fixtures/booking/generated/domain.store.generated.ts
+```
+
 ## verify
 
 ```bash

@@ -27,7 +27,7 @@ A path in the config is relative to the config file. A path of a flag on the com
 | `tsconfig` | `tsconfig.json` | `verify` | The tsconfig of gate 1 |
 | `shell` | none | `verify` | A list of files and folders of the shell. Gate 2 checks them for calls that skip the harness |
 | `coverage` | `'warn'` | `verify` | `'warn'` or `'error'`: whether a gap in the scenarios is a warning or an error of gate 3 |
-| `postgres` | none | `compile`, `verify` | Write a Postgres schema. Refer to [The Postgres schema](./postgres-schema) |
+| `postgres` | none | `compile`, `verify` | Write a Postgres schema, `schema.generated.sql`, and the store file, `domain.store.generated.ts`. Refer to [The Postgres schema](./postgres-schema) |
 
 `shell` and `postgres` have no flag. Only the config sets them.
 

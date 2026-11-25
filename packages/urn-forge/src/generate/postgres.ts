@@ -1,16 +1,16 @@
 /**
- * The Postgres schema of the objects that the config names as tables, `schema.generated.sql`. It is
- * a schema only: no runtime code. Each table has a column for each property and the identifier as its
- * primary key. A property that is a list or an embedded object is a JSONB column. The rules that SQL
- * can say are CHECK constraints; a comment names each rule that it cannot say, which the harness
- * checks. The config adds foreign keys (references) and unique values (unique).
+ * The Postgres schema of the objects that the config names as tables, `schema.generated.sql`. Each
+ * table is keyed by its identifier. An embedded object is columns, and a list is a child table
+ * (src/generate/tables.ts). The rules that SQL can say are CHECK constraints, UNIQUE constraints, or
+ * constraint triggers that count the rows of a list; a comment names each rule that SQL cannot say,
+ * which the harness checks. The config adds foreign keys (references) and unique values (unique).
  */
 import type { CelType } from '../cel/check.js';
 import type { Expr } from '../cel/parse.js';
-import { print } from '../cel/print.js';
 import type { PostgresConfig } from '../config.js';
 import type { Diagnostic } from '../diagnostics.js';
-import { requiredOf, type Model } from '../model.js';
+import type { Model } from '../model.js';
+import { allTables, buildTables, type Column, type Table, type TableProblem } from './tables.js';
 import type { Application } from '../rules.js';
 import { durationMs } from './emit-cel.js';
 
@@ -31,15 +31,36 @@ function sqlValue(value: unknown): string | undefined {
 
 class Untranslatable extends Error {}
 
+/** What a path below the value of a rule is in a table: a column, an embedded object, or a list. */
+type Part =
+  | { readonly kind: 'value'; readonly column: string }
+  | { readonly kind: 'object'; readonly columns: readonly string[] }
+  | { readonly kind: 'list'; readonly flag?: string };
+
 /**
- * A rule as SQL. `columns` gives the column of each property that `self.<property>` reads (or of
- * `self` itself), `args` the arguments. A form that SQL cannot say throws Untranslatable.
+ * A rule as SQL. `part` gives what a path below `self` is in the table (the empty path is `self`),
+ * `args` the arguments. A form that SQL cannot say throws Untranslatable.
  */
-function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, self: string | Readonly<Record<string, string>>, args: Readonly<Record<string, unknown>>): string {
+function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: readonly string[]) => Part | undefined, args: Readonly<Record<string, unknown>>): string {
+  /** The path of a chain `self.a.b`, or undefined. */
+  const pathOf = (e: Expr): string[] | undefined => {
+    if (e.kind === 'name') return e.name === 'self' ? [] : undefined;
+    if (e.kind === 'select') {
+      const operand = pathOf(e.operand);
+      return operand ? [...operand, e.field] : undefined;
+    }
+    return undefined;
+  };
+  const column = (e: Expr): string => {
+    const path = pathOf(e);
+    const found = path ? part(path) : undefined;
+    if (found?.kind !== 'value') throw new Untranslatable();
+    return ident(found.column);
+  };
   const sql = (e: Expr): string => {
     switch (e.kind) {
       case 'name': {
-        if (e.name === 'self' && typeof self === 'string') return ident(self);
+        if (e.name === 'self') return column(e);
         if (Object.hasOwn(args, e.name)) {
           const value = sqlValue(args[e.name]);
           if (value === undefined) throw new Untranslatable();
@@ -54,20 +75,19 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, self: string | Rea
         return literal(e.value);
       case 'bool':
         return e.value ? 'TRUE' : 'FALSE';
-      case 'list': {
-        const value = `ARRAY[${e.items.map(sql).join(', ')}]`;
-        return value;
-      }
-      case 'select': {
-        // Only a column of the table: self.<property> of a scalar property.
-        if (e.operand.kind === 'name' && e.operand.name === 'self' && typeof self !== 'string' && Object.hasOwn(self, e.field)) return ident(self[e.field]!);
-        throw new Untranslatable();
-      }
+      case 'list':
+        return `ARRAY[${e.items.map(sql).join(', ')}]`;
+      case 'select':
+        return column(e);
       case 'call':
         switch (e.fn) {
           case 'has': {
-            const select = e.args[0] as Expr & { kind: 'select' };
-            return `(${sql(select)} IS NOT NULL)`;
+            const path = pathOf(e.args[0]!);
+            const found = path ? part(path) : undefined;
+            if (found?.kind === 'value') return `(${ident(found.column)} IS NOT NULL)`;
+            if (found?.kind === 'object' && found.columns.length > 0) return `(${found.columns.map((c) => `${ident(c)} IS NOT NULL`).join(' OR ')})`;
+            if (found?.kind === 'list' && found.flag) return ident(found.flag);
+            throw new Untranslatable();
           }
           case 'size': {
             const target = e.target ?? e.args[0]!;
@@ -115,6 +135,11 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, self: string | Rea
   return sql(expr);
 }
 
+/** The SQL type of a column: a position (a key column with no definition) is an INTEGER. */
+function sqlType(column: Column): string {
+  return column.definition === undefined && column.base === 'integer' ? 'INTEGER' : SCALAR_TYPES[column.base]!;
+}
+
 const SCALAR_TYPES: Readonly<Record<string, string>> = { string: 'TEXT', integer: 'BIGINT', number: 'DOUBLE PRECISION', boolean: 'BOOLEAN' };
 
 /** The problems of the postgres config: tables that are not objects with an identifier, and wrong names. */
@@ -149,83 +174,185 @@ export function postgresProblems(model: Model, config: PostgresConfig): Diagnost
       for (const property of entry) if (!model.definitions[table]?.properties?.includes(property)) problem(['unique', table, i], `${property} is not a property of ${table}`);
     });
   }
+  if (problems.length === 0) {
+    const tableProblems: TableProblem[] = [];
+    buildTables(model, config.tables, tableProblems);
+    for (const problem of tableProblems) problems.push({ code: 'postgres-column', severity: 'error', path: ['postgres', 'tables', problem.table], message: problem.message });
+  }
   return problems;
 }
 
-/** The schema of the tables of the config. */
+/** The names of a schema that Postgres would cut: longer than 63 bytes. Constraints, functions and triggers too. */
+export function longNames(schema: string): string[] {
+  const names = new Set<string>();
+  for (const [, name] of schema.matchAll(/"((?:[^"]|"")+)"/g)) if (Buffer.byteLength(name!.replace(/""/g, '"')) > 63) names.add(name!);
+  return [...names];
+}
+
+/** The schema of the tables of the config: a table for each object, and a child table for each list. */
 export function postgresSchema(model: Model, applications: readonly Application[], config: PostgresConfig): string {
   const schema = ident(model.header.domain);
+  const qualified = (name: string): string => `${schema}.${ident(name)}`;
   const lines: string[] = [`CREATE SCHEMA IF NOT EXISTS ${schema};`];
   const rulesOf = (definition: string): Application[] => applications.filter((a) => a.place.kind === 'definition' && a.place.definition === definition);
-  // Each rule of a definition and of the definitions inside it, as `rule` or `rule of definition`.
-  const nestedRules = (start: string): string[] => {
-    const found: string[] = [];
-    const seen = new Set<string>();
-    const visit = (name: string): void => {
-      const d = model.definitions[name];
-      if (!d || seen.has(name)) return;
-      seen.add(name);
-      for (const a of rulesOf(name)) found.push(name === start ? a.rule.name : `${a.rule.name} of ${name}`);
-      if (d.root !== name) visit(d.type);
-      const root = model.definitions[d.root];
-      if (root?.items) visit(root.items);
-      root?.properties?.forEach(visit);
-    };
-    visit(start);
-    return found;
+  /** The definition, then each definition it is named as the type of. */
+  const chain = (name: string): string[] => {
+    const names: string[] = [];
+    for (let d = model.definitions[name]!; ; d = model.definitions[d.type]!) {
+      names.push(d.name);
+      if (d.root === d.name) break;
+    }
+    return names;
   };
-  for (const table of config.tables) {
-    const definition = model.definitions[table]!;
-    const required = requiredOf(definition);
+  const isStandard = (a: Application): boolean => a.owner !== model;
+  const triggers: string[] = [];
+
+  for (const table of allTables(buildTables(model, config.tables))) {
     const columns: string[] = [];
+    const keys: string[] = [];
     const checks: string[] = [];
     const notInSql: string[] = [];
-    const scalarColumns: Record<string, string> = {};
-    for (const property of definition.properties ?? []) {
-      const target = model.definitions[property]!;
-      const type = SCALAR_TYPES[target.base] ?? 'JSONB';
-      columns.push(`${ident(property)} ${type}${required.has(property) ? ' NOT NULL' : ''}`);
-      if (type !== 'JSONB') scalarColumns[property] = property;
-      // The rules of the property's definition, and of the definitions it is named as a type of.
-      const chain: string[] = [];
-      for (let d = target; ; d = model.definitions[d.type]!) {
-        chain.push(d.name);
-        if (d.root === d.name) break;
+
+    /** What a path below a part of the row is: a column, an embedded object, or a list. */
+    const partOf = (base: readonly string[]) => (path: readonly string[]): Part | undefined => {
+      const full = [...base, ...path];
+      const same = (p: readonly string[]): boolean => p.length === full.length && p.every((x, i) => x === full[i]);
+      if (table.kind === 'values') return path.length === 0 ? { kind: 'value', column: 'value' } : undefined;
+      const exact = table.columns.find((c) => same(c.path));
+      if (exact?.definition !== undefined) return { kind: 'value', column: exact.name };
+      const child = table.children.find((c) => same(c.list!.path));
+      if (child) return { kind: 'list', ...(child.list!.flag ? { flag: child.list!.flag } : {}) };
+      const inside = table.columns.filter((c) => c.definition !== undefined && c.path.length > full.length && full.every((x, i) => c.path[i] === x));
+      return inside.length > 0 ? { kind: 'object', columns: inside.map((c) => c.name) } : undefined;
+    };
+    const check = (name: string, application: Application, base: readonly string[], guard: string | undefined): void => {
+      try {
+        const rule = toSql(application.rule.expr, application.types, partOf(base), application.arguments);
+        checks.push(`CONSTRAINT ${ident(name)} CHECK (${guard ? `NOT ${guard} OR ` : ''}${rule})`);
+      } catch (error) {
+        if (!(error instanceof Untranslatable)) throw error;
+        notInSql.push(`${[...base].join('.') || table.definition}: ${application.rule.name}`);
       }
-      for (const name of chain) {
-        if (type === 'JSONB') {
-          // The rules of the column's value and of every value inside it: the harness checks them all.
-          notInSql.push(...nestedRules(name).map((r) => `${property}: ${r}`));
-          continue;
-        }
+    };
+
+    for (const column of [...table.parentKey, ...(table.kind === 'root' ? [] : [table.key.at(-1)!])]) {
+      columns.push(`${ident(column.name)} ${sqlType(column)} NOT NULL`);
+    }
+    for (const column of table.columns) {
+      columns.push(`${ident(column.name)} ${SCALAR_TYPES[column.base]}${column.notNull ? ' NOT NULL' : ''}`);
+      // The rules of the column's value.
+      if (column.definition === undefined) continue;
+      for (const name of chain(column.definition)) {
         for (const application of rulesOf(name)) {
-          try {
-            checks.push(`CONSTRAINT ${ident(`${table}_${property}_${application.rule.name}`)} CHECK (${toSql(application.rule.expr, application.types, property, application.arguments)})`);
-          } catch (error) {
-            if (!(error instanceof Untranslatable)) throw error;
-            notInSql.push(`${property}: ${application.rule.name}`);
+          check(`${table.name}_${column.name === 'value' ? 'value' : column.name}_${application.rule.name}`, application, column.path, undefined);
+        }
+      }
+    }
+    // The rules of each object of the row: the row itself, and each embedded object.
+    for (const object of table.objects) {
+      // An optional object is present when a column of one of its values is: not a flag of one of its lists.
+      const valueColumns = Object.values(object.columns).filter((name) => table.columns.some((c) => c.name === name && c.definition !== undefined));
+      const presence = object.optional && valueColumns.length > 0 ? `(${valueColumns.map((c) => `${ident(c)} IS NOT NULL`).join(' OR ')})` : undefined;
+      const prefix = object.path.length > 0 ? `${object.path.join('_')}_` : '';
+      for (const name of chain(object.definition)) {
+        for (const application of rulesOf(name)) {
+          if (application.rule.name === 'required' && isStandard(application)) {
+            // A required part of an optional object: present when the object is.
+            if (!presence) continue;
+            const required = (application.arguments['property_names'] as string[]).map((p) => partOf(object.path)([p])).filter((p): p is Part & { kind: 'value' } => p?.kind === 'value');
+            if (required.length > 0) checks.push(`CONSTRAINT ${ident(`${table.name}_${prefix}required`)} CHECK (NOT ${presence} OR (${required.map((p) => `${ident(p.column)} IS NOT NULL`).join(' AND ')}))`);
+            continue;
+          }
+          check(`${table.name}_${prefix}${application.rule.name}`, application, object.path, presence);
+        }
+      }
+    }
+    // The rules of the list of a child table.
+    const list = table.list;
+    let count: { min?: number; max?: number } | undefined;
+    if (list) {
+      for (const name of chain(list.definition)) {
+        for (const application of rulesOf(name)) {
+          const rule = application.rule.name;
+          if (isStandard(application) && rule === 'uniqueItems') {
+            const item = model.definitions[model.definitions[table.definition]!.root]!;
+            const identity = table.kind === 'values' ? ['value'] : item.identifier ? [item.identifier] : table.columns.map((c) => c.name);
+            keys.push(`CONSTRAINT ${ident(`${table.name}_uniqueItems`)} UNIQUE NULLS NOT DISTINCT (${[...table.parentKey.map((c) => c.name), ...identity].map(ident).join(', ')})`);
+          } else if (isStandard(application) && (rule === 'minItems' || rule === 'maxItems')) {
+            count = { ...count, [rule === 'minItems' ? 'min' : 'max']: application.arguments['count'] as number };
+          } else {
+            notInSql.push(`${list.path.join('.')}: ${rule}`);
           }
         }
       }
     }
-    for (const application of rulesOf(table)) {
-      if (application.rule.name === 'required' && application.owner !== model) continue; // NOT NULL
-      try {
-        checks.push(`CONSTRAINT ${ident(`${table}_${application.rule.name}`)} CHECK (${toSql(application.rule.expr, application.types, scalarColumns, application.arguments)})`);
-      } catch (error) {
-        if (!(error instanceof Untranslatable)) throw error;
-        notInSql.push(`${table}: ${application.rule.name}: ${print(application.rule.expr)}`);
+
+    const primary = table.kind === 'root' ? table.key : table.key;
+    keys.unshift(`CONSTRAINT ${ident(`${table.name}_pkey`)} PRIMARY KEY (${primary.map((c) => ident(c.name)).join(', ')})`);
+    if (list) {
+      const parent = list.parent;
+      keys.push(
+        `CONSTRAINT ${ident(`${table.name}_parent_fkey`)} FOREIGN KEY (${table.parentKey.map((c) => ident(c.name)).join(', ')}) REFERENCES ${qualified(parent.name)} (${parent.key.map((c) => ident(c.name)).join(', ')}) ON DELETE CASCADE`,
+      );
+    } else {
+      for (const [property, target] of Object.entries(config.references?.[table.name] ?? {})) {
+        const targetKey = model.definitions[target]!.identifier!;
+        keys.push(`CONSTRAINT ${ident(`${table.name}_${property}_fkey`)} FOREIGN KEY (${ident(property)}) REFERENCES ${qualified(target)} (${ident(targetKey)})`);
       }
+      for (const entry of config.unique?.[table.name] ?? []) keys.push(`CONSTRAINT ${ident(`${table.name}_${entry.join('_')}_unique`)} UNIQUE (${entry.map(ident).join(', ')})`);
     }
-    const keys = [`CONSTRAINT ${ident(`${table}_pkey`)} PRIMARY KEY (${ident(definition.identifier!)})`];
-    for (const [property, target] of Object.entries(config.references?.[table] ?? {})) {
-      const targetKey = model.definitions[target]!.identifier!;
-      keys.push(`CONSTRAINT ${ident(`${table}_${property}_fkey`)} FOREIGN KEY (${ident(property)}) REFERENCES ${schema}.${ident(target)} (${ident(targetKey)})`);
-    }
-    for (const entry of config.unique?.[table] ?? []) keys.push(`CONSTRAINT ${ident(`${table}_${entry.join('_')}_unique`)} UNIQUE (${entry.map(ident).join(', ')})`);
-    lines.push('', `CREATE TABLE ${schema}.${ident(table)} (`, [...columns, ...keys, ...checks].map((l) => `  ${l}`).join(',\n'), ');');
-    lines.push(`COMMENT ON TABLE ${schema}.${ident(table)} IS ${literal(definition.description)};`);
+    // A rule of the table's object that SQL cannot say, by its text.
+    lines.push('', `CREATE TABLE ${qualified(table.name)} (`, [...columns, ...keys, ...checks].map((l) => `  ${l}`).join(',\n'), ');');
+    const description = model.definitions[list ? list.definition : table.definition]!.description;
+    lines.push(`COMMENT ON TABLE ${qualified(table.name)} IS ${literal(description)};`);
     if (notInSql.length > 0) lines.push(`-- Not in SQL; the harness checks these rules: ${notInSql.join('; ')}`);
+
+    // The count of a list, and whether an optional list has rows: a trigger at the end of the transaction.
+    if (list && (count?.min || count?.max !== undefined || list.flag)) triggers.push(...countTrigger(qualified, table, count ?? {}));
   }
-  return `${lines.join('\n')}\n`;
+  return `${[...lines, ...triggers].join('\n')}\n`;
+}
+
+/** The functions and the constraint triggers that count the rows of a list for each parent. */
+function countTrigger(qualified: (name: string) => string, table: Table, count: { readonly min?: number; readonly max?: number }): string[] {
+  const list = table.list!;
+  const parent = list.parent;
+  const params = table.parentKey.map((c, i) => `k${i} ${sqlType(c)}`).join(', ');
+  const parentMatch = parent.key.map((c, i) => `${ident(c.name)} = k${i}`).join(' AND ');
+  const childMatch = table.parentKey.map((c, i) => `${ident(c.name)} = k${i}`).join(' AND ');
+  const fn = qualified(`${table.name}_count`);
+  const raise = (constraint: string, message: string): string =>
+    `RAISE EXCEPTION '%', ${literal(message)} USING ERRCODE = 'check_violation', CONSTRAINT = ${literal(constraint)}, TABLE = ${literal(table.name)};`;
+  const body = [
+    `CREATE FUNCTION ${fn}(${params}) RETURNS void LANGUAGE plpgsql AS $$`,
+    'DECLARE n integer; listed boolean;',
+    'BEGIN',
+    `  SELECT ${list.flag ? ident(list.flag) : 'TRUE'} INTO listed FROM ${qualified(parent.name)} WHERE ${parentMatch};`,
+    '  IF NOT FOUND THEN RETURN; END IF;',
+    `  SELECT count(*) INTO n FROM ${qualified(table.name)} WHERE ${childMatch};`,
+    ...(list.flag ? [`  IF NOT listed AND n > 0 THEN ${raise(`${table.name}_listed`, `${list.flag} is false, and the list has rows`)} END IF;`] : []),
+    ...(count.min ? [`  IF listed AND n < ${count.min} THEN ${raise(`${table.name}_minItems`, `Must have at least ${count.min} items`)} END IF;`] : []),
+    ...(count.max !== undefined ? [`  IF n > ${count.max} THEN ${raise(`${table.name}_maxItems`, `Must have at most ${count.max} items`)} END IF;`] : []),
+    'END $$;',
+  ];
+  const args = (row: string, columns: readonly Column[]): string => columns.map((c) => `${row}.${ident(c.name)}`).join(', ');
+  const childFn = qualified(`${table.name}_count_rows`);
+  const parentFn = qualified(`${table.name}_count_parent`);
+  return [
+    '',
+    ...body,
+    `CREATE FUNCTION ${childFn}() RETURNS trigger LANGUAGE plpgsql AS $$`,
+    'BEGIN',
+    `  IF TG_OP <> 'INSERT' THEN PERFORM ${fn}(${args('OLD', table.parentKey)}); END IF;`,
+    `  IF TG_OP <> 'DELETE' THEN PERFORM ${fn}(${args('NEW', table.parentKey)}); END IF;`,
+    '  RETURN NULL;',
+    'END $$;',
+    `CREATE CONSTRAINT TRIGGER ${ident(`${table.name}_count`)} AFTER INSERT OR UPDATE OR DELETE ON ${qualified(table.name)} DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ${childFn}();`,
+    `CREATE FUNCTION ${parentFn}() RETURNS trigger LANGUAGE plpgsql AS $$`,
+    'BEGIN',
+    `  PERFORM ${fn}(${args('NEW', parent.key)});`,
+    '  RETURN NULL;',
+    'END $$;',
+    `CREATE CONSTRAINT TRIGGER ${ident(`${table.name}_count_parent`)} AFTER INSERT OR UPDATE ON ${qualified(parent.name)} DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ${parentFn}();`,
+  ];
 }

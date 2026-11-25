@@ -26,8 +26,8 @@ The types are the types of JSON Schema.
 | `integer` | A safe integer | `number` | `int` | `BIGINT` |
 | `number` | A finite number | `number` | `double` | `DOUBLE PRECISION` |
 | `boolean` | `true` or `false` | `boolean` | `bool` | `BOOLEAN` |
-| `object` | A map of properties | `interface` | the object | `JSONB` when it is a property |
-| `array` | A list of items | `readonly T[]` | `list(T)` | `JSONB` |
+| `object` | A map of properties | `interface` | the object | A column for each property, when it is a property |
+| `array` | A list of items | `readonly T[]` | `list(T)` | A child table |
 
 There is no type for a date, a time or a decimal:
 
