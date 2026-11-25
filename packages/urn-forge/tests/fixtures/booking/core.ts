@@ -1,4 +1,4 @@
-// The core of the booking fixture: a confirmed booking is seated; any other is refused.
+// The core of the booking example: a confirmed booking is seated; any other is refused.
 import { answer, type DomainCore } from './generated/domain.generated.js';
 
 export const core = {

@@ -1,10 +1,12 @@
-# Write rules and refusals
+# Rules and refusals
+
+The agent writes the rules and the refusals into the contract. Read this page to review them, or to write one yourself.
 
 A rule states a condition that must be true. You apply a rule by its name to a definition or an output. A refusal is an output that says no. The [manifest reference](../reference/manifest#rules) gives the full language. After each change, run `npx urn-forge compile`, then `npx urn-forge verify`. Gate 3 names each new rule or output that does not have a scenario.
 
 ## Write a rule
 
-A standard rule is one of the keywords of JSON Schema. Put it in the `rules` of a definition, with no argument (`- uniqueItems`) or with an argument (`- minimum: 1`). For other conditions, declare your own rule one time, in the top-level `rules` section. Then apply it by its name. In a rule of a definition, `self` is the value. This is from the booking example:
+A standard rule is a common check that urn-forge includes, such as `minimum`, `maxLength` or `enum`. Put it in the `rules` of a definition, with no argument (`- uniqueItems`) or with an argument (`- minimum: 1`). For other conditions, declare your own rule one time, in the top-level `rules` section. Then apply it by its name. In a rule of a definition, `self` is the value. This is from the booking example:
 
 ```yaml
 rules:
@@ -46,7 +48,7 @@ The harness checks these rules on each answer. If the answer of a core breaks on
 
 ## Declare a refusal
 
-urn-forge has no special construct for an error. A refusal is an ordinary object in the `output` list of the operation:
+urn-forge has no special construct for an error. A refusal is an ordinary object in the `output` list of the operation. You decide the refusal and when it applies. The agent does these steps, and you check steps 1, 3 and 4:
 
 1. Add an object for the refusal. Give it the properties that the caller must have to understand the refusal.
 2. Add it to the `output` list.
@@ -85,9 +87,9 @@ The core reads no database, no session and no clock. If an operation uses one of
 
 The record is the state before the call, and the output is the state after the call. A rule of an output can compare them, as `keeps_the_party` does. If the record can be absent, do not put it in `required`. Then add an output whose rule reads `!has(input.stored_booking)`.
 
-**The time.** Declare the time as a `string` with `format: date-time`. Compare it in rules: `timestamp(input.now) <= timestamp(input.stored_booking.starts_at) - duration('2h')`. A scenario gives the time in a cell, so that the core and the scenarios are deterministic.
+**The time.** Declare the time as a `string` with `format: date-time`. Compare it in rules: `timestamp(input.now) <= timestamp(input.stored_booking.starts_at) - duration('2h')`. A scenario gives the time in a cell, so that the core and the scenarios give the same result on each run.
 
-**The caller.** Make an object for the caller, as the shell authenticated the caller. Put the object in the input. Write rules that tell who can do the operation. Add an output, such as `forbidden`, for a caller who cannot do it.
+**The caller.** Make an object for the caller, as the shell identified the caller. Put the object in the input. Write rules that tell who can do the operation. Add an output, such as `forbidden`, for a caller who cannot do it.
 
 ## Return a record and an event
 

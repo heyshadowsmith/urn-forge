@@ -1,4 +1,6 @@
-# Store objects in Postgres
+# Objects in Postgres
+
+Turn this on when your application stores the objects of the domain in Postgres. The agent then writes the shell that runs the statements.
 
 urn-forge can write a Postgres schema from the manifest, with the rules as constraints. The database then rejects a bad write from all code. urn-forge also writes a store file. The store file has pure functions that give the statements to write and read the rows. urn-forge writes no migrations, and it never connects to a database. Your shell controls the driver, the transaction and the locks.
 
@@ -12,7 +14,7 @@ Add `postgres` to `urn-forge.config.ts`, with the objects that become tables. Ea
 | --- | --- |
 | `tables` | The object definitions that become tables |
 | `references` | For a table, a property that holds the identifier of another table. It becomes a `FOREIGN KEY` |
-| `unique` | For a table, lists of properties that two rows cannot share: `unique: { booking: [['restaurant_ref', 'starts_at']] }` |
+| `unique` | For a table, lists of properties that two rows cannot share: for example `unique: { customer: [['email']] }` (a made-up example: no two customers have the same email) |
 
 Then `npx urn-forge compile` also writes `schema.generated.sql` and `domain.store.generated.ts`, and gate 4 checks them. Apply the schema with your migration tool.
 

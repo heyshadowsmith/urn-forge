@@ -1,6 +1,6 @@
 # The CLI, the config and diagnostics
 
-Run `npx urn-forge <command>` in a project where urn-forge is installed.
+Run `npx urn-forge <command>` in a project where urn-forge is installed. These are the first lines of `npx urn-forge --help`:
 
 ```
 urn-forge 0.2.0
@@ -14,7 +14,7 @@ Usage:
 
 | Command | What it does |
 | --- | --- |
-| `init` | Writes a starter project that splits a bill. This project passes `verify` with `coverage: 'error'`. `init` sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. It also writes `AGENTS.md`, the instructions for coding agents, `CLAUDE.md`, which points at `AGENTS.md`, and the Claude Code skill `.claude/skills/urn-forge/SKILL.md`; it keeps each of these three that is already there. If one of its other files is already there, it writes nothing. The default values of `--namespace` and `--domain` are `app` and `starter` |
+| `init` | Writes a starter project that splits a bill. This project passes `verify` with `coverage: 'error'`. `init` sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. It also writes `AGENTS.md`, the instructions for coding agents, and the Claude Code skill `.claude/skills/urn-forge/SKILL.md`; it keeps each of these two that is already there. If one of its other files is already there, it writes nothing. The default values of `--namespace` and `--domain` are `app` and `starter` |
 | `compile` | Writes the generated files, and shows one line for each file: `wrote`, `unchanged`, or `removed`. If the manifest has an error, it writes nothing |
 | `verify` | Compiles in memory and runs the [gates](#the-gates). It writes nothing, and it does not run the scenarios. `cucumber-js` runs them. `--base <ref>` also runs gate 5 against a git ref |
 | `diff` | Compares two manifests. Refer to [Change the contract](../how-to/change-the-contract). It does not read the config |
@@ -33,7 +33,11 @@ With `--format json`, `compile`, `verify` and `diff` write one JSON object to st
 | `gates`, `warnings` | `verify` | Each gate that ran: `gate`, `name`, `pass` and `summary`; the number of warnings |
 | `from`, `to`, `breaking`, `changes`, `allowed`, `why` | `diff` | The versions, the number of breaking changes, each change (`class`, `place`, `message`), and the verdict of the versions |
 
-A wrong command line is a problem with the code `usage`. Refer to [Work with a coding agent](../how-to/work-with-a-coding-agent) for an example.
+A wrong command line is a problem with the code `usage`:
+
+```json
+{"ok":false,"problems":[{"code":"usage","severity":"error","file":null,"line":null,"path":null,"message":"Unknown option '--nope'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--nope\"","fix":"Run urn-forge --help, and call the command with the arguments and options that it shows."}]}
+```
 
 ## The config
 
@@ -48,9 +52,9 @@ urn-forge reads `urn-forge.config.ts` from the current folder, or from the file 
 | `tsconfig` | `tsconfig.json` | The tsconfig of gate 1 |
 | `shell` | none | Files and folders of the shell, for gate 2 |
 | `coverage` | `'warn'` | With `'error'`, a gap in the scenarios fails gate 3 |
-| `postgres` | none | Writes a Postgres schema and a store file. Refer to [Store objects in Postgres](../how-to/store-in-postgres) |
+| `postgres` | none | Writes a Postgres schema and a store file. Refer to [Objects in Postgres](../how-to/store-in-postgres) |
 
-Your core and your shell import only the generated file. The project also uses `urn-forge/config`, `urn-forge/cucumber` (`registerSteps`) and `urn-forge/register-tsx`. `urn-forge/register-tsx` lets Cucumber load TypeScript. For your own tools, `urn-forge` exports `loadManifest`, `compileManifest`, `generate` and the rule parser. Because the entry points are TypeScript source, run code that imports them through a loader such as `tsx`.
+Your core and your shell import only the generated file. The project also uses `urn-forge/config`, `urn-forge/cucumber` (`registerSteps`) and `urn-forge/register-tsx`. `urn-forge/register-tsx` lets `npx cucumber-js` load TypeScript. For your own tools, `urn-forge` exports `loadManifest`, `compileManifest`, `generate` and the rule parser. Because the entry points are TypeScript source, run code that imports them through a loader such as `tsx`.
 
 ## The gates
 
@@ -68,7 +72,7 @@ Each problem of a gate is an indented line below the gate, with its fix on the n
 | --- | --- | --- |
 | 1. Completeness | `tsc` fails over the core with the tsconfig of the project, or no export of the core `satisfies DomainCore` | `type-error`, `core-not-satisfying`, `core-not-found`, `tsconfig-unreadable` |
 | 2. Boundary | A shell file calls a function of the core directly, or a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` | `direct-call`, `suppressed-check` |
-| 3. Gherkin | A step names a part that the manifest does not have. A feature is not valid Gherkin. No scenario runs an operation, ends with an output, or breaks a rule of a definition | `unknown-name`, `feature-syntax`, `uncovered-operation`, `uncovered-output`, `uncovered-rule` |
+| 3. Gherkin (the scenarios) | A step names a part that the manifest does not have. A `.feature` file does not parse. No scenario runs an operation, ends with an output, or breaks a rule of a definition | `unknown-name`, `feature-syntax`, `uncovered-operation`, `uncovered-output`, `uncovered-rule` |
 | 4. Drift | A generated file is not the same as the file that `compile` writes now. A generated file is not there. A generated file is there, but `compile` does not write it now | `drift` |
 | 5. Contract | Compared with the manifest and the features at the git ref: a rule, an output or a scenario is not there, or a rule accepts more, and the version does not allow it. A new major version, a pre-release or another `0.x` version allows it; then each change is a warning | `removed-rule`, `wider-rule`, `removed-output`, `removed-scenario`, `base-unreadable` |
 
@@ -105,7 +109,7 @@ Each code has one fix, which the output shows on the line below the problem. `no
 | `standard-name` | A rule of the manifest has the name of a standard rule |
 | `rule-argument` | An argument does not agree with the parameters of the rule |
 | `invalid-message` | A message names `{x}`, but `x` is not a parameter |
-| `rule-syntax` | The rule does not parse, or uses CEL that is not in [the subset](./manifest#the-rule-language). urn-forge gives this error at the line of `rule:`, with the column. It gives the other rule errors at the line where you apply the rule |
+| `rule-syntax` | The rule does not parse, or uses a form that is not in [the rule language](./manifest#the-rule-language). urn-forge gives this error at the line of `rule:`, with the column. It gives the other rule errors at the line where you apply the rule |
 | `rule-type` | A type in the rule is wrong, the rule does not give a `bool`, or `has()` reads a required property |
 | `rule-guard` | The rule reads an optional property without `has()` |
 | `rule-scope` | The rule reads a name that is not available where you apply the rule, such as `output` in a rule of a definition |

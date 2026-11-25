@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'urn-forge',
   description:
-    'Write the contract of a domain in one YAML manifest: definitions, rules and operations. urn-forge generates Valibot schemas, types and a harness around your code. CI fails when the code, the scenarios or a change break the contract.',
+    'Coding agents write the code. You own the contract. urn-forge checks each input and each answer of the code against the rules of a domain, and fails CI when the code, the tests or a change break a rule.',
   cleanUrls: true,
   appearance: 'dark',
   head: [
@@ -23,7 +23,7 @@ export default defineConfig({
     logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: '' },
     nav: [
       { text: 'Tutorial', link: '/tutorials/first-domain', activeMatch: '/tutorials/' },
-      { text: 'Guides', link: '/how-to/rules-and-refusals', activeMatch: '/how-to/' },
+      { text: 'Guides', link: '/how-to/work-with-a-coding-agent', activeMatch: '/how-to/' },
       { text: 'Reference', link: '/reference/manifest', activeMatch: '/reference/' },
       { text: 'Why', link: '/explanation/why-urn-forge', activeMatch: '/explanation/' },
     ],
@@ -32,19 +32,25 @@ export default defineConfig({
         text: 'Start',
         items: [
           { text: 'Overview', link: '/' },
-          { text: 'Tutorial: from init to a strict verify', link: '/tutorials/first-domain' },
+          { text: 'Tutorial: build a domain with a coding agent', link: '/tutorials/first-domain' },
         ],
       },
       {
-        text: 'Guides',
+        text: 'Your work',
         items: [
-          { text: 'Write rules and refusals', link: '/how-to/rules-and-refusals' },
-          { text: 'Write scenarios', link: '/how-to/write-scenarios' },
-          { text: 'Call an operation', link: '/how-to/call-an-operation' },
-          { text: 'Run verify in CI', link: '/how-to/run-verify-in-ci' },
+          { text: 'Set up a project for an agent', link: '/how-to/work-with-a-coding-agent' },
+          { text: "Review an agent's change", link: '/how-to/review-an-agents-change' },
+          { text: 'Run the gates in CI', link: '/how-to/run-verify-in-ci' },
           { text: 'Change the contract', link: '/how-to/change-the-contract' },
-          { text: 'Store objects in Postgres', link: '/how-to/store-in-postgres' },
-          { text: 'Work with a coding agent', link: '/how-to/work-with-a-coding-agent' },
+        ],
+      },
+      {
+        text: 'The parts of a domain',
+        items: [
+          { text: 'Rules and refusals', link: '/how-to/rules-and-refusals' },
+          { text: 'Scenarios', link: '/how-to/write-scenarios' },
+          { text: 'Calls to an operation', link: '/how-to/call-an-operation' },
+          { text: 'Objects in Postgres', link: '/how-to/store-in-postgres' },
         ],
       },
       {

@@ -2,7 +2,7 @@
  * `urn-forge init`: writes a starter project into a directory, from templates/starter/. The starter is
  * a small domain (split a bill) whose scenarios cover every operation, output and rule, so `verify`
  * passes with no warning before the first change. It writes no file when a starter file exists
- * already, except AGENTS.md and CLAUDE.md, the instructions for coding agents: it keeps these when
+ * already, except AGENTS.md and the skill, the instructions for coding agents: it keeps these when
  * they exist. It makes package.json an ES module package with three scripts, and keeps the rest of it.
  */
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
@@ -20,7 +20,6 @@ const SKILL_FILE = '.claude/skills/urn-forge/SKILL.md';
  */
 const INSTRUCTIONS = new Map([
   ['AGENTS.md', 'point it at node_modules/urn-forge/AGENTS.md'],
-  ['CLAUDE.md', 'point it at node_modules/urn-forge/AGENTS.md'],
   [SKILL_FILE, 'compare it with node_modules/urn-forge/skills/urn-forge/SKILL.md'],
 ]);
 
