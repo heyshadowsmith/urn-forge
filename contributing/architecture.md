@@ -155,7 +155,7 @@ Gate 3 reads the step texts from `STEPS` in `src/gherkin/steps.ts`. Thus the gat
 
 ## The public API: `index.ts`
 
-`src/index.ts` exports the functions and types that [The package API](../docs/reference/public-api.md) describes. The package also exports `urn-forge/cucumber`, `urn-forge/config` and `urn-forge/register-tsx` (`package.json`). If you change an export, change that page too.
+`src/index.ts` exports the functions and types that [The package API](../docs/how-to/call-an-operation.md) describes. The package also exports `urn-forge/cucumber`, `urn-forge/config` and `urn-forge/register-tsx` (`package.json`). If you change an export, change that page too.
 
 ## The tests
 
@@ -183,5 +183,5 @@ Most tests read [the booking fixture](../packages/urn-forge/tests/fixtures/booki
 - [Dogfooding](./dogfooding.md)
 - [Add a standard rule](./add-a-standard-rule.md)
 - [Add a form to the CEL subset](./add-a-cel-form.md)
-- [The rule language](../docs/reference/rule-language.md)
-- [How urn-forge proves it](../docs/explanation/how-urn-forge-proves-it.md)
+- [The rule language](../docs/reference/manifest.md)
+- [How urn-forge proves it](../docs/explanation/why-urn-forge.md)

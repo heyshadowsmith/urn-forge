@@ -1,17 +1,22 @@
 # Write scenarios
 
-Write Gherkin scenarios that run your operations through the harness, and that break the rules of your definitions. urn-forge gives the steps. You write only the `.feature` files.
+Scenarios are Gherkin `.feature` files. urn-forge gives the steps for all manifests, and you write only the features. Each step names an operation, an output, a definition or a rule. Gate 3 of `verify` reads the same names to find gaps.
 
-## Before you start
+## The steps
 
-- `features/support/steps.ts` calls `registerSteps`. Refer to [Set up a project](set-up-a-project).
+| Step | What it does |
+| --- | --- |
+| `When I run "<operation>" with:` | Makes the input from the table, and runs the operation through the harness |
+| `When I check a "<definition>" with:` | Makes a value from the table, and checks it against the definition. You can also write `an` |
+| `Then the output is "<object>"` | The operation answered this output |
+| `Then the output is "<object>":` | The same, and the output has the values of the table. The step compares only the properties in the table |
+| `Then the input is rejected by "<rule>" of "<definition>"` | The harness rejected the input, with this rule of this definition |
+| `Then the value is rejected by "<rule>" of "<definition>"` | The check rejected the value, with this rule of this definition |
+| `Then the value is accepted` | The check accepted the value |
+
+`the output` and `the input` come after `When I run`. `the value` comes after `When I check`. `<rule>` can also be `type` or `properties`, which are the rules of the structure of a value.
 
 ## Run an operation
-
-1. Start the scenario with `When I run "<operation>" with:` and a table.
-2. In the header row, write the names of the properties of the input. For a property of an embedded object, write a path with a dot, for example `stored_booking.state`.
-3. In the second row, write the values. An empty cell sends no value.
-4. End the scenario with `Then the output is "<object>"`. To also compare values, add a colon and a table: `Then the output is "<object>":`.
 
 ```gherkin
   Scenario: An express parcel over 5000 grams is refused
@@ -23,21 +28,29 @@ Write Gherkin scenarios that run your operations through the harness, and that b
       | 5001         |
 ```
 
-The table of the output compares only the properties that it names. A table has a header row and one row of values.
+A table has a header row of properties and one row of values. A header with a dot, such as `stored_booking.state`, is a property of an embedded object. An empty cell gives no value. The steps read each cell by the type of its definition:
 
-## Break a rule of the input
+| Type | Cells |
+| --- | --- |
+| `string` | `domestic`; `""` for the empty string; a cell in double quotes is JSON: `"a, b"` |
+| `integer`, `number` | `5001`, `-1`, `2.5` |
+| `boolean` | `true`, `false` |
+| `array` | JSON (`[{"course": "main", "amount": 1500}]`), or items with commas between them: `[Ada, Grace]`; `[]` is empty |
+| `object` | JSON: `{"email": "ada@example.com"}` |
 
-End the scenario with `Then the input is rejected by "<rule>" of "<definition>"`. The step passes if the harness refused the input before the core ran, and one failure has that rule and that definition.
+If a cell is not a value of its type, the step sends it as text. For example, `abc` in an `integer` column breaks the rule `type`.
 
-Use a `Scenario Outline` to break many rules in one scenario:
+## Break the rules of the input
+
+A `Scenario Outline` breaks many rules in one place. This is from the starter:
 
 <<< @/../packages/urn-forge/templates/starter/features/split.feature{19-32 gherkin}
 
-The `<definition>` is the definition that applies the rule. In the example, `minLength` is a rule of `person`, the item of the list `people`.
+The definition in the step is the definition that applies the rule. For example, `minLength` is a rule of `person`, the item of the list `people`.
 
 ## Break a rule that no input reaches
 
-Some rules apply only to an output, for example the `required` rule of a refusal. Check a value of the definition, without the core:
+The rules of the definition of an output apply only to answers. An example is the `required` rule of a refusal. To break such a rule, check a value directly:
 
 ```gherkin
   Scenario: A refusal needs the weight
@@ -47,44 +60,20 @@ Some rules apply only to an output, for example the `required` rule of a refusal
     Then the value is rejected by "required" of "too_heavy_for_express"
 ```
 
-To show that a value is valid, end with `Then the value is accepted`.
+## Cover the manifest, then test the edges
 
-## Write the cells
+Gate 3 asks for a scenario that runs each operation, and a scenario that ends with each output. It also asks for a scenario that breaks each rule that a definition applies. Scenarios for the rules of outputs and operations are not necessary, because the harness checks these rules on each answer. A gap is a warning until you set `coverage: 'error'` in `urn-forge.config.ts`.
 
-The step reads each cell by the type of the property:
+Gate 3 does not ask for the values at the edges of a rule, where a core is wrong most frequently. For a weight from 1 to 30000, send `1` and `30000`. For a limit of 5000 grams, send `5000`. [Part 4 of the tutorial](../tutorials/first-domain#test-the-edges) shows a bug that only a scenario at an edge finds.
 
-| Type | Write | Example |
-| --- | --- | --- |
-| `string` | The text. For an empty string, write `""`. A cell in double quotes is read as JSON | `domestic` |
-| `integer`, `number` | The number | `5001` |
-| `boolean` | `true` or `false` | `true` |
-| `array` | JSON, or the items between commas in brackets | `[Ada, Grace]`, `[1, 2]`, `[{"course": "main", "amount": 1500}]` |
-| `object` | JSON, or one column for each property with a dot path | `{"email": "ada@example.com"}` |
+## Run them
 
-A cell that is not a value of its type goes to the harness as text, so the harness reports the failure.
+`npx cucumber-js` runs the scenarios through the harness, and finds a wrong value. A failed step tells what is different, such as `quote.price_cents is 601, not 600`. `npx urn-forge verify` reads the scenarios but does not run them, and finds a scenario that is not there. CI runs the two commands.
 
-## Cover the manifest
+## The step file
 
-Gate 3 of `verify` reads your features. It asks for:
+`urn-forge init` writes `features/support/steps.ts`, which connects the steps to your generated file and your core. Call `registerSteps` one time:
 
-- a scenario that runs each operation;
-- a scenario that ends with each output of each operation;
-- a scenario that breaks each rule that each definition applies.
+<<< @/../packages/urn-forge/templates/starter/features/support/steps.ts
 
-The rules of an output or of an operation need no scenario that breaks them. The harness checks them on each answer of each scenario that runs the operation.
-
-Gate 3 does not ask for the values at the edges of a rule. Add them yourself, for example the weights `1` and `30000` for a weight from 1 to 30000. [Tutorial 3](../tutorials/strict-coverage) shows why.
-
-## Result
-
-`npx cucumber-js` runs the scenarios, and `npx urn-forge verify` shows the coverage on the line of gate 3:
-
-```
-gate 3  gherkin       PASS  1 feature(s), 15 scenario(s), 1/1 operation(s) run, 7 rule(s) broken
-```
-
-## Related pages
-
-- [Gherkin steps](../reference/gherkin-steps)
-- [Verification gates](../reference/verification-gates)
-- [Tutorial: make the domain strict](../tutorials/strict-coverage)
+Cucumber must load TypeScript first. For this reason, the `cucumber.json` of the starter imports `register-tsx.mjs` before the steps.

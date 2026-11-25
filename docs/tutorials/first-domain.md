@@ -1,110 +1,68 @@
-# Build the shipping domain
+# Tutorial: from init to a strict verify
 
-In this tutorial, you build a small domain in a new project. The domain is `shipping`. It has one operation, `quote_shipping`, that gets a parcel and gives the price to send it. At the end, `urn-forge verify` shows that the generated code, the core and the scenarios agree with the manifest.
+In this tutorial, you make a domain, `shipping`, with one operation, `quote_shipping`. The operation takes a parcel and gives the price to send it. Then you add a refusal. Then you make `verify` fail if the scenarios have a gap. The tutorial takes about 20 minutes.
 
-Before you start, do the steps in [Tutorials](./).
+The result of each part is in [`packages/urn-forge/tutorial/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/) of the repository: `1-first-domain`, `2-declared-errors` and `3-strict-coverage`. If one of your results is different, compare your files with these files. The time on the last line of Cucumber is different on each run.
 
-## 1. Make the project
+## 1. Start a project
 
-1. Make a folder for the project, and go into it:
+You must have Node.js 22 or later. urn-forge is not on npm yet. In a clone of the repository, run `npm ci`, then `npm run pack:tarball`. This writes `urn-forge-0.2.0.tgz`. Then make your project:
 
-   ```bash
-   mkdir my-shipping
-   cd my-shipping
-   ```
+```bash
+mkdir my-shipping
+cd my-shipping
+npm init -y
+npm install /path/to/urn-forge-0.2.0.tgz
+npx urn-forge init --namespace demo --domain shipping
+```
 
-2. Make a `package.json`:
+```
+wrote      cucumber.json
+wrote      domain.manifest.yaml
+wrote      features/split.feature
+wrote      features/support/steps.ts
+wrote      register-tsx.mjs
+wrote      src/core.ts
+wrote      tsconfig.json
+wrote      urn-forge.config.ts
+updated    package.json
+next: npm install, then npx urn-forge compile, then npx urn-forge verify
+```
 
-   ```bash
-   npm init -y
-   ```
+The starter is a complete domain that splits a bill. Run `npx urn-forge compile`, then `npx urn-forge verify`. The last line is `verify passed (gates 1, 2, 3, 4)`. Now replace the bill with shipping in four parts: the config, the manifest, the core and the feature. Run all commands from `my-shipping`.
 
-3. Install urn-forge. Give the path of your tarball:
+## 2. Build the shipping domain
 
-   ```bash
-   npm install /path/to/urn-forge-0.2.0.tgz
-   ```
+### The config
 
-4. Write a starter project:
-
-   ```bash
-   npx urn-forge init --namespace demo --domain shipping
-   ```
-
-   The command shows this output:
-
-   ```
-   wrote      cucumber.json
-   wrote      domain.manifest.yaml
-   wrote      features/split.feature
-   wrote      features/support/steps.ts
-   wrote      register-tsx.mjs
-   wrote      src/core.ts
-   wrote      tsconfig.json
-   wrote      urn-forge.config.ts
-   updated    package.json
-   next: npm install, then npx urn-forge compile, then npx urn-forge verify
-   ```
-
-The starter project splits a bill. You replace its domain with the shipping domain. You change four files: `urn-forge.config.ts`, `domain.manifest.yaml`, `src/core.ts` and the feature. Keep the other files. All the commands in the tutorials run from the `my-shipping` folder.
-
-## 2. Write the configuration file
-
-Replace the content of `urn-forge.config.ts` with this content:
+Replace `urn-forge.config.ts`:
 
 <<< @/../packages/urn-forge/tutorial/1-first-domain/urn-forge.config.ts
 
-With the default settings, a gap in the scenarios is only a warning. You make it an error in [tutorial 3](./strict-coverage).
+### The manifest
 
-## 3. Write the manifest
-
-Replace the content of `domain.manifest.yaml` with this content:
+Replace `domain.manifest.yaml`:
 
 <<< @/../packages/urn-forge/tutorial/1-first-domain/domain.manifest.yaml
 
-The manifest has three parts:
+- `manifest` is the header: the namespace, the domain and the version of the contract.
+- `definitions` gives a name to each value, with a `description` and one of the six types of JSON Schema. The `rules` of a definition say what must be true of the value. For example, `weight_grams` is an integer from 1 to 30000.
+- An object lists its properties by the names of other definitions. Its `required` rule lists the properties that it must have. Because `required` does not list `express`, `express` is optional.
+- `operations` gives each operation one `input` and its outputs. `quote_shipping` takes a `parcel` and gives a `quote`.
 
-- The header, `manifest`, gives the namespace, the domain and the version of the contract.
-- `definitions` gives each value a name, a `description` and a `type`. The types are the six types of JSON Schema. `rules` lists what must be true of the value. For example, `weight_grams` is an integer, with the rules `minimum: 1` and `maximum: 30000`.
-- `operations` gives each operation an `input` and a list of outputs. `quote_shipping` gets a `parcel` and gives a `quote`.
+`minimum`, `maximum`, `enum` and `required` are standard rules. They are keywords of JSON Schema, and urn-forge includes them.
 
-An object, such as `parcel`, lists its properties by the names of other definitions. The rule `required` lists the properties that an object must have. `express` is not in `required`, so a parcel can have no `express`.
-
-`minimum`, `maximum`, `enum` and `required` are standard rules. urn-forge ships them. In tutorial 2, you write rules of your own.
-
-## 4. Compile the manifest
-
-Run this command:
+### Compile
 
 ```bash
 npx urn-forge compile
 ```
 
-The command shows this output:
-
 ```
 wrote      src/generated/domain.generated.ts
 ```
 
-The same manifest always gives the same file. Do not edit the generated file. Gate 4 of `verify` finds each manual change.
-
-## 5. Examine the generated types
-
-Open `src/generated/domain.generated.ts`. Find these lines:
-
-```ts
-/** A parcel to send */
-export interface Parcel {
-  /** The weight of the parcel in grams */
-  readonly weight_grams: WeightGrams;
-  /** Where the parcel goes */
-  readonly zone: Zone;
-  /** Whether the parcel goes by express delivery */
-  readonly express?: Express;
-}
-```
-
-Then find these lines:
+Do not edit this file. To change it, change the manifest and compile again. The file contains the type of your core:
 
 ```ts
 /** The answers of quote_shipping. */
@@ -117,72 +75,38 @@ export interface DomainCore {
 }
 ```
 
-These lines tell you three things:
+### The core
 
-- Your core must have one function for each operation.
-- The function gets a `Parcel`. `express` is optional, because the `required` rule of `parcel` does not list it. The type of `zone` is `"domestic" | "international"`, from the `enum` rule.
-- The function returns an answer: the name of an output and its value. You make an answer with the generated function `answer`.
-
-## 6. Write the core
-
-Replace the content of `src/core.ts` with this content:
+Replace `src/core.ts`:
 
 <<< @/../packages/urn-forge/tutorial/1-first-domain/src/core.ts
 
-The core is one object. It has a function for each operation, and it `satisfies` the generated `DomainCore`. Thus, TypeScript knows the type of each parameter. The core does not check the input. The harness, `runOperation`, checks the input before the core runs.
+The core does not check its input. The harness, `runOperation`, checks the input before the core runs, and the answer after it. With `satisfies DomainCore`, TypeScript checks each function against the manifest. The type of `zone` is `"domestic" | "international"`, from the `enum` rule.
 
-## 7. Write the feature
+### The scenarios
 
-Remove the feature of the starter:
-
-```bash
-rm features/split.feature
-```
-
-Then make the file `features/quote_shipping.feature` with this content:
+Remove `features/split.feature`. Then make `features/quote_shipping.feature`:
 
 <<< @/../packages/urn-forge/tutorial/1-first-domain/features/quote_shipping.feature{gherkin}
 
-Examine these parts of the feature:
+urn-forge gives these steps for all manifests:
 
-- `When I run "quote_shipping" with:` sends the table to the operation through the harness.
-- The table headers are the names of the properties of the input.
-- An empty cell sends no value. Thus, the second parcel has no `express`.
-- `Then the output is "quote":` expects the output `quote`, with the values of the table.
-- `Then the input is rejected by "minimum" of "weight_grams"` expects the harness to refuse the input before the core runs, because the input breaks that rule.
-- `When I check a "quote" with:` checks a value against a definition. It does not run the core. Use it for a rule that no input can break, for example a rule of an output.
+- `When I run "quote_shipping" with:` sends the table, as the input, through the harness. An empty cell sends no value.
+- `Then the output is "quote":` expects that output, with the values of the table.
+- `Then the input is rejected by "minimum" of "weight_grams"` expects that the harness rejects the input before the core runs.
+- `When I check a "quote" with:` checks a value against a definition, without the core. Use it for a rule that no input can break.
 
-The file `features/support/steps.ts` connects these steps to your generated file and your core. You do not change it.
-
-## 8. Run Cucumber
-
-Run this command:
+Run the scenarios, then run `verify`:
 
 ```bash
 npx cucumber-js
-```
-
-The command shows this output:
-
-```
-..............................
-
-10 scenarios (10 passed)
-30 steps (30 passed)
-0m 0.022s (0m 0.005s executing your code)
-```
-
-Cucumber counts each `Examples` row as one scenario.
-
-## 9. Run verify
-
-Run this command:
-
-```bash
 npx urn-forge verify
 ```
 
-The command shows this output:
+```
+10 scenarios (10 passed)
+30 steps (30 passed)
+```
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; core satisfies DomainCore
@@ -192,19 +116,115 @@ gate 4  drift         PASS  1 generated file(s) compared byte for byte against s
 verify passed (gates 1, 2, 3, 4)
 ```
 
-Each gate examines one link:
+Gate 1 checks the core against the manifest. Gate 2 makes sure that nothing calls the core without the harness. Gate 3 makes sure that the scenarios run each operation, give each output, and break each of the six rules of the definitions. Gate 4 makes sure that the generated file is current.
 
-- **Gate 1** makes sure that the core has a function of the correct type for each operation.
-- **Gate 2** makes sure that no code calls the core without the harness.
-- **Gate 3** makes sure that a scenario runs each operation, gives each output, and breaks each rule of each definition. The manifest applies six rules to definitions, and a scenario breaks each one.
-- **Gate 4** makes sure that the generated file is the same as a new compile.
+## 3. Add a refusal
 
-## Next
+An express parcel weighs 5000 grams or less. The operation refuses a heavier express parcel. In urn-forge, a refusal is an output, which is an ordinary object. Rules say when the core can give each output.
 
-Continue to [tutorial 2: Add a refusal](./declared-errors).
+Replace `domain.manifest.yaml`. The highlighted lines are new:
 
-## Related pages
+<<< @/../packages/urn-forge/tutorial/2-declared-errors/domain.manifest.yaml{46-67,74-75}
 
-- [The contract](../explanation/the-contract)
-- [The manifest](../reference/manifest)
-- [Verification gates](../reference/verification-gates)
+`too_heavy_for_express` is the refusal: an object that names the weight. The top-level `rules` section declares your own rules. Each rule has a `description`, the `rule` (an expression in a subset of CEL) and a `message`. In a rule of an output, `input` is the input of the call, and `output` is the object of the answer. The core can give a `quote` only if the parcel `fits_express`. It can give the refusal only if the parcel is `over_express_limit`, and the refusal must name the weight.
+
+Because `express` is optional, a rule reads `input.express` only after `has(input.express)`. If the rule does not have this guard, `compile` stops:
+
+```
+domain.manifest.yaml:75  error  rule-guard  over_express_limit: input.express can be absent: read it after has(input.express) &&, or after !has(input.express) ||
+```
+
+Run `npx urn-forge compile`, then `npx urn-forge verify`:
+
+```
+gate 3  gherkin       PASS  1 feature(s), 10 scenario(s), 1/1 operation(s) run, 6 rule(s) broken
+    features  warning  uncovered-output  no scenario of quote_shipping answers too_heavy_for_express; add one that ends with Then the output is "too_heavy_for_express"
+    features  warning  uncovered-rule  no scenario breaks required of too_heavy_for_express; add one that ends with Then the input is rejected by "required" of "too_heavy_for_express", or Then the value is rejected by …
+gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
+verify passed with 2 warning(s) (gates 1, 2, 3, 4)
+```
+
+Gate 1 still passes, because a core can return fewer outputs than the manifest allows. Gate 3 gives a warning: no scenario covers the new output and its `required` rule. Add the two scenarios. The highlighted lines are new:
+
+<<< @/../packages/urn-forge/tutorial/2-declared-errors/features/quote_shipping.feature{18-24,50-54 gherkin}
+
+Run `npx cucumber-js`. The new scenario fails:
+
+```
+  1) An express parcel over 5000 grams is refused # features/quote_shipping.feature:18
+           Error: quote_shipping did not answer: ContractViolation: fits_express of quote_shipping: An express parcel can weigh 5000 grams at most
+12 scenarios (11 passed, 1 failed)
+```
+
+The core still gives a quote for all parcels. The harness found that the answer breaks `fits_express`. It gave a `ContractViolation` in place of the answer. Correct the core. The highlighted lines are new:
+
+<<< @/../packages/urn-forge/tutorial/2-declared-errors/src/core.ts{7,11}
+
+Cucumber now passes 12 of 12 scenarios, and `verify` passes with no warning:
+
+```
+gate 3  gherkin       PASS  1 feature(s), 12 scenario(s), 1/1 operation(s) run, 7 rule(s) broken
+```
+
+A scenario that breaks `fits_express` is not necessary. The harness checks the rules of an output on each answer of each scenario.
+
+## 4. Make it strict
+
+### Make a gap an error
+
+Replace `urn-forge.config.ts`:
+
+<<< @/../packages/urn-forge/tutorial/3-strict-coverage/urn-forge.config.ts{6-7}
+
+To see the effect, remove the last scenario, `A refusal needs the weight`. Then run `npx urn-forge verify`:
+
+```
+gate 3  gherkin       FAIL  1 feature(s), 11 scenario(s), 1/1 operation(s) run, 6 rule(s) broken
+    features  error  uncovered-rule  no scenario breaks required of too_heavy_for_express; add one that ends with Then the input is rejected by "required" of "too_heavy_for_express", or Then the value is rejected by …
+gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
+verify failed: gate 3
+```
+
+`verify` exits with code `1`. From now on, each new operation, output or rule must have a scenario. Add the scenario again.
+
+### Test the edges
+
+Gate 3 asks for one scenario for each rule. It does not ask for the values at the edges of the rule, where a core is wrong most frequently. In `src/core.ts`, change `>` to `>=`:
+
+```ts
+    if (express && weight_grams >= EXPRESS_LIMIT_GRAMS) return answer('too_heavy_for_express', { weight_grams });
+```
+
+All scenarios still pass, but now the core refuses an express parcel of exactly 5000 grams. Add scenarios at the edges. The highlighted lines are new:
+
+<<< @/../packages/urn-forge/tutorial/3-strict-coverage/features/quote_shipping.feature{26-45 gherkin}
+
+Run `npx cucumber-js`:
+
+```
+  1) An express parcel of exactly 5000 grams is quoted # features/quote_shipping.feature:39
+           Error: quote_shipping did not answer: ContractViolation: over_express_limit of quote_shipping: The parcel fits express delivery
+15 scenarios (14 passed, 1 failed)
+```
+
+Because `over_express_limit` allows the refusal only above 5000 grams, the harness found the error in the core. Change `>=` to `>` again. Cucumber passes 15 of 15 scenarios, and `verify` passes:
+
+```
+gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; core satisfies DomainCore
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
+gate 3  gherkin       PASS  1 feature(s), 15 scenario(s), 1/1 operation(s) run, 7 rule(s) broken
+gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
+verify passed (gates 1, 2, 3, 4)
+```
+
+## What you made
+
+You made these parts:
+
+- A manifest that states the contract of `quote_shipping`.
+- A core that is a plain function, with no checks and no I/O.
+- A harness that checks each input and each answer.
+- Scenarios that cover each output and each rule, and test the edges.
+- A `verify` that fails when a part does not agree with the manifest.
+
+Next, [call the operation from your application](../how-to/call-an-operation). Then [run verify in CI](../how-to/run-verify-in-ci), and [change the contract safely](../how-to/change-the-contract).

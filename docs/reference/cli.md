@@ -1,10 +1,6 @@
-# The CLI
+# The CLI, the config and diagnostics
 
-The `urn-forge` command has four commands: `init`, `compile`, `verify` and `diff`. Run it with `npx urn-forge` in a project that has urn-forge installed.
-
-## Usage
-
-`npx urn-forge --help` shows this output:
+Run `npx urn-forge <command>` in a project where urn-forge is installed.
 
 ```
 urn-forge 0.2.0
@@ -14,117 +10,35 @@ Usage:
   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>]
   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
   urn-forge diff    <old manifest> <new manifest> [--report]
-
-Options:
-  --namespace <name> init: the namespace of the starter manifest (default: app)
-  --domain <name>    init: the domain of the starter manifest (default: starter)
-  --config <file>    The config (default: urn-forge.config.ts, when it exists). Flags override it
-  --manifest <file>  The manifest (default: domain.manifest.yaml)
-  --out <dir>        The directory of the generated files (default: src/generated)
-  --core <file>      verify: the core, which exports … satisfies DomainCore (default: src/core.ts)
-  --features <dir>   verify: the directory of the .feature files (default: features)
-  --tsconfig <file>  verify: the tsconfig of gate 1 (default: tsconfig.json)
 ```
 
-`npx urn-forge --version` shows the version:
-
-```
-0.2.0
-```
-
-## Exit codes
-
-| Code | Meaning |
+| Command | What it does |
 | --- | --- |
-| `0` | The command passed. Warnings do not change the code |
-| `1` | The command failed: an error in the config or the manifest, a failed gate, or a breaking change that the versions do not allow |
-| `2` | The command line is not correct: an unknown command, an unknown option, or a wrong number of arguments. `npx urn-forge` with no command also gives `2` |
+| `init` | Writes a starter project that splits a bill. This project passes `verify` with `coverage: 'error'`. `init` sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. If one of its files is already there, it writes nothing. The default values of `--namespace` and `--domain` are `app` and `starter` |
+| `compile` | Writes the generated files, and shows one line for each file: `wrote`, `unchanged`, or `removed`. If the manifest has an error, it writes nothing |
+| `verify` | Compiles in memory and runs the [four gates](#the-gates). It writes nothing, and it does not run the scenarios. `cucumber-js` runs them |
+| `diff` | Compares two manifests. Refer to [Change the contract](../how-to/change-the-contract). It does not read the config |
 
-## Diagnostics
+Each command exits with `0` on a pass (also with warnings), `1` on a failure, and `2` on a wrong command line.
 
-A problem in the config or the manifest is a line on stderr:
+## The config
 
-```
-<file>:<line>  <severity>  <code>  <message>
-```
+urn-forge reads `urn-forge.config.ts` from the current folder, or from the file that `--config` names. The file exports `defineConfig({ … })` from `urn-forge/config`. A path in the file is relative to the file. A flag of the same name overrides the path.
 
-For example:
+| Option | Default | Value |
+| --- | --- | --- |
+| `manifest` | `domain.manifest.yaml` | The manifest |
+| `out` | `src/generated` | The folder of the generated files |
+| `core` | `src/core.ts` | The core file, which exports a value that `satisfies DomainCore` |
+| `features` | `features` | The folder of the `.feature` files |
+| `tsconfig` | `tsconfig.json` | The tsconfig of gate 1 |
+| `shell` | none | Files and folders of the shell, for gate 2 |
+| `coverage` | `'warn'` | With `'error'`, a gap in the scenarios fails gate 3 |
+| `postgres` | none | Writes a Postgres schema and a store file. Refer to [Store objects in Postgres](../how-to/store-in-postgres) |
 
-```
-domain.manifest.yaml:12  error  unknown-rule  positive is not a rule of this manifest or a standard rule
-```
+Your core and your shell import only the generated file. The project also uses `urn-forge/config`, `urn-forge/cucumber` (`registerSteps`) and `urn-forge/register-tsx`. `urn-forge/register-tsx` lets Cucumber load TypeScript. For your own tools, `urn-forge` exports `loadManifest`, `compileManifest`, `generate` and the rule parser. Because the entry points are TypeScript source, run code that imports them through a loader such as `tsx`.
 
-The line is the line of the part of the manifest that has the problem. For each code, refer to [Diagnostics](./diagnostics).
-
-## init
-
-```bash
-npx urn-forge init [--namespace <name>] [--domain <name>]
-```
-
-`init` writes a starter project into the working folder: a manifest, a core, a feature, the step file, `cucumber.json`, `register-tsx.mjs`, `tsconfig.json` and `urn-forge.config.ts`. It sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. It does not compile.
-
-```
-wrote      cucumber.json
-wrote      domain.manifest.yaml
-wrote      features/split.feature
-wrote      features/support/steps.ts
-wrote      register-tsx.mjs
-wrote      src/core.ts
-wrote      tsconfig.json
-wrote      urn-forge.config.ts
-updated    package.json
-next: npm install, then npx urn-forge compile, then npx urn-forge verify
-```
-
-- `--namespace` and `--domain` are the names in the header of the manifest. A name that is not lowercase snake_case gives exit code `2`:
-
-  ```
-  --domain "Bad" must be lowercase snake_case that starts with a letter (at most 63 characters)
-  ```
-
-- If one of the starter files exists, `init` writes no file and stops with exit code `1`.
-
-## compile
-
-```bash
-npx urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>]
-```
-
-`compile` reads the manifest, shows its diagnostics, and writes the generated files. It writes no file if the manifest has an error. Each line of the output is one file:
-
-| Status | Meaning |
-| --- | --- |
-| `wrote` | The file is new, or its content changed |
-| `unchanged` | The file has the same content |
-| `removed` | The file is a generated file that compile no longer makes |
-
-```
-wrote      src/generated/domain.generated.ts
-```
-
-With `postgres` in the config, `compile` writes three files. In the root of the urn-forge repository, this command compiles the booking fixture:
-
-```bash
-node packages/urn-forge/bin/urn-forge.js compile --config packages/urn-forge/tests/fixtures/booking/urn-forge.config.ts
-```
-
-The command shows this output:
-
-```
-packages/urn-forge/tests/fixtures/booking/domain.manifest.yaml:124  warning  deprecated-use  booking uses the deprecated definition note
-unchanged  packages/urn-forge/tests/fixtures/booking/generated/domain.generated.ts
-unchanged  packages/urn-forge/tests/fixtures/booking/generated/schema.generated.sql
-unchanged  packages/urn-forge/tests/fixtures/booking/generated/domain.store.generated.ts
-```
-
-## verify
-
-```bash
-npx urn-forge verify [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
-```
-
-`verify` compiles the manifest in memory, then runs the four gates. It writes no file. Refer to [Verification gates](./verification-gates).
+## The gates
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; core satisfies DomainCore
@@ -134,24 +48,44 @@ gate 4  drift         PASS  1 generated file(s) compared byte for byte against s
 verify passed (gates 1, 2, 3, 4)
 ```
 
-## diff
+Each problem of a gate is an indented line below the gate. The last line is `verify passed …` or `verify failed: gate <numbers>`. If the config or the manifest has an error, no gate runs.
 
-```bash
-npx urn-forge diff [--report] <old manifest> <new manifest>
+| Gate | It fails when | Codes |
+| --- | --- | --- |
+| 1. Completeness | `tsc` fails over the core with the tsconfig of the project, or no export of the core `satisfies DomainCore` | `type-error`, `core-not-satisfying`, `core-not-found`, `tsconfig-unreadable` |
+| 2. Boundary | A shell file calls a function of the core directly, or a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` | `direct-call`, `suppressed-check` |
+| 3. Gherkin | A step names a part that the manifest does not have. A feature is not valid Gherkin. No scenario runs an operation, ends with an output, or breaks a rule of a definition | `unknown-name`, `feature-syntax`, `uncovered-operation`, `uncovered-output`, `uncovered-rule` |
+| 4. Drift | A generated file is not the same as the file that `compile` writes now. A generated file is not there. A generated file is there, but `compile` does not write it now | `drift` |
+
+The `uncovered-` codes are warnings, or errors with `coverage: 'error'`. An `Examples` row counts as one scenario. A `type-error` names the function to correct. `TS1360` is a function that is not there, and `TS2353` is an extra function. `TS2322` is a return that is not `answer('<output>', value)` of the operation. If an error points into a generated file, correct gate 4 first.
+
+## Diagnostics
+
+A problem of the config or the manifest is one line, with the line in the manifest. An `error` stops the command, but a `warning` does not. Each message tells you what to do:
+
+```
+domain.manifest.yaml:13  error  unknown-rule  positive is not a rule of this manifest or a standard rule
+domain.manifest.yaml:75  error  rule-guard  over_express_limit: input.express can be absent: read it after has(input.express) &&, or after !has(input.express) ||
 ```
 
-`diff` compiles both manifests, lists the changes between them, and judges the breaking changes by the versions. With `--report`, a breaking change that the versions do not allow is reported, and the exit code is `0`. Refer to [Diff and versions](./diff).
-
-```
-breaking    definitions.weight_grams  maximum is now 20000, not 30000: it accepts less
-compatible  definitions.zone  enum is now ["domestic","international","regional"], not ["domestic","international"]: it accepts more
-diff failed: 2 change(s), 1 breaking, 1.0.0 → 1.1.0: 1.0.0 → 1.1.0 keeps the major version 1; a breaking change needs a new major version
-```
-
-`diff` does not read the config. Its paths are relative to the working folder.
-
-## Related pages
-
-- [The configuration file](./configuration)
-- [Diagnostics](./diagnostics)
-- [Verification gates](./verification-gates)
+| Code | Cause |
+| --- | --- |
+| `manifest-unreadable`, `config-unreadable` | The manifest file, or the file that `--config` names, does not exist |
+| `config-invalid` | The config does not load, or an option is unknown or of the wrong type |
+| `postgres-config` | A table has no identifier, or an entry of `postgres` names a part that is not there |
+| `postgres-column` | Two parts give one column name, a name is longer than 63 bytes, or a list contains lists (put the inner list in an object) |
+| `yaml-syntax` | The file is not valid YAML, or a map has one key two times |
+| `manifest-shape` | A key that is not allowed, a key that is not there, or a value of the wrong shape |
+| `unknown-definition`, `unknown-property`, `unknown-rule` | A name that the manifest does not have |
+| `type-cycle` | A chain of `type` names goes back to its start |
+| `duplicate-property`, `duplicate-output` | A list names a property or an output two times |
+| `invalid-identifier` | The identifier is not a required property with one value |
+| `not-an-object` | The input or an output is not an object |
+| `deprecated-use` (warning) | A live part uses a deprecated part |
+| `standard-name` | A rule of the manifest has the name of a standard rule |
+| `rule-argument` | An argument does not agree with the parameters of the rule |
+| `invalid-message` | A message names `{x}`, but `x` is not a parameter |
+| `rule-syntax` | The rule does not parse, or uses CEL that is not in [the subset](./manifest#the-rule-language). urn-forge gives this error at the line of `rule:`, with the column. It gives the other rule errors at the line where you apply the rule |
+| `rule-type` | A type in the rule is wrong, the rule does not give a `bool`, or `has()` reads a required property |
+| `rule-guard` | The rule reads an optional property without `has()` |
+| `rule-scope` | The rule reads a name that is not available where you apply the rule, such as `output` in a rule of a definition |

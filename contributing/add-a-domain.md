@@ -93,5 +93,5 @@ CI compiles, verifies and tests the domain on each pull request, in any locale a
 
 - [Add a test fixture](./add-a-fixture.md)
 - [Dogfooding](./dogfooding.md)
-- [Set up a project](../docs/how-to/set-up-a-project.md)
+- [Set up a project](../docs/tutorials/first-domain.md)
 - [Run verify in CI](../docs/how-to/run-verify-in-ci.md)

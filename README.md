@@ -1,53 +1,67 @@
 # urn-forge
 
-Write the contract of a domain in one YAML manifest: definitions, rules and operations, in the words of JSON Schema, with rules in a subset of CEL. urn-forge compiles it into a TypeScript harness that checks each input before your core runs and each answer after it. `urn-forge verify` fails CI when the core, the scenarios or the generated files no longer agree with the manifest, and `urn-forge diff` fails it when a change breaks callers without a new major version.
+Write the contract of a domain once, in one YAML manifest. Then prove in CI that your code keeps it.
+
+A TypeScript type can say that a function returns a `Booking`. It cannot say that you seat only a confirmed booking. With urn-forge, you write that rule in a manifest, with a name:
 
 ```yaml
-definitions:
-  weight_grams:
-    description: The weight of the parcel in grams
-    type: integer
-    rules:
-      - minimum: 1
-      - maximum: 30000
-
 rules:
-  names_the_weight:
-    description: The refusal names the weight of the parcel
-    rule: output.weight_grams == input.weight_grams
-    message: The refusal names another weight
+  was_confirmed:
+    description: The booking was confirmed
+    rule: input.stored_booking.state == 'confirmed'
+    message: The booking was not confirmed
 
 operations:
-  quote_shipping:
-    description: Calculate the price to send a parcel
-    input: parcel
+  seat_booking:
+    description: Seat the party of a booking
+    input: seat_request
     output:
-      - quote: [fits_express]
-      - too_heavy_for_express: [over_express_limit, names_the_weight]
+      - booking: [was_confirmed, is_seated, keeps_the_party]
+      - invalid_state: [was_not_confirmed, names_the_request]
 ```
 
-The version is 0.2.0. It is not on npm at this time.
+A change makes the core seat a cancelled booking:
+
+- **Without urn-forge**, `tsc` passes, because the answer is still a `Booking`. You release the bug.
+- **With urn-forge**, the generated harness, `runOperation`, checks each answer. In place of the wrong answer, it gives `ContractViolation` with the rule `was_confirmed`.
+
+From the manifest, urn-forge generates one TypeScript file. The file has types, Valibot schemas (Standard Schemas) and `runOperation`. `runOperation` checks each input before your code runs, and each answer after it. If you want, urn-forge also writes a Postgres schema with the rules as `CHECK` constraints. `urn-forge verify` fails CI when the core, the shell, the scenarios or the generated files do not agree with the manifest. `urn-forge diff` fails a change that can break callers, unless the major version increases.
+
+The version is 0.2.0. This version is not on npm yet. Read the [documentation](docs/index.md), and start with [the tutorial](docs/tutorials/first-domain.md).
+
+## Try it
+
+```bash
+npm ci
+npm run pack:tarball                      # makes urn-forge-0.2.0.tgz
+# then, in a new folder:
+npm init -y
+npm install /path/to/urn-forge-0.2.0.tgz
+npx urn-forge init                        # a starter domain whose scenarios cover it
+npx urn-forge compile
+npx urn-forge verify
+npx cucumber-js
+```
 
 ## Repository layout
 
-This is an npm-workspaces monorepo:
+An npm-workspaces monorepo:
 
 | Path | What it is |
 | --- | --- |
-| [`packages/urn-forge`](packages/urn-forge) | The CLI (`urn-forge init`, `compile`, `verify` and `diff`), the Cucumber steps, the tests, and the domains below |
-| [`packages/urn-forge/example`](packages/urn-forge/example) | The math example: the area of a circle, and a division whose divisor is never zero |
-| [`packages/urn-forge/self`](packages/urn-forge/self) | urn-forge's own domain: pure functions of the compiler, declared and tested with urn-forge |
-| [`packages/urn-forge/insurance`](packages/urn-forge/insurance) | The insurance domain: policies with a list of coverages, times and amounts in cents, a stored policy in the input of a cancellation, events in the outputs, and a Postgres schema |
-| [`packages/urn-forge/tutorial`](packages/urn-forge/tutorial) | The end state of each of the three tutorials: a shipping quote |
+| [`packages/urn-forge`](packages/urn-forge) | The CLI (`init`, `compile`, `verify`, `diff`), the Cucumber steps, the tests, and the domains in the rows below |
+| [`packages/urn-forge/tests/fixtures/booking`](packages/urn-forge/tests/fixtures/booking) | The reference example: a restaurant booking that uses all constructs, with a Postgres schema |
+| [`packages/urn-forge/tutorial`](packages/urn-forge/tutorial) | The result of each part of the tutorial: a shipping quote |
 | [`packages/urn-forge/templates/starter`](packages/urn-forge/templates/starter) | The project that `urn-forge init` writes |
-| [`contracts`](contracts) | The contract corpus: six contracts of real domains, each promise with its status |
-| [`docs`](docs) | The VitePress documentation site, for users |
-| [`contributing`](contributing) | The guides for persons who change urn-forge; start at [CONTRIBUTING.md](CONTRIBUTING.md) |
-| [`planning`](planning) | The plans, the decisions and the roadmap; not published |
+| [`packages/urn-forge/example`](packages/urn-forge/example), [`insurance`](packages/urn-forge/insurance), [`self`](packages/urn-forge/self) | More domains: a math example, an insurance domain with Postgres, and the compiler functions of urn-forge |
+| [`contracts`](contracts) | Six contracts of real domains. Each promise in them has a status |
+| [`docs`](docs) | The VitePress documentation site |
+| [`contributing`](contributing) | Guides for people who change urn-forge. Start at [CONTRIBUTING.md](CONTRIBUTING.md) |
+| [`planning`](planning) | Plans and decisions. We do not publish them |
 
 ## Commands
 
-Run these from the repository root with Node 22 or newer:
+Run these commands from the root of the repository, with Node 22 or newer:
 
 ```bash
 npm ci                           # install every workspace
@@ -59,27 +73,10 @@ npm run verify:self              # urn-forge verify on urn-forge's own domain
 npm run test:features:self       # cucumber-js on urn-forge's own domain
 npm run verify:insurance         # urn-forge verify on the insurance domain
 npm run test:features:insurance  # cucumber-js on the insurance domain
-npm run verify:tutorial          # urn-forge verify on the three tutorials
-npm run test:features:tutorial   # cucumber-js on the three tutorials
+npm run verify:tutorial          # urn-forge verify on the three parts of the tutorial
+npm run test:features:tutorial   # cucumber-js on the three parts of the tutorial
 npm run corpus                   # the share of the promises of the corpus that are declared
 npm run diff:base --workspace urn-forge -- origin/main  # urn-forge diff of each domain against origin/main
 npm run docs:dev                 # the docs site with live reload, on http://localhost:5173
 npm run docs:build               # a static build of the docs site
 ```
-
-## Try it in your own project
-
-```bash
-npm run pack:tarball                      # in this repository: makes urn-forge-0.2.0.tgz
-# then, in a new folder:
-npm init -y
-npm install /path/to/urn-forge-0.2.0.tgz
-npx urn-forge init                        # a starter domain whose scenarios cover it
-npx urn-forge compile
-npx urn-forge verify
-npx cucumber-js
-```
-
-Refer to [Install urn-forge](docs/how-to/install.md) and [Set up a project](docs/how-to/set-up-a-project.md). To check a change for breaks, refer to [Change the contract](docs/how-to/change-the-contract.md).
-
-Start with the docs' [first tutorial](docs/tutorials/first-domain.md). The docs follow [Diátaxis](https://diataxis.fr/): tutorials, how-to guides, reference and explanation.

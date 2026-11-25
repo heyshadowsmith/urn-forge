@@ -75,7 +75,7 @@ A change to `runtime.ts` changes each generated file. Compile each domain again,
 
 ## Update the docs
 
-1. In [The rule language](../docs/reference/rule-language.md), add the form to its table, and remove it from "Not in the subset". Copy each message from a real run.
+1. In [The rule language](../docs/reference/manifest.md), add the form to its table, and remove it from "Not in the subset". Copy each message from a real run.
 2. If the form changes a decision of the [redesign notes](../planning/manifest-redesign-notes.md), such as the list of decision 24, record the change in the plan of the work.
 3. Run `npm run docs:build` from the root folder.
 
@@ -87,5 +87,5 @@ A rule can use the form. `compile` types it, the generated file runs it with the
 
 - [How urn-forge is built](./architecture.md)
 - [Add a standard rule](./add-a-standard-rule.md)
-- [The rule language](../docs/reference/rule-language.md)
-- [JSON Schema and CEL](../docs/explanation/json-schema-and-cel.md)
+- [The rule language](../docs/reference/manifest.md)
+- [JSON Schema and CEL](../docs/explanation/why-urn-forge.md)
