@@ -1,17 +1,20 @@
 /**
  * The command line: init, compile, verify and diff.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
+import { fixOf, type Code } from './codes.js';
 import type { Diagnostic, Path } from './diagnostics.js';
 import { longNames, postgresProblems, postgresSchema } from './generate/postgres.js';
 import { initProject, nameProblem } from './init.js';
 import { boundaryGate } from './verify/boundary.js';
 import { completenessGate, coreProgram } from './verify/completeness.js';
+import { contractGate, type ContractGateInput } from './verify/contract.js';
 import { driftGate } from './verify/drift.js';
 import { gherkinGate } from './verify/gherkin.js';
 import type { GateOutcome } from './verify/types.js';
@@ -29,9 +32,9 @@ const USAGE = `urn-forge ${VERSION}
 
 Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
-  urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>]
-  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
-  urn-forge diff    <old manifest> <new manifest> [--report]
+  urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
+  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--base <ref>] [--format text|json]
+  urn-forge diff    <old manifest> <new manifest> [--report] [--format text|json]
 
 Options:
   --namespace <name> init: the namespace of the starter manifest (default: app)
@@ -42,9 +45,73 @@ Options:
   --core <file>      verify: the core, which exports … satisfies DomainCore (default: src/core.ts)
   --features <dir>   verify: the directory of the .feature files (default: features)
   --tsconfig <file>  verify: the tsconfig of gate 1 (default: tsconfig.json)
-  --report           diff: list the changes, and do not fail on a breaking change`;
+  --base <ref>       verify: run gate 5, which compares the contract with the one at this git ref
+  --report           diff: list the changes, and do not fail on a breaking change
+  --format <format>  compile, verify, diff: text (default), or json: one JSON object on stdout, and nothing else`;
 
 class UsageError extends Error {}
+
+/** A problem as the commands report it: a stable code, where it is, what is wrong, and (from its code) the fix. */
+export interface Problem {
+  readonly code: Code;
+  readonly severity: 'error' | 'warning';
+  readonly file?: string;
+  readonly line?: number;
+  /** The place in the manifest or the config, as a path of keys. */
+  readonly path?: Path;
+  readonly message: string;
+}
+
+export type Format = 'text' | 'json';
+
+/**
+ * The output of a command. As text, it writes each line as it comes, and each problem with its fix on
+ * the next line. As JSON, it writes nothing until the end, and then one object to stdout.
+ */
+export class Report {
+  readonly problems: Problem[] = [];
+
+  constructor(
+    private readonly io: CliIo,
+    readonly format: Format,
+  ) {}
+
+  /** A line of text for stdout; nothing as JSON. */
+  out(text: string): void {
+    if (this.format === 'text') this.io.stdout(text);
+  }
+
+  /** A line of text for stderr; nothing as JSON. */
+  err(text: string): void {
+    if (this.format === 'text') this.io.stderr(text);
+  }
+
+  problem(problem: Problem, stream: 'stdout' | 'stderr' = 'stderr', indent = ''): void {
+    this.problems.push(problem);
+    if (this.format !== 'text') return;
+    const write = stream === 'stdout' ? this.io.stdout : this.io.stderr;
+    const where = problem.file ? `${problem.file}${problem.line ? `:${problem.line}` : ''}  ` : '';
+    write(`${indent}${where}${problem.severity}  ${problem.code}  ${problem.message}`);
+    write(`${indent}  fix: ${fixOf(problem.code)}`);
+  }
+
+  /** Ends the command with its exit code: as JSON, writes the one object. */
+  end(code: number, extra: Record<string, unknown> = {}): number {
+    if (this.format === 'json') {
+      const problems = this.problems.map((p) => ({
+        code: p.code,
+        severity: p.severity,
+        file: p.file ?? null,
+        line: p.line ?? null,
+        path: p.path ?? null,
+        message: p.message,
+        fix: fixOf(p.code),
+      }));
+      this.io.stdout(JSON.stringify({ ok: code === 0, ...extra, problems }));
+    }
+    return code;
+  }
+}
 
 /** A path as the output shows it: relative to the working directory, with forward slashes. */
 function display(io: CliIo, path: string): string {
@@ -62,10 +129,10 @@ export function lineOf(text: string, path: Path): number | undefined {
   return undefined;
 }
 
-function showDiagnostics(io: CliIo, file: string, text: string, diagnostics: readonly Diagnostic[]): void {
+function showDiagnostics(report: Report, file: string, text: string, diagnostics: readonly Diagnostic[]): void {
   for (const d of diagnostics) {
     const line = d.line ?? lineOf(text, d.path);
-    io.stderr(`${file}${line ? `:${line}` : ''}  ${d.severity}  ${d.code}  ${d.message}`);
+    report.problem({ code: d.code, severity: d.severity, file, ...(line ? { line } : {}), path: d.path, message: d.message });
   }
 }
 
@@ -84,21 +151,22 @@ const OPTIONS = {
   core: { type: 'string' },
   features: { type: 'string' },
   tsconfig: { type: 'string' },
+  base: { type: 'string' },
   namespace: { type: 'string' },
   domain: { type: 'string' },
 } as const;
 
-async function project(io: CliIo, values: Record<string, string | undefined>): Promise<Project | undefined> {
+async function project(io: CliIo, report: Report, values: Record<string, string | undefined>): Promise<Project | undefined> {
   const configPath = values['config'] ? resolve(io.cwd, values['config']) : join(io.cwd, CONFIG_FILE);
   let config: UrnForgeConfig = {};
   if (values['config'] || existsSync(configPath)) {
     if (!existsSync(configPath)) {
-      io.stderr(`${display(io, configPath)}  error  config-unreadable  the config does not exist`);
+      report.problem({ code: 'config-unreadable', severity: 'error', file: display(io, configPath), message: 'the config does not exist' });
       return undefined;
     }
     const loaded = await loadConfig(configPath);
     if (!loaded.ok) {
-      for (const problem of loaded.problems) io.stderr(`${display(io, configPath)}  error  config-invalid  ${problem}`);
+      for (const problem of loaded.problems) report.problem({ code: 'config-invalid', severity: 'error', file: display(io, configPath), message: problem });
       return undefined;
     }
     config = loaded.config;
@@ -123,16 +191,16 @@ async function project(io: CliIo, values: Record<string, string | undefined>): P
 }
 
 /** Reads and compiles the manifest; shows its diagnostics. Undefined when it cannot be read or has an error. */
-function compileProject(io: CliIo, p: Project): { compiled: Compiled & { model: NonNullable<Compiled['model']> }; files: ReturnType<typeof generate> } | undefined {
+function compileProject(io: CliIo, report: Report, p: Project): { compiled: Compiled & { model: NonNullable<Compiled['model']> }; files: ReturnType<typeof generate>; text: string } | undefined {
   let text: string;
   try {
     text = readFileSync(p.manifestPath, 'utf8');
   } catch {
-    io.stderr(`${display(io, p.manifestPath)}  error  manifest-unreadable  the manifest does not exist`);
+    report.problem({ code: 'manifest-unreadable', severity: 'error', file: display(io, p.manifestPath), message: 'the manifest does not exist' });
     return undefined;
   }
   const compiled = compileManifest(text);
-  showDiagnostics(io, display(io, p.manifestPath), text, compiled.diagnostics);
+  showDiagnostics(report, display(io, p.manifestPath), text, compiled.diagnostics);
   if (!compiled.model) return undefined;
   if (p.config.postgres) {
     const problems = postgresProblems(compiled.model, p.config.postgres);
@@ -142,24 +210,60 @@ function compileProject(io: CliIo, p: Project): { compiled: Compiled & { model: 
         problems.push({ code: 'postgres-column', severity: 'error', path: ['postgres'], message: `${name} is longer than 63 bytes, the most that Postgres takes for a name` });
       }
     }
-    for (const problem of problems) io.stderr(`${display(io, p.configPath)}  error  ${problem.code}  ${problem.path.join('.')}: ${problem.message}`);
+    for (const problem of problems) {
+      report.problem({ code: problem.code, severity: 'error', file: display(io, p.configPath), path: problem.path, message: `${problem.path.join('.')}: ${problem.message}` });
+    }
     if (problems.length > 0) return undefined;
   }
   // The header names the manifest relative to the config, so that it does not depend on the working directory.
   const source = relative(p.base, p.manifestPath).split('\\').join('/');
   const files = generate(compiled as Compiled & { model: NonNullable<Compiled['model']> }, source, p.config);
-  return { compiled: compiled as Compiled & { model: NonNullable<Compiled['model']> }, files };
+  return { compiled: compiled as Compiled & { model: NonNullable<Compiled['model']> }, files, text };
 }
 
-async function compileCommand(io: CliIo, argv: readonly string[]): Promise<number> {
+/** The contract at a git ref: the manifest and the features at their paths of the working tree. */
+function baseContract(io: CliIo, p: Project, ref: string): ContractGateInput['old'] {
+  const git = (args: string[]): string =>
+    execFileSync('git', args, { cwd: dirname(p.manifestPath), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+  let root: string;
+  try {
+    root = git(['rev-parse', '--show-toplevel']).trim();
+  } catch {
+    return { problem: 'the manifest is not in a git repository' };
+  }
+  try {
+    git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]);
+  } catch {
+    return { problem: `${ref} is not a commit of this repository: fetch it, with enough history, or give another ref` };
+  }
+  // Paths in the tree of a commit are relative to the root, with forward slashes.
+  const real = (path: string): string => (existsSync(path) ? realpathSync(path) : path);
+  const inTree = (path: string): string => relative(real(root), real(path)).split('\\').join('/');
+  let text: string;
+  try {
+    text = git(['show', `${ref}:${inTree(p.manifestPath)}`]);
+  } catch {
+    return { nothing: `the manifest is new since ${ref}` };
+  }
+  const compiled = compileManifest(text);
+  if (!compiled.model) return { nothing: `the manifest at ${ref} does not compile` };
+  const names = git(['ls-tree', '-r', '--full-tree', '--name-only', ref, '--', inTree(p.config.features!)])
+    .split('\n')
+    .filter((name) => name.endsWith('.feature'));
+  const features = names.map((name) => ({ path: display(io, join(root, name)), text: git(['show', `${ref}:${name}`]) }));
+  return { side: { model: compiled.model, applications: compiled.applications }, features };
+}
+
+async function compileCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
   const { values, positionals } = parseArgs({ args: [...argv], options: OPTIONS, strict: true, allowPositionals: true });
   if (positionals.length > 0) throw new UsageError(`compile takes no argument: ${positionals.join(' ')}`);
-  const p = await project(io, values);
-  if (!p) return 1;
-  const result = compileProject(io, p);
-  if (!result) return 1;
-  for (const line of await writeGenerated(p.outDir, result.files)) io.stdout(`${line.status.padEnd(10)} ${display(io, line.path)}`);
-  return 0;
+  const p = await project(io, report, values);
+  if (!p) return report.end(1);
+  const result = compileProject(io, report, p);
+  if (!result) return report.end(1);
+  const files = (await writeGenerated(p.outDir, result.files)).map((line) => ({ status: line.status, path: display(io, line.path) }));
+  for (const file of files) report.out(`${file.status.padEnd(10)} ${file.path}`);
+  return report.end(0, { files });
 }
 
 function features(dir: string): string[] {
@@ -168,18 +272,18 @@ function features(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? features(join(dir, e.name)) : e.name.endsWith('.feature') ? [join(dir, e.name)] : [])).sort();
 }
 
-async function verifyCommand(io: CliIo, argv: readonly string[]): Promise<number> {
+async function verifyCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
   const { values, positionals } = parseArgs({ args: [...argv], options: OPTIONS, strict: true, allowPositionals: true });
   if (positionals.length > 0) throw new UsageError(`verify takes no argument: ${positionals.join(' ')}`);
-  const p = await project(io, values);
+  const p = await project(io, report, values);
   if (!p) {
-    io.stderr('verify failed: the config is not valid');
-    return 1;
+    report.err('verify failed: the config is not valid');
+    return report.end(1, { gates: [] });
   }
-  const result = compileProject(io, p);
+  const result = compileProject(io, report, p);
   if (!result) {
-    io.stderr('verify failed: the manifest does not compile');
-    return 1;
+    report.err('verify failed: the manifest does not compile');
+    return report.end(1, { gates: [] });
   }
   // The warnings of the manifest, such as deprecated-use, count with those of the gates.
   let warnings = result.compiled.diagnostics.filter((d) => d.severity === 'warning').length;
@@ -187,31 +291,48 @@ async function verifyCommand(io: CliIo, argv: readonly string[]): Promise<number
   const generatedPath = join(p.outDir, GENERATED_FILE);
   const coreOptions = { corePath: p.config.core!, generatedPath, tsconfigPath: p.config.tsconfig!, show };
   const program = coreProgram(coreOptions);
+  const featureFiles = features(p.config.features!).map((path) => ({ path: show(path), text: readFileSync(path, 'utf8') }));
   const outcomes: GateOutcome[] = [
     completenessGate(coreOptions, program),
     boundaryGate({ ...coreOptions, shell: p.config.shell ?? [] }, program),
     gherkinGate({
       model: result.compiled.model,
       applications: result.compiled.applications,
-      features: features(p.config.features!).map((path) => ({ path: show(path), text: readFileSync(path, 'utf8') })),
+      features: featureFiles,
       coverage: p.config.coverage ?? 'warn',
     }),
     await driftGate(p.outDir, result.files, show),
   ];
+  if (values['base'] !== undefined) {
+    const manifestFile = show(p.manifestPath);
+    outcomes.push(
+      contractGate({
+        base: values['base'],
+        old: baseContract(io, p, values['base']),
+        next: { side: { model: result.compiled.model, applications: result.compiled.applications }, features: featureFiles },
+        at: (path) => {
+          const line = lineOf(result.text, path);
+          return { file: manifestFile, ...(line ? { line } : {}) };
+        },
+      }),
+    );
+  }
   for (const outcome of outcomes) {
-    io.stdout(`gate ${outcome.gate}  ${outcome.name.padEnd(12)}  ${outcome.pass ? 'PASS' : 'FAIL'}  ${outcome.summary}`);
+    report.out(`gate ${outcome.gate}  ${outcome.name.padEnd(12)}  ${outcome.pass ? 'PASS' : 'FAIL'}  ${outcome.summary}`);
     for (const problem of outcome.problems) {
       if (problem.severity === 'warning') warnings++;
-      io.stdout(`    ${problem.file}${problem.line ? `:${problem.line}` : ''}  ${problem.severity}  ${problem.code}  ${problem.message}`);
+      report.problem(problem, 'stdout', '    ');
     }
   }
+  const gates = outcomes.map((o) => ({ gate: o.gate, name: o.name, pass: o.pass, summary: o.summary }));
+  const ran = `gates ${outcomes.map((o) => o.gate).join(', ')}`;
   const failed = outcomes.filter((o) => !o.pass).map((o) => o.gate);
   if (failed.length > 0) {
-    io.stderr(`verify failed: gate ${failed.join(', ')}`);
-    return 1;
+    report.err(`verify failed: gate ${failed.join(', ')}`);
+    return report.end(1, { gates, warnings });
   }
-  io.stdout(warnings > 0 ? `verify passed with ${warnings} warning(s) (gates 1, 2, 3, 4)` : 'verify passed (gates 1, 2, 3, 4)');
-  return 0;
+  report.out(warnings > 0 ? `verify passed with ${warnings} warning(s) (${ran})` : `verify passed (${ran})`);
+  return report.end(0, { gates, warnings });
 }
 
 async function initCommand(io: CliIo, argv: readonly string[]): Promise<number> {
@@ -231,20 +352,46 @@ async function initCommand(io: CliIo, argv: readonly string[]): Promise<number> 
   return 0;
 }
 
+/** Takes --format <text|json> (or --format=<…>) out of the arguments of a command. */
+function takeFormat(args: readonly string[]): { format: Format; rest: string[] } {
+  const rest: string[] = [];
+  let format: string = 'text';
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === '--format') {
+      format = args[++i] ?? '';
+    } else if (arg.startsWith('--format=')) {
+      format = arg.slice('--format='.length);
+    } else {
+      rest.push(arg);
+    }
+  }
+  if (format !== 'text' && format !== 'json') throw new UsageError(`--format must be text or json, not "${format}"`);
+  return { format, rest };
+}
+
 /** Runs a command. Gives the exit code: 0, 1 for a failure, 2 for a usage error. */
 export async function main(argv: readonly string[], io: CliIo = { cwd: process.cwd(), stdout: (t) => console.log(t), stderr: (t) => console.error(t) }): Promise<number> {
-  const [command, ...rest] = argv;
+  const [command, ...args] = argv;
+  // --format belongs to compile, verify and diff: it is taken out before their own options are read.
+  let format: Format = 'text';
+  let rest = args;
+  let report = new Report(io, format);
   try {
+    if (command === 'compile' || command === 'verify' || command === 'diff') {
+      ({ format, rest } = takeFormat(args));
+      report = new Report(io, format);
+    }
     switch (command) {
       case 'init':
         return await initCommand(io, rest);
       case 'compile':
-        return await compileCommand(io, rest);
+        return await compileCommand(io, report, rest);
       case 'verify':
-        return await verifyCommand(io, rest);
+        return await verifyCommand(io, report, rest);
       case 'diff': {
         const { diffCommand } = await import('./diff/command.js');
-        return await diffCommand(io, rest);
+        return await diffCommand(io, report, rest);
       }
       case undefined:
       case '--help':
@@ -261,6 +408,10 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
     }
   } catch (error) {
     if (error instanceof UsageError || (error as { code?: string }).code?.startsWith('ERR_PARSE_ARGS')) {
+      if (report.format === 'json') {
+        report.problem({ code: 'usage', severity: 'error', message: (error as Error).message });
+        return report.end(2);
+      }
       io.stderr(`${(error as Error).message}\n\n${USAGE}`);
       return 2;
     }

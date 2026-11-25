@@ -43,13 +43,16 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.17",
     "@types/node": "^22.20.5",
+    "ajv": "^8.20.0",
     "vitest": "^5.1.1"
   },
   "bin": {
     "urn-forge": "./bin/urn-forge.js"
   },
   "files": [
+    "AGENTS.md",
     "bin",
+    "manifest.schema.json",
     "src",
     "templates"
   ]

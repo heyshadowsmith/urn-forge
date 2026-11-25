@@ -2,7 +2,8 @@
  * `urn-forge init`: writes a starter project into a directory, from templates/starter/. The starter is
  * a small domain (split a bill) whose scenarios cover every operation, output and rule, so `verify`
  * passes with no warning before the first change. It writes no file when a starter file exists
- * already. It makes package.json an ES module package with three scripts, and keeps the rest of it.
+ * already, except AGENTS.md and CLAUDE.md, the instructions for coding agents: it keeps these when
+ * they exist. It makes package.json an ES module package with three scripts, and keeps the rest of it.
  */
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
@@ -10,6 +11,9 @@ import { fileURLToPath } from 'node:url';
 import { NAME } from './manifest.js';
 
 const TEMPLATE_DIR = fileURLToPath(new URL('../templates/starter/', import.meta.url));
+
+/** The instructions of a project for coding agents: init keeps a file that exists, and writes the others. */
+const INSTRUCTIONS = new Set(['AGENTS.md', 'CLAUDE.md']);
 
 export const STARTER_SCRIPTS = { compile: 'urn-forge compile', verify: 'urn-forge verify', 'test:features': 'cucumber-js' } as const;
 
@@ -31,10 +35,14 @@ export async function initProject(options: { readonly cwd: string; readonly name
   const files = await templateFiles();
   const at = (path: string): string => join(options.cwd, ...path.split('/'));
   const present: string[] = [];
-  for (const file of files) if (await exists(at(file))) present.push(file);
+  for (const file of files) if (!INSTRUCTIONS.has(file) && (await exists(at(file)))) present.push(file);
   if (present.length > 0) return { ok: false, message: `init writes no file: these exist already: ${present.join(', ')}` };
   const lines: string[] = [];
   for (const file of files) {
+    if (INSTRUCTIONS.has(file) && (await exists(at(file)))) {
+      lines.push(`kept       ${file} (it exists: point it at node_modules/urn-forge/AGENTS.md)`);
+      continue;
+    }
     const text = (await readFile(join(TEMPLATE_DIR, file), 'utf8')).replaceAll('{{namespace}}', options.namespace).replaceAll('{{domain}}', options.domain);
     await mkdir(dirname(at(file)), { recursive: true });
     await writeFile(at(file), text);

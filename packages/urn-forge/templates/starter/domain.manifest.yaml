@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./node_modules/urn-forge/manifest.schema.json
 # The contract of this project: definitions, rules and operations.
 # After a change, run `npx urn-forge compile`, then `npx urn-forge verify`.
 manifest:

@@ -1,6 +1,8 @@
+import type { Code } from '../codes.js';
+
 /** A problem that a gate finds in a project: a file, an optional line, and a message. */
 export interface GateProblem {
-  readonly code: string;
+  readonly code: Code;
   readonly severity: 'error' | 'warning';
   readonly file: string;
   readonly line?: number;

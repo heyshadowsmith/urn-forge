@@ -168,11 +168,12 @@ jobs:
           npm run verify:self
           npm run verify:insurance
 
-  # Gate 5, as a report. A pull request is checked out as its merge commit, so
-  # HEAD^1 is the tip of the base branch, and the diff shows what the pull request changes in
-  # each domain. The domains here are test domains, which change on purpose to exercise new
-  # features, so a breaking change is reported, not a failure (--report). tests/diff.test.ts
-  # proves that diff fails on a breaking change.
+  # The contract against the base branch. A pull request is checked out as its merge commit, so
+  # HEAD^1 is the tip of the base branch. The diff shows what the pull request changes in each
+  # domain. The domains here are test domains, which change on purpose to exercise new features,
+  # so a breaking change is reported, not a failure (--report); tests/diff.test.ts proves that
+  # diff fails on a breaking change. Gate 5 (verify --base) fails a contract of the corpus that
+  # loses a rule, an output or a scenario without a new version.
   compatibility:
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
@@ -193,6 +194,17 @@ jobs:
       - name: urn-forge diff of each domain against the base branch
         working-directory: packages/urn-forge
         run: npm run diff:base -- HEAD^1 --report
+
+      - name: urn-forge verify --base (each contract)
+        if: ${{ !cancelled() }}
+        run: |
+          status=0
+          for dir in contracts/*/; do
+            echo "::group::$(basename "$dir")"
+            node packages/urn-forge/bin/urn-forge.js verify --config "$dir/urn-forge.config.ts" --base HEAD^1 || status=1
+            echo "::endgroup::"
+          done
+          exit $status
 
   # The path a person takes outside this repository: pack urn-forge, install the tarball in a
   # new project, run urn-forge init, then verify and the scenarios (scripts/test-tarball.mjs).

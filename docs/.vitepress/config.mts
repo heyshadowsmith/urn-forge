@@ -44,6 +44,7 @@ export default defineConfig({
           { text: 'Run verify in CI', link: '/how-to/run-verify-in-ci' },
           { text: 'Change the contract', link: '/how-to/change-the-contract' },
           { text: 'Store objects in Postgres', link: '/how-to/store-in-postgres' },
+          { text: 'Work with a coding agent', link: '/how-to/work-with-a-coding-agent' },
         ],
       },
       {

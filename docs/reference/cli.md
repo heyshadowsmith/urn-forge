@@ -7,19 +7,33 @@ urn-forge 0.2.0
 
 Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
-  urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>]
-  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
-  urn-forge diff    <old manifest> <new manifest> [--report]
+  urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
+  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--base <ref>] [--format text|json]
+  urn-forge diff    <old manifest> <new manifest> [--report] [--format text|json]
 ```
 
 | Command | What it does |
 | --- | --- |
-| `init` | Writes a starter project that splits a bill. This project passes `verify` with `coverage: 'error'`. `init` sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. If one of its files is already there, it writes nothing. The default values of `--namespace` and `--domain` are `app` and `starter` |
+| `init` | Writes a starter project that splits a bill. This project passes `verify` with `coverage: 'error'`. `init` sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. It also writes `AGENTS.md`, the instructions for coding agents, and `CLAUDE.md`, which points at `AGENTS.md`; it keeps each of these two that is already there. If one of its other files is already there, it writes nothing. The default values of `--namespace` and `--domain` are `app` and `starter` |
 | `compile` | Writes the generated files, and shows one line for each file: `wrote`, `unchanged`, or `removed`. If the manifest has an error, it writes nothing |
-| `verify` | Compiles in memory and runs the [four gates](#the-gates). It writes nothing, and it does not run the scenarios. `cucumber-js` runs them |
+| `verify` | Compiles in memory and runs the [gates](#the-gates). It writes nothing, and it does not run the scenarios. `cucumber-js` runs them. `--base <ref>` also runs gate 5 against a git ref |
 | `diff` | Compares two manifests. Refer to [Change the contract](../how-to/change-the-contract). It does not read the config |
 
 Each command exits with `0` on a pass (also with warnings), `1` on a failure, and `2` on a wrong command line.
+
+### JSON output
+
+With `--format json`, `compile`, `verify` and `diff` write one JSON object to stdout, and nothing else. The exit code does not change.
+
+| Key | In | Value |
+| --- | --- | --- |
+| `ok` | All | `true` when the exit code is `0` |
+| `problems` | All | Each problem: `code`, `severity`, `file`, `line`, `path` (the keys in the manifest or the config), `message` and `fix`. A key that does not apply is `null` |
+| `files` | `compile` | Each generated file: `status` and `path` |
+| `gates`, `warnings` | `verify` | Each gate that ran: `gate`, `name`, `pass` and `summary`; the number of warnings |
+| `from`, `to`, `breaking`, `changes`, `allowed`, `why` | `diff` | The versions, the number of breaking changes, each change (`class`, `place`, `message`), and the verdict of the versions |
+
+A wrong command line is a problem with the code `usage`. Refer to [Work with a coding agent](../how-to/work-with-a-coding-agent) for an example.
 
 ## The config
 
@@ -48,7 +62,7 @@ gate 4  drift         PASS  1 generated file(s) compared byte for byte against s
 verify passed (gates 1, 2, 3, 4)
 ```
 
-Each problem of a gate is an indented line below the gate. The last line is `verify passed …` or `verify failed: gate <numbers>`. If the config or the manifest has an error, no gate runs.
+Each problem of a gate is an indented line below the gate, with its fix on the next line. The last line is `verify passed …` or `verify failed: gate <numbers>`. If the config or the manifest has an error, no gate runs. Gate 5 runs only with `--base <ref>`.
 
 | Gate | It fails when | Codes |
 | --- | --- | --- |
@@ -56,20 +70,26 @@ Each problem of a gate is an indented line below the gate. The last line is `ver
 | 2. Boundary | A shell file calls a function of the core directly, or a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` | `direct-call`, `suppressed-check` |
 | 3. Gherkin | A step names a part that the manifest does not have. A feature is not valid Gherkin. No scenario runs an operation, ends with an output, or breaks a rule of a definition | `unknown-name`, `feature-syntax`, `uncovered-operation`, `uncovered-output`, `uncovered-rule` |
 | 4. Drift | A generated file is not the same as the file that `compile` writes now. A generated file is not there. A generated file is there, but `compile` does not write it now | `drift` |
+| 5. Contract | Compared with the manifest and the features at the git ref: a rule, an output or a scenario is not there, or a rule accepts more, and the version does not allow it. A new major version, a pre-release or another `0.x` version allows it; then each change is a warning | `removed-rule`, `wider-rule`, `removed-output`, `removed-scenario`, `base-unreadable` |
 
 The `uncovered-` codes are warnings, or errors with `coverage: 'error'`. An `Examples` row counts as one scenario. A `type-error` names the function to correct. `TS1360` is a function that is not there, and `TS2353` is an extra function. `TS2322` is a return that is not `answer('<output>', value)` of the operation. If an error points into a generated file, correct gate 4 first.
 
 ## Diagnostics
 
-A problem of the config or the manifest is one line, with the line in the manifest. An `error` stops the command, but a `warning` does not. Each message tells you what to do:
+A problem of the config or the manifest is one line, with the line in the manifest, and a second line with the fix. An `error` stops the command, but a `warning` does not:
 
 ```
 domain.manifest.yaml:13  error  unknown-rule  positive is not a rule of this manifest or a standard rule
+  fix: Add the rule to rules:, or correct the name to a rule of the manifest or a standard rule.
 domain.manifest.yaml:75  error  rule-guard  over_express_limit: input.express can be absent: read it after has(input.express) &&, or after !has(input.express) ||
+  fix: Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) || self.x > 0.
 ```
+
+Each code has one fix, which the output shows on the line below the problem. `node_modules/urn-forge/AGENTS.md` lists each code with its fix.
 
 | Code | Cause |
 | --- | --- |
+| `usage` | The command line is wrong (only with `--format json`; as text, the usage shows) |
 | `manifest-unreadable`, `config-unreadable` | The manifest file, or the file that `--config` names, does not exist |
 | `config-invalid` | The config does not load, or an option is unknown or of the wrong type |
 | `postgres-config` | A table has no identifier, or an entry of `postgres` names a part that is not there |
@@ -89,3 +109,5 @@ domain.manifest.yaml:75  error  rule-guard  over_express_limit: input.express ca
 | `rule-type` | A type in the rule is wrong, the rule does not give a `bool`, or `has()` reads a required property |
 | `rule-guard` | The rule reads an optional property without `has()` |
 | `rule-scope` | The rule reads a name that is not available where you apply the rule, such as `output` in a rule of a definition |
+| `removed-rule`, `wider-rule`, `removed-output`, `removed-scenario` | Gate 5: the contract is weaker than at the base, and the version does not allow it |
+| `base-unreadable` | Gate 5: the folder is not in a git repository, or the ref is not a commit. In CI, fetch the base branch |
