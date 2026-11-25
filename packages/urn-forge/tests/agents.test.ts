@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { fixes: it, json: it, reference: it, schema: it, init: it.fails, base: it.fails };
+const target = { fixes: it, json: it, reference: it, schema: it, init: it, base: it.fails };
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -142,6 +142,17 @@ describe('init', () => {
     expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toContain('node_modules/urn-forge/AGENTS.md');
     expect(readFileSync(join(dir, 'CLAUDE.md'), 'utf8').trim()).toBe('@AGENTS.md');
     expect(readFileSync(join(dir, 'domain.manifest.yaml'), 'utf8')).toMatch(/^# yaml-language-server: \$schema=/);
+  });
+
+  it('keeps an AGENTS.md or a CLAUDE.md that exists', async () => {
+    const dir = mkdtempSync(join(PACKAGE, '.agents-init-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 'CLAUDE.md'), 'Our own instructions\n');
+    const { code, out } = await run(dir, ['init']);
+    expect(code).toBe(0);
+    expect(out).toContain('kept       CLAUDE.md (it exists: point it at node_modules/urn-forge/AGENTS.md)');
+    expect(readFileSync(join(dir, 'CLAUDE.md'), 'utf8')).toBe('Our own instructions\n');
+    expect(existsSync(join(dir, 'AGENTS.md'))).toBe(true);
   });
 });
 

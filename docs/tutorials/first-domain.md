@@ -17,6 +17,8 @@ npx urn-forge init --namespace demo --domain shipping
 ```
 
 ```
+wrote      AGENTS.md
+wrote      CLAUDE.md
 wrote      cucumber.json
 wrote      domain.manifest.yaml
 wrote      features/split.feature
