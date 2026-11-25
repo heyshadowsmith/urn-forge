@@ -100,3 +100,13 @@ Each must turn CI red:
 
 - **A description that does not trigger.** Claude loads the skill from its description. The description names the files and the failures that start the work. If it does not trigger, the user types `/urn-forge`. A later plan can measure this with evals.
 - **Two sources of the loop.** `AGENTS.md` and the skill both describe the loop. `AGENTS.md` keeps five lines; the skill adds the order, the code table and when to stop. The consistency test keeps the skill's names right.
+
+## What was built
+
+Each step is one commit, and each commit is green.
+
+- **Step 1.** `skills/urn-forge/SKILL.md`, with the five parts of the plan. Its table assigns each of the 41 codes to the place to change. The consistency test checks two directions: each code that the skill names is in `CODES`, and each code in `CODES` is in the skill. A new code therefore needs a row in the skill. The second direction was not in the plan. Each path is checked in a project that `init` makes and `compile` builds, so `src/generated/` and `node_modules/urn-forge/AGENTS.md` are real paths.
+- **Step 2.** `init` copies the skill from the package, so there is one copy of the text. It keeps a skill that exists, and says to compare it with the package's skill. The tarball test checks that a project has the skill.
+- **Step 3.** A section "Give Claude Code the skill" in "Work with a coding agent". The tutorial's `init` output, the CLI reference and the package's reference name the skill.
+
+All three sabotages turned CI red: an option that the CLI does not have (`--fast`) and a code that `CODES` does not have failed the consistency test, and removing `skills` from `files` failed the tarball test at `init`.
