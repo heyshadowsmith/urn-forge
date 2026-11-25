@@ -1,10 +1,11 @@
 # urn-forge
 
-Write the contract of a domain in one YAML manifest. urn-forge generates a TypeScript harness that checks your code against the contract on each call. It also gives gates that fail CI when the code, the scenarios or a change break the contract.
+Coding agents write the code. You own the contract. urn-forge generates a harness that checks the code against the contract on each call, and gates that fail CI when the code, the scenarios or a change break the contract.
 
-- **Declare** definitions, rules and operations with the words of JSON Schema (`type`, `properties`, `required`, `enum`, `minimum`, …). Write your own rules in a subset of CEL.
-- **Generate** one TypeScript file: a type and a Valibot schema (a Standard Schema) for each definition, and `runOperation`. This harness checks the input before your core runs, and the answer after it. The file imports only `valibot`.
-- **Prove** with `urn-forge verify` that the contract and the code agree. The core has a function for each operation, and the shell calls it only through the harness. Scenarios cover each operation, output and rule, and the generated files are current. `urn-forge diff` fails a change that breaks callers, unless the major version increases.
+- **State the rules** of a domain in one short contract that you review: the values, the operations, the answers of each operation, and named rules with messages.
+- **Let the agent write the code.** `init` writes an `AGENTS.md` for any coding agent and a skill for Claude Code. Each problem has a stable code and one sentence that says what to do, as text or JSON.
+- **Generate** one TypeScript file: a type and a schema for each definition, and `runOperation`. This harness checks the input before the code runs, and the answer after it.
+- **Prove** with `urn-forge verify` that the contract and the code agree. The core has a function for each operation, and the shell calls it only through the harness. Scenarios cover each operation, answer and rule, and the generated files are current. Gate 5 fails a change that removes a rule, an answer or a scenario without a new version. `urn-forge diff` fails a change that breaks callers, unless the major version increases.
 - **Store** objects in Postgres, if you want. urn-forge writes a schema with the rules as `CHECK` constraints. It also writes the statements that write and read the rows.
 
 ## Start
