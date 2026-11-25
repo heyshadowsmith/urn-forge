@@ -33,7 +33,7 @@ With `--format json`, `compile`, `verify` and `diff` write one JSON object to st
 | `gates`, `warnings` | `verify` | Each gate that ran: `gate`, `name`, `pass` and `summary`; the number of warnings |
 | `from`, `to`, `breaking`, `changes`, `allowed`, `why` | `diff` | The versions, the number of breaking changes, each change (`class`, `place`, `message`), and the verdict of the versions |
 
-A wrong command line is a problem with the code `usage`. Refer to [Work with a coding agent](../how-to/work-with-a-coding-agent) for an example.
+A wrong command line is a problem with the code `usage`. Refer to [Set up a project for an agent](../how-to/work-with-a-coding-agent) for an example.
 
 ## The config
 

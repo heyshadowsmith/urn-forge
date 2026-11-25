@@ -1,6 +1,6 @@
-# Run verify in CI
+# Run the gates in CI
 
-Run `urn-forge verify`, the scenarios and `urn-forge diff` on each pull request. Then a change that breaks the contract, or makes it weaker, cannot merge. Commit the generated files first, because gate 4 compares them with a new compile.
+CI is where the gates stop an agent's change that breaks the contract. Run `urn-forge verify`, the scenarios and `urn-forge diff` on each pull request. Then a change that breaks the contract, or makes it weaker, cannot merge. Commit the generated files first, because gate 4 compares them with a new compile.
 
 ## The workflow
 

@@ -1,6 +1,6 @@
 # Change the contract
 
-A change to the manifest can break callers. A caller can send a value that the new manifest rejects. A caller can also get an answer that it does not handle. `urn-forge diff` lists each change as `breaking` or `compatible`. It allows a breaking change only where semver allows it.
+A change to the manifest can break callers. A caller can send a value that the new manifest rejects. A caller can also get an answer that it does not handle. `urn-forge diff` lists each change as `breaking` or `compatible`. It allows a breaking change only in a new major version, a `0.x` version or a pre-release. Gate 5 also asks for a new version when a change makes the contract weaker. When the agent changes the version, you decide if the change is right.
 
 ## Steps
 

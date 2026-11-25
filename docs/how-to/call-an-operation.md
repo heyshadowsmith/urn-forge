@@ -1,4 +1,6 @@
-# Call an operation from your application
+# Calls to an operation
+
+The agent writes the shell as well as the core. Read this page to review how your application calls an operation. Gate 2 already fails a call that skips the harness.
 
 The shell is the code around your core, for example an HTTP handler, a queue consumer or a CLI. The shell reads the request, and loads the data of the operation into the input. Then it calls the generated `runOperation`, and does an action for the result. It never calls a function of the core directly.
 
@@ -77,17 +79,17 @@ gate 2  boundary      FAIL  1 core file(s), 1 shell file(s): 1 problem(s)
 
 ## The generated file
 
-`urn-forge compile` writes `domain.generated.ts` (in `src/generated` by default). The file imports only `valibot`, and the same manifest always gives the same bytes. Do not edit the file, because gate 4 finds all edits. The name of a definition in PascalCase is the name of its type. With `Schema` added, it is the name of its schema. For example, `party_size` gives `PartySize` and `PartySizeSchema`.
+`urn-forge compile` writes `domain.generated.ts` (in `src/generated` by default). The file imports one library, which urn-forge installs, and the same manifest always gives the same bytes. Do not edit the file, because gate 4 finds all edits. The name of a definition in PascalCase is the name of its type. With `Schema` added, it is the name of its schema. For example, `party_size` gives `PartySize` and `PartySizeSchema`.
 
 | Export | What it is |
 | --- | --- |
 | `<Name>` | The type of each definition |
-| `<Name>Schema` | The Valibot schema of each definition, with its rules. It is a [Standard Schema](https://standardschema.dev). tRPC, Hono or a form library can use it. The `requirement` of an issue contains the definition and the rule |
+| `<Name>Schema` | The schema of each definition, with its rules. Form libraries, API routers and other libraries that check data can use it, so that a form or a route checks the same rules as the harness |
 | `check(definition, value)` | Checks one value, for example before the shell stores it. It gives `{ ok: true, value }` or `{ ok: false, failures }` |
 | `answer(output, value)` | Makes an answer of the core |
 | `DomainCore` | The type of the core: a function for each operation. Your core file exports a value that `satisfies DomainCore` |
 | `runOperation(core, operation, input)` | The harness |
 | `<Operation>Answer`, `OperationResult`, `Failure`, `CheckResult` | The types of answers, results and failures |
-| `Definitions`, `Operations` | The shape of each definition and operation, for the Gherkin steps |
+| `Definitions`, `Operations` | The shape of each definition and operation, for the steps of the scenarios |
 
 The generated code marks a part with `deprecated: true` as `@deprecated`.

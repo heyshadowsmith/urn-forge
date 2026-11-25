@@ -1,4 +1,6 @@
-# Store objects in Postgres
+# Objects in Postgres
+
+Turn this on when your application stores the objects of the domain in Postgres. The agent then writes the shell that runs the statements.
 
 urn-forge can write a Postgres schema from the manifest, with the rules as constraints. The database then rejects a bad write from all code. urn-forge also writes a store file. The store file has pure functions that give the statements to write and read the rows. urn-forge writes no migrations, and it never connects to a database. Your shell controls the driver, the transaction and the locks.
 

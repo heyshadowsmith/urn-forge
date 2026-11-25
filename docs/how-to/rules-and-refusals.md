@@ -1,10 +1,12 @@
-# Write rules and refusals
+# Rules and refusals
+
+The agent writes the rules and the refusals into the contract. Read this page to review them, or to write one yourself.
 
 A rule states a condition that must be true. You apply a rule by its name to a definition or an output. A refusal is an output that says no. The [manifest reference](../reference/manifest#rules) gives the full language. After each change, run `npx urn-forge compile`, then `npx urn-forge verify`. Gate 3 names each new rule or output that does not have a scenario.
 
 ## Write a rule
 
-A standard rule is one of the keywords of JSON Schema. Put it in the `rules` of a definition, with no argument (`- uniqueItems`) or with an argument (`- minimum: 1`). For other conditions, declare your own rule one time, in the top-level `rules` section. Then apply it by its name. In a rule of a definition, `self` is the value. This is from the booking example:
+A standard rule is a common check that urn-forge includes, such as `minimum`, `maxLength` or `enum`. Put it in the `rules` of a definition, with no argument (`- uniqueItems`) or with an argument (`- minimum: 1`). For other conditions, declare your own rule one time, in the top-level `rules` section. Then apply it by its name. In a rule of a definition, `self` is the value. This is from the booking example:
 
 ```yaml
 rules:

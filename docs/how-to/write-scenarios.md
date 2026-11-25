@@ -1,6 +1,8 @@
-# Write scenarios
+# Scenarios
 
-Scenarios are Gherkin `.feature` files. urn-forge gives the steps for all manifests, and you write only the features. Each step names an operation, an output, a definition or a rule. Gate 3 of `verify` reads the same names to find gaps.
+The agent writes the scenarios. Read this page to review them: the gates make sure that a scenario exists, but only you can say that its expected values are correct.
+
+Scenarios are `.feature` files of plain sentences. urn-forge gives the steps for all manifests, so a project writes only the scenarios. Each step names an operation, an output, a definition or a rule. Gate 3 of `verify` reads the same names to find gaps.
 
 ## The steps
 
@@ -76,4 +78,4 @@ Gate 3 does not ask for the values at the edges of a rule, where a core is wrong
 
 <<< @/../packages/urn-forge/templates/starter/features/support/steps.ts
 
-Cucumber must load TypeScript first. For this reason, the `cucumber.json` of the starter imports `register-tsx.mjs` before the steps.
+`npx cucumber-js` must load TypeScript first. For this reason, the `cucumber.json` of the starter imports `register-tsx.mjs` before the steps.
