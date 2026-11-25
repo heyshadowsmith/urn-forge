@@ -137,24 +137,24 @@ describe('the schema of the manifest', () => {
 });
 
 describe('init', () => {
-  target.init('writes AGENTS.md, a CLAUDE.md that points at it, and the schema line', async () => {
+  target.init('writes AGENTS.md and the schema line, and no CLAUDE.md', async () => {
     const dir = mkdtempSync(join(PACKAGE, '.agents-init-'));
     dirs.push(dir);
     expect((await run(dir, ['init'])).code).toBe(0);
     expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toContain('node_modules/urn-forge/AGENTS.md');
-    expect(readFileSync(join(dir, 'CLAUDE.md'), 'utf8').trim()).toBe('@AGENTS.md');
+    expect(existsSync(join(dir, 'CLAUDE.md'))).toBe(false);
     expect(readFileSync(join(dir, 'domain.manifest.yaml'), 'utf8')).toMatch(/^# yaml-language-server: \$schema=/);
   });
 
-  it('keeps an AGENTS.md or a CLAUDE.md that exists', async () => {
+  it('keeps an AGENTS.md that exists', async () => {
     const dir = mkdtempSync(join(PACKAGE, '.agents-init-'));
     dirs.push(dir);
-    writeFileSync(join(dir, 'CLAUDE.md'), 'Our own instructions\n');
+    writeFileSync(join(dir, 'AGENTS.md'), 'Our own instructions\n');
     const { code, out } = await run(dir, ['init']);
     expect(code).toBe(0);
-    expect(out).toContain('kept       CLAUDE.md (it exists: point it at node_modules/urn-forge/AGENTS.md)');
-    expect(readFileSync(join(dir, 'CLAUDE.md'), 'utf8')).toBe('Our own instructions\n');
-    expect(existsSync(join(dir, 'AGENTS.md'))).toBe(true);
+    expect(out).toContain('kept       AGENTS.md (it exists: point it at node_modules/urn-forge/AGENTS.md)');
+    expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toBe('Our own instructions\n');
+    expect(existsSync(join(dir, 'domain.manifest.yaml'))).toBe(true);
   });
 });
 

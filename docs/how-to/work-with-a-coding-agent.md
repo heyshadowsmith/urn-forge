@@ -4,12 +4,9 @@ urn-forge is made for a coding agent, such as Claude Code, Codex or Cursor, to u
 
 ## Give the agent its instructions
 
-`urn-forge init` writes two files for all agents:
+`urn-forge init` writes `AGENTS.md`. It tells the agent the loop of the project, the files that it must not edit, and where the reference is. Claude Code, Codex, Cursor, Copilot and other agents read this file.
 
-- `AGENTS.md` tells the agent the loop of the project, the files that it must not edit, and where the reference is. Codex, Cursor, Copilot and other agents read this file.
-- `CLAUDE.md` has one line, `@AGENTS.md`. Claude Code reads it, and then reads `AGENTS.md`.
-
-If one of these files is already there, `init` keeps it. Then add a line to your file that points at `node_modules/urn-forge/AGENTS.md`.
+If the file is already there, `init` keeps it. Then add a line to your file that points at `node_modules/urn-forge/AGENTS.md`.
 
 The reference is `node_modules/urn-forge/AGENTS.md`. It is one page with each key of the manifest, each standard rule, each function of the rule language, each step, and each code with its fix. It is the reference of the installed version, and the agent can read it offline.
 

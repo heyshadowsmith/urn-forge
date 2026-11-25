@@ -14,7 +14,7 @@ Usage:
 
 | Command | What it does |
 | --- | --- |
-| `init` | Writes a starter project that splits a bill. This project passes `verify` with `coverage: 'error'`. `init` sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. It also writes `AGENTS.md`, the instructions for coding agents, `CLAUDE.md`, which points at `AGENTS.md`, and the Claude Code skill `.claude/skills/urn-forge/SKILL.md`; it keeps each of these three that is already there. If one of its other files is already there, it writes nothing. The default values of `--namespace` and `--domain` are `app` and `starter` |
+| `init` | Writes a starter project that splits a bill. This project passes `verify` with `coverage: 'error'`. `init` sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. It also writes `AGENTS.md`, the instructions for coding agents, and the Claude Code skill `.claude/skills/urn-forge/SKILL.md`; it keeps each of these two that is already there. If one of its other files is already there, it writes nothing. The default values of `--namespace` and `--domain` are `app` and `starter` |
 | `compile` | Writes the generated files, and shows one line for each file: `wrote`, `unchanged`, or `removed`. If the manifest has an error, it writes nothing |
 | `verify` | Compiles in memory and runs the [gates](#the-gates). It writes nothing, and it does not run the scenarios. `cucumber-js` runs them. `--base <ref>` also runs gate 5 against a git ref |
 | `diff` | Compares two manifests. Refer to [Change the contract](../how-to/change-the-contract). It does not read the config |
