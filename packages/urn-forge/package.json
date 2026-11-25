@@ -50,6 +50,7 @@
     "urn-forge": "./bin/urn-forge.js"
   },
   "files": [
+    "AGENTS.md",
     "bin",
     "src",
     "templates"

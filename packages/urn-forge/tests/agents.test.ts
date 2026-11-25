@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { fixes: it, json: it, reference: it.fails, schema: it.fails, init: it.fails, base: it.fails };
+const target = { fixes: it, json: it, reference: it, schema: it.fails, init: it.fails, base: it.fails };
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -95,11 +95,13 @@ describe('the reference in the package', () => {
     const reference = readFileSync(join(PACKAGE, 'AGENTS.md'), 'utf8');
     const standard = parse(readFileSync(join(PACKAGE, 'src/standard.manifest.yaml'), 'utf8')) as { rules: Record<string, unknown> };
     for (const rule of Object.keys(standard.rules)) expect(reference, rule).toContain(`\`${rule}\``);
-    for (const fn of ['has', 'size', 'matches', 'timestamp', 'duration', 'sum', 'all', 'exists', 'exists_one', 'map']) expect(reference, fn).toContain(`\`${fn}`);
+    for (const fn of ['has', 'size', 'matches', 'timestamp', 'duration', 'sum', 'all', 'exists', 'exists_one', 'map']) expect(reference, fn).toContain(`${fn}(`);
     for (const step of ['I run "', 'I check a "', 'the output is "', 'the input is rejected by "', 'the value is rejected by "', 'the value is accepted']) expect(reference, step).toContain(step);
     for (const code of sourceCodes()) expect(reference, code).toContain(`\`${code}\``);
+    const { CODES } = await import('../src/codes.js');
+    for (const [code, { fix }] of Object.entries(CODES)) expect(reference, code).toContain(`| \`${code}\` | ${fix.replaceAll('|', '\\|')} |`);
     const pkg = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as { files: string[] };
-    expect(pkg.files).toEqual(expect.arrayContaining(['AGENTS.md', 'manifest.schema.json']));
+    expect(pkg.files).toContain('AGENTS.md');
   });
 });
 
@@ -116,6 +118,8 @@ describe('the schema of the manifest', () => {
     const booking = parse(readFileSync(join(FIXTURES, 'booking/domain.manifest.yaml'), 'utf8')) as { definitions: Record<string, Record<string, unknown>> };
     booking.definitions['party_size']!['minimum'] = 1;
     expect(validate(booking)).toBe(false);
+    const pkg = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as { files: string[] };
+    expect(pkg.files).toContain('manifest.schema.json');
   });
 });
 
