@@ -1,10 +1,6 @@
-# The CLI
+# The CLI, the config and the gates
 
-The `urn-forge` command has four commands: `init`, `compile`, `verify` and `diff`. Run it with `npx urn-forge` in a project that has urn-forge installed.
-
-## Usage
-
-`npx urn-forge --help` shows this output:
+The `urn-forge` command has four commands. Run it with `npx urn-forge` in a project that has urn-forge installed.
 
 ```
 urn-forge 0.2.0
@@ -24,107 +20,58 @@ Options:
   --core <file>      verify: the core, which exports … satisfies DomainCore (default: src/core.ts)
   --features <dir>   verify: the directory of the .feature files (default: features)
   --tsconfig <file>  verify: the tsconfig of gate 1 (default: tsconfig.json)
+  --report           diff: list the changes, and do not fail on a breaking change
 ```
 
-`npx urn-forge --version` shows the version:
-
-```
-0.2.0
-```
-
-## Exit codes
-
-| Code | Meaning |
+| Exit code | Meaning |
 | --- | --- |
-| `0` | The command passed. Warnings do not change the code |
-| `1` | The command failed: an error in the config or the manifest, a failed gate, or a breaking change that the versions do not allow |
-| `2` | The command line is not correct: an unknown command, an unknown option, or a wrong number of arguments. `npx urn-forge` with no command also gives `2` |
+| `0` | Passed. Warnings do not change the code |
+| `1` | Failed: an error in the config or the manifest, a failed gate, or a breaking change that the versions do not allow |
+| `2` | The command line is wrong |
 
-## Diagnostics
+A problem in the config or the manifest is one line, `<file>:<line>  <severity>  <code>  <message>`. An `error` stops the command; a `warning` does not. Refer to [Diagnostics](./diagnostics).
 
-A problem in the config or the manifest is a line on stderr:
+## The config file
 
+`urn-forge.config.ts` sets the paths and options. The CLI reads it from the working folder, or from `--config`. A path in it is relative to the file; a flag overrides it. Without the file, each option has its default.
+
+```ts
+import { defineConfig } from 'urn-forge/config';
+
+export default defineConfig({
+  coverage: 'error',
+});
 ```
-<file>:<line>  <severity>  <code>  <message>
-```
 
-For example:
-
-```
-domain.manifest.yaml:12  error  unknown-rule  positive is not a rule of this manifest or a standard rule
-```
-
-The line is the line of the part of the manifest that has the problem. For each code, refer to [Diagnostics](./diagnostics).
+| Option | Default | Value |
+| --- | --- | --- |
+| `manifest` | `domain.manifest.yaml` | The manifest |
+| `out` | `src/generated` | The folder of the generated files |
+| `core` | `src/core.ts` | The core file, which exports a value that `satisfies DomainCore` |
+| `features` | `features` | The folder of the `.feature` files |
+| `tsconfig` | `tsconfig.json` | The tsconfig of gate 1 |
+| `shell` | none | Files and folders of the shell, for gate 2 |
+| `coverage` | `'warn'` | `'error'` makes a gap in the scenarios fail gate 3 |
+| `postgres` | none | Write a Postgres schema and a store file. Refer to [Store objects in Postgres](../how-to/store-in-postgres) |
 
 ## init
 
-```bash
-npx urn-forge init [--namespace <name>] [--domain <name>]
-```
-
-`init` writes a starter project into the working folder: a manifest, a core, a feature, the step file, `cucumber.json`, `register-tsx.mjs`, `tsconfig.json` and `urn-forge.config.ts`. It sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. It does not compile.
-
-```
-wrote      cucumber.json
-wrote      domain.manifest.yaml
-wrote      features/split.feature
-wrote      features/support/steps.ts
-wrote      register-tsx.mjs
-wrote      src/core.ts
-wrote      tsconfig.json
-wrote      urn-forge.config.ts
-updated    package.json
-next: npm install, then npx urn-forge compile, then npx urn-forge verify
-```
-
-- `--namespace` and `--domain` are the names in the header of the manifest. A name that is not lowercase snake_case gives exit code `2`:
-
-  ```
-  --domain "Bad" must be lowercase snake_case that starts with a letter (at most 63 characters)
-  ```
-
-- If one of the starter files exists, `init` writes no file and stops with exit code `1`.
+`init` writes a starter project into the working folder: a manifest, a core, a feature, the step file, `cucumber.json`, `register-tsx.mjs`, `tsconfig.json` and `urn-forge.config.ts`. It sets `"type": "module"` in `package.json` and adds the scripts `compile`, `verify` and `test:features`. If one of its files exists, it writes nothing and exits with `1`. The starter splits a bill, and `verify` passes on it with `coverage: 'error'`.
 
 ## compile
 
-```bash
-npx urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>]
-```
-
-`compile` reads the manifest, shows its diagnostics, and writes the generated files. It writes no file if the manifest has an error. Each line of the output is one file:
-
-| Status | Meaning |
-| --- | --- |
-| `wrote` | The file is new, or its content changed |
-| `unchanged` | The file has the same content |
-| `removed` | The file is a generated file that compile no longer makes |
+`compile` reads the manifest, shows its diagnostics, and writes the generated files, one line for each: `wrote`, `unchanged`, or `removed` for a generated file it no longer makes. It writes nothing if the manifest has an error. In the folder of the booking example, which has `out: 'generated'` and `postgres` in its config:
 
 ```
-wrote      src/generated/domain.generated.ts
+domain.manifest.yaml:124  warning  deprecated-use  booking uses the deprecated definition note
+unchanged  generated/domain.generated.ts
+unchanged  generated/schema.generated.sql
+unchanged  generated/domain.store.generated.ts
 ```
 
-With `postgres` in the config, `compile` writes three files. In the root of the urn-forge repository, this command compiles the booking fixture:
+## verify and the gates
 
-```bash
-node packages/urn-forge/bin/urn-forge.js compile --config packages/urn-forge/tests/fixtures/booking/urn-forge.config.ts
-```
-
-The command shows this output:
-
-```
-packages/urn-forge/tests/fixtures/booking/domain.manifest.yaml:124  warning  deprecated-use  booking uses the deprecated definition note
-unchanged  packages/urn-forge/tests/fixtures/booking/generated/domain.generated.ts
-unchanged  packages/urn-forge/tests/fixtures/booking/generated/schema.generated.sql
-unchanged  packages/urn-forge/tests/fixtures/booking/generated/domain.store.generated.ts
-```
-
-## verify
-
-```bash
-npx urn-forge verify [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>]
-```
-
-`verify` compiles the manifest in memory, then runs the four gates. It writes no file. Refer to [Verification gates](./verification-gates).
+`verify` compiles the manifest in memory and runs four gates. It writes nothing, and it does not run the scenarios; `cucumber-js` does.
 
 ```
 gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; core satisfies DomainCore
@@ -134,13 +81,20 @@ gate 4  drift         PASS  1 generated file(s) compared byte for byte against s
 verify passed (gates 1, 2, 3, 4)
 ```
 
+Each problem of a gate is an indented line under it. The last line is `verify passed …`, or `verify failed: gate <numbers>`, or says that the config or the manifest is not valid, in which case no gate runs.
+
+| Gate | It checks | Codes |
+| --- | --- | --- |
+| 1. Completeness | `tsc` passes over the core with the project's tsconfig, and the core exports a value that `satisfies DomainCore` | `type-error`, `core-not-satisfying`, `core-not-found`, `tsconfig-unreadable` |
+| 2. Boundary | No shell file reads a function of the core directly; no core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` | `direct-call`, `suppressed-check` |
+| 3. Gherkin | Every step names a real operation, output, definition or rule. A scenario runs each operation, ends with each output, and breaks each rule of each definition | `unknown-name`, `feature-syntax`, and the gaps `uncovered-operation`, `uncovered-output`, `uncovered-rule` |
+| 4. Drift | Each generated file equals a fresh compile, byte for byte, and no stale generated file is left | `drift` |
+
+A gap is a warning, or an error with `coverage: 'error'`. Gate 3 counts an `Examples` row as one scenario. A rule counts as broken for a definition when a scenario ends with `Then the input is rejected by` or `Then the value is rejected by` that rule and definition. The rules of outputs and operations need no breaking scenario: the harness checks them on every answer.
+
 ## diff
 
-```bash
-npx urn-forge diff [--report] <old manifest> <new manifest>
-```
-
-`diff` compiles both manifests, lists the changes between them, and judges the breaking changes by the versions. With `--report`, a breaking change that the versions do not allow is reported, and the exit code is `0`. Refer to [Diff and versions](./diff).
+`diff` compiles two manifests, lists each change as `breaking` or `compatible`, and judges the breaking ones by the two versions. It does not read the config.
 
 ```
 breaking    definitions.weight_grams  maximum is now 20000, not 30000: it accepts less
@@ -148,10 +102,40 @@ compatible  definitions.zone  enum is now ["domestic","international","regional"
 diff failed: 2 change(s), 1 breaking, 1.0.0 → 1.1.0: 1.0.0 → 1.1.0 keeps the major version 1; a breaking change needs a new major version
 ```
 
-`diff` does not read the config. Its paths are relative to the working folder.
+A breaking change is allowed when the new version is `0.x`, a pre-release (`2.0.0-alpha.1`), or a new major version. With `--report`, a breaking change that is not allowed is listed and the exit code is `0`.
 
-## Related pages
+Callers send the input and every definition inside it, and receive the outputs and every definition inside them. A definition on both sides takes the stricter verdict.
 
-- [The configuration file](./configuration)
-- [Diagnostics](./diagnostics)
-- [Verification gates](./verification-gates)
+| Change of a definition | Sent | Received |
+| --- | --- | --- |
+| New definition, or `deprecated: true` added | compatible | compatible |
+| Removed definition or property; changed `type`, `items` or `identifier` | breaking | breaking |
+| New property | compatible | breaking ¹ |
+| New rule, or a narrower argument: accepts less | breaking | compatible |
+| Removed rule, or a wider argument: accepts more | compatible | breaking ¹ |
+| An argument that is neither narrower nor wider | breaking | breaking |
+
+¹ Compatible with `compatibility: { callers: ignore-unknown }` in the new header. A definition that no input or output uses is compatible for any change, except an argument that is neither narrower nor wider.
+
+An argument's direction: more `enum` choices or fewer `required` properties is wider. For a rule of the form `self <op> parameter` or `size(self) <op> parameter`, a larger argument is narrower with `>=` or `>`, and wider with `<=` or `<`; this covers `minimum`, `maximum`, the lengths and counts, and your own rules of that form. A rule of the manifest whose text changed is breaking wherever it is used; spaces and redundant parentheses do not count.
+
+| Change of an operation or the header | Class |
+| --- | --- |
+| New operation; removed output; new rule of an output or operation | compatible |
+| Removed operation; changed `input`; removed or changed rule of an output or operation | breaking |
+| New output | breaking, or compatible with `callers: ignore-unknown` |
+| Changed `namespace` or `domain`; `compatibility` removed | breaking |
+| `compatibility` added; `deprecated: true` added | compatible |
+
+## Package entry points
+
+Your core and shell import only the generated file. A project also uses:
+
+| Import | Contents |
+| --- | --- |
+| `urn-forge/config` | `defineConfig` and the type of the config |
+| `urn-forge/cucumber` | `registerSteps` |
+| `urn-forge/register-tsx` | Registers `tsx`, so that Cucumber loads TypeScript |
+| `urn-forge` | `loadManifest`, `compileManifest`, `generate` and the rule parser, for tools of your own |
+
+The entry points are TypeScript source; run code that imports them through a loader such as `tsx`.

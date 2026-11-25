@@ -1,72 +1,61 @@
 # Store objects in Postgres
 
-Make a Postgres schema from the manifest, and functions that write and read its rows. Each object that you name is a table. An embedded object is columns of the table, and a list is a child table. Each rule that SQL can state is a `CHECK` constraint or a trigger.
+urn-forge can write a Postgres schema from the manifest, with the rules as constraints, so that a write from any code is checked by the database too. It also writes a store file: pure functions that give the statements to write and read the rows. urn-forge writes no migrations and never connects to a database; your shell keeps the driver, the transaction and the locks.
 
-## Before you start
+## Turn it on
 
-- Each object that becomes a table has an `identifier`. Refer to [Add an object or a list](add-an-object-or-a-list).
-- No list has lists as its items. A list of lists stops `compile` with `postgres-column`.
-
-## Steps
-
-1. Open `urn-forge.config.ts`.
-2. Add `postgres`, with `tables`: the names of the objects that become tables.
-3. If a property holds the identifier of another table, add it to `references`. The property must have the type of the identifier of that table.
-4. If no two rows may share the values of some properties, add them to `unique`.
-5. Run `npx urn-forge compile`. It writes `schema.generated.sql` and `domain.store.generated.ts` next to `domain.generated.ts`.
-6. Apply the schema with your migration tool.
-7. In the shell, run the statements of the store file in a transaction. Refer to [Write and read a value](#write-and-read-a-value).
-
-## Example
-
-The insurance domain of the repository stores customers and policies. Its config is `packages/urn-forge/insurance/urn-forge.config.ts`:
+Add `postgres` to `urn-forge.config.ts`, with the objects that become tables. Each needs an `identifier`, which becomes the primary key. The insurance domain of the repository:
 
 <<< @/../packages/urn-forge/insurance/urn-forge.config.ts{11-14}
 
-`holder` is a property of `policy`. Its type is `customer_id`, the identifier of `customer`, so it can refer to the table `customer`. `compile` lists the three files:
+| Key | Value |
+| --- | --- |
+| `tables` | The object definitions that become tables |
+| `references` | For a table, a property that holds the identifier of another table. It becomes a `FOREIGN KEY` |
+| `unique` | For a table, lists of properties that no two rows share: `unique: { booking: [['restaurant_ref', 'starts_at']] }` |
 
-```
-unchanged  packages/urn-forge/insurance/generated/domain.generated.ts
-unchanged  packages/urn-forge/insurance/generated/schema.generated.sql
-unchanged  packages/urn-forge/insurance/generated/domain.store.generated.ts
-```
+`npx urn-forge compile` then writes two more files next to `domain.generated.ts`: `schema.generated.sql` and `domain.store.generated.ts`. Apply the schema with your migration tool. Gate 4 checks both files like the others.
 
-This is the schema:
+## What the schema holds
 
-<<< @/../packages/urn-forge/insurance/generated/schema.generated.sql{sql}
+| Manifest | Postgres |
+| --- | --- |
+| The domain | A schema of that name |
+| An object in `tables` | A table, commented with its `description` |
+| `string`, `integer`, `number`, `boolean` | `TEXT`, `BIGINT`, `DOUBLE PRECISION`, `BOOLEAN` |
+| A required property | `NOT NULL` |
+| An embedded object | A column for each of its properties, named by path: `contact_email` |
+| A list | A child table, `<table>__<property>`, with the parent's key and `position`. An optional list also adds `has_<property>` to the parent, so an empty list and no list stay different |
+| A rule that SQL can say | A `CHECK` constraint |
+| `uniqueItems` | A `UNIQUE` constraint |
+| `minItems`, `maxItems` | A constraint trigger that counts the rows at the end of the transaction |
 
-Examine these parts of the schema:
+A rule with a macro (`all`, `exists`, `exists_one`, `map`) or `sum()` stays in the harness, and a comment under the table names it. A time is `TEXT`; a rule that compares times casts it to `TIMESTAMPTZ`. A `pattern` runs as a JavaScript regular expression in the harness and a POSIX one in Postgres, so use forms both accept, such as `[0-9]` and `^…$`.
 
-- The schema of Postgres has the name of the domain, `insurance`.
-- A required property is `NOT NULL`. The identifier is the primary key.
-- `holder` has the constraint `policy_holder_pattern`, from the rule of `customer_id`, its type.
-- `coverages` is a list of objects, so it is the child table `policy__coverages`. Each row is one coverage, at its `position`. The rules of a coverage are `CHECK` constraints of that table.
-- The `minItems` and `maxItems` of `coverages` are in the trigger `policy__coverages_count`. It counts the coverages of each policy at the end of the transaction.
-- `one_coverage_per_peril` has a macro, so SQL does not state it. The last comment of the table names it. The harness checks it before the core answers.
+The schema of the booking example, with one table and two child tables:
 
-To make two properties unique together, use `unique`. Each entry is a list of properties:
+<<< @/../packages/urn-forge/tests/fixtures/booking/generated/schema.generated.sql{sql}
 
-```ts
-postgres: {
-  tables: ['booking'],
-  unique: { booking: [['restaurant_ref', 'starts_at']] },
-},
-```
+- `contact` is embedded, so it is the columns `contact_email` and `contact_phone`.
+- `tables` is a list of values; its `uniqueItems` is a `UNIQUE` constraint and its `maxItems` is the trigger `booking__tables_count`.
+- `dishes` is a list of objects; the rules of `course` and `amount` are `CHECK` constraints of `booking__dishes`.
+- `total_is_the_dishes` uses `map` and `sum()`, so it is in the comment.
 
 ## Write and read a value
 
-The booking fixture of the repository has the table `booking`, with the lists `tables` and `dishes`. Its store file has `insertBooking`, `selectBooking` and `bookingFromRows`. Refer to [The store file](../reference/postgres-schema#the-store-file).
+For each table, the store file exports:
 
-1. Check the value with `check` or `runOperation`. The store file does not check it.
-2. Start a transaction.
-3. Run each statement of `insertBooking(booking)`, in its order.
-4. Commit the transaction. The triggers count the rows of the lists at the commit.
-5. To read the booking, run each statement of `selectBooking(reference)`, and keep the rows of each.
-6. Give the rows to `bookingFromRows`, in the same order.
+| Export | Gives |
+| --- | --- |
+| `insert<Table>(value)` | The statements that write a value and the rows of its lists |
+| `replace<Table>(value)` | Delete, then insert |
+| `delete<Table>(identifier)` | The delete; the foreign keys remove the rows of the lists |
+| `select<Table>(identifier)` | One read for the table and one for each child table |
+| `<table>FromRows(rows)` | The value, built from the rows of those reads, in order; `undefined` if there is none |
 
-Do not write the rows of a value outside a transaction. The triggers then count after each statement, and a refused statement leaves the rows of the statements before it in the tables.
+Each statement is `{ text, values }`, with `$1`, `$2`, … in the text. The store file does not check a value: check it with `check` or `runOperation` first. Write a value and its lists in one transaction, so the triggers count the rows once they are all in.
 
-This shell uses the driver `pg`:
+A shell with the `pg` driver:
 
 ```ts
 import pg from 'pg';
@@ -98,67 +87,15 @@ export async function loadBooking(reference: string): Promise<Booking | undefine
 }
 ```
 
-To change a stored booking, use `replaceBooking(booking)` in place of `insertBooking(booking)`. It deletes the row and the rows of its lists, then inserts them again.
-
-For this booking:
-
-```json
-{"reference":"ABCDEFGH","party_size":4,"state":"confirmed","starts_at":"2026-11-24T19:00:00Z","ends_at":"2026-11-24T21:00:00Z","tables":[3,4],"contact":{"email":"ada@example.com"},"dishes":[{"course":"main","amount":2400}],"total":2400}
-```
-
-`insertBooking` gives four statements: one row of `booking`, two rows of `booking__tables` and one row of `booking__dishes`. These are the first two:
-
-```json
-[
-  {
-    "text": "INSERT INTO \"booking\".\"booking\" (\"reference\", \"party_size\", \"state\", \"deposit\", \"starts_at\", \"ends_at\", \"note\", \"has_tables\", \"contact_email\", \"contact_phone\", \"has_dishes\", \"total\") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
-    "values": ["ABCDEFGH", 4, "confirmed", null, "2026-11-24T19:00:00Z", "2026-11-24T21:00:00Z", null, true, "ada@example.com", null, true, 2400]
-  },
-  {
-    "text": "INSERT INTO \"booking\".\"booking__tables\" (\"reference\", \"position\", \"value\") VALUES ($1, $2, $3)",
-    "values": ["ABCDEFGH", 0, 3]
-  }
-]
-```
-
-The rows of `selectBooking('ABCDEFGH')`:
-
-```json
-[[{"reference":"ABCDEFGH","party_size":4,"state":"confirmed","deposit":null,"starts_at":"2026-11-24T19:00:00Z","ends_at":"2026-11-24T21:00:00Z","note":null,"has_tables":true,"contact_email":"ada@example.com","contact_phone":null,"has_dishes":true,"total":2400}],[{"reference":"ABCDEFGH","position":0,"value":3},{"reference":"ABCDEFGH","position":1,"value":4}],[{"reference":"ABCDEFGH","position":0,"course":"main","amount":2400}]]
-```
-
-`bookingFromRows` gives the same booking back:
-
-```json
-{"reference":"ABCDEFGH","party_size":4,"state":"confirmed","starts_at":"2026-11-24T19:00:00Z","ends_at":"2026-11-24T21:00:00Z","contact":{"email":"ada@example.com"},"total":2400,"tables":[3,4],"dishes":[{"course":"main","amount":2400}]}
-```
-
-A booking with five tables breaks `maxItems` of `tables`. The trigger refuses it at the commit, and the transaction writes no row:
+For a booking with two tables and one dish, `insertBooking` gives four statements. The first two:
 
 ```
-Must have at most 4 items
+INSERT INTO "booking"."booking" ("reference", "party_size", "state", "deposit", "starts_at", "ends_at", "note", "has_tables", "contact_email", "contact_phone", "has_dishes", "total") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ["ABCDEFGH",4,"confirmed",null,"2026-11-24T19:00:00Z","2026-11-24T21:00:00Z",null,true,"ada@example.com",null,true,2400]
+INSERT INTO "booking"."booking__tables" ("reference", "position", "value") VALUES ($1, $2, $3) ["ABCDEFGH",0,3]
 ```
 
-## What stays in the shell
+A booking with five tables breaks `maxItems`; the trigger refuses the transaction at the commit, with the constraint `booking__tables_maxItems` and the rule's message, `Must have at most 4 items`.
 
-- The shell has the driver, the connection, the transaction and the locks. The store file only gives statements.
-- The shell reads a row, and puts it in the input as the stored record. Refer to [Model a stored record, the caller and the time](model-the-input).
-- The shell writes the output to the tables after `runOperation` gives `ok: true`.
-- A foreign key, a unique value and a `CHECK` constraint are database facts. They are in the config, not in the manifest, so the manifest stays a contract of values and operations.
+An optional embedded object whose columns are all `NULL` reads back as absent, so an object with no required property cannot be stored as empty.
 
-## Result
-
-`schema.generated.sql` and `domain.store.generated.ts` are in the output folder. Gate 4 compares them with a new compile, as it does for `domain.generated.ts`:
-
-```
-gate 4  drift         PASS  3 generated file(s) compared byte for byte against packages/urn-forge/insurance/generated
-```
-
-If you remove `postgres` from the config, the next `compile` removes the two files.
-
-## Related pages
-
-- [The Postgres schema](../reference/postgres-schema)
-- [The configuration file](../reference/configuration)
-- [Model a stored record, the caller and the time](model-the-input)
-- [The core and the shell](../explanation/core-and-shell)
+Foreign keys, uniqueness across rows and the choice of tables are database facts. They stay in the config, so the manifest stays a contract of values and operations.

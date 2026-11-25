@@ -1,23 +1,15 @@
 # Run verify in CI
 
-Make `urn-forge verify` a step of a GitHub Actions job, next to the scenarios.
+Run `urn-forge verify`, the scenarios and `urn-forge diff` on every pull request, so that a change that breaks the contract cannot merge.
 
 ## Before you start
 
-- `npx urn-forge verify` passes on your computer. Refer to [Fix a failing gate](fix-a-failing-gate).
-- Your repository has a `package-lock.json`.
-- The generated files are committed. Gate 4 compares them with a new compile.
+- `npx urn-forge verify` passes on your computer.
+- The generated files are committed. Gate 4 compares them with a fresh compile.
 
-## Steps
+## The workflow
 
-1. Make `.github/workflows/ci.yml` with the job in the example.
-2. Install the dependencies in a step with an `id`, for example `install`.
-3. Add one step for each check: `verify`, the scenarios, and `tsc` over the whole project.
-4. Give each check step the `if:` condition of the workflow below. It runs the step if the install passed, also after a different check failed. Thus one failure does not hide a second failure.
-5. If the project is in a subfolder, set `working-directory` on each check step.
-6. To check each change to the manifest for breaks, add a step that runs `urn-forge diff`. Refer to [Change the contract](change-the-contract).
-
-## Example
+This GitHub Actions job runs each check, even after another has failed, so one failure does not hide a second one:
 
 ```yaml
 name: CI
@@ -63,23 +55,31 @@ jobs:
           npx urn-forge diff base.manifest.yaml domain.manifest.yaml
 ```
 
-`fetch-depth: 0` gets the base branch, so that the `diff` step can read the manifest as it was.
+`fetch-depth: 0` fetches the base branch, so the `diff` step can read the manifest as it was. If the project is in a subfolder, set `working-directory` on each step.
 
-`verify` stops with exit code `0` if each gate passed, `1` if a gate failed, the config is not valid or the manifest has an error, and `2` if the command line is incorrect. Warnings do not change the exit code. `diff` stops with exit code `1` if a breaking change is not allowed by the versions.
+`verify` and `diff` exit with `0` on a pass (warnings included), `1` on a failure and `2` on a wrong command line.
 
-## Result
+## What fails the job
 
-A pull request that breaks the contract fails the job:
+| A change that | Fails |
+| --- | --- |
+| Leaves an operation without a function in the core, or gives one the wrong type | `verify`, gate 1 |
+| Calls the core from the shell without `runOperation` | `verify`, gate 2 |
+| Adds an operation, output or rule with no scenario, with `coverage: 'error'` | `verify`, gate 3 |
+| Edits a generated file, or forgets to run `compile` | `verify`, gate 4 |
+| Makes the core give a wrong value, or break a rule of an output | `cucumber-js` |
+| Can break a caller without a new major version | `diff` |
 
-- A function that is not in the core fails `urn-forge verify` at gate 1.
-- A shell file that calls the core directly fails it at gate 2.
-- A step that names an output that is not there fails it at gate 3.
-- An edit to a generated file fails it at gate 4.
-- A failed scenario fails `cucumber-js`.
-- A breaking change within one major version fails `urn-forge diff`.
+## When a gate fails
 
-## Related pages
+Read the indented lines under the gate that shows `FAIL`. Each is one problem, with a file, a line when there is one, a code and a message that says what to do:
 
-- [Fix a failing gate](fix-a-failing-gate)
-- [The CLI](../reference/cli)
-- [Verification gates](../reference/verification-gates)
+```
+gate 4  drift         FAIL  1 generated file(s) compared byte for byte against src/generated
+    src/generated/domain.generated.ts:246  error  drift  the generated file is not current; run urn-forge compile
+verify failed: gate 4
+```
+
+Fix the first problem first; others often go with it. If the manifest does not compile, `verify` runs no gate: correct the manifest at the line it gives. [Diagnostics](../reference/diagnostics) lists every code with its fix.
+
+Do not silence a gate. Removing `satisfies DomainCore` fails gate 1 with `core-not-satisfying`, and `@ts-ignore` in the core or the shell fails gate 2 with `suppressed-check`.

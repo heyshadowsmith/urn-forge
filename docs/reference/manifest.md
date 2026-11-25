@@ -1,21 +1,15 @@
 # The manifest
 
-The manifest is one YAML file, `domain.manifest.yaml` by default. It states the contract of one domain. This page gives its sections and keys. For the meaning of each part, use the pages that each section links to.
+The manifest is one YAML file, `domain.manifest.yaml` by default, with four top-level sections. Only `manifest` is required. A key that this page does not list stops `compile` with `manifest-shape`.
 
-## The file
+| Section | Holds |
+| --- | --- |
+| `manifest` | The header |
+| `definitions` | The values: numbers, strings, objects, lists |
+| `rules` | The text of every rule of your own. Refer to [Rules and the rule language](./rule-language) |
+| `operations` | The operations: an input, the outputs, and their rules |
 
-The top level has four keys. Only `manifest` is required.
-
-| Key | Contents | Reference |
-| --- | --- | --- |
-| `manifest` | The header | [The header](#the-header) |
-| `definitions` | A map of names to definitions: the values, objects and lists | [Definitions and types](./definitions) |
-| `rules` | A map of names to rules | [Rules and the standard rules](./rules) |
-| `operations` | A map of names to operations | [Operations and outputs](./operations) |
-
-Pieces are grouped by kind. The section gives the kind of a piece, so a name does not.
-
-A key that is not in the tables of these pages stops `compile` with `manifest-shape`. A key that occurs two times in one map stops it with `yaml-syntax`.
+The [booking example](#example) at the end of this page uses every construct.
 
 ## The header
 
@@ -30,59 +24,113 @@ manifest:
 
 | Key | Required | Value |
 | --- | --- | --- |
-| `namespace` | Yes | A name: the owner of the domain, for example your organisation |
-| `domain` | Yes | A name: the domain. The Postgres schema has this name |
-| `version` | Yes | A semver version, such as `0.1.0` or `2.0.0-alpha.1`. `urn-forge diff` reads it |
-| `compatibility` | No | `callers: ignore-unknown`: callers promise to ignore what they do not recognise in an output. Refer to [Diff and versions](./diff) |
+| `namespace` | Yes | The owner of the domain, for example your organisation |
+| `domain` | Yes | The domain. The Postgres schema has this name |
+| `version` | Yes | A semver version, such as `0.1.0` or `2.0.0-alpha.1`. `diff` reads it |
+| `compatibility` | No | `callers: ignore-unknown`: callers ignore what they do not recognise in an output, so `diff` treats a new output, choice or property of an output as compatible |
 
-## Names
+## Names and common keys
 
-A name of a namespace, a domain, a definition, a rule or an operation:
+A name of a namespace, domain, definition, rule or operation is lowercase snake_case: `^[a-z][a-z0-9_]{0,62}$`. A rule of your own cannot take the name of a standard rule.
 
-- starts with a lowercase letter;
-- has only lowercase letters, digits and `_`;
-- has 63 characters or fewer.
+Every definition, rule and operation has:
 
-The regular expression is `^[a-z][a-z0-9_]{0,62}$`. The standard rules also use camelCase names, such as `minLength`. A rule of your manifest cannot have the name of a standard rule.
-
-One name is one piece in its section. A definition and a rule can have the same name, but this makes a manifest hard to read.
-
-## Keys of every piece
-
-| Key | Where | Value |
+| Key | Required | Value |
 | --- | --- | --- |
-| `description` | Each definition, rule and operation. Required | Text that is not empty: what the piece is, for a reader of the contract. The generated code and the Postgres schema use it as a comment |
-| `deprecated` | Each definition, rule and operation. Optional | `true` or `false`. The default is `false`. Refer to [Deprecation](#deprecation) |
+| `description` | Yes | What the piece is, for a reader. The generated code and the Postgres schema use it as a comment |
+| `deprecated` | No | `true` marks the piece `@deprecated` in the generated code, and each live use of it gets the warning `deprecated-use`. It still works |
 
-## Applying rules
+## Definitions
 
-A definition, an output and an operation list rules in `rules`. Each item is one of these:
+| Key | For | Value |
+| --- | --- | --- |
+| `type` | Every definition, required | One of the six types, or the name of another definition |
+| `properties` | `type: object`, required | The names of the definitions that are its properties |
+| `items` | `type: array`, required | The name of the definition of each item |
+| `identifier` | `type: object` | The property that tells two objects of this kind apart |
+| `rules` | Every definition | The rules the value keeps |
 
-| Item | Meaning |
-| --- | --- |
-| `- even` | Apply the rule `even`, which has no parameter |
-| `- minimum: 1` | Apply the rule `minimum`, with the argument `1` for its one parameter |
-| `- between: { low: 1, high: 9 }` | Apply the rule `between`, with an argument for each of its parameters |
+Structure (`type`, `properties`, `items`, `identifier`) is what a value is. Everything that must be true of it, including `required` and `enum`, is a rule.
 
-The text of each rule is in the top-level `rules` section, or in the standard set. It is never in a definition or an operation.
+### Types
 
-## Deprecation
+| `type` | A value | TypeScript | Valibot |
+| --- | --- | --- | --- |
+| `string` | Text | `string`, or the union of its `enum` choices | `v.string()` |
+| `integer` | A safe integer | `number` | `v.number()`, `v.integer()` |
+| `number` | A finite number | `number` | `v.number()`, `v.finite()` |
+| `boolean` | `true` or `false` | `boolean` | `v.boolean()` |
+| `object` | Named properties | `interface` | `v.strictObject()` |
+| `array` | A list of items | `readonly T[]` | `v.array()` |
 
-`deprecated: true` tells readers that a piece will go. It does not change what the piece accepts.
+There is no date or decimal type. A date is a `string` with `format: date` (`2026-11-24`), a time a `string` with `format: date-time` (`2026-11-24T19:00:00Z`). Money is an `integer` of its smallest unit, such as cents.
 
-- The generated type or function of the piece gets `@deprecated` in its comment.
-- Each piece that is not deprecated and uses it gets the warning `deprecated-use` from `compile`.
-- `urn-forge diff` reports a new deprecation as compatible.
+### A definition as a type
 
-The manifest has no date and no replacement key. Say in the `description` what to use in place of the piece. To remove the piece, delete it; `diff` reports the removal.
+`type` can name another definition. The new one has that definition's structure and rules, and adds its own:
+
+```yaml
+  stored_booking:
+    description: The booking as it is stored, before the call
+    type: booking
+```
+
+This gives one kind of value two roles (`from_account` and `to_account` of `type: account`), and lets a value refer to another object by its identifier (`holder` of `type: customer_id`). It cannot add `properties`, `items` or `identifier`.
+
+### Objects
+
+```yaml
+  contact:
+    description: How to reach the guest
+    type: object
+    properties: [email, phone]
+    rules:
+      - required: [email]
+```
+
+- A property has the name of its definition, and keeps its rules. It cannot be renamed or narrowed in place.
+- A property that `required` does not list is optional: `?` in TypeScript, and read in a rule only after `has()`.
+- A key that is not a property fails the check with the rule `properties`.
+- An object definition in `properties` embeds that object.
+
+`identifier: <property>` names a required property, of a type other than `object` or `array`, that tells two objects apart. The Postgres schema uses it as the primary key.
+
+### Lists
+
+```yaml
+  tables:
+    description: The tables a booking asks for
+    type: array
+    items: table_number
+    rules:
+      - maxItems: 4
+      - uniqueItems
+```
+
+Each item is a value of the `items` definition, with its rules. The rules of the list, such as `maxItems`, apply to the whole list.
+
+## Operations
+
+```yaml
+operations:
+  seat_booking:
+    description: Seat the party of a booking
+    input: seat_request
+    output:
+      - booking: [was_confirmed, is_seated, keeps_the_party]
+      - invalid_state: [was_not_confirmed, names_the_request]
+```
+
+| Key | Required | Value |
+| --- | --- | --- |
+| `input` | Yes | One object definition |
+| `output` | Yes | One or more entries, `- <object>: [rule names]`: an object the operation can answer, and the rules that hold when it does. `- quote` and `- quote: []` mean an output with no rule |
+| `rules` | No | Rules that hold for every answer |
+
+There is no key for errors, states, callers or events. A refusal is an output; a stored record, the caller and the time are properties of the input; an event is a property of an output. The core returns exactly one output per call.
+
+In a rule of an output, `input` is the input and `output` is that object. The operation's own `rules` can read `input`, and `output` only when there is one output. Make the rules of the outputs exclude each other, so that each input allows one output.
 
 ## Example
 
 <<< @/../packages/urn-forge/tests/fixtures/booking/domain.manifest.yaml
-
-## Related pages
-
-- [Definitions and types](./definitions)
-- [Rules and the standard rules](./rules)
-- [Operations and outputs](./operations)
-- [Diagnostics](./diagnostics)

@@ -1,17 +1,10 @@
 # Write scenarios
 
-Write Gherkin scenarios that run your operations through the harness, and that break the rules of your definitions. urn-forge gives the steps. You write only the `.feature` files.
-
-## Before you start
-
-- `features/support/steps.ts` calls `registerSteps`. Refer to [Set up a project](set-up-a-project).
+Scenarios are Gherkin `.feature` files. urn-forge gives the steps for any manifest, so you write only the features. Each step names an operation, an output, a definition or a rule of the manifest, and gate 3 of `verify` reads the same names to find gaps. The [Gherkin steps reference](../reference/gherkin-steps) lists every step and cell format.
 
 ## Run an operation
 
-1. Start the scenario with `When I run "<operation>" with:` and a table.
-2. In the header row, write the names of the properties of the input. For a property of an embedded object, write a path with a dot, for example `stored_booking.state`.
-3. In the second row, write the values. An empty cell sends no value.
-4. End the scenario with `Then the output is "<object>"`. To also compare values, add a colon and a table: `Then the output is "<object>":`.
+Start with `When I run "<operation>" with:` and a table: a header row of the input's properties, and one row of values. End with the output you expect:
 
 ```gherkin
   Scenario: An express parcel over 5000 grams is refused
@@ -23,21 +16,21 @@ Write Gherkin scenarios that run your operations through the harness, and that b
       | 5001         |
 ```
 
-The table of the output compares only the properties that it names. A table has a header row and one row of values.
+- An empty cell sends no value.
+- A header with a dot names a property of an embedded object: `stored_booking.state`.
+- The table under `Then the output is` compares only the properties it names. Leave out the colon and the table to check only the output's name.
 
 ## Break a rule of the input
 
-End the scenario with `Then the input is rejected by "<rule>" of "<definition>"`. The step passes if the harness refused the input before the core ran, and one failure has that rule and that definition.
-
-Use a `Scenario Outline` to break many rules in one scenario:
+End with `Then the input is rejected by "<rule>" of "<definition>"`. It passes when the harness refuses the input before the core runs, with that rule of that definition. A `Scenario Outline` breaks many rules in one place. From the starter:
 
 <<< @/../packages/urn-forge/templates/starter/features/split.feature{19-32 gherkin}
 
-The `<definition>` is the definition that applies the rule. In the example, `minLength` is a rule of `person`, the item of the list `people`.
+The definition is the one that applies the rule: `minLength` is a rule of `person`, the item of the list `people`.
 
 ## Break a rule that no input reaches
 
-Some rules apply only to an output, for example the `required` rule of a refusal. Check a value of the definition, without the core:
+The rules of an output's definition, such as the `required` rule of a refusal, apply only to answers. Check a value of the definition directly:
 
 ```gherkin
   Scenario: A refusal needs the weight
@@ -47,44 +40,30 @@ Some rules apply only to an output, for example the `required` rule of a refusal
     Then the value is rejected by "required" of "too_heavy_for_express"
 ```
 
-To show that a value is valid, end with `Then the value is accepted`.
-
-## Write the cells
-
-The step reads each cell by the type of the property:
-
-| Type | Write | Example |
-| --- | --- | --- |
-| `string` | The text. For an empty string, write `""`. A cell in double quotes is read as JSON | `domestic` |
-| `integer`, `number` | The number | `5001` |
-| `boolean` | `true` or `false` | `true` |
-| `array` | JSON, or the items between commas in brackets | `[Ada, Grace]`, `[1, 2]`, `[{"course": "main", "amount": 1500}]` |
-| `object` | JSON, or one column for each property with a dot path | `{"email": "ada@example.com"}` |
-
-A cell that is not a value of its type goes to the harness as text, so the harness reports the failure.
+`Then the value is accepted` shows that a value is valid.
 
 ## Cover the manifest
 
-Gate 3 of `verify` reads your features. It asks for:
+Gate 3 asks for:
 
 - a scenario that runs each operation;
 - a scenario that ends with each output of each operation;
 - a scenario that breaks each rule that each definition applies.
 
-The rules of an output or of an operation need no scenario that breaks them. The harness checks them on each answer of each scenario that runs the operation.
+The rules of outputs and operations need no breaking scenario: the harness checks them on every answer.
 
-Gate 3 does not ask for the values at the edges of a rule. Add them yourself, for example the weights `1` and `30000` for a weight from 1 to 30000. [Tutorial 3](../tutorials/strict-coverage) shows why.
+A gap is a warning. Once your scenarios cover the manifest, set `coverage: 'error'` in `urn-forge.config.ts`, so that each new operation, output or rule needs a scenario before `verify` passes.
 
-## Result
+## Test the edges
 
-`npx cucumber-js` runs the scenarios, and `npx urn-forge verify` shows the coverage on the line of gate 3:
+Gate 3 asks for one scenario per rule, not for the values at its edges. A core that is wrong by one passes every scenario that is far from the edge. For a weight from 1 to 30000, send `1` and `30000`; for a limit of 5000 grams, send `5000`. [Part 4 of the tutorial](../tutorials/first-domain#test-the-edges) shows a core that only an edge scenario catches.
+
+## Run them
+
+`npx cucumber-js` runs the scenarios through the harness. `npx urn-forge verify` reads them without a run, and shows the coverage on the line of gate 3:
 
 ```
 gate 3  gherkin       PASS  1 feature(s), 15 scenario(s), 1/1 operation(s) run, 7 rule(s) broken
 ```
 
-## Related pages
-
-- [Gherkin steps](../reference/gherkin-steps)
-- [Verification gates](../reference/verification-gates)
-- [Tutorial: make the domain strict](../tutorials/strict-coverage)
+CI runs both. Only a run finds a wrong value; only `verify` finds a scenario that is missing.

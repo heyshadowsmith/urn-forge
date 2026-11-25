@@ -39,12 +39,12 @@ All four types use STE. These are the rules that this site applies.
 - **Commands** are the commands of a user: `npx urn-forge compile`, `npx urn-forge verify` and `npx cucumber-js`, in the root of the project. Show them in `bash` blocks. A page that runs a command in another folder says so.
 - **Links** in `docs/` go to other pages with relative paths and no extension, for example `[Diagnostics](./diagnostics)` or `[Add a rule](../how-to/add-a-rule)`. VitePress uses clean URLs. Link to a page, not to a heading on a page that someone else writes. A user page does not link to `planning/` or `contributing/`. Links in `contributing/` keep the `.md` extension, so that they work on GitHub.
 - **Headings** use sentence case. A how-to title is the goal. A reference title is the name of the thing.
-- **Terms** follow [the glossary](../docs/reference/glossary.md):
+- **Terms** follow [the glossary](../docs/reference/manifest.md):
   - *definition*, *rule*, *operation*, *input* and *output* are the parts of the manifest. Do not write *field*, *entity*, *kind*, *primitive*, *constraint* or *atom*: they are words of 0.1.
   - A *refusal* is an output. Do not write *error* for it.
   - *The core* is the functions of the operations. *The shell* is the code that calls `runOperation`. *The harness* is `runOperation`.
   - *Standard rules* are the keywords of JSON Schema that urn-forge ships.
-- **Versions:** urn-forge 0.2.0. Do not promise future work. To say that a part is not built, write "urn-forge does not have … at this time". [General constructs only](../docs/explanation/general-constructs.md) and [The contract](../docs/explanation/the-contract.md) tell why some promises stay outside the manifest.
+- **Versions:** urn-forge 0.2.0. Do not promise future work. To say that a part is not built, write "urn-forge does not have … at this time". [General constructs only](../docs/explanation/why-urn-forge.md) and [The contract](../docs/explanation/why-urn-forge.md) tell why some promises stay outside the manifest.
 - **Every page** ends with a short "Related pages" list of two to five links, to other Diátaxis types where possible. The home page and `explanation/index.md` do not have one at this time.
 - **The sidebar** is in `docs/.vitepress/config.mts`. When you add or remove a page, change the sidebar and the index page of its section.
 
@@ -107,4 +107,4 @@ All four types use STE. These are the rules that this site applies.
 
 - [CONTRIBUTING.md](../CONTRIBUTING.md)
 - [How urn-forge is built](./architecture.md)
-- [The glossary](../docs/reference/glossary.md)
+- [The glossary](../docs/reference/manifest.md)

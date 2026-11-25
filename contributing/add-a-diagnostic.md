@@ -41,7 +41,7 @@ Do not check a problem in a later stage if an earlier stage can find it. For exa
 2. Write the message in the style of the other messages:
    - Start with a lowercase letter, and name the part near the start. Do not put a period at the end.
    - Tell what is wrong, then what to write, after a semicolon: `the identifier weight_grams is optional; list it in the required rule of quote`.
-   - Use the words of the manifest and of [the glossary](../docs/reference/glossary.md). Follow the English rules of the [documentation style guide](./docs-style.md).
+   - Use the words of the manifest and of [the glossary](../docs/reference/manifest.md). Follow the English rules of the [documentation style guide](./docs-style.md).
 3. Report each problem one time. If a part has an error, a later check must skip that part. For example, a rule that does not parse is `rule-syntax` where it is declared, and its uses are not typed.
 4. Report all the problems that a stage can find, not only the first. A user then corrects them in one pass.
 
@@ -74,7 +74,7 @@ domain.manifest.yaml:11  error  unknown-rule  positive is not a rule of this man
 ## Update the docs
 
 1. Add the code to [Diagnostics](../docs/reference/diagnostics.md), in the table of its stage: the code, the cause and the correction. Add the real output to the block below the table.
-2. For a code of a gate, also add the cause and the correction to [Fix a failing gate](../docs/how-to/fix-a-failing-gate.md).
+2. For a code of a gate, also add the cause and the correction to [Fix a failing gate](../docs/reference/diagnostics.md).
 3. Run `npm run docs:build` from the root folder.
 
 ## Result
@@ -86,4 +86,4 @@ The diagnostic has a code, a test and a row in the reference. A user who gets it
 - [How urn-forge is built](./architecture.md)
 - [Add a Gherkin step](./add-a-gherkin-step.md)
 - [Diagnostics](../docs/reference/diagnostics.md)
-- [Fix a failing gate](../docs/how-to/fix-a-failing-gate.md)
+- [Fix a failing gate](../docs/reference/diagnostics.md)
