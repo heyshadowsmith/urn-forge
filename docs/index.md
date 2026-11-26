@@ -366,7 +366,7 @@ The agent adds a state to `domain.generated.ts` by hand:
 
 ```
 gate 4  drift         FAIL  1 generated file(s) compared byte for byte against src/generated
-    src/generated/domain.generated.ts:211  error  drift  the generated file is not current; run urn-forge compile
+    src/generated/domain.generated.ts:148  error  drift  the generated file is not current; run urn-forge compile
       fix: Run urn-forge compile, and do not edit a generated file by hand.
 verify failed: gate 4
 ```

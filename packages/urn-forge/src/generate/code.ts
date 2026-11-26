@@ -38,14 +38,57 @@ export function fillMessage(message: string, args: Readonly<Record<string, unkno
   return message.replace(/\{([^{}]*)\}/g, (whole, name: string) => (Object.hasOwn(args, name) ? showArgument(args[name]) : whole));
 }
 
-/** The helpers of runtime.ts, with no `export`. */
-function runtimeSource(): string {
-  const text = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8');
-  // Failure is the type of a check's result: it stays exported.
-  return text
+/** The declarations of runtime.ts, each with its comment and its name. */
+function runtimeDeclarations(): { readonly name: string; readonly text: string }[] {
+  const text = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8')
     .replace(/^\/\*\*[\s\S]*?\*\/\n/, '')
-    .replace(/^import \* as v from 'valibot';\n\n?/m, '')
-    .replace(/^export (?!interface Failure)/gm, '');
+    .replace(/^import \* as v from 'valibot';\n\n?/m, '');
+  const chunks: string[][] = [];
+  let inComment = false;
+  let afterComment = false;
+  for (const line of text.split('\n')) {
+    const startsComment = line.startsWith('/**');
+    const startsDeclaration = /^(export |const |function |class |interface |type )/.test(line);
+    if ((startsComment || (startsDeclaration && !afterComment)) && chunks.length > 0 && !inComment) chunks.push([]);
+    if (chunks.length === 0) chunks.push([]);
+    chunks.at(-1)!.push(line);
+    if (startsComment) inComment = true;
+    afterComment = inComment && line.includes('*/');
+    if (afterComment) inComment = false;
+  }
+  return chunks.map((lines) => {
+    const body = lines.join('\n').replace(/\n+$/, '');
+    const name = /^(?:export )?(?:function|class|const|interface|type)\s+([$\w]+)/m.exec(body)?.[1] ?? '';
+    return { name, text: body };
+  });
+}
+
+/** Whether a text refers to a name: a whole identifier, where `$` is part of a name. */
+function refersTo(text: string, name: string): boolean {
+  return new RegExp(`(?<![\\w$])${name.replace(/\$/g, '\\$')}(?![\\w$])`).test(text);
+}
+
+/**
+ * The helpers of runtime.ts that `uses` refers to, and the helpers that they refer to, with no
+ * `export`. With no `uses`, each helper. Failure is the type of a check's result: it stays exported.
+ */
+function runtimeSource(uses?: string): string {
+  const declarations = runtimeDeclarations();
+  let kept = declarations;
+  if (uses !== undefined) {
+    const keep = new Set<string>();
+    const queue = [uses];
+    while (queue.length > 0) {
+      const text = queue.pop()!;
+      for (const d of declarations) {
+        if (d.name === '' || keep.has(d.name) || !refersTo(text, d.name)) continue;
+        keep.add(d.name);
+        queue.push(d.text);
+      }
+    }
+    kept = declarations.filter((d) => keep.has(d.name));
+  }
+  return `${kept.map((d) => d.text.replace(/^export (?!interface Failure)/gm, '')).join('\n\n')}\n`;
 }
 
 /** The action of one use of a rule in the pipe of a schema. */
@@ -234,7 +277,8 @@ export interface GeneratedFile {
 export function checksModule(model: Model, applications: readonly Application[]): string {
   const checks = `return { ${Object.keys(model.definitions).map((d) => `${d}: check_${d}`).join(', ')} };`;
   // Inside a function, a schema is not exported.
-  return ['((v) => {', runtimeSource(), checkFunctions(model, applications).replace(/^export /gm, ''), checks, '})'].join('\n');
+  const functions = checkFunctions(model, applications).replace(/^export /gm, '');
+  return ['((v) => {', runtimeSource(functions), functions, checks, '})'].join('\n');
 }
 
 /** The header of a generated file: its manifest, with the URN of the domain. */
@@ -388,6 +432,7 @@ export function operationsCode(model: Model, applications: readonly Application[
 
 /** The generated file of a model. */
 export function generatedFile(model: Model, applications: readonly Application[], source: string, fingerprint: (body: string) => string): string {
-  const body = [runtimeSource(), definitionsCode(model, applications), operationsCode(model, applications)].join('\n');
+  const code = [definitionsCode(model, applications), operationsCode(model, applications)].join('\n');
+  const body = [runtimeSource(code), code].join('\n');
   return header(source, fingerprint(body), domainUrn(model.header)) + body;
 }
