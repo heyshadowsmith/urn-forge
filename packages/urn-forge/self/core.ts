@@ -10,4 +10,9 @@ export const core = {
     const { allowed, why } = allowsBreaking(from_version, to_version);
     return allowed ? answer('breaking_allowed', { reason: why }) : answer('breaking_refused', { reason: why });
   },
+  // Step 0 of the plan: each new function answers wrongly, until it calls the real one.
+  name_part: () => answer('part_urn', { urn: 'urn:wrong' }),
+  check_namespace: ({ candidate }) => answer('namespace_accepted', { candidate }),
+  judge_weaker_contract: () => answer('breaking_allowed', { reason: 'not judged yet' }),
+  judge_bound_change: () => answer('bound_judged', { direction: 'same' }),
 } satisfies DomainCore;
