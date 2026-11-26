@@ -57,7 +57,7 @@ describe('the standard set', () => {
   placeholder:
     description: A rule
     rule: 'true'
-    message: Never
+    failure_message: Never
 `;
     expect(problems(body)).toEqual([]);
     const ok = loadManifest(
@@ -118,11 +118,11 @@ describe('a use of a rule', () => {
     description: Between low and high
     parameters: [quantity, price]
     rule: self >= quantity && self <= price
-    message: Must be between {quantity} and {price}
+    failure_message: Must be between {quantity} and {price}
   positive:
     description: More than 0
     rule: self > 0
-    message: Must be more than 0
+    failure_message: Must be more than 0
 `;
     const use = (rules: string) =>
       loadManifest(HEADER + DEFINITIONS.replace('  price:\n', `  amount:\n    description: An amount\n    type: integer\n    rules:\n${rules}  price:\n`) + body).diagnostics.map(
@@ -158,11 +158,11 @@ describe('the names of a rule', () => {
   same_sku:
     description: The output has the SKU of the input
     rule: output.sku == input.sku
-    message: Another SKU
+    failure_message: Another SKU
   has_sku:
     description: The value has a SKU
     rule: "self.sku != ''"
-    message: No SKU
+    failure_message: No SKU
 `;
 
   it('are input and output in an output of an operation', () => {
@@ -184,19 +184,19 @@ describe('the names of a rule', () => {
 
 describe('a rule', () => {
   it('cannot take the name of a standard rule', () => {
-    expect(problems('rules:\n  minimum:\n    description: Mine\n    rule: self > 0\n    message: Must be more than 0\n')).toContain(
+    expect(problems('rules:\n  minimum:\n    description: Mine\n    rule: self > 0\n    failure_message: Must be more than 0\n')).toContain(
       'standard-name rules.minimum: minimum is a standard rule; give this rule another name',
     );
   });
 
-  it('names only its parameters in its message', () => {
-    expect(problems('rules:\n  positive:\n    description: More than 0\n    rule: self > 0\n    message: Must be more than {bound}\n')).toEqual([
-      'invalid-message rules.positive.message: {bound} is not a parameter of positive; the rule has no parameter',
+  it('names only its parameters in its failure message', () => {
+    expect(problems('rules:\n  positive:\n    description: More than 0\n    rule: self > 0\n    failure_message: Must be more than {bound}\n')).toEqual([
+      'invalid-message rules.positive.failure_message: {bound} is not a parameter of positive; the rule has no parameter',
     ]);
   });
 
   it('gives a bool', () => {
-    const text = HEADER + DEFINITIONS + 'rules:\n  twice:\n    description: Twice\n    rule: self * 2\n    message: Twice\n';
+    const text = HEADER + DEFINITIONS + 'rules:\n  twice:\n    description: Twice\n    rule: self * 2\n    failure_message: Twice\n';
     const withUse = text.replace('    type: integer\n', '    type: integer\n    rules: [twice]\n');
     expect(loadManifest(withUse).diagnostics.map((d) => d.message)).toEqual(['twice gives the type int; a rule must give a bool']);
   });

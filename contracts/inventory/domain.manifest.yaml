@@ -488,17 +488,17 @@ rules:
   one_line_per_pair:
     description: No two lines have the same SKU and location
     rule: self.all(l, self.exists_one(m, m.sku == l.sku && m.location == l.location))
-    message: A SKU-location pair appears twice
+    failure_message: A SKU-location pair appears twice
 
   available_is_on_hand_minus_reserved:
     description: The available count is the on-hand count minus the reserved count
     rule: self.available == self.on_hand - self.reserved
-    message: The available count must equal on-hand minus reserved
+    failure_message: The available count must equal on-hand minus reserved
 
   shipped_at_most_quantity:
     description: A line ships no more units than it reserved
     rule: self.shipped <= self.quantity
-    message: A line cannot ship more than it reserved
+    failure_message: A line cannot ship more than it reserved
 
   shipping_matches_state:
     description: >-
@@ -509,107 +509,107 @@ rules:
       (self.state != 'EXPIRED' || self.reservation_lines.all(l, l.shipped == 0)) &&
       (self.state != 'SHIPPED' || self.reservation_lines.all(l, l.shipped == l.quantity)) &&
       (self.state != 'PARTIALLY_SHIPPED' || (self.reservation_lines.exists(l, l.shipped > 0) && self.reservation_lines.exists(l, l.shipped < l.quantity)))
-    message: The shipped units do not match the state of the reservation
+    failure_message: The shipped units do not match the state of the reservation
 
   not_zero:
     description: The number is not 0
     rule: self != 0
-    message: Must not be 0
+    failure_message: Must not be 0
 
   level_is_the_event_pair:
     description: The stock level of an event is the level of its SKU and location
     rule: self.level.sku == self.sku && self.level.location == self.location
-    message: The stock level is of another SKU or location than the event
+    failure_message: The stock level is of another SKU or location than the event
 
   code_is:
     description: A refusal carries its own error code
     parameters: [expected_code]
     rule: self.error_code == expected_code
-    message: The error code must be {expected_code}
+    failure_message: The error code must be {expected_code}
 
   level_is_the_query:
     description: The loaded stock level is the level of the SKU and location of the request
     rule: '!has(self.stored_level) || (self.stored_level.sku == self.sku && self.stored_level.location == self.location)'
-    message: The loaded stock level is of another SKU or location
+    failure_message: The loaded stock level is of another SKU or location
 
   open_reservation_is_the_orders:
     description: The loaded open reservation is an active or partly shipped reservation of the order of the request
     rule: >-
       !has(self.open_reservation) ||
       (self.open_reservation.order_id == self.order_id && self.open_reservation.state in ['ACTIVE', 'PARTIALLY_SHIPPED'])
-    message: The loaded open reservation is not an open reservation of this order
+    failure_message: The loaded open reservation is not an open reservation of this order
 
   names_the_reservation:
     description: The loaded reservation is the one that the request names
     rule: '!has(self.stored_reservation) || self.stored_reservation.reservation_id == self.reservation_id'
-    message: The loaded reservation is not the one that the request names
+    failure_message: The loaded reservation is not the one that the request names
 
   # Who may call: a rule on each output of an operation, and its opposite on forbidden.
   by_order_system:
     description: The order system called
     rule: input.caller.role == 'order_system'
-    message: Only the order system may call this operation
+    failure_message: Only the order system may call this operation
 
   not_by_order_system:
     description: A caller other than the order system called
     rule: input.caller.role != 'order_system'
-    message: The order system may call this operation
+    failure_message: The order system may call this operation
 
   by_receiving_caller:
     description: Warehouse staff or the purchasing system called
     rule: input.caller.role in ['warehouse_staff', 'purchasing_system']
-    message: Only warehouse staff and the purchasing system may call this operation
+    failure_message: Only warehouse staff and the purchasing system may call this operation
 
   not_by_receiving_caller:
     description: A caller other than warehouse staff or the purchasing system called
     rule: "!(input.caller.role in ['warehouse_staff', 'purchasing_system'])"
-    message: Warehouse staff and the purchasing system may call this operation
+    failure_message: Warehouse staff and the purchasing system may call this operation
 
   by_supervisor:
     description: A warehouse supervisor called
     rule: input.caller.role == 'warehouse_supervisor'
-    message: Only warehouse supervisors may call this operation
+    failure_message: Only warehouse supervisors may call this operation
 
   not_by_supervisor:
     description: A caller other than a warehouse supervisor called
     rule: input.caller.role != 'warehouse_supervisor'
-    message: A warehouse supervisor may call this operation
+    failure_message: A warehouse supervisor may call this operation
 
   by_clock:
     description: The shell's clock called
     rule: input.caller.role == 'clock'
-    message: Only the shell's clock may call this operation
+    failure_message: Only the shell's clock may call this operation
 
   not_by_clock:
     description: A caller other than the shell's clock called
     rule: input.caller.role != 'clock'
-    message: The shell's clock may call this operation
+    failure_message: The shell's clock may call this operation
 
   names_the_role:
     description: The refusal names the role of the caller
     rule: output.role == input.caller.role
-    message: The refusal names another role than the caller's
+    failure_message: The refusal names another role than the caller's
 
   # Reading stock, and the stock of one SKU at one location.
   is_the_stored_level:
     description: The answer is the stored stock level
     rule: has(input.stored_level) && output == input.stored_level
-    message: The answer is not the stored stock level
+    failure_message: The answer is not the stored stock level
 
   no_stored_level:
     description: No stock level is stored for the SKU at the location
     rule: '!has(input.stored_level)'
-    message: A stock level is stored for the SKU at the location
+    failure_message: A stock level is stored for the SKU at the location
 
   names_the_sku:
     description: The refusal names the SKU of the request
     rule: output.sku == input.sku
-    message: The refusal names another SKU
+    failure_message: The refusal names another SKU
 
   names_the_location:
     description: The refusal names the location of the request
     rule: output.location == input.location
-    message: The refusal names another location
+    failure_message: The refusal names another location
 
   # Events of a change.
   one_event_per_level:
@@ -619,18 +619,18 @@ rules:
       size(output.events) == size(output.levels) &&
       output.levels.all(v, output.events.exists_one(e, e.level == v)) &&
       output.events.all(e, e.event_type == event_type && e.occurred_at == input.now)
-    message: Each changed stock level must have exactly one {event_type} event at the time of the call
+    failure_message: Each changed stock level must have exactly one {event_type} event at the time of the call
 
   events_name_the_reservation:
     description: Each event names the reservation
     rule: output.events.all(e, has(e.reservation_id) && e.reservation_id == output.reservation.reservation_id)
-    message: An event does not name the reservation
+    failure_message: An event does not name the reservation
 
   # Receiving goods.
   names_the_purchase_order:
     description: The receipt names the purchase order of the request
     rule: output.purchase_order_id == input.purchase_order_id
-    message: The receipt names another purchase order
+    failure_message: The receipt names another purchase order
 
   receives_each_line:
     description: >-
@@ -641,50 +641,50 @@ rules:
       input.receipt_lines.all(l, !input.receipt_lines.exists_one(m, m.sku == l.sku && m.location == l.location) ||
         input.stored_levels.exists(s, s.sku == l.sku && s.location == l.location &&
           output.levels.exists(v, v.sku == l.sku && v.location == l.location && v.on_hand == s.on_hand + l.quantity && v.reserved == s.reserved)))
-    message: The new on-hand count of a line is not the stored count plus the received quantity
+    failure_message: The new on-hand count of a line is not the stored count plus the received quantity
 
   receipt_events_move_the_lines:
     description: Each event of a receipt moves the quantity of a received line, and names no reservation
     rule: >-
       output.events.all(e, !has(e.reservation_id) &&
         input.receipt_lines.exists(l, l.sku == e.sku && l.location == e.location && l.quantity == e.quantity_changed))
-    message: An event does not move the quantity of a received line
+    failure_message: An event does not move the quantity of a received line
 
   a_received_line_is_unknown:
     description: No stock level is stored for the SKU and location of a received line
     rule: input.receipt_lines.exists(l, !input.stored_levels.exists(s, s.sku == l.sku && s.location == l.location))
-    message: Every received line has a stored stock level
+    failure_message: Every received line has a stored stock level
 
   # Reserving stock: every line in full, or nothing.
   no_open_reservation:
     description: The order has no open reservation
     rule: '!has(input.open_reservation)'
-    message: The order already has an open reservation
+    failure_message: The order already has an open reservation
 
   has_an_open_reservation:
     description: The order has an open reservation
     rule: has(input.open_reservation)
-    message: The order has no open reservation
+    failure_message: The order has no open reservation
 
   names_the_order:
     description: The refusal names the order of the request
     rule: output.order_id == input.order_id
-    message: The refusal names another order
+    failure_message: The refusal names another order
 
   a_reserved_line_is_unknown:
     description: No stock level is stored for the SKU and location of a requested line
     rule: input.reserve_lines.exists(l, !input.stored_levels.exists(s, s.sku == l.sku && s.location == l.location))
-    message: Every requested line has a stored stock level
+    failure_message: Every requested line has a stored stock level
 
   covers_every_line:
     description: The available stock covers every requested line in full
     rule: input.reserve_lines.all(l, input.stored_levels.exists(s, s.sku == l.sku && s.location == l.location && l.quantity <= s.available))
-    message: The available stock does not cover every line
+    failure_message: The available stock does not cover every line
 
   is_reserved_active:
     description: The answer is RESERVED, and the reservation is active
     rule: output.result == 'RESERVED' && output.reservation.state == 'ACTIVE'
-    message: A new reservation is RESERVED and ACTIVE
+    failure_message: A new reservation is RESERVED and ACTIVE
 
   reserves_the_lines:
     description: The reservation is for the order, with one line per requested line, with the same SKU, location and quantity, and nothing shipped
@@ -693,7 +693,7 @@ rules:
       size(output.reservation.reservation_lines) == size(input.reserve_lines) &&
       input.reserve_lines.all(l, output.reservation.reservation_lines.exists(r,
         r.sku == l.sku && r.location == l.location && r.quantity == l.quantity && r.shipped == 0))
-    message: The reservation does not hold exactly the requested lines
+    failure_message: The reservation does not hold exactly the requested lines
 
   reserves_the_stock:
     description: Each requested line adds its quantity to the reserved count of its stock level, and nothing else changes
@@ -701,12 +701,12 @@ rules:
       size(output.levels) == size(input.reserve_lines) &&
       input.reserve_lines.all(l, input.stored_levels.exists(s, s.sku == l.sku && s.location == l.location &&
         output.levels.exists(v, v.sku == l.sku && v.location == l.location && v.on_hand == s.on_hand && v.reserved == s.reserved + l.quantity)))
-    message: The new reserved count of a line is not the stored count plus the requested quantity
+    failure_message: The new reserved count of a line is not the stored count plus the requested quantity
 
   reserve_events_move_the_lines:
     description: Each event of a reservation moves the quantity of a requested line
     rule: output.events.all(e, input.reserve_lines.exists(l, l.sku == e.sku && l.location == e.location && l.quantity == e.quantity_changed))
-    message: An event does not move the quantity of a requested line
+    failure_message: An event does not move the quantity of a requested line
 
   depletes_at_zero:
     description: Each changed stock level whose available count is 0 has exactly one StockDepleted event, and no other has one
@@ -715,12 +715,12 @@ rules:
       output.depletions.all(d, d.occurred_at == input.now &&
         output.depletions.exists_one(x, x.sku == d.sku && x.location == d.location) &&
         output.levels.exists(v, v.sku == d.sku && v.location == d.location))
-    message: The StockDepleted events are not the changed levels whose available count is 0
+    failure_message: The StockDepleted events are not the changed levels whose available count is 0
 
   expires_after_30_minutes:
     description: Without a time-to-live, the reservation expires 30 minutes after the call
     rule: has(input.ttl_minutes) || timestamp(output.reservation.expires_at) == timestamp(input.now) + duration('30m')
-    message: A reservation without a time-to-live expires 30 minutes after the call
+    failure_message: A reservation without a time-to-live expires 30 minutes after the call
 
   expires_within_a_week:
     description: With a time-to-live, the reservation expires between 1 minute and 7 days after the call
@@ -728,7 +728,7 @@ rules:
       !has(input.ttl_minutes) ||
       (timestamp(output.reservation.expires_at) >= timestamp(input.now) + duration('1m') &&
        timestamp(output.reservation.expires_at) <= timestamp(input.now) + duration('168h'))
-    message: A reservation with a time-to-live expires between 1 minute and 7 days after the call
+    failure_message: A reservation with a time-to-live expires between 1 minute and 7 days after the call
 
   lists_the_short_lines:
     description: >-
@@ -741,58 +741,58 @@ rules:
         output.short_lines.exists_one(y, y.sku == x.sku && y.location == x.location) &&
         input.reserve_lines.exists(l, l.sku == x.sku && l.location == x.location && l.quantity == x.requested) &&
         input.stored_levels.exists(s, s.sku == x.sku && s.location == x.location && s.available == x.available))
-    message: The short lines are not exactly the lines that the available stock cannot cover
+    failure_message: The short lines are not exactly the lines that the available stock cannot cover
 
   # Changing a reservation: release, expire and ship.
   no_stored_reservation:
     description: No reservation is stored with the identifier of the request
     rule: '!has(input.stored_reservation)'
-    message: A reservation is stored with this identifier
+    failure_message: A reservation is stored with this identifier
 
   names_the_reservation_id:
     description: The refusal names the reservation of the request
     rule: output.reservation_id == input.reservation_id
-    message: The refusal names another reservation
+    failure_message: The refusal names another reservation
 
   names_the_stored_state:
     description: The refusal names the reservation and its stored state
     rule: has(input.stored_reservation) && output.reservation_id == input.reservation_id && output.state == input.stored_reservation.state
-    message: The refusal does not name the reservation and its stored state
+    failure_message: The refusal does not name the reservation and its stored state
 
   was_open:
     description: The stored reservation was active or partly shipped
     rule: has(input.stored_reservation) && input.stored_reservation.state in ['ACTIVE', 'PARTIALLY_SHIPPED']
-    message: The reservation was not active or partly shipped
+    failure_message: The reservation was not active or partly shipped
 
   was_not_open:
     description: The stored reservation was shipped, released or expired
     rule: has(input.stored_reservation) && !(input.stored_reservation.state in ['ACTIVE', 'PARTIALLY_SHIPPED'])
-    message: The reservation was active or partly shipped
+    failure_message: The reservation was active or partly shipped
 
   was_active:
     description: The stored reservation was active
     rule: has(input.stored_reservation) && input.stored_reservation.state == 'ACTIVE'
-    message: The reservation was not active
+    failure_message: The reservation was not active
 
   was_not_active:
     description: The stored reservation was partly shipped, shipped, released or expired
     rule: has(input.stored_reservation) && input.stored_reservation.state != 'ACTIVE'
-    message: The reservation was active
+    failure_message: The reservation was active
 
   is_released:
     description: The reservation is released
     rule: output.reservation.state == 'RELEASED'
-    message: The reservation is not released
+    failure_message: The reservation is not released
 
   is_expired:
     description: The reservation is expired
     rule: output.reservation.state == 'EXPIRED'
-    message: The reservation is not expired
+    failure_message: The reservation is not expired
 
   is_shipped_or_partly:
     description: The reservation is shipped or partly shipped
     rule: output.reservation.state in ['PARTIALLY_SHIPPED', 'SHIPPED']
-    message: The reservation is not shipped or partly shipped
+    failure_message: The reservation is not shipped or partly shipped
 
   keeps_the_identity:
     description: The reservation keeps its identifier, its order and its expiry time
@@ -801,12 +801,12 @@ rules:
       output.reservation.reservation_id == input.stored_reservation.reservation_id &&
       output.reservation.order_id == input.stored_reservation.order_id &&
       output.reservation.expires_at == input.stored_reservation.expires_at
-    message: The reservation may not change its identifier, its order or its expiry time
+    failure_message: The reservation may not change its identifier, its order or its expiry time
 
   keeps_the_lines:
     description: The reservation keeps its lines
     rule: has(input.stored_reservation) && output.reservation.reservation_lines == input.stored_reservation.reservation_lines
-    message: The reservation may not change its lines
+    failure_message: The reservation may not change its lines
 
   gives_back_the_held_stock:
     description: >-
@@ -818,24 +818,24 @@ rules:
         input.stored_levels.exists(s, s.sku == r.sku && s.location == r.location &&
           output.levels.exists(v, v.sku == r.sku && v.location == r.location && v.on_hand == s.on_hand && v.reserved == s.reserved - (r.quantity - r.shipped)))) &&
       output.levels.all(v, input.stored_reservation.reservation_lines.exists(r, r.sku == v.sku && r.location == v.location && r.shipped < r.quantity))
-    message: The new reserved counts do not give back the units that the reservation still held
+    failure_message: The new reserved counts do not give back the units that the reservation still held
 
   held_events_move_the_lines:
     description: Each event gives back the units that a line of the reservation still held
     rule: >-
       has(input.stored_reservation) &&
       output.events.all(e, input.stored_reservation.reservation_lines.exists(r, r.sku == e.sku && r.location == e.location && e.quantity_changed == r.quantity - r.shipped))
-    message: An event does not give back the units that a line still held
+    failure_message: An event does not give back the units that a line still held
 
   is_due:
     description: The expiry time of the reservation has come
     rule: has(input.stored_reservation) && timestamp(input.now) >= timestamp(input.stored_reservation.expires_at)
-    message: The reservation is not due to expire
+    failure_message: The reservation is not due to expire
 
   is_not_due:
     description: The reservation is active and its expiry time has not come
     rule: has(input.stored_reservation) && input.stored_reservation.state == 'ACTIVE' && timestamp(input.now) < timestamp(input.stored_reservation.expires_at)
-    message: The reservation is due to expire
+    failure_message: The reservation is due to expire
 
   ships_the_lines:
     description: >-
@@ -851,7 +851,7 @@ rules:
           (input.ship_lines.exists(x, x.sku == s.sku && x.location == s.location && x.quantity <= s.quantity - s.shipped && r.shipped == s.shipped + x.quantity) ||
            (!input.ship_lines.exists(x, x.sku == s.sku && x.location == s.location) && r.shipped == s.shipped)))))) &&
       (!has(input.ship_lines) || input.ship_lines.all(x, input.stored_reservation.reservation_lines.exists(s, s.sku == x.sku && s.location == x.location)))
-    message: The shipped units are not the units that the request ships
+    failure_message: The shipped units are not the units that the request ships
 
   ships_more_than_held:
     description: A stated line is not a line of the reservation, or asks for more units than the line still holds
@@ -859,7 +859,7 @@ rules:
       has(input.ship_lines) && has(input.stored_reservation) &&
       input.ship_lines.exists(x, !input.stored_reservation.reservation_lines.exists(s,
         s.sku == x.sku && s.location == x.location && x.quantity <= s.quantity - s.shipped))
-    message: Every stated line is a line of the reservation with that many units still held
+    failure_message: Every stated line is a line of the reservation with that many units still held
 
   takes_the_shipped_stock:
     description: >-
@@ -874,7 +874,7 @@ rules:
             v.on_hand == w.on_hand - (r.shipped - s.shipped) && v.reserved == w.reserved - (r.shipped - s.shipped))))) &&
       output.levels.all(v, output.reservation.reservation_lines.exists(r, r.sku == v.sku && r.location == v.location &&
         input.stored_reservation.reservation_lines.exists(s, s.sku == r.sku && s.location == r.location && r.shipped > s.shipped)))
-    message: The new stock levels do not take off the shipped units
+    failure_message: The new stock levels do not take off the shipped units
 
   shipped_events_move_the_lines:
     description: Each event moves the units that a line shipped in this call
@@ -882,7 +882,7 @@ rules:
       has(input.stored_reservation) &&
       output.events.all(e, output.reservation.reservation_lines.exists(r, r.sku == e.sku && r.location == e.location &&
         input.stored_reservation.reservation_lines.exists(s, s.sku == r.sku && s.location == r.location && e.quantity_changed == r.shipped - s.shipped)))
-    message: An event does not move the units that a line shipped
+    failure_message: An event does not move the units that a line shipped
 
   # Adjusting stock.
   adjusts_the_level:
@@ -892,7 +892,7 @@ rules:
       output.level.sku == input.sku && output.level.location == input.location &&
       output.level.on_hand == input.stored_level.on_hand + input.delta &&
       output.level.reserved == input.stored_level.reserved
-    message: The new on-hand count is not the stored count plus the delta
+    failure_message: The new on-hand count is not the stored count plus the delta
 
   one_adjusted_event:
     description: Exactly one StockAdjusted event, with the delta, the reason, the new level and the time of the call
@@ -900,7 +900,7 @@ rules:
       size(output.events) == 1 &&
       output.events.all(e, e.event_type == 'StockAdjusted' && e.quantity_changed == input.delta && e.level == output.level &&
         e.occurred_at == input.now && !has(e.reservation_id) && has(e.reason) && e.reason == input.reason)
-    message: An adjustment has exactly one StockAdjusted event of the change
+    failure_message: An adjustment has exactly one StockAdjusted event of the change
 
   depletes_at_zero_once:
     description: Exactly one StockDepleted event when the available count is 0, and none otherwise
@@ -908,7 +908,7 @@ rules:
       (output.level.available == 0) == (size(output.depletions) == 1) &&
       size(output.depletions) <= 1 &&
       output.depletions.all(d, d.sku == input.sku && d.location == input.location && d.occurred_at == input.now)
-    message: An adjustment has one StockDepleted event when the available count is 0, and none otherwise
+    failure_message: An adjustment has one StockDepleted event when the available count is 0, and none otherwise
 
   is_short_of_the_delta:
     description: >-
@@ -920,7 +920,7 @@ rules:
       size(output.short_lines) == 1 &&
       output.short_lines.all(x, x.sku == input.sku && x.location == input.location &&
         x.requested == -input.delta && x.available == input.stored_level.available)
-    message: The adjustment does not make on-hand fall below the reserved count
+    failure_message: The adjustment does not make on-hand fall below the reserved count
 
 operations:
   get_stock:

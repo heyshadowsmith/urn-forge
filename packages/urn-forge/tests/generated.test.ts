@@ -23,7 +23,7 @@ const booking = {
 /** The rules that a value breaks, as `rule at path`. */
 function breaks(definition: Parameters<typeof check>[0], value: unknown): string[] {
   const result = check(definition, value);
-  return result.ok ? [] : result.failures.map((f) => `${f.rule} at ${f.path || '(the value)'}: ${f.message}`);
+  return result.ok ? [] : result.failures.map((f) => `${f.rule} at ${f.path || '(the value)'}: ${f.failure_message}`);
 }
 
 it('the committed file is the file that compile gives', () => {
@@ -71,7 +71,7 @@ describe('check', () => {
   it('exports the type of a failure', () => {
     const result = check('party_size', 0);
     const failures: readonly Failure[] = result.ok ? [] : result.failures;
-    expect(failures).toEqual([{ definition: 'party_size', rule: 'minimum', path: '', message: 'Must be at least 1' }]);
+    expect(failures).toEqual([{ definition: 'party_size', rule: 'minimum', path: '', failure_message: 'Must be at least 1' }]);
   });
 
   it('describes each definition for the Gherkin steps', () => {
@@ -105,7 +105,7 @@ describe('runOperation', () => {
       domain: 'urn:demo:booking',
       operation: 'seat_booking',
       kind: 'InputRejected',
-      failures: [{ definition: 'seat_request', rule: 'names_the_booking', path: '', message: 'The request names another booking than the one loaded' }],
+      failures: [{ definition: 'seat_request', rule: 'names_the_booking', path: '', failure_message: 'The request names another booking than the one loaded' }],
     });
     expect(called).toBe(false);
   });
@@ -117,7 +117,7 @@ describe('runOperation', () => {
       domain: 'urn:demo:booking',
       operation: 'seat_booking',
       kind: 'ContractViolation',
-      failures: [{ definition: 'seat_booking', rule: 'keeps_the_party', path: '', message: 'Seating may change only the state' }],
+      failures: [{ definition: 'seat_booking', rule: 'keeps_the_party', path: '', failure_message: 'Seating may change only the state' }],
     });
   });
 
@@ -131,7 +131,7 @@ describe('runOperation', () => {
     const other = { seat_booking: () => ({ output: 'receipt', value: {} }) } as unknown as DomainCore;
     expect(runOperation(other, 'seat_booking', { reference: 'ABCDEFGH', stored_booking: booking })).toMatchObject({
       kind: 'ContractViolation',
-      failures: [{ rule: 'output', message: 'Must answer one of the outputs of seat_booking: booking, invalid_state' }],
+      failures: [{ rule: 'output', failure_message: 'Must answer one of the outputs of seat_booking: booking, invalid_state' }],
     });
     const broken = { seat_booking: ({ stored_booking }) => ({ output: 'booking' as const, value: { ...stored_booking, state: 'seated' as const, party_size: 0 } }) } satisfies DomainCore;
     expect(runOperation(broken, 'seat_booking', { reference: 'ABCDEFGH', stored_booking: booking })).toMatchObject({

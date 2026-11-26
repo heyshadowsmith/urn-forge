@@ -54,7 +54,7 @@ function ruleAction(application: Application, definition: string): string {
   const names: Record<string, string> = { self: 'value' };
   for (const [parameter, argument] of Object.entries(args)) names[parameter] = JSON.stringify(argument);
   const test = emitRule(application.rule.expr, application.types, names);
-  const message = fillMessage(application.rule.message, args);
+  const message = fillMessage(application.rule.failureMessage, args);
   return `$rule(${JSON.stringify(definition)}, ${JSON.stringify(application.rule.name)}, ${JSON.stringify(message)}, (value: any) => ${test})`;
 }
 
@@ -124,7 +124,7 @@ export function schemasCode(model: Model, applications: readonly Application[]):
 function requiredMessages(model: Model, applications: readonly Application[]): Record<string, string> {
   const messages: Record<string, string> = {};
   for (const a of applications) {
-    if (a.place.kind === 'definition' && a.rule.name === 'required' && a.owner !== model) messages[a.place.definition] = fillMessage(a.rule.message, a.arguments);
+    if (a.place.kind === 'definition' && a.rule.name === 'required' && a.owner !== model) messages[a.place.definition] = fillMessage(a.rule.failureMessage, a.arguments);
   }
   return messages;
 }
@@ -286,10 +286,10 @@ function operationRuleCode(application: Application, operation: string, indent: 
   const names: Record<string, string> = { input: 'input', output: 'value' };
   for (const [parameter, argument] of Object.entries(application.arguments)) names[parameter] = JSON.stringify(argument);
   const check = emitRule(application.rule.expr, application.types, names);
-  const message = fillMessage(application.rule.message, application.arguments);
+  const message = fillMessage(application.rule.failureMessage, application.arguments);
   return [
     `${indent}if (!$holds(() => ${check})) {`,
-    `${indent}  failures.push({ definition: ${JSON.stringify(operation)}, rule: ${JSON.stringify(application.rule.name)}, path: '', message: ${JSON.stringify(message)} });`,
+    `${indent}  failures.push({ definition: ${JSON.stringify(operation)}, rule: ${JSON.stringify(application.rule.name)}, path: '', failure_message: ${JSON.stringify(message)} });`,
     `${indent}  ok = false;`,
     `${indent}}`,
   ].join('\n');
@@ -373,7 +373,7 @@ export function operationsCode(model: Model, applications: readonly Application[
     `  const outputs: readonly string[] = contract.outputs;`,
     `  if (!$isObject(answered) || typeof answered['output'] !== 'string' || !outputs.includes(answered['output'])) {`,
     `    const message = \`Must answer one of the outputs of \${operation}: \${outputs.join(', ')}\`;`,
-    `    return { ok: false, domain: DOMAIN, operation, kind: 'ContractViolation', failures: [{ definition: operation, rule: 'output', path: '', message }] };`,
+    `    return { ok: false, domain: DOMAIN, operation, kind: 'ContractViolation', failures: [{ definition: operation, rule: 'output', path: '', failure_message: message }] };`,
     `  }`,
     `  const output = answered['output'] as DefinitionName;`,
     `  if (!CHECKS[output](answered['value'], 'output', failures) || !OPERATION_RULES[operation](input, output, answered['value'], failures)) {`,

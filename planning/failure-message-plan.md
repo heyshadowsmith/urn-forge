@@ -60,3 +60,10 @@ Each must turn CI red:
 ## Risks
 
 - **A breaking change to each manifest and to the shape of a failure.** urn-forge is 0.x. The error for `message` says what to write.
+
+## What was built
+
+- **Step 1.** The rename, everywhere at once: the reader, the model, the generator, the runtime, the steps, the argument checks of the compiler, the JSON Schema of the manifest, and the 470 rules of the repository. A rule with `message` gets `rules.<name>.message is now failure_message: rename the key`, and no other error for the key. Each domain, contract, fixture and snapshot compiles, verifies and passes its scenarios. Each committed generated file is current. Gate 5 passes for each contract against `main`, because a text is not what a rule accepts.
+- **Step 2.** The agent reference, the reference pages, the home page and the methodology say `failure_message`, and say that `description` is what the rule checks and why. The two rules whose `description` repeated the failure message (`large_party_pays_deposit` and `pending_only_for_bank_transfer`) now have a `description` that gives the reason. The skill and the starter's `AGENTS.md` did not name the key, so they did not change.
+
+Both sabotages turned CI red: `message` in a rule gives `manifest-shape`, and a failure with `message` fails the target test.

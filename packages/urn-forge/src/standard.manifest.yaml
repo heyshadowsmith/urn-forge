@@ -56,61 +56,61 @@ rules:
     description: The value is one of the choices
     parameters: [choices]
     rule: self in choices
-    message: Must be one of {choices}
+    failure_message: Must be one of {choices}
 
   const:
     description: The value is the choice
     parameters: [choice]
     rule: self == choice
-    message: Must be {choice}
+    failure_message: Must be {choice}
 
   minimum:
     description: The value is the bound or more
     parameters: [bound]
     rule: self >= bound
-    message: Must be at least {bound}
+    failure_message: Must be at least {bound}
 
   maximum:
     description: The value is the bound or less
     parameters: [bound]
     rule: self <= bound
-    message: Must be at most {bound}
+    failure_message: Must be at most {bound}
 
   exclusiveMinimum:
     description: The value is more than the bound
     parameters: [bound]
     rule: self > bound
-    message: Must be more than {bound}
+    failure_message: Must be more than {bound}
 
   exclusiveMaximum:
     description: The value is less than the bound
     parameters: [bound]
     rule: self < bound
-    message: Must be less than {bound}
+    failure_message: Must be less than {bound}
 
   multipleOf:
     description: The integer is a multiple of the factor
     parameters: [factor]
     rule: self % factor == 0
-    message: Must be a multiple of {factor}
+    failure_message: Must be a multiple of {factor}
 
   minLength:
     description: The text has the count of characters or more
     parameters: [count]
     rule: size(self) >= count
-    message: Must have at least {count} characters
+    failure_message: Must have at least {count} characters
 
   maxLength:
     description: The text has the count of characters or fewer
     parameters: [count]
     rule: size(self) <= count
-    message: Must have at most {count} characters
+    failure_message: Must have at most {count} characters
 
   pattern:
     description: The text matches the regular expression
     parameters: [regular_expression]
     rule: self.matches(regular_expression)
-    message: Must match {regular_expression}
+    failure_message: Must match {regular_expression}
 
   format:
     description: The text is a date (2026-11-24) or a date and time (2026-11-24T19:00:00Z)
@@ -118,27 +118,27 @@ rules:
     rule: >-
       (date_format == 'date' && self.matches(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')) ||
       (date_format == 'date-time' && self.matches(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$'))
-    message: Must be a {date_format}
+    failure_message: Must be a {date_format}
 
   minItems:
     description: The list has the count of items or more
     parameters: [count]
     rule: size(self) >= count
-    message: Must have at least {count} items
+    failure_message: Must have at least {count} items
 
   maxItems:
     description: The list has the count of items or fewer
     parameters: [count]
     rule: size(self) <= count
-    message: Must have at most {count} items
+    failure_message: Must have at most {count} items
 
   uniqueItems:
     description: No item of the list occurs two times
     rule: self.all(x, self.exists_one(y, y == x))
-    message: Must not have an item two times
+    failure_message: Must not have an item two times
 
   required:
     description: The object has each of the properties
     parameters: [property_names]
     rule: property_names.all(p, p in self)
-    message: Must have {property_names}
+    failure_message: Must have {property_names}

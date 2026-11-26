@@ -41,7 +41,8 @@ export interface RuleDecl {
   readonly description: string;
   readonly parameters: readonly string[];
   readonly text: string;
-  readonly message: string;
+  /** What a failure says when the rule breaks, with `{parameter}` for an argument. */
+  readonly failureMessage: string;
   readonly deprecated: boolean;
   readonly path: Path;
 }
@@ -276,15 +277,19 @@ function readDefinition(read: Reader, name: string, value: unknown, path: Path):
 }
 
 function readRule(read: Reader, name: string, value: unknown, path: Path): RuleDecl | undefined {
-  const decl = read.map(value, path, ['description', 'parameters', 'rule', 'message', 'deprecated'], ['description', 'rule', 'message']);
-  if (!decl) return undefined;
+  // message is the name of urn-forge 0.2 for failure_message: say what to write.
+  const renamed = isRecord(value) && Object.hasOwn(value, 'message');
+  if (renamed) read.shape([...path, 'message'], `${show([...path, 'message'])} is now failure_message: rename the key`);
+  const fields = renamed ? Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([key]) => key !== 'message')) : value;
+  const decl = read.map(fields, path, ['description', 'parameters', 'rule', 'failure_message', 'deprecated'], renamed ? ['description', 'rule'] : ['description', 'rule', 'failure_message']);
+  if (!decl || renamed) return undefined;
   const description = read.text(decl['description'], [...path, 'description']);
   const parameters = decl['parameters'] === undefined ? [] : read.names(decl['parameters'], [...path, 'parameters']);
   const text = read.text(decl['rule'], [...path, 'rule']);
-  const message = read.text(decl['message'], [...path, 'message']);
+  const failureMessage = read.text(decl['failure_message'], [...path, 'failure_message']);
   const deprecated = read.flag(decl['deprecated'], [...path, 'deprecated']);
-  if (description === undefined || parameters === undefined || text === undefined || message === undefined) return undefined;
-  return { name, description, parameters, text, message, deprecated, path };
+  if (description === undefined || parameters === undefined || text === undefined || failureMessage === undefined) return undefined;
+  return { name, description, parameters, text, failureMessage, deprecated, path };
 }
 
 function readOperation(read: Reader, name: string, value: unknown, path: Path): OperationDecl | undefined {

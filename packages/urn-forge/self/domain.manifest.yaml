@@ -77,12 +77,12 @@ rules:
   at_most_the_name_and_value:
     description: A type name drops the underscores of the definition name, and adds Value at most (for a name that the generated file uses itself)
     rule: size(output.type_name) <= size(input.definition_name) + 5
-    message: The type name is longer than the definition name and Value
+    failure_message: The type name is longer than the definition name and Value
 
   stable_and_final:
     description: A breaking change is refused only for a stable version (1.0.0 or later) that is not a pre-release
     rule: "!input.to_version.matches(r'^0\\.') && !input.to_version.matches(r'^[0-9]+\\.[0-9]+\\.[0-9]+-')"
-    message: A 0.x version or a pre-release allows a breaking change
+    failure_message: A 0.x version or a pre-release allows a breaking change
 
 operations:
   to_type_name:

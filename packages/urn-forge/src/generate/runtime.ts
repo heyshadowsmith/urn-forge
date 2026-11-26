@@ -4,14 +4,15 @@
  */
 import * as v from 'valibot';
 
-/** A rule that a value breaks: the definition and the rule, the place of the value, and the message. */
+/** A rule that a value breaks: the definition and the rule, the place of the value, and the failure message of the rule. */
 export interface Failure {
   /** The definition whose rule broke, or the operation, for a rule of an operation or an output. */
   readonly definition: string;
   readonly rule: string;
   /** The place of the value: `party_size`, `contact.email`, `dishes[0].amount`, or '' for the whole value. */
   readonly path: string;
-  readonly message: string;
+  /** The failure message of the rule, with its arguments in place. */
+  readonly failure_message: string;
 }
 
 /** A rule that cannot give a result, such as timestamp() of a text that is not a time. The rule breaks. */
@@ -185,16 +186,16 @@ export function $validate(
     const requirement = (issue as { requirement?: unknown }).requirement as { definition?: string; rule?: string } | undefined;
     let failure: Failure;
     if (issue.type === 'check' && requirement?.rule) {
-      failure = { definition: requirement.definition!, rule: requirement.rule, path: place, message: issue.message };
+      failure = { definition: requirement.definition!, rule: requirement.rule, path: place, failure_message: issue.message };
     } else if ((issue.type === 'strict_object' || issue.type === 'object') && issue.expected === 'never') {
       const root = shapes[owner]?.root ?? owner;
-      failure = { definition: root, rule: 'properties', path: place, message: `Must be one of the properties of ${root}: ${(shapes[root]?.properties ?? []).join(', ')}` };
+      failure = { definition: root, rule: 'properties', path: place, failure_message: `Must be one of the properties of ${root}: ${(shapes[root]?.properties ?? []).join(', ')}` };
     } else if ((issue.type === 'strict_object' || issue.type === 'object') && issue.received === 'undefined' && steps.length > 0) {
       const root = shapes[owner]?.root ?? owner;
-      failure = { definition: root, rule: 'required', path: ownerPlace, message: required[root] ?? `Must have ${current}` };
+      failure = { definition: root, rule: 'required', path: ownerPlace, failure_message: required[root] ?? `Must have ${current}` };
     } else {
       const base = shapes[current]?.base ?? 'object';
-      failure = { definition: shapes[current]?.root ?? current, rule: 'type', path: place, message: TYPE_MESSAGES[base] ?? 'Must be a value of its type' };
+      failure = { definition: shapes[current]?.root ?? current, rule: 'type', path: place, failure_message: TYPE_MESSAGES[base] ?? 'Must be a value of its type' };
     }
     const key = `${failure.definition} ${failure.rule} ${failure.path}`;
     if (seen.has(key)) continue;

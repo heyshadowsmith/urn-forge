@@ -46,7 +46,7 @@ function checkArguments(model: Model, applications: readonly Application[], diag
       if (checks[parameter]!(value, '', failures)) continue;
       const path = application.rule.parameters.length === 1 ? [...application.use.path, application.rule.name] : [...application.use.path, application.rule.name, parameter];
       for (const failure of failures) {
-        diagnostics.error('rule-argument', path, `${application.rule.name}: ${JSON.stringify(value)} breaks ${failure.rule} of ${parameter}: ${failure.message}`);
+        diagnostics.error('rule-argument', path, `${application.rule.name}: ${JSON.stringify(value)} breaks ${failure.rule} of ${parameter}: ${failure.failure_message}`);
       }
     }
   }

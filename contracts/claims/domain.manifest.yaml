@@ -414,27 +414,27 @@ rules:
   receipt_above_25:
     description: A line other than MILEAGE with an amount above 25.00 carries a receipt
     rule: self.category == 'MILEAGE' || self.amount <= 2500 || has(self.receipt)
-    message: A line with an amount above 25.00 needs a receipt
+    failure_message: A line with an amount above 25.00 needs a receipt
 
   mileage_has_distance:
     description: A MILEAGE line carries a distance and no receipt
     rule: self.category != 'MILEAGE' || (has(self.distance_km) && !has(self.receipt))
-    message: A MILEAGE line needs a distance and no receipt
+    failure_message: A MILEAGE line needs a distance and no receipt
 
   distance_only_for_mileage:
     description: Only a MILEAGE line carries a distance
     rule: self.category == 'MILEAGE' || !has(self.distance_km)
-    message: Only a MILEAGE line can have a distance
+    failure_message: Only a MILEAGE line can have a distance
 
   total_is_sum:
     description: The total of a claim is the sum of its line amounts
     rule: self.total == self.lines.map(l, l.amount).sum()
-    message: The total must be the sum of the line amounts
+    failure_message: The total must be the sum of the line amounts
 
   submitted_has_time:
     description: A claim that left DRAFT holds when it was last submitted
     rule: self.state == 'DRAFT' || has(self.submitted_at)
-    message: A submitted claim needs the time of its submission
+    failure_message: A submitted claim needs the time of its submission
 
   # A day E is at most the day of the time S, and at most 90 days before it: E <= S, and E + 91 days > S.
   lines_dated_for_submission:
@@ -443,7 +443,7 @@ rules:
       self.state == 'DRAFT' || !has(self.submitted_at) ||
       self.lines.all(l, timestamp(l.expense_date + 'T00:00:00Z') <= timestamp(self.submitted_at) &&
       timestamp(l.expense_date + 'T00:00:00Z') + duration('2184h') > timestamp(self.submitted_at))
-    message: An expense date must be on the day of the submission or on one of the 90 days before
+    failure_message: An expense date must be on the day of the submission or on one of the 90 days before
 
   lines_dated_for_now:
     description: Each expense of a draft that is submitted is on the day of the call (in UTC) or on one of the 90 days before
@@ -451,12 +451,12 @@ rules:
       !has(self.stored_claim) || self.stored_claim.state != 'DRAFT' ||
       self.stored_claim.lines.all(l, timestamp(l.expense_date + 'T00:00:00Z') <= timestamp(self.now) &&
       timestamp(l.expense_date + 'T00:00:00Z') + duration('2184h') > timestamp(self.now))
-    message: An expense date must be on the day of the submission or on one of the 90 days before
+    failure_message: An expense date must be on the day of the submission or on one of the 90 days before
 
   names_the_stored_claim:
     description: The stored claim, if any, is the claim that the request names
     rule: '!has(self.stored_claim) || self.stored_claim.claim_id == self.claim_id'
-    message: The stored claim is not the claim of the request
+    failure_message: The stored claim is not the claim of the request
 
   claim_is_due:
     description: A submitted claim is reported once it has waited 30 days since its last submission, and only once for each submission
@@ -465,157 +465,157 @@ rules:
       (has(self.stored_claim.submitted_at) &&
       (!has(self.stored_claim.overdue_reported_at) || timestamp(self.stored_claim.overdue_reported_at) < timestamp(self.stored_claim.submitted_at)) &&
       timestamp(self.now) >= timestamp(self.stored_claim.submitted_at) + duration('720h'))
-    message: The claim is not due for a report
+    failure_message: The claim is not due for a report
 
   # Who may call
 
   caller_creates_own_claim:
     description: The caller is the employee who makes the request and owns the new claim
     rule: has(input.caller.employee_id) && input.actor_id == input.caller.employee_id && input.caller.employee_id == input.employee_id
-    message: The caller may create a claim only for themselves
+    failure_message: The caller may create a claim only for themselves
 
   caller_may_not_create:
     description: The caller is not the employee who makes the request and owns the new claim
     rule: '!(has(input.caller.employee_id) && input.actor_id == input.caller.employee_id && input.caller.employee_id == input.employee_id)'
-    message: The caller may create this claim
+    failure_message: The caller may create this claim
 
   caller_owns_the_claim:
     description: The caller is the employee who makes the request and owns the stored claim
     rule: >-
       has(input.stored_claim) && has(input.caller.employee_id) &&
       input.actor_id == input.caller.employee_id && input.caller.employee_id == input.stored_claim.employee_id
-    message: Only the employee who owns the claim may make this request
+    failure_message: Only the employee who owns the claim may make this request
 
   caller_does_not_own_the_claim:
     description: The caller is not the employee who makes the request and owns the stored claim
     rule: >-
       has(input.stored_claim) && !(has(input.caller.employee_id) &&
       input.actor_id == input.caller.employee_id && input.caller.employee_id == input.stored_claim.employee_id)
-    message: The caller owns the claim
+    failure_message: The caller owns the claim
 
   caller_is_the_other_manager:
     description: The caller makes the request, is the manager of the stored claim, and does not own it
     rule: >-
       has(input.stored_claim) && has(input.caller.employee_id) && input.actor_id == input.caller.employee_id &&
       input.caller.employee_id == input.stored_claim.manager_id && input.caller.employee_id != input.stored_claim.employee_id
-    message: Only the manager of the claimant may approve a claim, and never their own
+    failure_message: Only the manager of the claimant may approve a claim, and never their own
 
   caller_is_not_the_other_manager:
     description: The caller does not make the request, is not the manager of the stored claim, or owns it
     rule: >-
       has(input.stored_claim) && !(has(input.caller.employee_id) && input.actor_id == input.caller.employee_id &&
       input.caller.employee_id == input.stored_claim.manager_id && input.caller.employee_id != input.stored_claim.employee_id)
-    message: The caller may approve the claim
+    failure_message: The caller may approve the claim
 
   caller_is_the_manager:
     description: The caller makes the request and is the manager of the stored claim
     rule: >-
       has(input.stored_claim) && has(input.caller.employee_id) && input.actor_id == input.caller.employee_id &&
       input.caller.employee_id == input.stored_claim.manager_id
-    message: Only the manager of the claimant may reject a claim
+    failure_message: Only the manager of the claimant may reject a claim
 
   caller_is_not_the_manager:
     description: The caller does not make the request or is not the manager of the stored claim
     rule: >-
       has(input.stored_claim) && !(has(input.caller.employee_id) && input.actor_id == input.caller.employee_id &&
       input.caller.employee_id == input.stored_claim.manager_id)
-    message: The caller may reject the claim
+    failure_message: The caller may reject the claim
 
   caller_is_finance:
     description: The caller makes the request and is a finance user
     rule: has(input.caller.employee_id) && input.actor_id == input.caller.employee_id && input.caller.role == 'finance'
-    message: Only a finance user may mark a claim paid
+    failure_message: Only a finance user may mark a claim paid
 
   caller_is_not_finance:
     description: The caller does not make the request or is not a finance user
     rule: '!(has(input.caller.employee_id) && input.actor_id == input.caller.employee_id && input.caller.role == ''finance'')'
-    message: The caller is a finance user
+    failure_message: The caller is a finance user
 
   caller_may_read:
     description: The caller makes the request and owns the stored claim, is its manager, or is a finance user
     rule: >-
       has(input.stored_claim) && has(input.caller.employee_id) && input.actor_id == input.caller.employee_id &&
       (input.caller.employee_id == input.stored_claim.employee_id || input.caller.employee_id == input.stored_claim.manager_id || input.caller.role == 'finance')
-    message: Only the owner of the claim, their manager and finance users may read it
+    failure_message: Only the owner of the claim, their manager and finance users may read it
 
   caller_may_not_read:
     description: The caller does not make the request, or does not own the stored claim, is not its manager and is not a finance user
     rule: >-
       has(input.stored_claim) && !(has(input.caller.employee_id) && input.actor_id == input.caller.employee_id &&
       (input.caller.employee_id == input.stored_claim.employee_id || input.caller.employee_id == input.stored_claim.manager_id || input.caller.role == 'finance'))
-    message: The caller may read the claim
+    failure_message: The caller may read the claim
 
   caller_is_the_clock:
     description: The caller is the shell's clock
     rule: input.caller.role == 'clock'
-    message: Only the clock may report a claim as overdue
+    failure_message: Only the clock may report a claim as overdue
 
   caller_is_not_the_clock:
     description: The caller is not the shell's clock
     rule: input.caller.role != 'clock'
-    message: The caller is the clock
+    failure_message: The caller is the clock
 
   # The stored claim and its state
 
   claim_was_found:
     description: A claim has the id of the request
     rule: has(input.stored_claim)
-    message: No claim has the id of the request
+    failure_message: No claim has the id of the request
 
   claim_was_not_found:
     description: No claim has the id of the request
     rule: '!has(input.stored_claim)'
-    message: A claim has the id of the request
+    failure_message: A claim has the id of the request
 
   was_draft_or_rejected:
     description: The stored claim was DRAFT or REJECTED
     rule: has(input.stored_claim) && input.stored_claim.state in ['DRAFT', 'REJECTED']
-    message: The claim was not DRAFT or REJECTED
+    failure_message: The claim was not DRAFT or REJECTED
 
   was_not_draft_or_rejected:
     description: The stored claim was not DRAFT or REJECTED
     rule: has(input.stored_claim) && !(input.stored_claim.state in ['DRAFT', 'REJECTED'])
-    message: The claim was DRAFT or REJECTED
+    failure_message: The claim was DRAFT or REJECTED
 
   was_draft:
     description: The stored claim was DRAFT
     rule: has(input.stored_claim) && input.stored_claim.state == 'DRAFT'
-    message: The claim was not DRAFT
+    failure_message: The claim was not DRAFT
 
   was_not_draft:
     description: The stored claim was not DRAFT
     rule: has(input.stored_claim) && input.stored_claim.state != 'DRAFT'
-    message: The claim was DRAFT
+    failure_message: The claim was DRAFT
 
   was_submitted:
     description: The stored claim was SUBMITTED
     rule: has(input.stored_claim) && input.stored_claim.state == 'SUBMITTED'
-    message: The claim was not SUBMITTED
+    failure_message: The claim was not SUBMITTED
 
   was_not_submitted:
     description: The stored claim was not SUBMITTED
     rule: has(input.stored_claim) && input.stored_claim.state != 'SUBMITTED'
-    message: The claim was SUBMITTED
+    failure_message: The claim was SUBMITTED
 
   was_approved:
     description: The stored claim was APPROVED
     rule: has(input.stored_claim) && input.stored_claim.state == 'APPROVED'
-    message: The claim was not APPROVED
+    failure_message: The claim was not APPROVED
 
   was_not_approved:
     description: The stored claim was not APPROVED
     rule: has(input.stored_claim) && input.stored_claim.state != 'APPROVED'
-    message: The claim was APPROVED
+    failure_message: The claim was APPROVED
 
   version_matches:
     description: The request names the version of the stored claim
     rule: has(input.stored_claim) && input.version == input.stored_claim.version
-    message: The claim is no longer at the version of the request
+    failure_message: The claim is no longer at the version of the request
 
   version_does_not_match:
     description: The request names another version than the stored claim has
     rule: has(input.stored_claim) && input.version != input.stored_claim.version
-    message: The claim is at the version of the request
+    failure_message: The claim is at the version of the request
 
   # The answers
 
@@ -625,7 +625,7 @@ rules:
       output.state == 'DRAFT' && output.version == 1 && output.employee_id == input.employee_id &&
       output.manager_id == input.manager_id && output.purpose == input.purpose && output.currency == input.currency &&
       output.lines == input.lines && !has(output.submitted_at) && !has(output.reason) && !has(output.overdue_reported_at)
-    message: A new claim must be a DRAFT at version 1 with the values of the request
+    failure_message: A new claim must be a DRAFT at version 1 with the values of the request
 
   edits_the_draft:
     description: An edit makes the claim a DRAFT with the purpose, currency and lines of the request, and keeps its id, owner and manager
@@ -633,12 +633,12 @@ rules:
       has(input.stored_claim) && output.state == 'DRAFT' && output.claim_id == input.stored_claim.claim_id &&
       output.employee_id == input.stored_claim.employee_id && output.manager_id == input.stored_claim.manager_id &&
       output.purpose == input.purpose && output.currency == input.currency && output.lines == input.lines
-    message: An edit may change only the purpose, currency and lines, and makes the claim a DRAFT
+    failure_message: An edit may change only the purpose, currency and lines, and makes the claim a DRAFT
 
   next_version:
     description: The claim is at the version of the request plus 1
     rule: output.version == input.version + 1
-    message: The new version must be 1 higher than the version of the request
+    failure_message: The new version must be 1 higher than the version of the request
 
   keeps_the_claim:
     description: The claim keeps its id, owner, manager, purpose, currency, total and lines
@@ -647,49 +647,49 @@ rules:
       output.claim.employee_id == input.stored_claim.employee_id && output.claim.manager_id == input.stored_claim.manager_id &&
       output.claim.purpose == input.stored_claim.purpose && output.claim.currency == input.stored_claim.currency &&
       output.claim.total == input.stored_claim.total && output.claim.lines == input.stored_claim.lines
-    message: The change may change only the state, the version and what the change records
+    failure_message: The change may change only the state, the version and what the change records
 
   keeps_the_submission:
     description: The claim keeps the time of its last submission
     rule: >-
       has(input.stored_claim) && has(input.stored_claim.submitted_at) && has(output.claim.submitted_at) &&
       output.claim.submitted_at == input.stored_claim.submitted_at
-    message: The change may not change the time of the last submission
+    failure_message: The change may not change the time of the last submission
 
   claim_at_next_version:
     description: The claim is at the version of the request plus 1
     rule: output.claim.version == input.version + 1
-    message: The new version must be 1 higher than the version of the request
+    failure_message: The new version must be 1 higher than the version of the request
 
   moves_to_submitted:
     description: The claim is SUBMITTED, and holds the time of the call as its submission
     rule: output.claim.state == 'SUBMITTED' && has(output.claim.submitted_at) && output.claim.submitted_at == input.now
-    message: The claim must be SUBMITTED at the time of the call
+    failure_message: The claim must be SUBMITTED at the time of the call
 
   moves_to_withdrawn:
     description: The claim is WITHDRAWN
     rule: output.claim.state == 'WITHDRAWN'
-    message: The claim must be WITHDRAWN
+    failure_message: The claim must be WITHDRAWN
 
   moves_to_approved:
     description: The claim is APPROVED
     rule: output.claim.state == 'APPROVED'
-    message: The claim must be APPROVED
+    failure_message: The claim must be APPROVED
 
   moves_to_rejected:
     description: The claim is REJECTED, with the reason of the request
     rule: output.claim.state == 'REJECTED' && has(output.claim.reason) && output.claim.reason == input.reason
-    message: The claim must be REJECTED with the reason of the request
+    failure_message: The claim must be REJECTED with the reason of the request
 
   moves_to_paid:
     description: The claim is PAID
     rule: output.claim.state == 'PAID'
-    message: The claim must be PAID
+    failure_message: The claim must be PAID
 
   answers_the_stored_claim:
     description: The answer is the stored claim
     rule: has(input.stored_claim) && output == input.stored_claim
-    message: The answer must be the claim of the request
+    failure_message: The answer must be the claim of the request
 
   marks_the_report:
     description: The claim is unchanged but for the time of the report, which is the time of the call
@@ -701,21 +701,21 @@ rules:
       output.claim.employee_id == input.stored_claim.employee_id && output.claim.manager_id == input.stored_claim.manager_id &&
       output.claim.purpose == input.stored_claim.purpose && output.claim.currency == input.stored_claim.currency &&
       output.claim.total == input.stored_claim.total && output.claim.lines == input.stored_claim.lines
-    message: A report may change only the time of the report, which is the time of the call
+    failure_message: A report may change only the time of the report, which is the time of the call
 
   receipts_are_free:
     description: No receipt of the request is in use on another claim that is not rejected or withdrawn, or on two lines of the request
     rule: >-
       input.lines.all(l, !has(l.receipt) || (!(l.receipt.sha256 in input.receipts_in_use) &&
       input.lines.exists_one(m, has(m.receipt) && m.receipt.sha256 == l.receipt.sha256)))
-    message: A receipt of the request is already in use
+    failure_message: A receipt of the request is already in use
 
   receipt_in_use:
     description: The refused receipt is on a line of the request, and is in use on another claim that is not rejected or withdrawn, or on two lines of the request
     rule: >-
       input.lines.exists(l, has(l.receipt) && output.sha256 == l.receipt.sha256 && (l.receipt.sha256 in input.receipts_in_use ||
       !input.lines.exists_one(m, has(m.receipt) && m.receipt.sha256 == l.receipt.sha256)))
-    message: The receipt is not in use
+    failure_message: The receipt is not in use
 
   # The events
 
@@ -726,7 +726,7 @@ rules:
       output.claim_submitted.total == output.claim.total && output.claim_submitted.currency == output.claim.currency &&
       output.claim_submitted.state == output.claim.state && output.claim_submitted.actor_id == input.actor_id &&
       output.claim_submitted.occurred_at == input.now && output.claim_submitted.event_id == input.event_id
-    message: The event must tell the change of the claim
+    failure_message: The event must tell the change of the claim
 
   tells_the_withdrawal:
     description: The event names the claim, its owner, total, currency and new state, the user who made the request, and the time and the event id of the call
@@ -735,7 +735,7 @@ rules:
       output.claim_withdrawn.total == output.claim.total && output.claim_withdrawn.currency == output.claim.currency &&
       output.claim_withdrawn.state == output.claim.state && output.claim_withdrawn.actor_id == input.actor_id &&
       output.claim_withdrawn.occurred_at == input.now && output.claim_withdrawn.event_id == input.event_id
-    message: The event must tell the change of the claim
+    failure_message: The event must tell the change of the claim
 
   tells_the_approval:
     description: The event names the claim, its owner, total, currency and new state, the user who made the request, and the time and the event id of the call
@@ -744,7 +744,7 @@ rules:
       output.claim_approved.total == output.claim.total && output.claim_approved.currency == output.claim.currency &&
       output.claim_approved.state == output.claim.state && output.claim_approved.actor_id == input.actor_id &&
       output.claim_approved.occurred_at == input.now && output.claim_approved.event_id == input.event_id
-    message: The event must tell the change of the claim
+    failure_message: The event must tell the change of the claim
 
   tells_the_rejection:
     description: The event names the claim, its owner, total, currency and new state, the user who made the request, the time and the event id of the call, and the reason of the request
@@ -753,7 +753,7 @@ rules:
       output.claim_rejected.total == output.claim.total && output.claim_rejected.currency == output.claim.currency &&
       output.claim_rejected.state == output.claim.state && output.claim_rejected.actor_id == input.actor_id &&
       output.claim_rejected.occurred_at == input.now && output.claim_rejected.event_id == input.event_id && output.claim_rejected.reason == input.reason
-    message: The event must tell the change of the claim
+    failure_message: The event must tell the change of the claim
 
   tells_the_payment:
     description: The event names the claim, its owner, total, currency and new state, the user who made the request, and the time and the event id of the call
@@ -762,7 +762,7 @@ rules:
       output.claim_paid.total == output.claim.total && output.claim_paid.currency == output.claim.currency &&
       output.claim_paid.state == output.claim.state && output.claim_paid.actor_id == input.actor_id &&
       output.claim_paid.occurred_at == input.now && output.claim_paid.event_id == input.event_id
-    message: The event must tell the change of the claim
+    failure_message: The event must tell the change of the claim
 
   tells_the_overdue_claim:
     description: The event names the claim, its owner, manager, total, currency, state and last submission, and the time and the event id of the call
@@ -772,34 +772,34 @@ rules:
       output.claim_decision_overdue.manager_id == output.claim.manager_id && output.claim_decision_overdue.total == output.claim.total &&
       output.claim_decision_overdue.currency == output.claim.currency && output.claim_decision_overdue.state == output.claim.state &&
       output.claim_decision_overdue.submitted_at == output.claim.submitted_at && output.claim_decision_overdue.occurred_at == input.now && output.claim_decision_overdue.event_id == input.event_id
-    message: The event must tell the overdue claim
+    failure_message: The event must tell the overdue claim
 
   # The refusals
 
   not_found_names_the_claim:
     description: The refusal names the claim id of the request
     rule: output.claim_id == input.claim_id
-    message: The refusal names another claim
+    failure_message: The refusal names another claim
 
   forbidden_names_the_caller:
     description: The refusal names the role of the caller and the user that the request names
     rule: output.role == input.caller.role && has(output.actor_id) && output.actor_id == input.actor_id
-    message: The refusal names another caller
+    failure_message: The refusal names another caller
 
   forbidden_names_the_role:
     description: The refusal names the role of the caller
     rule: output.role == input.caller.role
-    message: The refusal names another role
+    failure_message: The refusal names another role
 
   invalid_state_names_the_claim:
     description: The refusal names the claim of the request and its state
     rule: has(input.stored_claim) && output.claim_id == input.claim_id && output.state == input.stored_claim.state
-    message: The refusal names another claim or state
+    failure_message: The refusal names another claim or state
 
   conflict_names_the_version:
     description: The refusal names the claim and the version of the request
     rule: output.claim_id == input.claim_id && output.version == input.version
-    message: The refusal names another claim or version
+    failure_message: The refusal names another claim or version
 
 operations:
   create_draft:

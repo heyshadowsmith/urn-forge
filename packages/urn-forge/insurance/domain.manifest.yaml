@@ -180,34 +180,34 @@ rules:
   one_coverage_per_peril:
     description: A policy covers each peril once
     rule: self.all(c, self.exists_one(d, d.peril == c.peril))
-    message: A peril is covered more than once
+    failure_message: A peril is covered more than once
 
   term_is_positive:
     description: A policy ends after it starts
     rule: timestamp(self.expires_at) > timestamp(self.effective_at)
-    message: The cover must end after it starts
+    failure_message: The cover must end after it starts
 
   term_at_most_a_year:
     description: A policy lasts one year at most, also in a leap year (366 days)
     rule: timestamp(self.expires_at) - timestamp(self.effective_at) <= duration('8784h')
-    message: A policy can last 366 days at most
+    failure_message: A policy can last 366 days at most
 
   deductible_below_premium:
     description: A deductible, when there is one, is less than the premium
     rule: '!has(self.deductible) || self.deductible < self.premium'
-    message: The deductible must be less than the premium
+    failure_message: The deductible must be less than the premium
 
   cancellation_within_term:
     description: A policy can stop only at a time that it covers
     rule: >-
       timestamp(self.cancelled_at) >= timestamp(self.stored_policy.effective_at) &&
       timestamp(self.cancelled_at) <= timestamp(self.stored_policy.expires_at)
-    message: The policy must stop inside its term
+    failure_message: The policy must stop inside its term
 
   issued_as_requested:
     description: A policy is issued as requested
     rule: output.policy == input
-    message: The policy issued is not the one requested
+    failure_message: The policy issued is not the one requested
 
   announces_the_policy:
     description: The event names the policy, its holder and its premium
@@ -215,22 +215,22 @@ rules:
       output.policy_issued.policy_id == input.policy_id &&
       output.policy_issued.holder == input.holder &&
       output.policy_issued.premium == input.premium
-    message: The event does not name the policy issued
+    failure_message: The event does not name the policy issued
 
   refund_at_least_minimum:
     description: A refund that is paid is 100 cents or more
     rule: output.refund >= 100
-    message: A refund below 100 cents is not paid
+    failure_message: A refund below 100 cents is not paid
 
   refund_under_minimum:
     description: A refund is refused only when it is below 100 cents
     rule: output.refund < 100
-    message: A refund of 100 cents or more is paid
+    failure_message: A refund of 100 cents or more is paid
 
   refund_at_most_premium:
     description: A refund is never more than the premium
     rule: output.refund <= input.stored_policy.premium
-    message: The refund is more than the premium
+    failure_message: The refund is more than the premium
 
   announces_the_cancellation:
     description: The event names the policy, the time it stops and the refund
@@ -238,7 +238,7 @@ rules:
       output.policy_cancelled.policy_id == input.stored_policy.policy_id &&
       output.policy_cancelled.cancelled_at == input.cancelled_at &&
       output.policy_cancelled.refund == output.refund
-    message: The event does not name the cancellation
+    failure_message: The event does not name the cancellation
 
   records_the_refusal:
     description: The event of a refusal names the policy, the time it would stop and the refund
@@ -246,7 +246,7 @@ rules:
       output.refund_refused.policy_id == input.stored_policy.policy_id &&
       output.refund_refused.cancelled_at == input.cancelled_at &&
       output.refund_refused.refund == output.refund
-    message: The event does not record the refusal
+    failure_message: The event does not record the refusal
 
 operations:
   issue_policy:

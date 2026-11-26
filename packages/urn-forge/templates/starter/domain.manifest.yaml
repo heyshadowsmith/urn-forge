@@ -59,17 +59,17 @@ rules:
   shares_add_up:
     description: The shares add up to the total
     rule: output.share_cents * size(input.people) == input.total_cents
-    message: The shares do not add up to the total
+    failure_message: The shares do not add up to the total
 
   total_does_not_divide:
     description: The total does not divide into equal shares
     rule: input.total_cents % size(input.people) != 0
-    message: The total divides into equal shares
+    failure_message: The total divides into equal shares
 
   names_the_total:
     description: The refusal names the total of the request
     rule: output.total_cents == input.total_cents
-    message: The refusal names another total
+    failure_message: The refusal names another total
 
 operations:
   split:

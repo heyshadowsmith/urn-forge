@@ -63,17 +63,17 @@ rules:
   not_zero:
     description: The number is not zero
     rule: self != 0.0
-    message: Must not be 0
+    failure_message: Must not be 0
 
   area_grows_with_radius:
     description: A circle of radius 1 or more has an area of at least its radius
     rule: input.radius < 1.0 || output.area >= input.radius
-    message: The area is less than the radius
+    failure_message: The area is less than the radius
 
   quotient_has_the_sign:
     description: The quotient is negative only when the dividend and the divisor have different signs
     rule: (output.quotient < 0.0) == ((input.dividend < 0.0) != (input.divisor < 0.0) && input.dividend != 0.0)
-    message: The quotient has the wrong sign
+    failure_message: The quotient has the wrong sign
 
 operations:
   compute_area:

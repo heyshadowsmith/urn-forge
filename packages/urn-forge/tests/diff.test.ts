@@ -49,12 +49,12 @@ rules:
   same_sku:
     description: The order has the SKU of the request
     rule: output.sku == input.sku
-    message: Another SKU
+    failure_message: Another SKU
   at_least:
     description: At least the limit
     parameters: [quantity]
     rule: self >= quantity
-    message: At least {quantity}
+    failure_message: At least {quantity}
 operations:
   place:
     description: Place an order

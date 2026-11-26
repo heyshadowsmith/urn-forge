@@ -36,7 +36,7 @@ The contract has only general constructs: values, objects, lists, operations and
 | The time | A time string in the input |
 | An event | A property of an answer |
 
-**What it gives you:** each promise is a rule with a name and a message. The harness checks it on each call, a scenario can break it, and gate 5 and `diff` see when it changes. The agent has a small set of constructs to learn, and it cannot hide a promise in a construct that the checks do not see.
+**What it gives you:** each promise is a rule with a name and a failure message. The harness checks it on each call, a scenario can break it, and gate 5 and `diff` see when it changes. The agent has a small set of constructs to learn, and it cannot hide a promise in a construct that the checks do not see.
 
 Each part has a URN, such as `urn:acme:bookings:definition:party_size`. Failures, `diff` and the output of the gates use it, so a part is never confused with a part of another domain. A repository can hold several domains, and one config lists them.
 
