@@ -76,16 +76,14 @@ promises:
     promise: "A checkout request must carry the hold id and a payment reference, and is refused with HOLD_EXPIRED if received after the hold's expiry time, with HOLD_NOT_FOUND for an unknown hold, or with PAYMENT_DECLINED if the payment fails, in which case no ticket is issued."
     status: declared
     by: [operations.check_out, definitions.checkout_request, definitions.payment_outcome, definitions.hold_expired_refusal, definitions.hold_not_found, definitions.payment_declined, rules.names_the_hold, rules.hold_missing, rules.hold_open_at_checkout, rules.hold_closed_at_checkout, rules.payment_approved, rules.payment_failed]
-  # Workaround: the order id is required, total_is_line_prices_plus_fees makes the total the line prices of the
-  # stored hold plus the fees, and one_ticket_per_held_place makes the number of tickets the number of held places,
-  # one ticket per held seat, and each standing ticket of a held standing section. With standing lines in two
-  # sections, the split of the standing tickets between them is not checked (FLOOR x2 and PIT x1 answered as FLOOR x1
-  # and PIT x2 passes): that needs a count with a condition, which the rule language lacks.
+  # The order id is required, total_is_line_prices_plus_fees makes the total the line prices of the stored hold plus
+  # the fees, and one_ticket_per_held_place makes the number of tickets the number of held places, one ticket per held
+  # seat, and each standing ticket of a held standing section. standing_tickets_per_section counts the standing
+  # tickets of each section with filter, so FLOOR x2 and PIT x1 answered as FLOOR x1 and PIT x2 is a contract violation.
   P10:
     promise: "A successful checkout returns an order id and exactly one ticket per held seat or standing place, and the order total equals the sum of the line prices plus the listed fees."
-    status: workaround
-    by: [operations.check_out, definitions.order, rules.one_ticket_per_held_place, rules.total_is_line_prices_plus_fees, rules.total_is_prices_plus_fees]
-    hole: A1
+    status: declared
+    by: [operations.check_out, definitions.order, rules.one_ticket_per_held_place, rules.standing_tickets_per_section, rules.total_is_line_prices_plus_fees, rules.total_is_prices_plus_fees]
   # Workaround: the states are an enum, and each move is a rule over the stored hold and the answer: release_hold and
   # expire_hold move an ACTIVE hold to RELEASED or EXPIRED (hold_was_active, else HOLD_NOT_ACTIVE), check_out converts
   # only an open hold (converts_the_hold). "Its seats are no longer held by it" is about seat availability across the
