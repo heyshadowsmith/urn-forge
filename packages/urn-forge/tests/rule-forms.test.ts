@@ -18,14 +18,16 @@ definitions:
   number: {description: A number, type: integer}
   numbers: {description: Numbers, type: array, items: number}
   text: {description: A text, type: string}
+  amount: {description: An amount, type: integer}
+  ratio: {description: A ratio, type: number}
   flag: {description: A flag, type: boolean}
   subject:
     description: The value of the rule
     type: object
-    properties: [key, words, numbers, text, flag]
+    properties: [key, words, numbers, text, flag, amount, ratio]
     identifier: key
     rules:
-      - required: [key, words, numbers, text, flag]
+      - required: [key, words, numbers, text, flag, amount, ratio]
       - the_rule
 rules:
   the_rule:
@@ -35,7 +37,7 @@ rules:
 `;
 }
 
-const base = { key: 'k', words: ['a', 'b', 'a'], numbers: [1, 2, 3], text: '1.4.0', flag: true };
+const base = { key: 'k', words: ['a', 'b', 'a'], numbers: [1, 2, 3], text: '1.4.0', flag: true, amount: 5, ratio: 2.5 };
 
 /** Whether a value keeps the rule; throws with the diagnostics when the rule does not compile. */
 function holds(rule: string, change: Partial<typeof base> = {}): boolean {
@@ -140,7 +142,7 @@ describe('the SQL of each form', () => {
     for (const [i, change] of rows.entries()) {
       const row = { ...base, ...change };
       try {
-        await db.query('INSERT INTO "forms"."subject" ("key", "text", "flag") VALUES ($1, $2, $3)', [String(i), row.text, row.flag]);
+        await db.query('INSERT INTO "forms"."subject" ("key", "text", "flag", "amount", "ratio") VALUES ($1, $2, $3, $4, $5)', [String(i), row.text, row.flag, row.amount, row.ratio]);
         stored.push(true);
       } catch {
         stored.push(false);
@@ -162,8 +164,17 @@ describe('the SQL of each form', () => {
     ["(self.flag ? 'yes' : 'no') == self.text", ['yes', 'no']],
     ["self.text.lowerAscii() == 'abcé'", ['AbCé', 'AbCÉ', 'abcé']],
     ["self.text.upperAscii() == 'ABCé'", ['AbCé', 'ABCÉ']],
+    ["self.text.reverse() == 'cbé'", ['ébc', 'abc', '']],
+    ['math.abs(self.amount) == 5 || math.sign(self.amount) == 0', ['a']],
+    ['math.greatest(self.amount, 1) == 1 && math.least(self.amount, 1, 2) < 1', ['a']],
+    ['math.ceil(self.ratio) == 3.0 || math.floor(self.ratio) == -3.0 || math.trunc(self.ratio) == 0.0', ['a']],
+    ['timestamp(self.text).getFullYear() == 2026 && timestamp(self.text).getMonth() == 0 && timestamp(self.text).getDayOfYear() == 0', ['2026-01-01T00:30:00+02:00', '2026-01-01T00:30:00Z', '2025-12-31T23:00:00-02:00']],
+    ['timestamp(self.text).getDayOfWeek() == 4 && timestamp(self.text).getDate() == 1 && timestamp(self.text).getDayOfMonth() == 0', ['2026-01-01T12:00:00Z', '2026-01-02T12:00:00Z']],
+    ['timestamp(self.text).getHours() == 23 && timestamp(self.text).getMinutes() == 59 && timestamp(self.text).getSeconds() == 58', ['2026-01-01T23:59:58.900Z', '2026-01-02T01:59:58+02:00', '2026-01-01T23:59:59Z']],
   ] as const)('%s keeps and breaks as the generated check does', async (rule, texts) => {
+    expect(sql(rule), 'the rule becomes a CHECK').toBeDefined();
     const rows = texts.flatMap((text) => [true, false].map((flag) => ({ text, flag })));
+    for (const [amount, ratio] of [[-7, -2.5], [0, 0.5], [3, 3.0], [-1, -0.25]] as const) rows.push({ text: texts[0]!, flag: true, amount, ratio } as never);
     const stored = await stores(rule, rows);
     expect(rows.map((row, i) => ({ ...row, stored: stored[i] }))).toEqual(rows.map((row) => ({ ...row, stored: holds(rule, row) })));
   });
