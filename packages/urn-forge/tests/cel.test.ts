@@ -60,6 +60,8 @@ describe('parse and print', () => {
     ['self.tables.all(t, self.tables.exists_one(u, u == t))', 'self.tables.all(t, self.tables.exists_one(u, u == t))'],
     ['self.words.filter(w, w != "")[0]=="a"', "self.words.filter(w, w != '')[0] == 'a'"],
     ['self.board[ 3*r+c ]', 'self.board[3 * r + c]'],
+    ['(a?1:2)+(b ? 3 : c ? 4 : 5)==x', '(a ? 1 : 2) + (b ? 3 : c ? 4 : 5) == x'],
+    ['a || b ? (c ? 1 : 2) : 3', 'a || b ? (c ? 1 : 2) : 3'],
     ['size(self.name) <= 64 && self.name.size() > 0', 'size(self.name) <= 64 && self.name.size() > 0'],
     [`self.code.matches(r'^[A-Z]{2}\\d$')`, `self.code.matches('^[A-Z]{2}\\\\d$')`],
     ['"it\'s"', "'it\\'s'"],
@@ -71,7 +73,6 @@ describe('parse and print', () => {
   });
 
   it.each([
-    ['a ? b : c', '?: is not in the subset; write the rule with && and ||'],
     ['a < b < c', 'a chain of comparisons is not in the subset; join them with &&'],
     ['null', 'null is not in the subset; use has() for a value that can be absent'],
     ['{1: 2}', 'maps are not in the subset'],

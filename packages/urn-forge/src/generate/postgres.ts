@@ -123,6 +123,8 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: reado
       case 'macro':
       case 'index':
         throw new Untranslatable();
+      case 'conditional':
+        return `(CASE WHEN ${sql(e.condition)} THEN ${sql(e.then)} ELSE ${sql(e.otherwise)} END)`;
       case 'unary':
         return e.op === '!' ? `(NOT ${sql(e.operand)})` : `(-${sql(e.operand)})`;
       case 'binary': {

@@ -8,8 +8,8 @@
  *   item of a list: `l[i]`;
  * - literals: integers, doubles, strings in single or double quotes (`r'…'` for raw), `true`, `false`,
  *   and lists `[a, b]`;
- * - `!`, unary `-`, `*`, `/`, `%`, `+`, `-`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `&&`, `||`, and
- *   parentheses;
+ * - `!`, unary `-`, `*`, `/`, `%`, `+`, `-`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `&&`, `||`,
+ *   `c ? a : b`, and parentheses;
  * - the functions `has(a.b)`, `size(x)`, `timestamp(s)`, `duration(s)`, `int(x)`, `double(x)`,
  *   `string(x)`, and the methods `x.size()`, `s.matches(re)`, `s.startsWith(t)`, `s.endsWith(t)`,
  *   `s.contains(t)`, `l.sum()`;
@@ -45,7 +45,8 @@ export type Expr =
   | { readonly kind: 'call'; readonly fn: FunctionName; readonly target?: Expr; readonly args: readonly Expr[]; readonly at: number }
   | { readonly kind: 'macro'; readonly macro: MacroName; readonly target: Expr; readonly variable: string; readonly body: Expr; readonly at: number }
   | { readonly kind: 'unary'; readonly op: '!' | '-'; readonly operand: Expr; readonly at: number }
-  | { readonly kind: 'binary'; readonly op: BinaryOp; readonly left: Expr; readonly right: Expr; readonly at: number };
+  | { readonly kind: 'binary'; readonly op: BinaryOp; readonly left: Expr; readonly right: Expr; readonly at: number }
+  | { readonly kind: 'conditional'; readonly condition: Expr; readonly then: Expr; readonly otherwise: Expr; readonly at: number };
 
 /** A rule that does not parse: the message, and the offset where the problem is. */
 export class CelSyntaxError extends Error {
@@ -65,7 +66,7 @@ type Token =
   | { readonly kind: 'symbol'; readonly text: string; readonly at: number }
   | { readonly kind: 'end'; readonly at: number };
 
-const SYMBOLS = ['||', '&&', '==', '!=', '<=', '>=', '<', '>', '!', '+', '-', '*', '/', '%', '(', ')', '[', ']', ',', '.'];
+const SYMBOLS = ['||', '&&', '==', '!=', '<=', '>=', '<', '>', '!', '+', '-', '*', '/', '%', '(', ')', '[', ']', ',', '.', '?', ':'];
 const ESCAPES: Readonly<Record<string, string>> = { '\\': '\\', "'": "'", '"': '"', n: '\n', t: '\t', r: '\r' };
 
 function lex(text: string): Token[] {
@@ -127,7 +128,7 @@ function lex(text: string): Token[] {
     }
     const symbol = SYMBOLS.find((s) => text.startsWith(s, i));
     if (!symbol) {
-      const why = c === '?' ? '?: is not in the subset; write the rule with && and ||' : c === '{' ? 'maps are not in the subset' : `the character ${c} is not in the subset`;
+      const why = c === '{' ? 'maps are not in the subset' : `the character ${c} is not in the subset`;
       throw new CelSyntaxError(why, at);
     }
     tokens.push({ kind: 'symbol', text: symbol, at });
@@ -166,9 +167,19 @@ class Parser {
   }
 
   parseRule(): Expr {
-    const expr = this.or();
+    const expr = this.expr();
     if (this.next.kind !== 'end') throw new CelSyntaxError(`expected the end of the rule, found ${describe(this.next)}`, this.next.at);
     return expr;
+  }
+
+  /** `c ? a : b`, as in CEL: the condition and the first value are below ?:, the last value can be another ?:. */
+  private expr(): Expr {
+    const condition = this.or();
+    const at = this.next.at;
+    if (!this.symbol('?')) return condition;
+    const then = this.or();
+    this.expect(':', ': after the first value of ?');
+    return { kind: 'conditional', condition, then, otherwise: this.expr(), at };
   }
 
   private or(): Expr {
@@ -239,7 +250,7 @@ class Parser {
     for (;;) {
       const at = this.next.at;
       if (this.symbol('[')) {
-        const index = this.or();
+        const index = this.expr();
         this.expect(']', '] to close the index');
         expr = { kind: 'index', operand: expr, index, at };
         continue;
@@ -257,7 +268,7 @@ class Parser {
         if (variable.kind !== 'name' || RESERVED.has(variable.text)) throw new CelSyntaxError(`the first argument of ${token.text} must be a name for each item`, variable.at);
         this.index++;
         this.expect(',', `, after ${variable.text}`);
-        const body = this.or();
+        const body = this.expr();
         this.expect(')', `) to close ${token.text}`);
         expr = { kind: 'macro', macro: token.text as MacroName, target: expr, variable: variable.text, body, at: token.at };
         continue;
@@ -273,7 +284,7 @@ class Parser {
   private args(): Expr[] {
     const args: Expr[] = [];
     if (this.symbol(')')) return args;
-    do args.push(this.or());
+    do args.push(this.expr());
     while (this.symbol(','));
     this.expect(')', ') or ,');
     return args;
@@ -290,7 +301,7 @@ class Parser {
     }
     if (token.kind === 'symbol' && token.text === '(') {
       this.index++;
-      const expr = this.or();
+      const expr = this.expr();
       this.expect(')', ')');
       return expr;
     }
@@ -298,7 +309,7 @@ class Parser {
       this.index++;
       const items: Expr[] = [];
       if (!this.symbol(']')) {
-        do items.push(this.or());
+        do items.push(this.expr());
         while (this.symbol(','));
         this.expect(']', '] or ,');
       }

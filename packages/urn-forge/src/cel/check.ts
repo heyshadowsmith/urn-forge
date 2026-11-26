@@ -141,6 +141,15 @@ class Checker {
       }
       case 'binary':
         return this.binary(expr, names, guards);
+      case 'conditional': {
+        const condition = this.type(expr.condition, names, guards);
+        // Each value can read what the condition shows present, as after && and ||.
+        const then = this.type(expr.then, names, new Set([...guards, ...facts(expr.condition, true)]));
+        const otherwise = this.type(expr.otherwise, names, new Set([...guards, ...facts(expr.condition, false)]));
+        if (!condition || !then || !otherwise) return undefined;
+        if (condition.kind !== 'bool') return this.wrong(expr, 'the condition of ?: must be a bool', condition);
+        return same(then, otherwise) ? then : this.wrong(expr, 'the two values of ?: must have one type', then, otherwise);
+      }
       case 'call':
         return this.call(expr, names, guards);
       case 'macro': {

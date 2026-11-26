@@ -91,6 +91,8 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
       }
       case 'unary':
         return `(${e.op}${emit(e.operand, scope)})`;
+      case 'conditional':
+        return `(${emit(e.condition, scope)} ? ${emit(e.then, scope)} : ${emit(e.otherwise, scope)})`;
       case 'binary': {
         const left = emit(e.left, scope);
         const right = emit(e.right, scope);
