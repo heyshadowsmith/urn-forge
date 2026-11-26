@@ -11,11 +11,11 @@
  *   parentheses;
  * - the functions `has(a.b)`, `size(x)`, `timestamp(s)`, `duration(s)`, and the methods `x.size()`,
  *   `s.matches(re)`, `l.sum()`;
- * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)` and `l.map(x, e)`.
+ * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)` and `l.filter(x, p)`.
  */
 
 export type BinaryOp = '||' | '&&' | '==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | '+' | '-' | '*' | '/' | '%';
-export type MacroName = 'all' | 'exists' | 'exists_one' | 'map';
+export type MacroName = 'all' | 'exists' | 'exists_one' | 'map' | 'filter';
 export type FunctionName = 'has' | 'size' | 'timestamp' | 'duration' | 'matches' | 'sum';
 
 /** A node of a rule. `at` is its offset in the text, from 0. */
@@ -123,7 +123,7 @@ function lex(text: string): Token[] {
 }
 
 const RELATIONS: readonly BinaryOp[] = ['==', '!=', '<', '<=', '>', '>=', 'in'];
-const MACROS: readonly string[] = ['all', 'exists', 'exists_one', 'map'];
+const MACROS: readonly string[] = ['all', 'exists', 'exists_one', 'map', 'filter'];
 const RESERVED = new Set(['true', 'false', 'null', 'in', 'as', 'break', 'const', 'continue', 'else', 'for', 'function', 'if', 'import', 'let', 'loop', 'package', 'namespace', 'return', 'var', 'void', 'while']);
 
 class Parser {

@@ -77,7 +77,7 @@ describe('parse and print', () => {
     ['self.name.startsWith("a")', 'the method startsWith() is not in the subset'],
     ['int(self.amount)', 'the function int() is not in the subset'],
     ['has(self)', 'has() takes one property, such as has(self.deposit)'],
-    ['self.lines.filter(l, l > 0)', 'the method filter() is not in the subset'],
+    ['self.name.replace("a", "b")', 'the method replace() is not in the subset'],
     ['self.lines.all(1, true)', 'the first argument of all must be a name for each item'],
     ['a &&', 'expected a value, found the end of the rule'],
     ["'open", 'a string has no closing quote'],

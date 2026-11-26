@@ -72,6 +72,8 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
             return `(${list}.filter((${variable}: any) => ${body}).length === 1)`;
           case 'map':
             return `${list}.map((${variable}: any) => ${body})`;
+          case 'filter':
+            return `${list}.filter((${variable}: any) => ${body})`;
         }
         break;
       }

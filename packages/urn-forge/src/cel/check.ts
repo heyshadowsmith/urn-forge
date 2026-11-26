@@ -144,7 +144,9 @@ class Checker {
         const body = this.type(expr.body, { ...names, [expr.variable]: target.of }, guards);
         if (!body) return undefined;
         if (expr.macro === 'map') return { kind: 'list', of: body };
-        return body.kind === 'bool' ? BOOL : this.wrong(expr, `the condition of ${expr.macro}() must be a bool`, body);
+        if (body.kind !== 'bool') return this.wrong(expr, `the condition of ${expr.macro}() must be a bool`, body);
+        // filter() keeps the items for which the condition is true: a list of the same type.
+        return expr.macro === 'filter' ? target : BOOL;
       }
     }
   }
