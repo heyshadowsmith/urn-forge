@@ -155,7 +155,7 @@ rules:
     failure_message: Must be at least {limit}
 
   large_party_pays_deposit:
-    description: A party of 7 or more pays a deposit
+    description: A large party pays a deposit, so that a large table that is not used still pays something
     rule: self.party_size < 7 || (has(self.deposit) && self.deposit > 0)
     failure_message: A party of 7 or more pays a deposit
 

@@ -513,7 +513,7 @@ rules:
     failure_message: A captured or refunded payment needs the time of its capture
 
   pending_only_for_bank_transfer:
-    description: Only a bank transfer payment can be pending
+    description: Only a bank transfer settles later, so only a bank transfer can wait in the pending state
     rule: self.status != 'pending' || self.method == 'bank_transfer'
     failure_message: Only a bank transfer payment can be pending
 

@@ -70,14 +70,14 @@ rules:
     description: The value is the bound or more
     parameters: [limit]
     rule: self >= limit
-    message: Must be at least {limit}
+    failure_message: Must be at least {limit}
 ```
 
 | Key | Required | Value |
 | --- | --- | --- |
-| `description` | Yes | What the rule states, for a reader |
+| `description` | Yes | What the rule checks, and why, for a reader of the manifest |
 | `rule` | Yes | An expression that gives `true` if the value keeps the rule |
-| `message` | Yes | The text of a failure. `{name}` puts the argument of a parameter in the text. A list gets `, ` between its items |
+| `failure_message` | Yes | What a failure says when the rule breaks: the `failure_message` of each failure in a result. `{name}` puts the argument of a parameter in the text. A list gets `, ` between its items |
 | `parameters` | No | Names of definitions. Each is a parameter, with the type of its definition |
 
 Apply a rule with no parameter by its name only (`- uniqueItems`). Apply a rule with one parameter as `- minimum: 1`, and a rule with more parameters as a map: `- between: { low: 1, high: 9 }`. The argument must be a valid value of the definition of the parameter. If not, `compile` stops with `rule-argument`. Your own rule cannot have the name of a standard rule.
@@ -104,7 +104,7 @@ The standard rules are the common checks that urn-forge includes. They have decl
 | `uniqueItems` | `array` | none |
 | `required` | `object` | A list of property names |
 
-Each standard rule has a message, such as `Must be at least {bound}`. For a set of permitted numbers, use `minimum` and `maximum`, or your own rule.
+Each standard rule has a failure message, such as `Must be at least {bound}`. For a set of permitted numbers, use `minimum` and `maximum`, or your own rule.
 
 ## Retire a part
 

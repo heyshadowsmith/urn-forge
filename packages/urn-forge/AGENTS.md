@@ -57,12 +57,12 @@ rules:
   ends_after_start:
     description: The end is after the start
     rule: timestamp(self.ends_at) > timestamp(self.starts_at)
-    message: Must end after it starts
+    failure_message: Must end after it starts
   at_most_party:
     description: At most the size of the party
     parameters: [limit]                         # names of definitions: the type of each parameter
     rule: self <= limit
-    message: Must be at most {limit}
+    failure_message: Must be at most {limit}
 
 operations:
   seat_booking:
@@ -78,8 +78,10 @@ operations:
 | --- | --- |
 | `manifest` | `namespace`, `domain`, `version`, `compatibility` |
 | `definitions.<name>` | `description`, `type`, `properties`, `items`, `identifier`, `rules`, `deprecated` |
-| `rules.<name>` | `description`, `parameters`, `rule`, `message`, `deprecated` |
+| `rules.<name>` | `description`, `parameters`, `rule`, `failure_message`, `deprecated` |
 | `operations.<name>` | `description`, `input`, `output`, `rules`, `deprecated` |
+
+A rule's `description` says what it checks and why, for a reader of the manifest. Its `failure_message` is what a failure says when it breaks; `{parameter}` puts in an argument.
 
 - `properties` and `identifier` are only for `type: object`; `properties` is required there. `items` is only for `type: array`, and required there.
 - `type: <definition>` gives the structure and the rules of that definition, plus its own rules.
@@ -137,7 +139,7 @@ A subset of CEL. Each rule must give a `bool`.
 
 Each part has a URN: `urn:<namespace>:<domain>:<definition|rule|operation>:<name>`, such as `urn:acme:bookings:definition:party_size`. `diff`, gate 5 and the JSON output name parts by URN. The manifest and the scenarios use short names.
 
-A failure is `{ definition, rule, path, message }`, such as `{ definition: 'party_size', rule: 'minimum', path: 'party_size', message: 'Must be at least 1' }`. `InputRejected` is the caller's fault. `ContractViolation` is a bug in the core.
+A failure is `{ definition, rule, path, failure_message }`, such as `{ definition: 'party_size', rule: 'minimum', path: 'party_size', failure_message: 'Must be at least 1' }`. `InputRejected` is the caller's fault. `ContractViolation` is a bug in the core.
 
 With `postgres: { tables: [...] }` in the config, `compile` also writes `schema.generated.sql` and `domain.store.generated.ts` (`insert<Table>`, `delete<Table>`, `replace<Table>`, `select<Table>`, `<table>FromRows`: pure functions that give statements for your driver).
 

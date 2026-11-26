@@ -141,17 +141,17 @@ rules:
   was_confirmed:
     description: The booking was confirmed
     rule: input.state == 'confirmed'
-    message: The booking was not confirmed
+    failure_message: The booking was not confirmed
 
   was_not_confirmed:
     description: The booking was not confirmed
     rule: input.state != 'confirmed'
-    message: The booking was confirmed
+    failure_message: The booking was confirmed
 
   is_seated:
     description: The booking is seated
     rule: output.state == 'seated'
-    message: The booking is not seated
+    failure_message: The booking is not seated
 ```
 
 </div>
