@@ -17,24 +17,12 @@
  * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)` and `l.filter(x, p)`.
  */
 
+import { arities } from './functions.js';
+
 export type BinaryOp = '||' | '&&' | '==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | '+' | '-' | '*' | '/' | '%';
 export type MacroName = 'all' | 'exists' | 'exists_one' | 'map' | 'filter';
-export type FunctionName =
-  | 'has'
-  | 'size'
-  | 'timestamp'
-  | 'duration'
-  | 'int'
-  | 'double'
-  | 'string'
-  | 'matches'
-  | 'startsWith'
-  | 'endsWith'
-  | 'contains'
-  | 'split'
-  | 'lowerAscii'
-  | 'upperAscii'
-  | 'sum';
+/** `has`, `duration`, or a name of the table of functions (src/cel/functions.ts). */
+export type FunctionName = string;
 
 /** A node of a rule. `at` is its offset in the text, from 0. */
 export type Expr =
@@ -71,7 +59,23 @@ type Token =
   | { readonly kind: 'end'; readonly at: number };
 
 const SYMBOLS = ['||', '&&', '==', '!=', '<=', '>=', '<', '>', '!', '+', '-', '*', '/', '%', '(', ')', '[', ']', ',', '.', '?', ':'];
-const ESCAPES: Readonly<Record<string, string>> = { '\\': '\\', "'": "'", '"': '"', n: '\n', t: '\t', r: '\r' };
+const ESCAPES: Readonly<Record<string, string>> = { '\\': '\\', "'": "'", '"': '"', '`': '`', '?': '?', n: '\n', t: '\t', r: '\r', a: '\x07', b: '\b', f: '\f', v: '\v' };
+
+/** An escape of a string, at the backslash: the text that it stands for, and its length. */
+function escape(text: string, i: number): [string, number] {
+  const e = text[i + 1];
+  if (e !== undefined && Object.hasOwn(ESCAPES, e)) return [ESCAPES[e]!, 2];
+  const code = (digits: string | undefined, base: number, length: number): [string, number] => {
+    const point = digits === undefined ? NaN : parseInt(digits, base);
+    if (Number.isNaN(point) || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) throw new CelSyntaxError(`the escape ${text.slice(i, i + length)} is not a character`, i);
+    return [String.fromCodePoint(point), length];
+  };
+  if (e === 'x' || e === 'X') return code(/^[0-9a-fA-F]{2}/.exec(text.slice(i + 2))?.[0], 16, 4);
+  if (e === 'u') return code(/^[0-9a-fA-F]{4}/.exec(text.slice(i + 2))?.[0], 16, 6);
+  if (e === 'U') return code(/^[0-9a-fA-F]{8}/.exec(text.slice(i + 2))?.[0], 16, 10);
+  if (e !== undefined && /[0-3]/.test(e)) return code(/^[0-3][0-7]{2}/.exec(text.slice(i + 1))?.[0], 8, 4);
+  throw new CelSyntaxError(`the escape \\${e ?? ''} is not in CEL`, i);
+}
 
 function lex(text: string): Token[] {
   const tokens: Token[] = [];
@@ -85,22 +89,22 @@ function lex(text: string): Token[] {
     const at = i;
     const raw = (c === 'r' || c === 'R') && (text[i + 1] === "'" || text[i + 1] === '"');
     if (c === "'" || c === '"' || raw) {
-      const quote = raw ? text[i + 1]! : c;
-      if (text.startsWith(quote.repeat(3), raw ? i + 1 : i)) throw new CelSyntaxError('a string in triple quotes is not in the subset', at);
-      i += raw ? 2 : 1;
+      const start = raw ? i + 1 : i;
+      const triple = text.startsWith(text[start]!.repeat(3), start);
+      const quote = text[start]!.repeat(triple ? 3 : 1);
+      i = start + quote.length;
       let value = '';
       for (;;) {
-        if (i >= text.length || text[i] === '\n') throw new CelSyntaxError('a string has no closing quote', at);
-        const d = text[i]!;
-        if (d === quote) {
-          i++;
+        if (i >= text.length || (text[i] === '\n' && !triple)) throw new CelSyntaxError('a string has no closing quote', at);
+        if (text.startsWith(quote, i)) {
+          i += quote.length;
           break;
         }
+        const d = text[i]!;
         if (d === '\\' && !raw) {
-          const e = text[i + 1];
-          if (e === undefined || !Object.hasOwn(ESCAPES, e)) throw new CelSyntaxError(`the escape \\${e ?? ''} is not in the subset; the escapes are \\\\ \\' \\" \\n \\t \\r`, i);
-          value += ESCAPES[e];
-          i += 2;
+          const [part, length] = escape(text, i);
+          value += part;
+          i += length;
           continue;
         }
         value += d;
@@ -109,12 +113,21 @@ function lex(text: string): Token[] {
       tokens.push({ kind: 'string', value, at });
       continue;
     }
-    if (/[0-9]/.test(c)) {
-      const match = /^[0-9]+(\.[0-9]+([eE][+-]?[0-9]+)?|[eE][+-]?[0-9]+)?/.exec(text.slice(i))!;
+    const hex = /^0[xX][0-9a-fA-F]+/.exec(text.slice(i));
+    if (hex && !/^[uU]/.test(text.slice(i + hex[0].length))) {
+      const value = parseInt(hex[0].slice(2), 16);
+      if (!Number.isSafeInteger(value)) throw new CelSyntaxError(`the integer ${hex[0]} is too large`, at);
+      tokens.push({ kind: 'int', value, text: hex[0], at });
+      i += hex[0].length;
+      continue;
+    }
+    if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(text[i + 1] ?? ''))) {
+      const match = /^([0-9]*\.[0-9]+([eE][+-]?[0-9]+)?|[0-9]+(\.[0-9]+([eE][+-]?[0-9]+)?|[eE][+-]?[0-9]+)?)/.exec(text.slice(i))!;
       const literal = match[0];
-      if (/^0[0-9]/.test(literal) && match[1] === undefined) throw new CelSyntaxError(`the integer ${literal} starts with 0`, at);
+      const isInt = /^[0-9]+$/.test(literal);
+      if (/^0[0-9]/.test(literal) && isInt) throw new CelSyntaxError(`the integer ${literal} starts with 0`, at);
       if (/^[uUxX]/.test(text.slice(i + literal.length))) throw new CelSyntaxError('unsigned and hexadecimal numbers are not in the subset', at);
-      if (match[1] === undefined) {
+      if (isInt) {
         const value = Number(literal);
         if (!Number.isSafeInteger(value)) throw new CelSyntaxError(`the integer ${literal} is too large`, at);
         tokens.push({ kind: 'int', value, text: literal, at });
@@ -144,8 +157,10 @@ function lex(text: string): Token[] {
 
 const RELATIONS: readonly BinaryOp[] = ['==', '!=', '<', '<=', '>', '>=', 'in'];
 const MACROS: readonly string[] = ['all', 'exists', 'exists_one', 'map', 'filter'];
-/** The methods of the subset, and the number of the arguments of each. */
-const METHODS: Readonly<Record<string, number>> = { size: 0, sum: 0, matches: 1, startsWith: 1, endsWith: 1, contains: 1, split: 1, lowerAscii: 0, upperAscii: 0 };
+/** The namespaces of functions, such as math in math.greatest(). */
+const NAMESPACES: readonly string[] = ['math', 'lists', 'strings'];
+
+const count = (n: number): string => (n === 0 ? 'no argument' : n === 1 ? 'one argument' : `${n} arguments`);
 const RESERVED = new Set(['true', 'false', 'null', 'in', 'as', 'break', 'const', 'continue', 'else', 'for', 'function', 'if', 'import', 'let', 'loop', 'package', 'namespace', 'return', 'var', 'void', 'while']);
 
 class Parser {
@@ -278,10 +293,13 @@ class Parser {
         continue;
       }
       const args = this.args();
-      if (!Object.hasOwn(METHODS, token.text)) throw new CelSyntaxError(`the method ${token.text}() is not in the subset`, token.at);
-      const count = METHODS[token.text]!;
-      if (args.length !== count) throw new CelSyntaxError(`${token.text}() takes ${count === 0 ? 'no argument' : 'one argument'}`, token.at);
-      expr = { kind: 'call', fn: token.text as FunctionName, target: expr, args, at: token.at };
+      // math.greatest(…): a function of a namespace, not a method of a name.
+      const namespaced = expr.kind === 'name' && NAMESPACES.includes(expr.name) ? `${expr.name}.${token.text}` : undefined;
+      const name = namespaced ?? token.text;
+      const counts = arities(name, namespaced === undefined);
+      if (counts.length === 0) throw new CelSyntaxError(`the ${namespaced ? 'function' : 'method'} ${name}() is not in the subset`, token.at);
+      if (!counts.includes(args.length)) throw new CelSyntaxError(`${name}() takes ${counts.map(count).join(' or ')}`, token.at);
+      expr = namespaced ? { kind: 'call', fn: name, args, at: expr.at } : { kind: 'call', fn: name, target: expr, args, at: token.at };
     }
   }
 
@@ -330,16 +348,15 @@ class Parser {
         case 'has':
           if (args.length !== 1 || args[0]!.kind !== 'select') throw new CelSyntaxError('has() takes one property, such as has(self.deposit)', at);
           return { kind: 'call', fn: 'has', args, at };
-        case 'size':
-        case 'timestamp':
         case 'duration':
-        case 'int':
-        case 'double':
-        case 'string':
-          if (args.length !== 1) throw new CelSyntaxError(`${token.text}() takes one argument`, at);
+          if (args.length !== 1) throw new CelSyntaxError('duration() takes one argument', at);
+          return { kind: 'call', fn: 'duration', args, at };
+        default: {
+          const counts = arities(token.text, false);
+          if (counts.length === 0) throw new CelSyntaxError(`the function ${token.text}() is not in the subset`, at);
+          if (!counts.includes(args.length)) throw new CelSyntaxError(`${token.text}() takes ${counts.map(count).join(' or ')}`, at);
           return { kind: 'call', fn: token.text, args, at };
-        default:
-          throw new CelSyntaxError(`the function ${token.text}() is not in the subset`, at);
+        }
       }
     }
     throw new CelSyntaxError(`expected a value, found ${describe(token)}`, at);

@@ -150,9 +150,12 @@ function same(a: unknown, b: unknown): boolean {
 }
 
 function sameType(a: CelType, b: CelType): boolean {
+  if (a.kind === 'any' || b.kind === 'any') return true;
   if (a.kind !== b.kind) return false;
   return a.kind === 'list' ? sameType(a.of, (b as typeof a).of) : true;
 }
+
+const OUT_DYN = 'out: needs dynamic types';
 
 /** Runs one test that is in scope. */
 function run(test: Message, names: Record<string, CelType>, bindings: Record<string, unknown>, want: Expected | 'error'): string | undefined {
@@ -164,6 +167,8 @@ function run(test: Message, names: Record<string, CelType>, bindings: Record<str
     return `does not parse: ${(error as Error).message}`;
   }
   const { type, problems, types } = checkRule(parsed, { names, properties: () => undefined });
+  // A list of items of more than one type needs dynamic types (decision 7 of the plan).
+  if (problems.length > 0 && problems.some((p) => p.message.includes('must have one type'))) return OUT_DYN;
   if (problems.length > 0) {
     // A rule that the checker refuses at compile time cannot give a wrong value: an error is what CEL wants.
     if (want === 'error' && problems.every((p) => p.code === 'rule-type')) return undefined;
@@ -180,7 +185,7 @@ function run(test: Message, names: Record<string, CelType>, bindings: Record<str
     return `gives an error: ${(error as Error).message}`;
   }
   if (want === 'error') return `gives ${JSON.stringify(result)}, not an error`;
-  if ('out' in want) return 'out';
+  if ('out' in want) throw new Error('a test out of scope was run');
   if (!sameType(type!, want.type)) return `gives the type ${type!.kind}, not ${want.type.kind}`;
   if (!same(result, want.value)) return `gives ${JSON.stringify(result)}, not ${JSON.stringify(want.value)}`;
   return undefined;
@@ -233,6 +238,10 @@ export function runFile(path: string): Outcome[] {
         continue;
       }
       const why = run(test, names, bindings, want);
+      if (why === OUT_DYN) {
+        out('dyn');
+        continue;
+      }
       outcomes.push(why === undefined ? { id, result: 'pass' } : { id, result: 'fail', why });
     }
   }

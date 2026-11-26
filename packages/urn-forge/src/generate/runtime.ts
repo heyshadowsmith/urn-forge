@@ -24,7 +24,8 @@ export function $isObject(value: unknown): value is Record<string, unknown> {
 
 /** CEL's ==: the same value, item by item and property by property. */
 export function $eq(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
+  // Not by identity for a list or an object: a list that holds NaN is not equal to itself.
+  if (a === b && (typeof a !== 'object' || a === null)) return true;
   if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((item, i) => $eq(item, b[i]));
   if ($isObject(a) && $isObject(b)) {
     const keys = Object.keys(a).filter((k) => a[k] !== undefined);
@@ -59,10 +60,25 @@ export function $index(list: unknown, i: number): unknown {
   return list[i];
 }
 
-/** CEL's startsWith(), endsWith() and contains() of two strings. */
-export function $text(text: unknown, test: 'startsWith' | 'endsWith' | 'contains', part: unknown): boolean {
-  if (typeof text !== 'string' || typeof part !== 'string') throw new RuleError(`${test}() of a value that is not a string`);
-  return test === 'startsWith' ? text.startsWith(part) : test === 'endsWith' ? text.endsWith(part) : text.includes(part);
+/** A string, or an error that breaks the rule. */
+function $str(value: unknown, fn: string): string {
+  if (typeof value !== 'string') throw new RuleError(`${fn}() of a value that is not a string`);
+  return value;
+}
+
+/** CEL's startsWith(). */
+export function $startsWith(text: unknown, part: unknown): boolean {
+  return $str(text, 'startsWith').startsWith($str(part, 'startsWith'));
+}
+
+/** CEL's endsWith(). */
+export function $endsWith(text: unknown, part: unknown): boolean {
+  return $str(text, 'endsWith').endsWith($str(part, 'endsWith'));
+}
+
+/** CEL's contains(). */
+export function $contains(text: unknown, part: unknown): boolean {
+  return $str(text, 'contains').includes($str(part, 'contains'));
 }
 
 /** The strings extension's split(): the parts of a text between the separators. An empty separator gives each character. */
@@ -71,10 +87,14 @@ export function $split(text: unknown, separator: unknown): string[] {
   return separator === '' ? [...text] : text.split(separator);
 }
 
-/** The strings extension's lowerAscii() and upperAscii(): only the letters A to Z change. */
-export function $case(text: unknown, to: 'lowerAscii' | 'upperAscii'): string {
-  if (typeof text !== 'string') throw new RuleError(`${to}() of a value that is not a string`);
-  return to === 'lowerAscii' ? text.replace(/[A-Z]/g, (c) => c.toLowerCase()) : text.replace(/[a-z]/g, (c) => c.toUpperCase());
+/** The strings extension's lowerAscii(): only the letters A to Z change. */
+export function $lowerAscii(text: unknown): string {
+  return $str(text, 'lowerAscii').replace(/[A-Z]/g, (c) => c.toLowerCase());
+}
+
+/** The strings extension's upperAscii(): only the letters a to z change. */
+export function $upperAscii(text: unknown): string {
+  return $str(text, 'upperAscii').replace(/[a-z]/g, (c) => c.toUpperCase());
 }
 
 /** CEL's int(): a double toward 0, or a string of an integer. Any other string is an error. */
@@ -90,6 +110,96 @@ export function $double(value: unknown): number {
   if (typeof value === 'number') return value;
   if (typeof value === 'string' && /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(value)) return Number(value);
   throw new RuleError(`${JSON.stringify(value)} is not a number`);
+}
+
+/** An int of CEL: a result outside ±(2^53 - 1) is an error, as a 64-bit overflow is in CEL. */
+export function $int53(n: number): number {
+  if (!Number.isSafeInteger(n)) throw new RuleError('the int is out of range');
+  return n;
+}
+
+/** CEL's bool() of a bool, or of a string: 1, t, true, TRUE, True, 0, f, false, FALSE or False. */
+export function $bool(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (['1', 't', 'true', 'TRUE', 'True'].includes(value as string)) return true;
+  if (['0', 'f', 'false', 'FALSE', 'False'].includes(value as string)) return false;
+  throw new RuleError(`${JSON.stringify(value)} is not a bool`);
+}
+
+/** CEL's int() of a timestamp: its seconds since 1970, toward 0. */
+export function $intOfTimestamp(ms: number): number {
+  return Math.trunc(ms / 1000);
+}
+
+/** CEL's timestamp() of an int: that many seconds since 1970. */
+export function $timestampOfInt(seconds: number): number {
+  return $timestampInRange(seconds * 1000);
+}
+
+/** A timestamp of CEL is from the year 1 to the year 9999. */
+export function $timestampInRange(ms: number): number {
+  if (!(ms >= -62135596800000 && ms <= 253402300799999)) throw new RuleError('the timestamp is out of range');
+  return ms;
+}
+
+/** CEL's &&: false if either side is false, even when the other side is an error. */
+export function $and(left: () => unknown, right: () => unknown): boolean {
+  let error: unknown;
+  try {
+    if (left() === false) return false;
+  } catch (e) {
+    if (!(e instanceof RuleError || e instanceof TypeError)) throw e;
+    error = e;
+  }
+  const r = right();
+  if (r === false) return false;
+  if (error !== undefined) throw error;
+  return r as boolean;
+}
+
+/** CEL's ||: true if either side is true, even when the other side is an error. */
+export function $or(left: () => unknown, right: () => unknown): boolean {
+  let error: unknown;
+  try {
+    if (left() === true) return true;
+  } catch (e) {
+    if (!(e instanceof RuleError || e instanceof TypeError)) throw e;
+    error = e;
+  }
+  const r = right();
+  if (r === true) return true;
+  if (error !== undefined) throw error;
+  return r as boolean;
+}
+
+/** CEL's all(): false if one item gives false, even when another gives an error. */
+export function $all(list: readonly unknown[], test: (item: any) => unknown): boolean {
+  let error: unknown;
+  for (const item of list) {
+    try {
+      if (test(item) === false) return false;
+    } catch (e) {
+      if (!(e instanceof RuleError || e instanceof TypeError)) throw e;
+      error ??= e;
+    }
+  }
+  if (error !== undefined) throw error;
+  return true;
+}
+
+/** CEL's exists(): true if one item gives true, even when another gives an error. */
+export function $exists(list: readonly unknown[], test: (item: any) => unknown): boolean {
+  let error: unknown;
+  for (const item of list) {
+    try {
+      if (test(item) === true) return true;
+    } catch (e) {
+      if (!(e instanceof RuleError || e instanceof TypeError)) throw e;
+      error ??= e;
+    }
+  }
+  if (error !== undefined) throw error;
+  return false;
 }
 
 /** CEL's string() of an int, a double, a string or a bool. */
@@ -114,6 +224,7 @@ const RFC3339 = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d+)?([Zz
 
 /** CEL's timestamp(): a time of RFC 3339, as milliseconds since 1970 in UTC. Any other text is an error. */
 export function $timestamp(text: unknown): number {
+  if (typeof text === 'number') return text;
   const match = typeof text === 'string' ? RFC3339.exec(text) : null;
   if (!match) throw new RuleError(`${JSON.stringify(text)} is not a time`);
   const [, y, mo, d, h, mi, s] = match.map(Number) as number[];
@@ -123,7 +234,7 @@ export function $timestamp(text: unknown): number {
   }
   const ms = Date.parse(text as string);
   if (Number.isNaN(ms)) throw new RuleError(`${JSON.stringify(text)} is not a time`);
-  return ms;
+  return $timestampInRange(ms);
 }
 
 const PATTERNS = new Map<string, RegExp>();

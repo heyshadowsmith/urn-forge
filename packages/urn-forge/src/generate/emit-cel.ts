@@ -5,6 +5,7 @@
  * timestamp is its milliseconds since 1970: they compare and add as numbers.
  */
 import type { CelType } from '../cel/check.js';
+import { resolve } from '../cel/functions.js';
 import type { Expr } from '../cel/parse.js';
 
 /** The milliseconds of a CEL duration literal, such as '1h30m'. */
@@ -41,39 +42,19 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
       case 'index':
         return `$index(${emit(e.operand, scope)}, ${emit(e.index, scope)})`;
       case 'call': {
-        const target = e.target ?? e.args[0]!;
-        switch (e.fn) {
-          case 'has': {
-            const select = e.args[0] as Expr & { kind: 'select' };
-            return `((${emit(select.operand, scope)} as any)[${JSON.stringify(select.field)}] !== undefined)`;
-          }
-          case 'size':
-            return `$size(${emit(target, scope)})`;
-          case 'sum':
-            return `$sum(${emit(target, scope)})`;
-          case 'matches':
-            return `$matches(${emit(target, scope)}, ${emit(e.args[0]!, scope)})`;
-          case 'startsWith':
-          case 'endsWith':
-          case 'contains':
-            return `$text(${emit(target, scope)}, ${JSON.stringify(e.fn)}, ${emit(e.args[0]!, scope)})`;
-          case 'split':
-            return `$split(${emit(target, scope)}, ${emit(e.args[0]!, scope)})`;
-          case 'lowerAscii':
-          case 'upperAscii':
-            return `$case(${emit(target, scope)}, ${JSON.stringify(e.fn)})`;
-          case 'int':
-            return `$int(${emit(target, scope)})`;
-          case 'double':
-            return `$double(${emit(target, scope)})`;
-          case 'string':
-            return `$string(${emit(target, scope)})`;
-          case 'timestamp':
-            return `$timestamp(${emit(target, scope)})`;
-          case 'duration':
-            return String(durationMs((e.args[0] as Expr & { kind: 'string' }).value));
+        if (e.fn === 'has') {
+          const select = e.args[0] as Expr & { kind: 'select' };
+          return `((${emit(select.operand, scope)} as any)[${JSON.stringify(select.field)}] !== undefined)`;
         }
-        break;
+        if (e.fn === 'duration') {
+          const arg = e.args[0]!;
+          return arg.kind === 'string' ? String(durationMs(arg.value)) : emit(arg, scope);
+        }
+        const target = e.target ? typeOf(e.target) : undefined;
+        const resolved = resolve(e.fn, target, e.args.map((a) => typeOf(a)!));
+        if (!resolved) throw new Error(`no overload of ${e.fn}`);
+        const operands = [...(e.target ? [e.target] : []), ...e.args].map((a) => emit(a, scope));
+        return `${resolved.overload.helper}(${operands.join(', ')})`;
       }
       case 'macro': {
         const variable = `v_${e.variable}`;
@@ -82,9 +63,9 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
         const body = emit(e.body, inner);
         switch (e.macro) {
           case 'all':
-            return `${list}.every((${variable}: any) => ${body})`;
+            return `$all(${list}, (${variable}: any) => ${body})`;
           case 'exists':
-            return `${list}.some((${variable}: any) => ${body})`;
+            return `$exists(${list}, (${variable}: any) => ${body})`;
           case 'exists_one':
             return `(${list}.filter((${variable}: any) => ${body}).length === 1)`;
           case 'map':
@@ -95,7 +76,7 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
         break;
       }
       case 'unary':
-        return `(${e.op}${emit(e.operand, scope)})`;
+        return isInt(e) && e.op === '-' ? `$int53(-${emit(e.operand, scope)})` : `(${e.op}${emit(e.operand, scope)})`;
       case 'conditional':
         return `(${emit(e.condition, scope)} ? ${emit(e.then, scope)} : ${emit(e.otherwise, scope)})`;
       case 'binary': {
@@ -103,8 +84,9 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
         const right = emit(e.right, scope);
         switch (e.op) {
           case '&&':
+            return `$and(() => ${left}, () => ${right})`;
           case '||':
-            return `(${left} ${e.op} ${right})`;
+            return `$or(() => ${left}, () => ${right})`;
           case '==':
             return `$eq(${left}, ${right})`;
           case '!=':
@@ -112,7 +94,11 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
           case 'in':
             return `$in(${left}, ${right})`;
           case '+':
-            return typeOf(e)?.kind === 'list' ? `$add(${left}, ${right})` : `((${left} as any) + (${right} as any))`;
+            if (typeOf(e)?.kind === 'list') return `$add(${left}, ${right})`;
+            return isInt(e) ? `$int53((${left} as number) + (${right} as number))` : `((${left} as any) + (${right} as any))`;
+          case '-':
+          case '*':
+            return isInt(e) ? `$int53((${left} as number) ${e.op} (${right} as number))` : `((${left} as any) ${e.op} (${right} as any))`;
           case '/':
             return isInt(e) ? `$divInt(${left}, ${right})` : `((${left} as number) / (${right} as number))`;
           case '%':
@@ -122,7 +108,7 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
         }
       }
     }
-    throw new Error(`no code for ${e.kind}`);
+    throw new Error(`no code for ${(e as Expr).kind}`);
   };
   return emit(expr, {});
 }
