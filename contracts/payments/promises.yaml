@@ -31,22 +31,23 @@ promises:
     promise: "A payment method is exactly one of \"card\" or \"bank_transfer\", and a card payment must carry card details while a bank transfer payment must carry an IBAN and must not carry card details."
     status: declared
     by: [definitions.method, definitions.create_payment_request, rules.card_payment_has_card, rules.bank_transfer_has_iban_and_no_card]
-  # Workaround: the Luhn check is missing, as the CEL subset has no way to read the digits of a
-  # string one by one: a 16-digit number that fails Luhn passes every check. The rest is declared:
-  # the 12 to 19 digits, the month 1 to 12, the four-digit year, and security_code_fits_the_brand
-  # (4 digits for a number that starts with 34 or 37, American Express, and 3 for any other).
+  # Declared: definitions.card_number has the pattern ^[0-9]{12,19}$ and passes_the_luhn_check
+  # (from the rightmost digit every second digit doubled, less 9 above 9, the sum a multiple of 10;
+  # 4111111111111112 is refused), the month is 1 to 12, the year 1000 to 9999 (four digits), and
+  # security_code_fits_the_brand makes the code 4 digits for a number that starts with 34 or 37
+  # (American Express) and 3 for any other. A card is required on a card payment (P03).
   P04:
     promise: "A card number is 12 to 19 digits that pass the Luhn check, its expiry month is 1 to 12, its expiry year is four digits, and its security code is 3 digits, or 4 digits for American Express."
-    status: workaround
-    by: [definitions.card, definitions.card_number, definitions.exp_month, definitions.exp_year, definitions.security_code, rules.security_code_fits_the_brand]
-    hole: E1
-  # Workaround: the form and the length (2 + 2 + up to 30 = at most 34) are declared; the mod-97
-  # check is missing, so an IBAN with wrong check digits passes every check.
+    status: declared
+    by: [definitions.card, definitions.card_number, definitions.exp_month, definitions.exp_year, definitions.security_code, rules.passes_the_luhn_check, rules.security_code_fits_the_brand]
+  # Declared: the pattern of definitions.iban gives the form and the length (2 letters + 2 digits +
+  # 1 to 30 letters or digits = at most 34), and passes_the_mod_97_check states ISO 13616: the first
+  # four characters moved to the end, each letter as two digits (A=10 to Z=35), the number is 1
+  # modulo 97 (GB82WEST12345698765433 is refused).
   P05:
     promise: "An IBAN is a two-letter country code, two check digits and up to 30 letters or digits, at most 34 characters in total, and passes the mod-97 check."
-    status: workaround
-    by: [definitions.iban]
-    hole: E1
+    status: declared
+    by: [definitions.iban, rules.passes_the_mod_97_check]
   # Declared: create_payment_request requires the merchant id, amount, currency, method and
   # idempotency key; the key has minLength 1, maxLength 64 and the pattern ^\P{C}*$ ("printable" is
   # read as no Unicode control, format, private-use or unassigned character); the description has

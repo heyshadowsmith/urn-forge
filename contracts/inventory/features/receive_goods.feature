@@ -23,6 +23,14 @@ Feature: Receive goods
       | levels                                                                                                                                                                                               |
       | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 520, "reserved": 100, "available": 420}, {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 550, "reserved": 100, "available": 450}] |
 
+  Scenario: A pair received again after another line adds to the count after its first line
+    When I run "receive_goods" with:
+      | caller.role       | now                      | idempotency_key | purchase_order_id | receipt_lines                                                                                                                                                                                | stored_levels                                                                                                                                                                                     |
+      | purchasing_system | 2026-11-22T10:00:00.000Z | receive-0002    | PO-1002           | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "quantity": 20}, {"sku": "GADGET-2", "location": "AMS-B-0143", "quantity": 5}, {"sku": "WIDGET-1", "location": "AMS-B-0142", "quantity": 30}] | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 500, "reserved": 100, "available": 400}, {"sku": "GADGET-2", "location": "AMS-B-0143", "on_hand": 50, "reserved": 40, "available": 10}] |
+    Then the output is "receipt":
+      | purchase_order_id | levels                                                                                                                                                                                                                                                                                              |
+      | PO-1002           | [{"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 520, "reserved": 100, "available": 420}, {"sku": "GADGET-2", "location": "AMS-B-0143", "on_hand": 55, "reserved": 40, "available": 15}, {"sku": "WIDGET-1", "location": "AMS-B-0142", "on_hand": 550, "reserved": 100, "available": 450}] |
+
   Scenario Outline: Another caller may not receive goods
     When I run "receive_goods" with:
       | caller.role | now                      | idempotency_key | purchase_order_id | receipt_lines                                                                                                                 | stored_levels                                                                                                                                                                                     |

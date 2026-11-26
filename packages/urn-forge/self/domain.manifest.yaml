@@ -182,6 +182,15 @@ definitions:
       - required: [direction]
 
 rules:
+  is_the_type_name:
+    description: >-
+      The type name is the PascalCase of the definition name: each part between underscores, with its first letter
+      in upper case, joined; with Value after a name that the generated file declares itself
+    rule: >-
+      cel.bind(pascal, input.definition_name.split('_').filter(w, w != '').map(w, w.substring(0, 1).upperAscii() + w.substring(1)).join(''),
+      output.type_name == (pascal in ['Failure', 'RuleError', 'DomainCore', 'Operations', 'Definitions', 'OperationName', 'DefinitionName', 'OperationResult', 'CheckResult'] ? pascal + 'Value' : pascal))
+    failure_message: The type name is not the PascalCase of the definition name, with Value after a reserved name
+
   at_most_the_name_and_value:
     description: A type name drops the underscores of the definition name, and adds Value at most (for a name that the generated file uses itself)
     rule: size(output.type_name) <= size(input.definition_name) + 5
@@ -254,7 +263,7 @@ operations:
     description: Name the TypeScript type of a definition, as the generated file does
     input: naming_request
     output:
-      - named_type: [at_most_the_name_and_value]
+      - named_type: [at_most_the_name_and_value, is_the_type_name]
 
   judge_version_change:
     description: Whether the versions of two manifests allow a breaking change, as diff judges it by semver

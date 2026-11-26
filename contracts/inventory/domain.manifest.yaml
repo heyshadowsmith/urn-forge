@@ -643,6 +643,20 @@ rules:
           output.levels.exists(v, v.sku == l.sku && v.location == l.location && v.on_hand == s.on_hand + l.quantity && v.reserved == s.reserved)))
     failure_message: The new on-hand count of a line is not the stored count plus the received quantity
 
+  counts_after_the_line_before:
+    description: >-
+      The receipt has the new stock level of each line at the position of the line; its on-hand count is
+      the stored count of the SKU-location pair plus the quantities of that line and of the lines before
+      it with the same pair, and its reserved count is the stored reserved count
+    rule: >-
+      size(output.levels) == size(input.receipt_lines) &&
+      input.receipt_lines.all(i, l, cel.bind(v, output.levels[i],
+        v.sku == l.sku && v.location == l.location &&
+        input.stored_levels.exists(s, s.sku == l.sku && s.location == l.location &&
+          v.on_hand == s.on_hand + input.receipt_lines.transformList(j, m, j <= i && m.sku == l.sku && m.location == l.location, m.quantity).sum() &&
+          v.reserved == s.reserved)))
+    failure_message: The new stock level of a line is not the count after the lines before it plus the received quantity
+
   receipt_events_move_the_lines:
     description: Each event of a receipt moves the quantity of a received line, and names no reservation
     rule: >-
@@ -940,6 +954,7 @@ operations:
           - by_receiving_caller
           - names_the_purchase_order
           - receives_each_line
+          - counts_after_the_line_before
           - one_event_per_level: StockReceived
           - receipt_events_move_the_lines
       - unknown_sku: [by_receiving_caller, a_received_line_is_unknown]
