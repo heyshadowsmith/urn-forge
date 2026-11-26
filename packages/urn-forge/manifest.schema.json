@@ -20,8 +20,9 @@
       ],
       "properties": {
         "namespace": {
-          "$ref": "#/$defs/name",
-          "description": "The namespace of the contract"
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,31}$",
+          "description": "The namespace of the contract, and of its URNs"
         },
         "domain": {
           "$ref": "#/$defs/name",

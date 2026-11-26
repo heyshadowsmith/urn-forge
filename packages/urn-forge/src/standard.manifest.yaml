@@ -2,7 +2,7 @@
 # before a manifest. Its definitions are the types of its parameters, in urn-forge's namespace: a
 # manifest's own names never clash with them.
 manifest:
-  namespace: urn_forge
+  namespace: urn-forge
   domain: standard
   version: 0.2.0
 

@@ -126,7 +126,7 @@ describe('the schema of the manifest', () => {
     const booking = parse(readFileSync(join(FIXTURES, 'booking/domain.manifest.yaml'), 'utf8')) as { definitions: Record<string, Record<string, unknown>> };
     booking.definitions['party_size']!['minimum'] = 1;
     expect(validate(booking)).toBe(false);
-    const shape = (definition: object): boolean => validate({ manifest: { namespace: 'a', domain: 'b', version: '0.1.0' }, definitions: { x: definition } });
+    const shape = (definition: object): boolean => validate({ manifest: { namespace: 'ab', domain: 'b', version: '0.1.0' }, definitions: { x: definition } });
     expect(shape({ description: 'X', type: 'object', properties: [] })).toBe(true);
     expect(shape({ description: 'X', type: 'object' })).toBe(false);
     expect(shape({ description: 'X', type: 'string', items: 'y' })).toBe(false);

@@ -8,7 +8,7 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { NAME } from './manifest.js';
+import { NAME, NAMESPACE } from './manifest.js';
 
 const TEMPLATE_DIR = fileURLToPath(new URL('../templates/starter/', import.meta.url));
 const SKILL = fileURLToPath(new URL('../skills/urn-forge/SKILL.md', import.meta.url));
@@ -26,6 +26,9 @@ const INSTRUCTIONS = new Map([
 export const STARTER_SCRIPTS = { compile: 'urn-forge compile', verify: 'urn-forge verify', 'test:features': 'cucumber-js' } as const;
 
 export function nameProblem(flag: string, value: string): string | undefined {
+  if (flag === '--namespace') {
+    return NAMESPACE.test(value) ? undefined : `${flag} "${value}" must be a URN namespace: 2 to 32 lowercase letters, digits and hyphens, starting with a letter`;
+  }
   return NAME.test(value) ? undefined : `${flag} "${value}" must be lowercase snake_case that starts with a letter (at most 63 characters)`;
 }
 
