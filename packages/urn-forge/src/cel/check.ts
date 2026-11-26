@@ -5,6 +5,7 @@
  */
 import { resolve, signatures } from './functions.js';
 import type { Expr } from './parse.js';
+import { durationMs, MAX_DURATION_MS } from './time.js';
 import { print } from './print.js';
 
 export type CelType =
@@ -281,6 +282,7 @@ class Checker {
       if (!/^-?(\d+(\.\d+)?(h|m|s|ms|us|ns))+$/.test(arg.value)) {
         return this.problem('rule-type', expr.at, `'${arg.value}' is not a duration; write hours, minutes or seconds, such as '2h', '30m' or '1h30m'`);
       }
+      if (Math.abs(durationMs(arg.value)) > MAX_DURATION_MS) return this.problem('rule-type', expr.at, `'${arg.value}' is longer than CEL's longest duration, about 10000 years`);
       return DURATION;
     }
     const target = expr.target ? this.type(expr.target, names, guards) : undefined;

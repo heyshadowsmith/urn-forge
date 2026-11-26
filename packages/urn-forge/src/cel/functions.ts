@@ -39,6 +39,11 @@ const list = (of: Pattern): Pattern => ({ kind: 'list', of });
 const method = (target: Pattern, args: readonly Pattern[], result: Pattern, helper: string): Overload => ({ target, args, result, helper });
 const fn = (args: readonly Pattern[], result: Pattern, helper: string): Overload => ({ args, result, helper });
 
+/** An accessor of a timestamp: in UTC, or in a time zone. */
+function accessor(helper: string): Overload[] {
+  return [method(P.timestamp, [], P.int, helper), method(P.timestamp, [P.string], P.int, helper)];
+}
+
 /** math.greatest() and math.least(): one or more ints, one or more doubles, or a list of either. */
 function numbersOrList(helper: string): Overload[] {
   return [
@@ -100,8 +105,20 @@ export const FUNCTIONS: Readonly<Record<string, readonly Overload[]>> = {
     fn([P.int], P.string, '$string'),
     fn([P.double], P.string, '$string'),
     fn([P.bool], P.string, '$string'),
+    { ...fn([P.timestamp], P.string, '$stringOf'), typed: true },
+    { ...fn([P.duration], P.string, '$stringOf'), typed: true },
   ],
   bool: [fn([P.bool], P.bool, '$bool'), fn([P.string], P.bool, '$bool')],
+  getFullYear: accessor('$getFullYear'),
+  getMonth: accessor('$getMonth'),
+  getDate: accessor('$getDate'),
+  getDayOfMonth: accessor('$getDayOfMonth'),
+  getDayOfWeek: accessor('$getDayOfWeek'),
+  getDayOfYear: accessor('$getDayOfYear'),
+  getHours: [...accessor('$getHours'), method(P.duration, [], P.int, '$durationHours')],
+  getMinutes: [...accessor('$getMinutes'), method(P.duration, [], P.int, '$durationMinutes')],
+  getSeconds: [...accessor('$getSeconds'), method(P.duration, [], P.int, '$durationSeconds')],
+  getMilliseconds: [...accessor('$getMilliseconds'), method(P.duration, [], P.int, '$durationMilliseconds')],
   timestamp: [fn([P.string], P.timestamp, '$timestamp'), fn([P.timestamp], P.timestamp, '$timestamp'), fn([P.int], P.timestamp, '$timestampOfInt')],
 };
 

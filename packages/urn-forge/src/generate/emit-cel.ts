@@ -8,13 +8,8 @@ import type { CelType } from '../cel/check.js';
 import { resolve } from '../cel/functions.js';
 import type { Expr } from '../cel/parse.js';
 
-/** The milliseconds of a CEL duration literal, such as '1h30m'. */
-export function durationMs(text: string): number {
-  const UNITS: Readonly<Record<string, number>> = { h: 3_600_000, m: 60_000, s: 1000, ms: 1, us: 0.001, ns: 0.000001 };
-  let total = 0;
-  for (const [, amount, unit] of text.matchAll(/(\d+(?:\.\d+)?)(ms|us|ns|h|m|s)/g)) total += Number(amount) * UNITS[unit!]!;
-  return total;
-}
+export { durationMs } from '../cel/time.js';
+import { durationMs } from '../cel/time.js';
 
 /**
  * The TypeScript of a rule. `names` gives the code of each name of the scope, such as `self` →
@@ -102,9 +97,13 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
             return `$in(${left}, ${right})`;
           case '+':
             if (typeOf(e)?.kind === 'list') return `$add(${left}, ${right})`;
+            if (typeOf(e)?.kind === 'timestamp') return `$timestampInRange((${left} as number) + (${right} as number))`;
+            if (typeOf(e)?.kind === 'duration') return `$durationInRange((${left} as number) + (${right} as number))`;
             return isInt(e) ? `$int53((${left} as number) + (${right} as number))` : `((${left} as any) + (${right} as any))`;
           case '-':
           case '*':
+            if (typeOf(e)?.kind === 'timestamp') return `$timestampInRange((${left} as number) ${e.op} (${right} as number))`;
+            if (typeOf(e)?.kind === 'duration') return `$durationInRange((${left} as number) ${e.op} (${right} as number))`;
             return isInt(e) ? `$int53((${left} as number) ${e.op} (${right} as number))` : `((${left} as any) ${e.op} (${right} as any))`;
           case '/':
             return isInt(e) ? `$divInt(${left}, ${right})` : `((${left} as number) / (${right} as number))`;

@@ -119,8 +119,23 @@ function code(expr: string): string {
   return expr.replace(/(r|R)?('''[\s\S]*?'''|"""[\s\S]*?"""|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")/g, (_, raw: string | undefined) => `${raw ?? ''}S`);
 }
 
+/** Whether a literal of a time or a duration has a part smaller than a millisecond. */
+function hasNanos(expr: string): boolean {
+  for (const [, digits] of expr.matchAll(/timestamp\(['"][^'"]*\.(\d+)/g)) if (/[1-9]/.test(digits!.slice(3))) return true;
+  for (const [, text] of expr.matchAll(/duration\(['"]([^'"]*)['"]\)/g)) {
+    let nanos = 0n;
+    for (const [, amount, unit] of text!.matchAll(/(\d+)(ms|us|ns|h|m|s)/g)) {
+      const scale: Record<string, bigint> = { h: 3_600_000_000_000n, m: 60_000_000_000n, s: 1_000_000_000n, ms: 1_000_000n, us: 1000n, ns: 1n };
+      nanos += BigInt(amount!) * scale[unit!]!;
+    }
+    if (nanos % 1_000_000n !== 0n) return true;
+  }
+  return false;
+}
+
 /** The reason of an expression to be out of scope, from its code. */
 function reasonOfExpr(expr: string): Reason | undefined {
+  if (hasNanos(expr)) return 'nanos';
   const c = code(expr);
   if (/\bb(?=S)|\bB(?=S)|\bbytes\(/.test(c)) return 'bytes';
   if (/\b\d+[uU]\b|\b0x[0-9a-fA-F]+[uU]\b|\buint\(/.test(c)) return 'uint';

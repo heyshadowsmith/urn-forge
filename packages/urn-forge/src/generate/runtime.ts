@@ -168,8 +168,12 @@ function $show(value: unknown, type: $Type | undefined): string {
       return `[${(value as unknown[]).map((v) => $show(v, type.of)).join(', ')}]`;
     case 'double':
       return $showDouble(value as number);
-    case 'timestamp':
-      return new Date(value as number).toISOString().replace('.000Z', 'Z');
+    case 'timestamp': {
+      const d = new Date(value as number);
+      const year = d.getUTCFullYear();
+      // toISOString writes a year of 4 digits from 0 to 9999.
+      return d.toISOString().replace(/^[+-]?\d+/, String(year).padStart(4, '0')).replace('.000Z', 'Z');
+    }
     case 'duration':
       return `${(value as number) / 1000}s`;
     default:
@@ -332,6 +336,117 @@ export function $timestampOfInt(seconds: number): number {
 export function $timestampInRange(ms: number): number {
   if (!(ms >= -62135596800000 && ms <= 253402300799999)) throw new RuleError('the timestamp is out of range');
   return ms;
+}
+
+/** A duration of CEL is at most about 10000 years either way. */
+export function $durationInRange(ms: number): number {
+  if (!(Math.abs(ms) <= 315_576_000_000_000)) throw new RuleError('the duration is out of range');
+  return ms;
+}
+
+/** The parts of a time in a time zone: an IANA name such as 'Europe/Paris', or an offset such as '+02:00' or '02:00'. */
+function $local(ms: number, zone?: unknown): { year: number; month: number; day: number; hour: number; minute: number; second: number; weekday: number } {
+  let shifted = ms;
+  if (zone !== undefined && typeof zone !== 'string') throw new RuleError('a time zone is a string');
+  const offset = zone === undefined ? undefined : /^([+-])?(\d{2}):(\d{2})$/.exec(zone);
+  if (zone === undefined || offset) {
+    if (offset) shifted += (offset[1] === '-' ? -1 : 1) * (Number(offset[2]) * 60 + Number(offset[3])) * 60_000;
+    const d = new Date(shifted);
+    return { year: d.getUTCFullYear(), month: d.getUTCMonth(), day: d.getUTCDate(), hour: d.getUTCHours(), minute: d.getUTCMinutes(), second: d.getUTCSeconds(), weekday: d.getUTCDay() };
+  }
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat('en-US', { timeZone: zone as string, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', era: 'short' }).formatToParts(new Date(ms));
+  } catch {
+    throw new RuleError(`${JSON.stringify(zone)} is not a time zone`);
+  }
+  const part = (type: string): number => Number(parts.find((p) => p.type === type)!.value);
+  const era = parts.find((p) => p.type === 'era')!.value;
+  const year = era.startsWith('B') ? 1 - part('year') : part('year');
+  const local = new Date(0);
+  local.setUTCFullYear(year, part('month') - 1, part('day'));
+  return { year, month: part('month') - 1, day: part('day'), hour: part('hour'), minute: part('minute'), second: part('second'), weekday: local.getUTCDay() };
+}
+
+/** CEL's getFullYear(): the year, in UTC or in a time zone. */
+export function $getFullYear(ms: number, zone?: unknown): number {
+  return $local(ms, zone).year;
+}
+
+/** CEL's getMonth(): the month, from 0 for January. */
+export function $getMonth(ms: number, zone?: unknown): number {
+  return $local(ms, zone).month;
+}
+
+/** CEL's getDate(): the day of the month, from 1. */
+export function $getDate(ms: number, zone?: unknown): number {
+  return $local(ms, zone).day;
+}
+
+/** CEL's getDayOfMonth(): the day of the month, from 0. */
+export function $getDayOfMonth(ms: number, zone?: unknown): number {
+  return $local(ms, zone).day - 1;
+}
+
+/** CEL's getDayOfWeek(): the day of the week, from 0 for Sunday. */
+export function $getDayOfWeek(ms: number, zone?: unknown): number {
+  return $local(ms, zone).weekday;
+}
+
+/** CEL's getDayOfYear(): the day of the year, from 0. */
+export function $getDayOfYear(ms: number, zone?: unknown): number {
+  const { year, month, day } = $local(ms, zone);
+  const start = new Date(0);
+  start.setUTCFullYear(year, 0, 1);
+  const date = new Date(0);
+  date.setUTCFullYear(year, month, day);
+  return Math.round((date.getTime() - start.getTime()) / 86_400_000);
+}
+
+/** CEL's getHours() of a timestamp. */
+export function $getHours(ms: number, zone?: unknown): number {
+  return $local(ms, zone).hour;
+}
+
+/** CEL's getMinutes() of a timestamp. */
+export function $getMinutes(ms: number, zone?: unknown): number {
+  return $local(ms, zone).minute;
+}
+
+/** CEL's getSeconds() of a timestamp. */
+export function $getSeconds(ms: number, zone?: unknown): number {
+  return $local(ms, zone).second;
+}
+
+/** CEL's getMilliseconds() of a timestamp: the same in each time zone. */
+export function $getMilliseconds(ms: number, zone?: unknown): number {
+  $local(ms, zone);
+  return ((ms % 1000) + 1000) % 1000;
+}
+
+/** CEL's getHours() of a duration: its whole hours. */
+export function $durationHours(ms: number): number {
+  return Math.trunc(ms / 3_600_000);
+}
+
+/** CEL's getMinutes() of a duration: its whole minutes. */
+export function $durationMinutes(ms: number): number {
+  return Math.trunc(ms / 60_000);
+}
+
+/** CEL's getSeconds() of a duration: its whole seconds. */
+export function $durationSeconds(ms: number): number {
+  return Math.trunc(ms / 1000);
+}
+
+/** CEL's getMilliseconds() of a duration: the milliseconds after its whole seconds. */
+export function $durationMilliseconds(ms: number): number {
+  return Math.trunc(ms % 1000);
+}
+
+/** CEL's string() of a value, with its type: a timestamp in RFC 3339, a duration in seconds. */
+export function $stringOf(value: unknown, types: readonly $Type[]): string {
+  return $show(value, types[0]);
 }
 
 /** CEL's &&: false if either side is false, even when the other side is an error. */
@@ -572,7 +687,10 @@ export function $timestamp(text: unknown): number {
   const match = typeof text === 'string' ? RFC3339.exec(text) : null;
   if (!match) throw new RuleError(`${JSON.stringify(text)} is not a time`);
   const [, y, mo, d, h, mi, s] = match.map(Number) as number[];
-  const date = new Date(Date.UTC(y!, mo! - 1, d!, h!, mi!, s!));
+  // Not Date.UTC, which reads the years 0 to 99 as 1900 to 1999.
+  const date = new Date(0);
+  date.setUTCFullYear(y!, mo! - 1, d!);
+  date.setUTCHours(h!, mi!, s!);
   if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo! - 1 || date.getUTCDate() !== d || h! > 23 || mi! > 59 || s! > 59) {
     throw new RuleError(`${JSON.stringify(text)} is not a time`);
   }
