@@ -26,7 +26,7 @@ One YAML file with four sections. Only `manifest` is required. A name is lowerca
 
 ```yaml
 manifest:
-  namespace: acme            # required
+  namespace: acme            # required; a URN namespace: lowercase letters, digits and hyphens
   domain: bookings           # required; also the Postgres schema
   version: 0.1.0             # required; semver, read by diff and gate 5
   compatibility:             # optional
@@ -128,11 +128,14 @@ A subset of CEL. Each rule must give a `bool`.
 | --- | --- |
 | `<Name>` | The TypeScript type of each definition |
 | `<Name>Schema` | A Valibot schema of each definition, with each rule; a Standard Schema |
-| `check(definition, value)` | `{ ok: true, value }` or `{ ok: false, failures }` |
+| `check(definition, value)` | `{ ok: true, domain, value }` or `{ ok: false, domain, failures }` |
 | `answer(output, value)` | What a function of the core returns |
 | `DomainCore` | The type of the core: one function for each operation |
-| `runOperation(core, operation, input)` | Checks the input, runs the core, checks the answer. Gives `{ ok: true, output, value }`, or `{ ok: false, kind: 'InputRejected' \| 'ContractViolation', failures }` |
-| `Definitions`, `Operations` | The names, for the steps |
+| `runOperation(core, operation, input)` | Checks the input, runs the core, checks the answer. Gives `{ ok: true, domain, operation, output, value }`, or `{ ok: false, domain, operation, kind: 'InputRejected' \| 'ContractViolation', failures }` |
+| `DOMAIN` | The URN of the domain, such as `urn:acme:bookings` |
+| `Definitions`, `Operations` | Each part with its URN, for the steps |
+
+Each part has a URN: `urn:<namespace>:<domain>:<definition|rule|operation>:<name>`, such as `urn:acme:bookings:definition:party_size`. `diff`, gate 5 and the JSON output name parts by URN. The manifest and the scenarios use short names.
 
 A failure is `{ definition, rule, path, message }`, such as `{ definition: 'party_size', rule: 'minimum', path: 'party_size', message: 'Must be at least 1' }`. `InputRejected` is the caller's fault. `ContractViolation` is a bug in the core.
 
@@ -154,17 +157,23 @@ A table has a header row of properties and one row of values. `contact.email` is
 
 ## The config
 
-`urn-forge.config.ts` exports `defineConfig({ … })` from `urn-forge/config`. Paths are relative to the file.
+`urn-forge.config.ts` exports `defineConfig({ … })` from `urn-forge/config`. Paths are relative to the file. A gap in the scenarios is always an error: there is no option for it.
 
 | Option | Default | Value |
+| --- | --- | --- |
+| `tsconfig` | `tsconfig.json` | The tsconfig of gate 1, for each domain |
+| `shell` | none | Files and folders of the shell. Gate 2 checks them against the core of each domain |
+| `domains` | one domain at the default paths | The domains of the project, each with the options below |
+
+| Option of a domain | Default | Value |
 | --- | --- | --- |
 | `manifest` | `domain.manifest.yaml` | The manifest |
 | `out` | `src/generated` | The folder of the generated files |
 | `core` | `src/core.ts` | The core |
 | `features` | `features` | The folder of the `.feature` files |
-| `tsconfig` | `tsconfig.json` | The tsconfig of gate 1 |
-| `shell` | none | Files and folders of the shell, for gate 2 |
 | `postgres` | none | `{ tables, references?, unique? }`: a Postgres schema and a store file |
+
+With several domains, `compile` and `verify` handle each one in one run, and start each with its URN. Each domain has its own `features` folder, and its own Cucumber profile, because the steps use short names. Two domains with one manifest, one `out`, one `features` or one URN fail with `config-invalid`.
 
 ## The commands
 
