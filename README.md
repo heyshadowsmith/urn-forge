@@ -70,6 +70,7 @@ Run these commands from the root of the repository, with Node 22 or newer:
 
 ```bash
 npm ci                           # install every workspace
+npm run check                    # every check that CI runs, in one command
 npm test                         # the Vitest suite
 npm run typecheck                # tsc over the package
 npm run verify:example           # urn-forge verify on the math example

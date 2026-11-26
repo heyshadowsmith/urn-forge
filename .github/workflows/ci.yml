@@ -1,14 +1,19 @@
-# The traceability chain, end to end. Any broken link turns the build red: a missing function
-# of the core (gate 1), a shell that skips the harness (gate 2), an operation, output or rule
-# that no scenario covers (gate 3), a hand-edited generated file (gate 4), or a failing
-# scenario. A second job builds the docs site, so a broken page or dead link fails too. The
-# same checks also run on self/, urn-forge's own domain.
+# Every check of the repository, in one job: `npm run check`, the same command that a person or an
+# agent runs before a pull request (scripts/check.mjs). It runs the tests and the type check, verify
+# and the scenarios of each domain, tutorial snapshot and contract of the corpus, the score of the
+# corpus, the tarball test and the docs build. On a pull request, it also compares each domain with
+# the base branch: diff as a report, and gate 5 on each contract.
+#
+# A pull request is checked out as its merge commit, so HEAD^1 is the tip of the base branch. A
+# change only to plans or contributor guides runs no check.
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    paths-ignore:
+      - 'planning/**'
+      - 'contributing/**'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,166 +23,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  traceability:
+  check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: npm ci
-        id: install
-        run: npm ci
-
-      # The three checks below always run once dependencies are installed, so one failure
-      # does not hide another: each broken link reports under its own step.
-      - name: npm test
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm test
-
-      # Vitest does not type-check. This runs tsc over src/, tests/ and the domains, so the
-      # generated files and the cores that satisfy them type-check too.
-      - name: typecheck
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run typecheck
-
-      - name: urn-forge verify
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        working-directory: packages/urn-forge
-        run: npx urn-forge verify --config example/urn-forge.config.ts
-
-      - name: cucumber-js
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        working-directory: packages/urn-forge
-        run: npx cucumber-js
-
-      # urn-forge's own domain (self/): two of the toolchain's pure functions, declared and
-      # traced with urn-forge, so the chain is checked on a second domain.
-      - name: urn-forge verify (self)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        working-directory: packages/urn-forge
-        run: npx urn-forge verify --config self/urn-forge.config.ts
-
-      - name: cucumber-js (self)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        working-directory: packages/urn-forge
-        run: npx cucumber-js --profile self
-
-      # The insurance domain: times, optional properties, rules across properties and a
-      # Postgres schema, strict from the start.
-      - name: urn-forge verify (insurance)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        working-directory: packages/urn-forge
-        run: npm run verify:insurance
-
-      - name: cucumber-js (insurance)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        working-directory: packages/urn-forge
-        run: npm run test:features:insurance
-
-      # The tutorial's three snapshots, so the shipping domain in each of its steps is
-      # code that compiles, verifies and passes.
-      - name: urn-forge verify (tutorial)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        working-directory: packages/urn-forge
-        run: npm run verify:tutorial
-
-      - name: cucumber-js (tutorial)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        working-directory: packages/urn-forge
-        run: npm run test:features:tutorial
-
-  # The contract corpus (contracts/): each contract must verify with strict coverage and pass
-  # its scenarios, so a declared promise is enforced. Then the score, which fails below the
-  # minimum of contracts/corpus.yaml.
-  corpus:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: npm ci
-        id: install
-        run: npm ci
-
-      - name: urn-forge verify and cucumber-js (each contract)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: |
-          status=0
-          for dir in contracts/*/; do
-            name=$(basename "$dir")
-            echo "::group::$name"
-            node packages/urn-forge/bin/urn-forge.js verify --config "$dir/urn-forge.config.ts" || status=1
-            (cd "$dir" && npx cucumber-js --import ../../packages/urn-forge/src/gherkin/register-tsx.mjs --import 'features/support/**/*.ts' 'features/**/*.feature') || status=1
-            echo "::endgroup::"
-          done
-          exit $status
-
-      - name: The score
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: |
-          status=0
-          npm run -s corpus > corpus.txt 2>&1 || status=$?
-          cat corpus.txt
-          { echo '```text'; cat corpus.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          exit $status
-
-  # The same inputs give the same bytes and the same verdict in any locale
-  # and time zone. Turkish changes case mapping and collation; Chatham is UTC+12:45.
-  determinism:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      TZ: Pacific/Chatham
-      LANG: tr_TR.UTF-8
-      LC_ALL: tr_TR.UTF-8
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - run: npm ci
-
-      - name: npm test
-        run: npm test
-
-      - name: Recompile each domain; the committed files must not change
-        working-directory: packages/urn-forge
-        run: |
-          npm run compile:example
-          npm run compile:self
-          npm run compile:insurance
-          git diff --exit-code
-
-      - name: urn-forge verify
-        working-directory: packages/urn-forge
-        run: |
-          npm run verify:example
-          npm run verify:self
-          npm run verify:insurance
-
-  # The contract against the base branch. A pull request is checked out as its merge commit, so
-  # HEAD^1 is the tip of the base branch. The diff shows what the pull request changes in each
-  # domain. The domains here are test domains, which change on purpose to exercise new features,
-  # so a breaking change is reported, not a failure (--report); tests/diff.test.ts proves that
-  # diff fails on a breaking change. Gate 5 (verify --base) fails a contract of the corpus that
-  # loses a rule, an output or a scenario without a new version.
-  compatibility:
-    if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -191,53 +39,5 @@ jobs:
       - name: npm ci
         run: npm ci
 
-      - name: urn-forge diff of each domain against the base branch
-        working-directory: packages/urn-forge
-        run: npm run diff:base -- HEAD^1 --report
-
-      - name: urn-forge verify --base (each contract)
-        if: ${{ !cancelled() }}
-        run: |
-          status=0
-          for dir in contracts/*/; do
-            echo "::group::$(basename "$dir")"
-            node packages/urn-forge/bin/urn-forge.js verify --config "$dir/urn-forge.config.ts" --base HEAD^1 || status=1
-            echo "::endgroup::"
-          done
-          exit $status
-
-  # The path a person takes outside this repository: pack urn-forge, install the tarball in a
-  # new project, run urn-forge init, then verify and the scenarios (scripts/test-tarball.mjs).
-  tarball:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: npm ci
-        run: npm ci
-
-      - name: Install the tarball in a new project and run init, verify and the scenarios
-        run: npm run test:tarball
-
-  docs:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: npm ci
-        run: npm ci
-
-      - name: Build the docs site
-        run: npm run docs:build
+      - name: npm run check
+        run: npm run check -- ${{ github.event_name == 'pull_request' && '--base HEAD^1' || '' }}
