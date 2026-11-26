@@ -63,7 +63,6 @@ Write the files and folders of the shell in `urn-forge.config.ts`:
 import { defineConfig } from 'urn-forge/config';
 
 export default defineConfig({
-  coverage: 'error',
   // The shell: gate 2 fails if one of its files calls the core without the harness.
   shell: ['src/shell'],
 });

@@ -14,7 +14,7 @@ Usage:
 
 | Command | What it does |
 | --- | --- |
-| `init` | Writes a starter project that splits a bill. This project passes `verify` with `coverage: 'error'`. `init` sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. It also writes `AGENTS.md`, the instructions for coding agents, and the Claude Code skill `.claude/skills/urn-forge/SKILL.md`; it keeps each of these two that is already there. If one of its other files is already there, it writes nothing. The default values of `--namespace` and `--domain` are `app` and `starter` |
+| `init` | Writes a starter project that splits a bill. This project passes `verify`. `init` sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. It also writes `AGENTS.md`, the instructions for coding agents, and the Claude Code skill `.claude/skills/urn-forge/SKILL.md`; it keeps each of these two that is already there. If one of its other files is already there, it writes nothing. The default values of `--namespace` and `--domain` are `app` and `starter` |
 | `compile` | Writes the generated files, and shows one line for each file: `wrote`, `unchanged`, or `removed`. If the manifest has an error, it writes nothing |
 | `verify` | Compiles in memory and runs the [gates](#the-gates). It writes nothing, and it does not run the scenarios. `cucumber-js` runs them. `--base <ref>` also runs gate 5 against a git ref |
 | `diff` | Compares two manifests. Refer to [Change the contract](../how-to/change-the-contract). It does not read the config |
@@ -28,15 +28,16 @@ With `--format json`, `compile`, `verify` and `diff` write one JSON object to st
 | Key | In | Value |
 | --- | --- | --- |
 | `ok` | All | `true` when the exit code is `0` |
-| `problems` | All | Each problem: `code`, `severity`, `file`, `line`, `path` (the keys in the manifest or the config), `message` and `fix`. A key that does not apply is `null` |
-| `files` | `compile` | Each generated file: `status` and `path` |
-| `gates`, `warnings` | `verify` | Each gate that ran: `gate`, `name`, `pass` and `summary`; the number of warnings |
+| `problems` | All | Each problem: `code`, `severity`, `file`, `line`, `path` (the keys in the manifest or the config), `domain` (the URN of its domain), `message` and `fix`. A key that does not apply is `null` |
+| `files` | `compile` | Each generated file: `domain`, `status` and `path` |
+| `domains` | `verify` | Each domain: `urn`, and each gate that ran for it: `gate`, `name`, `pass` and `summary` |
+| `gates`, `warnings` | `verify` | Each gate of each domain, with its `domain`; the number of warnings |
 | `from`, `to`, `breaking`, `changes`, `allowed`, `why` | `diff` | The versions, the number of breaking changes, each change (`class`, `place`, `message`), and the verdict of the versions |
 
 A wrong command line is a problem with the code `usage`:
 
 ```json
-{"ok":false,"problems":[{"code":"usage","severity":"error","file":null,"line":null,"path":null,"message":"Unknown option '--nope'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--nope\"","fix":"Run urn-forge --help, and call the command with the arguments and options that it shows."}]}
+{"ok":false,"problems":[{"code":"usage","severity":"error","file":null,"line":null,"path":null,"domain":null,"message":"Unknown option '--nope'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--nope\"","fix":"Run urn-forge --help, and call the command with the arguments and options that it shows."}]}
 ```
 
 ## The config
@@ -45,14 +46,19 @@ urn-forge reads `urn-forge.config.ts` from the current folder, or from the file 
 
 | Option | Default | Value |
 | --- | --- | --- |
+| `tsconfig` | `tsconfig.json` | The tsconfig of gate 1, for each domain |
+| `shell` | none | Files and folders of the shell. Gate 2 checks them against the core of each domain |
+| `domains` | one domain at the default paths | The domains of the project, each with the options below |
+
+| Option of a domain | Default | Value |
+| --- | --- | --- |
 | `manifest` | `domain.manifest.yaml` | The manifest |
 | `out` | `src/generated` | The folder of the generated files |
 | `core` | `src/core.ts` | The core file, which exports a value that `satisfies DomainCore` |
 | `features` | `features` | The folder of the `.feature` files |
-| `tsconfig` | `tsconfig.json` | The tsconfig of gate 1 |
-| `shell` | none | Files and folders of the shell, for gate 2 |
-| `coverage` | `'warn'` | With `'error'`, a gap in the scenarios fails gate 3 |
 | `postgres` | none | Writes a Postgres schema and a store file. Refer to [Objects in Postgres](../how-to/store-in-postgres) |
+
+A gap in the scenarios is always an error, so there is no option for it. `--manifest`, `--out`, `--core` and `--features` work only when the config has one domain. Two domains with one manifest, one `out`, one `features` or one URN fail with `config-invalid`. Refer to [Several domains](../how-to/work-with-a-coding-agent#several-domains).
 
 Your core and your shell import only the generated file. The project also uses `urn-forge/config`, `urn-forge/cucumber` (`registerSteps`) and `urn-forge/register-tsx`. `urn-forge/register-tsx` lets `npx cucumber-js` load TypeScript. For your own tools, `urn-forge` exports `loadManifest`, `compileManifest`, `generate` and the rule parser. Because the entry points are TypeScript source, run code that imports them through a loader such as `tsx`.
 
@@ -66,7 +72,7 @@ gate 4  drift         PASS  1 generated file(s) compared byte for byte against s
 verify passed (gates 1, 2, 3, 4)
 ```
 
-Each problem of a gate is an indented line below the gate, with its fix on the next line. The last line is `verify passed …` or `verify failed: gate <numbers>`. If the config or the manifest has an error, no gate runs. Gate 5 runs only with `--base <ref>`.
+Each problem of a gate is an indented line below the gate, with its fix on the next line. The last line is `verify passed …` or `verify failed: gate <numbers>`. If the config or the manifest has an error, no gate runs. Gate 5 runs only with `--base <ref>`. With several domains, the gates of each domain follow its URN, and the last line counts the domains: `verify passed (2 domains, gates 1, 2, 3, 4)`.
 
 | Gate | It fails when | Codes |
 | --- | --- | --- |
@@ -76,7 +82,7 @@ Each problem of a gate is an indented line below the gate, with its fix on the n
 | 4. Drift | A generated file is not the same as the file that `compile` writes now. A generated file is not there. A generated file is there, but `compile` does not write it now | `drift` |
 | 5. Contract | Compared with the manifest and the features at the git ref: a rule, an output or a scenario is not there, or a rule accepts more, and the version does not allow it. A new major version, a pre-release or another `0.x` version allows it; then each change is a warning | `removed-rule`, `wider-rule`, `removed-output`, `removed-scenario`, `base-unreadable` |
 
-The `uncovered-` codes are warnings, or errors with `coverage: 'error'`. An `Examples` row counts as one scenario. A `type-error` names the function to correct. `TS1360` is a function that is not there, and `TS2353` is an extra function. `TS2322` is a return that is not `answer('<output>', value)` of the operation. If an error points into a generated file, correct gate 4 first.
+The `uncovered-` codes are always errors. An `Examples` row counts as one scenario. A `type-error` names the function to correct. `TS1360` is a function that is not there, and `TS2353` is an extra function. `TS2322` is a return that is not `answer('<output>', value)` of the operation. If an error points into a generated file, correct gate 4 first.
 
 ## Diagnostics
 

@@ -120,3 +120,27 @@ Each must turn CI red:
 - **A breaking change to namespaces with `_`.** Only `urn_forge` uses one in this repository. A user's manifest gets one clear error.
 - **Longer output.** A URN is longer than a short name. It appears only where a part is seen from outside its manifest, and the messages of gates 1 to 4 keep short names.
 - **Strict from the first run.** Adoption is harder. The docs say how to start with one operation.
+
+## What was built
+
+Each step is one commit, and each commit is green.
+
+- **Step 1.** `coverage` is gone. A config that sets it fails with `config.coverage is removed: a gap in the scenarios is always an error; remove the option`.
+- **Step 2.** The namespace pattern is `^[a-z][a-z0-9-]{1,31}$`. `init` and `manifest.schema.json` check it too. The standard set and `self/` moved to `urn-forge`.
+- **Step 3.** `src/urn.ts`. The generated file exports `DOMAIN`, and gives each entry of `Definitions` and `Operations` its `urn`. Each result has `domain`, and the header of each generated file names the URN. `COMMENT ON SCHEMA` holds the domain's URN, and each `COMMENT ON TABLE` starts with the definition's URN. In `diff`, a rule of an output is placed at its operation's URN, and its message names the output (`the rule same_sku of the output order is removed`). One change from the plan: both sides of gate 5 take the URNs of the new header. Without that, a renamed domain would show each rule as removed.
+- **Step 4.** `domains` in the config, and the commands and gates for each domain.
+  - The plan put the repository's configs in step 5, but step 4 could not be green without them, so they moved into step 4.
+  - Two domains with one manifest also fail, as well as one `out`, one `features` or one URN.
+  - A problem of the shared shell is shown once, under the first domain whose gate 2 finds it.
+  - The text output starts each domain with its URN only when there are several. One domain prints as before.
+  - The JSON keeps a flat `gates`, each with its `domain`, next to `domains`.
+- **Step 5.** The package's `AGENTS.md` and the skill.
+- **Step 6.** The tutorial's third snapshot is `3-edges`, in its own commit (6a), so that gate 5 could be run against it for the docs. The docs:
+  - the tutorial shows the real failure of gate 3 in part 3, and part 4 is "Test the edges";
+  - the outputs of `diff` and gate 5 name parts by URN;
+  - the CLI reference has the new config, the JSON keys and the URN;
+  - the set-up guide has "Several domains", and says that a project must cover each part before `verify` passes the first time.
+
+All four sabotages turned CI red. `coverage: 'warn'` gives `config-invalid`. A removed scenario of the second domain fails its gate 3, with its URN. Two domains with one `out` give `config-invalid`. A result with no `domain` fails the generated test.
+
+A test found one limit of the CLI in a long-running process: a config is a module, so a config that changes after the first command still loads in its old form. This is not new. The test now changes the config before the first command.

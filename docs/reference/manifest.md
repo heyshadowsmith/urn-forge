@@ -11,7 +11,7 @@ The manifest is one YAML file, `domain.manifest.yaml` by default. It has four to
 | `rules` | The text of each of your own rules |
 | `operations` | Each operation: an input, the outputs, and their rules |
 
-A name is lowercase snake_case: `^[a-z][a-z0-9_]{0,62}$`. Each definition, rule and operation has a `description`. The generated code and the Postgres schema use the `description` as a comment. `deprecated: true` marks a part `@deprecated`, and each live use of the part gets the warning `deprecated-use`.
+A name is lowercase snake_case: `^[a-z][a-z0-9_]{0,62}$`. The `namespace` is a URN namespace: 2 to 32 lowercase letters, digits and hyphens, starting with a letter, such as `acme` or `my-shop`. Each part then has a URN, `urn:<namespace>:<domain>:<definition|rule|operation>:<name>`, which `diff`, gate 5 and the JSON output use. Each definition, rule and operation has a `description`. The generated code and the Postgres schema use the `description` as a comment. `deprecated: true` marks a part `@deprecated`, and each live use of the part gets the warning `deprecated-use`.
 
 ## Definitions
 

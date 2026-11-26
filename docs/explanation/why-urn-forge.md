@@ -49,7 +49,7 @@ The checks of urn-forge do not depend on the agent being careful. Each one fails
 | Return a wrong answer | The harness, at run time and in each scenario |
 | Leave an operation without code | Gate 1 |
 | Call the code without the harness from a shell file, or turn off a type check | Gate 2, for the files that `shell` names |
-| Skip a test for a new rule or answer | Gate 3, with `coverage: 'error'` |
+| Skip a test for a new rule or answer | Gate 3 |
 | Edit a generated file | Gate 4 |
 | Delete a rule, an answer or a test, or make a rule accept more | Gate 5, unless the version changes; then you see a warning |
 
