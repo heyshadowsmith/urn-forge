@@ -22,13 +22,17 @@ promises:
     status: declared
     by: [definitions.party_size, definitions.party_too_large_for_online, rules.party_too_large, rules.party_fits_online, rules.new_party_too_large, rules.new_party_fits_online, rules.names_the_party, rules.names_the_new_party, operations.create_booking, operations.change_booking]
   # Workaround: the 15-minute boundary (pattern of local_time) and the time zone in each answer (required in
-  # confirmation and booking) are declared. That the time is in the restaurant's zone, and that the name is a real IANA
-  # zone, are not: starts_at is the start, and no rule ties local_date, local_time and time_zone to it, as a rule has no
-  # zone data. A local time of 19:30 with a starts_at of 03:00 passes every check.
+  # confirmation, booking, no_availability and booking_event) are declared. local_start_is_starts_at makes starts_at of
+  # each confirmation and booking (stored, or to store) the local date and time in its time_zone, to the second, and a
+  # name that is no time zone fails it; move_is_at_its_local_time does the same for a move in the stored zone, and
+  # alternatives_at_their_local_time and requested_start_in_the_zone for the starts of a no_availability in its zone.
+  # Not declared: that the zone is the restaurant's. No input holds the restaurant's zone (create_request has none, and
+  # the manifest has no restaurant record), so the zone of an answer is the core's choice: a request at a Paris
+  # restaurant for 19:30 with a starts_at of 21:30 UTC is booked with time_zone America/Noronha, and every check passes.
   P03:
     promise: "A booking time is given as a local date and time on a 15-minute boundary (minutes 00, 15, 30 or 45) in the restaurant's IANA time zone, and every answer carries that time zone name alongside the time."
     status: workaround
-    by: [definitions.local_date, definitions.local_time, definitions.time_zone, definitions.confirmation, definitions.booking]
+    by: [definitions.local_date, definitions.local_time, definitions.time_zone, definitions.confirmation, definitions.booking, definitions.no_availability, definitions.change_request, rules.local_start_is_starts_at, rules.move_is_at_its_local_time, rules.alternatives_at_their_local_time, rules.requested_start_in_the_zone]
     hole: D3
   # Declared: contact requires name (minLength 1, maxLength 100), and the rule email_or_phone needs an email or a phone;
   # phone has the E.164 pattern of at most 15 digits. The check refuses a contact with neither.
@@ -49,13 +53,17 @@ promises:
     status: declared
     by: [definitions.booking_request, definitions.restaurant_id, definitions.local_date, definitions.local_time, definitions.party_size, definitions.contact, definitions.idempotency_key, operations.create_booking]
   # Workaround: the window is stated over now and starts_at (in_the_booking_window on booked and the other answers,
-  # outside_the_booking_window on outside_booking_window; the move_ rules for a new start in change_booking). It reads
-  # starts_at, which nothing ties to the local date, time and zone (P03): a request for the local time now with a
-  # starts_at 3 hours later is booked.
+  # outside_the_booking_window on outside_booking_window; the move_ rules for a new start in change_booking). For a
+  # move it is declared: move_is_at_its_local_time rejects a new starts_at that is not the new local date and time in
+  # the zone of the stored booking. For create it is not: the request has no zone, and the restaurant's zone is in no
+  # input (P03), so a request whose starts_at is not its local time cannot be rejected. Such a request is booked with
+  # a zone that fits its starts_at (local_start_is_starts_at holds in the core's zone): at 10:00 UTC, a request at a
+  # Paris restaurant for 11:00 local time (now) with a starts_at of 13:00 UTC is booked with time_zone America/Noronha;
+  # and payment_declined, which carries no zone, refuses it with PAYMENT_DECLINED.
   P07:
     promise: "A booking can be made no earlier than 2 hours and no later than 90 days before its start time, and requests outside that window are refused with OUTSIDE_BOOKING_WINDOW."
     status: workaround
-    by: [operations.create_booking, operations.change_booking, rules.in_the_booking_window, rules.outside_the_booking_window, rules.move_in_the_booking_window, rules.move_outside_the_booking_window, definitions.starts_at, definitions.now, definitions.outside_booking_window]
+    by: [operations.create_booking, operations.change_booking, rules.in_the_booking_window, rules.outside_the_booking_window, rules.move_in_the_booking_window, rules.move_outside_the_booking_window, rules.move_is_at_its_local_time, rules.local_start_is_starts_at, definitions.starts_at, definitions.now, definitions.outside_booking_window, definitions.change_request, definitions.confirmation]
     hole: D3
   # Declared: create_booking answers deposit_required exactly when a party of 7 to 12 gives no deposit_token
   # (deposit_token_missing on that output, deposit_token_if_needed on the outputs after it); 13 or more is refused
@@ -93,13 +101,16 @@ promises:
     by: [definitions.invalid_request, definitions.outside_booking_window, definitions.no_availability, definitions.deposit_required, definitions.payment_declined, definitions.party_too_large_for_online, definitions.booking_not_found, definitions.invalid_state, definitions.change_deadline_passed, definitions.forbidden]
     hole: C3
   # Workaround: up to 5 is maxItems 5 on alternatives; offers_nearby_times states the same party size, a start within
-  # 2 hours of the requested one (both edges included) and the same local date. "On the same date" is not stated: the
-  # date of a start is its day in the restaurant's zone, and alt.local_date is a value that no rule ties to
-  # alt.starts_at (P03), so an alternative at 00:30 local time of the next day passes with the requested local_date.
+  # 2 hours of the requested one (both edges included) and the same local date. alternatives_at_their_local_time ties
+  # each alternative's local date and time to its starts_at in the zone of the refusal, and requested_start_in_the_zone
+  # the requested starts_at to the requested local date and time in that zone, so in that zone each alternative is on
+  # the requested date. Not declared: that zone is the core's choice, not the restaurant's (P03). For a Paris
+  # restaurant, a request for 23:45 with a starts_at of 23:45 UTC answered with time_zone Europe/London passes with an
+  # alternative at 23:15 UTC named 23:15 on the requested date, which is 00:15 of the next day in Paris.
   P12:
     promise: "A NO_AVAILABILITY refusal may carry up to 5 alternative start times, each on the same date, within 2 hours of the requested time and for the same party size."
     status: workaround
-    by: [definitions.no_availability, definitions.alternatives, definitions.alternative, rules.offers_nearby_times, operations.create_booking]
+    by: [definitions.no_availability, definitions.alternatives, definitions.alternative, rules.offers_nearby_times, rules.alternatives_at_their_local_time, rules.requested_start_in_the_zone, operations.create_booking]
     hole: D3
   # Workaround: state is an enum, required in booking, and each move is a rule over the stored state and the record to
   # store (was_confirmed and is_seated, was_seated and is_completed, …); CANCELLED, COMPLETED and NO_SHOW have no move
@@ -112,29 +123,34 @@ promises:
     by: [definitions.state, definitions.booking, rules.was_confirmed, rules.was_seated, rules.is_seated, rules.is_completed, rules.is_no_show, rules.is_confirmed, rules.records_the_cancellation, operations.seat_booking, operations.complete_booking, operations.cancel_booking, operations.mark_no_show, operations.change_booking]
     hole: C3
   # Workaround: change_booking and cancel_booking answer invalid_state when the booking was not CONFIRMED and
-  # change_deadline_passed when the call is less than 2 hours before the stored start. The deadline reads starts_at,
-  # which nothing ties to the local start (P03): with starts_at 2 days after the local start, a cancellation 1 hour
-  # before the local start is accepted.
+  # change_deadline_passed when the call is less than 2 hours before the stored start, and their other answers hold
+  # was_confirmed and two_hours_before_start. The deadline reads stored_booking.starts_at, and local_start_is_starts_at
+  # on booking rejects a stored booking whose starts_at is not its local date and time in its own time zone. But that
+  # zone is the core's choice (P03): a Paris booking for 19:30 stored with time_zone America/Noronha and starts_at
+  # 22:30Z keeps every rule, and its deadline is 3 hours late in Paris.
   P14:
     promise: "A guest may change the date, time or party size, or cancel, only while the booking is CONFIRMED and at least 2 hours before its start time, otherwise the request is refused with CHANGE_DEADLINE_PASSED or INVALID_STATE."
     status: workaround
-    by: [operations.change_booking, operations.cancel_booking, rules.two_hours_before_start, rules.less_than_two_hours_before_start, rules.was_confirmed, rules.was_not_confirmed, definitions.change_deadline_passed, definitions.invalid_state]
+    by: [operations.change_booking, operations.cancel_booking, rules.two_hours_before_start, rules.less_than_two_hours_before_start, rules.was_confirmed, rules.was_not_confirmed, rules.was_neither_confirmed_nor_cancelled, rules.local_start_is_starts_at, definitions.booking, definitions.stored_booking, definitions.change_deadline_passed, definitions.invalid_state]
     hole: D3
   # Workaround: refunds_by_the_deadline states no refund with no deposit, the full deposit 24 hours or more before the
-  # start and nothing later, so never more than the deposit. The window reads starts_at, which nothing ties to the local
-  # start (P03): the full deposit is refunded 1 hour before the local start.
+  # start and nothing later, so never more than the deposit. The window reads stored_booking.starts_at, and
+  # local_start_is_starts_at on booking ties it to the local date and time in the booking's own time zone. But that
+  # zone is the core's choice (P03), so the 24 hours can be counted to a start that is not the restaurant's.
   P15:
     promise: "A cancellation made 24 hours or more before the start time refunds the full deposit, a later one refunds nothing, and a refund is never more than the deposit paid."
     status: workaround
-    by: [operations.cancel_booking, rules.refunds_by_the_deadline, definitions.refund_amount, definitions.deposit_amount]
+    by: [operations.cancel_booking, rules.refunds_by_the_deadline, rules.local_start_is_starts_at, definitions.booking, definitions.stored_booking, definitions.refund_amount, definitions.deposit_amount]
     hole: D3
   # Workaround: staff_may_act holds on mark_no_show's change and staff_may_not_act on forbidden, and
-  # fifteen_minutes_after_start on the change. The window reads starts_at, which nothing ties to the local start (P03):
-  # staff can mark NO_SHOW 45 minutes before the local start. The staff-only part holds.
+  # fifteen_minutes_after_start on the change (cannot_be_marked_no_show on invalid_state). The window reads
+  # stored_booking.starts_at, and local_start_is_starts_at on booking ties it to the local date and time in the
+  # booking's own time zone. But that zone is the core's choice (P03), so the 15 minutes can be counted from a start
+  # that is not the restaurant's.
   P16:
     promise: "A booking can be marked NO_SHOW only by restaurant staff and only from 15 minutes after its start time onward."
     status: workaround
-    by: [operations.mark_no_show, rules.staff_may_act, rules.staff_may_not_act, rules.fifteen_minutes_after_start, rules.cannot_be_marked_no_show, definitions.caller, definitions.role]
+    by: [operations.mark_no_show, rules.staff_may_act, rules.staff_may_not_act, rules.fifteen_minutes_after_start, rules.cannot_be_marked_no_show, rules.local_start_is_starts_at, definitions.booking, definitions.stored_booking, definitions.caller, definitions.role]
     hole: D3
   # Workaround: the first call with the key is data in the input: when the shell gives one from the last 24 hours
   # (first_call_has_the_key, first_call_is_recent), the same body gets repeated, the first confirmation with no record or

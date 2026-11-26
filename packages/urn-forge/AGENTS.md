@@ -111,16 +111,19 @@ The structure of a value gives two more rule names in a failure: `type` (a value
 
 ## The rule language
 
-A subset of CEL. Each rule must give a `bool`.
+CEL and its standard extensions, for the types of a manifest. Each rule must give a `bool`. CEL's own conformance tests check the language: `tests/conformance/` in the repository.
 
-- **Names:** `self`, `input`, `output`, the parameters of the rule, and the variable of a macro.
-- **Literals:** `5000`, `-1`, `0.5`, `'text'`, `"text"`, `r'^[0-9]{4}$'`, `true`, `false`, `['a', 'b']` (not empty).
-- **Operators**, lowest precedence first: `c ? a : b`; `||`; `&&`; `==` `!=` `<` `<=` `>` `>=` `in`; `+` `-`; `*` `/` `%`; `!` and unary `-`; `a.b` and `l[i]`. An index out of the list breaks the rule.
-- **Functions:** `has(a.b)`, `size(x)` or `x.size()`, `s.matches(re)`, `s.startsWith(t)`, `s.endsWith(t)`, `s.contains(t)`, `s.split(t)`, `s.lowerAscii()`, `s.upperAscii()`, `int(x)`, `double(x)`, `string(x)`, `timestamp(s)`, `duration('1h30m')` (units `h`, `m`, `s`, `ms`, `us`, `ns`), `l.sum()`. `int()` or `double()` of a string that is not a number breaks the rule.
-- **Macros:** `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)`, `l.filter(x, p)`. A count: `size(l.filter(x, p))`.
+- **Names:** `self`, `input`, `output`, the parameters of the rule, the variables of a macro, and `cel.bind(name, value, rule)`.
+- **Literals:** `5000`, `-1`, `0x1F`, `0.5`, `'text'`, `"text"`, `r'^[0-9]{4}$'`, `'''text'''`, `true`, `false`, `['a', 'b']`, `[]`.
+- **Operators**, lowest precedence first: `c ? a : b`; `||`; `&&`; `==` `!=` `<` `<=` `>` `>=` `in`; `+` `-`; `*` `/` `%`; `!` and unary `-`; `a.b` and `l[i]`.
+- **Conversions:** `int()`, `double()`, `string()`, `bool()`, `timestamp()`, `duration()`. A property that can be absent: `has(a.b)`.
+- **Strings:** `size`, `matches`, `startsWith`, `endsWith`, `contains`, `charAt`, `indexOf`, `lastIndexOf`, `substring`, `split`, `join`, `lowerAscii`, `upperAscii`. A position counts characters, from 0.
+- **Numbers:** `math.greatest`, `math.least`, `math.abs`, `math.sign`, `math.ceil`, `math.floor`, `math.trunc`, `math.isNaN`, `math.isInf`, `math.isFinite`.
+- **Times:** `getFullYear`, `getMonth` (from 0), `getDate` (from 1), `getDayOfMonth`, `getDayOfWeek`, `getDayOfYear`, `getHours`, `getMinutes`, `getSeconds`, `getMilliseconds`, each with an optional time zone: `timestamp(self.starts_at).getHours('Europe/Paris')`. A timestamp keeps milliseconds.
+- **Lists:** `all`, `exists`, `exists_one`, `map`, `filter`, `sum`, `flatten`, and the two-variable `all(i, x, p)`, `exists(i, x, p)`, `existsOne(i, x, p)`, `transformList(i, x, [p,] e)`, where `i` is the position. A count: `size(l.filter(x, p))`.
+- **Errors:** a value that a form cannot take breaks the rule: `int('1x')`, an index out of the list, a division by 0, an int larger than 2^53 − 1. `&&`, `||`, `all` and `exists` ignore an error when the other side decides the result, as in CEL.
 - **Optional properties:** read one only after a guard: `has(self.deposit) && self.deposit > 0`, or `!has(self.deposit) || self.deposit > 0`.
-- **Times:** compare with `timestamp()`: `timestamp(self.ends_at) > timestamp(self.starts_at) + duration('30m')`. A day is `'24h'`; there are no months and no time zones.
-- **Not in the subset:** `null`, maps, `min()`, `max()`, and other functions. The largest item: `l.exists(m, l.all(x, x <= m) && …)`.
+- **Not in the language:** maps, bytes, unsigned ints, `null`, optional values, `type()`, `dyn()`, and lists of items of more than one type. Also these forms of CEL, which a rule is unlikely to need: `format`, `strings.quote`, `trim`, `replace`, `reverse`, `sort`, `sortBy`, `distinct`, `slice`, `lists.range`, `math.round` and the `math.bit` functions.
 
 ## The generated file
 

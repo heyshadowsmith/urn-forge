@@ -74,9 +74,11 @@ export function print(expr: Expr): string {
       return expr.target ? `${at(expr.target, MEMBER)}.${expr.fn}(${args})` : `${expr.fn}(${args})`;
     }
     case 'macro':
-      return `${at(expr.target, MEMBER)}.${expr.macro}(${expr.variable}, ${print(expr.body)})`;
+      return `${at(expr.target, MEMBER)}.${expr.macro}(${expr.index !== undefined ? `${expr.index}, ` : ''}${expr.variable}, ${expr.filter ? `${print(expr.filter)}, ` : ''}${print(expr.body)})`;
     case 'unary':
       return `${expr.op}${at(expr.operand, UNARY)}`;
+    case 'bind':
+      return `cel.bind(${expr.name}, ${print(expr.value)}, ${print(expr.body)})`;
     case 'conditional':
       return `${at(expr.condition, 1)} ? ${at(expr.then, 1)} : ${print(expr.otherwise)}`;
     case 'binary': {

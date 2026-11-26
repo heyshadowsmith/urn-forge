@@ -32,9 +32,8 @@ function sqlValue(value: unknown): string | undefined {
 
 class Untranslatable extends Error {}
 
-/** The texts that int() and double() take, as the generated code takes them. */
+/** The texts that int() takes, as the generated code takes them. */
 const INTEGER = '^[+-]?[0-9]+$';
-const DOUBLE = '^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$';
 
 /**
  * A text for a cast to a number. Postgres casts more texts than CEL, such as ' 12' and 'NaN': each
@@ -133,18 +132,67 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: reado
           }
           case 'double': {
             const arg = e.args[0]!;
-            return types.get(arg)?.kind === 'string' ? `${numeric(sql(arg), DOUBLE)}::DOUBLE PRECISION` : `(${sql(arg)})::DOUBLE PRECISION`;
+            // double() of a text can give NaN, which Postgres orders above each number, and CEL does not: no SQL.
+            if (types.get(arg)?.kind === 'string') throw new Untranslatable();
+            return `(${sql(arg)})::DOUBLE PRECISION`;
           }
           case 'string':
             return `(${sql(e.args[0]!)})::TEXT`;
           case 'timestamp':
+            if (types.get(e.args[0]!)?.kind !== 'string') throw new Untranslatable();
             return `(${sql(e.args[0]!)})::TIMESTAMPTZ`;
+          case 'math.abs':
+          case 'math.sign':
+          case 'math.ceil':
+          case 'math.floor':
+          case 'math.trunc': {
+            const arg = e.args[0]!;
+            const kind = types.get(arg)?.kind;
+            // On ints only for abs and sign: Postgres and CEL agree; on doubles, for ceil, floor and trunc of a column.
+            if (e.fn === 'math.abs' || e.fn === 'math.sign') {
+              if (kind !== 'int') throw new Untranslatable();
+              return `${e.fn === 'math.abs' ? 'abs' : 'sign'}(${sql(arg)})::BIGINT`;
+            }
+            return `${e.fn.slice(5)}(${sql(arg)})`;
+          }
+          case 'math.greatest':
+          case 'math.least': {
+            // Of ints only: Postgres orders NaN above each number, and CEL does not.
+            if (e.args.length < 2 || e.args.some((a) => types.get(a)?.kind !== 'int')) throw new Untranslatable();
+            return `${e.fn === 'math.greatest' ? 'GREATEST' : 'LEAST'}(${e.args.map(sql).join(', ')})`;
+          }
+          case 'getFullYear':
+          case 'getMonth':
+          case 'getDate':
+          case 'getDayOfMonth':
+          case 'getDayOfWeek':
+          case 'getDayOfYear':
+          case 'getHours':
+          case 'getMinutes':
+          case 'getSeconds': {
+            // In UTC only: Postgres reads an offset such as '+02:00' with the other sign.
+            if (e.args.length > 0 || types.get(e.target!)?.kind !== 'timestamp') throw new Untranslatable();
+            const FIELDS: Readonly<Record<string, string>> = {
+              getFullYear: 'YEAR',
+              getMonth: 'MONTH',
+              getDate: 'DAY',
+              getDayOfMonth: 'DAY',
+              getDayOfWeek: 'DOW',
+              getDayOfYear: 'DOY',
+              getHours: 'HOUR',
+              getMinutes: 'MINUTE',
+              getSeconds: 'SECOND',
+            };
+            const less = ['getMonth', 'getDayOfMonth', 'getDayOfYear'].includes(e.fn) ? ' - 1' : '';
+            return `(FLOOR(EXTRACT(${FIELDS[e.fn]} FROM (${sql(e.target!)}) AT TIME ZONE 'UTC'))::BIGINT${less})`;
+          }
           case 'duration':
             return `INTERVAL ${literal(`${durationMs((e.args[0] as Expr & { kind: 'string' }).value)} milliseconds`)}`;
           default:
             throw new Untranslatable();
         }
       case 'macro':
+      case 'bind':
       case 'index':
         throw new Untranslatable();
       case 'conditional':

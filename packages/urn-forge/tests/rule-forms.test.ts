@@ -6,6 +6,9 @@
 import { describe, expect, it } from 'vitest';
 import { checksOf, compileManifest } from '../src/compile.js';
 import { PGlite } from '@electric-sql/pglite';
+import { join } from 'node:path';
+import ts from 'typescript';
+import { generatedFile } from '../src/generate/code.js';
 import { postgresSchema } from '../src/generate/postgres.js';
 
 /** A manifest whose object `subject` keeps one rule, `the_rule`. */
@@ -18,14 +21,16 @@ definitions:
   number: {description: A number, type: integer}
   numbers: {description: Numbers, type: array, items: number}
   text: {description: A text, type: string}
+  amount: {description: An amount, type: integer}
+  ratio: {description: A ratio, type: number}
   flag: {description: A flag, type: boolean}
   subject:
     description: The value of the rule
     type: object
-    properties: [key, words, numbers, text, flag]
+    properties: [key, words, numbers, text, flag, amount, ratio]
     identifier: key
     rules:
-      - required: [key, words, numbers, text, flag]
+      - required: [key, words, numbers, text, flag, amount, ratio]
       - the_rule
 rules:
   the_rule:
@@ -35,7 +40,7 @@ rules:
 `;
 }
 
-const base = { key: 'k', words: ['a', 'b', 'a'], numbers: [1, 2, 3], text: '1.4.0', flag: true };
+const base = { key: 'k', words: ['a', 'b', 'a'], numbers: [1, 2, 3], text: '1.4.0', flag: true, amount: 5, ratio: 2.5 };
 
 /** Whether a value keeps the rule; throws with the diagnostics when the rule does not compile. */
 function holds(rule: string, change: Partial<typeof base> = {}): boolean {
@@ -90,6 +95,9 @@ describe('conversions', () => {
     expect(holds('int(2.9) == 2')).toBe(true);
     expect(codes('int(self.flag) == 1')).toEqual(['rule-type']);
     expect(sql('double(size(self.text)) > 1.0')).toContain('::DOUBLE PRECISION');
+    // double() of a text can give NaN, which Postgres orders above each number, and CEL does not.
+    expect(holds("double(self.text) != 2.0", { text: 'NaN' })).toBe(true);
+    expect(sql('double(self.text) > 2.0')).toBeUndefined();
   });
 });
 
@@ -137,7 +145,7 @@ describe('the SQL of each form', () => {
     for (const [i, change] of rows.entries()) {
       const row = { ...base, ...change };
       try {
-        await db.query('INSERT INTO "forms"."subject" ("key", "text", "flag") VALUES ($1, $2, $3)', [String(i), row.text, row.flag]);
+        await db.query('INSERT INTO "forms"."subject" ("key", "text", "flag", "amount", "ratio") VALUES ($1, $2, $3, $4, $5)', [String(i), row.text, row.flag, row.amount, row.ratio]);
         stored.push(true);
       } catch {
         stored.push(false);
@@ -153,16 +161,65 @@ describe('the SQL of each form', () => {
     ["self.text.contains('.4.')", ['1.4.0', '1.5.0', '.4.']],
     ["self.text.contains('')", ['', 'a']],
     ['int(self.text) == 12', ['12', '+12', '1x', '12.5', ' 12', '', '012']],
-    ['double(self.text) > 2.0', ['2.5', '2', 'NaN', 'Infinity', ' 2.5', '1e1', '.5', 'x']],
     ["string(size(self.text)) == '3'", ['abc', 'ab']],
     ["string(self.flag) == 'true'", ['a']],
     ['int(double(size(self.text)) / 2.0) == 1', ['ab', 'abc', 'abcd']],
     ["(self.flag ? 'yes' : 'no') == self.text", ['yes', 'no']],
     ["self.text.lowerAscii() == 'abcé'", ['AbCé', 'AbCÉ', 'abcé']],
     ["self.text.upperAscii() == 'ABCé'", ['AbCé', 'ABCÉ']],
+    ['math.abs(self.amount) == 5 || math.sign(self.amount) == 0', ['a']],
+    ['math.greatest(self.amount, 1) == 1 && math.least(self.amount, 1, 2) < 1', ['a']],
+    ['math.ceil(self.ratio) == 3.0 || math.floor(self.ratio) == -3.0 || math.trunc(self.ratio) == 0.0', ['a']],
+    ['timestamp(self.text).getFullYear() == 2026 && timestamp(self.text).getMonth() == 0 && timestamp(self.text).getDayOfYear() == 0', ['2026-01-01T00:30:00+02:00', '2026-01-01T00:30:00Z', '2025-12-31T23:00:00-02:00']],
+    ['timestamp(self.text).getDayOfWeek() == 4 && timestamp(self.text).getDate() == 1 && timestamp(self.text).getDayOfMonth() == 0', ['2026-01-01T12:00:00Z', '2026-01-02T12:00:00Z']],
+    ['timestamp(self.text).getHours() == 23 && timestamp(self.text).getMinutes() == 59 && timestamp(self.text).getSeconds() == 58', ['2026-01-01T23:59:58.900Z', '2026-01-02T01:59:58+02:00', '2026-01-01T23:59:59Z']],
   ] as const)('%s keeps and breaks as the generated check does', async (rule, texts) => {
+    expect(sql(rule), 'the rule becomes a CHECK').toBeDefined();
     const rows = texts.flatMap((text) => [true, false].map((flag) => ({ text, flag })));
+    for (const [amount, ratio] of [[-7, -2.5], [0, 0.5], [3, 3.0], [-1, -0.25]] as const) rows.push({ text: texts[0]!, flag: true, amount, ratio } as never);
     const stored = await stores(rule, rows);
     expect(rows.map((row, i) => ({ ...row, stored: stored[i] }))).toEqual(rows.map((row) => ({ ...row, stored: holds(rule, row) })));
+  });
+});
+
+describe('the types of the generated code', () => {
+  /** The type errors of the generated file of a rule, as gate 1 would see them. */
+  function typeErrors(rule: string): string[] {
+    const compiled = compileManifest(manifest(rule));
+    const file = join(import.meta.dirname, '__rule__.generated.ts');
+    const text = generatedFile(compiled.model!, compiled.applications, 'domain.manifest.yaml', () => 'x');
+    const options: ts.CompilerOptions = { strict: true, noEmit: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, skipLibCheck: true };
+    const host = ts.createCompilerHost(options);
+    const read = host.getSourceFile.bind(host);
+    host.getSourceFile = (name, version) => (name === file ? ts.createSourceFile(name, text, version) : read(name, version));
+    const fileExists = host.fileExists.bind(host);
+    host.fileExists = (name) => name === file || fileExists(name);
+    const program = ts.createProgram([file], options, host);
+    // Only the errors on the line of the rule: the test manifest has no operation, which the rest of the file reads.
+    const lineOf = (start: number): string => text.slice(text.lastIndexOf('\n', start) + 1, text.indexOf('\n', start));
+    return ts
+      .getPreEmitDiagnostics(program)
+      .filter((d) => d.start !== undefined && lineOf(d.start).includes('"the_rule"'))
+      .map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
+  }
+
+  it('type-checks a helper that takes the item of a list', () => {
+    expect(typeErrors('math.least(size(self.words), [3, 4][1]) == 3 && [self.text][0].startsWith(\'1\')')).toEqual([]);
+  });
+});
+
+describe('characters outside the Basic Multilingual Plane', () => {
+  // An emoji is two units of a JavaScript string, and one character of CEL. The conformance tests of cel-spec
+  // have no such character before a position that a test reads, so these tests do.
+  it.each([
+    "'😀ab'.substring(1, 2) == 'a'",
+    "'😀ab'.substring(1) == 'ab'",
+    "'😀ab'.charAt(1) == 'a'",
+    "'😀ab😀'.indexOf('b') == 2",
+    "'😀ab😀b'.lastIndexOf('b') == 4",
+    "size('😀ab') == 3",
+    "'😀ab'.split('').size() == 3",
+  ])('%s', (rule) => {
+    expect(holds(rule)).toBe(true);
   });
 });

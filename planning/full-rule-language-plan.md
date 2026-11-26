@@ -73,3 +73,67 @@ Each must turn CI red:
 - **The source moves.** The test files are a copy of one commit of `cel-spec`. A newer version can change a test. A later plan updates the copy, and the list of gaps shows each change.
 - **Rules that the database does not check.** Many new forms will not become SQL. Such a rule is checked by the harness, as `all` is today.
 - **A reason that hides a gap.** Each reason of decision 3 must be about a type or a feature that a manifest does not have. A test that fails for another reason goes in `known-gaps.txt`, not out of scope.
+
+## What was built
+
+Each step is one commit, and each commit is green.
+
+| Step | Result |
+| --- | --- |
+| 0 | The 15 files of cel-spec at commit `3dd8162`, with its license, a reader of their text format, and the runner. Of 1548 tests, 820 were in scope: 379 passed, and 441 were known gaps |
+| 1 | A generated file holds only the helpers that it uses. Each generated file of the repository became about 100 lines shorter |
+| 2 | Functions moved to one table of overloads, `src/cel/functions.ts`. The core files pass: the empty list, hex and `.5` literals, triple quotes and each escape, ordered bools, `bool()`, conversions of times, ints out of ±2⁵³ as errors, NaN in a list, and `&&`, `\|\|`, `all` and `exists` that absorb an error as CEL does |
+| 3 to 7 | `string_ext`, `math_ext`, `lists_ext` and `macros2`, `timestamps`, `bindings_ext`. After step 7, `known-gaps.txt` is empty |
+| 8 | SQL for `math.abs`, `math.sign`, `math.greatest` and `math.least` of ints, `math.ceil`, `math.floor`, `math.trunc`, `reverse()` of a string, and the accessors of a timestamp in UTC, each proved on PGlite |
+| 9 | The proof: `self/`, the corpus, and a fix that the proof found |
+| 10 | The docs |
+
+The conformance tests now:
+
+| | Tests |
+| --- | --- |
+| In scope, and pass | 764 of 764 |
+| Out of scope | 784: unsigned integers 279, type values 139, dynamic types 122, protocol buffers 61, maps 58, bytes 45, null 32, ints outside ±2⁵³ 30, nanoseconds 18 |
+
+### The proof
+
+- **`self/`.** `is_the_type_name` states `to_type_name` exactly, with `split`, `filter`, `substring`, `upperAscii`, `join` and `cel.bind`. A `pascal()` that changes a part, or a reserved name that loses `Value`, is a `ContractViolation` in a scenario.
+- **The corpus** went from 65 to 69 of 143 promises declared (45.5% to 48.3%), and the minimum is 48.3:
+
+| Promise | Before | Now | How |
+| --- | --- | --- | --- |
+| Payments P04 | Workaround, E1 | Declared | `passes_the_luhn_check` |
+| Payments P05 | Workaround, E1 | Declared | `passes_the_mod_97_check`, with a literal list of the powers of 10 modulo 97. Each check digit rule matched a reference on 20000 random values |
+| Subscriptions P23 | Workaround, D3 | Declared | `period_is_the_plans` and `invoice_period_is_its_billing_period`: the end of a period in calendar months, leap years included. `is_a_real_time` refuses Feb 29 2026 and 10:60, which the pattern of `date-time` accepts |
+| Ticketing P22 | Workaround, D3 | Declared | Each show states `local_starts_at`, the same instant as `starts_at` in its venue's time zone. `time_zone` is an IANA name of tzdata 2026e |
+| Inventory P22 | Workaround, A2 | Workaround, C3 | `counts_after_the_line_before` states one call exactly, with positions. Two receipts at the same time can still break it |
+| Bookings P03, P07, P12, P14, P15, P16 | Workaround, D3 | Workaround, D3 | Four rules tie each local date and time to `starts_at` in the booking's time zone. But no input holds the restaurant's time zone, so the core chooses it, and each window is counted to the start in that zone |
+
+### Changes from the plan
+
+- **Two forms need a literal.** The depth of `flatten(n)` is a literal, because the type of the result depends on it, as the text of `duration()` already was.
+- **`double()` of a string is not SQL.** CEL's `double()` takes `'NaN'` and `'Infinity'`, which the last plan refused. Postgres orders NaN above each number, and CEL does not.
+- **A fix that the proof found.** `math.least(x, l[i])` failed gate 1: the item of a list had the type `unknown` in the generated code. It is `any` now, and a test type-checks such a rule.
+- **The completeness test of `AGENTS.md` reads the table of functions**, so a function that the page does not name fails it.
+- **New input rules at version 1.0.0.** The rules that the proof added to bookings, subscriptions and ticketing accept fewer inputs. `diff` reports them as breaking. On the corpus, `diff` is a report, not a failure; for a real caller, they need a new major version.
+
+### The sabotages
+
+1. `substring` counted the units of a JavaScript string. **No test failed at first**: no conformance test of `substring` has a character outside the Basic Multilingual Plane before the position that it reads. `tests/rule-forms.test.ts` now has a test with an emoji for each function that counts characters, and the sabotage fails 2 of them.
+2. `getHours('Europe/Paris')` gave the hour in UTC → `timestamps/timestamp_selectors_tz/getHours`.
+3. `math.round(-2.5)` gave `-2` → `math_ext/round/negative_mid`.
+4. A test that passes, written in `known-gaps.txt` → the conformance test, which names it.
+5. `$least` removed from the generated file of subscriptions → gate 1, gate 4, and 138 of 226 scenarios.
+
+## Changes after review
+
+The forms that no rule of the corpus or of `self/` used are out of the language again: `format`, `strings.quote`, `trim`, `replace`, `reverse` (of a string and of a list), `sort`, `sortBy`, `distinct`, `slice`, `lists.range`, `math.round`, and the six `math.bit` functions. Each had no use, and a contract rarely checks how a text is printed or in which order a list is.
+
+This changes decision 1. A form can now be out for a second kind of reason: it is unlikely to be used. The runner names it `unused`, and `UNUSED` lists its forms. A form comes back when a rule of a real domain needs it.
+
+| | Tests |
+| --- | --- |
+| In scope, and pass | 622 of 622 |
+| Out of scope | 926: 728 for a type or a feature that a manifest does not have, and 198 left out as unlikely to be used. Of these 198, 142 were in scope and passed, and 56 were already out for another reason |
+
+The time accessors, `int()`, `substring()`, `cel.bind`, `c ? a : b`, `split`, `filter`, `transformList` and the two-variable macros stay: the rules of the proof used each of them.

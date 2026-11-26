@@ -177,18 +177,19 @@ promises:
     promise: "A customer may only read, list, pause, resume and cancel their own subscriptions, while only merchant staff with the billing-admin role may create subscriptions, change plans or void invoices."
     status: declared
     by: [definitions.caller, rules.customer_has_id, rules.roles_are_for_staff, rules.caller_is_billing_admin, rules.caller_is_not_billing_admin, rules.caller_holds_the_stored, rules.caller_does_not_hold_the_stored, rules.caller_may_list, rules.caller_may_not_list, rules.caller_is_not_a_customer, rules.caller_is_a_customer, definitions.forbidden, operations.create_subscription, operations.change_plan, operations.read_subscription, operations.list_subscriptions, operations.pause_subscription, operations.resume_subscription, operations.cancel_subscription, operations.announce_trial_end]
-  # Workaround: every timestamp (now, current_period_start/end, trial_will_end_sent_at, period_start/end of an
-  # invoice, occurred_at of an event) has the type utc_time: format date-time and the pattern 'Z$'. The monthly
-  # period is not stated: the rule language has no calendar months and a duration is a literal, so no rule says
-  # that a period ends interval_count calendar months after it starts, on the last day of a shorter month. Only
-  # period_ends_after_start and invoice_period_ends_after_start hold; a monthly period of 40 days passes every
-  # check. Scenarios start periods on Jan 31 (Feb 28), Jan 31 2028 (Feb 29), Mar 31 (Apr 30), Dec 31 (Jan 31),
-  # Nov 30 quarterly (Feb 28) and Feb 29 yearly (Feb 28).
+  # Declared: every timestamp (now, current_period_start/end, trial_will_end_sent_at, period_start/end of an
+  # invoice, occurred_at of an event) has the type utc_time: format date-time, the pattern 'Z$', and is_a_real_time
+  # (timestamp() of it, which refuses Feb 30 or 10:60). period_is_the_plans holds each subscription, as a request
+  # loads it and as an answer gives it, to the billing period of its plan in calendar months (12 for a year), and
+  # invoice_period_is_its_billing_period each invoice to its own: the period ends in the month that many months
+  # after its start month, on the start day or, when that month lacks it, on its last day (the length of the
+  # month from a list, February by the Gregorian leap rule), at the same time of day in UTC. A monthly period of 40
+  # days, or one from Jan 31 that ends on Mar 3 or Feb 27, is refused. Scenarios start periods on Jan 31 (Feb 28),
+  # Jan 31 2028 (Feb 29), Mar 31 (Apr 30), Dec 31 (Jan 31), Nov 30 quarterly (Feb 28) and Feb 29 yearly (Feb 28).
   P23:
     promise: "All timestamps in requests, answers and events are ISO 8601 in UTC with a trailing \"Z\", and a monthly period that starts on a day missing from the next month ends on that month's last day."
-    status: workaround
-    by: [definitions.utc_time, definitions.now, definitions.current_period_start, definitions.current_period_end, definitions.trial_will_end_sent_at, definitions.period_start, definitions.period_end, definitions.occurred_at, rules.period_ends_after_start, rules.invoice_period_ends_after_start]
-    hole: D3
+    status: declared
+    by: [definitions.utc_time, definitions.now, definitions.current_period_start, definitions.current_period_end, definitions.trial_will_end_sent_at, definitions.period_start, definitions.period_end, definitions.occurred_at, definitions.subscription, definitions.plan, definitions.billing_period, definitions.interval_count, definitions.invoice, rules.is_a_real_time, rules.period_ends_after_start, rules.invoice_period_ends_after_start, rules.period_is_the_plans, rules.invoice_period_is_its_billing_period]
   # Workaround: within the major version, urn-forge diff refuses a removal or a rename, and compatibility.callers
   # lets it accept a new property or choice. The 12 months for which a removed version keeps working is how long
   # the operator runs it, which nothing that urn-forge builds can check.

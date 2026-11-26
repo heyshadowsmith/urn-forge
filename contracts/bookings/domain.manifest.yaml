@@ -233,6 +233,7 @@ definitions:
       - required: [reference, restaurant_id, status, starts_at, local_date, local_time, time_zone, party_size, duration_minutes]
       - deposit_has_terms
       - deposit_is_per_guest
+      - local_start_is_starts_at
 
   first_call:
     description: The first call with the same idempotency key in the last 24 hours that was answered with a booking, as the shell stored it
@@ -258,6 +259,7 @@ definitions:
     rules:
       - required: [reference, restaurant_id, state, starts_at, local_date, local_time, time_zone, party_size, duration_minutes]
       - cancellation_is_recorded
+      - local_start_is_starts_at
 
   stored_booking:
     description: The booking as it is stored before the call; absent when no booking has the reference
@@ -279,6 +281,7 @@ definitions:
       - required: [reference, caller, now]
       - names_the_booking
       - move_has_starts_at
+      - move_is_at_its_local_time
 
   alternative:
     description: Another start time that has a free table, offered when the requested one has none
@@ -368,6 +371,7 @@ definitions:
     properties: [local_date, local_time, time_zone, party_size, alternatives]
     rules:
       - required: [local_date, local_time, time_zone, party_size]
+      - alternatives_at_their_local_time
 
   deposit_required:
     description: DEPOSIT_REQUIRED. A party of 7 or more needs a deposit payment token
@@ -480,6 +484,58 @@ rules:
     description: No two alternatives have the same local time
     rule: self.all(a, self.exists_one(b, b.local_time == a.local_time))
     failure_message: Two alternatives have the same local time
+
+  # Time zones: starts_at is the local date and time in the time zone. Each rule reads the parts of starts_at in the
+  # zone (an unknown zone name is an error, so the rule fails) and compares them with local_date (YYYY-MM-DD) and
+  # local_time (HH:MM), to the second.
+
+  local_start_is_starts_at:
+    description: >-
+      starts_at is the local date and time in the time zone of the booking: its year, month, day, hour and minute in
+      time_zone are those of local_date and local_time, at second 0. So every window, which reads starts_at, reads the
+      local start that the answer shows with its zone, and time_zone is a zone that exists
+    rule: >-
+      cel.bind(t, timestamp(self.starts_at),
+      t.getFullYear(self.time_zone) == int(self.local_date.substring(0, 4)) &&
+      t.getMonth(self.time_zone) + 1 == int(self.local_date.substring(5, 7)) &&
+      t.getDate(self.time_zone) == int(self.local_date.substring(8, 10)) &&
+      t.getHours(self.time_zone) == int(self.local_time.substring(0, 2)) &&
+      t.getMinutes(self.time_zone) == int(self.local_time.substring(3, 5)) &&
+      t.getSeconds(self.time_zone) == 0 && t.getMilliseconds(self.time_zone) == 0)
+    failure_message: starts_at is not the local date and time in the time zone
+
+  move_is_at_its_local_time:
+    description: >-
+      A new start is the new local date and time (the stored ones where the request does not give them) in the time
+      zone of the stored booking, which a move keeps; so the window of a move reads the local start the guest asked for
+    rule: >-
+      !has(self.starts_at) || !has(self.stored_booking) ||
+      cel.bind(t, timestamp(self.starts_at),
+      cel.bind(z, self.stored_booking.time_zone,
+      cel.bind(d, has(self.local_date) ? self.local_date : self.stored_booking.local_date,
+      cel.bind(h, has(self.local_time) ? self.local_time : self.stored_booking.local_time,
+      t.getFullYear(z) == int(d.substring(0, 4)) &&
+      t.getMonth(z) + 1 == int(d.substring(5, 7)) &&
+      t.getDate(z) == int(d.substring(8, 10)) &&
+      t.getHours(z) == int(h.substring(0, 2)) &&
+      t.getMinutes(z) == int(h.substring(3, 5)) &&
+      t.getSeconds(z) == 0 && t.getMilliseconds(z) == 0))))
+    failure_message: The new starts_at is not the new local date and time in the time zone of the booking
+
+  alternatives_at_their_local_time:
+    description: >-
+      Each alternative starts at its local date and time in the time zone of the refusal, at second 0; so its
+      local_date, which offers_nearby_times compares with the requested date, is the date of its start in that zone
+    rule: >-
+      !has(self.alternatives) || self.alternatives.all(a,
+      cel.bind(t, timestamp(a.starts_at),
+      t.getFullYear(self.time_zone) == int(a.local_date.substring(0, 4)) &&
+      t.getMonth(self.time_zone) + 1 == int(a.local_date.substring(5, 7)) &&
+      t.getDate(self.time_zone) == int(a.local_date.substring(8, 10)) &&
+      t.getHours(self.time_zone) == int(a.local_time.substring(0, 2)) &&
+      t.getMinutes(self.time_zone) == int(a.local_time.substring(3, 5)) &&
+      t.getSeconds(self.time_zone) == 0 && t.getMilliseconds(self.time_zone) == 0))
+    failure_message: An alternative does not start at its local date and time in the time zone
 
   # Who may call
 
@@ -773,6 +829,20 @@ rules:
       timestamp(a.starts_at) <= timestamp(input.booking_request.starts_at) + duration('2h'))
     failure_message: An alternative is on another date, more than 2 hours away, or for another party size
 
+  requested_start_in_the_zone:
+    description: >-
+      The requested starts_at is the requested local date and time in the time zone of the refusal, at second 0; so
+      the 2 hours of offers_nearby_times are around the local start that the refusal names
+    rule: >-
+      cel.bind(t, timestamp(input.booking_request.starts_at),
+      t.getFullYear(output.time_zone) == int(input.booking_request.local_date.substring(0, 4)) &&
+      t.getMonth(output.time_zone) + 1 == int(input.booking_request.local_date.substring(5, 7)) &&
+      t.getDate(output.time_zone) == int(input.booking_request.local_date.substring(8, 10)) &&
+      t.getHours(output.time_zone) == int(input.booking_request.local_time.substring(0, 2)) &&
+      t.getMinutes(output.time_zone) == int(input.booking_request.local_time.substring(3, 5)) &&
+      t.getSeconds(output.time_zone) == 0 && t.getMilliseconds(output.time_zone) == 0)
+    failure_message: The requested starts_at is not the requested local date and time in the time zone of the refusal
+
   # Changes to a stored booking
 
   answers_the_stored_booking:
@@ -926,7 +996,7 @@ operations:
       - repeated: [party_fits_online, deposit_token_if_needed, repeats_the_first_answer]
       - invalid_request: [party_fits_online, deposit_token_if_needed, reuses_the_key]
       - outside_booking_window: [party_fits_online, deposit_token_if_needed, is_not_a_repeat, outside_the_booking_window, names_the_requested_start]
-      - no_availability: [party_fits_online, deposit_token_if_needed, is_not_a_repeat, in_the_booking_window, names_the_requested_time, offers_nearby_times]
+      - no_availability: [party_fits_online, deposit_token_if_needed, is_not_a_repeat, in_the_booking_window, names_the_requested_time, offers_nearby_times, requested_start_in_the_zone]
       - payment_declined: [party_fits_online, deposit_token_if_needed, is_not_a_repeat, in_the_booking_window, paid_with_a_token]
       - booked:
           - party_fits_online

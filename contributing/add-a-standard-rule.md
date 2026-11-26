@@ -25,7 +25,7 @@ If the keyword fails a test, the user declares the rule in the manifest. [Add a 
 
 A standard rule is a rule in the CEL subset, as each rule is. Write the rule in CEL first, with `self` for the value and the parameter names for the arguments.
 
-If the rule needs a form that the subset does not have, add that form first. Refer to [Add a form to the CEL subset](./add-a-cel-form.md). For example, `uniqueItems` needed `exists_one`, and `pattern` needed `matches()`. A keyword such as `minProperties` needs `size()` of an object, which the subset does not have at this time.
+If the rule needs a form that the rule language does not have, refer to [Change the rule language](./add-a-cel-form.md). For example, `uniqueItems` uses `exists_one`, and `pattern` uses `matches()`. A keyword such as `minProperties` needs `size()` of an object, which is out of the language: the manifest has no maps.
 
 ## Declare the parameters
 
@@ -115,6 +115,6 @@ A manifest can apply the rule with no declaration. `compile` checks each argumen
 ## Related pages
 
 - [How urn-forge is built](./architecture.md)
-- [Add a form to the CEL subset](./add-a-cel-form.md)
+- [Change the rule language](./add-a-cel-form.md)
 - [Rules and the standard rules](../docs/reference/manifest.md)
 - [JSON Schema and CEL](../docs/methodology.md)

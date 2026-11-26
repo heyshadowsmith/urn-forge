@@ -1,92 +1,61 @@
-# Add a form to the CEL subset
+# Change the rule language
 
-This guide is for contributors who change urn-forge itself. The rule language is a subset of CEL, the Common Expression Language. urn-forge parses, types, prints and translates the subset itself, so each form of CEL touches each of these parts. A form is an operator, a function, a method, a macro or a kind of literal.
+This guide is for contributors who change urn-forge itself. The rule language is CEL, the Common Expression Language, and its standard extensions, for the types of a manifest. urn-forge parses, types, prints and translates it itself. CEL's own conformance tests prove it.
 
 ## Before you start
 
 - You have a clone of urn-forge, and `npm ci` ran in the root folder.
 - `npm test` and `npm run typecheck` pass.
 - You read [How urn-forge is built](./architecture.md), the sections "The rule language" and "The generated file".
-- You know the meaning of the form in the [CEL language definition](https://github.com/google/cel-spec/blob/master/doc/langdef.md).
+- You know the meaning of the form in the [CEL language definition](https://github.com/google/cel-spec/blob/master/doc/langdef.md), or in the documentation of its extension.
 
 Commands run from `packages/urn-forge`, except where a step says the root folder.
 
-## Make sure that the form is necessary
+## What is in the language
 
-The subset grows only for a real need (decision 23 of the [redesign notes](../planning/manifest-redesign-notes.md)). A new form must also pass the three tests of decision 10 of the [contract completeness roadmap](../planning/contract-completeness-roadmap.md):
+The language is each form of CEL and its extensions, for strings, numbers, bools, times and lists (decision 1 of the [plan of the full rule language](../planning/full-rule-language-plan.md)). A form is out only for a reason of `REASONS` in `tests/conformance/runner.ts`: a type or a feature that a manifest does not have, such as maps, bytes or `null`, or a form that a rule is unlikely to need (`UNUSED` in the same file). To add a form of `UNUSED` back, name the rule of a real domain that needs it, remove the form from `UNUSED`, and build it as below.
 
-1. Its name and its meaning do not name an idea of one domain.
-2. No construct that exists can state the promise, also with more lines.
-3. Its meaning is one sentence that names no domain, and the generated code enforces exactly that sentence.
+`npm run conformance` prints the tests of cel-spec in scope, the tests that pass, and the tests out of scope, by reason. `tests/conformance/known-gaps.txt` lists each test in scope that does not pass. It is empty. `tests/conformance.test.ts` fails when a test in scope fails and is not in the list, and when a test in the list passes.
 
-Thus:
+## Find what to change
 
-1. Find the real need: a promise of a contract in `contracts/`, a domain, or a standard rule. Name it in the pull request.
-2. Write the promise with the forms that exist. If more lines can state it, do not add the form.
-3. Use a form that CEL has, with the meaning of CEL. Each rule that the subset accepts must be valid CEL, and it must give the same result in CEL. Prefer a form that Kubernetes or protovalidate also use, such as a function of the Kubernetes list extension.
-4. Add the smallest form that states the promise. For example, the subset has `filter` and `size()` for a count, and `exists` and `all` for the largest item, but not `min()` or `max()`.
+1. Run `npm run conformance`. A test in scope that fails is a gap.
+2. If cel-spec has a newer version, copy its files into `tests/conformance/testdata/`, and change the commit in `tests/conformance/README.md`. Each new test that fails is a gap.
+3. If a test is out of scope for a reason that is not a type or a feature that a manifest does not have, the reason hides a gap. Fix the runner.
 
-If the form fails a test, the promise stays a workaround. A form that is not in the subset is a `rule-syntax` error, not a quiet addition.
+## Add a function or a method
 
-## Parse the form
+1. In `src/cel/functions.ts`, add each overload of the name to `FUNCTIONS`: the types that it takes, the type that it gives, and the helper that runs it. A name with a dot, such as `math.greatest`, is a function of a namespace: add the namespace to `NAMESPACES` in `src/cel/parse.ts` if it is new. The parser, the type checker and the code generator read the table.
+2. In `src/generate/runtime.ts`, add the helper. Start its name with `$`. A generated file holds only the helpers that its rules use, and the helpers that they call, so the helper can call other helpers. It must import nothing.
+3. If CEL gives an error for a value, such as `substring()` out of the string, throw a `RuleError`. `$holds` then counts the rule as broken.
+4. Count a position in a string in characters, not in the units of a JavaScript string: `[...text]`.
 
-1. In `src/cel/parse.ts`, add the form to the lexer or to the parser. A function or a method goes in `FunctionName`, a macro in `MacroName` and `MACROS`. A new kind of node goes in the `Expr` type.
-2. Check the arguments in the parser where the count or the kind is fixed. For example, `matches()` takes one argument, and `has()` takes one property. Throw a `CelSyntaxError` with a message that tells what to write.
-3. If the parser has a special message for the form, such as `maps are not in the subset`, remove it.
+## Add another form
 
-A method with a fixed number of arguments goes in `METHODS`, with that number.
-4. Add the form to the list of the subset in the comment at the top of the file.
+A macro, an operator, a kind of literal or a special form such as `cel.bind` touches each part:
 
-## Print the form
+1. `src/cel/parse.ts`: the lexer or the parser, and the comment at the top of the file.
+2. `src/cel/print.ts`: the canonical text. `diff` compares two rules by this text, so the text must parse to the same tree.
+3. `src/cel/check.ts`: the type, and `rule-type` for each type that CEL refuses.
+4. `src/generate/emit-cel.ts`: the TypeScript. Use the types of the checker where CEL and JavaScript differ.
+5. `src/generate/postgres.ts`: see the next section.
 
-In `src/cel/print.ts`, give the canonical text of the form. `diff` compares two rules by this text. Thus two spellings of one rule must print the same text, and the text must parse to the same tree. Give the precedence of a new operator in `LEVEL`.
+## SQL
 
-## Type the form
+Translate a form in `toSql` only if Postgres gives the same result as CEL for each value. If not, throw `Untranslatable`: the schema names the rule in a comment, and the harness checks it.
 
-In `src/cel/check.ts`, give the type of the form from the types of its parts.
+Add each translated form to "the SQL of each form" in `tests/rule-forms.test.ts`, with the values at the edges where SQL and CEL can differ. The test runs the schema on PGlite and compares each row with the generated check. Examples of edges that were found: Postgres casts `' 12'` to a number, orders `NaN` above each number, rounds a double half to even, and reads an offset such as `'+02:00'` with the other sign.
 
-- Refuse each type that CEL refuses, with `rule-type` and a message that names the types that the form takes.
-- If the form takes a function of its argument, such as a macro, check that its variable is a new name (`rule-scope`).
-- If the form can read an optional property, make sure that the guard facts still apply. A read of an optional property without `has()` is `rule-guard`.
+## Test and finish
 
-## Make the code
-
-1. In `src/generate/emit-cel.ts`, write the form as TypeScript. Where CEL and JavaScript differ, use the types of the checker to choose the code. For example, `/` of two ints goes toward 0, and `==` of two lists compares item by item.
-2. If the form needs a helper, add it to `src/generate/runtime.ts`. Start its name with `$`. `runtimeSource` copies the file into each generated file. It removes the import of `valibot`, because the header of the generated file imports it as `v`. Thus the helper can use `v`, but it must import nothing else.
-3. If CEL gives an error for a value, such as `timestamp()` of a text that is not a time, throw a `RuleError`. `$holds` then counts the rule as broken.
-4. In `src/generate/postgres.ts`, translate the form in `toSql`. If SQL cannot say the form with the same meaning, throw `Untranslatable`. The schema then names the rule in a comment, and the harness checks it.
-5. `diff` compares the canonical text, so it usually needs no change. Change `src/diff/classify.ts` only if the form gives a direction to a new argument.
-
-A change to `runtime.ts` changes each generated file. Compile each domain again, as [CONTRIBUTING.md](../CONTRIBUTING.md) tells in "Compile the generated files again".
-
-## Test the form
-
-1. In `tests/cel.test.ts`:
-   - Add the form to the table of "parse and print", with its canonical text.
-   - Add its type, and each type problem, to "types".
-   - If it was in the table of forms that do not parse, remove it from there.
-2. Use the form in a rule of the booking fixture, `tests/fixtures/booking/domain.manifest.yaml`, if the fixture has a real use for it. Add a scenario that breaks the rule to `features/seat.feature`, then compile the fixture again:
-
-   ```bash
-   node bin/urn-forge.js compile --config tests/fixtures/booking/urn-forge.config.ts
-   ```
-
-3. In `tests/rule-forms.test.ts`, add a group with a value that keeps the rule, a value that breaks it, and a wrong type. If `toSql` translates the form, add the rule and its values to "the SQL of each form". The test runs the schema on PGlite and compares each row with the generated check, so the SQL must refuse what the rule refuses. Give it the values at the edges where SQL and CEL differ, such as `' 12'` for a cast.
-4. Run `npm test` and `npm run typecheck` from the root folder. Run them again with `TZ=Pacific/Chatham LC_ALL=tr_TR.UTF-8` if the form reads a time or compares text.
-
-## Update the docs
-
-1. In [The rule syntax](../docs/reference/syntax.md), add the form to its table, and remove it from "Not in the subset". Copy each message from a real run.
-2. If the form changes a decision of the [redesign notes](../planning/manifest-redesign-notes.md), such as the list of decision 24, record the change in the plan of the work.
-3. Run `npm run docs:build` from the root folder.
-
-## Result
-
-A rule can use the form. `compile` types it, the generated file runs it with the meaning of CEL, the Postgres schema translates it or names it, and `diff` compares it.
+1. In `tests/cel.test.ts`, add the form to the table of "parse and print", with its canonical text.
+2. Run `npm run conformance -- --write` to write `known-gaps.txt` again, and check that it does not grow.
+3. A change to `runtime.ts` changes each generated file. Compile each domain again, as [CONTRIBUTING.md](../CONTRIBUTING.md) tells in "Compile the generated files again".
+4. Run `npm run check` from the root folder. Run the tests again with `TZ=Pacific/Chatham LC_ALL=tr_TR.UTF-8` if the form reads a time or compares text.
+5. Add the form to [The rule syntax](../docs/reference/syntax.md) and to the package's `AGENTS.md`. A test fails if a function of the table is not in `AGENTS.md`.
 
 ## Related pages
 
 - [How urn-forge is built](./architecture.md)
 - [Add a standard rule](./add-a-standard-rule.md)
 - [The rule syntax](../docs/reference/syntax.md)
-- [JSON Schema and CEL](../docs/methodology.md)

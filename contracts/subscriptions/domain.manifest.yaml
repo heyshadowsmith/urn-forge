@@ -49,6 +49,7 @@ definitions:
     rules:
       - format: date-time
       - pattern: 'Z$'
+      - is_a_real_time
 
   now:
     description: The time of the call, which the shell gives
@@ -230,6 +231,7 @@ definitions:
       - required: [subscription_id, customer_id, plan, plan_id, quantity, subscription_status, current_period_start, current_period_end]
       - plan_id_is_plan
       - period_ends_after_start
+      - period_is_the_plans
 
   stored_subscription:
     description: The subscription that the request names, as stored before the call; absent when no subscription has its id
@@ -341,6 +343,7 @@ definitions:
     rules:
       - required: [invoice_id, subscription_id, invoice_status, period_start, period_end, billing_period, interval_count, lines, total]
       - invoice_period_ends_after_start
+      - invoice_period_is_its_billing_period
       - total_is_sum
       - lines_in_total_currency
 
@@ -531,6 +534,13 @@ rules:
     rule: self.billing_period != 'year' || self.interval_count == 1
     failure_message: A yearly plan has an interval count of 1
 
+  # format: date-time is a pattern of the text only; timestamp() is an error for a day that its month lacks, an
+  # hour over 23, a minute or a second over 59, or a year out of 1 to 9999.
+  is_a_real_time:
+    description: A time names a real instant, a day that its month has and a time of day that exists
+    rule: timestamp(self) >= timestamp('0001-01-01T00:00:00Z')
+    failure_message: Must be a real date and time, such as 2026-11-22T10:00:00Z
+
   plan_id_is_plan:
     description: The plan id of a subscription is the id of its plan
     rule: self.plan_id == self.plan.plan_id
@@ -540,6 +550,25 @@ rules:
     description: The current period of a subscription ends after it starts
     rule: timestamp(self.current_period_end) > timestamp(self.current_period_start)
     failure_message: A period must end after it starts
+
+  # A period of n calendar months (12 for a year) ends in the month n after the month of its start, on the same
+  # day, or on that month's last day when the month lacks the day (Jan 31 to Feb 28, or Feb 29 in a leap year),
+  # at the same time of day in UTC. getMonth() is from 0; the month n after is the month (start month + n) % 12
+  # of the year start year + (start month + n) / 12. last is the length of that month, from a list of the
+  # lengths of the months, February by the Gregorian leap rule.
+  period_is_the_plans:
+    description: The current period of a subscription lasts the billing period of its plan, in calendar months, and ends on the last day of a month that lacks its start day
+    rule: >-
+      cel.bind(start, timestamp(self.current_period_start),
+      cel.bind(end, timestamp(self.current_period_end),
+      cel.bind(months, start.getMonth() + (self.plan.billing_period == 'year' ? 12 : 1) * self.plan.interval_count,
+      cel.bind(y, start.getFullYear() + months / 12,
+      cel.bind(m, months % 12,
+      cel.bind(last, [31, y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m],
+        end.getFullYear() == y && end.getMonth() == m && end.getDate() == math.least(start.getDate(), last) &&
+        end.getHours() == start.getHours() && end.getMinutes() == start.getMinutes() &&
+        end.getSeconds() == start.getSeconds() && end.getMilliseconds() == start.getMilliseconds()))))))
+    failure_message: A period must end its plan's number of calendar months after it starts, on the last day of a month that lacks the start day
 
   invoice_event_names_invoice:
     description: An invoice event names its invoice, and no other event names one
@@ -560,6 +589,21 @@ rules:
     description: An invoice's period ends after it starts
     rule: timestamp(self.period_end) > timestamp(self.period_start)
     failure_message: An invoice period must end after it starts
+
+  # As period_is_the_plans, with the billing period and the interval count of the invoice.
+  invoice_period_is_its_billing_period:
+    description: The period of an invoice lasts its billing period, in calendar months, and ends on the last day of a month that lacks its start day
+    rule: >-
+      cel.bind(start, timestamp(self.period_start),
+      cel.bind(end, timestamp(self.period_end),
+      cel.bind(months, start.getMonth() + (self.billing_period == 'year' ? 12 : 1) * self.interval_count,
+      cel.bind(y, start.getFullYear() + months / 12,
+      cel.bind(m, months % 12,
+      cel.bind(last, [31, y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m],
+        end.getFullYear() == y && end.getMonth() == m && end.getDate() == math.least(start.getDate(), last) &&
+        end.getHours() == start.getHours() && end.getMinutes() == start.getMinutes() &&
+        end.getSeconds() == start.getSeconds() && end.getMilliseconds() == start.getMilliseconds()))))))
+    failure_message: An invoice period must end its number of calendar months after it starts, on the last day of a month that lacks the start day
 
   total_is_sum:
     description: An invoice's total is the sum of its line amounts, in minor units

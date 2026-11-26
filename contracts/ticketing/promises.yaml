@@ -172,14 +172,18 @@ promises:
     promise: "Only the buyer who owns an order may check it out, request its refund or transfer its tickets; only the event's organizer may cancel the event; only box-office staff assigned to the event may validate its tickets."
     status: declared
     by: [definitions.caller, definitions.buyer_id, definitions.organizer_id, definitions.assigned_events, definitions.forbidden, rules.by_the_hold_buyer, rules.by_the_order_buyer, rules.by_the_ticket_buyer, rules.issues_the_tickets, rules.by_the_organizer, rules.by_assigned_staff]
-  # Workaround: every time is a utc_time, ISO 8601 (format date-time) and in UTC (in_utc). The stored event has the
-  # time zone of its venue, but only as a pattern: whether it is an IANA zone, and the local start time it gives,
-  # need the time zone database, which no rule has.
+  # Declared: every time that is exchanged (called_at, starts_at, created_at, expires_at, occurred_at, offered_at,
+  # accept_until, cancelled_at) is a utc_time: ISO 8601 (format date-time), in UTC (in_utc), and a real instant
+  # (is_a_real_time: timestamp() of it, which refuses Feb 30 or 24:00). The stored event (show) has the time zone of
+  # its venue, which the enum of time_zone holds to the names of the IANA database (tzdata 2026e, in its case), and
+  # must state its local start time (states_the_local_start): ISO 8601 with an offset (local_starts_at), the same
+  # instant as starts_at, whose year, month, day, hours, minutes and seconds are those of starts_at in the venue's
+  # zone (local_start_in_venue_zone, with the accessors of the time zone), so its offset is the zone's at the start,
+  # daylight saving included. The offsets are those of the time zone database of the harness's runtime.
   P22:
     promise: "All times are exchanged in UTC as ISO 8601 timestamps, while each event also states its start time in its venue's IANA time zone."
-    status: workaround
-    by: [definitions.utc_time, rules.in_utc, definitions.time_zone, definitions.show]
-    hole: D3
+    status: declared
+    by: [definitions.utc_time, rules.in_utc, rules.is_a_real_time, definitions.time_zone, definitions.local_starts_at, definitions.show, rules.states_the_local_start, rules.local_start_in_venue_zone]
   # Declared: request_refund, transfer_ticket and accept_transfer carry the event as it is stored now (show_of_the_order,
   # show_of_the_ticket), not a copy of its start. before_refund_cutoff and after_refund_cutoff accept a refund only
   # earlier than 48 hours before the start (else REFUND_WINDOW_CLOSED); before_transfer_cutoff and

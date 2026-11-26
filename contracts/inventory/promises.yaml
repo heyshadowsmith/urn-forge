@@ -170,17 +170,20 @@ promises:
     promise: "Only the order system may call ReserveStock, ReleaseReservation and ShipReservation; only warehouse staff and the purchasing system may call ReceiveGoods; only warehouse supervisors may call AdjustStock; any authenticated caller may call GetStock, and other calls are refused with FORBIDDEN."
     status: declared
     by: [definitions.caller, definitions.role, definitions.forbidden, rules.by_order_system, rules.not_by_order_system, rules.by_receiving_caller, rules.not_by_receiving_caller, rules.by_supervisor, rules.not_by_supervisor, rules.names_the_role, operations.reserve_stock, operations.release_reservation, operations.ship_reservation, operations.receive_goods, operations.adjust_stock, operations.get_stock]
-  # Workaround: receive_request requires purchase_order_id and 1 to 200 receipt_lines; the receipt
-  # names the purchase order and has one stock level per line (receives_each_line), and for a line
-  # whose SKU-location pair occurs once, the new on-hand is the stored on-hand plus the received
-  # quantity. A pair that occurs on two lines is not stated: the previous count of the second line is
-  # the count after the first. filter and an index do not say it either: the rule needs the lines before
-  # a line, and all() does not give the position of the line.
+  # Workaround: the rules state one call exactly, but two receipts that load the same level at once
+  # both pass counts_after_the_line_before, and the second overwrites the first: its new on-hand is not
+  # the previous on-hand (the count after the first receipt) plus its quantity. For one call:
+  # receive_request requires purchase_order_id and 1 to 200 receipt_lines, and the receipt names the
+  # purchase order (names_the_purchase_order). counts_after_the_line_before gives the level at position
+  # i the SKU and location of line i, an on-hand of the stored on-hand of the pair plus the quantities of
+  # lines 0 to i with that pair (so a pair on two lines counts from the count after the first), and the
+  # stored reserved count; a receipt needs a stored level for every line, and a pair with none is
+  # refused with UNKNOWN_SKU or UNKNOWN_LOCATION (a_received_line_is_unknown).
   P22:
     promise: "ReceiveGoods names a purchase order id and 1 to 200 lines, and the answer reports for each line the new on-hand count, which equals the previous on-hand plus the received quantity."
     status: workaround
-    by: [definitions.receive_request, definitions.purchase_order_id, definitions.receipt_lines, definitions.receipt, rules.names_the_purchase_order, rules.receives_each_line]
-    hole: A2
+    by: [operations.receive_goods, definitions.receive_request, definitions.purchase_order_id, definitions.receipt_lines, definitions.stored_levels, definitions.receipt, definitions.levels, rules.names_the_purchase_order, rules.receives_each_line, rules.counts_after_the_line_before, rules.a_received_line_is_unknown]
+    hole: C3
   # Workaround: compatibility callers: ignore-unknown states that callers ignore what they do not know,
   # and diff judges a removal or rename within major version 1 as an error. The notice of at least 6
   # months between deprecation and removal is not in the manifest (deprecated has no date), and diff
