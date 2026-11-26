@@ -67,3 +67,27 @@ Each must turn CI red:
 - **Features that call for more features.** The strings extension has more functions. This plan takes three, and the reason for each. A later request for another one needs its own reason, from a real domain.
 - **Rules that are harder to read.** `filter` and `?:` make longer rules possible. The `description` and the `failure_message` of a rule still say what it means.
 - **Rules that do not become SQL.** A rule with `filter` or an index is checked by the harness, not by the database, as a rule with `all` is today.
+
+## What was built
+
+Each step is one commit, and each commit is green.
+
+- **Step 0.** `tests/rule-forms.test.ts`, with a group for each form. Each group failed with the `rule-syntax` error of its form, such as `the method filter() is not in the subset`. The test runs the checks that the compiler generates, so `checksOf` is exported from `src/compile.ts`.
+- **Steps 1 to 5.** The forms, in the parser, the printer, the type checker, the generated code and `toSql`. The new helpers of the generated code are `$index`, `$text`, `$int`, `$double`, `$string`, `$split` and `$case`, so each generated file of the repository was compiled again. In SQL, `startsWith` is `starts_with()`, `endsWith` is `right()`, `contains` is `strpos()`, the case functions are `translate()` of the letters A to Z, and `c ? a : b` is `CASE WHEN`.
+- **Step 6.** `self/` gets `allows_a_breaking_change`. The corpus went from 64 to 65 of 143 promises (44.8% to 45.5%): ticketing P10 is declared with `standing_tickets_per_section`, a count with `filter`. A core that answers FLOOR x1 and PIT x2 for a hold of FLOOR x2 and PIT x1 is now a `ContractViolation`.
+- **Step 7.** The reference of the rule syntax, the package's `AGENTS.md`, the methodology and `contributing/add-a-cel-form.md`.
+
+Changes from the plan:
+
+- **A test that compares SQL with the generated check.** Each form that becomes SQL runs on PGlite, row by row, beside the generated check. It found that Postgres casts `' 12'` and `'NaN'` to numbers, which `int()` and `double()` refuse. The SQL of a cast of a text now takes only the texts that the generated code takes. This is a separate commit, after step 5.
+- **Two more rules in `self/`.** `keeps_the_major` on the refusal of `judge_version_change`, and `keeps_the_version_or_the_major` on the refusal of `judge_weaker_contract`. With `allows_a_breaking_change`, each verdict on a version is now stated exactly. A core that allows a breaking change within one major version breaks `allows_a_breaking_change` in 3 scenarios.
+- **Not declarable yet:**
+  - **`to_type_name`.** The language can split a name and change its case. But it cannot join a list of texts or take one character, so it cannot build the PascalCase name.
+  - **Inventory P22.** Its rule needs the lines before a line, and `all` does not give the position of an item.
+- **No rule text changed.** Each rule of `self/` and ticketing is new, so gate 5 sees a stronger contract.
+
+The sabotages:
+
+1. `filter` kept the items for which `p` is false. Its test failed, but no scenario did. No domain of the repository has a vote count, and the scenarios of ticketing have one standing section, where the sabotage gives the same count.
+2. An index out of the list gave `undefined`. At first no test failed: each test compared the item with `==`, and `undefined == 'b'` is false anyway. The test now has `self.words[3] != 'a'` and `self.words[-1] != 'a'`, and the sabotage fails it.
+3. `int('1x')` gave `1`. The test of the conversions and the SQL test of `int()` failed.

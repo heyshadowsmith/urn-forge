@@ -71,6 +71,9 @@ describe('an index', () => {
   it('reads an item of a list, and breaks the rule out of the list', () => {
     expect(holds("self.words[1] == 'b'")).toBe(true);
     expect(holds("self.words[1] == 'b'", { words: ['a'] })).toBe(false);
+    // An index out of the list breaks the rule, also where a missing item would keep it.
+    expect(holds("self.words[3] != 'a'")).toBe(false);
+    expect(holds("self.words[-1] != 'a'")).toBe(false);
     expect(holds('self.numbers[size(self.numbers) - 1] == 3')).toBe(true);
     expect(codes("self.words['x'] == 'a'")).toEqual(['rule-type']);
     expect(codes("self.text[0] == 'a'")).toEqual(['rule-type']);
