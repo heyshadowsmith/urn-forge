@@ -146,6 +146,7 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: reado
             throw new Untranslatable();
         }
       case 'macro':
+      case 'bind':
       case 'index':
         throw new Untranslatable();
       case 'conditional':

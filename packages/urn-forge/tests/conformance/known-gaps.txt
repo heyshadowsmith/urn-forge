@@ -1,7 +1,1 @@
 # The conformance tests of cel-spec in scope that urn-forge does not pass yet. Each step removes lines.
-bindings_ext/bind/boolean_literal
-bindings_ext/bind/string_concat
-bindings_ext/bind/bind_nested
-bindings_ext/bind/macro_exists
-bindings_ext/bind/macro_not_exists
-bindings_ext/bind/shadowing

@@ -16,7 +16,8 @@
  *   `s.upperAscii()`;
  * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)`, `l.filter(x, p)`
  *   and `l.sortBy(x, k)`; the two-variable macros `l.all(i, x, p)`, `l.exists(i, x, p)`,
- *   `l.existsOne(i, x, p)` and `l.transformList(i, x, [p,] e)`, where `i` is the position of `x`.
+ *   `l.existsOne(i, x, p)` and `l.transformList(i, x, [p,] e)`, where `i` is the position of `x`;
+ *   and `cel.bind(x, v, e)`, which names a value.
  */
 
 import { arities, isFunction, takes } from './functions.js';
@@ -51,6 +52,8 @@ export type Expr =
     }
   | { readonly kind: 'unary'; readonly op: '!' | '-'; readonly operand: Expr; readonly at: number }
   | { readonly kind: 'binary'; readonly op: BinaryOp; readonly left: Expr; readonly right: Expr; readonly at: number }
+  /** cel.bind(name, value, body): the body, with the name for the value. */
+  | { readonly kind: 'bind'; readonly name: string; readonly value: Expr; readonly body: Expr; readonly at: number }
   | { readonly kind: 'conditional'; readonly condition: Expr; readonly then: Expr; readonly otherwise: Expr; readonly at: number };
 
 /** A rule that does not parse: the message, and the offset where the problem is. */
@@ -318,6 +321,18 @@ class Parser {
         this.expect(')', `) to close ${macro}`);
         const variables = second === undefined ? { variable: first } : { index: first, variable: second };
         expr = { kind: 'macro', macro, target: expr, ...variables, ...(filter ? { filter } : {}), body, at: token.at };
+        continue;
+      }
+      if (expr.kind === 'name' && expr.name === 'cel' && token.text === 'bind') {
+        const name = this.next;
+        if (name.kind !== 'name' || RESERVED.has(name.text)) throw new CelSyntaxError('the first argument of cel.bind() must be a name', name.at);
+        this.index++;
+        this.expect(',', `, after ${name.text}`);
+        const value = this.expr();
+        this.expect(',', ', after the value of cel.bind()');
+        const body = this.expr();
+        this.expect(')', ') to close cel.bind()');
+        expr = { kind: 'bind', name: name.text, value, body, at: expr.at };
         continue;
       }
       const args = this.args();

@@ -79,6 +79,10 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
       }
       case 'unary':
         return isInt(e) && e.op === '-' ? `$int53(-${emit(e.operand, scope)})` : `(${e.op}${emit(e.operand, scope)})`;
+      case 'bind': {
+        const name = `b_${e.name}`;
+        return `((${name}: any) => ${emit(e.body, { ...scope, [e.name]: name })})(${emit(e.value, scope)})`;
+      }
       case 'conditional':
         return `(${emit(e.condition, scope)} ? ${emit(e.then, scope)} : ${emit(e.otherwise, scope)})`;
       case 'binary': {

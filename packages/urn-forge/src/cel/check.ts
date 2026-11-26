@@ -153,6 +153,12 @@ class Checker {
       }
       case 'binary':
         return this.binary(expr, names, guards);
+      case 'bind': {
+        // A name of cel.bind() can hide a name of the scope, as in CEL.
+        const value = this.type(expr.value, names, guards);
+        if (!value) return undefined;
+        return this.type(expr.body, { ...names, [expr.name]: value }, guards);
+      }
       case 'conditional': {
         const condition = this.type(expr.condition, names, guards);
         // Each value can read what the condition shows present, as after && and ||.
