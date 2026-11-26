@@ -2,7 +2,7 @@
 
 Nov 27, 2026 · @Shadow Smith
 
-Each time a real domain met the rule language, the same few gaps stopped a rule:
+Each time a real domain met the rule language, the same few gaps stopped a rule. The last row is not a gap, but a form that is easier to read:
 
 | Where | The rule that could not be written | The gap |
 | --- | --- | --- |
@@ -11,7 +11,7 @@ Each time a real domain met the rule language, the same few gaps stopped a rule:
 | Tic-tac-toe | "The cell at row 2, column 3 is empty" | No index into a list |
 | `self/` | "A new major version allows a breaking change" | No number from a text |
 | `self/` | "The type name is the definition name in PascalCase" | No upper or lower case |
-| Many contracts | "The reference starts with the code of the restaurant" | No `startsWith` |
+| Three contracts | "A claim id starts with CLM-", "a payment id starts with pay_" | None: a regular expression says it today. `startsWith` only makes it easier to read and to get right |
 
 Each form below is standard CEL, or comes from the strings extension that Kubernetes enables. So each rule stays valid CEL, and an agent already knows each form. This plan adds no form that only urn-forge has.
 
