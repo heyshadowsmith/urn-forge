@@ -126,6 +126,13 @@ class Checker {
       }
       case 'select':
         return this.select(expr, names, guards, false);
+      case 'index': {
+        const operand = this.type(expr.operand, names, guards);
+        const index = this.type(expr.index, names, guards);
+        if (!operand || !index) return undefined;
+        // A list and an int: the manifest has no map, so no other index.
+        return operand.kind === 'list' && index.kind === 'int' ? operand.of : this.wrong(expr, '[ ] takes a list and an int', operand, index);
+      }
       case 'unary': {
         const operand = this.type(expr.operand, names, guards);
         if (!operand) return undefined;

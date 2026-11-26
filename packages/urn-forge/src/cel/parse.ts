@@ -4,7 +4,8 @@
  * syntax error that names it, so that the subset grows only for a real need.
  *
  * The subset:
- * - names (`self`, `input`, `output`, parameters, the variable of a macro), and properties: `a.b`;
+ * - names (`self`, `input`, `output`, parameters, the variable of a macro), properties: `a.b`, and an
+ *   item of a list: `l[i]`;
  * - literals: integers, doubles, strings in single or double quotes (`r'…'` for raw), `true`, `false`,
  *   and lists `[a, b]`;
  * - `!`, unary `-`, `*`, `/`, `%`, `+`, `-`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `&&`, `||`, and
@@ -27,6 +28,7 @@ export type Expr =
   | { readonly kind: 'bool'; readonly value: boolean; readonly at: number }
   | { readonly kind: 'list'; readonly items: readonly Expr[]; readonly at: number }
   | { readonly kind: 'select'; readonly operand: Expr; readonly field: string; readonly at: number }
+  | { readonly kind: 'index'; readonly operand: Expr; readonly index: Expr; readonly at: number }
   | { readonly kind: 'call'; readonly fn: FunctionName; readonly target?: Expr; readonly args: readonly Expr[]; readonly at: number }
   | { readonly kind: 'macro'; readonly macro: MacroName; readonly target: Expr; readonly variable: string; readonly body: Expr; readonly at: number }
   | { readonly kind: 'unary'; readonly op: '!' | '-'; readonly operand: Expr; readonly at: number }
@@ -221,7 +223,12 @@ class Parser {
     let expr = this.primary();
     for (;;) {
       const at = this.next.at;
-      if (this.symbol('[')) throw new CelSyntaxError('an index [ ] is not in the subset', at);
+      if (this.symbol('[')) {
+        const index = this.or();
+        this.expect(']', '] to close the index');
+        expr = { kind: 'index', operand: expr, index, at };
+        continue;
+      }
       if (!this.symbol('.')) return expr;
       const token = this.next;
       if (token.kind !== 'name' || RESERVED.has(token.text)) throw new CelSyntaxError(`expected a name after ., found ${describe(token)}`, token.at);

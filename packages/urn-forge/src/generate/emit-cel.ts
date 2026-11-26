@@ -38,6 +38,8 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
         return `[${e.items.map((i) => emit(i, scope)).join(', ')}]`;
       case 'select':
         return `(${emit(e.operand, scope)} as any)[${JSON.stringify(e.field)}]`;
+      case 'index':
+        return `$index(${emit(e.operand, scope)}, ${emit(e.index, scope)})`;
       case 'call': {
         const target = e.target ?? e.args[0]!;
         switch (e.fn) {

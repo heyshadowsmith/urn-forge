@@ -58,6 +58,8 @@ describe('parse and print', () => {
     ["timestamp(self.ends_at) > timestamp(self.starts_at) + duration('30m')", "timestamp(self.ends_at) > timestamp(self.starts_at) + duration('30m')"],
     ['self.dishes.map(d, d.amount).sum() == self.total', 'self.dishes.map(d, d.amount).sum() == self.total'],
     ['self.tables.all(t, self.tables.exists_one(u, u == t))', 'self.tables.all(t, self.tables.exists_one(u, u == t))'],
+    ['self.words.filter(w, w != "")[0]=="a"', "self.words.filter(w, w != '')[0] == 'a'"],
+    ['self.board[ 3*r+c ]', 'self.board[3 * r + c]'],
     ['size(self.name) <= 64 && self.name.size() > 0', 'size(self.name) <= 64 && self.name.size() > 0'],
     [`self.code.matches(r'^[A-Z]{2}\\d$')`, `self.code.matches('^[A-Z]{2}\\\\d$')`],
     ['"it\'s"', "'it\\'s'"],
@@ -71,7 +73,6 @@ describe('parse and print', () => {
   it.each([
     ['a ? b : c', '?: is not in the subset; write the rule with && and ||'],
     ['a < b < c', 'a chain of comparisons is not in the subset; join them with &&'],
-    ['self.tags[0]', 'an index [ ] is not in the subset'],
     ['null', 'null is not in the subset; use has() for a value that can be absent'],
     ['{1: 2}', 'maps are not in the subset'],
     ['self.name.startsWith("a")', 'the method startsWith() is not in the subset'],

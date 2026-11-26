@@ -105,6 +105,7 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: reado
             throw new Untranslatable();
         }
       case 'macro':
+      case 'index':
         throw new Untranslatable();
       case 'unary':
         return e.op === '!' ? `(NOT ${sql(e.operand)})` : `(-${sql(e.operand)})`;

@@ -53,6 +53,12 @@ export function $sum(list: unknown): number {
   return list.reduce((total: number, item: number) => total + item, 0);
 }
 
+/** CEL's l[i]: the item at i, from 0. An index out of the list is an error. */
+export function $index(list: unknown, i: number): unknown {
+  if (!Array.isArray(list) || !Number.isInteger(i) || i < 0 || i >= list.length) throw new RuleError(`the index ${i} is out of the list`);
+  return list[i];
+}
+
 /** CEL's / of two ints: toward 0. A division by 0 is an error. */
 export function $divInt(a: number, b: number): number {
   if (b === 0) throw new RuleError('division by 0');

@@ -65,6 +65,8 @@ export function print(expr: Expr): string {
       return `[${expr.items.map(print).join(', ')}]`;
     case 'select':
       return `${at(expr.operand, MEMBER)}.${expr.field}`;
+    case 'index':
+      return `${at(expr.operand, MEMBER)}[${print(expr.index)}]`;
     case 'call': {
       const args = expr.args.map(print).join(', ');
       return expr.target ? `${at(expr.target, MEMBER)}.${expr.fn}(${args})` : `${expr.fn}(${args})`;
