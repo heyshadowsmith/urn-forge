@@ -16,13 +16,23 @@ The code is in `packages/urn-forge`. The root `package.json` sends most commands
 
 ## Run the checks
 
-Run these commands from the root of the repository. CI runs each of them. A pull request must pass all of them.
+Run every check with one command, from the root of the repository:
+
+```bash
+npm run check                         # every check
+npm run check -- --base origin/main   # and compare with the main branch: diff, and gate 5 on each contract
+npm run check -- --quick              # leave out the tarball test and the docs build
+```
+
+CI runs `npm run check -- --base` with the base branch on each pull request, in one job. A pull request must pass it. A change only to `planning/` or `contributing/` runs no check. Each check runs even when one before it fails, and the last lines list the checks that failed.
+
+`npm run check` runs these commands. Run one of them alone to work on its failure:
 
 | Command | What it checks |
 | --- | --- |
 | `npm test` | The Vitest suite in `packages/urn-forge/tests` |
 | `npm run typecheck` | `tsc` over `src`, `tests`, `example`, `self` and `insurance`. Vitest does not type-check, so this command is necessary |
-| `npm run verify:example` | `urn-forge verify` on the math example: gates 1 to 4 |
+| `npm run verify:example` | `urn-forge verify` on the math example |
 | `npm run verify:self` | `urn-forge verify` on urn-forge's own domain |
 | `npm run verify:insurance` | `urn-forge verify` on the insurance domain |
 | `npm run verify:tutorial` | `urn-forge verify` on the three tutorial snapshots |
@@ -34,17 +44,14 @@ Run these commands from the root of the repository. CI runs each of them. A pull
 | `npm run docs:build` | The VitePress site. A broken page, a dead link or a snippet file that does not exist fails it |
 | `npm run test:tarball` | Packs urn-forge, installs the tarball in a new project, and runs `init`, `compile`, `verify` and the scenarios. It needs the npm registry |
 
-CI also runs these checks:
+For each contract in `contracts/`, `npm run check` also runs `verify` and Cucumber. To do this for one contract, run these commands from the root:
 
-- **The corpus job** runs `verify` and Cucumber on each contract in `contracts/`. To do this for one contract, run these commands from the root:
+```bash
+node packages/urn-forge/bin/urn-forge.js verify --config contracts/bookings/urn-forge.config.ts
+(cd contracts/bookings && npx cucumber-js --import ../../packages/urn-forge/src/gherkin/register-tsx.mjs --import 'features/support/**/*.ts' 'features/**/*.feature')
+```
 
-  ```bash
-  node packages/urn-forge/bin/urn-forge.js verify --config contracts/bookings/urn-forge.config.ts
-  (cd contracts/bookings && npx cucumber-js --import ../../packages/urn-forge/src/gherkin/register-tsx.mjs --import 'features/support/**/*.ts' 'features/**/*.feature')
-  ```
-
-- **The determinism job** runs `npm test` with `TZ=Pacific/Chatham` and `LC_ALL=tr_TR.UTF-8`. Then it compiles `example`, `self` and `insurance` again, and `git diff --exit-code` must show no change.
-- **The compatibility job** runs `urn-forge diff` on each domain against the base branch, as a report. To do this locally, run `npm run diff:base -- origin/main --report` from `packages/urn-forge`.
+A second workflow, **Determinism**, runs once a week and on demand. It runs `npm test` with `TZ=Pacific/Chatham` and `LC_ALL=tr_TR.UTF-8`. Then it compiles `example`, `self` and `insurance` again, and `git diff --exit-code` must show no change. To start it, open Actions → Determinism → Run workflow.
 
 ## Compile the generated files again
 

@@ -10,6 +10,7 @@
     "docs"
   ],
   "scripts": {
+    "check": "node scripts/check.mjs",
     "test": "npm run test --workspace urn-forge",
     "typecheck": "npm run typecheck --workspace urn-forge",
     "verify:example": "npm run verify:example --workspace urn-forge",

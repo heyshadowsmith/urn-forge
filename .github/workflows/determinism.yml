@@ -1,0 +1,47 @@
+# The same inputs give the same bytes and the same verdict in any locale and time zone. Turkish
+# changes case mapping and collation; Chatham is UTC+12:45. It runs once a week, and on demand.
+name: Determinism
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  determinism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TZ: Pacific/Chatham
+      LANG: tr_TR.UTF-8
+      LC_ALL: tr_TR.UTF-8
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: npm test
+        run: npm test
+
+      - name: Recompile each domain; the committed files must not change
+        working-directory: packages/urn-forge
+        run: |
+          npm run compile:example
+          npm run compile:self
+          npm run compile:insurance
+          git diff --exit-code
+
+      - name: urn-forge verify
+        working-directory: packages/urn-forge
+        run: |
+          npm run verify:example
+          npm run verify:self
+          npm run verify:insurance
