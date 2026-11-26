@@ -54,7 +54,7 @@ The generated files are committed. If you change the generated code (`src/genera
 npm run compile:example
 npm run compile:self
 npm run compile:insurance
-for step in 1-first-domain 2-declared-errors 3-strict-coverage; do node bin/urn-forge.js compile --config tutorial/$step/urn-forge.config.ts; done
+for step in 1-first-domain 2-declared-errors 3-edges; do node bin/urn-forge.js compile --config tutorial/$step/urn-forge.config.ts; done
 node bin/urn-forge.js compile --config tests/fixtures/booking/urn-forge.config.ts
 for dir in ../../contracts/*/; do node bin/urn-forge.js compile --config "$dir/urn-forge.config.ts"; done
 ```

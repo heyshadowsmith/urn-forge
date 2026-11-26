@@ -29,7 +29,7 @@ const DOMAINS = [
   'insurance/domain.manifest.yaml',
   'tutorial/1-first-domain/domain.manifest.yaml',
   'tutorial/2-declared-errors/domain.manifest.yaml',
-  'tutorial/3-strict-coverage/domain.manifest.yaml',
+  'tutorial/3-edges/domain.manifest.yaml',
 ];
 
 const temp = mkdtempSync(join(tmpdir(), 'urn-forge-diff-'));

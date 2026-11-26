@@ -4,7 +4,7 @@ In this tutorial, you and a coding agent make a domain, `shipping`, with one ope
 
 Each part says what you ask the agent, what the agent does, and what you check. The outputs on this page are from real runs of the commands that the agent runs. An agent's own words are different on each run, so this page does not show them. You can also do each step by hand: the files and the commands are the same.
 
-The result of each part is in [`packages/urn-forge/tutorial/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/) of the repository: `1-first-domain`, `2-declared-errors` and `3-strict-coverage`. If the agent's result is different, compare its files with these files.
+The result of each part is in [`packages/urn-forge/tutorial/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/) of the repository: `1-first-domain`, `2-declared-errors` and `3-edges`. If the agent's result is different, compare its files with these files.
 
 ## 1. Set up the project
 
@@ -155,7 +155,7 @@ gate 3  gherkin       PASS  1 feature(s), 12 scenario(s), 1/1 operation(s) run, 
 
 Make a missing scenario fail `verify` again. Change `urn-forge.config.ts` yourself, because this setting is a decision about how strict the checks are:
 
-<<< @/../packages/urn-forge/tutorial/3-strict-coverage/urn-forge.config.ts{6-7}
+<<< @/../packages/urn-forge/tutorial/3-edges/urn-forge.config.ts{6-7}
 
 Now a gap fails gate 3. For example, without the scenario `A refusal needs the weight`:
 
@@ -179,7 +179,7 @@ Gate 3 asks for one scenario for each rule. It does not ask for the values at th
 
 All scenarios still pass, but the code refuses an express parcel of exactly 5000 grams. **Ask the agent:** "Add scenarios at the edges of each rule." The highlighted lines are new:
 
-<<< @/../packages/urn-forge/tutorial/3-strict-coverage/features/quote_shipping.feature{26-45 gherkin}
+<<< @/../packages/urn-forge/tutorial/3-edges/features/quote_shipping.feature{26-45 gherkin}
 
 ```
   1) An express parcel of exactly 5000 grams is quoted # features/quote_shipping.feature:39
