@@ -24,7 +24,7 @@ Thus:
 1. Find the real need: a promise of a contract in `contracts/`, a domain, or a standard rule. Name it in the pull request.
 2. Write the promise with the forms that exist. If more lines can state it, do not add the form.
 3. Use a form that CEL has, with the meaning of CEL. Each rule that the subset accepts must be valid CEL, and it must give the same result in CEL. Prefer a form that Kubernetes or protovalidate also use, such as a function of the Kubernetes list extension.
-4. Add the smallest form that states the promise. For example, the subset has `map` and `sum()` for totals, but not `filter`, `min()` or `max()`.
+4. Add the smallest form that states the promise. For example, the subset has `filter` and `size()` for a count, and `exists` and `all` for the largest item, but not `min()` or `max()`.
 
 If the form fails a test, the promise stays a workaround. A form that is not in the subset is a `rule-syntax` error, not a quiet addition.
 
@@ -32,7 +32,9 @@ If the form fails a test, the promise stays a workaround. A form that is not in 
 
 1. In `src/cel/parse.ts`, add the form to the lexer or to the parser. A function or a method goes in `FunctionName`, a macro in `MacroName` and `MACROS`. A new kind of node goes in the `Expr` type.
 2. Check the arguments in the parser where the count or the kind is fixed. For example, `matches()` takes one argument, and `has()` takes one property. Throw a `CelSyntaxError` with a message that tells what to write.
-3. If the parser has a special message for the form, such as `the method filter() is not in the subset`, remove it.
+3. If the parser has a special message for the form, such as `maps are not in the subset`, remove it.
+
+A method with a fixed number of arguments goes in `METHODS`, with that number.
 4. Add the form to the list of the subset in the comment at the top of the file.
 
 ## Print the form
@@ -69,9 +71,8 @@ A change to `runtime.ts` changes each generated file. Compile each domain again,
    node bin/urn-forge.js compile --config tests/fixtures/booking/urn-forge.config.ts
    ```
 
-3. In `tests/generated.test.ts`, add a value that keeps the rule and a value that breaks it.
-4. If `toSql` translates the form, add a case to `tests/postgres.test.ts`. The test runs the schema on PGlite, so the SQL must refuse what the rule refuses.
-5. Run `npm test` and `npm run typecheck` from the root folder. Run them again with `TZ=Pacific/Chatham LC_ALL=tr_TR.UTF-8` if the form reads a time or compares text.
+3. In `tests/rule-forms.test.ts`, add a group with a value that keeps the rule, a value that breaks it, and a wrong type. If `toSql` translates the form, add the rule and its values to "the SQL of each form". The test runs the schema on PGlite and compares each row with the generated check, so the SQL must refuse what the rule refuses. Give it the values at the edges where SQL and CEL differ, such as `' 12'` for a cast.
+4. Run `npm test` and `npm run typecheck` from the root folder. Run them again with `TZ=Pacific/Chatham LC_ALL=tr_TR.UTF-8` if the form reads a time or compares text.
 
 ## Update the docs
 

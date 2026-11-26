@@ -13,19 +13,30 @@ If a form is not in the language, `compile` stops with `rule-syntax`.
 | An object | An `object` | none; read its properties with `.` |
 | `timestamp`, `duration` | `timestamp(s)`, `duration(s)` | |
 
-These are the operators, in the order in which they apply, the last first: `||`; `&&`; `==` `!=` `<` `<=` `>` `>=` `in`; `+` `-`; `*` `/` `%`; `!` and unary `-`; `a.b`. Parentheses change the sequence.
+These are the operators, in the order in which they apply, the last first: `c ? a : b`; `||`; `&&`; `==` `!=` `<` `<=` `>` `>=` `in`; `+` `-`; `*` `/` `%`; `!` and unary `-`; `a.b` and `l[i]`. Parentheses change the sequence.
 
-`==` compares lists and objects by value. `in` tests an item of a list, or a property name of an object. `+` joins strings and lists, and adds a duration to a timestamp. `/` of two ints rounds toward 0, and a division by 0 breaks the rule. `*` and `/` do not mix an int and a double. For a `number`, write `2.0`.
+`==` compares lists and objects by value. `in` tests an item of a list, or a property name of an object. `+` joins strings and lists, and adds a duration to a timestamp. `/` of two ints rounds toward 0, and a division by 0 breaks the rule. `*` and `/` do not mix an int and a double. For a `number`, write `2.0`, or convert with `double()`.
+
+`c ? a : b` is `a` when `c` is true, and `b` when it is false. `a` and `b` have one type. `l[i]` is the item of the list `l` at the position `i`, from 0. An index out of the list breaks the rule.
 
 | Form | Gives |
 | --- | --- |
 | `has(a.b)` | Whether the property is there |
 | `size(x)`, `x.size()` | The characters of a string, or the items of a list |
 | `s.matches(re)` | Whether the regular expression matches part of the string |
+| `s.startsWith(t)`, `s.endsWith(t)`, `s.contains(t)` | Whether the string starts with, ends with or contains `t` |
+| `s.split(t)` | A list of the parts of the string between each `t` |
+| `s.lowerAscii()`, `s.upperAscii()` | The string with the letters A to Z in lower or upper case. Other letters do not change |
+| `int(x)` | An int from a double (toward 0) or from a string such as `'12'`. A string that is not an integer breaks the rule |
+| `double(x)` | A double from an int or from a string such as `'2.5'`. A string that is not a number breaks the rule |
+| `string(x)` | A string from an int, a double or a bool |
 | `timestamp(s)` | A timestamp from a time string such as `2026-11-24T19:00:00Z` |
 | `duration(s)` | A duration such as `'2h'`, `'30m'`, `'1h30m'` (units `h`, `m`, `s`, `ms`, `us`, `ns`) |
 | `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)` | Whether `p` is true for each item, for one or more items, or for exactly one item |
 | `l.map(x, e)`, `l.sum()` | A list of the values of `e`; the total of a list of numbers |
+| `l.filter(x, p)` | A list of the items for which `p` is true. `size(l.filter(x, p))` counts them |
+
+The major version of a version string: `int(self.version.split('.')[0])`. The largest item of a list has no function: write `self.scores.exists(m, self.scores.all(s, s <= m) && m >= 10)`.
 
 ## Optional properties
 
@@ -39,15 +50,14 @@ These are the operators, in the order in which they apply, the last first: `||`;
 
 The language does not have these forms:
 
-- `a ? b : c` and `null`
-- an index `a[0]`, and maps
+- `null`, and maps
 - chained comparisons
-- `filter`, `min()` and `max()`
-- functions that the table above does not show, such as `startsWith()` or `int()`
+- `min()` and `max()`
+- functions that the table above does not show, such as `replace()` or `uint()`
 - triple-quoted strings
 - unsigned or hexadecimal numbers.
 
-Each rule becomes plain TypeScript in the schema of its definition, with no interpreter at run time. Where SQL can state the rule, it also becomes a Postgres constraint.
+Each rule becomes plain TypeScript in the schema of its definition, with no interpreter at run time. Where SQL can state the rule, it also becomes a Postgres constraint. A rule with a macro, an index or `split()` does not: the schema names it in a comment, and the harness checks it.
 
 | Applied to | The rule reads |
 | --- | --- |
