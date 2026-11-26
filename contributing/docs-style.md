@@ -4,14 +4,17 @@ This guide is for the pages of the documentation site, in `docs/`. The pages in 
 
 ## 1. The pages
 
-The site has two pages. Keep it so: a new page needs a reason that neither page can hold.
+The site has two pages to read and three pages to look things up. Keep it so: a new page needs a reason that none of them can hold.
 
 | Page | Serves | Holds |
 | --- | --- | --- |
 | `index.md` | A person who wants to know what urn-forge does, and to try it | The split, how it works in four steps, the five gates, and how to start |
 | `methodology.md` | A person who wants to understand it | The split, the loop, the contract, the harness, the gates, what they cannot prove, the review, and the limits |
+| `reference/manifest.md` | A person who looks up a key | The sections, definitions, operations, rules, the standard rules, and an example |
+| `reference/syntax.md` | A person who writes a rule | The types, operators, functions and macros of the rule language, and what it does not have |
+| `reference/cli.md` | A person who runs a command | The commands, the JSON output, the config, Postgres, `diff`, the gates and each code |
 
-The facts (each key, rule, step, option and code) are in `packages/urn-forge/AGENTS.md`, the reference for agents. A test keeps it complete. The site links to it, and does not copy it.
+`packages/urn-forge/AGENTS.md` is the same reference in one page, for agents. A test keeps it complete. When you change a fact, change it in both.
 
 ## 2. ASD-STE100 Simplified Technical English
 
@@ -37,7 +40,7 @@ Both pages use STE. These are the rules that this site applies.
 - **Commands** are the commands of a user: `npx urn-forge compile`, `npx urn-forge verify` and `npx cucumber-js`, in the root of the project. Show them in `bash` blocks. A page that runs a command in another folder says so.
 - **Links** in `docs/` go to the other page with a path and no extension, for example `[The methodology](/methodology)`. VitePress uses clean URLs. A user page does not link to `planning/` or `contributing/`. Links in `contributing/` keep the `.md` extension, so that they work on GitHub.
 - **Headings** use sentence case.
-- **Terms** follow [the reference](../packages/urn-forge/AGENTS.md):
+- **Terms** follow [the manifest reference](../docs/reference/manifest.md):
   - *definition*, *rule*, *operation*, *input* and *output* are the parts of the manifest. Do not write *field*, *entity*, *kind*, *primitive*, *constraint* or *atom*: they are words of 0.1.
   - A *refusal* is an output. Do not write *error* for it.
   - *The core* is the functions of the operations. *The shell* is the code that calls `runOperation`. *The harness* is `runOperation`.

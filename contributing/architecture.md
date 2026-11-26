@@ -183,5 +183,5 @@ Most tests read [the booking fixture](../packages/urn-forge/tests/fixtures/booki
 - [Dogfooding](./dogfooding.md)
 - [Add a standard rule](./add-a-standard-rule.md)
 - [Add a form to the CEL subset](./add-a-cel-form.md)
-- [The rule language](../packages/urn-forge/AGENTS.md)
+- [The rule syntax](../docs/reference/syntax.md)
 - [How urn-forge proves it](../docs/methodology.md)

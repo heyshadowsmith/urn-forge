@@ -413,4 +413,4 @@ npx cucumber-js
 ## Where next
 
 - [The methodology](/methodology): the split between you and the agent, the harness, the gates, what they cannot prove, and what to review.
-- [The reference](https://github.com/heyshadowsmith/urn-forge/blob/main/packages/urn-forge/AGENTS.md): each key of the manifest, each rule, each step and each code with its fix. Your agent reads the same file.
+- The reference: [the manifest](/reference/manifest), [the rule syntax](/reference/syntax), and [the CLI and the config](/reference/cli).

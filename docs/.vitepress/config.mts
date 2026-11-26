@@ -43,7 +43,22 @@ export default defineConfig({
   ],
   themeConfig: {
     logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: '' },
-    nav: [{ text: 'Methodology', link: '/methodology' }],
+    nav: [
+      { text: 'Methodology', link: '/methodology' },
+      { text: 'Reference', link: '/reference/manifest', activeMatch: '/reference/' },
+    ],
+    sidebar: {
+      '/reference/': [
+        {
+          text: 'Reference',
+          items: [
+            { text: 'The manifest', link: '/reference/manifest' },
+            { text: 'The rule syntax', link: '/reference/syntax' },
+            { text: 'The CLI and the config', link: '/reference/cli' },
+          ],
+        },
+      ],
+    },
     socialLinks: [{ icon: 'github', link: 'https://github.com/heyshadowsmith/urn-forge' }],
     search: { provider: 'local' },
     outline: [2, 3],

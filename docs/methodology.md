@@ -107,4 +107,8 @@ The contract cannot state some rules yet: time zones and calendar months, a filt
 
 ## The reference
 
-Each key of the manifest, each rule of the rule language, each step of the scenarios, each option of the config and each code with its fix is in [the reference for agents](https://github.com/heyshadowsmith/urn-forge/blob/main/packages/urn-forge/AGENTS.md). Your agent reads the same file in `node_modules/urn-forge/AGENTS.md`.
+- [The manifest](/reference/manifest): each key, and the standard rules.
+- [The rule syntax](/reference/syntax): the language of the rules.
+- [The CLI and the config](/reference/cli): each command, option, gate and code.
+
+Your agent reads the same facts on one page, in `node_modules/urn-forge/AGENTS.md`.
