@@ -65,6 +65,18 @@ export function $text(text: unknown, test: 'startsWith' | 'endsWith' | 'contains
   return test === 'startsWith' ? text.startsWith(part) : test === 'endsWith' ? text.endsWith(part) : text.includes(part);
 }
 
+/** The strings extension's split(): the parts of a text between the separators. An empty separator gives each character. */
+export function $split(text: unknown, separator: unknown): string[] {
+  if (typeof text !== 'string' || typeof separator !== 'string') throw new RuleError('split() of a value that is not a string');
+  return separator === '' ? [...text] : text.split(separator);
+}
+
+/** The strings extension's lowerAscii() and upperAscii(): only the letters A to Z change. */
+export function $case(text: unknown, to: 'lowerAscii' | 'upperAscii'): string {
+  if (typeof text !== 'string') throw new RuleError(`${to}() of a value that is not a string`);
+  return to === 'lowerAscii' ? text.replace(/[A-Z]/g, (c) => c.toLowerCase()) : text.replace(/[a-z]/g, (c) => c.toUpperCase());
+}
+
 /** CEL's int(): a double toward 0, or a string of an integer. Any other string is an error. */
 export function $int(value: unknown): number {
   if (typeof value === 'string' && !/^[+-]?\d+$/.test(value)) throw new RuleError(`${JSON.stringify(value)} is not an integer`);

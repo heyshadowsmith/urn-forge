@@ -12,7 +12,8 @@
  *   `c ? a : b`, and parentheses;
  * - the functions `has(a.b)`, `size(x)`, `timestamp(s)`, `duration(s)`, `int(x)`, `double(x)`,
  *   `string(x)`, and the methods `x.size()`, `s.matches(re)`, `s.startsWith(t)`, `s.endsWith(t)`,
- *   `s.contains(t)`, `l.sum()`;
+ *   `s.contains(t)`, `l.sum()`, and from the strings extension `s.split(t)`, `s.lowerAscii()` and
+ *   `s.upperAscii()`;
  * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)` and `l.filter(x, p)`.
  */
 
@@ -30,6 +31,9 @@ export type FunctionName =
   | 'startsWith'
   | 'endsWith'
   | 'contains'
+  | 'split'
+  | 'lowerAscii'
+  | 'upperAscii'
   | 'sum';
 
 /** A node of a rule. `at` is its offset in the text, from 0. */
@@ -141,7 +145,7 @@ function lex(text: string): Token[] {
 const RELATIONS: readonly BinaryOp[] = ['==', '!=', '<', '<=', '>', '>=', 'in'];
 const MACROS: readonly string[] = ['all', 'exists', 'exists_one', 'map', 'filter'];
 /** The methods of the subset, and the number of the arguments of each. */
-const METHODS: Readonly<Record<string, number>> = { size: 0, sum: 0, matches: 1, startsWith: 1, endsWith: 1, contains: 1 };
+const METHODS: Readonly<Record<string, number>> = { size: 0, sum: 0, matches: 1, startsWith: 1, endsWith: 1, contains: 1, split: 1, lowerAscii: 0, upperAscii: 0 };
 const RESERVED = new Set(['true', 'false', 'null', 'in', 'as', 'break', 'const', 'continue', 'else', 'for', 'function', 'if', 'import', 'let', 'loop', 'package', 'namespace', 'return', 'var', 'void', 'while']);
 
 class Parser {

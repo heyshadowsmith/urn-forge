@@ -1,14 +1,11 @@
 /**
  * The target of the plan of the gaps of the rule language: each new form parses, has its type, gives
  * rule-type for a wrong type, and its generated check keeps or breaks the rule as CEL does. Where SQL
- * can state a form, the Postgres schema has it. Each group is it.fails until its step.
+ * can state a form, the Postgres schema has it.
  */
 import { describe, expect, it } from 'vitest';
 import { checksOf, compileManifest } from '../src/compile.js';
 import { postgresSchema } from '../src/generate/postgres.js';
-
-/** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { filter: it, index: it, conversions: it, text: it, conditional: it, strings: it.fails };
 
 /** A manifest whose object `subject` keeps one rule, `the_rule`. */
 function manifest(rule: string): string {
@@ -60,7 +57,7 @@ function sql(rule: string): string | undefined {
 }
 
 describe('filter', () => {
-  target.filter('counts the items that match', () => {
+  it('counts the items that match', () => {
     expect(holds("size(self.words.filter(w, w == 'a')) == 2")).toBe(true);
     expect(holds("size(self.words.filter(w, w == 'a')) == 2", { words: ['a', 'b'] })).toBe(false);
     expect(holds('self.numbers.filter(n, n > 1).sum() == 5')).toBe(true);
@@ -70,7 +67,7 @@ describe('filter', () => {
 });
 
 describe('an index', () => {
-  target.index('reads an item of a list, and breaks the rule out of the list', () => {
+  it('reads an item of a list, and breaks the rule out of the list', () => {
     expect(holds("self.words[1] == 'b'")).toBe(true);
     expect(holds("self.words[1] == 'b'", { words: ['a'] })).toBe(false);
     expect(holds('self.numbers[size(self.numbers) - 1] == 3')).toBe(true);
@@ -80,7 +77,7 @@ describe('an index', () => {
 });
 
 describe('conversions', () => {
-  target.conversions('give a number from a text, and a text from a number', () => {
+  it('give a number from a text, and a text from a number', () => {
     expect(holds("int(self.text) == 12", { text: '12' })).toBe(true);
     expect(holds("int(self.text) == 12", { text: '1x' })).toBe(false);
     expect(holds("int(self.text) == 12", { text: '12.5' })).toBe(false);
@@ -93,7 +90,7 @@ describe('conversions', () => {
 });
 
 describe('startsWith, endsWith and contains', () => {
-  target.text('test a part of a text', () => {
+  it('test a part of a text', () => {
     expect(holds("self.text.startsWith('1.')")).toBe(true);
     expect(holds("self.text.startsWith('2.')")).toBe(false);
     expect(holds("self.text.endsWith('.0')")).toBe(true);
@@ -105,7 +102,7 @@ describe('startsWith, endsWith and contains', () => {
 });
 
 describe('a conditional', () => {
-  target.conditional('gives one of two values', () => {
+  it('gives one of two values', () => {
     expect(holds('(self.flag ? 3 : 1) == size(self.words)')).toBe(true);
     expect(holds('(self.flag ? 3 : 1) == size(self.words)', { flag: false })).toBe(false);
     expect(codes("(self.flag ? 1 : 'a') == 1")).toEqual(['rule-type']);
@@ -115,7 +112,7 @@ describe('a conditional', () => {
 });
 
 describe('split, lowerAscii and upperAscii', () => {
-  target.strings('split a text, and change its case', () => {
+  it('split a text, and change its case', () => {
     expect(holds("self.text.split('.')[0] == '1'")).toBe(true);
     expect(holds("int(self.text.split('.')[1]) == 4")).toBe(true);
     expect(holds("size(self.text.split('.')) == 3")).toBe(true);

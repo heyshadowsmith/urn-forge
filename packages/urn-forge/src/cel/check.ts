@@ -262,6 +262,14 @@ class Checker {
         if (!part) return undefined;
         return value.kind === 'string' && part.kind === 'string' ? BOOL : this.wrong(expr, `${expr.fn}() takes two strings`, value, part);
       }
+      case 'split': {
+        const separator = this.type(expr.args[0]!, names, guards);
+        if (!separator) return undefined;
+        return value.kind === 'string' && separator.kind === 'string' ? { kind: 'list', of: STRING } : this.wrong(expr, 'split() takes two strings', value, separator);
+      }
+      case 'lowerAscii':
+      case 'upperAscii':
+        return value.kind === 'string' ? STRING : this.wrong(expr, `${expr.fn}() takes a string`, value);
       case 'int':
         return ['int', 'double', 'string'].includes(value.kind) ? INT : this.wrong(expr, 'int() takes an int, a double or a string', value);
       case 'double':

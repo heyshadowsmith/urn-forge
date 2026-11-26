@@ -57,6 +57,11 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
           case 'endsWith':
           case 'contains':
             return `$text(${emit(target, scope)}, ${JSON.stringify(e.fn)}, ${emit(e.args[0]!, scope)})`;
+          case 'split':
+            return `$split(${emit(target, scope)}, ${emit(e.args[0]!, scope)})`;
+          case 'lowerAscii':
+          case 'upperAscii':
+            return `$case(${emit(target, scope)}, ${JSON.stringify(e.fn)})`;
           case 'int':
             return `$int(${emit(target, scope)})`;
           case 'double':

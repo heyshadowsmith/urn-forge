@@ -32,6 +32,9 @@ function sqlValue(value: unknown): string | undefined {
 
 class Untranslatable extends Error {}
 
+/** The letters that lowerAscii() and upperAscii() change. */
+const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
 /** What a path below the value of a rule is in a table: a column, an embedded object, or a list. */
 type Part =
   | { readonly kind: 'value'; readonly column: string }
@@ -105,6 +108,11 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: reado
           }
           case 'contains':
             return `(strpos(${sql(e.target!)}, ${sql(e.args[0]!)}) > 0)`;
+          case 'lowerAscii':
+          case 'upperAscii': {
+            const [from, to] = e.fn === 'lowerAscii' ? [UPPER, UPPER.toLowerCase()] : [UPPER.toLowerCase(), UPPER];
+            return `translate(${sql(e.target!)}, '${from}', '${to}')`;
+          }
           case 'int': {
             const arg = e.args[0]!;
             return types.get(arg)?.kind === 'double' ? `TRUNC(${sql(arg)})::BIGINT` : `(${sql(arg)})::BIGINT`;
