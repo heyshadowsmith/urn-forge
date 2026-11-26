@@ -3,7 +3,7 @@ layout: home
 
 hero:
   name: urn-forge
-  text: "A contract your coding agent can't get around."
+  text: "A contract your coding agent can't quietly get around."
   tagline: "The agent writes the rules of your domain in one short file, and you review it. urn-forge turns that file into checks that fail CI when the agent's code or tests break a rule."
   actions:
     - theme: brand
