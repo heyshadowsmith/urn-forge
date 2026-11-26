@@ -22,7 +22,7 @@ console.log(`${'total'.padEnd(16)}${String(pass + fail).padStart(8)}${String(pas
 console.log('\nout of scope, by reason');
 for (const [reason, text] of Object.entries(REASONS)) {
   const n = count((o) => o.result === 'out' && o.reason === reason);
-  if (n > 0) console.log(`  ${text.padEnd(24)}${n}`);
+  if (n > 0) console.log(`  ${text.padEnd(32)}${n}`);
 }
 
 if (process.argv.includes('--write')) {

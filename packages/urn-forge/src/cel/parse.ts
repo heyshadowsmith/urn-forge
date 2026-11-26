@@ -14,8 +14,8 @@
  *   `string(x)`, and the methods `x.size()`, `s.matches(re)`, `s.startsWith(t)`, `s.endsWith(t)`,
  *   `s.contains(t)`, `l.sum()`, and from the strings extension `s.split(t)`, `s.lowerAscii()` and
  *   `s.upperAscii()`;
- * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)`, `l.filter(x, p)`
- *   and `l.sortBy(x, k)`; the two-variable macros `l.all(i, x, p)`, `l.exists(i, x, p)`,
+ * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)` and `l.filter(x, p)`;
+ *   the two-variable macros `l.all(i, x, p)`, `l.exists(i, x, p)`,
  *   `l.existsOne(i, x, p)` and `l.transformList(i, x, [p,] e)`, where `i` is the position of `x`;
  *   and `cel.bind(x, v, e)`, which names a value.
  */
@@ -23,7 +23,7 @@
 import { arities, isFunction, takes } from './functions.js';
 
 export type BinaryOp = '||' | '&&' | '==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | '+' | '-' | '*' | '/' | '%';
-export type MacroName = 'all' | 'exists' | 'exists_one' | 'existsOne' | 'map' | 'filter' | 'sortBy' | 'transformList';
+export type MacroName = 'all' | 'exists' | 'exists_one' | 'existsOne' | 'map' | 'filter' | 'transformList';
 /** `has`, `duration`, or a name of the table of functions (src/cel/functions.ts). */
 export type FunctionName = string;
 
@@ -172,7 +172,7 @@ function lex(text: string): Token[] {
 }
 
 const RELATIONS: readonly BinaryOp[] = ['==', '!=', '<', '<=', '>', '>=', 'in'];
-const MACROS: readonly string[] = ['all', 'exists', 'exists_one', 'existsOne', 'map', 'filter', 'sortBy', 'transformList'];
+const MACROS: readonly string[] = ['all', 'exists', 'exists_one', 'existsOne', 'map', 'filter', 'transformList'];
 /** The macros that take a position and an item: all(i, x, p). */
 const TWO_VARIABLES: readonly string[] = ['all', 'exists', 'existsOne', 'transformList'];
 /** The namespaces of functions, such as math in math.greatest(). */

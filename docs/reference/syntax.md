@@ -48,14 +48,9 @@ A position in a string counts characters, as `size()` does, from 0. A position o
 | `s.indexOf(t)`, `s.indexOf(t, i)` | The first position of `t`, from the position `i`, or `-1` |
 | `s.lastIndexOf(t)`, `s.lastIndexOf(t, i)` | The last position of `t`, up to the position `i`, or `-1` |
 | `s.substring(a)`, `s.substring(a, b)` | The characters from the position `a`, up to the position `b` (not included) |
-| `s.replace(t, u)`, `s.replace(t, u, n)` | The string with each `t`, or the first `n`, changed to `u` |
 | `s.split(t)`, `s.split(t, n)` | The parts of the string between each `t`, at most `n` parts |
 | `l.join()`, `l.join(t)` | The strings of a list, joined, with `t` between them |
-| `s.trim()` | The string with no white space at its start or end |
 | `s.lowerAscii()`, `s.upperAscii()` | The string with the letters A to Z in lower or upper case. Other letters do not change |
-| `s.reverse()` | The characters in the opposite sequence |
-| `s.format(l)` | The string with each clause filled from the list: `%s`, `%d`, `%f`, `%e`, `%b`, `%o`, `%x`, `%X`, `%.2f`, `%%` |
-| `strings.quote(s)` | The string in double quotes, with escapes |
 
 ### Numbers
 
@@ -64,10 +59,7 @@ A position in a string counts characters, as `size()` does, from 0. A position o
 | `math.greatest(a, b, …)`, `math.least(a, b, …)` | The largest or the smallest of the numbers, or of the items of a list. The numbers are all ints or all doubles |
 | `math.abs(x)`, `math.sign(x)` | The value without its sign; `-1`, `0` or `1` |
 | `math.ceil(x)`, `math.floor(x)`, `math.trunc(x)` | A double rounded up, down, or toward 0 |
-| `math.round(x)` | A double rounded to the nearest whole number, half away from 0 |
 | `math.isNaN(x)`, `math.isInf(x)`, `math.isFinite(x)` | Whether a double is not a number, infinite, or finite |
-| `math.bitAnd(a, b)`, `math.bitOr(a, b)`, `math.bitXor(a, b)`, `math.bitNot(a)` | The bits of ints |
-| `math.bitShiftLeft(a, n)`, `math.bitShiftRight(a, n)` | The bits of an int, moved by `n` |
 
 ### Times
 
@@ -96,11 +88,7 @@ A timestamp is from the year 1 to the year 9999, to the millisecond, and a durat
 | `l.map(x, e)`, `l.filter(x, p)` | A list of the values of `e`; a list of the items for which `p` is true. `size(l.filter(x, p))` counts them |
 | `l.transformList(i, x, e)`, `l.transformList(i, x, p, e)` | A list of the values of `e`, for each item, or for the items for which `p` is true, with the position `i` |
 | `l.sum()` | The total of a list of numbers |
-| `l.sort()`, `l.sortBy(x, k)` | The items in order, or in the order of the key `k` of each item |
-| `l.distinct()`, `l.reverse()` | Each item once; the items in the opposite sequence |
-| `l.slice(a, b)` | The items from the position `a`, up to the position `b` (not included) |
 | `l.flatten()`, `l.flatten(n)` | The items of the lists inside the list, to the depth `n` (a number in the rule) |
-| `lists.range(n)` | The list `[0, 1, …, n − 1]` |
 
 ### Names
 
@@ -113,6 +101,8 @@ A timestamp is from the year 1 to the year 9999, to the millisecond, and a durat
 ## Not in the language
 
 The language has no maps, no bytes, no unsigned numbers, no `null`, no optional values, no type values such as `type(x)`, and no list that holds items of more than one type. These are not types of a manifest.
+
+It also leaves out some forms that a rule is unlikely to need: `format()`, `strings.quote()`, `trim()`, `replace()`, `reverse()`, `sort()`, `sortBy()`, `distinct()`, `slice()`, `lists.range()`, `math.round()` and the `math.bit` functions. A form comes back when a rule of a real domain needs it.
 
 Each rule becomes plain TypeScript in the schema of its definition, with no interpreter at run time. Where SQL states the rule with the same meaning, it also becomes a Postgres constraint. Another rule, such as a rule with a macro, an index or `split()`, does not: the schema names it in a comment, and the harness checks it.
 

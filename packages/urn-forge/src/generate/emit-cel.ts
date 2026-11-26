@@ -72,8 +72,6 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
             return `${list}.filter(${fn(e.body)})`;
           case 'transformList':
             return e.filter ? `${list}.flatMap((${variable}: any, ${index}: number) => (${emit(e.filter, inner)} ? [${emit(e.body, inner)}] : []))` : `${list}.map(${fn(e.body)})`;
-          case 'sortBy':
-            return `$sortBy(${list}, ${fn(e.body)})`;
         }
         break;
       }

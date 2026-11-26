@@ -99,7 +99,7 @@ describe('the reference in the package', () => {
     for (const rule of Object.keys(standard.rules)) expect(reference, rule).toContain(`\`${rule}\``);
     // Each function of the table, each macro, and the special forms: as `name` or `name(…)`, also after a dot.
     const { FUNCTIONS } = await import('../src/cel/functions.js');
-    const names = [...Object.keys(FUNCTIONS), 'has', 'duration', 'all', 'exists', 'exists_one', 'existsOne', 'map', 'filter', 'sortBy', 'transformList', 'cel.bind'];
+    const names = [...Object.keys(FUNCTIONS), 'has', 'duration', 'all', 'exists', 'exists_one', 'existsOne', 'map', 'filter', 'transformList', 'cel.bind'];
     for (const fn of names) expect(reference, fn).toMatch(new RegExp(`[\`.]${fn.replace('.', '\\.')}[\`(]`));
     for (const step of ['I run "', 'I check a "', 'the output is "', 'the input is rejected by "', 'the value is rejected by "', 'the value is accepted']) expect(reference, step).toContain(step);
     for (const code of sourceCodes()) expect(reference, code).toContain(`\`${code}\``);

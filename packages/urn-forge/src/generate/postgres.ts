@@ -141,9 +141,6 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: reado
           case 'timestamp':
             if (types.get(e.args[0]!)?.kind !== 'string') throw new Untranslatable();
             return `(${sql(e.args[0]!)})::TIMESTAMPTZ`;
-          case 'reverse':
-            if (types.get(e.target!)?.kind !== 'string') throw new Untranslatable();
-            return `reverse(${sql(e.target!)})`;
           case 'math.abs':
           case 'math.sign':
           case 'math.ceil':

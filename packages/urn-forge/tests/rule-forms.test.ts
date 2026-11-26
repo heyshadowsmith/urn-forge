@@ -167,7 +167,6 @@ describe('the SQL of each form', () => {
     ["(self.flag ? 'yes' : 'no') == self.text", ['yes', 'no']],
     ["self.text.lowerAscii() == 'abcé'", ['AbCé', 'AbCÉ', 'abcé']],
     ["self.text.upperAscii() == 'ABCé'", ['AbCé', 'ABCÉ']],
-    ["self.text.reverse() == 'cbé'", ['ébc', 'abc', '']],
     ['math.abs(self.amount) == 5 || math.sign(self.amount) == 0', ['a']],
     ['math.greatest(self.amount, 1) == 1 && math.least(self.amount, 1, 2) < 1', ['a']],
     ['math.ceil(self.ratio) == 3.0 || math.floor(self.ratio) == -3.0 || math.trunc(self.ratio) == 0.0', ['a']],
@@ -218,7 +217,6 @@ describe('characters outside the Basic Multilingual Plane', () => {
     "'😀ab'.charAt(1) == 'a'",
     "'😀ab😀'.indexOf('b') == 2",
     "'😀ab😀b'.lastIndexOf('b') == 4",
-    "'😀ab'.reverse() == 'ba😀'",
     "size('😀ab') == 3",
     "'😀ab'.split('').size() == 3",
   ])('%s', (rule) => {

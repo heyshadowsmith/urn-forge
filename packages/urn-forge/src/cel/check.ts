@@ -187,10 +187,6 @@ class Checker {
         const body = this.type(expr.body, inner, guards);
         if (!body) return undefined;
         if (expr.macro === 'map' || expr.macro === 'transformList') return { kind: 'list', of: body };
-        if (expr.macro === 'sortBy') {
-          const ordered = ['int', 'double', 'string', 'bool', 'timestamp', 'duration', 'any'].includes(body.kind);
-          return ordered ? target : this.wrong(expr, 'the key of sortBy() must be an int, a double, a string, a bool, a timestamp or a duration', body);
-        }
         if (body.kind !== 'bool' && body.kind !== 'any') return this.wrong(expr, `the condition of ${expr.macro}() must be a bool`, body);
         // filter() keeps the items for which the condition is true: a list of the same type.
         return expr.macro === 'filter' ? target : BOOL;

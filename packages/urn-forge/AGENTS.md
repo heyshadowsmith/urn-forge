@@ -117,13 +117,13 @@ CEL and its standard extensions, for the types of a manifest. Each rule must giv
 - **Literals:** `5000`, `-1`, `0x1F`, `0.5`, `'text'`, `"text"`, `r'^[0-9]{4}$'`, `'''text'''`, `true`, `false`, `['a', 'b']`, `[]`.
 - **Operators**, lowest precedence first: `c ? a : b`; `||`; `&&`; `==` `!=` `<` `<=` `>` `>=` `in`; `+` `-`; `*` `/` `%`; `!` and unary `-`; `a.b` and `l[i]`.
 - **Conversions:** `int()`, `double()`, `string()`, `bool()`, `timestamp()`, `duration()`. A property that can be absent: `has(a.b)`.
-- **Strings:** `size`, `matches`, `startsWith`, `endsWith`, `contains`, `charAt`, `indexOf`, `lastIndexOf`, `substring`, `replace`, `split`, `join`, `trim`, `lowerAscii`, `upperAscii`, `reverse`, `format`, `strings.quote`. A position counts characters, from 0.
-- **Numbers:** `math.greatest`, `math.least`, `math.abs`, `math.sign`, `math.ceil`, `math.floor`, `math.round`, `math.trunc`, `math.isNaN`, `math.isInf`, `math.isFinite`, `math.bitAnd`, `math.bitOr`, `math.bitXor`, `math.bitNot`, `math.bitShiftLeft`, `math.bitShiftRight`.
+- **Strings:** `size`, `matches`, `startsWith`, `endsWith`, `contains`, `charAt`, `indexOf`, `lastIndexOf`, `substring`, `split`, `join`, `lowerAscii`, `upperAscii`. A position counts characters, from 0.
+- **Numbers:** `math.greatest`, `math.least`, `math.abs`, `math.sign`, `math.ceil`, `math.floor`, `math.trunc`, `math.isNaN`, `math.isInf`, `math.isFinite`.
 - **Times:** `getFullYear`, `getMonth` (from 0), `getDate` (from 1), `getDayOfMonth`, `getDayOfWeek`, `getDayOfYear`, `getHours`, `getMinutes`, `getSeconds`, `getMilliseconds`, each with an optional time zone: `timestamp(self.starts_at).getHours('Europe/Paris')`. A timestamp keeps milliseconds.
-- **Lists:** `all`, `exists`, `exists_one`, `map`, `filter`, `sum`, `sort`, `sortBy`, `distinct`, `reverse`, `slice`, `flatten`, `lists.range`, and the two-variable `all(i, x, p)`, `exists(i, x, p)`, `existsOne(i, x, p)`, `transformList(i, x, [p,] e)`, where `i` is the position. A count: `size(l.filter(x, p))`.
+- **Lists:** `all`, `exists`, `exists_one`, `map`, `filter`, `sum`, `flatten`, and the two-variable `all(i, x, p)`, `exists(i, x, p)`, `existsOne(i, x, p)`, `transformList(i, x, [p,] e)`, where `i` is the position. A count: `size(l.filter(x, p))`.
 - **Errors:** a value that a form cannot take breaks the rule: `int('1x')`, an index out of the list, a division by 0, an int larger than 2^53 − 1. `&&`, `||`, `all` and `exists` ignore an error when the other side decides the result, as in CEL.
 - **Optional properties:** read one only after a guard: `has(self.deposit) && self.deposit > 0`, or `!has(self.deposit) || self.deposit > 0`.
-- **Not in the language:** maps, bytes, unsigned ints, `null`, optional values, `type()`, `dyn()`, and lists of items of more than one type.
+- **Not in the language:** maps, bytes, unsigned ints, `null`, optional values, `type()`, `dyn()`, and lists of items of more than one type. Also these forms of CEL, which a rule is unlikely to need: `format`, `strings.quote`, `trim`, `replace`, `reverse`, `sort`, `sortBy`, `distinct`, `slice`, `lists.range`, `math.round` and the `math.bit` functions.
 
 ## The generated file
 

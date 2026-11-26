@@ -23,7 +23,15 @@ export const REASONS = {
   dyn: 'needs dynamic types',
   int: 'an int outside ±2^53',
   nanos: 'nanoseconds',
+  unused: 'left out: unlikely to be used',
 } as const;
+
+/**
+ * The forms of CEL that the rule language leaves out because no rule of a domain is likely to use them
+ * (planning/full-rule-language-plan.md, "Changes after review"). Unlike the other reasons, this one is a
+ * choice: a form comes back when a rule of a real domain needs it.
+ */
+const UNUSED = /\.(format|trim|replace|reverse|sort|sortBy|distinct|slice)\(|\bstrings\.quote\(|\bmath\.(round|bit[A-Za-z]+)\(|\blists\.range\(/;
 export type Reason = keyof typeof REASONS;
 
 export type Outcome =
@@ -137,6 +145,7 @@ function hasNanos(expr: string): boolean {
 function reasonOfExpr(expr: string): Reason | undefined {
   if (hasNanos(expr)) return 'nanos';
   const c = code(expr);
+  if (UNUSED.test(c)) return 'unused';
   if (/\bb(?=S)|\bB(?=S)|\bbytes\(/.test(c)) return 'bytes';
   if (/\b\d+[uU]\b|\b0x[0-9a-fA-F]+[uU]\b|\buint\(/.test(c)) return 'uint';
   if (/\bnull\b/.test(c)) return 'null';

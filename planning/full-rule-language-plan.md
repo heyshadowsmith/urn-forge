@@ -124,3 +124,16 @@ The conformance tests now:
 3. `math.round(-2.5)` gave `-2` → `math_ext/round/negative_mid`.
 4. A test that passes, written in `known-gaps.txt` → the conformance test, which names it.
 5. `$least` removed from the generated file of subscriptions → gate 1, gate 4, and 138 of 226 scenarios.
+
+## Changes after review
+
+The forms that no rule of the corpus or of `self/` used are out of the language again: `format`, `strings.quote`, `trim`, `replace`, `reverse` (of a string and of a list), `sort`, `sortBy`, `distinct`, `slice`, `lists.range`, `math.round`, and the six `math.bit` functions. Each had no use, and a contract rarely checks how a text is printed or in which order a list is.
+
+This changes decision 1. A form can now be out for a second kind of reason: it is unlikely to be used. The runner names it `unused`, and `UNUSED` lists its forms. A form comes back when a rule of a real domain needs it.
+
+| | Tests |
+| --- | --- |
+| In scope, and pass | 622 of 622 |
+| Out of scope | 926: 728 for a type or a feature that a manifest does not have, and 198 left out as unlikely to be used. Of these 198, 142 were in scope and passed, and 56 were already out for another reason |
+
+The time accessors, `int()`, `substring()`, `cel.bind`, `c ? a : b`, `split`, `filter`, `transformList` and the two-variable macros stay: the rules of the proof used each of them.

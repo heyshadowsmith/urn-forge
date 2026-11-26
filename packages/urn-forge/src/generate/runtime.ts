@@ -122,13 +122,6 @@ export function $lastIndexOf(text: unknown, part: unknown, from?: number): numbe
   return -1;
 }
 
-/** The strings extension's replace(): each part, or the first `limit` parts; a negative limit is each. */
-export function $replace(text: unknown, part: unknown, by: unknown, limit = -1): string {
-  const pieces = $str(text, 'replace').split($str(part, 'replace'));
-  if (limit < 0 || limit >= pieces.length - 1) return pieces.join($str(by, 'replace'));
-  return pieces.slice(0, limit + 1).join(by as string) + (part as string) + pieces.slice(limit + 1).join(part as string);
-}
-
 /** The strings extension's substring(): the characters from `start` up to `end`, not included. */
 export function $substring(text: unknown, start: number, end?: number): string {
   const chars = $chars(text, 'substring');
@@ -137,26 +130,10 @@ export function $substring(text: unknown, start: number, end?: number): string {
   return chars.slice(start, stop).join('');
 }
 
-/** The strings extension's trim(): the white space of Unicode at each end. */
-export function $trim(text: unknown): string {
-  return $str(text, 'trim').replace(/^[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+|[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/g, '');
-}
-
 /** The strings extension's join() of a list of strings. */
 export function $join(list: unknown, separator = ''): string {
   if (!Array.isArray(list) || list.some((s) => typeof s !== 'string')) throw new RuleError('join() of a value that is not a list of strings');
   return list.join(separator);
-}
-
-/** The strings extension's reverse() of a string: its characters, last first. */
-export function $reverse(text: unknown): string {
-  return $chars(text, 'reverse').reverse().join('');
-}
-
-/** The strings extension's strings.quote(): the string as a CEL literal in double quotes. */
-export function $quote(text: unknown): string {
-  const ESC: Record<string, string> = { '\x07': '\\a', '\b': '\\b', '\f': '\\f', '\n': '\\n', '\r': '\\r', '\t': '\\t', '\v': '\\v', '\\': '\\\\', '"': '\\"' };
-  return `"${[...$str(text, 'quote')].map((c) => ESC[c] ?? c).join('')}"`;
 }
 
 /** A type of the checker, as the generated code receives it. */
@@ -187,98 +164,6 @@ function $showDouble(n: number): string {
   if (Number.isNaN(n)) return 'NaN';
   if (!Number.isFinite(n)) return n > 0 ? 'Infinity' : '-Infinity';
   return String(n);
-}
-
-/**
- * A decimal text rounded to `digits` decimals, half to even, as CEL's format() rounds. The text must
- * have more decimals than `digits`, exactly: toFixed and toExponential give the exact decimal value.
- */
-function $roundEven(text: string, digits: number): string {
-  const negative = text.startsWith('-');
-  const [whole, fraction = ''] = (negative ? text.slice(1) : text).split('.') as [string, string?];
-  const kept = whole + fraction.slice(0, digits);
-  const rest = fraction.slice(digits);
-  const half = rest[0] === '5' && /^50*$/.test(rest);
-  const up = rest[0] !== undefined && (rest[0] > '5' || (rest[0] === '5' && !half) || (half && Number(kept.at(-1)) % 2 === 1));
-  let digitsText = kept;
-  if (up) {
-    const chars = [...kept];
-    let i = chars.length - 1;
-    while (i >= 0 && chars[i] === '9') chars[i--] = '0';
-    if (i < 0) chars.unshift('1');
-    else chars[i] = String(Number(chars[i]) + 1);
-    digitsText = chars.join('');
-  }
-  const cut = digitsText.length - digits;
-  const result = digits === 0 ? digitsText : `${digitsText.slice(0, cut)}.${digitsText.slice(cut)}`;
-  return negative && /[1-9]/.test(result) ? `-${result}` : negative ? `-${result}` : result;
-}
-
-/** The strings extension's format(): %s, %d, %f, %e, %b, %o, %x, %X and %%, with a precision for %f and %e. */
-export function $format(template: unknown, values: unknown, types: readonly $Type[]): string {
-  const list = values as unknown[];
-  const itemType = types[1]?.of;
-  let next = 0;
-  return $str(template, 'format').replace(/%(?:\.(\d+))?([a-zA-Z%])?/g, (whole, precision: string | undefined, verb: string | undefined) => {
-    if (verb === '%' && precision === undefined) return '%';
-    if (verb === undefined) throw new RuleError('a format clause has no verb');
-    if (next >= list.length) throw new RuleError(`index ${next} out of range`);
-    const value = list[next++];
-    const kind = itemType?.kind === 'any' ? typeof value : itemType?.kind;
-    const number = (): number => {
-      if (typeof value !== 'number') throw new RuleError(`%${verb} takes a number`);
-      return value;
-    };
-    const special = (n: number): string | undefined => (Number.isNaN(n) ? 'NaN' : !Number.isFinite(n) ? (n > 0 ? 'Infinity' : '-Infinity') : undefined);
-    switch (verb) {
-      case 's':
-        return $show(value, itemType);
-      case 'd': {
-        if (kind !== 'int' && kind !== 'double') throw new RuleError('%d takes an int');
-        const n = number();
-        const text = special(n);
-        if (text !== undefined) return text;
-        if (kind !== 'int') throw new RuleError('%d takes an int');
-        return String(n);
-      }
-      case 'f':
-      case 'e': {
-        if (kind !== 'int' && kind !== 'double') throw new RuleError(`%${verb} takes a number`);
-        const n = number();
-        const digits = precision === undefined ? 6 : Number(precision);
-        const text = special(n);
-        if (text !== undefined) return text;
-        if (verb === 'f') return $roundEven(n.toFixed(Math.min(100, digits + 40)), digits);
-        const exact = n.toExponential(Math.min(100, digits + 40));
-        let [mantissa, exponent] = exact.split('e') as [string, string];
-        mantissa = $roundEven(mantissa, digits);
-        if (/^-?10\./.test(mantissa) || mantissa.replace('-', '') === '10') {
-          // 9.99… rounded up to 10: one more power of 10.
-          mantissa = $roundEven((Number(mantissa) / 10).toFixed(Math.min(100, digits + 40)), digits);
-          exponent = String(Number(exponent) + 1);
-        }
-        const e = Number(exponent);
-        return `${mantissa}e${e < 0 ? '-' : '+'}${String(Math.abs(e)).padStart(2, '0')}`;
-      }
-      case 'b':
-        if (kind === 'bool') return value ? '1' : '0';
-        if (kind !== 'int') throw new RuleError('%b takes an int or a bool');
-        return number().toString(2);
-      case 'o':
-        if (kind !== 'int') throw new RuleError('%o takes an int');
-        return number().toString(8);
-      case 'x':
-      case 'X': {
-        let text: string;
-        if (kind === 'int') text = number().toString(16);
-        else if (kind === 'string') text = [...new TextEncoder().encode(value as string)].map((b) => b.toString(16).padStart(2, '0')).join('');
-        else throw new RuleError(`%${verb} takes an int or a string`);
-        return verb === 'X' ? text.toUpperCase() : text;
-      }
-      default:
-        throw new RuleError(`the format clause ${whole} is not known`);
-    }
-  });
 }
 
 /** The strings extension's lowerAscii(): only the letters A to Z change. */
@@ -548,11 +433,6 @@ export function $floor(x: number): number {
   return Math.floor(x);
 }
 
-/** The math extension's math.round(): half away from 0, not up as Math.round. */
-export function $round(x: number): number {
-  return Number.isFinite(x) ? Math.sign(x) * Math.round(Math.abs(x)) : x;
-}
-
 /** The math extension's math.trunc(): toward 0. */
 export function $trunc(x: number): number {
   return Math.trunc(x);
@@ -583,89 +463,10 @@ export function $isFinite(x: number): boolean {
   return Number.isFinite(x);
 }
 
-/** An int of 64 bits as a BigInt, and back: the bit functions of CEL work on 64 bits, not on the 32 of JavaScript. */
-function $bits(f: (...xs: bigint[]) => bigint, ...xs: number[]): number {
-  return $int53(Number(BigInt.asIntN(64, f(...xs.map(BigInt)))));
-}
-
-/** The math extension's math.bitAnd(). */
-export function $bitAnd(a: number, b: number): number {
-  return $bits((x, y) => x & y, a, b);
-}
-
-/** The math extension's math.bitOr(). */
-export function $bitOr(a: number, b: number): number {
-  return $bits((x, y) => x | y, a, b);
-}
-
-/** The math extension's math.bitXor(). */
-export function $bitXor(a: number, b: number): number {
-  return $bits((x, y) => x ^ y, a, b);
-}
-
-/** The math extension's math.bitNot(). */
-export function $bitNot(a: number): number {
-  return $bits((x) => ~x, a);
-}
-
-/** The math extension's math.bitShiftLeft(): a shift of 64 or more gives 0; a negative shift is an error. */
-export function $bitShiftLeft(a: number, n: number): number {
-  if (n < 0) throw new RuleError('a negative shift');
-  return n >= 64 ? 0 : $bits((x, y) => x << y, a, n);
-}
-
-/** The math extension's math.bitShiftRight(): a logical shift, of the 64 bits; a negative shift is an error. */
-export function $bitShiftRight(a: number, n: number): number {
-  if (n < 0) throw new RuleError('a negative shift');
-  return n >= 64 ? 0 : $bits((x, y) => BigInt.asUintN(64, x) >> y, a, n);
-}
-
-/** CEL's order of two values of one type: numbers, strings, bools, timestamps or durations. */
-function $compare(a: any, b: any): number {
-  if (typeof a !== typeof b) throw new RuleError('values of two types have no order');
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-/** The lists extension's sort(): the items in order. */
-export function $sort(list: readonly unknown[]): unknown[] {
-  return [...list].sort($compare);
-}
-
-/** The lists extension's sortBy(): the items in the order of their keys; items with the same key keep their order. */
-export function $sortBy(list: readonly unknown[], key: (item: any, index: number) => unknown): unknown[] {
-  const keyed = list.map((item, i) => ({ item, key: key(item, i) }));
-  return keyed.sort((a, b) => $compare(a.key, b.key)).map((k) => k.item);
-}
-
-/** The lists extension's slice(): the items from `start` up to `end`, not included. */
-export function $slice(list: readonly unknown[], start: number, end: number): unknown[] {
-  if (start < 0 || end < 0 || start > end || end > list.length) throw new RuleError(`the range ${start} to ${end} is out of the list`);
-  return list.slice(start, end);
-}
-
 /** The lists extension's flatten(): the items of each list inside, to a depth. */
 export function $flatten(list: readonly unknown[], depth = 1): unknown[] {
   if (depth < 0) throw new RuleError('a negative depth');
   return (list as unknown[]).flat(depth);
-}
-
-/** The lists extension's distinct(): each item once, in the order of its first place. */
-export function $distinct(list: readonly unknown[]): unknown[] {
-  const kept: unknown[] = [];
-  for (const item of list) if (!kept.some((k) => $eq(k, item))) kept.push(item);
-  return kept;
-}
-
-/** The lists extension's reverse() of a list. */
-export function $reverseList(list: readonly unknown[]): unknown[] {
-  return [...list].reverse();
-}
-
-/** The lists extension's lists.range(n): 0 to n - 1. */
-export function $range(n: number): number[] {
-  if (n < 0) throw new RuleError('lists.range() of a negative number');
-  if (n > 1_000_000) throw new RuleError('lists.range() of more than 1000000 items');
-  return Array.from({ length: n }, (_, i) => i);
 }
 
 /** CEL's / of two ints: toward 0. A division by 0 is an error. */

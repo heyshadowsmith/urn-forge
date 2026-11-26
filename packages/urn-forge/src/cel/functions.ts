@@ -21,7 +21,7 @@ export interface Overload {
   readonly helper: string;
   /** The last argument repeats: one or more of it, as in math.greatest(1, 2, 3). */
   readonly variadic?: boolean;
-  /** The helper also takes the types of the target and the arguments, as a last argument: format() prints 2 and 2.0 apart. */
+  /** The helper also takes the types of the target and the arguments, as a last argument: string() of a timestamp and of a duration needs its type. */
   readonly typed?: boolean;
 }
 
@@ -66,36 +66,20 @@ export const FUNCTIONS: Readonly<Record<string, readonly Overload[]>> = {
   charAt: [method(P.string, [P.int], P.string, '$charAt')],
   indexOf: [method(P.string, [P.string], P.int, '$indexOf'), method(P.string, [P.string, P.int], P.int, '$indexOf')],
   lastIndexOf: [method(P.string, [P.string], P.int, '$lastIndexOf'), method(P.string, [P.string, P.int], P.int, '$lastIndexOf')],
-  replace: [method(P.string, [P.string, P.string], P.string, '$replace'), method(P.string, [P.string, P.string, P.int], P.string, '$replace')],
   substring: [method(P.string, [P.int], P.string, '$substring'), method(P.string, [P.int, P.int], P.string, '$substring')],
-  trim: [method(P.string, [], P.string, '$trim')],
   join: [method(list(P.string), [], P.string, '$join'), method(list(P.string), [P.string], P.string, '$join')],
-  reverse: [method(P.string, [], P.string, '$reverse'), method(list(P.T), [], list(P.T), '$reverseList')],
-  slice: [method(list(P.T), [P.int, P.int], list(P.T), '$slice')],
   // flatten(depth): the checker gives its type from the literal depth.
   flatten: [method(list(list(P.T)), [], list(P.T), '$flatten'), method(list(P.T), [P.int], list(P.T), '$flatten')],
-  distinct: [method(list(P.T), [], list(P.T), '$distinct')],
-  sort: ['int', 'double', 'string', 'bool', 'timestamp', 'duration'].map((k) => method(list({ kind: k } as Pattern), [], list({ kind: k } as Pattern), '$sort')),
-  'lists.range': [fn([P.int], list(P.int), '$range')],
-  format: [{ ...method(P.string, [list(P.T)], P.string, '$format'), typed: true }],
-  'strings.quote': [fn([P.string], P.string, '$quote')],
   'math.greatest': numbersOrList('$greatest'),
   'math.least': numbersOrList('$least'),
   'math.ceil': [fn([P.double], P.double, '$ceil')],
   'math.floor': [fn([P.double], P.double, '$floor')],
-  'math.round': [fn([P.double], P.double, '$round')],
   'math.trunc': [fn([P.double], P.double, '$trunc')],
   'math.abs': [fn([P.int], P.int, '$abs'), fn([P.double], P.double, '$abs')],
   'math.sign': [fn([P.int], P.int, '$sign'), fn([P.double], P.double, '$sign')],
   'math.isNaN': [fn([P.double], P.bool, '$isNaN')],
   'math.isInf': [fn([P.double], P.bool, '$isInf')],
   'math.isFinite': [fn([P.double], P.bool, '$isFinite')],
-  'math.bitAnd': [fn([P.int, P.int], P.int, '$bitAnd')],
-  'math.bitOr': [fn([P.int, P.int], P.int, '$bitOr')],
-  'math.bitXor': [fn([P.int, P.int], P.int, '$bitXor')],
-  'math.bitNot': [fn([P.int], P.int, '$bitNot')],
-  'math.bitShiftLeft': [fn([P.int, P.int], P.int, '$bitShiftLeft')],
-  'math.bitShiftRight': [fn([P.int, P.int], P.int, '$bitShiftRight')],
   lowerAscii: [method(P.string, [], P.string, '$lowerAscii')],
   upperAscii: [method(P.string, [], P.string, '$upperAscii')],
   int: [fn([P.int], P.int, '$int'), fn([P.double], P.int, '$int'), fn([P.string], P.int, '$int'), fn([P.timestamp], P.int, '$intOfTimestamp')],

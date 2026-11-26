@@ -62,7 +62,6 @@ describe('parse and print', () => {
     ['self.board[ 3*r+c ]', 'self.board[3 * r + c]'],
     ['self.lines.all(i,l,l.qty>i)', 'self.lines.all(i, l, l.qty > i)'],
     ['self.lines.transformList(i, l, i>0, l.qty*2)', 'self.lines.transformList(i, l, i > 0, l.qty * 2)'],
-    ['self.names.sortBy(n,  n.size())', 'self.names.sortBy(n, n.size())'],
     ['math.greatest(a,b,  c)', 'math.greatest(a, b, c)'],
     ['cel.bind(p,self.parts,size(p)>0&&p[0]!="")', "cel.bind(p, self.parts, size(p) > 0 && p[0] != '')"],
     ['(a?1:2)+(b ? 3 : c ? 4 : 5)==x', '(a ? 1 : 2) + (b ? 3 : c ? 4 : 5) == x'],

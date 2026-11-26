@@ -13,7 +13,7 @@ Commands run from `packages/urn-forge`, except where a step says the root folder
 
 ## What is in the language
 
-The language is each form of CEL and its extensions, for strings, numbers, bools, times and lists (decision 1 of the [plan of the full rule language](../planning/full-rule-language-plan.md)). A form is out only for a reason of `REASONS` in `tests/conformance/runner.ts`: a type or a feature that a manifest does not have, such as maps, bytes or `null`.
+The language is each form of CEL and its extensions, for strings, numbers, bools, times and lists (decision 1 of the [plan of the full rule language](../planning/full-rule-language-plan.md)). A form is out only for a reason of `REASONS` in `tests/conformance/runner.ts`: a type or a feature that a manifest does not have, such as maps, bytes or `null`, or a form that a rule is unlikely to need (`UNUSED` in the same file). To add a form of `UNUSED` back, name the rule of a real domain that needs it, remove the form from `UNUSED`, and build it as below.
 
 `npm run conformance` prints the tests of cel-spec in scope, the tests that pass, and the tests out of scope, by reason. `tests/conformance/known-gaps.txt` lists each test in scope that does not pass. It is empty. `tests/conformance.test.ts` fails when a test in scope fails and is not in the list, and when a test in the list passes.
 
