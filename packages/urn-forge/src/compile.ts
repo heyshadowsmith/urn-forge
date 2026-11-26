@@ -26,7 +26,7 @@ export interface Compiled {
 type Checks = Readonly<Record<string, (value: unknown, path: string, failures: Failure[]) => boolean>>;
 
 /** The checks of a model, run in the compiler: the same code as the generated file. */
-function checksOf(model: Model, applications: readonly Application[]): Checks {
+export function checksOf(model: Model, applications: readonly Application[]): Checks {
   const js = ts.transpileModule(checksModule(model, applications), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   return (new Function(`return ${js.trim().replace(/;$/, '')}`)() as (valibot: typeof v) => Checks)(v);
 }
