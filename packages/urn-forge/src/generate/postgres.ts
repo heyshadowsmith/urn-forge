@@ -32,9 +32,8 @@ function sqlValue(value: unknown): string | undefined {
 
 class Untranslatable extends Error {}
 
-/** The texts that int() and double() take, as the generated code takes them. */
+/** The texts that int() takes, as the generated code takes them. */
 const INTEGER = '^[+-]?[0-9]+$';
-const DOUBLE = '^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$';
 
 /**
  * A text for a cast to a number. Postgres casts more texts than CEL, such as ' 12' and 'NaN': each
@@ -133,7 +132,9 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: reado
           }
           case 'double': {
             const arg = e.args[0]!;
-            return types.get(arg)?.kind === 'string' ? `${numeric(sql(arg), DOUBLE)}::DOUBLE PRECISION` : `(${sql(arg)})::DOUBLE PRECISION`;
+            // double() of a text can give NaN, which Postgres orders above each number, and CEL does not: no SQL.
+            if (types.get(arg)?.kind === 'string') throw new Untranslatable();
+            return `(${sql(arg)})::DOUBLE PRECISION`;
           }
           case 'string':
             return `(${sql(e.args[0]!)})::TEXT`;

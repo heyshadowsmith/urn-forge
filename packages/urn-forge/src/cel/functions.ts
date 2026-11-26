@@ -19,6 +19,8 @@ export interface Overload {
   readonly result: Pattern;
   /** The helper of runtime.ts that runs it, given the target and the arguments, in that order. */
   readonly helper: string;
+  /** The helper also takes the types of the target and the arguments, as a last argument: format() prints 2 and 2.0 apart. */
+  readonly typed?: boolean;
 }
 
 const P = {
@@ -43,7 +45,17 @@ export const FUNCTIONS: Readonly<Record<string, readonly Overload[]>> = {
   startsWith: [method(P.string, [P.string], P.bool, '$startsWith')],
   endsWith: [method(P.string, [P.string], P.bool, '$endsWith')],
   contains: [method(P.string, [P.string], P.bool, '$contains')],
-  split: [method(P.string, [P.string], list(P.string), '$split')],
+  split: [method(P.string, [P.string], list(P.string), '$split'), method(P.string, [P.string, P.int], list(P.string), '$split')],
+  charAt: [method(P.string, [P.int], P.string, '$charAt')],
+  indexOf: [method(P.string, [P.string], P.int, '$indexOf'), method(P.string, [P.string, P.int], P.int, '$indexOf')],
+  lastIndexOf: [method(P.string, [P.string], P.int, '$lastIndexOf'), method(P.string, [P.string, P.int], P.int, '$lastIndexOf')],
+  replace: [method(P.string, [P.string, P.string], P.string, '$replace'), method(P.string, [P.string, P.string, P.int], P.string, '$replace')],
+  substring: [method(P.string, [P.int], P.string, '$substring'), method(P.string, [P.int, P.int], P.string, '$substring')],
+  trim: [method(P.string, [], P.string, '$trim')],
+  join: [method(list(P.string), [], P.string, '$join'), method(list(P.string), [P.string], P.string, '$join')],
+  reverse: [method(P.string, [], P.string, '$reverse')],
+  format: [{ ...method(P.string, [list(P.T)], P.string, '$format'), typed: true }],
+  'strings.quote': [fn([P.string], P.string, '$quote')],
   lowerAscii: [method(P.string, [], P.string, '$lowerAscii')],
   upperAscii: [method(P.string, [], P.string, '$upperAscii')],
   int: [fn([P.int], P.int, '$int'), fn([P.double], P.int, '$int'), fn([P.string], P.int, '$int'), fn([P.timestamp], P.int, '$intOfTimestamp')],

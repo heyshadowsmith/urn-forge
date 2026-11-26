@@ -54,6 +54,7 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
         const resolved = resolve(e.fn, target, e.args.map((a) => typeOf(a)!));
         if (!resolved) throw new Error(`no overload of ${e.fn}`);
         const operands = [...(e.target ? [e.target] : []), ...e.args].map((a) => emit(a, scope));
+        if (resolved.overload.typed) operands.push(JSON.stringify([...(e.target ? [e.target] : []), ...e.args].map((a) => typeOf(a))));
         return `${resolved.overload.helper}(${operands.join(', ')})`;
       }
       case 'macro': {

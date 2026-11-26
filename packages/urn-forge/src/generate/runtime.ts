@@ -81,10 +81,199 @@ export function $contains(text: unknown, part: unknown): boolean {
   return $str(text, 'contains').includes($str(part, 'contains'));
 }
 
-/** The strings extension's split(): the parts of a text between the separators. An empty separator gives each character. */
-export function $split(text: unknown, separator: unknown): string[] {
+/** The strings extension's split(): the parts of a text between the separators, at most `limit` parts. An empty separator gives each character. */
+export function $split(text: unknown, separator: unknown, limit = -1): string[] {
   if (typeof text !== 'string' || typeof separator !== 'string') throw new RuleError('split() of a value that is not a string');
-  return separator === '' ? [...text] : text.split(separator);
+  if (limit === 0) return [];
+  const parts = separator === '' ? [...text] : text.split(separator);
+  if (limit < 0 || parts.length <= limit) return parts;
+  return [...parts.slice(0, limit - 1), parts.slice(limit - 1).join(separator)];
+}
+
+/** The characters of a string: CEL counts code points, not the units of a JavaScript string. */
+function $chars(text: unknown, fn: string): string[] {
+  return [...$str(text, fn)];
+}
+
+/** The strings extension's charAt(): the character at a position, or '' at the end. */
+export function $charAt(text: unknown, i: number): string {
+  const chars = $chars(text, 'charAt');
+  if (i < 0 || i > chars.length) throw new RuleError(`the index ${i} is out of the string`);
+  return chars[i] ?? '';
+}
+
+/** The position, in characters, of a part of a string at or after `from`, or -1. */
+export function $indexOf(text: unknown, part: unknown, from = 0): number {
+  const chars = $chars(text, 'indexOf');
+  const target = $chars(part, 'indexOf');
+  if (from < 0 || from > chars.length) throw new RuleError(`the index ${from} is out of the string`);
+  for (let i = from; i + target.length <= chars.length; i++) if (target.every((c, j) => chars[i + j] === c)) return i;
+  return -1;
+}
+
+/** The last position, in characters, of a part of a string at or before `from`, or -1. */
+export function $lastIndexOf(text: unknown, part: unknown, from?: number): number {
+  const chars = $chars(text, 'lastIndexOf');
+  const target = $chars(part, 'lastIndexOf');
+  const start = from ?? chars.length;
+  if (start < 0 || start > chars.length) throw new RuleError(`the index ${start} is out of the string`);
+  for (let i = Math.min(start, chars.length - target.length); i >= 0; i--) if (target.every((c, j) => chars[i + j] === c)) return i;
+  return -1;
+}
+
+/** The strings extension's replace(): each part, or the first `limit` parts; a negative limit is each. */
+export function $replace(text: unknown, part: unknown, by: unknown, limit = -1): string {
+  const pieces = $str(text, 'replace').split($str(part, 'replace'));
+  if (limit < 0 || limit >= pieces.length - 1) return pieces.join($str(by, 'replace'));
+  return pieces.slice(0, limit + 1).join(by as string) + (part as string) + pieces.slice(limit + 1).join(part as string);
+}
+
+/** The strings extension's substring(): the characters from `start` up to `end`, not included. */
+export function $substring(text: unknown, start: number, end?: number): string {
+  const chars = $chars(text, 'substring');
+  const stop = end ?? chars.length;
+  if (start < 0 || stop > chars.length || start > stop) throw new RuleError(`the range ${start} to ${stop} is out of the string`);
+  return chars.slice(start, stop).join('');
+}
+
+/** The strings extension's trim(): the white space of Unicode at each end. */
+export function $trim(text: unknown): string {
+  return $str(text, 'trim').replace(/^[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+|[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/g, '');
+}
+
+/** The strings extension's join() of a list of strings. */
+export function $join(list: unknown, separator = ''): string {
+  if (!Array.isArray(list) || list.some((s) => typeof s !== 'string')) throw new RuleError('join() of a value that is not a list of strings');
+  return list.join(separator);
+}
+
+/** The strings extension's reverse() of a string: its characters, last first. */
+export function $reverse(text: unknown): string {
+  return $chars(text, 'reverse').reverse().join('');
+}
+
+/** The strings extension's strings.quote(): the string as a CEL literal in double quotes. */
+export function $quote(text: unknown): string {
+  const ESC: Record<string, string> = { '\x07': '\\a', '\b': '\\b', '\f': '\\f', '\n': '\\n', '\r': '\\r', '\t': '\\t', '\v': '\\v', '\\': '\\\\', '"': '\\"' };
+  return `"${[...$str(text, 'quote')].map((c) => ESC[c] ?? c).join('')}"`;
+}
+
+/** A type of the checker, as the generated code receives it. */
+type $Type = { readonly kind: string; readonly of?: $Type };
+
+/** CEL's text of a value, as string() and format("%s") give it. */
+function $show(value: unknown, type: $Type | undefined): string {
+  switch (type?.kind) {
+    case 'list':
+      return `[${(value as unknown[]).map((v) => $show(v, type.of)).join(', ')}]`;
+    case 'double':
+      return $showDouble(value as number);
+    case 'timestamp':
+      return new Date(value as number).toISOString().replace('.000Z', 'Z');
+    case 'duration':
+      return `${(value as number) / 1000}s`;
+    default:
+      return String(value);
+  }
+}
+
+/** A double as CEL shows it: NaN, Infinity, -Infinity, or the shortest text of the number. */
+function $showDouble(n: number): string {
+  if (Number.isNaN(n)) return 'NaN';
+  if (!Number.isFinite(n)) return n > 0 ? 'Infinity' : '-Infinity';
+  return String(n);
+}
+
+/**
+ * A decimal text rounded to `digits` decimals, half to even, as CEL's format() rounds. The text must
+ * have more decimals than `digits`, exactly: toFixed and toExponential give the exact decimal value.
+ */
+function $roundEven(text: string, digits: number): string {
+  const negative = text.startsWith('-');
+  const [whole, fraction = ''] = (negative ? text.slice(1) : text).split('.') as [string, string?];
+  const kept = whole + fraction.slice(0, digits);
+  const rest = fraction.slice(digits);
+  const half = rest[0] === '5' && /^50*$/.test(rest);
+  const up = rest[0] !== undefined && (rest[0] > '5' || (rest[0] === '5' && !half) || (half && Number(kept.at(-1)) % 2 === 1));
+  let digitsText = kept;
+  if (up) {
+    const chars = [...kept];
+    let i = chars.length - 1;
+    while (i >= 0 && chars[i] === '9') chars[i--] = '0';
+    if (i < 0) chars.unshift('1');
+    else chars[i] = String(Number(chars[i]) + 1);
+    digitsText = chars.join('');
+  }
+  const cut = digitsText.length - digits;
+  const result = digits === 0 ? digitsText : `${digitsText.slice(0, cut)}.${digitsText.slice(cut)}`;
+  return negative && /[1-9]/.test(result) ? `-${result}` : negative ? `-${result}` : result;
+}
+
+/** The strings extension's format(): %s, %d, %f, %e, %b, %o, %x, %X and %%, with a precision for %f and %e. */
+export function $format(template: unknown, values: unknown, types: readonly $Type[]): string {
+  const list = values as unknown[];
+  const itemType = types[1]?.of;
+  let next = 0;
+  return $str(template, 'format').replace(/%(?:\.(\d+))?([a-zA-Z%])?/g, (whole, precision: string | undefined, verb: string | undefined) => {
+    if (verb === '%' && precision === undefined) return '%';
+    if (verb === undefined) throw new RuleError('a format clause has no verb');
+    if (next >= list.length) throw new RuleError(`index ${next} out of range`);
+    const value = list[next++];
+    const kind = itemType?.kind === 'any' ? typeof value : itemType?.kind;
+    const number = (): number => {
+      if (typeof value !== 'number') throw new RuleError(`%${verb} takes a number`);
+      return value;
+    };
+    const special = (n: number): string | undefined => (Number.isNaN(n) ? 'NaN' : !Number.isFinite(n) ? (n > 0 ? 'Infinity' : '-Infinity') : undefined);
+    switch (verb) {
+      case 's':
+        return $show(value, itemType);
+      case 'd': {
+        if (kind !== 'int' && kind !== 'double') throw new RuleError('%d takes an int');
+        const n = number();
+        const text = special(n);
+        if (text !== undefined) return text;
+        if (kind !== 'int') throw new RuleError('%d takes an int');
+        return String(n);
+      }
+      case 'f':
+      case 'e': {
+        if (kind !== 'int' && kind !== 'double') throw new RuleError(`%${verb} takes a number`);
+        const n = number();
+        const digits = precision === undefined ? 6 : Number(precision);
+        const text = special(n);
+        if (text !== undefined) return text;
+        if (verb === 'f') return $roundEven(n.toFixed(Math.min(100, digits + 40)), digits);
+        const exact = n.toExponential(Math.min(100, digits + 40));
+        let [mantissa, exponent] = exact.split('e') as [string, string];
+        mantissa = $roundEven(mantissa, digits);
+        if (/^-?10\./.test(mantissa) || mantissa.replace('-', '') === '10') {
+          // 9.99… rounded up to 10: one more power of 10.
+          mantissa = $roundEven((Number(mantissa) / 10).toFixed(Math.min(100, digits + 40)), digits);
+          exponent = String(Number(exponent) + 1);
+        }
+        const e = Number(exponent);
+        return `${mantissa}e${e < 0 ? '-' : '+'}${String(Math.abs(e)).padStart(2, '0')}`;
+      }
+      case 'b':
+        if (kind === 'bool') return value ? '1' : '0';
+        if (kind !== 'int') throw new RuleError('%b takes an int or a bool');
+        return number().toString(2);
+      case 'o':
+        if (kind !== 'int') throw new RuleError('%o takes an int');
+        return number().toString(8);
+      case 'x':
+      case 'X': {
+        let text: string;
+        if (kind === 'int') text = number().toString(16);
+        else if (kind === 'string') text = [...new TextEncoder().encode(value as string)].map((b) => b.toString(16).padStart(2, '0')).join('');
+        else throw new RuleError(`%${verb} takes an int or a string`);
+        return verb === 'X' ? text.toUpperCase() : text;
+      }
+      default:
+        throw new RuleError(`the format clause ${whole} is not known`);
+    }
+  });
 }
 
 /** The strings extension's lowerAscii(): only the letters A to Z change. */
@@ -109,6 +298,9 @@ export function $int(value: unknown): number {
 export function $double(value: unknown): number {
   if (typeof value === 'number') return value;
   if (typeof value === 'string' && /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(value)) return Number(value);
+  // As in CEL: NaN, Inf and Infinity, in any case.
+  const special = typeof value === 'string' ? /^([+-]?)(inf|infinity|nan)$/i.exec(value) : null;
+  if (special) return special[2]!.toLowerCase() === 'nan' ? NaN : special[1] === '-' ? -Infinity : Infinity;
   throw new RuleError(`${JSON.stringify(value)} is not a number`);
 }
 

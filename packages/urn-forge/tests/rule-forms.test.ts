@@ -90,6 +90,9 @@ describe('conversions', () => {
     expect(holds('int(2.9) == 2')).toBe(true);
     expect(codes('int(self.flag) == 1')).toEqual(['rule-type']);
     expect(sql('double(size(self.text)) > 1.0')).toContain('::DOUBLE PRECISION');
+    // double() of a text can give NaN, which Postgres orders above each number, and CEL does not.
+    expect(holds("double(self.text) != 2.0", { text: 'NaN' })).toBe(true);
+    expect(sql('double(self.text) > 2.0')).toBeUndefined();
   });
 });
 
@@ -153,7 +156,6 @@ describe('the SQL of each form', () => {
     ["self.text.contains('.4.')", ['1.4.0', '1.5.0', '.4.']],
     ["self.text.contains('')", ['', 'a']],
     ['int(self.text) == 12', ['12', '+12', '1x', '12.5', ' 12', '', '012']],
-    ['double(self.text) > 2.0', ['2.5', '2', 'NaN', 'Infinity', ' 2.5', '1e1', '.5', 'x']],
     ["string(size(self.text)) == '3'", ['abc', 'ab']],
     ["string(self.flag) == 'true'", ['a']],
     ['int(double(size(self.text)) / 2.0) == 1', ['ab', 'abc', 'abcd']],
