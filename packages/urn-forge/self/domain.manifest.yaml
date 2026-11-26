@@ -1,5 +1,7 @@
-# urn-forge's own domain: two pure functions of the compiler, declared with urn-forge. The core
-# calls the functions the compiler really uses, so the scenarios test the toolchain, not a copy.
+# urn-forge's own domain: pure functions of the toolchain whose results a user sees, declared with
+# urn-forge. The core calls the functions that urn-forge really uses, so the scenarios test the
+# toolchain, not a copy: the type name of a definition, the URN of a part, a URN namespace, the
+# verdicts of diff and of gate 5 on a version change, and the direction of a new bound.
 manifest:
   namespace: urn-forge
   domain: toolchain
@@ -33,10 +35,10 @@ definitions:
       - required: [type_name]
 
   version:
-    description: A semver version of a manifest, such as 1.4.0 or 2.0.0-alpha.1
+    description: A semver version of a manifest, such as 1.4.0 or 2.0.0-alpha.1, with the pattern that the manifest reader checks
     type: string
     rules:
-      - pattern: '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+      - pattern: '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'
 
   from_version:
     description: The version of the old manifest
@@ -73,6 +75,112 @@ definitions:
     rules:
       - required: [reason]
 
+  # The URN of a part
+  namespace_name:
+    description: The namespace of a manifest, which is also the namespace of its URNs
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9-]{1,31}$'
+
+  domain_name:
+    description: The domain of a manifest, such as booking
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
+
+  part_kind:
+    description: The section of the manifest that a part is in
+    type: string
+    rules:
+      - enum: [definition, rule, operation]
+
+  part_name:
+    description: The name of a part; a standard rule has a camelCase name, such as minLength
+    type: string
+    rules:
+      - pattern: '^[a-z][A-Za-z0-9_]{0,62}$'
+
+  urn:
+    description: The URN of a part, such as urn:demo:booking:definition:party_size
+    type: string
+
+  part:
+    description: A part of a manifest, named by its domain, its section and its name
+    type: object
+    properties: [namespace_name, domain_name, part_kind, part_name]
+    rules:
+      - required: [namespace_name, domain_name, part_kind, part_name]
+
+  part_urn:
+    description: The URN of a part
+    type: object
+    properties: [urn]
+    rules:
+      - required: [urn]
+
+  # A URN namespace
+  candidate:
+    description: A text that can be the namespace of a manifest, or not
+    type: string
+    rules:
+      - minLength: 1
+
+  namespace_candidate:
+    description: A text to check as the namespace of a manifest
+    type: object
+    properties: [candidate]
+    rules:
+      - required: [candidate]
+
+  namespace_accepted:
+    description: The text is a URN namespace
+    type: object
+    properties: [candidate]
+    rules:
+      - required: [candidate]
+
+  namespace_refused:
+    description: The text is not a URN namespace
+    type: object
+    properties: [candidate]
+    rules:
+      - required: [candidate]
+
+  # The direction of a new bound
+  bound_rule:
+    description: A standard rule with one bound, a number that the value is compared with
+    type: string
+    rules:
+      - enum: [minimum, maximum, exclusiveMinimum, exclusiveMaximum, minLength, maxLength, minItems, maxItems]
+
+  old_bound:
+    description: The bound in the old manifest
+    type: number
+
+  new_bound:
+    description: The bound in the new manifest
+    type: number
+
+  bound_change:
+    description: A new bound of a standard rule, as diff and gate 5 compare it
+    type: object
+    properties: [bound_rule, old_bound, new_bound]
+    rules:
+      - required: [bound_rule, old_bound, new_bound]
+
+  direction:
+    description: Whether the rule now accepts fewer values (narrower), more values (wider), or the same values
+    type: string
+    rules:
+      - enum: [narrower, wider, same]
+
+  bound_judged:
+    description: The direction of the new bound
+    type: object
+    properties: [direction]
+    rules:
+      - required: [direction]
+
 rules:
   at_most_the_name_and_value:
     description: A type name drops the underscores of the definition name, and adds Value at most (for a name that the generated file uses itself)
@@ -83,6 +191,46 @@ rules:
     description: A breaking change is refused only for a stable version (1.0.0 or later) that is not a pre-release
     rule: "!input.to_version.matches(r'^0\\.') && !input.to_version.matches(r'^[0-9]+\\.[0-9]+\\.[0-9]+-')"
     failure_message: A 0.x version or a pre-release allows a breaking change
+
+  joins_the_parts:
+    description: A URN is urn, the namespace, the domain, the section and the name, joined by colons
+    rule: "output.urn == 'urn:' + input.namespace_name + ':' + input.domain_name + ':' + input.part_kind + ':' + input.part_name"
+    failure_message: The URN is not urn:<namespace>:<domain>:<section>:<name>
+
+  is_a_urn_namespace:
+    description: A URN namespace has 2 to 32 lowercase letters, digits and hyphens, and starts with a letter
+    rule: "input.candidate.matches(r'^[a-z][a-z0-9-]{1,31}$')"
+    failure_message: The text is not a URN namespace
+
+  is_not_a_urn_namespace:
+    description: The text breaks the form of a URN namespace
+    rule: "!input.candidate.matches(r'^[a-z][a-z0-9-]{1,31}$')"
+    failure_message: The text is a URN namespace
+
+  names_the_candidate:
+    description: The answer names the text that was checked
+    rule: output.candidate == input.candidate
+    failure_message: The answer does not name the text that was checked
+
+  the_version_changed:
+    description: Gate 5 allows a weaker contract only with a new version, so that a reviewer sees the change
+    rule: input.from_version != input.to_version
+    failure_message: A weaker contract with the same version is allowed
+
+  keeps_the_version_or_a_stable_major:
+    description: Gate 5 refuses a weaker contract that keeps its version, or that stays within one stable major version
+    rule: "input.from_version == input.to_version || (!input.to_version.matches(r'^0\\.') && !input.to_version.matches(r'^[0-9]+\\.[0-9]+\\.[0-9]+-'))"
+    failure_message: A weaker contract is refused, but its version changed to a 0.x version or a pre-release
+
+  direction_by_the_form:
+    description: >-
+      A larger bound of a lower limit (minimum, exclusiveMinimum, minLength, minItems) accepts fewer values; a larger
+      bound of an upper limit accepts more; the same bound accepts the same values
+    rule: >-
+      (input.old_bound == input.new_bound && output.direction == 'same') ||
+      (input.old_bound != input.new_bound &&
+      (output.direction == 'narrower') == ((input.bound_rule in ['minimum', 'exclusiveMinimum', 'minLength', 'minItems']) == (input.new_bound > input.old_bound)))
+    failure_message: The direction of the new bound is wrong for the form of the rule
 
 operations:
   to_type_name:
@@ -97,3 +245,29 @@ operations:
     output:
       - breaking_allowed: []
       - breaking_refused: [stable_and_final]
+
+  name_part:
+    description: The URN of a part, as the generated file, diff and gate 5 give it
+    input: part
+    output:
+      - part_urn: [joins_the_parts]
+
+  check_namespace:
+    description: Whether a text is a URN namespace, as the manifest takes it
+    input: namespace_candidate
+    output:
+      - namespace_accepted: [is_a_urn_namespace, names_the_candidate]
+      - namespace_refused: [is_not_a_urn_namespace, names_the_candidate]
+
+  judge_weaker_contract:
+    description: Whether the versions of two manifests allow a weaker contract, as gate 5 judges it
+    input: version_change
+    output:
+      - breaking_allowed: [the_version_changed]
+      - breaking_refused: [keeps_the_version_or_a_stable_major]
+
+  judge_bound_change:
+    description: Whether a new bound of a standard rule accepts fewer values or more, as diff and gate 5 judge it
+    input: bound_change
+    output:
+      - bound_judged: [direction_by_the_form]

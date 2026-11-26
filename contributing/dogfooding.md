@@ -4,19 +4,27 @@ urn-forge uses itself. Some of its own functions are a urn-forge domain, and the
 
 ## `self/`: urn-forge's own domain
 
-The folder [`packages/urn-forge/self/`](../packages/urn-forge/self) holds a manifest with the namespace `urn_forge` and the domain `toolchain`. It declares two operations of the toolchain:
+The folder [`packages/urn-forge/self/`](../packages/urn-forge/self) holds a manifest with the namespace `urn-forge` and the domain `toolchain`. It declares six operations of the toolchain:
 
 - `to_type_name` gives the TypeScript type name of a definition, as the generated file does: `seat_booking` → `SeatBooking`. A name that the generated file declares itself, such as `failure`, gets `Value` after it.
+- `name_part` gives the URN of a part: `urn:demo:booking:definition:party_size`.
+- `check_namespace` tells if a text is a URN namespace, as the manifest reader takes it.
 - `judge_version_change` tells if two versions of a manifest allow a breaking change, as `diff` judges it by semver. It answers `breaking_allowed` or `breaking_refused`, each with the reason.
+- `judge_weaker_contract` tells if two versions allow a weaker contract, as gate 5 judges it: only with a new version, and only to one that `diff` would allow.
+- `judge_bound_change` tells if a new bound of a standard rule, such as `minimum: 1` to `minimum: 2`, accepts fewer values, more, or the same, as `diff` and gate 5 judge it.
 
-`self/` goes through the same chain as any other domain. It has a manifest, a generated file, a core and features. Its coverage is `error`. CI runs `verify` and Cucumber on it, and diffs its manifest against the base branch.
+`self/` goes through the same chain as any other domain. It has a manifest, a generated file, a core and features. A gap in its scenarios is an error, as in each domain. CI runs `verify` and Cucumber on it, and diffs its manifest against the base branch.
 
 ### The core calls the real functions
 
 Each function of the core in [`self/core.ts`](../packages/urn-forge/self/core.ts) calls the function that urn-forge itself uses. It does not have a copy:
 
 - `to_type_name` calls `typeName` from `src/generate/code.ts`.
+- `name_part` calls `partUrn` from `src/urn.ts`.
+- `check_namespace` calls the `NAMESPACE` test from `src/manifest.ts`.
 - `judge_version_change` calls `allowsBreaking` from `src/diff/command.ts`.
+- `judge_weaker_contract` calls `allowsWeaker` from `src/verify/contract.ts`, which gate 5 also uses.
+- `judge_bound_change` calls `argumentDirection` from `src/diff/classify.ts`, with the rule of the standard set.
 
 Thus the scenarios of `self/` test the toolchain. If a change to `typeName` or `allowsBreaking` changes a result, a scenario of `self/` fails. The rules of the outputs also hold the functions to the contract. For example, `stable_and_final` makes sure that `breaking_refused` never comes back for a `0.x` version or a pre-release.
 
@@ -34,7 +42,11 @@ Some pure functions of urn-forge give a result that a user can see, such as a na
 
 ### The limit of `self/`
 
-`self/` has strings only, and two small operations. It cannot show how urn-forge serves a business domain. The `insurance` domain and the six contracts of the corpus do that. Refer to [Add a domain](./add-a-domain.md).
+`self/` has strings and numbers only, and six small operations. It cannot show how urn-forge serves a business domain.
+
+The rule language cannot state every rule of `self/`. The rule of `to_type_name` says only that the type name is not much longer than the definition name: the language has no function for upper or lower case, and cannot count the underscores of a name. Its scenarios give the exact names.
+
+`self/` does not declare these pure functions yet: the failure message of a rule (`fillMessage`), the fix of a code (`fixOf`), the names of the Postgres schema, and the direction of a new argument of `enum` and `required`. Each can be one more operation. The `insurance` domain and the six contracts of the corpus do that. Refer to [Add a domain](./add-a-domain.md).
 
 ## The tutorial snapshots
 

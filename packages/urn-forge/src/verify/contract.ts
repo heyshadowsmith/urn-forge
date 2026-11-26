@@ -75,6 +75,15 @@ function uses(side: Side, header: Side['model']['header']): Map<string, { place:
   return map;
 }
 
+/**
+ * Whether the versions allow a weaker contract: only with a new version, and only to one that would
+ * allow a breaking change in diff (a new major version, a pre-release, or another 0.x version).
+ */
+export function allowsWeaker(from: string, to: string): { readonly allowed: boolean; readonly why: string } {
+  if (from === to) return { allowed: false, why: `${from} → ${to} keeps the version; a weaker contract needs a new version` };
+  return allowsBreaking(from, to);
+}
+
 export function contractGate(input: ContractGateInput): GateOutcome {
   const outcome = (pass: boolean, summary: string, problems: readonly GateProblem[]): GateOutcome => ({ gate: 5, name: 'contract', pass, summary, problems });
   if ('problem' in input.old) {
@@ -142,7 +151,7 @@ export function contractGate(input: ContractGateInput): GateOutcome {
 
   const from = old.model.header.version;
   const to = next.model.header.version;
-  const allowed = from !== to && allowsBreaking(from, to).allowed;
+  const { allowed } = allowsWeaker(from, to);
   const problems: GateProblem[] = changes.map((c) => {
     const where = c.file ? { file: c.file } : input.at(c.path);
     return { code: c.code, severity: allowed ? 'warning' : 'error', ...where, message: c.message };

@@ -41,6 +41,7 @@ Feature: Breaking changes and versions
       | pattern  | version        | 1.4          | 2.0.0      |
       | pattern  | version        | 1.4.0        | v2.0.0     |
       | pattern  | version        | 01.4.0       | 2.0.0      |
+      | pattern  | version        | 1.4.0        | 2.0.0-01   |
       | required | version_change | 1.4.0        |            |
 
   Scenario Outline: An answer that breaks a rule is not an answer
