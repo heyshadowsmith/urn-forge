@@ -2,7 +2,6 @@
 import { defineConfig } from 'urn-forge/config';
 
 export default defineConfig({
-  out: 'generated',
-  core: 'core.ts',
   tsconfig: '../tsconfig.json',
+  domains: [{ out: 'generated', core: 'core.ts' }],
 });

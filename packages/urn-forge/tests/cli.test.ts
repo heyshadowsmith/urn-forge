@@ -86,7 +86,7 @@ describe('verify', () => {
   it('gate 2: fails a shell that calls the core without the harness', async () => {
     const dir = copy();
     writeFileSync(join(dir, 'shell.ts'), "import { core } from './core.js';\n\nexport const seated = core.seat_booking;\n");
-    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("  postgres:", "  shell: ['shell.ts'],\n  postgres:"));
+    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("  domains:", "  shell: ['shell.ts'],\n  domains:"));
     const { code, out } = await run(dir, ['verify']);
     expect(code).toBe(1);
     expect(out).toContain('    shell.ts:3  error  direct-call  core.seat_booking runs the core without the harness; call runOperation(core, …), which checks the input and the answer');
@@ -95,7 +95,7 @@ describe('verify', () => {
   it('gate 2: fails a shell that takes a function out of the core', async () => {
     const dir = copy();
     writeFileSync(join(dir, 'shell.ts'), "import { core } from './core.js';\n\nexport const { seat_booking } = core;\n");
-    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("  postgres:", "  shell: ['shell.ts'],\n  postgres:"));
+    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("  domains:", "  shell: ['shell.ts'],\n  domains:"));
     expect((await run(dir, ['verify'])).out.some((l) => l.includes('shell.ts:3  error  direct-call  { seat_booking } = core takes a function of the core without the harness'))).toBe(true);
   });
 
@@ -154,9 +154,9 @@ describe('diff', () => {
 describe('the command line', () => {
   it('reports a config option that does not exist', async () => {
     const dir = copy();
-    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("  postgres:", "  plugins: [],\n  postgres:") );
+    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("  domains:", "  plugins: [],\n  domains:") );
     expect((await run(dir, ['compile'])).err).toEqual([
-      'urn-forge.config.ts  error  config-invalid  config.plugins is not an option; the options are manifest, out, core, features, tsconfig, shell, postgres',
+      'urn-forge.config.ts  error  config-invalid  config.plugins is not an option; the options are tsconfig, shell, domains',
       '  fix: Change the config to use only the options of defineConfig, with the types that the message names.',
     ]);
   });

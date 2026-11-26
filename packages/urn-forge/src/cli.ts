@@ -7,11 +7,12 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
-import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
+import { CONFIG_FILE, loadConfig, type PostgresConfig, type UrnForgeConfig } from './config.js';
 import { fixOf, type Code } from './codes.js';
 import type { Diagnostic, Path } from './diagnostics.js';
 import { longNames, postgresProblems, postgresSchema } from './generate/postgres.js';
 import { initProject, nameProblem } from './init.js';
+import { domainUrn } from './urn.js';
 import { boundaryGate } from './verify/boundary.js';
 import { completenessGate, coreProgram } from './verify/completeness.js';
 import { contractGate, type ContractGateInput } from './verify/contract.js';
@@ -60,6 +61,8 @@ export interface Problem {
   /** The place in the manifest or the config, as a path of keys. */
   readonly path?: Path;
   readonly message: string;
+  /** The URN of the domain of the problem, when it is known. */
+  readonly domain?: string;
 }
 
 export type Format = 'text' | 'json';
@@ -70,6 +73,8 @@ export type Format = 'text' | 'json';
  */
 export class Report {
   readonly problems: Problem[] = [];
+  /** The URN of the domain that the next problems belong to, if any. */
+  domain: string | undefined;
 
   constructor(
     private readonly io: CliIo,
@@ -87,7 +92,7 @@ export class Report {
   }
 
   problem(problem: Problem, stream: 'stdout' | 'stderr' = 'stderr', indent = ''): void {
-    this.problems.push(problem);
+    this.problems.push(problem.domain === undefined && this.domain !== undefined ? { ...problem, domain: this.domain } : problem);
     if (this.format !== 'text') return;
     const write = stream === 'stdout' ? this.io.stdout : this.io.stderr;
     const where = problem.file ? `${problem.file}${problem.line ? `:${problem.line}` : ''}  ` : '';
@@ -104,6 +109,7 @@ export class Report {
         file: p.file ?? null,
         line: p.line ?? null,
         path: p.path ?? null,
+        domain: p.domain ?? null,
         message: p.message,
         fix: fixOf(p.code),
       }));
@@ -136,12 +142,21 @@ function showDiagnostics(report: Report, file: string, text: string, diagnostics
   }
 }
 
-interface Project {
-  readonly config: UrnForgeConfig;
-  readonly configPath: string;
-  readonly base: string;
+/** One domain of a project, with its paths resolved. */
+interface DomainProject {
   readonly manifestPath: string;
   readonly outDir: string;
+  readonly corePath: string;
+  readonly featuresPath: string;
+  readonly postgres?: PostgresConfig;
+}
+
+interface Project {
+  readonly configPath: string;
+  readonly base: string;
+  readonly tsconfigPath: string;
+  readonly shell: readonly string[];
+  readonly domains: readonly DomainProject[];
 }
 
 const OPTIONS = {
@@ -155,6 +170,9 @@ const OPTIONS = {
   namespace: { type: 'string' },
   domain: { type: 'string' },
 } as const;
+
+/** The flags that name the paths of one domain. */
+const DOMAIN_FLAGS = ['manifest', 'out', 'core', 'features'] as const;
 
 async function project(io: CliIo, report: Report, values: Record<string, string | undefined>): Promise<Project | undefined> {
   const configPath = values['config'] ? resolve(io.cwd, values['config']) : join(io.cwd, CONFIG_FILE);
@@ -171,42 +189,77 @@ async function project(io: CliIo, report: Report, values: Record<string, string 
     }
     config = loaded.config;
   }
+  const domains = config.domains ?? [{}];
+  const flags = DOMAIN_FLAGS.filter((flag) => values[flag] !== undefined);
+  if (flags.length > 0 && domains.length > 1) {
+    throw new UsageError(`--${flags[0]} names the path of one domain, and the config has ${domains.length} domains: change the config`);
+  }
   // A path of the config is relative to the config; a path of a flag to the working directory.
   const base = dirname(configPath);
   const path = (flag: string | undefined, option: string | undefined, fallback: string): string =>
     flag !== undefined ? resolve(io.cwd, flag) : resolve(base, option ?? fallback);
+  const resolved: DomainProject[] = domains.map((d) => ({
+    manifestPath: path(values['manifest'], d.manifest, 'domain.manifest.yaml'),
+    outDir: path(values['out'], d.out, 'src/generated'),
+    corePath: path(values['core'], d.core, 'src/core.ts'),
+    featuresPath: path(values['features'], d.features, 'features'),
+    ...(d.postgres ? { postgres: d.postgres } : {}),
+  }));
+  // Two domains must not share a manifest, a folder of generated files or a folder of scenarios.
+  const clashes: [keyof DomainProject, string][] = [
+    ['manifestPath', 'read the manifest'],
+    ['outDir', 'write to'],
+    ['featuresPath', 'read the scenarios of'],
+  ];
+  let clash = false;
+  for (const [key, what] of clashes) {
+    const seen = new Set<string>();
+    for (const d of resolved) {
+      const value = d[key] as string;
+      if (seen.has(value)) {
+        report.problem({ code: 'config-invalid', severity: 'error', file: display(io, configPath), message: `two domains ${what} ${display(io, value)}; give each domain its own` });
+        clash = true;
+      }
+      seen.add(value);
+    }
+  }
+  if (clash) return undefined;
   return {
-    config: {
-      ...config,
-      core: path(values['core'], config.core, 'src/core.ts'),
-      features: path(values['features'], config.features, 'features'),
-      tsconfig: path(values['tsconfig'], config.tsconfig, 'tsconfig.json'),
-      shell: (config.shell ?? []).map((s) => resolve(base, s)),
-    },
     configPath,
     base,
-    manifestPath: path(values['manifest'], config.manifest, 'domain.manifest.yaml'),
-    outDir: path(values['out'], config.out, 'src/generated'),
+    tsconfigPath: path(values['tsconfig'], config.tsconfig, 'tsconfig.json'),
+    shell: (config.shell ?? []).map((s) => resolve(base, s)),
+    domains: resolved,
   };
 }
 
-/** Reads and compiles the manifest; shows its diagnostics. Undefined when it cannot be read or has an error. */
-function compileProject(io: CliIo, report: Report, p: Project): { compiled: Compiled & { model: NonNullable<Compiled['model']> }; files: ReturnType<typeof generate>; text: string } | undefined {
+interface CompiledDomain {
+  readonly domain: DomainProject;
+  readonly urn: string;
+  readonly compiled: Compiled & { model: NonNullable<Compiled['model']> };
+  readonly files: ReturnType<typeof generate>;
+  readonly text: string;
+}
+
+/** Reads and compiles the manifest of a domain; shows its diagnostics. Undefined when it cannot be read or has an error. */
+function compileDomain(io: CliIo, report: Report, p: Project, d: DomainProject): CompiledDomain | undefined {
+  report.domain = undefined;
   let text: string;
   try {
-    text = readFileSync(p.manifestPath, 'utf8');
+    text = readFileSync(d.manifestPath, 'utf8');
   } catch {
-    report.problem({ code: 'manifest-unreadable', severity: 'error', file: display(io, p.manifestPath), message: 'the manifest does not exist' });
+    report.problem({ code: 'manifest-unreadable', severity: 'error', file: display(io, d.manifestPath), message: 'the manifest does not exist' });
     return undefined;
   }
   const compiled = compileManifest(text);
-  showDiagnostics(report, display(io, p.manifestPath), text, compiled.diagnostics);
+  if (compiled.model) report.domain = domainUrn(compiled.model.header);
+  showDiagnostics(report, display(io, d.manifestPath), text, compiled.diagnostics);
   if (!compiled.model) return undefined;
-  if (p.config.postgres) {
-    const problems = postgresProblems(compiled.model, p.config.postgres);
+  if (d.postgres) {
+    const problems = postgresProblems(compiled.model, d.postgres);
     if (problems.length === 0) {
       // Every name of the schema, also of a constraint, a function or a trigger, must fit in 63 bytes.
-      for (const name of longNames(postgresSchema(compiled.model, compiled.applications, p.config.postgres))) {
+      for (const name of longNames(postgresSchema(compiled.model, compiled.applications, d.postgres))) {
         problems.push({ code: 'postgres-column', severity: 'error', path: ['postgres'], message: `${name} is longer than 63 bytes, the most that Postgres takes for a name` });
       }
     }
@@ -216,15 +269,34 @@ function compileProject(io: CliIo, report: Report, p: Project): { compiled: Comp
     if (problems.length > 0) return undefined;
   }
   // The header names the manifest relative to the config, so that it does not depend on the working directory.
-  const source = relative(p.base, p.manifestPath).split('\\').join('/');
-  const files = generate(compiled as Compiled & { model: NonNullable<Compiled['model']> }, source, p.config);
-  return { compiled: compiled as Compiled & { model: NonNullable<Compiled['model']> }, files, text };
+  const source = relative(p.base, d.manifestPath).split('\\').join('/');
+  const model = compiled as Compiled & { model: NonNullable<Compiled['model']> };
+  const files = generate(model, source, d.postgres ? { postgres: d.postgres } : {});
+  return { domain: d, urn: domainUrn(compiled.model.header), compiled: model, files, text };
 }
 
-/** The contract at a git ref: the manifest and the features at their paths of the working tree. */
-function baseContract(io: CliIo, p: Project, ref: string): ContractGateInput['old'] {
+/** Compiles each domain. Undefined when one of them has an error, or when two have one URN. */
+function compileProject(io: CliIo, report: Report, p: Project): CompiledDomain[] | undefined {
+  const results = p.domains.map((d) => compileDomain(io, report, p, d));
+  report.domain = undefined;
+  if (results.some((r) => r === undefined)) return undefined;
+  const compiled = results as CompiledDomain[];
+  const seen = new Set<string>();
+  let clash = false;
+  for (const c of compiled) {
+    if (seen.has(c.urn)) {
+      report.problem({ code: 'config-invalid', severity: 'error', file: display(io, p.configPath), message: `two domains have the URN ${c.urn}; give each a namespace and a domain of its own` });
+      clash = true;
+    }
+    seen.add(c.urn);
+  }
+  return clash ? undefined : compiled;
+}
+
+/** The contract at a git ref: the manifest and the features of a domain at their paths of the working tree. */
+function baseContract(io: CliIo, d: DomainProject, ref: string): ContractGateInput['old'] {
   const git = (args: string[]): string =>
-    execFileSync('git', args, { cwd: dirname(p.manifestPath), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+    execFileSync('git', args, { cwd: dirname(d.manifestPath), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
   let root: string;
   try {
     root = git(['rev-parse', '--show-toplevel']).trim();
@@ -241,13 +313,13 @@ function baseContract(io: CliIo, p: Project, ref: string): ContractGateInput['ol
   const inTree = (path: string): string => relative(real(root), real(path)).split('\\').join('/');
   let text: string;
   try {
-    text = git(['show', `${ref}:${inTree(p.manifestPath)}`]);
+    text = git(['show', `${ref}:${inTree(d.manifestPath)}`]);
   } catch {
     return { nothing: `the manifest is new since ${ref}` };
   }
   const compiled = compileManifest(text);
   if (!compiled.model) return { nothing: `the manifest at ${ref} does not compile` };
-  const names = git(['ls-tree', '-r', '--full-tree', '--name-only', ref, '--', inTree(p.config.features!)])
+  const names = git(['ls-tree', '-r', '--full-tree', '--name-only', ref, '--', inTree(d.featuresPath)])
     .split('\n')
     .filter((name) => name.endsWith('.feature'));
   const features = names.map((name) => ({ path: display(io, join(root, name)), text: git(['show', `${ref}:${name}`]) }));
@@ -259,10 +331,17 @@ async function compileCommand(io: CliIo, report: Report, argv: readonly string[]
   if (positionals.length > 0) throw new UsageError(`compile takes no argument: ${positionals.join(' ')}`);
   const p = await project(io, report, values);
   if (!p) return report.end(1);
-  const result = compileProject(io, report, p);
-  if (!result) return report.end(1);
-  const files = (await writeGenerated(p.outDir, result.files)).map((line) => ({ status: line.status, path: display(io, line.path) }));
-  for (const file of files) report.out(`${file.status.padEnd(10)} ${file.path}`);
+  const results = compileProject(io, report, p);
+  if (!results) return report.end(1);
+  const files: { domain: string; status: string; path: string }[] = [];
+  for (const result of results) {
+    if (results.length > 1) report.out(result.urn);
+    for (const line of await writeGenerated(result.domain.outDir, result.files)) {
+      const file = { domain: result.urn, status: line.status, path: display(io, line.path) };
+      files.push(file);
+      report.out(`${file.status.padEnd(10)} ${file.path}`);
+    }
+  }
   return report.end(0, { files });
 }
 
@@ -278,60 +357,81 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
   const p = await project(io, report, values);
   if (!p) {
     report.err('verify failed: the config is not valid');
-    return report.end(1, { gates: [] });
+    return report.end(1, { gates: [], domains: [] });
   }
-  const result = compileProject(io, report, p);
-  if (!result) {
+  const results = compileProject(io, report, p);
+  if (!results) {
     report.err('verify failed: the manifest does not compile');
-    return report.end(1, { gates: [] });
+    return report.end(1, { gates: [], domains: [] });
   }
-  // The warnings of the manifest, such as deprecated-use, count with those of the gates.
-  let warnings = result.compiled.diagnostics.filter((d) => d.severity === 'warning').length;
   const show = (path: string): string => display(io, path);
-  const generatedPath = join(p.outDir, GENERATED_FILE);
-  const coreOptions = { corePath: p.config.core!, generatedPath, tsconfigPath: p.config.tsconfig!, show };
-  const program = coreProgram(coreOptions);
-  const featureFiles = features(p.config.features!).map((path) => ({ path: show(path), text: readFileSync(path, 'utf8') }));
-  const outcomes: GateOutcome[] = [
-    completenessGate(coreOptions, program),
-    boundaryGate({ ...coreOptions, shell: p.config.shell ?? [] }, program),
-    gherkinGate({
-      model: result.compiled.model,
-      applications: result.compiled.applications,
-      features: featureFiles,
-    }),
-    await driftGate(p.outDir, result.files, show),
-  ];
-  if (values['base'] !== undefined) {
-    const manifestFile = show(p.manifestPath);
-    outcomes.push(
-      contractGate({
-        base: values['base'],
-        old: baseContract(io, p, values['base']),
-        next: { side: { model: result.compiled.model, applications: result.compiled.applications }, features: featureFiles },
-        at: (path) => {
-          const line = lineOf(result.text, path);
-          return { file: manifestFile, ...(line ? { line } : {}) };
-        },
-      }),
-    );
-  }
-  for (const outcome of outcomes) {
-    report.out(`gate ${outcome.gate}  ${outcome.name.padEnd(12)}  ${outcome.pass ? 'PASS' : 'FAIL'}  ${outcome.summary}`);
-    for (const problem of outcome.problems) {
-      if (problem.severity === 'warning') warnings++;
-      report.problem(problem, 'stdout', '    ');
+  const several = results.length > 1;
+  const domains: { urn: string; gates: { gate: number; name: string; pass: boolean; summary: string }[] }[] = [];
+  const failures: string[] = [];
+  // The warnings of the manifest, such as deprecated-use, count with those of the gates.
+  let warnings = results.reduce((n, r) => n + r.compiled.diagnostics.filter((d) => d.severity === 'warning').length, 0);
+  // A problem of the shared shell is shown once, not once for each domain.
+  const shellProblems = new Set<string>();
+  let ran = '';
+  for (const result of results) {
+    const d = result.domain;
+    report.domain = result.urn;
+    const generatedPath = join(d.outDir, GENERATED_FILE);
+    const coreOptions = { corePath: d.corePath, generatedPath, tsconfigPath: p.tsconfigPath, show };
+    const program = coreProgram(coreOptions);
+    const featureFiles = features(d.featuresPath).map((path) => ({ path: show(path), text: readFileSync(path, 'utf8') }));
+    const boundary = boundaryGate({ ...coreOptions, shell: p.shell }, program);
+    const outcomes: GateOutcome[] = [
+      completenessGate(coreOptions, program),
+      {
+        ...boundary,
+        problems: boundary.problems.filter((problem) => {
+          const key = `${problem.code} ${problem.file} ${problem.line ?? ''} ${problem.message}`;
+          if (shellProblems.has(key)) return false;
+          shellProblems.add(key);
+          return true;
+        }),
+      },
+      gherkinGate({ model: result.compiled.model, applications: result.compiled.applications, features: featureFiles }),
+      await driftGate(d.outDir, result.files, show),
+    ];
+    if (values['base'] !== undefined) {
+      const manifestFile = show(d.manifestPath);
+      outcomes.push(
+        contractGate({
+          base: values['base'],
+          old: baseContract(io, d, values['base']),
+          next: { side: { model: result.compiled.model, applications: result.compiled.applications }, features: featureFiles },
+          at: (path) => {
+            const line = lineOf(result.text, path);
+            return { file: manifestFile, ...(line ? { line } : {}) };
+          },
+        }),
+      );
     }
+    if (several) report.out(result.urn);
+    for (const outcome of outcomes) {
+      report.out(`gate ${outcome.gate}  ${outcome.name.padEnd(12)}  ${outcome.pass ? 'PASS' : 'FAIL'}  ${outcome.summary}`);
+      for (const problem of outcome.problems) {
+        if (problem.severity === 'warning') warnings++;
+        report.problem(problem, 'stdout', '    ');
+      }
+    }
+    domains.push({ urn: result.urn, gates: outcomes.map((o) => ({ gate: o.gate, name: o.name, pass: o.pass, summary: o.summary })) });
+    const failed = outcomes.filter((o) => !o.pass).map((o) => o.gate);
+    if (failed.length > 0) failures.push(several ? `${result.urn} gate ${failed.join(', ')}` : `gate ${failed.join(', ')}`);
+    ran = `gates ${outcomes.map((o) => o.gate).join(', ')}`;
   }
-  const gates = outcomes.map((o) => ({ gate: o.gate, name: o.name, pass: o.pass, summary: o.summary }));
-  const ran = `gates ${outcomes.map((o) => o.gate).join(', ')}`;
-  const failed = outcomes.filter((o) => !o.pass).map((o) => o.gate);
-  if (failed.length > 0) {
-    report.err(`verify failed: gate ${failed.join(', ')}`);
-    return report.end(1, { gates, warnings });
+  report.domain = undefined;
+  const gates = domains.flatMap((d) => d.gates.map((g) => ({ domain: d.urn, ...g })));
+  const extra = { gates, domains, warnings };
+  if (failures.length > 0) {
+    report.err(`verify failed: ${failures.join('; ')}`);
+    return report.end(1, extra);
   }
-  report.out(warnings > 0 ? `verify passed with ${warnings} warning(s) (${ran})` : `verify passed (${ran})`);
-  return report.end(0, { gates, warnings });
+  const what = several ? `${results.length} domains, ${ran}` : ran;
+  report.out(warnings > 0 ? `verify passed with ${warnings} warning(s) (${what})` : `verify passed (${what})`);
+  return report.end(0, extra);
 }
 
 async function initCommand(io: CliIo, argv: readonly string[]): Promise<number> {

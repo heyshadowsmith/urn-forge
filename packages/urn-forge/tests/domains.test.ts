@@ -12,7 +12,7 @@ import { compileManifest } from '../src/compile.js';
 import { classify } from '../src/diff/classify.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { strict: it, namespace: it, urns: it, domains: it.fails };
+const target = { strict: it, namespace: it, urns: it, domains: it };
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const BOOKING = join(FIXTURES, 'booking');
@@ -59,7 +59,7 @@ function twoDomains(config?: string): string {
 describe('always strict', () => {
   target.strict('refuses the coverage option', async () => {
     const dir = copy();
-    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace('  postgres:', "  coverage: 'error',\n  postgres:"));
+    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace('  domains:', "  coverage: 'error',\n  domains:"));
     const { code, err } = await run(dir, ['compile']);
     expect(code).toBe(1);
     expect(err.join('\n')).toMatch(/config-invalid {2}config\.coverage is removed: a gap in the scenarios is always an error/);
@@ -125,6 +125,19 @@ describe('several domains', () => {
     const { code, out } = await run(dir, ['verify', '--format', 'json']);
     expect(code).toBe(1);
     expect(JSON.parse(out[0]!).problems).toContainEqual(expect.objectContaining({ code: 'uncovered-rule', domain: 'urn:demo:second' }));
+  });
+
+  it('check the shared shell against the core of each domain', async () => {
+    const dir = twoDomains();
+    // The config is a module, so the test changes it before the first command loads it.
+    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace('  domains:', "  shell: ['shell.ts'],\n  domains:"));
+    writeFileSync(join(dir, 'shell.ts'), "import { core } from './second/core.js';\n\nexport const seated = core.seat_booking;\n");
+    expect((await run(dir, ['compile'])).code).toBe(0);
+    const { code, out } = await run(dir, ['verify', '--format', 'json']);
+    expect(code).toBe(1);
+    const json = JSON.parse(out[0]!);
+    expect(json.problems.filter((p: { code: string }) => p.code === 'direct-call')).toEqual([expect.objectContaining({ file: 'shell.ts', domain: 'urn:demo:second' })]);
+    expect(json.domains.map((d: { gates: { pass: boolean }[] }) => d.gates[1]!.pass)).toEqual([true, false]);
   });
 
   target.domains('refuse two domains with the same out', async () => {

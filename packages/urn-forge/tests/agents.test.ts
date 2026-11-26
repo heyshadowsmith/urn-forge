@@ -85,7 +85,7 @@ describe('--format json', () => {
     const dir = copy();
     const compile = await run(dir, ['compile', '--format', 'json']);
     expect(compile.out).toHaveLength(1);
-    expect(JSON.parse(compile.out[0]!)).toMatchObject({ ok: true, files: expect.arrayContaining([{ status: 'unchanged', path: 'generated/domain.generated.ts' }]) });
+    expect(JSON.parse(compile.out[0]!)).toMatchObject({ ok: true, files: expect.arrayContaining([expect.objectContaining({ status: 'unchanged', path: 'generated/domain.generated.ts' })]) });
     const diff = await run(dir, ['diff', 'domain.manifest.yaml', 'domain.manifest.yaml', '--format', 'json']);
     expect(diff.out).toHaveLength(1);
     expect(JSON.parse(diff.out[0]!)).toMatchObject({ ok: true, changes: [] });

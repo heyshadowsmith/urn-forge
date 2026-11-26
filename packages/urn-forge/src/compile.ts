@@ -6,7 +6,7 @@ import { domainUrn } from './urn.js';
 import { createHash } from 'node:crypto';
 import ts from 'typescript';
 import * as v from 'valibot';
-import type { UrnForgeConfig } from './config.js';
+import type { DomainConfig } from './config.js';
 import { Diagnostics, type Diagnostic } from './diagnostics.js';
 import { checksModule, generatedFile, header, type GeneratedFile } from './generate/code.js';
 import { storeFile } from './generate/store.js';
@@ -100,7 +100,7 @@ export function fingerprint(body: string): string {
 }
 
 /** The generated files of a compiled manifest. `source` is the manifest's path, for the header. */
-export function generate(compiled: Compiled & { readonly model: Model }, source: string, config: UrnForgeConfig = {}): GeneratedFile[] {
+export function generate(compiled: Compiled & { readonly model: Model }, source: string, config: Pick<DomainConfig, 'postgres'> = {}): GeneratedFile[] {
   const files = [{ path: GENERATED_FILE, content: generatedFile(compiled.model, compiled.applications, source, fingerprint) }];
   if (config.postgres) {
     const body = postgresSchema(compiled.model, compiled.applications, config.postgres);
