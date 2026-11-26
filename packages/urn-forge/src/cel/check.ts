@@ -275,7 +275,12 @@ class Checker {
     if ((expr.target && !target) || args.some((a) => a === undefined)) return undefined;
     const resolved = resolve(expr.fn, target, args as CelType[]);
     if (resolved) return resolved.result;
-    return this.wrong(expr, `${expr.fn}() takes ${signatures(expr.fn)}`, ...(target ? [target] : []), ...(args as CelType[]));
+    const given = [...(target ? [target] : []), ...(args as CelType[])];
+    // Numbers of two types, such as math.greatest(1, 2.5), need a dynamic type in CEL.
+    if (given.length > 1 && given.every(isNumber) && !given.every((t) => same(t, given[0]!))) {
+      return this.problem('rule-type', expr.at, `${print(expr)}: the arguments of ${expr.fn}() must have one type`);
+    }
+    return this.wrong(expr, `${expr.fn}() takes ${signatures(expr.fn)}`, ...given);
   }
 }
 

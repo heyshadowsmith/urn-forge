@@ -19,6 +19,8 @@ export interface Overload {
   readonly result: Pattern;
   /** The helper of runtime.ts that runs it, given the target and the arguments, in that order. */
   readonly helper: string;
+  /** The last argument repeats: one or more of it, as in math.greatest(1, 2, 3). */
+  readonly variadic?: boolean;
   /** The helper also takes the types of the target and the arguments, as a last argument: format() prints 2 and 2.0 apart. */
   readonly typed?: boolean;
 }
@@ -36,6 +38,16 @@ const list = (of: Pattern): Pattern => ({ kind: 'list', of });
 
 const method = (target: Pattern, args: readonly Pattern[], result: Pattern, helper: string): Overload => ({ target, args, result, helper });
 const fn = (args: readonly Pattern[], result: Pattern, helper: string): Overload => ({ args, result, helper });
+
+/** math.greatest() and math.least(): one or more ints, one or more doubles, or a list of either. */
+function numbersOrList(helper: string): Overload[] {
+  return [
+    { ...fn([P.int], P.int, helper), variadic: true },
+    { ...fn([P.double], P.double, helper), variadic: true },
+    fn([list(P.int)], P.int, `${helper}Of`),
+    fn([list(P.double)], P.double, `${helper}Of`),
+  ];
+}
 
 /** The overloads of each name. A name with a dot, such as `math.greatest`, is a function of a namespace. */
 export const FUNCTIONS: Readonly<Record<string, readonly Overload[]>> = {
@@ -56,6 +68,23 @@ export const FUNCTIONS: Readonly<Record<string, readonly Overload[]>> = {
   reverse: [method(P.string, [], P.string, '$reverse')],
   format: [{ ...method(P.string, [list(P.T)], P.string, '$format'), typed: true }],
   'strings.quote': [fn([P.string], P.string, '$quote')],
+  'math.greatest': numbersOrList('$greatest'),
+  'math.least': numbersOrList('$least'),
+  'math.ceil': [fn([P.double], P.double, '$ceil')],
+  'math.floor': [fn([P.double], P.double, '$floor')],
+  'math.round': [fn([P.double], P.double, '$round')],
+  'math.trunc': [fn([P.double], P.double, '$trunc')],
+  'math.abs': [fn([P.int], P.int, '$abs'), fn([P.double], P.double, '$abs')],
+  'math.sign': [fn([P.int], P.int, '$sign'), fn([P.double], P.double, '$sign')],
+  'math.isNaN': [fn([P.double], P.bool, '$isNaN')],
+  'math.isInf': [fn([P.double], P.bool, '$isInf')],
+  'math.isFinite': [fn([P.double], P.bool, '$isFinite')],
+  'math.bitAnd': [fn([P.int, P.int], P.int, '$bitAnd')],
+  'math.bitOr': [fn([P.int, P.int], P.int, '$bitOr')],
+  'math.bitXor': [fn([P.int, P.int], P.int, '$bitXor')],
+  'math.bitNot': [fn([P.int], P.int, '$bitNot')],
+  'math.bitShiftLeft': [fn([P.int, P.int], P.int, '$bitShiftLeft')],
+  'math.bitShiftRight': [fn([P.int, P.int], P.int, '$bitShiftRight')],
   lowerAscii: [method(P.string, [], P.string, '$lowerAscii')],
   upperAscii: [method(P.string, [], P.string, '$upperAscii')],
   int: [fn([P.int], P.int, '$int'), fn([P.double], P.int, '$int'), fn([P.string], P.int, '$int'), fn([P.timestamp], P.int, '$intOfTimestamp')],
@@ -70,9 +99,22 @@ export const FUNCTIONS: Readonly<Record<string, readonly Overload[]>> = {
   timestamp: [fn([P.string], P.timestamp, '$timestamp'), fn([P.timestamp], P.timestamp, '$timestamp'), fn([P.int], P.timestamp, '$timestampOfInt')],
 };
 
-/** The numbers of arguments that a name takes, as a method or as a function. */
-export function arities(name: string, asMethod: boolean): number[] {
-  return [...new Set((FUNCTIONS[name] ?? []).filter((o) => (o.target !== undefined) === asMethod).map((o) => o.args.length))];
+/** Whether a name is a function (or a method) of the table. */
+export function isFunction(name: string, asMethod: boolean): boolean {
+  return (FUNCTIONS[name] ?? []).some((o) => (o.target !== undefined) === asMethod);
+}
+
+/** Whether a name takes this number of arguments, as a method or as a function. */
+export function takes(name: string, asMethod: boolean, count: number): boolean {
+  return (FUNCTIONS[name] ?? []).some((o) => (o.target !== undefined) === asMethod && (o.variadic ? count >= o.args.length : count === o.args.length));
+}
+
+/** The numbers of arguments that a name takes, for a message: "one argument or 2 arguments". */
+export function arities(name: string, asMethod: boolean): string {
+  const words = (n: number): string => (n === 0 ? 'no argument' : n === 1 ? 'one argument' : `${n} arguments`);
+  const forms = (FUNCTIONS[name] ?? []).filter((o) => (o.target !== undefined) === asMethod);
+  const counts = [...new Set(forms.map((o) => (o.variadic ? `${o.args.length === 1 ? 'one' : o.args.length} or more arguments` : words(o.args.length))))];
+  return counts.join(' or ');
 }
 
 /** Whether a type fits a pattern, with `T` bound once. A type `any` (an empty list's item) fits each pattern. */
@@ -106,10 +148,11 @@ function instance(pattern: Pattern, bound: { T?: CelType }): CelType {
 /** The first overload that takes these types, and the type that it gives. */
 export function resolve(name: string, target: CelType | undefined, args: readonly CelType[]): { readonly overload: Overload; readonly result: CelType } | undefined {
   for (const overload of FUNCTIONS[name] ?? []) {
-    if ((overload.target === undefined) !== (target === undefined) || overload.args.length !== args.length) continue;
+    if ((overload.target === undefined) !== (target === undefined)) continue;
+    if (overload.variadic ? args.length < overload.args.length : overload.args.length !== args.length) continue;
     const bound: { T?: CelType } = {};
     if (overload.target && !fits(overload.target, target!, bound)) continue;
-    if (!overload.args.every((p, i) => fits(p, args[i]!, bound))) continue;
+    if (!args.every((a, i) => fits(overload.args[Math.min(i, overload.args.length - 1)]!, a, bound))) continue;
     return { overload, result: instance(overload.result, bound) };
   }
   return undefined;

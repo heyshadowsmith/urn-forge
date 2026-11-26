@@ -400,6 +400,110 @@ export function $string(value: unknown): string {
   throw new RuleError('string() of a value that is not an int, a double, a string or a bool');
 }
 
+/** The math extension's math.greatest() of one or more numbers. */
+export function $greatest(...values: number[]): number {
+  return $greatestOf(values);
+}
+
+/** The math extension's math.greatest() of a list: an empty list is an error. */
+export function $greatestOf(values: readonly number[]): number {
+  if (values.length === 0) throw new RuleError('math.greatest() of an empty list');
+  return values.reduce((a, b) => (b > a ? b : a));
+}
+
+/** The math extension's math.least() of one or more numbers. */
+export function $least(...values: number[]): number {
+  return $leastOf(values);
+}
+
+/** The math extension's math.least() of a list: an empty list is an error. */
+export function $leastOf(values: readonly number[]): number {
+  if (values.length === 0) throw new RuleError('math.least() of an empty list');
+  return values.reduce((a, b) => (b < a ? b : a));
+}
+
+/** The math extension's math.ceil(). */
+export function $ceil(x: number): number {
+  return Math.ceil(x);
+}
+
+/** The math extension's math.floor(). */
+export function $floor(x: number): number {
+  return Math.floor(x);
+}
+
+/** The math extension's math.round(): half away from 0, not up as Math.round. */
+export function $round(x: number): number {
+  return Number.isFinite(x) ? Math.sign(x) * Math.round(Math.abs(x)) : x;
+}
+
+/** The math extension's math.trunc(): toward 0. */
+export function $trunc(x: number): number {
+  return Math.trunc(x);
+}
+
+/** The math extension's math.abs(). */
+export function $abs(x: number): number {
+  return Math.abs(x);
+}
+
+/** The math extension's math.sign(): -1, 0 or 1. */
+export function $sign(x: number): number {
+  return Number.isNaN(x) ? x : x > 0 ? 1 : x < 0 ? -1 : 0;
+}
+
+/** The math extension's math.isNaN(). */
+export function $isNaN(x: number): boolean {
+  return Number.isNaN(x);
+}
+
+/** The math extension's math.isInf(). */
+export function $isInf(x: number): boolean {
+  return x === Infinity || x === -Infinity;
+}
+
+/** The math extension's math.isFinite(). */
+export function $isFinite(x: number): boolean {
+  return Number.isFinite(x);
+}
+
+/** An int of 64 bits as a BigInt, and back: the bit functions of CEL work on 64 bits, not on the 32 of JavaScript. */
+function $bits(f: (...xs: bigint[]) => bigint, ...xs: number[]): number {
+  return $int53(Number(BigInt.asIntN(64, f(...xs.map(BigInt)))));
+}
+
+/** The math extension's math.bitAnd(). */
+export function $bitAnd(a: number, b: number): number {
+  return $bits((x, y) => x & y, a, b);
+}
+
+/** The math extension's math.bitOr(). */
+export function $bitOr(a: number, b: number): number {
+  return $bits((x, y) => x | y, a, b);
+}
+
+/** The math extension's math.bitXor(). */
+export function $bitXor(a: number, b: number): number {
+  return $bits((x, y) => x ^ y, a, b);
+}
+
+/** The math extension's math.bitNot(). */
+export function $bitNot(a: number): number {
+  return $bits((x) => ~x, a);
+}
+
+/** The math extension's math.bitShiftLeft(): a shift of 64 or more gives 0; a negative shift is an error. */
+export function $bitShiftLeft(a: number, n: number): number {
+  if (n < 0) throw new RuleError('a negative shift');
+  return n >= 64 ? 0 : $bits((x, y) => x << y, a, n);
+}
+
+/** The math extension's math.bitShiftRight(): a logical shift, of the 64 bits; a negative shift is an error. */
+export function $bitShiftRight(a: number, n: number): number {
+  if (n < 0) throw new RuleError('a negative shift');
+  return n >= 64 ? 0 : $bits((x, y) => BigInt.asUintN(64, x) >> y, a, n);
+}
+
 /** CEL's / of two ints: toward 0. A division by 0 is an error. */
 export function $divInt(a: number, b: number): number {
   if (b === 0) throw new RuleError('division by 0');

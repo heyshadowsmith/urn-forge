@@ -17,7 +17,7 @@
  * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)` and `l.filter(x, p)`.
  */
 
-import { arities } from './functions.js';
+import { arities, isFunction, takes } from './functions.js';
 
 export type BinaryOp = '||' | '&&' | '==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | '+' | '-' | '*' | '/' | '%';
 export type MacroName = 'all' | 'exists' | 'exists_one' | 'map' | 'filter';
@@ -159,8 +159,6 @@ const RELATIONS: readonly BinaryOp[] = ['==', '!=', '<', '<=', '>', '>=', 'in'];
 const MACROS: readonly string[] = ['all', 'exists', 'exists_one', 'map', 'filter'];
 /** The namespaces of functions, such as math in math.greatest(). */
 const NAMESPACES: readonly string[] = ['math', 'lists', 'strings'];
-
-const count = (n: number): string => (n === 0 ? 'no argument' : n === 1 ? 'one argument' : `${n} arguments`);
 const RESERVED = new Set(['true', 'false', 'null', 'in', 'as', 'break', 'const', 'continue', 'else', 'for', 'function', 'if', 'import', 'let', 'loop', 'package', 'namespace', 'return', 'var', 'void', 'while']);
 
 class Parser {
@@ -296,9 +294,9 @@ class Parser {
       // math.greatest(…): a function of a namespace, not a method of a name.
       const namespaced = expr.kind === 'name' && NAMESPACES.includes(expr.name) ? `${expr.name}.${token.text}` : undefined;
       const name = namespaced ?? token.text;
-      const counts = arities(name, namespaced === undefined);
-      if (counts.length === 0) throw new CelSyntaxError(`the ${namespaced ? 'function' : 'method'} ${name}() is not in the subset`, token.at);
-      if (!counts.includes(args.length)) throw new CelSyntaxError(`${name}() takes ${counts.map(count).join(' or ')}`, token.at);
+      const asMethod = namespaced === undefined;
+      if (!isFunction(name, asMethod)) throw new CelSyntaxError(`the ${asMethod ? 'method' : 'function'} ${name}() is not in the subset`, token.at);
+      if (!takes(name, asMethod, args.length)) throw new CelSyntaxError(`${name}() takes ${arities(name, asMethod)}`, token.at);
       expr = namespaced ? { kind: 'call', fn: name, args, at: expr.at } : { kind: 'call', fn: name, target: expr, args, at: token.at };
     }
   }
@@ -352,9 +350,8 @@ class Parser {
           if (args.length !== 1) throw new CelSyntaxError('duration() takes one argument', at);
           return { kind: 'call', fn: 'duration', args, at };
         default: {
-          const counts = arities(token.text, false);
-          if (counts.length === 0) throw new CelSyntaxError(`the function ${token.text}() is not in the subset`, at);
-          if (!counts.includes(args.length)) throw new CelSyntaxError(`${token.text}() takes ${counts.map(count).join(' or ')}`, at);
+          if (!isFunction(token.text, false)) throw new CelSyntaxError(`the function ${token.text}() is not in the subset`, at);
+          if (!takes(token.text, false, args.length)) throw new CelSyntaxError(`${token.text}() takes ${arities(token.text, false)}`, at);
           return { kind: 'call', fn: token.text, args, at };
         }
       }
