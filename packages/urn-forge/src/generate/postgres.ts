@@ -32,6 +32,21 @@ function sqlValue(value: unknown): string | undefined {
 
 class Untranslatable extends Error {}
 
+/** The texts that int() and double() take, as the generated code takes them. */
+const INTEGER = '^[+-]?[0-9]+$';
+const DOUBLE = '^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$';
+
+/**
+ * A text for a cast to a number. Postgres casts more texts than CEL, such as ' 12' and 'NaN': each
+ * other text becomes 'x', whose cast is an error, so the row is refused as the rule breaks.
+ */
+function numeric(text: string, pattern: string): string {
+  return `(CASE WHEN ${text} ~ ${literal(pattern)} THEN ${text} ELSE 'x' END)`;
+}
+
+/** The letters that lowerAscii() and upperAscii() change. */
+const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
 /** What a path below the value of a rule is in a table: a column, an embedded object, or a list. */
 type Part =
   | { readonly kind: 'value'; readonly column: string }
@@ -97,6 +112,31 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: reado
           }
           case 'matches':
             return `(${sql(e.target!)} ~ ${sql(e.args[0]!)})`;
+          case 'startsWith':
+            return `starts_with(${sql(e.target!)}, ${sql(e.args[0]!)})`;
+          case 'endsWith': {
+            const part = sql(e.args[0]!);
+            return `(right(${sql(e.target!)}, char_length(${part})) = ${part})`;
+          }
+          case 'contains':
+            return `(strpos(${sql(e.target!)}, ${sql(e.args[0]!)}) > 0)`;
+          case 'lowerAscii':
+          case 'upperAscii': {
+            const [from, to] = e.fn === 'lowerAscii' ? [UPPER, UPPER.toLowerCase()] : [UPPER.toLowerCase(), UPPER];
+            return `translate(${sql(e.target!)}, '${from}', '${to}')`;
+          }
+          case 'int': {
+            const arg = e.args[0]!;
+            const kind = types.get(arg)?.kind;
+            if (kind === 'double') return `TRUNC(${sql(arg)})::BIGINT`;
+            return kind === 'string' ? `${numeric(sql(arg), INTEGER)}::BIGINT` : `(${sql(arg)})::BIGINT`;
+          }
+          case 'double': {
+            const arg = e.args[0]!;
+            return types.get(arg)?.kind === 'string' ? `${numeric(sql(arg), DOUBLE)}::DOUBLE PRECISION` : `(${sql(arg)})::DOUBLE PRECISION`;
+          }
+          case 'string':
+            return `(${sql(e.args[0]!)})::TEXT`;
           case 'timestamp':
             return `(${sql(e.args[0]!)})::TIMESTAMPTZ`;
           case 'duration':
@@ -105,7 +145,10 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: reado
             throw new Untranslatable();
         }
       case 'macro':
+      case 'index':
         throw new Untranslatable();
+      case 'conditional':
+        return `(CASE WHEN ${sql(e.condition)} THEN ${sql(e.then)} ELSE ${sql(e.otherwise)} END)`;
       case 'unary':
         return e.op === '!' ? `(NOT ${sql(e.operand)})` : `(-${sql(e.operand)})`;
       case 'binary': {

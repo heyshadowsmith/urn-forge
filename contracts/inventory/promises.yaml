@@ -174,7 +174,8 @@ promises:
   # names the purchase order and has one stock level per line (receives_each_line), and for a line
   # whose SKU-location pair occurs once, the new on-hand is the stored on-hand plus the received
   # quantity. A pair that occurs on two lines is not stated: the previous count of the second line is
-  # the count after the first, and the subset of CEL has no index or filter to say it.
+  # the count after the first. filter and an index do not say it either: the rule needs the lines before
+  # a line, and all() does not give the position of the line.
   P22:
     promise: "ReceiveGoods names a purchase order id and 1 to 200 lines, and the answer reports for each line the new on-hand count, which equals the previous on-hand plus the received quantity."
     status: workaround

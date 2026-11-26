@@ -103,7 +103,7 @@ You do not need to read the generated files, the types of the code, or each rule
 
 ## What the contract cannot state yet
 
-The contract cannot state some rules yet: time zones and calendar months, a filter, the minimum or the maximum of a list, a count of the items that match a condition, either-or shapes, maps with free keys, and check digits. Put these rules in the code, with a refusal as an answer, and ask the agent for scenarios at their edges.
+The contract cannot state some rules yet: time zones and calendar months, either-or shapes, maps with free keys, and check digits. Put these rules in the code, with a refusal as an answer, and ask the agent for scenarios at their edges.
 
 ## The reference
 

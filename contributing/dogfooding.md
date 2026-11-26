@@ -44,7 +44,9 @@ Some pure functions of urn-forge give a result that a user can see, such as a na
 
 `self/` has strings and numbers only, and six small operations. It cannot show how urn-forge serves a business domain.
 
-The rule language cannot state every rule of `self/`. The rule of `to_type_name` says only that the type name is not much longer than the definition name: the language has no function for upper or lower case, and cannot count the underscores of a name. Its scenarios give the exact names.
+The rule language cannot state every rule of `self/`. The rule of `to_type_name` says only that the type name is not much longer than the definition name. The language can now split a name at its underscores and change the case of a text, but it cannot join a list of texts or take one character of a text, so it cannot build the PascalCase name. Its scenarios give the exact names.
+
+The verdicts on a version change are complete: `allows_a_breaking_change` reads the major version with `int(…split('.')[0])`, and `keeps_the_major` and `keeps_the_version_or_the_major` hold each refusal.
 
 `self/` does not declare these pure functions yet: the failure message of a rule (`fillMessage`), the fix of a code (`fixOf`), the names of the Postgres schema, and the direction of a new argument of `enum` and `required`. Each can be one more operation. The `insurance` domain and the six contracts of the corpus do that. Refer to [Add a domain](./add-a-domain.md).
 

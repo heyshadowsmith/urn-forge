@@ -1073,6 +1073,15 @@ rules:
       (t.place_kind == 'standing' && input.stored_hold.held_lines.exists(l, l.place_kind == 'standing' && l.section == t.section)))
     failure_message: The order must have one ticket per held seat or standing place
 
+  standing_tickets_per_section:
+    description: Each held standing section has as many standing tickets as the hold has standing places in that section
+    rule: >-
+      has(input.stored_hold) &&
+      input.stored_hold.held_lines.all(l, l.place_kind != 'standing' ||
+      size(output.order.tickets.filter(t, t.place_kind == 'standing' && t.section == l.section)) ==
+      input.stored_hold.held_lines.filter(m, m.place_kind == 'standing' && m.section == l.section).map(m, m.quantity).sum())
+    failure_message: A standing section has another number of tickets than the hold has places in it
+
   total_is_line_prices_plus_fees:
     description: The total of the order is the sum of the line prices of the hold plus the fees
     rule: >-
@@ -1418,6 +1427,7 @@ operations:
           - payment_approved
           - order_of_the_hold
           - one_ticket_per_held_place
+          - standing_tickets_per_section
           - total_is_line_prices_plus_fees
           - issues_the_tickets
           - converts_the_hold

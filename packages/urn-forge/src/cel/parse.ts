@@ -4,19 +4,37 @@
  * syntax error that names it, so that the subset grows only for a real need.
  *
  * The subset:
- * - names (`self`, `input`, `output`, parameters, the variable of a macro), and properties: `a.b`;
+ * - names (`self`, `input`, `output`, parameters, the variable of a macro), properties: `a.b`, and an
+ *   item of a list: `l[i]`;
  * - literals: integers, doubles, strings in single or double quotes (`r'…'` for raw), `true`, `false`,
  *   and lists `[a, b]`;
- * - `!`, unary `-`, `*`, `/`, `%`, `+`, `-`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `&&`, `||`, and
- *   parentheses;
- * - the functions `has(a.b)`, `size(x)`, `timestamp(s)`, `duration(s)`, and the methods `x.size()`,
- *   `s.matches(re)`, `l.sum()`;
- * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)` and `l.map(x, e)`.
+ * - `!`, unary `-`, `*`, `/`, `%`, `+`, `-`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `&&`, `||`,
+ *   `c ? a : b`, and parentheses;
+ * - the functions `has(a.b)`, `size(x)`, `timestamp(s)`, `duration(s)`, `int(x)`, `double(x)`,
+ *   `string(x)`, and the methods `x.size()`, `s.matches(re)`, `s.startsWith(t)`, `s.endsWith(t)`,
+ *   `s.contains(t)`, `l.sum()`, and from the strings extension `s.split(t)`, `s.lowerAscii()` and
+ *   `s.upperAscii()`;
+ * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)` and `l.filter(x, p)`.
  */
 
 export type BinaryOp = '||' | '&&' | '==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | '+' | '-' | '*' | '/' | '%';
-export type MacroName = 'all' | 'exists' | 'exists_one' | 'map';
-export type FunctionName = 'has' | 'size' | 'timestamp' | 'duration' | 'matches' | 'sum';
+export type MacroName = 'all' | 'exists' | 'exists_one' | 'map' | 'filter';
+export type FunctionName =
+  | 'has'
+  | 'size'
+  | 'timestamp'
+  | 'duration'
+  | 'int'
+  | 'double'
+  | 'string'
+  | 'matches'
+  | 'startsWith'
+  | 'endsWith'
+  | 'contains'
+  | 'split'
+  | 'lowerAscii'
+  | 'upperAscii'
+  | 'sum';
 
 /** A node of a rule. `at` is its offset in the text, from 0. */
 export type Expr =
@@ -27,10 +45,12 @@ export type Expr =
   | { readonly kind: 'bool'; readonly value: boolean; readonly at: number }
   | { readonly kind: 'list'; readonly items: readonly Expr[]; readonly at: number }
   | { readonly kind: 'select'; readonly operand: Expr; readonly field: string; readonly at: number }
+  | { readonly kind: 'index'; readonly operand: Expr; readonly index: Expr; readonly at: number }
   | { readonly kind: 'call'; readonly fn: FunctionName; readonly target?: Expr; readonly args: readonly Expr[]; readonly at: number }
   | { readonly kind: 'macro'; readonly macro: MacroName; readonly target: Expr; readonly variable: string; readonly body: Expr; readonly at: number }
   | { readonly kind: 'unary'; readonly op: '!' | '-'; readonly operand: Expr; readonly at: number }
-  | { readonly kind: 'binary'; readonly op: BinaryOp; readonly left: Expr; readonly right: Expr; readonly at: number };
+  | { readonly kind: 'binary'; readonly op: BinaryOp; readonly left: Expr; readonly right: Expr; readonly at: number }
+  | { readonly kind: 'conditional'; readonly condition: Expr; readonly then: Expr; readonly otherwise: Expr; readonly at: number };
 
 /** A rule that does not parse: the message, and the offset where the problem is. */
 export class CelSyntaxError extends Error {
@@ -50,7 +70,7 @@ type Token =
   | { readonly kind: 'symbol'; readonly text: string; readonly at: number }
   | { readonly kind: 'end'; readonly at: number };
 
-const SYMBOLS = ['||', '&&', '==', '!=', '<=', '>=', '<', '>', '!', '+', '-', '*', '/', '%', '(', ')', '[', ']', ',', '.'];
+const SYMBOLS = ['||', '&&', '==', '!=', '<=', '>=', '<', '>', '!', '+', '-', '*', '/', '%', '(', ')', '[', ']', ',', '.', '?', ':'];
 const ESCAPES: Readonly<Record<string, string>> = { '\\': '\\', "'": "'", '"': '"', n: '\n', t: '\t', r: '\r' };
 
 function lex(text: string): Token[] {
@@ -112,7 +132,7 @@ function lex(text: string): Token[] {
     }
     const symbol = SYMBOLS.find((s) => text.startsWith(s, i));
     if (!symbol) {
-      const why = c === '?' ? '?: is not in the subset; write the rule with && and ||' : c === '{' ? 'maps are not in the subset' : `the character ${c} is not in the subset`;
+      const why = c === '{' ? 'maps are not in the subset' : `the character ${c} is not in the subset`;
       throw new CelSyntaxError(why, at);
     }
     tokens.push({ kind: 'symbol', text: symbol, at });
@@ -123,7 +143,9 @@ function lex(text: string): Token[] {
 }
 
 const RELATIONS: readonly BinaryOp[] = ['==', '!=', '<', '<=', '>', '>=', 'in'];
-const MACROS: readonly string[] = ['all', 'exists', 'exists_one', 'map'];
+const MACROS: readonly string[] = ['all', 'exists', 'exists_one', 'map', 'filter'];
+/** The methods of the subset, and the number of the arguments of each. */
+const METHODS: Readonly<Record<string, number>> = { size: 0, sum: 0, matches: 1, startsWith: 1, endsWith: 1, contains: 1, split: 1, lowerAscii: 0, upperAscii: 0 };
 const RESERVED = new Set(['true', 'false', 'null', 'in', 'as', 'break', 'const', 'continue', 'else', 'for', 'function', 'if', 'import', 'let', 'loop', 'package', 'namespace', 'return', 'var', 'void', 'while']);
 
 class Parser {
@@ -149,9 +171,19 @@ class Parser {
   }
 
   parseRule(): Expr {
-    const expr = this.or();
+    const expr = this.expr();
     if (this.next.kind !== 'end') throw new CelSyntaxError(`expected the end of the rule, found ${describe(this.next)}`, this.next.at);
     return expr;
+  }
+
+  /** `c ? a : b`, as in CEL: the condition and the first value are below ?:, the last value can be another ?:. */
+  private expr(): Expr {
+    const condition = this.or();
+    const at = this.next.at;
+    if (!this.symbol('?')) return condition;
+    const then = this.or();
+    this.expect(':', ': after the first value of ?');
+    return { kind: 'conditional', condition, then, otherwise: this.expr(), at };
   }
 
   private or(): Expr {
@@ -221,7 +253,12 @@ class Parser {
     let expr = this.primary();
     for (;;) {
       const at = this.next.at;
-      if (this.symbol('[')) throw new CelSyntaxError('an index [ ] is not in the subset', at);
+      if (this.symbol('[')) {
+        const index = this.expr();
+        this.expect(']', '] to close the index');
+        expr = { kind: 'index', operand: expr, index, at };
+        continue;
+      }
       if (!this.symbol('.')) return expr;
       const token = this.next;
       if (token.kind !== 'name' || RESERVED.has(token.text)) throw new CelSyntaxError(`expected a name after ., found ${describe(token)}`, token.at);
@@ -235,27 +272,23 @@ class Parser {
         if (variable.kind !== 'name' || RESERVED.has(variable.text)) throw new CelSyntaxError(`the first argument of ${token.text} must be a name for each item`, variable.at);
         this.index++;
         this.expect(',', `, after ${variable.text}`);
-        const body = this.or();
+        const body = this.expr();
         this.expect(')', `) to close ${token.text}`);
         expr = { kind: 'macro', macro: token.text as MacroName, target: expr, variable: variable.text, body, at: token.at };
         continue;
       }
       const args = this.args();
-      if (token.text === 'size' || token.text === 'sum') {
-        if (args.length !== 0) throw new CelSyntaxError(`${token.text}() takes no argument`, token.at);
-      } else if (token.text === 'matches') {
-        if (args.length !== 1) throw new CelSyntaxError('matches() takes one argument: a regular expression', token.at);
-      } else {
-        throw new CelSyntaxError(`the method ${token.text}() is not in the subset`, token.at);
-      }
-      expr = { kind: 'call', fn: token.text, target: expr, args, at: token.at };
+      if (!Object.hasOwn(METHODS, token.text)) throw new CelSyntaxError(`the method ${token.text}() is not in the subset`, token.at);
+      const count = METHODS[token.text]!;
+      if (args.length !== count) throw new CelSyntaxError(`${token.text}() takes ${count === 0 ? 'no argument' : 'one argument'}`, token.at);
+      expr = { kind: 'call', fn: token.text as FunctionName, target: expr, args, at: token.at };
     }
   }
 
   private args(): Expr[] {
     const args: Expr[] = [];
     if (this.symbol(')')) return args;
-    do args.push(this.or());
+    do args.push(this.expr());
     while (this.symbol(','));
     this.expect(')', ') or ,');
     return args;
@@ -272,7 +305,7 @@ class Parser {
     }
     if (token.kind === 'symbol' && token.text === '(') {
       this.index++;
-      const expr = this.or();
+      const expr = this.expr();
       this.expect(')', ')');
       return expr;
     }
@@ -280,7 +313,7 @@ class Parser {
       this.index++;
       const items: Expr[] = [];
       if (!this.symbol(']')) {
-        do items.push(this.or());
+        do items.push(this.expr());
         while (this.symbol(','));
         this.expect(']', '] or ,');
       }
@@ -300,6 +333,9 @@ class Parser {
         case 'size':
         case 'timestamp':
         case 'duration':
+        case 'int':
+        case 'double':
+        case 'string':
           if (args.length !== 1) throw new CelSyntaxError(`${token.text}() takes one argument`, at);
           return { kind: 'call', fn: token.text, args, at };
         default:

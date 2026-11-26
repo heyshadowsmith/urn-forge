@@ -115,12 +115,12 @@ A subset of CEL. Each rule must give a `bool`.
 
 - **Names:** `self`, `input`, `output`, the parameters of the rule, and the variable of a macro.
 - **Literals:** `5000`, `-1`, `0.5`, `'text'`, `"text"`, `r'^[0-9]{4}$'`, `true`, `false`, `['a', 'b']` (not empty).
-- **Operators**, lowest precedence first: `||`; `&&`; `==` `!=` `<` `<=` `>` `>=` `in`; `+` `-`; `*` `/` `%`; `!` and unary `-`; `a.b`.
-- **Functions:** `has(a.b)`, `size(x)` or `x.size()`, `s.matches(re)`, `timestamp(s)`, `duration('1h30m')` (units `h`, `m`, `s`, `ms`, `us`, `ns`), `l.sum()`.
-- **Macros:** `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)`.
+- **Operators**, lowest precedence first: `c ? a : b`; `||`; `&&`; `==` `!=` `<` `<=` `>` `>=` `in`; `+` `-`; `*` `/` `%`; `!` and unary `-`; `a.b` and `l[i]`. An index out of the list breaks the rule.
+- **Functions:** `has(a.b)`, `size(x)` or `x.size()`, `s.matches(re)`, `s.startsWith(t)`, `s.endsWith(t)`, `s.contains(t)`, `s.split(t)`, `s.lowerAscii()`, `s.upperAscii()`, `int(x)`, `double(x)`, `string(x)`, `timestamp(s)`, `duration('1h30m')` (units `h`, `m`, `s`, `ms`, `us`, `ns`), `l.sum()`. `int()` or `double()` of a string that is not a number breaks the rule.
+- **Macros:** `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)`, `l.filter(x, p)`. A count: `size(l.filter(x, p))`.
 - **Optional properties:** read one only after a guard: `has(self.deposit) && self.deposit > 0`, or `!has(self.deposit) || self.deposit > 0`.
 - **Times:** compare with `timestamp()`: `timestamp(self.ends_at) > timestamp(self.starts_at) + duration('30m')`. A day is `'24h'`; there are no months and no time zones.
-- **Not in the subset:** `a ? b : c`, `null`, `a[0]`, maps, `filter`, `min()`, `max()`, `startsWith()`, `int()`, and other functions.
+- **Not in the subset:** `null`, maps, `min()`, `max()`, and other functions. The largest item: `l.exists(m, l.all(x, x <= m) && …)`.
 
 ## The generated file
 

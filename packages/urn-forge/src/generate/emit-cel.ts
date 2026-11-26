@@ -38,6 +38,8 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
         return `[${e.items.map((i) => emit(i, scope)).join(', ')}]`;
       case 'select':
         return `(${emit(e.operand, scope)} as any)[${JSON.stringify(e.field)}]`;
+      case 'index':
+        return `$index(${emit(e.operand, scope)}, ${emit(e.index, scope)})`;
       case 'call': {
         const target = e.target ?? e.args[0]!;
         switch (e.fn) {
@@ -51,6 +53,21 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
             return `$sum(${emit(target, scope)})`;
           case 'matches':
             return `$matches(${emit(target, scope)}, ${emit(e.args[0]!, scope)})`;
+          case 'startsWith':
+          case 'endsWith':
+          case 'contains':
+            return `$text(${emit(target, scope)}, ${JSON.stringify(e.fn)}, ${emit(e.args[0]!, scope)})`;
+          case 'split':
+            return `$split(${emit(target, scope)}, ${emit(e.args[0]!, scope)})`;
+          case 'lowerAscii':
+          case 'upperAscii':
+            return `$case(${emit(target, scope)}, ${JSON.stringify(e.fn)})`;
+          case 'int':
+            return `$int(${emit(target, scope)})`;
+          case 'double':
+            return `$double(${emit(target, scope)})`;
+          case 'string':
+            return `$string(${emit(target, scope)})`;
           case 'timestamp':
             return `$timestamp(${emit(target, scope)})`;
           case 'duration':
@@ -72,11 +89,15 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
             return `(${list}.filter((${variable}: any) => ${body}).length === 1)`;
           case 'map':
             return `${list}.map((${variable}: any) => ${body})`;
+          case 'filter':
+            return `${list}.filter((${variable}: any) => ${body})`;
         }
         break;
       }
       case 'unary':
         return `(${e.op}${emit(e.operand, scope)})`;
+      case 'conditional':
+        return `(${emit(e.condition, scope)} ? ${emit(e.then, scope)} : ${emit(e.otherwise, scope)})`;
       case 'binary': {
         const left = emit(e.left, scope);
         const right = emit(e.right, scope);

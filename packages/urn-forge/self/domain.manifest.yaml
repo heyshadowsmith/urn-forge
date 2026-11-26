@@ -192,6 +192,23 @@ rules:
     rule: "!input.to_version.matches(r'^0\\.') && !input.to_version.matches(r'^[0-9]+\\.[0-9]+\\.[0-9]+-')"
     failure_message: A 0.x version or a pre-release allows a breaking change
 
+  allows_a_breaking_change:
+    description: A breaking change is allowed for a 0.x version, a pre-release, or a new major version
+    rule: >-
+      input.to_version.startsWith('0.') || input.to_version.split('+')[0].contains('-') ||
+      int(input.to_version.split('.')[0]) > int(input.from_version.split('.')[0])
+    failure_message: A breaking change is allowed within one stable major version
+
+  keeps_the_major:
+    description: A breaking change is refused only when the major version does not increase
+    rule: int(input.to_version.split('.')[0]) <= int(input.from_version.split('.')[0])
+    failure_message: A breaking change is refused, but the major version increased
+
+  keeps_the_version_or_the_major:
+    description: Gate 5 refuses a weaker contract that keeps its version, or whose major version does not increase
+    rule: input.from_version == input.to_version || int(input.to_version.split('.')[0]) <= int(input.from_version.split('.')[0])
+    failure_message: A weaker contract is refused, but its major version increased
+
   joins_the_parts:
     description: A URN is urn, the namespace, the domain, the section and the name, joined by colons
     rule: "output.urn == 'urn:' + input.namespace_name + ':' + input.domain_name + ':' + input.part_kind + ':' + input.part_name"
@@ -243,8 +260,8 @@ operations:
     description: Whether the versions of two manifests allow a breaking change, as diff judges it by semver
     input: version_change
     output:
-      - breaking_allowed: []
-      - breaking_refused: [stable_and_final]
+      - breaking_allowed: [allows_a_breaking_change]
+      - breaking_refused: [stable_and_final, keeps_the_major]
 
   name_part:
     description: The URN of a part, as the generated file, diff and gate 5 give it
@@ -263,8 +280,8 @@ operations:
     description: Whether the versions of two manifests allow a weaker contract, as gate 5 judges it
     input: version_change
     output:
-      - breaking_allowed: [the_version_changed]
-      - breaking_refused: [keeps_the_version_or_a_stable_major]
+      - breaking_allowed: [the_version_changed, allows_a_breaking_change]
+      - breaking_refused: [keeps_the_version_or_a_stable_major, keeps_the_version_or_the_major]
 
   judge_bound_change:
     description: Whether a new bound of a standard rule accepts fewer values or more, as diff and gate 5 judge it

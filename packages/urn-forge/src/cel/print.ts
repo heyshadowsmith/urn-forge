@@ -29,6 +29,8 @@ function level(expr: Expr): number {
       return LEVEL[expr.op];
     case 'unary':
       return UNARY;
+    case 'conditional':
+      return 0;
     case 'int':
     case 'double':
       // A negative literal binds as a unary minus.
@@ -65,6 +67,8 @@ export function print(expr: Expr): string {
       return `[${expr.items.map(print).join(', ')}]`;
     case 'select':
       return `${at(expr.operand, MEMBER)}.${expr.field}`;
+    case 'index':
+      return `${at(expr.operand, MEMBER)}[${print(expr.index)}]`;
     case 'call': {
       const args = expr.args.map(print).join(', ');
       return expr.target ? `${at(expr.target, MEMBER)}.${expr.fn}(${args})` : `${expr.fn}(${args})`;
@@ -73,6 +77,8 @@ export function print(expr: Expr): string {
       return `${at(expr.target, MEMBER)}.${expr.macro}(${expr.variable}, ${print(expr.body)})`;
     case 'unary':
       return `${expr.op}${at(expr.operand, UNARY)}`;
+    case 'conditional':
+      return `${at(expr.condition, 1)} ? ${at(expr.then, 1)} : ${print(expr.otherwise)}`;
     case 'binary': {
       const own = LEVEL[expr.op];
       // Left to right: the left side binds at its own level, the right side one level higher.

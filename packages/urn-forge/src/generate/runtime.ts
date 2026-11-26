@@ -53,6 +53,51 @@ export function $sum(list: unknown): number {
   return list.reduce((total: number, item: number) => total + item, 0);
 }
 
+/** CEL's l[i]: the item at i, from 0. An index out of the list is an error. */
+export function $index(list: unknown, i: number): unknown {
+  if (!Array.isArray(list) || !Number.isInteger(i) || i < 0 || i >= list.length) throw new RuleError(`the index ${i} is out of the list`);
+  return list[i];
+}
+
+/** CEL's startsWith(), endsWith() and contains() of two strings. */
+export function $text(text: unknown, test: 'startsWith' | 'endsWith' | 'contains', part: unknown): boolean {
+  if (typeof text !== 'string' || typeof part !== 'string') throw new RuleError(`${test}() of a value that is not a string`);
+  return test === 'startsWith' ? text.startsWith(part) : test === 'endsWith' ? text.endsWith(part) : text.includes(part);
+}
+
+/** The strings extension's split(): the parts of a text between the separators. An empty separator gives each character. */
+export function $split(text: unknown, separator: unknown): string[] {
+  if (typeof text !== 'string' || typeof separator !== 'string') throw new RuleError('split() of a value that is not a string');
+  return separator === '' ? [...text] : text.split(separator);
+}
+
+/** The strings extension's lowerAscii() and upperAscii(): only the letters A to Z change. */
+export function $case(text: unknown, to: 'lowerAscii' | 'upperAscii'): string {
+  if (typeof text !== 'string') throw new RuleError(`${to}() of a value that is not a string`);
+  return to === 'lowerAscii' ? text.replace(/[A-Z]/g, (c) => c.toLowerCase()) : text.replace(/[a-z]/g, (c) => c.toUpperCase());
+}
+
+/** CEL's int(): a double toward 0, or a string of an integer. Any other string is an error. */
+export function $int(value: unknown): number {
+  if (typeof value === 'string' && !/^[+-]?\d+$/.test(value)) throw new RuleError(`${JSON.stringify(value)} is not an integer`);
+  const n = Math.trunc(Number(value));
+  if (typeof value === 'boolean' || !Number.isSafeInteger(n)) throw new RuleError(`${JSON.stringify(value)} is not an integer`);
+  return n;
+}
+
+/** CEL's double(): an int, or a string of a number. Any other string is an error. */
+export function $double(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(value)) return Number(value);
+  throw new RuleError(`${JSON.stringify(value)} is not a number`);
+}
+
+/** CEL's string() of an int, a double, a string or a bool. */
+export function $string(value: unknown): string {
+  if (['number', 'string', 'boolean'].includes(typeof value)) return String(value);
+  throw new RuleError('string() of a value that is not an int, a double, a string or a bool');
+}
+
 /** CEL's / of two ints: toward 0. A division by 0 is an error. */
 export function $divInt(a: number, b: number): number {
   if (b === 0) throw new RuleError('division by 0');

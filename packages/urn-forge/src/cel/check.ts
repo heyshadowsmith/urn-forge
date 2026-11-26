@@ -126,6 +126,13 @@ class Checker {
       }
       case 'select':
         return this.select(expr, names, guards, false);
+      case 'index': {
+        const operand = this.type(expr.operand, names, guards);
+        const index = this.type(expr.index, names, guards);
+        if (!operand || !index) return undefined;
+        // A list and an int: the manifest has no map, so no other index.
+        return operand.kind === 'list' && index.kind === 'int' ? operand.of : this.wrong(expr, '[ ] takes a list and an int', operand, index);
+      }
       case 'unary': {
         const operand = this.type(expr.operand, names, guards);
         if (!operand) return undefined;
@@ -134,6 +141,15 @@ class Checker {
       }
       case 'binary':
         return this.binary(expr, names, guards);
+      case 'conditional': {
+        const condition = this.type(expr.condition, names, guards);
+        // Each value can read what the condition shows present, as after && and ||.
+        const then = this.type(expr.then, names, new Set([...guards, ...facts(expr.condition, true)]));
+        const otherwise = this.type(expr.otherwise, names, new Set([...guards, ...facts(expr.condition, false)]));
+        if (!condition || !then || !otherwise) return undefined;
+        if (condition.kind !== 'bool') return this.wrong(expr, 'the condition of ?: must be a bool', condition);
+        return same(then, otherwise) ? then : this.wrong(expr, 'the two values of ?: must have one type', then, otherwise);
+      }
       case 'call':
         return this.call(expr, names, guards);
       case 'macro': {
@@ -144,7 +160,9 @@ class Checker {
         const body = this.type(expr.body, { ...names, [expr.variable]: target.of }, guards);
         if (!body) return undefined;
         if (expr.macro === 'map') return { kind: 'list', of: body };
-        return body.kind === 'bool' ? BOOL : this.wrong(expr, `the condition of ${expr.macro}() must be a bool`, body);
+        if (body.kind !== 'bool') return this.wrong(expr, `the condition of ${expr.macro}() must be a bool`, body);
+        // filter() keeps the items for which the condition is true: a list of the same type.
+        return expr.macro === 'filter' ? target : BOOL;
       }
     }
   }
@@ -237,6 +255,27 @@ class Checker {
         if (!pattern) return undefined;
         return value.kind === 'string' && pattern.kind === 'string' ? BOOL : this.wrong(expr, 'matches() takes a string and a regular expression', value, pattern);
       }
+      case 'startsWith':
+      case 'endsWith':
+      case 'contains': {
+        const part = this.type(expr.args[0]!, names, guards);
+        if (!part) return undefined;
+        return value.kind === 'string' && part.kind === 'string' ? BOOL : this.wrong(expr, `${expr.fn}() takes two strings`, value, part);
+      }
+      case 'split': {
+        const separator = this.type(expr.args[0]!, names, guards);
+        if (!separator) return undefined;
+        return value.kind === 'string' && separator.kind === 'string' ? { kind: 'list', of: STRING } : this.wrong(expr, 'split() takes two strings', value, separator);
+      }
+      case 'lowerAscii':
+      case 'upperAscii':
+        return value.kind === 'string' ? STRING : this.wrong(expr, `${expr.fn}() takes a string`, value);
+      case 'int':
+        return ['int', 'double', 'string'].includes(value.kind) ? INT : this.wrong(expr, 'int() takes an int, a double or a string', value);
+      case 'double':
+        return ['int', 'double', 'string'].includes(value.kind) ? DOUBLE : this.wrong(expr, 'double() takes an int, a double or a string', value);
+      case 'string':
+        return ['int', 'double', 'string', 'bool'].includes(value.kind) ? STRING : this.wrong(expr, 'string() takes an int, a double, a string or a bool', value);
       case 'timestamp':
         return value.kind === 'string' ? TIMESTAMP : this.wrong(expr, 'timestamp() takes a string', value);
       case 'duration': {
