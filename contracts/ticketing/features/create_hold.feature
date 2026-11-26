@@ -105,12 +105,14 @@ Feature: Hold seats and standing places during checkout
     Then the input is rejected by "<rule>" of "<definition>"
 
     Examples:
-      | rule      | definition      | key                                                               | event_id                             | called_at                 |
-      | minLength | idempotency_key | kkkkkkk                                                           | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01T19:00:00Z      |
-      | maxLength | idempotency_key | kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01T19:00:00Z      |
-      | pattern   | uuid            | hold-key-0001                                                     | concert-1                            | 2026-12-01T19:00:00Z      |
-      | format    | utc_time        | hold-key-0001                                                     | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01 19:00          |
-      | in_utc    | utc_time        | hold-key-0001                                                     | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01T20:00:00+01:00 |
+      | rule           | definition      | key                                                               | event_id                             | called_at                 |
+      | minLength      | idempotency_key | kkkkkkk                                                           | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01T19:00:00Z      |
+      | maxLength      | idempotency_key | kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01T19:00:00Z      |
+      | pattern        | uuid            | hold-key-0001                                                     | concert-1                            | 2026-12-01T19:00:00Z      |
+      | format         | utc_time        | hold-key-0001                                                     | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01 19:00          |
+      | in_utc         | utc_time        | hold-key-0001                                                     | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01T20:00:00+01:00 |
+      | is_a_real_time | utc_time        | hold-key-0001                                                     | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-02-29T19:00:00Z      |
+      | is_a_real_time | utc_time        | hold-key-0001                                                     | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | 2026-12-01T24:00:00Z      |
 
   Scenario: A request without its lines is rejected
     When I run "create_hold" with:

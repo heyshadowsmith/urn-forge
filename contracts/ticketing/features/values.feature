@@ -158,3 +158,33 @@ Feature: The rules of answers, stored records and events
       | message_id                           | event_id                             | affected_tickets                         | occurred_at          |
       | 00000000-0000-4000-8000-000000000001 | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | ["ABCDEFGH23456789", "ABCDEFGH23456789"] | 2026-12-05T09:00:00Z |
     Then the value is rejected by "uniqueItems" of "affected_tickets"
+
+  Scenario Outline: An event states its start time in the time zone of its venue
+    When I check a "show" with:
+      | event_id                             | organizer_id | starts_at   | time_zone   | local_starts_at |
+      | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | org-1        | <starts_at> | <time_zone> | <local>         |
+    Then the value is accepted
+
+    Examples:
+      | starts_at            | time_zone                      | local                     |
+      | 2026-12-12T20:00:00Z | Europe/Paris                   | 2026-12-12T21:00:00+01:00 |
+      | 2026-07-14T18:00:00Z | Europe/Paris                   | 2026-07-14T20:00:00+02:00 |
+      | 2026-12-12T01:30:00Z | America/New_York               | 2026-12-11T20:30:00-05:00 |
+      | 2026-12-12T14:30:00Z | Asia/Kolkata                   | 2026-12-12T20:00:00+05:30 |
+      | 2026-12-12T20:00:00Z | Europe/London                  | 2026-12-12T20:00:00+00:00 |
+      | 2026-12-31T23:30:00Z | America/Argentina/Buenos_Aires | 2026-12-31T20:30:00-03:00 |
+      | 2026-12-31T12:00:00Z | Pacific/Kiritimati             | 2027-01-01T02:00:00+14:00 |
+
+  Scenario Outline: An event whose local start time is not its start in its venue's time zone is rejected
+    When I check a "show" with:
+      | event_id                             | organizer_id | starts_at   | time_zone   | local_starts_at |
+      | 6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f | org-1        | <starts_at> | <time_zone> | <local>         |
+    Then the value is rejected by "<rule>" of "<definition>"
+
+    Examples:
+      | rule                      | definition      | starts_at            | time_zone        | local                     |
+      | local_start_in_venue_zone | show            | 2026-07-14T18:00:00Z | Europe/Paris     | 2026-07-14T19:00:00+01:00 |
+      | local_start_in_venue_zone | show            | 2026-12-12T01:30:00Z | America/New_York | 2026-12-12T20:30:00-05:00 |
+      | local_start_in_venue_zone | show            | 2026-12-12T01:30:00Z | America/New_York | 2026-12-11T21:30:00-04:00 |
+      | enum                      | time_zone       | 2026-12-12T20:00:00Z | Europe/Pariss    | 2026-12-12T21:00:00+01:00 |
+      | format                    | local_starts_at | 2026-12-12T20:00:00Z | Europe/Paris     | 2026-12-12 21:00:00+01:00 |
