@@ -208,3 +208,20 @@ describe('the types of the generated code', () => {
     expect(typeErrors('math.least(size(self.words), [3, 4][1]) == 3 && [self.text][0].startsWith(\'1\')')).toEqual([]);
   });
 });
+
+describe('characters outside the Basic Multilingual Plane', () => {
+  // An emoji is two units of a JavaScript string, and one character of CEL. The conformance tests of cel-spec
+  // have no such character before a position that a test reads, so these tests do.
+  it.each([
+    "'😀ab'.substring(1, 2) == 'a'",
+    "'😀ab'.substring(1) == 'ab'",
+    "'😀ab'.charAt(1) == 'a'",
+    "'😀ab😀'.indexOf('b') == 2",
+    "'😀ab😀b'.lastIndexOf('b') == 4",
+    "'😀ab'.reverse() == 'ba😀'",
+    "size('😀ab') == 3",
+    "'😀ab'.split('').size() == 3",
+  ])('%s', (rule) => {
+    expect(holds(rule)).toBe(true);
+  });
+});
