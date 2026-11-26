@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { checksOf, compileManifest } from '../src/compile.js';
+import { PGlite } from '@electric-sql/pglite';
 import { postgresSchema } from '../src/generate/postgres.js';
 
 /** A manifest whose object `subject` keeps one rule, `the_rule`. */
@@ -120,5 +121,45 @@ describe('split, lowerAscii and upperAscii', () => {
     expect(holds("self.text.upperAscii() == 'ABC'", { text: 'AbC' })).toBe(true);
     expect(codes('size(self.numbers.split(1)) == 1')).toEqual(['rule-type']);
     expect(sql("self.text.lowerAscii() == 'abc'")).toContain('translate(');
+  });
+});
+
+describe('the SQL of each form', () => {
+  /** Whether Postgres stores each row of the subject, with the CHECK of the rule. */
+  async function stores(rule: string, rows: readonly Partial<typeof base>[]): Promise<boolean[]> {
+    const compiled = compileManifest(manifest(rule));
+    const db = new PGlite();
+    await db.exec(postgresSchema(compiled.model!, compiled.applications, { tables: ['subject'] }));
+    const stored: boolean[] = [];
+    for (const [i, change] of rows.entries()) {
+      const row = { ...base, ...change };
+      try {
+        await db.query('INSERT INTO "forms"."subject" ("key", "text", "flag") VALUES ($1, $2, $3)', [String(i), row.text, row.flag]);
+        stored.push(true);
+      } catch {
+        stored.push(false);
+      }
+    }
+    await db.close();
+    return stored;
+  }
+
+  it.each([
+    ["self.text.startsWith('1.')", ['1.4.0', '2.1', '', '1']],
+    ["self.text.endsWith('.0')", ['1.4.0', '1.4.1', '.0', '']],
+    ["self.text.contains('.4.')", ['1.4.0', '1.5.0', '.4.']],
+    ["self.text.contains('')", ['', 'a']],
+    ['int(self.text) == 12', ['12', '+12', '1x', '12.5', ' 12', '', '012']],
+    ['double(self.text) > 2.0', ['2.5', '2', 'NaN', 'Infinity', ' 2.5', '1e1', '.5', 'x']],
+    ["string(size(self.text)) == '3'", ['abc', 'ab']],
+    ["string(self.flag) == 'true'", ['a']],
+    ['int(double(size(self.text)) / 2.0) == 1', ['ab', 'abc', 'abcd']],
+    ["(self.flag ? 'yes' : 'no') == self.text", ['yes', 'no']],
+    ["self.text.lowerAscii() == 'abcé'", ['AbCé', 'AbCÉ', 'abcé']],
+    ["self.text.upperAscii() == 'ABCé'", ['AbCé', 'ABCÉ']],
+  ] as const)('%s keeps and breaks as the generated check does', async (rule, texts) => {
+    const rows = texts.flatMap((text) => [true, false].map((flag) => ({ text, flag })));
+    const stored = await stores(rule, rows);
+    expect(rows.map((row, i) => ({ ...row, stored: stored[i] }))).toEqual(rows.map((row) => ({ ...row, stored: holds(rule, row) })));
   });
 });

@@ -32,6 +32,18 @@ function sqlValue(value: unknown): string | undefined {
 
 class Untranslatable extends Error {}
 
+/** The texts that int() and double() take, as the generated code takes them. */
+const INTEGER = '^[+-]?[0-9]+$';
+const DOUBLE = '^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$';
+
+/**
+ * A text for a cast to a number. Postgres casts more texts than CEL, such as ' 12' and 'NaN': each
+ * other text becomes 'x', whose cast is an error, so the row is refused as the rule breaks.
+ */
+function numeric(text: string, pattern: string): string {
+  return `(CASE WHEN ${text} ~ ${literal(pattern)} THEN ${text} ELSE 'x' END)`;
+}
+
 /** The letters that lowerAscii() and upperAscii() change. */
 const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -115,10 +127,14 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: reado
           }
           case 'int': {
             const arg = e.args[0]!;
-            return types.get(arg)?.kind === 'double' ? `TRUNC(${sql(arg)})::BIGINT` : `(${sql(arg)})::BIGINT`;
+            const kind = types.get(arg)?.kind;
+            if (kind === 'double') return `TRUNC(${sql(arg)})::BIGINT`;
+            return kind === 'string' ? `${numeric(sql(arg), INTEGER)}::BIGINT` : `(${sql(arg)})::BIGINT`;
           }
-          case 'double':
-            return `(${sql(e.args[0]!)})::DOUBLE PRECISION`;
+          case 'double': {
+            const arg = e.args[0]!;
+            return types.get(arg)?.kind === 'string' ? `${numeric(sql(arg), DOUBLE)}::DOUBLE PRECISION` : `(${sql(arg)})::DOUBLE PRECISION`;
+          }
           case 'string':
             return `(${sql(e.args[0]!)})::TEXT`;
           case 'timestamp':
