@@ -19,7 +19,7 @@ The standard set is decision 19 of the [redesign notes](../planning/manifest-red
 3. No standard rule states it already. For example, a choice of numbers is `minimum` and `maximum`, or a rule of the user. It is not a new keyword.
 4. A real manifest needs it. Name the manifest, or the promise of the corpus, in the pull request.
 
-If the keyword fails a test, the user declares the rule in the manifest. [Add a rule](../docs/how-to/rules-and-refusals.md) shows how.
+If the keyword fails a test, the user declares the rule in the manifest. [Add a rule](../packages/urn-forge/AGENTS.md) shows how.
 
 ## Make sure that the subset can state it
 
@@ -105,7 +105,7 @@ If a manifest has one, rename its rule in the same pull request.
 
 ## Update the docs
 
-1. Add a row to the table "The standard rules" in [Rules and the standard rules](../docs/reference/manifest.md): the name, the types, the parameter, the rule and the message.
+1. Add a row to the table "The standard rules" in [Rules and the standard rules](../packages/urn-forge/AGENTS.md): the name, the types, the parameter, the rule and the message.
 2. Run `npm run docs:build` from the root folder.
 
 ## Result
@@ -116,5 +116,5 @@ A manifest can apply the rule with no declaration. `compile` checks each argumen
 
 - [How urn-forge is built](./architecture.md)
 - [Add a form to the CEL subset](./add-a-cel-form.md)
-- [Rules and the standard rules](../docs/reference/manifest.md)
-- [JSON Schema and CEL](../docs/explanation/why-urn-forge.md)
+- [Rules and the standard rules](../packages/urn-forge/AGENTS.md)
+- [JSON Schema and CEL](../docs/methodology.md)

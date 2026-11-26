@@ -79,7 +79,7 @@ jobs:
         working-directory: packages/urn-forge
         run: npm run test:features:insurance
 
-      # The tutorial's three snapshots (docs/tutorials), so the code the tutorials show is
+      # The tutorial's three snapshots, so the shipping domain in each of its steps is
       # code that compiles, verifies and passes.
       - name: urn-forge verify (tutorial)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}

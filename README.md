@@ -32,7 +32,7 @@ From the contract, urn-forge generates one TypeScript file. It has the types, a 
 - `urn-forge init` writes an `AGENTS.md` for the agent, and a skill for Claude Code.
 - If you want, urn-forge also writes a Postgres schema. Each rule that SQL can state becomes a constraint.
 
-The version is 0.2.0. This version is not on npm yet. Read the [documentation](docs/index.md), and start with [the tutorial](docs/tutorials/first-domain.md).
+The version is 0.2.0. This version is not on npm yet. Read the [documentation](docs/index.md) and [the methodology](docs/methodology.md). The reference is [`AGENTS.md` of the package](packages/urn-forge/AGENTS.md).
 
 ## Try it
 

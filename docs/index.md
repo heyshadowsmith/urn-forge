@@ -10,8 +10,8 @@ hero:
       text: Try it in your project
       link: "#try-it-in-your-project"
     - theme: alt
-      text: Start the tutorial
-      link: /tutorials/first-domain
+      text: Read the methodology
+      link: /methodology
 ---
 
 ## How it works
@@ -396,56 +396,6 @@ verify failed: gate 5
 </div>
 </div>
 
-## The agent tries to cheat
-
-Take the operation above: only a confirmed booking can be seated (`was_confirmed`). The agent changes how seating works, and gets it wrong.
-
-**The code breaks the rule.** The agent's new code seats every booking:
-
-```ts
-seat_booking: () => answer('booking', { state: 'seated' }),
-```
-
-The types still check, because the answer is still a booking.
-
-**The harness catches it, and a test fails.** For a cancelled booking, the harness gives this result in place of the answer:
-
-```json
-{
-  "ok": false,
-  "domain": "urn:demo:booking",
-  "operation": "seat_booking",
-  "kind": "ContractViolation",
-  "failures": [
-    {
-      "definition": "seat_booking",
-      "rule": "was_confirmed",
-      "path": "",
-      "message": "The booking was not confirmed"
-    }
-  ]
-}
-```
-
-**The agent deletes the tests that fail.** That is the fastest way to green. Now every test that is left passes.
-
-**CI fails.** `urn-forge verify --base main` compares the change with the main branch:
-
-```
-gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; core satisfies DomainCore
-gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
-gate 3  gherkin       FAIL  1 feature(s), 4 scenario(s), 1/1 operation(s) run, 3 rule(s) broken
-    features  error  uncovered-output  no scenario of seat_booking answers refusal; add one that ends with Then the output is "refusal"
-      fix: Add a scenario of the operation that ends with Then the output is "<output>".
-gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
-gate 5  contract      FAIL  1 change(s) make the contract weaker than main, and the version 0.1.0 → 0.1.0 does not allow it
-    features/seat.feature  error  removed-scenario  2 of the 2 scenarios "A booking that is not confirmed is refused" are removed
-      fix: Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.
-verify failed: gate 3, 5
-```
-
-The agent cannot get to green without the tests. The only other way is a new version of the contract, and you see that in the review.
-
 ## Try it in your project
 
 You must have Node 22 or newer. In your project, run:
@@ -462,6 +412,5 @@ npx cucumber-js
 
 ## Where next
 
-- [Build a domain with a coding agent](/tutorials/first-domain): the tutorial, from `init` to a strict `verify`, in about 20 minutes.
-- [Set up a project for an agent](/how-to/work-with-a-coding-agent): protect the contract, name the shell, and turn on gate 5 in CI.
-- [Review an agent's change](/how-to/review-an-agents-change): what to read in a change, and what urn-forge cannot check for you.
+- [The methodology](/methodology): the split between you and the agent, the harness, the gates, what they cannot prove, and what to review.
+- [The reference](https://github.com/heyshadowsmith/urn-forge/blob/main/packages/urn-forge/AGENTS.md): each key of the manifest, each rule, each step and each code with its fix. Your agent reads the same file.
