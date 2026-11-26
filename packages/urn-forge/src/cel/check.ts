@@ -246,6 +246,19 @@ class Checker {
         if (!pattern) return undefined;
         return value.kind === 'string' && pattern.kind === 'string' ? BOOL : this.wrong(expr, 'matches() takes a string and a regular expression', value, pattern);
       }
+      case 'startsWith':
+      case 'endsWith':
+      case 'contains': {
+        const part = this.type(expr.args[0]!, names, guards);
+        if (!part) return undefined;
+        return value.kind === 'string' && part.kind === 'string' ? BOOL : this.wrong(expr, `${expr.fn}() takes two strings`, value, part);
+      }
+      case 'int':
+        return ['int', 'double', 'string'].includes(value.kind) ? INT : this.wrong(expr, 'int() takes an int, a double or a string', value);
+      case 'double':
+        return ['int', 'double', 'string'].includes(value.kind) ? DOUBLE : this.wrong(expr, 'double() takes an int, a double or a string', value);
+      case 'string':
+        return ['int', 'double', 'string', 'bool'].includes(value.kind) ? STRING : this.wrong(expr, 'string() takes an int, a double, a string or a bool', value);
       case 'timestamp':
         return value.kind === 'string' ? TIMESTAMP : this.wrong(expr, 'timestamp() takes a string', value);
       case 'duration': {

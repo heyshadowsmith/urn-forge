@@ -10,14 +10,27 @@
  *   and lists `[a, b]`;
  * - `!`, unary `-`, `*`, `/`, `%`, `+`, `-`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `&&`, `||`, and
  *   parentheses;
- * - the functions `has(a.b)`, `size(x)`, `timestamp(s)`, `duration(s)`, and the methods `x.size()`,
- *   `s.matches(re)`, `l.sum()`;
+ * - the functions `has(a.b)`, `size(x)`, `timestamp(s)`, `duration(s)`, `int(x)`, `double(x)`,
+ *   `string(x)`, and the methods `x.size()`, `s.matches(re)`, `s.startsWith(t)`, `s.endsWith(t)`,
+ *   `s.contains(t)`, `l.sum()`;
  * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)` and `l.filter(x, p)`.
  */
 
 export type BinaryOp = '||' | '&&' | '==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | '+' | '-' | '*' | '/' | '%';
 export type MacroName = 'all' | 'exists' | 'exists_one' | 'map' | 'filter';
-export type FunctionName = 'has' | 'size' | 'timestamp' | 'duration' | 'matches' | 'sum';
+export type FunctionName =
+  | 'has'
+  | 'size'
+  | 'timestamp'
+  | 'duration'
+  | 'int'
+  | 'double'
+  | 'string'
+  | 'matches'
+  | 'startsWith'
+  | 'endsWith'
+  | 'contains'
+  | 'sum';
 
 /** A node of a rule. `at` is its offset in the text, from 0. */
 export type Expr =
@@ -126,6 +139,8 @@ function lex(text: string): Token[] {
 
 const RELATIONS: readonly BinaryOp[] = ['==', '!=', '<', '<=', '>', '>=', 'in'];
 const MACROS: readonly string[] = ['all', 'exists', 'exists_one', 'map', 'filter'];
+/** The methods of the subset, and the number of the arguments of each. */
+const METHODS: Readonly<Record<string, number>> = { size: 0, sum: 0, matches: 1, startsWith: 1, endsWith: 1, contains: 1 };
 const RESERVED = new Set(['true', 'false', 'null', 'in', 'as', 'break', 'const', 'continue', 'else', 'for', 'function', 'if', 'import', 'let', 'loop', 'package', 'namespace', 'return', 'var', 'void', 'while']);
 
 class Parser {
@@ -248,14 +263,10 @@ class Parser {
         continue;
       }
       const args = this.args();
-      if (token.text === 'size' || token.text === 'sum') {
-        if (args.length !== 0) throw new CelSyntaxError(`${token.text}() takes no argument`, token.at);
-      } else if (token.text === 'matches') {
-        if (args.length !== 1) throw new CelSyntaxError('matches() takes one argument: a regular expression', token.at);
-      } else {
-        throw new CelSyntaxError(`the method ${token.text}() is not in the subset`, token.at);
-      }
-      expr = { kind: 'call', fn: token.text, target: expr, args, at: token.at };
+      if (!Object.hasOwn(METHODS, token.text)) throw new CelSyntaxError(`the method ${token.text}() is not in the subset`, token.at);
+      const count = METHODS[token.text]!;
+      if (args.length !== count) throw new CelSyntaxError(`${token.text}() takes ${count === 0 ? 'no argument' : 'one argument'}`, token.at);
+      expr = { kind: 'call', fn: token.text as FunctionName, target: expr, args, at: token.at };
     }
   }
 
@@ -307,6 +318,9 @@ class Parser {
         case 'size':
         case 'timestamp':
         case 'duration':
+        case 'int':
+        case 'double':
+        case 'string':
           if (args.length !== 1) throw new CelSyntaxError(`${token.text}() takes one argument`, at);
           return { kind: 'call', fn: token.text, args, at };
         default:

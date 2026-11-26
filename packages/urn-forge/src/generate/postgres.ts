@@ -97,6 +97,22 @@ function toSql(expr: Expr, types: ReadonlyMap<Expr, CelType>, part: (path: reado
           }
           case 'matches':
             return `(${sql(e.target!)} ~ ${sql(e.args[0]!)})`;
+          case 'startsWith':
+            return `starts_with(${sql(e.target!)}, ${sql(e.args[0]!)})`;
+          case 'endsWith': {
+            const part = sql(e.args[0]!);
+            return `(right(${sql(e.target!)}, char_length(${part})) = ${part})`;
+          }
+          case 'contains':
+            return `(strpos(${sql(e.target!)}, ${sql(e.args[0]!)}) > 0)`;
+          case 'int': {
+            const arg = e.args[0]!;
+            return types.get(arg)?.kind === 'double' ? `TRUNC(${sql(arg)})::BIGINT` : `(${sql(arg)})::BIGINT`;
+          }
+          case 'double':
+            return `(${sql(e.args[0]!)})::DOUBLE PRECISION`;
+          case 'string':
+            return `(${sql(e.args[0]!)})::TEXT`;
           case 'timestamp':
             return `(${sql(e.args[0]!)})::TIMESTAMPTZ`;
           case 'duration':

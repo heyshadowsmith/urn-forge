@@ -53,6 +53,16 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
             return `$sum(${emit(target, scope)})`;
           case 'matches':
             return `$matches(${emit(target, scope)}, ${emit(e.args[0]!, scope)})`;
+          case 'startsWith':
+          case 'endsWith':
+          case 'contains':
+            return `$text(${emit(target, scope)}, ${JSON.stringify(e.fn)}, ${emit(e.args[0]!, scope)})`;
+          case 'int':
+            return `$int(${emit(target, scope)})`;
+          case 'double':
+            return `$double(${emit(target, scope)})`;
+          case 'string':
+            return `$string(${emit(target, scope)})`;
           case 'timestamp':
             return `$timestamp(${emit(target, scope)})`;
           case 'duration':

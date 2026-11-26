@@ -8,7 +8,7 @@ import { checksOf, compileManifest } from '../src/compile.js';
 import { postgresSchema } from '../src/generate/postgres.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { filter: it, index: it, conversions: it.fails, text: it.fails, conditional: it.fails, strings: it.fails };
+const target = { filter: it, index: it, conversions: it, text: it, conditional: it.fails, strings: it.fails };
 
 /** A manifest whose object `subject` keeps one rule, `the_rule`. */
 function manifest(rule: string): string {
