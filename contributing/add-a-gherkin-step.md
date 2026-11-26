@@ -6,7 +6,7 @@ This guide is for contributors who change urn-forge itself. urn-forge gives one 
 
 - You have a clone of urn-forge, and `npm ci` ran in the root folder.
 - `npm test` and `npm run typecheck` pass.
-- You know the steps of [Gherkin steps](../docs/how-to/write-scenarios.md).
+- You know the steps of [Gherkin steps](../packages/urn-forge/AGENTS.md).
 
 Commands run from `packages/urn-forge`, except where a step says the root folder.
 
@@ -68,8 +68,8 @@ Gate 3 (`src/verify/gherkin.ts`) reads each step of each scenario and matches it
 
 ## Update the docs
 
-1. Add the step to [Gherkin steps](../docs/how-to/write-scenarios.md), with an example from a real feature.
-2. If the step changes how a user writes scenarios, update [Write scenarios](../docs/how-to/write-scenarios.md).
+1. Add the step to [Gherkin steps](../packages/urn-forge/AGENTS.md), with an example from a real feature.
+2. If the step changes how a user writes scenarios, update [Write scenarios](../packages/urn-forge/AGENTS.md).
 3. Run `npm run docs:build` from the root folder.
 
 ## Result
@@ -80,5 +80,5 @@ A feature of any domain can use the step. Cucumber runs it, and gate 3 counts wh
 
 - [How urn-forge is built](./architecture.md)
 - [Add a diagnostic](./add-a-diagnostic.md)
-- [Gherkin steps](../docs/how-to/write-scenarios.md)
-- [Write scenarios](../docs/how-to/write-scenarios.md)
+- [Gherkin steps](../packages/urn-forge/AGENTS.md)
+- [Write scenarios](../packages/urn-forge/AGENTS.md)

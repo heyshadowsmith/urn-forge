@@ -66,4 +66,4 @@ A target that is written first meets the real code early. These are some of the 
 - [Add a test fixture](./add-a-fixture.md)
 - [Add a domain](./add-a-domain.md)
 - [How urn-forge is built](./architecture.md)
-- [Tutorial: build the shipping domain](../docs/tutorials/first-domain.md)
+- [Tutorial: build the shipping domain](../docs/index.md)

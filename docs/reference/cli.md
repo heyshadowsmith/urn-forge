@@ -1,4 +1,4 @@
-# The CLI, the config and diagnostics
+# The CLI and the config
 
 Run `npx urn-forge <command>` in a project where urn-forge is installed. These are the first lines of `npx urn-forge --help`:
 
@@ -17,7 +17,7 @@ Usage:
 | `init` | Writes a starter project that splits a bill. This project passes `verify`. `init` sets `"type": "module"` in `package.json`, and adds the scripts `compile`, `verify` and `test:features`. It also writes `AGENTS.md`, the instructions for coding agents, and the Claude Code skill `.claude/skills/urn-forge/SKILL.md`; it keeps each of these two that is already there. If one of its other files is already there, it writes nothing. The default values of `--namespace` and `--domain` are `app` and `starter` |
 | `compile` | Writes the generated files, and shows one line for each file: `wrote`, `unchanged`, or `removed`. If the manifest has an error, it writes nothing |
 | `verify` | Compiles in memory and runs the [gates](#the-gates). It writes nothing, and it does not run the scenarios. `cucumber-js` runs them. `--base <ref>` also runs gate 5 against a git ref |
-| `diff` | Compares two manifests. Refer to [Change the contract](../how-to/change-the-contract). It does not read the config |
+| `diff` | Compares two manifests, the old one first. Refer to [diff](#diff). It does not read the config |
 
 Each command exits with `0` on a pass (also with warnings), `1` on a failure, and `2` on a wrong command line.
 
@@ -56,11 +56,55 @@ urn-forge reads `urn-forge.config.ts` from the current folder, or from the file 
 | `out` | `src/generated` | The folder of the generated files |
 | `core` | `src/core.ts` | The core file, which exports a value that `satisfies DomainCore` |
 | `features` | `features` | The folder of the `.feature` files |
-| `postgres` | none | Writes a Postgres schema and a store file. Refer to [Objects in Postgres](../how-to/store-in-postgres) |
+| `postgres` | none | Writes a Postgres schema and a store file. Refer to [Postgres](#postgres) |
 
-A gap in the scenarios is always an error, so there is no option for it. `--manifest`, `--out`, `--core` and `--features` work only when the config has one domain. Two domains with one manifest, one `out`, one `features` or one URN fail with `config-invalid`. Refer to [Several domains](../how-to/work-with-a-coding-agent#several-domains).
+A gap in the scenarios is always an error, so there is no option for it. `--manifest`, `--out`, `--core` and `--features` work only when the config has one domain. Two domains with one manifest, one `out`, one `features` or one URN fail with `config-invalid`.
 
 Your core and your shell import only the generated file. The project also uses `urn-forge/config`, `urn-forge/cucumber` (`registerSteps`) and `urn-forge/register-tsx`. `urn-forge/register-tsx` lets `npx cucumber-js` load TypeScript. For your own tools, `urn-forge` exports `loadManifest`, `compileManifest`, `generate` and the rule parser. Because the entry points are TypeScript source, run code that imports them through a loader such as `tsx`.
+
+## Postgres
+
+With `postgres` in a domain of the config, `compile` also writes `schema.generated.sql` and `domain.store.generated.ts`, and gate 4 checks them. Each table is an object definition with an `identifier`, which becomes the primary key. urn-forge writes no migrations, and it never connects to a database: apply the schema with your migration tool, and run the statements of the store file with your driver.
+
+<<< @/../packages/urn-forge/insurance/urn-forge.config.ts{11-14}
+
+| Key | Value |
+| --- | --- |
+| `tables` | The object definitions that become tables |
+| `references` | For a table, a property that holds the identifier of another table. It becomes a `FOREIGN KEY` |
+| `unique` | For a table, lists of properties that two rows cannot share, such as `unique: { customer: [['email']] }` |
+
+An embedded object becomes columns of its table, such as `contact_email`. A list becomes a child table, `<table>__<property>`. Each rule that SQL can state becomes a `CHECK` constraint.
+
+The store file has pure functions for each table: `insert<Table>(value)`, `delete<Table>(identifier)`, `replace<Table>(value)` and `select<Table>(identifier)` give the statements, as `{ text, values }`. `<table>FromRows(rows)` builds the value from the rows of `select<Table>`.
+
+## diff
+
+`urn-forge diff <old manifest> <new manifest>` lists each change as `breaking` or `compatible`, at the URN of its part. It fails on a breaking change, unless the new version is a new major version, a `0.x` version or a pre-release such as `2.0.0-alpha.1`. `--report` lists the changes and always exits with `0`.
+
+The direction of a value decides the class. Callers **send** the input and each definition in it. Callers **receive** the outputs and each definition in them. A definition on the two sides gets the stricter class.
+
+| Change of a definition | Sent | Received |
+| --- | --- | --- |
+| New definition, or `deprecated: true` added | compatible | compatible |
+| Removed definition or property; changed `type`, `items` or `identifier` | breaking | breaking |
+| New property | compatible | breaking ¹ |
+| New rule, or a narrower argument: it accepts less | breaking | compatible |
+| Removed rule, or a wider argument: it accepts more | compatible | breaking ¹ |
+| An argument that is neither narrower nor wider | breaking | breaking |
+
+| Change of an operation or the header | Class |
+| --- | --- |
+| New operation; removed output; new rule of an output or operation; `compatibility` or `deprecated: true` added | compatible |
+| New output | breaking ¹ |
+| Removed operation; changed `input`; removed or changed rule of an output or operation | breaking |
+| Changed `namespace` or `domain`; `compatibility` removed | breaking |
+
+¹ Compatible if the new header has `compatibility: { callers: ignore-unknown }` under `manifest`. This tells that callers ignore all data that they do not know.
+
+More `enum` choices, or fewer `required` properties, is wider. Some rules have the form `self <op> parameter` or `size(self) <op> parameter`, such as `minimum` or `maxLength`. For these rules, a larger argument is narrower with `>=` or `>`, and wider with `<=` or `<`.
+
+If `diff` cannot find the direction, the change is breaking. An example is two regular expressions. A change to the text of a rule is breaking at each location that uses the rule. All changes to a definition that no input or output uses are compatible. The exception is an argument that is neither narrower nor wider.
 
 ## The gates
 

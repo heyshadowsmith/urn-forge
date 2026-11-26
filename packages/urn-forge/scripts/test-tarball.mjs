@@ -68,7 +68,7 @@ try {
   const drift = run('npm', ['run', 'verify'], project);
   expect('a hand-edited generated file fails gate 4', drift.code !== 0 && drift.output.includes('the generated file is not current'));
 
-  // The tutorials (docs/tutorials) start from init and change the manifest, the config, the core and
+  // The tutorial snapshots start from init and change the manifest, the config, the core and
   // the feature. Their end state must pass in a project made from the tarball.
   const shipping = join(work, 'my-shipping');
   execFileSync('mkdir', [shipping]);

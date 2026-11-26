@@ -1,5 +1,22 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "outputDirectory": ".vitepress/dist",
-  "cleanUrls": true
+  "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/tutorials/:path*",
+      "destination": "/methodology",
+      "permanent": true
+    },
+    {
+      "source": "/how-to/:path*",
+      "destination": "/methodology",
+      "permanent": true
+    },
+    {
+      "source": "/explanation/:path*",
+      "destination": "/methodology",
+      "permanent": true
+    }
+  ]
 }

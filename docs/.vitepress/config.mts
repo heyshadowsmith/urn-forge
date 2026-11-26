@@ -44,49 +44,21 @@ export default defineConfig({
   themeConfig: {
     logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: '' },
     nav: [
-      { text: 'Tutorial', link: '/tutorials/first-domain', activeMatch: '/tutorials/' },
-      { text: 'Guides', link: '/how-to/work-with-a-coding-agent', activeMatch: '/how-to/' },
+      { text: 'Methodology', link: '/methodology' },
       { text: 'Reference', link: '/reference/manifest', activeMatch: '/reference/' },
-      { text: 'Why', link: '/explanation/why-urn-forge', activeMatch: '/explanation/' },
     ],
-    sidebar: [
-      {
-        text: 'Start',
-        items: [
-          { text: 'Overview', link: '/' },
-          { text: 'Tutorial: build a domain with a coding agent', link: '/tutorials/first-domain' },
-        ],
-      },
-      {
-        text: 'Your work',
-        items: [
-          { text: 'Set up a project for an agent', link: '/how-to/work-with-a-coding-agent' },
-          { text: "Review an agent's change", link: '/how-to/review-an-agents-change' },
-          { text: 'Run the gates in CI', link: '/how-to/run-verify-in-ci' },
-          { text: 'Change the contract', link: '/how-to/change-the-contract' },
-        ],
-      },
-      {
-        text: 'The parts of a domain',
-        items: [
-          { text: 'Rules and refusals', link: '/how-to/rules-and-refusals' },
-          { text: 'Scenarios', link: '/how-to/write-scenarios' },
-          { text: 'Calls to an operation', link: '/how-to/call-an-operation' },
-          { text: 'Objects in Postgres', link: '/how-to/store-in-postgres' },
-        ],
-      },
-      {
-        text: 'Reference',
-        items: [
-          { text: 'The manifest and its rules', link: '/reference/manifest' },
-          { text: 'The CLI, the config and diagnostics', link: '/reference/cli' },
-        ],
-      },
-      {
-        text: 'Explanation',
-        items: [{ text: 'Why urn-forge works this way', link: '/explanation/why-urn-forge' }],
-      },
-    ],
+    sidebar: {
+      '/reference/': [
+        {
+          text: 'Reference',
+          items: [
+            { text: 'The manifest', link: '/reference/manifest' },
+            { text: 'The rule syntax', link: '/reference/syntax' },
+            { text: 'The CLI and the config', link: '/reference/cli' },
+          ],
+        },
+      ],
+    },
     socialLinks: [{ icon: 'github', link: 'https://github.com/heyshadowsmith/urn-forge' }],
     search: { provider: 'local' },
     outline: [2, 3],

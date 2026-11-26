@@ -15,7 +15,7 @@ Commands run from `packages/urn-forge`, except where a step says the root folder
 | Kind | Folder | Use it for |
 | --- | --- | --- |
 | A sample domain | `packages/urn-forge/<name>/` | A real use of constructs that the other domains do not use together. `insurance` has times, amounts in cents, a stored record in the input, events in the outputs and a Postgres schema |
-| A tutorial snapshot | `packages/urn-forge/tutorial/<n>-<name>/` | The end state of one tutorial. The pages in `docs/tutorials/` import their code from it |
+| A tutorial snapshot | `packages/urn-forge/tutorial/<n>-<name>/` | The shipping domain in three steps, from init to the edges. The tarball test runs its end state |
 | A contract of the corpus | `contracts/<name>/` | A real contract, with a `promises.yaml` that the corpus scores. Refer to [CONTRIBUTING.md](../CONTRIBUTING.md), the section "The contract corpus" |
 | `self/` | `packages/urn-forge/self/` | urn-forge's own functions. Refer to [Dogfooding](./dogfooding.md) |
 
@@ -93,5 +93,5 @@ CI compiles, verifies and tests the domain on each pull request, in any locale a
 
 - [Add a test fixture](./add-a-fixture.md)
 - [Dogfooding](./dogfooding.md)
-- [Set up a project](../docs/tutorials/first-domain.md)
-- [Run verify in CI](../docs/how-to/run-verify-in-ci.md)
+- [Set up a project](../docs/index.md)
+- [Run verify in CI](../packages/urn-forge/AGENTS.md)

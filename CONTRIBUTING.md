@@ -91,7 +91,7 @@ npm run corpus    # the score: declared ÷ all promises, and the count by hole
 
 CI fails if the score falls below the `minimum` of `contracts/corpus.yaml`. The score of 0.2.0 is 64 of 143 promises (44.8%). A change that declares more promises sets their status to `declared`, and raises the minimum to the new score.
 
-A promise is `declared` only if a core that breaks it fails a generated check. The [test of declared](docs/explanation/why-urn-forge.md) gives the rule. If every check passes while the promise breaks, the promise is a `workaround`, with a comment that names the break.
+A promise is `declared` only if a core that breaks it fails a generated check. The [test of declared](docs/methodology.md) gives the rule. If every check passes while the promise breaks, the promise is a `workaround`, with a comment that names the break.
 
 ## Plans
 
