@@ -76,7 +76,7 @@ try {
   run('npm', ['install', '--no-audit', '--no-fund', tarball], shipping);
   expect('tutorial: urn-forge init', run('npx', ['urn-forge', 'init', '--namespace', 'demo', '--domain', 'shipping'], shipping).code === 0);
   rmSync(join(shipping, 'features/split.feature'));
-  const tutorial = join(packageDir, 'tutorial/3-strict-coverage');
+  const tutorial = join(packageDir, 'tutorial/3-edges');
   for (const file of ['domain.manifest.yaml', 'urn-forge.config.ts', 'src/core.ts']) cpSync(join(tutorial, file), join(shipping, file));
   for (const file of readdirSync(join(tutorial, 'features')).filter((f) => f.endsWith('.feature'))) cpSync(join(tutorial, 'features', file), join(shipping, 'features', file));
   expect('tutorial: compile', run('npx', ['urn-forge', 'compile'], shipping).code === 0);

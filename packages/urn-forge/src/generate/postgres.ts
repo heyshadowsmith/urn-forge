@@ -5,6 +5,7 @@
  * constraint triggers that count the rows of a list; a comment names each rule that SQL cannot say,
  * which the harness checks. The config adds foreign keys (references) and unique values (unique).
  */
+import { domainUrn, partUrn } from '../urn.js';
 import type { CelType } from '../cel/check.js';
 import type { Expr } from '../cel/parse.js';
 import type { PostgresConfig } from '../config.js';
@@ -193,7 +194,7 @@ export function longNames(schema: string): string[] {
 export function postgresSchema(model: Model, applications: readonly Application[], config: PostgresConfig): string {
   const schema = ident(model.header.domain);
   const qualified = (name: string): string => `${schema}.${ident(name)}`;
-  const lines: string[] = [`CREATE SCHEMA IF NOT EXISTS ${schema};`];
+  const lines: string[] = [`CREATE SCHEMA IF NOT EXISTS ${schema};`, `COMMENT ON SCHEMA ${schema} IS ${literal(domainUrn(model.header))};`];
   const rulesOf = (definition: string): Application[] => applications.filter((a) => a.place.kind === 'definition' && a.place.definition === definition);
   /** The definition, then each definition it is named as the type of. */
   const chain = (name: string): string[] => {
@@ -304,7 +305,7 @@ export function postgresSchema(model: Model, applications: readonly Application[
     // A rule of the table's object that SQL cannot say, by its text.
     lines.push('', `CREATE TABLE ${qualified(table.name)} (`, [...columns, ...keys, ...checks].map((l) => `  ${l}`).join(',\n'), ');');
     const description = model.definitions[list ? list.definition : table.definition]!.description;
-    lines.push(`COMMENT ON TABLE ${qualified(table.name)} IS ${literal(description)};`);
+    lines.push(`COMMENT ON TABLE ${qualified(table.name)} IS ${literal(`${partUrn(model.header, 'definition', list ? list.definition : table.definition)}: ${description}`)};`);
     if (notInSql.length > 0) lines.push(`-- Not in SQL; the harness checks these rules: ${notInSql.join('; ')}`);
 
     // The count of a list, and whether an optional list has rows: a trigger at the end of the transaction.

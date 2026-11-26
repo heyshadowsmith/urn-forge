@@ -48,24 +48,6 @@ export default defineConfig({
 <div class="uf-pair">
 <div class="uf-pair-text">
 
-#### Strict tests
-
-A missing test fails CI. Without this line, it is only a warning.
-
-`init` turns this on.
-
-</div>
-<div class="uf-pair-code">
-
-```ts
-  coverage: 'error',
-```
-
-</div>
-</div>
-<div class="uf-pair">
-<div class="uf-pair-text">
-
 #### The shell
 
 The files of your application that call the code, such as HTTP handlers. Gate 2 checks that they call it only through the harness.
@@ -431,6 +413,7 @@ The types still check, because the answer is still a booking.
 ```json
 {
   "ok": false,
+  "domain": "urn:demo:booking",
   "operation": "seat_booking",
   "kind": "ContractViolation",
   "failures": [

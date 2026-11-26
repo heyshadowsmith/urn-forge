@@ -66,11 +66,11 @@
   },
   "tutorial-3": {
     "paths": [
-      "tutorial/3-strict-coverage/features/**/*.feature"
+      "tutorial/3-edges/features/**/*.feature"
     ],
     "import": [
       "src/gherkin/register-tsx.mjs",
-      "tutorial/3-strict-coverage/features/support/**/*.ts"
+      "tutorial/3-edges/features/support/**/*.ts"
     ],
     "format": [
       "progress"

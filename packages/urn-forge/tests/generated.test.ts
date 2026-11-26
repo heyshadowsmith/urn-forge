@@ -76,7 +76,7 @@ describe('check', () => {
 
   it('describes each definition for the Gherkin steps', () => {
     expect(Definitions.booking.base).toBe('object');
-    expect(Definitions.tables).toEqual({ base: 'array', items: 'table_number', rules: ['maxItems', 'uniqueItems'] });
+    expect(Definitions.tables).toEqual({ urn: 'urn:demo:booking:definition:tables', base: 'array', items: 'table_number', rules: ['maxItems', 'uniqueItems'] });
   });
 });
 
@@ -84,6 +84,7 @@ describe('runOperation', () => {
   it('answers the output of the core, when the input and the answer keep the contract', () => {
     expect(runOperation(core, 'seat_booking', { reference: 'ABCDEFGH', stored_booking: booking })).toEqual({
       ok: true,
+      domain: 'urn:demo:booking',
       operation: 'seat_booking',
       output: 'booking',
       value: { ...booking, state: 'seated' },
@@ -101,6 +102,7 @@ describe('runOperation', () => {
     const result = runOperation(spy, 'seat_booking', { reference: 'ABCDEFGH', stored_booking: { ...booking, reference: 'ZZZZZZZZ' } });
     expect(result).toEqual({
       ok: false,
+      domain: 'urn:demo:booking',
       operation: 'seat_booking',
       kind: 'InputRejected',
       failures: [{ definition: 'seat_request', rule: 'names_the_booking', path: '', message: 'The request names another booking than the one loaded' }],
@@ -112,6 +114,7 @@ describe('runOperation', () => {
     const wrong = { seat_booking: ({ stored_booking }) => ({ output: 'booking' as const, value: { ...stored_booking, state: 'seated' as const, party_size: 5 } }) } satisfies DomainCore;
     expect(runOperation(wrong, 'seat_booking', { reference: 'ABCDEFGH', stored_booking: booking })).toEqual({
       ok: false,
+      domain: 'urn:demo:booking',
       operation: 'seat_booking',
       kind: 'ContractViolation',
       failures: [{ definition: 'seat_booking', rule: 'keeps_the_party', path: '', message: 'Seating may change only the state' }],

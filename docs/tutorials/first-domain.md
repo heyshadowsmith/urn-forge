@@ -1,10 +1,10 @@
 # Tutorial: build a domain with a coding agent
 
-In this tutorial, you and a coding agent make a domain, `shipping`, with one operation, `quote_shipping`. The operation takes a parcel and gives the price to send it. Then you add a refusal, and you make the checks strict. It takes about 20 minutes.
+In this tutorial, you and a coding agent make a domain, `shipping`, with one operation, `quote_shipping`. The operation takes a parcel and gives the price to send it. Then you add a refusal, and you test the edges of its rules. It takes about 20 minutes.
 
 Each part says what you ask the agent, what the agent does, and what you check. The outputs on this page are from real runs of the commands that the agent runs. An agent's own words are different on each run, so this page does not show them. You can also do each step by hand: the files and the commands are the same.
 
-The result of each part is in [`packages/urn-forge/tutorial/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/) of the repository: `1-first-domain`, `2-declared-errors` and `3-strict-coverage`. If the agent's result is different, compare its files with these files.
+The result of each part is in [`packages/urn-forge/tutorial/`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/) of the repository: `1-first-domain`, `2-declared-errors` and `3-edges`. If the agent's result is different, compare its files with these files.
 
 ## 1. Set up the project
 
@@ -36,11 +36,7 @@ next: npm install, then npx urn-forge compile, then npx urn-forge verify
 
 The starter is a complete domain that splits a bill. `AGENTS.md` gives the agent its instructions, and `.claude/skills/urn-forge/` gives Claude Code a skill that runs the loop.
 
-The starter is strict: a missing scenario fails `verify`. In this tutorial, start with gaps as warnings, so that you can see them. Replace `urn-forge.config.ts`:
-
-<<< @/../packages/urn-forge/tutorial/1-first-domain/urn-forge.config.ts
-
-Part 4 makes it strict again. Commit the project (`git add -A && git commit -m start`), so that later you can compare each change with this one. Then start your coding agent in `my-shipping`.
+The checks are always strict: an operation, an answer or a rule with no scenario fails `verify`. Commit the project (`git add -A && git commit -m start`), so that later you can compare each change with this one. Then start your coding agent in `my-shipping`.
 
 ## 2. Build the shipping domain
 
@@ -115,16 +111,18 @@ domain.manifest.yaml:75  error  rule-guard  over_express_limit: input.express ca
   fix: Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) || self.x > 0.
 ```
 
-**The checks find the gaps.** After `compile`, `verify` gives two warnings, because no scenario covers the new answer and its rule:
+**The checks find the gaps.** After `compile`, gate 3 fails, because no scenario covers the new answer and its rule:
 
 ```
-gate 3  gherkin       PASS  1 feature(s), 10 scenario(s), 1/1 operation(s) run, 6 rule(s) broken
-    features  warning  uncovered-output  no scenario of quote_shipping answers too_heavy_for_express; add one that ends with Then the output is "too_heavy_for_express"
+gate 1  completeness  PASS  tsc: 0 error(s) over src/core.ts; core satisfies DomainCore
+gate 2  boundary      PASS  1 core file(s), 0 shell file(s): 0 problem(s)
+gate 3  gherkin       FAIL  1 feature(s), 10 scenario(s), 1/1 operation(s) run, 6 rule(s) broken
+    features  error  uncovered-output  no scenario of quote_shipping answers too_heavy_for_express; add one that ends with Then the output is "too_heavy_for_express"
       fix: Add a scenario of the operation that ends with Then the output is "<output>".
-    features  warning  uncovered-rule  no scenario breaks required of too_heavy_for_express; add one that ends with Then the input is rejected by "required" of "too_heavy_for_express", or Then the value is rejected by …
+    features  error  uncovered-rule  no scenario breaks required of too_heavy_for_express; add one that ends with Then the input is rejected by "required" of "too_heavy_for_express", or Then the value is rejected by …
       fix: Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".
 gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
-verify passed with 2 warning(s) (gates 1, 2, 3, 4)
+verify failed: gate 3
 ```
 
 The agent adds the two scenarios that the fixes ask for. The highlighted lines are new:
@@ -143,33 +141,13 @@ The harness found that the answer breaks `fits_express`. The agent corrects the 
 
 <<< @/../packages/urn-forge/tutorial/2-declared-errors/src/core.ts{7,11}
 
-Now 12 of 12 scenarios pass, and `verify` passes with no warning:
+Now 12 of 12 scenarios pass, and `verify` passes:
 
 ```
 gate 3  gherkin       PASS  1 feature(s), 12 scenario(s), 1/1 operation(s) run, 7 rule(s) broken
 ```
 
-## 4. Make it strict
-
-### Make a gap an error
-
-Make a missing scenario fail `verify` again. Change `urn-forge.config.ts` yourself, because this setting is a decision about how strict the checks are:
-
-<<< @/../packages/urn-forge/tutorial/3-strict-coverage/urn-forge.config.ts{6-7}
-
-Now a gap fails gate 3. For example, without the scenario `A refusal needs the weight`:
-
-```
-gate 3  gherkin       FAIL  1 feature(s), 11 scenario(s), 1/1 operation(s) run, 6 rule(s) broken
-    features  error  uncovered-rule  no scenario breaks required of too_heavy_for_express; add one that ends with Then the input is rejected by "required" of "too_heavy_for_express", or Then the value is rejected by …
-      fix: Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".
-gate 4  drift         PASS  1 generated file(s) compared byte for byte against src/generated
-verify failed: gate 3
-```
-
-From now on, each new operation, answer or rule that the agent adds must have a scenario.
-
-### Test the edges
+## 4. Test the edges
 
 Gate 3 asks for one scenario for each rule. It does not ask for the values at the edges of a rule, where code is wrong most frequently. Suppose that the agent writes `>=` in place of `>`:
 
@@ -179,7 +157,7 @@ Gate 3 asks for one scenario for each rule. It does not ask for the values at th
 
 All scenarios still pass, but the code refuses an express parcel of exactly 5000 grams. **Ask the agent:** "Add scenarios at the edges of each rule." The highlighted lines are new:
 
-<<< @/../packages/urn-forge/tutorial/3-strict-coverage/features/quote_shipping.feature{26-45 gherkin}
+<<< @/../packages/urn-forge/tutorial/3-edges/features/quote_shipping.feature{26-45 gherkin}
 
 ```
   1) An express parcel of exactly 5000 grams is quoted # features/quote_shipping.feature:39
@@ -204,5 +182,7 @@ The skill tells Claude Code to add these edges without a request. Check that the
 - **You** wrote a contract of one operation, one refusal and seven rules, and checked each expected value.
 - **The agent** wrote the code and fifteen scenarios, and ran the checks until they passed.
 - **urn-forge** found two gaps, a wrong answer and a wrong edge, with no help from you.
+
+The result is in [`packages/urn-forge/tutorial/3-edges`](https://github.com/heyshadowsmith/urn-forge/tree/main/packages/urn-forge/tutorial/3-edges).
 
 Next, [set up CI](../how-to/run-verify-in-ci), so that gate 5 also stops a change that makes the contract weaker. Then read [Review an agent's change](../how-to/review-an-agents-change).

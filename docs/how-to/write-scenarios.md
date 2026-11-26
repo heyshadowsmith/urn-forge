@@ -64,9 +64,9 @@ The rules of the definition of an output apply only to answers. An example is th
 
 ## Cover the manifest, then test the edges
 
-Gate 3 asks for a scenario that runs each operation, and a scenario that ends with each output. It also asks for a scenario that breaks each rule that a definition applies. Scenarios for the rules of outputs and operations are not necessary, because the harness checks these rules on each answer. A gap is a warning until you set `coverage: 'error'` in `urn-forge.config.ts`.
+Gate 3 asks for a scenario that runs each operation, and a scenario that ends with each output. It also asks for a scenario that breaks each rule that a definition applies. Scenarios for the rules of outputs and operations are not necessary, because the harness checks these rules on each answer. A gap is always an error.
 
-Gate 3 does not ask for the values at the edges of a rule, where a core is wrong most frequently. For a weight from 1 to 30000, send `1` and `30000`. For a limit of 5000 grams, send `5000`. [Part 4 of the tutorial](../tutorials/first-domain#test-the-edges) shows a bug that only a scenario at an edge finds.
+Gate 3 does not ask for the values at the edges of a rule, where a core is wrong most frequently. For a weight from 1 to 30000, send `1` and `30000`. For a limit of 5000 grams, send `5000`. [Part 4 of the tutorial](../tutorials/first-domain#_4-test-the-edges) shows a bug that only a scenario at an edge finds.
 
 ## Run them
 

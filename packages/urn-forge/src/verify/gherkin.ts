@@ -8,7 +8,7 @@
  * - each rule that a definition applies is broken by a scenario, on an input or on a checked value
  *   (uncovered-rule).
  *
- * A gap is a warning, or an error with `coverage: 'error'` in the config.
+ * A gap is always an error.
  */
 import { AstBuilder, compile, GherkinClassicTokenMatcher, Parser } from '@cucumber/gherkin';
 import { IdGenerator } from '@cucumber/messages';
@@ -26,13 +26,12 @@ export interface GherkinGateInput {
   readonly model: Model;
   readonly applications: readonly Application[];
   readonly features: readonly FeatureFile[];
-  readonly coverage: 'warn' | 'error';
 }
 
 export function gherkinGate(input: GherkinGateInput): GateOutcome {
   const { model, applications, features } = input;
   const problems: GateProblem[] = [];
-  const gap = input.coverage === 'error' ? 'error' : 'warning';
+  const gap = 'error';
   const ran = new Set<string>();
   const answered = new Set<string>();
   const broken = new Set<string>();

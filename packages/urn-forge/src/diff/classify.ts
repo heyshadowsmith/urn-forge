@@ -12,12 +12,13 @@ import type { Expr } from '../cel/parse.js';
 import { print } from '../cel/print.js';
 import type { Model } from '../model.js';
 import type { Application } from '../rules.js';
+import { domainUrn, partUrn } from '../urn.js';
 
 export type ChangeClass = 'breaking' | 'compatible';
 
 export interface Change {
   readonly class: ChangeClass;
-  /** The part that changed: `definitions.party_size`, `operations.seat_booking`, `manifest`. */
+  /** The URN of the part that changed: `urn:demo:booking:definition:party_size`, or the domain's URN for the header. */
   readonly place: string;
   readonly message: string;
 }
@@ -122,12 +123,14 @@ export function classify(old: Side, next: Side): Change[] {
     changes.push({ class: cls, place, message });
   };
   const ignoreUnknown = next.model.header.compatibility?.callers === 'ignore-unknown';
+  const urn = (kind: 'definition' | 'rule' | 'operation', name: string): string => partUrn(next.model.header, kind, name);
+  const domain = domainUrn(next.model.header);
 
   const a = old.model.header;
   const b = next.model.header;
-  if (a.namespace !== b.namespace || a.domain !== b.domain) add('breaking', 'manifest', `the contract is now ${b.namespace}:${b.domain}, not ${a.namespace}:${a.domain}`);
-  if (!a.compatibility && b.compatibility) add('compatible', 'manifest', 'callers now promise to ignore what they do not know: compatibility callers: ignore-unknown');
-  if (a.compatibility && !b.compatibility) add('breaking', 'manifest', 'callers no longer promise to ignore what they do not know');
+  if (a.namespace !== b.namespace || a.domain !== b.domain) add('breaking', domain, `the contract is now ${b.namespace}:${b.domain}, not ${a.namespace}:${a.domain}`);
+  if (!a.compatibility && b.compatibility) add('compatible', domain, 'callers now promise to ignore what they do not know: compatibility callers: ignore-unknown');
+  if (a.compatibility && !b.compatibility) add('breaking', domain, 'callers no longer promise to ignore what they do not know');
 
   const oldSides = sides(old.model);
   const newSides = sides(next.model);
@@ -140,7 +143,7 @@ export function classify(old: Side, next: Side): Change[] {
     if (!before?.expr || !rule.expr) continue;
     if (print(before.expr) !== print(rule.expr)) {
       const used = next.applications.some((app) => app.rule.name === rule.name && app.owner === next.model);
-      add(used ? 'breaking' : 'compatible', `rules.${rule.name}`, `the rule is now ${print(rule.expr)}, not ${print(before.expr)}`);
+      add(used ? 'breaking' : 'compatible', urn('rule', rule.name), `the rule is now ${print(rule.expr)}, not ${print(before.expr)}`);
     }
   }
 
@@ -148,7 +151,7 @@ export function classify(old: Side, next: Side): Change[] {
   for (const name of new Set([...Object.keys(old.model.definitions), ...Object.keys(next.model.definitions)])) {
     const before = old.model.definitions[name];
     const after = next.model.definitions[name];
-    const place = `definitions.${name}`;
+    const place = urn('definition', name);
     const sent = sentIn(name);
     const received = receivedIn(name);
     const used = sent || received;
@@ -183,7 +186,7 @@ export function classify(old: Side, next: Side): Change[] {
     const after = newDefinitionRules.get(name) ?? new Map<string, Application>();
     const sent = sentIn(name);
     const received = receivedIn(name);
-    const place = `definitions.${name}`;
+    const place = urn('definition', name);
     for (const [rule, application] of after) {
       const previous = before.get(rule);
       if (!previous) {
@@ -205,7 +208,7 @@ export function classify(old: Side, next: Side): Change[] {
   for (const name of new Set([...Object.keys(old.model.operations), ...Object.keys(next.model.operations)])) {
     const before = old.model.operations[name];
     const after = next.model.operations[name];
-    const place = `operations.${name}`;
+    const place = urn('operation', name);
     if (!before) {
       add('compatible', place, 'the operation is new');
       continue;
@@ -232,14 +235,16 @@ export function classify(old: Side, next: Side): Change[] {
   for (const key of new Set([...oldOperationRules.keys(), ...newOperationRules.keys()])) {
     const before = oldOperationRules.get(key) ?? new Map<string, Application>();
     const after = newOperationRules.get(key) ?? new Map<string, Application>();
-    const operation = key.split('.')[1]!;
+    const [, operation, object] = key.split('.') as [string, string, string | undefined];
     if (!old.model.operations[operation] || !next.model.operations[operation]) continue;
+    const place = urn('operation', operation);
+    const of = object ? ` of the output ${object}` : '';
     for (const [rule, application] of after) {
       const previous = before.get(rule);
-      if (!previous) add('compatible', key, `the rule ${rule} is new: the answer promises more`);
-      else if (JSON.stringify(previous.arguments) !== JSON.stringify(application.arguments)) add('breaking', key, `the arguments of ${rule} changed`);
+      if (!previous) add('compatible', place, `the rule ${rule}${of} is new: the answer promises more`);
+      else if (JSON.stringify(previous.arguments) !== JSON.stringify(application.arguments)) add('breaking', place, `the arguments of ${rule}${of} changed`);
     }
-    for (const rule of before.keys()) if (!after.has(rule)) add('breaking', key, `the rule ${rule} is removed: the answer promises less`);
+    for (const rule of before.keys()) if (!after.has(rule)) add('breaking', place, `the rule ${rule}${of} is removed: the answer promises less`);
   }
 
   // By code point, not by locale: the order is the same on every machine.

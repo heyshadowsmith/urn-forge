@@ -10,12 +10,12 @@ const base = new URL('./fixtures/booking/', import.meta.url);
 const compiled = compileManifest(readFileSync(new URL('domain.manifest.yaml', base), 'utf8'));
 const feature = readFileSync(new URL('features/seat.feature', base), 'utf8');
 
-function gate(text: string, coverage: 'warn' | 'error' = 'warn') {
-  return gherkinGate({ model: compiled.model!, applications: compiled.applications, features: [{ path: 'features/seat.feature', text }], coverage });
+function gate(text: string) {
+  return gherkinGate({ model: compiled.model!, applications: compiled.applications, features: [{ path: 'features/seat.feature', text }] });
 }
 
-function problems(text: string, coverage: 'warn' | 'error' = 'warn'): string[] {
-  return gate(text, coverage).problems.map((p) => `${p.severity} ${p.code}: ${p.message}`);
+function problems(text: string): string[] {
+  return gate(text).problems.map((p) => `${p.severity} ${p.code}: ${p.message}`);
 }
 
 it('passes the booking fixture, which covers every operation, output and rule', () => {
@@ -29,21 +29,21 @@ describe('a gap', () => {
   it('is a rule that no scenario breaks', () => {
     const text = feature.replace(/^.*\| maxLength .*\n/m, '');
     expect(problems(text)).toEqual([
-      'warning uncovered-rule: no scenario breaks maxLength of note; add one that ends with Then the input is rejected by "maxLength" of "note", or Then the value is rejected by …',
+      'error uncovered-rule: no scenario breaks maxLength of note; add one that ends with Then the input is rejected by "maxLength" of "note", or Then the value is rejected by …',
     ]);
   });
 
   it('is an output that no scenario answers', () => {
     const text = feature.replace(/Then the output is "invalid_state"/g, 'Then the output is "booking"');
-    expect(problems(text)).toContain('warning uncovered-output: no scenario of seat_booking answers invalid_state; add one that ends with Then the output is "invalid_state"');
+    expect(problems(text)).toContain('error uncovered-output: no scenario of seat_booking answers invalid_state; add one that ends with Then the output is "invalid_state"');
   });
 
   it('is an operation that no scenario runs', () => {
-    expect(problems('Feature: Nothing\n')).toContain('warning uncovered-operation: no scenario runs seat_booking; add one with When I run "seat_booking" with:');
+    expect(problems('Feature: Nothing\n')).toContain('error uncovered-operation: no scenario runs seat_booking; add one with When I run "seat_booking" with:');
   });
 
-  it('is an error, and fails the gate, with coverage: error', () => {
-    const outcome = gate('Feature: Nothing\n', 'error');
+  it('is always an error, and fails the gate', () => {
+    const outcome = gate('Feature: Nothing\n');
     expect(outcome.pass).toBe(false);
     expect(outcome.problems.every((p) => p.severity === 'error')).toBe(true);
   });
@@ -65,7 +65,7 @@ describe('a step', () => {
       | ABCDEFGH  |
     Then the value is rejected by "smallest" of "party_size"
 `;
-    expect(problems(text).filter((p) => p.startsWith('error'))).toEqual([
+    expect(problems(text).filter((p) => p.startsWith('error unknown-name'))).toEqual([
       'error unknown-name: seat is not an operation of the manifest',
       'error unknown-name: receipt is not an output of seat_booking',
       'error unknown-name: bookings is not a definition of the manifest',

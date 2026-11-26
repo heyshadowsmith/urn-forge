@@ -6,7 +6,7 @@ allowed-tools: Bash(npx urn-forge *) Bash(npx cucumber-js *)
 
 # Change an urn-forge domain
 
-The contract of this project is `domain.manifest.yaml`. urn-forge generates types, schemas and a harness from it, and its gates check the core and the scenarios against it. Work in this order: the contract, the core, the scenarios, then the checks. For a fact (a key of the manifest, a standard rule, a function of the rule language, a step), read `node_modules/urn-forge/AGENTS.md`.
+The contract of this project is `domain.manifest.yaml`, or one manifest for each domain that `domains` of `urn-forge.config.ts` lists. urn-forge generates types, schemas and a harness from it, and its gates check the core and the scenarios against it. Work in this order: the contract, the core, the scenarios, then the checks. For a fact (a key of the manifest, a standard rule, a function of the rule language, a step), read `node_modules/urn-forge/AGENTS.md`.
 
 ## 1. Change the contract first
 

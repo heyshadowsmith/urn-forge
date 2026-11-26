@@ -30,7 +30,6 @@ The shell is the code that calls an operation: an HTTP handler, a queue consumer
 
 ```ts
 export default defineConfig({
-  coverage: 'error',
   shell: ['src/shell'],
 });
 ```
@@ -43,7 +42,7 @@ An agent that cannot make a check pass can remove the check. Gate 5 finds this. 
 
 ```
 gate 5  contract      FAIL  2 change(s) make the contract weaker than HEAD, and the version 0.1.0 → 0.1.0 does not allow it
-    domain.manifest.yaml:10  error  removed-rule  the rule maximum is removed from definitions.weight_grams
+    domain.manifest.yaml:10  error  removed-rule  the rule maximum is removed from urn:demo:shipping:definition:weight_grams
       fix: Put the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.
     features/quote_shipping.feature  error  removed-scenario  1 of the 4 scenarios "A parcel that breaks a rule is rejected at the boundary" are removed
       fix: Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.
@@ -67,6 +66,8 @@ The gates cannot see a change to their own settings. Make a change to these file
 
 ## A project that already exists
 
+Each operation, answer and rule must have a scenario before `verify` passes the first time. Start with one operation, and add more when that one passes.
+
 `init` writes nothing when one of its files is already there, and most projects have a `tsconfig.json`. Run `init` in an empty folder, and copy these parts into your project:
 
 | From the starter | In your project |
@@ -77,11 +78,29 @@ The gates cannot see a change to their own settings. Make a change to these file
 | `package.json` | Add `"type": "module"`, and the scripts `compile`, `verify` and `test:features` |
 | `tsconfig.json` | Add `features` to `include` |
 
+## Several domains
+
+A repository can hold several domains, for example `billing` and `shipping`. List each one in `domains`. The `tsconfig` and the `shell` are shared:
+
+```ts
+export default defineConfig({
+  shell: ['src/shell'],
+  domains: [
+    { manifest: 'billing/domain.manifest.yaml', out: 'billing/generated', core: 'billing/core.ts', features: 'billing/features' },
+    { manifest: 'shipping/domain.manifest.yaml', out: 'shipping/generated', core: 'shipping/core.ts', features: 'shipping/features' },
+  ],
+});
+```
+
+`compile` and `verify` then handle each domain in one run, and start the output of each with its URN, such as `urn:acme:billing`. Gate 2 checks the shell against the core of each domain. Each domain must have its own manifest, `out`, `features` and URN.
+
+The steps of the scenarios use short names, so run the scenarios of each domain with its own Cucumber profile. The domains are independent: one domain cannot use a definition of another.
+
 ## Day to day
 
 - **Ask for a result, not for code.** "Refuse an express parcel over 5000 grams, and say its weight" is better than "add an if statement".
 - **When the agent stops and asks**, it has found a decision that is yours: a weaker rule, a new version, or a rule that the contract cannot state. Answer with the decision and the reason. Do not answer only "do it".
-- **For more than one domain**, give each domain its own manifest and config, and run each command with `--config <file>`.
+- **For more than one domain**, list each domain in the config. Refer to [Several domains](#several-domains).
 
 ## What the agent sees
 

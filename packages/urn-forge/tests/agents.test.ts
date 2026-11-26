@@ -85,7 +85,7 @@ describe('--format json', () => {
     const dir = copy();
     const compile = await run(dir, ['compile', '--format', 'json']);
     expect(compile.out).toHaveLength(1);
-    expect(JSON.parse(compile.out[0]!)).toMatchObject({ ok: true, files: expect.arrayContaining([{ status: 'unchanged', path: 'generated/domain.generated.ts' }]) });
+    expect(JSON.parse(compile.out[0]!)).toMatchObject({ ok: true, files: expect.arrayContaining([expect.objectContaining({ status: 'unchanged', path: 'generated/domain.generated.ts' })]) });
     const diff = await run(dir, ['diff', 'domain.manifest.yaml', 'domain.manifest.yaml', '--format', 'json']);
     expect(diff.out).toHaveLength(1);
     expect(JSON.parse(diff.out[0]!)).toMatchObject({ ok: true, changes: [] });
@@ -126,7 +126,7 @@ describe('the schema of the manifest', () => {
     const booking = parse(readFileSync(join(FIXTURES, 'booking/domain.manifest.yaml'), 'utf8')) as { definitions: Record<string, Record<string, unknown>> };
     booking.definitions['party_size']!['minimum'] = 1;
     expect(validate(booking)).toBe(false);
-    const shape = (definition: object): boolean => validate({ manifest: { namespace: 'a', domain: 'b', version: '0.1.0' }, definitions: { x: definition } });
+    const shape = (definition: object): boolean => validate({ manifest: { namespace: 'ab', domain: 'b', version: '0.1.0' }, definitions: { x: definition } });
     expect(shape({ description: 'X', type: 'object', properties: [] })).toBe(true);
     expect(shape({ description: 'X', type: 'object' })).toBe(false);
     expect(shape({ description: 'X', type: 'string', items: 'y' })).toBe(false);

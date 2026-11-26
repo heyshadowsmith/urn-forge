@@ -4,7 +4,9 @@ import { defineConfig } from 'urn-forge/config';
 // features and tsconfig.json. Payments and refunds are stored records, so the Postgres extra
 // writes their tables (schema.generated.sql), with CHECK constraints for their rules.
 export default defineConfig({
-  // Every operation, output and rule must have a scenario.
-  coverage: 'error',
-  postgres: { tables: ['payment', 'refund'] },
+  domains: [
+    {
+      postgres: { tables: ['payment', 'refund'] },
+    },
+  ],
 });

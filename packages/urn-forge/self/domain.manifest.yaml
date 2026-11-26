@@ -1,7 +1,7 @@
 # urn-forge's own domain: two pure functions of the compiler, declared with urn-forge. The core
 # calls the functions the compiler really uses, so the scenarios test the toolchain, not a copy.
 manifest:
-  namespace: urn_forge
+  namespace: urn-forge
   domain: toolchain
   version: 0.2.0
 

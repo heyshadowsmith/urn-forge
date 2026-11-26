@@ -34,7 +34,7 @@ Copy the layout of `insurance/`:
 | `features/support/steps.ts` | Calls `registerSteps` from `urn-forge/cucumber` with the generated file and the core |
 | `generated/` | The files that `compile` writes. They are committed |
 
-A tutorial snapshot uses the defaults of a new project instead: `src/core.ts`, `src/generated/` and its own `tsconfig.json`. Copy the layout of `tutorial/3-strict-coverage/`.
+A tutorial snapshot uses the defaults of a new project instead: `src/core.ts`, `src/generated/` and its own `tsconfig.json`. Copy the layout of `tutorial/3-edges/`.
 
 ## Compile and verify the domain
 

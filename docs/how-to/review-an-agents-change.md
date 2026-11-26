@@ -17,7 +17,7 @@ If the manifest did not change, the contract is the same. Then the change is in 
 
 The gates cannot see a change to their own settings. Read each change to these files, and ask why the agent made it:
 
-- `urn-forge.config.ts`: for example, `coverage: 'warn'` turns a missing scenario into a warning, and a shorter `shell` list removes files from gate 2.
+- `urn-forge.config.ts`: for example, a shorter `shell` list removes files from gate 2, and a new domain must have scenarios of its own.
 - `tsconfig.json`: a looser setting makes gate 1 accept more.
 - `cucumber.json` and `features/support/`: these decide which scenarios run, and how.
 - The CI workflow: for example, a removed `--base` turns off gate 5.
@@ -28,7 +28,7 @@ CI runs gate 5 with `--base` against the target branch, and `urn-forge diff`. Ga
 
 ```
 gate 5  contract      PASS  2 change(s) make the contract weaker than HEAD, allowed by the version 0.1.0 → 0.2.0
-    domain.manifest.yaml:10  warning  removed-rule  the rule maximum is removed from definitions.weight_grams
+    domain.manifest.yaml:10  warning  removed-rule  the rule maximum is removed from urn:demo:shipping:definition:weight_grams
       fix: Put the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.
     features/quote_shipping.feature  warning  removed-scenario  1 of the 4 scenarios "A parcel that breaks a rule is rejected at the boundary" are removed
       fix: Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.
@@ -36,7 +36,7 @@ verify passed with 2 warning(s) (gates 1, 2, 3, 4, 5)
 ```
 
 ```
-breaking    definitions.weight_grams  the rule maximum is removed: it accepts more
+breaking    urn:demo:shipping:definition:weight_grams  the rule maximum is removed: it accepts more
 diff passed: 1 change(s), 1 breaking, 0.1.0 → 0.2.0: allowed, as 0.2.0 is a 0.x version, where anything may change
 ```
 

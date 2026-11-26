@@ -12,8 +12,8 @@ A change to the manifest can break callers. A caller can send a value that the n
 In this example, the manifest of the tutorial changes from `1.0.0` to `1.1.0`. The maximum weight decreases from 30000 to 20000, and the change adds the zone `regional`.
 
 ```
-breaking    definitions.weight_grams  maximum is now 20000, not 30000: it accepts less
-compatible  definitions.zone  enum is now ["domestic","international","regional"], not ["domestic","international"]: it accepts more
+breaking    urn:demo:shipping:definition:weight_grams  maximum is now 20000, not 30000: it accepts less
+compatible  urn:demo:shipping:definition:zone  enum is now ["domestic","international","regional"], not ["domestic","international"]: it accepts more
 diff failed: 2 change(s), 1 breaking, 1.0.0 → 1.1.0: 1.0.0 → 1.1.0 keeps the major version 1; a breaking change needs a new major version
 ```
 

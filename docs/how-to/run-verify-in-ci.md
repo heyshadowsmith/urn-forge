@@ -56,7 +56,7 @@ urn-forge is not on npm yet. For `npm ci` in CI, commit the tarball to the repos
 
 | A change that | Fails |
 | --- | --- |
-| Breaks a gate. For example, the core has no function for an operation, or a shell file that the config names calls the core without the harness. Or a scenario is not there (with `coverage: 'error'`), or a generated file is not current | `verify` |
+| Breaks a gate. For example, the core has no function for an operation, or a shell file that the config names calls the core without the harness. Or a scenario is not there, or a generated file is not current | `verify` |
 | Makes the core give a wrong value, or break a rule of an output | `cucumber-js` |
 | Adds an output that the shell does not handle | `tsc` |
 | Can break a caller without a new major version | `diff` |

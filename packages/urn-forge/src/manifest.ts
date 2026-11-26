@@ -71,6 +71,8 @@ export interface ManifestDecl {
 
 /** The name of a part, and of a namespace and a domain. */
 export const NAME = /^[a-z][a-z0-9_]{0,62}$/;
+/** The namespace of a contract: the namespace of its URNs, so lowercase letters, digits and hyphens. */
+export const NAMESPACE = /^[a-z][a-z0-9-]{1,31}$/;
 /** The name of a rule: also the camelCase names of JSON Schema, such as `minLength`. */
 export const RULE_NAME = /^[a-z][A-Za-z0-9_]{0,62}$/;
 /** A semver version, with an optional pre-release and build. */
@@ -217,7 +219,13 @@ function readHeader(read: Reader, value: unknown): ManifestHeader | undefined {
   const path = ['manifest'];
   const header = read.map(value, path, ['namespace', 'domain', 'version', 'compatibility'], ['namespace', 'domain', 'version']);
   if (!header) return undefined;
-  const namespace = read.name(header['namespace'], [...path, 'namespace']);
+  const namespace = typeof header['namespace'] === 'string' && NAMESPACE.test(header['namespace']) ? header['namespace'] : undefined;
+  if (namespace === undefined) {
+    read.shape(
+      [...path, 'namespace'],
+      `${show([...path, 'namespace'])} must be a URN namespace: 2 to 32 lowercase letters, digits and hyphens, starting with a letter, such as my-shop`,
+    );
+  }
   const domain = read.name(header['domain'], [...path, 'domain']);
   const version = typeof header['version'] === 'string' && SEMVER.test(header['version']) ? header['version'] : undefined;
   if (version === undefined) read.shape([...path, 'version'], `${show([...path, 'version'])} must be a semver version, such as 0.1.0`);

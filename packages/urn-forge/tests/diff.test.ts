@@ -75,7 +75,7 @@ const ignoreUnknown = (t: string): string => t.replace('  version: 1.0.0\n', '  
 
 describe('a rule of a definition', () => {
   it('accepts less on the input: breaking', () => {
-    expect(changes((t) => t.replace('- minimum: 1', '- minimum: 2'))).toEqual(['breaking definitions.quantity: minimum is now 2, not 1: it accepts less']);
+    expect(changes((t) => t.replace('- minimum: 1', '- minimum: 2'))).toEqual(['breaking urn:demo:shop:definition:quantity: minimum is now 2, not 1: it accepts less']);
   });
 
   it('accepts more on the input only: compatible', () => {
@@ -83,13 +83,13 @@ describe('a rule of a definition', () => {
     const old = compileManifest(sentOnly);
     const next = compileManifest(sentOnly.replace('- maximum: 10', '- maximum: 20'));
     expect(classify(old as never, next as never).map((c) => `${c.class} ${c.place}: ${c.message}`)).toEqual([
-      'compatible definitions.quantity: maximum is now 20, not 10: it accepts more',
+      'compatible urn:demo:shop:definition:quantity: maximum is now 20, not 10: it accepts more',
     ]);
   });
 
   it('accepts more on the output: breaking, unless callers ignore what they do not know', () => {
     expect(changes((t) => t.replace('[open, closed]', '[open, closed, held]'))).toEqual([
-      'breaking definitions.status: enum is now ["open","closed","held"], not ["open","closed"]: it accepts more',
+      'breaking urn:demo:shop:definition:status: enum is now ["open","closed","held"], not ["open","closed"]: it accepts more',
     ]);
     const old = compileManifest(ignoreUnknown(BASE));
     const next = compileManifest(ignoreUnknown(BASE).replace('[open, closed]', '[open, closed, held]'));
@@ -98,19 +98,19 @@ describe('a rule of a definition', () => {
 
   it('is new on a value that is only received: compatible', () => {
     expect(changes((t) => t.replace('      - enum: [open, closed]', '      - enum: [open, closed]\n      - minLength: 4'))).toEqual([
-      'compatible definitions.status: the rule minLength is new: it accepts less',
+      'compatible urn:demo:shop:definition:status: the rule minLength is new: it accepts less',
     ]);
   });
 
   it('is removed from a received value: breaking', () => {
     expect(changes((t) => t.replace('      - required: [sku, status]', '      - required: [sku]'))).toEqual([
-      'breaking definitions.order: required is now ["sku"], not ["sku","status"]: it accepts more',
+      'breaking urn:demo:shop:definition:order: required is now ["sku"], not ["sku","status"]: it accepts more',
     ]);
   });
 
   it('requires more of the input: breaking', () => {
     expect(changes((t) => t.replace('      - required: [sku]\n  order:', '      - required: [sku, quantity]\n  order:'))).toEqual([
-      'breaking definitions.order_request: required is now ["sku","quantity"], not ["sku"]: it accepts less',
+      'breaking urn:demo:shop:definition:order_request: required is now ["sku","quantity"], not ["sku"]: it accepts less',
     ]);
   });
 
@@ -123,7 +123,7 @@ describe('a rule of a definition', () => {
 
   it('whose text changes is breaking where it is used', () => {
     expect(changes((t) => t.replace('rule: output.sku == input.sku', 'rule: output.sku != input.sku'))).toEqual([
-      'breaking rules.same_sku: the rule is now output.sku != input.sku, not output.sku == input.sku',
+      'breaking urn:demo:shop:rule:same_sku: the rule is now output.sku != input.sku, not output.sku == input.sku',
     ]);
   });
 });
@@ -132,28 +132,28 @@ it('calls a change of a definition that no operation uses compatible', () => {
   const withSpare = BASE.replace('  note:\n    description: A note\n    type: string\n', '  note:\n    description: A note\n    type: string\n    rules:\n      - pattern: a\n');
   const old = compileManifest(withSpare);
   const next = compileManifest(withSpare.replace('- pattern: a', '- pattern: b'));
-  expect(classify(old as never, next as never).map((c) => `${c.class} ${c.place}`)).toEqual(['compatible definitions.note']);
+  expect(classify(old as never, next as never).map((c) => `${c.class} ${c.place}`)).toEqual(['compatible urn:demo:shop:definition:note']);
 });
 
 describe('an operation', () => {
   it('with a new output: breaking, unless callers ignore what they do not know', () => {
     const add = (t: string) => t.replace('      - order: [same_sku]\n', '      - order: [same_sku]\n      - refusal\n');
-    expect(changes(add)).toEqual(['breaking operations.place: the output refusal is new: callers can get an answer that they do not handle']);
+    expect(changes(add)).toEqual(['breaking urn:demo:shop:operation:place: the output refusal is new: callers can get an answer that they do not handle']);
     expect(classify(compileManifest(ignoreUnknown(BASE)) as never, compileManifest(add(ignoreUnknown(BASE))) as never).map((c) => c.class)).toEqual(['compatible']);
   });
 
   it('whose output promises less: breaking; more: compatible', () => {
-    expect(changes((t) => t.replace('      - order: [same_sku]', '      - order'))).toEqual(['breaking operations.place.order: the rule same_sku is removed: the answer promises less']);
+    expect(changes((t) => t.replace('      - order: [same_sku]', '      - order'))).toEqual(['breaking urn:demo:shop:operation:place: the rule same_sku of the output order is removed: the answer promises less']);
     const none = (t: string) => t.replace('      - order: [same_sku]', '      - order');
     expect(classify(compileManifest(none(BASE)) as never, compileManifest(BASE) as never).map((c) => `${c.class} ${c.message}`)).toEqual([
-      'compatible the rule same_sku is new: the answer promises more',
+      'compatible the rule same_sku of the output order is new: the answer promises more',
     ]);
   });
 
   it('that is removed: breaking; new: compatible', () => {
     const without = BASE.slice(0, BASE.indexOf('operations:'));
-    expect(classify(compileManifest(BASE) as never, compileManifest(without) as never).map((c) => `${c.class} ${c.place}`)).toContain('breaking operations.place');
-    expect(classify(compileManifest(without) as never, compileManifest(BASE) as never).map((c) => `${c.class} ${c.place}`)).toContain('compatible operations.place');
+    expect(classify(compileManifest(BASE) as never, compileManifest(without) as never).map((c) => `${c.class} ${c.place}`)).toContain('breaking urn:demo:shop:operation:place');
+    expect(classify(compileManifest(without) as never, compileManifest(BASE) as never).map((c) => `${c.class} ${c.place}`)).toContain('compatible urn:demo:shop:operation:place');
   });
 });
 
