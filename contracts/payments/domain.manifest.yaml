@@ -487,126 +487,126 @@ rules:
     rule: >-
       ((self.key_kind == 'secret' || self.key_kind == 'read_only') && has(self.merchant_id)) ||
       (self.key_kind != 'secret' && self.key_kind != 'read_only' && !has(self.merchant_id))
-    message: A merchant's key belongs to one merchant, and no other caller to any
+    failure_message: A merchant's key belongs to one merchant, and no other caller to any
 
   security_code_fits_the_brand:
     description: The security code of an American Express card (a number that starts with 34 or 37) is 4 digits, and of any other card 3
     rule: >-
       (self.card_number.matches('^3[47]') && self.security_code.matches('^[0-9]{4}$')) ||
       (!self.card_number.matches('^3[47]') && self.security_code.matches('^[0-9]{3}$'))
-    message: The security code is 4 digits for American Express and 3 for any other card
+    failure_message: The security code is 4 digits for American Express and 3 for any other card
 
   one_entry_for_each_key:
     description: No two metadata entries have the same key
     rule: self.all(e, self.exists_one(f, f.metadata_key == e.metadata_key))
-    message: Each metadata key may occur once
+    failure_message: Each metadata key may occur once
 
   amounts_within_payment:
     description: A payment captures at most its amount, and refunds at most what it captured
     rule: self.captured_amount <= self.amount && self.refunded_amount <= self.captured_amount
-    message: The captured amount must be at most the amount, and the refunded amount at most the captured amount
+    failure_message: The captured amount must be at most the amount, and the refunded amount at most the captured amount
 
   # A captured payment holds the time of its capture, which the refund window counts from.
   captured_payment_has_capture_time:
     description: A captured or refunded payment holds when it was captured
     rule: "!(self.status in ['captured', 'partially_refunded', 'refunded']) || has(self.captured_at)"
-    message: A captured or refunded payment needs the time of its capture
+    failure_message: A captured or refunded payment needs the time of its capture
 
   pending_only_for_bank_transfer:
     description: Only a bank transfer payment can be pending
     rule: self.status != 'pending' || self.method == 'bank_transfer'
-    message: Only a bank transfer payment can be pending
+    failure_message: Only a bank transfer payment can be pending
 
   refunds_within_captured:
     description: The sum of all refunds of a payment, this one included, is at most the captured amount
     rule: self.amount <= self.refunded_total && self.refunded_total <= self.captured_amount
-    message: The refunds of a payment must not exceed the captured amount
+    failure_message: The refunds of a payment must not exceed the captured amount
 
   event_type_names_the_status:
     description: An event is named payment.<new_status>
     rule: self.event_type == 'payment.' + self.new_status
-    message: The event type must be payment.<new_status>
+    failure_message: The event type must be payment.<new_status>
 
   card_payment_has_card:
     description: A card payment carries card details
     rule: self.method != 'card' || has(self.card)
-    message: A card payment needs card details
+    failure_message: A card payment needs card details
 
   bank_transfer_has_iban_and_no_card:
     description: A bank transfer payment carries an IBAN and no card details
     rule: self.method != 'bank_transfer' || (has(self.iban) && !has(self.card))
-    message: A bank transfer payment needs an IBAN and no card details
+    failure_message: A bank transfer payment needs an IBAN and no card details
 
   names_the_payment:
     description: The stored payment is the one that the request names
     rule: self.stored_payment.payment_id == self.payment_id
-    message: The stored payment is not the one that the request names
+    failure_message: The stored payment is not the one that the request names
 
   names_the_refund:
     description: The stored refund is the one that the request names
     rule: self.stored_refund.refund_id == self.refund_id
-    message: The stored refund is not the one that the request names
+    failure_message: The stored refund is not the one that the request names
 
   # Who calls
 
   has_no_key:
     description: The caller has no valid API key
     rule: input.caller.key_kind == 'none'
-    message: The caller has a valid key
+    failure_message: The caller has a valid key
 
   is_not_a_secret_key:
     description: The caller has a valid key that is not a merchant's secret key
     rule: input.caller.key_kind != 'none' && input.caller.key_kind != 'secret'
-    message: The caller has a secret key, or no key
+    failure_message: The caller has a secret key, or no key
 
   is_not_a_merchant_key:
     description: The caller has a valid key that is not a merchant's
     rule: input.caller.key_kind == 'clock' || input.caller.key_kind == 'bank'
-    message: The caller has a merchant's key, or no key
+    failure_message: The caller has a merchant's key, or no key
 
   is_not_the_clock:
     description: The caller has a valid key that is not the shell's clock
     rule: input.caller.key_kind != 'none' && input.caller.key_kind != 'clock'
-    message: The caller is the clock, or has no key
+    failure_message: The caller is the clock, or has no key
 
   is_the_clock:
     description: The caller is the shell's clock
     rule: input.caller.key_kind == 'clock'
-    message: Only the shell's clock may expire a payment
+    failure_message: Only the shell's clock may expire a payment
 
   is_not_the_bank:
     description: The caller has a valid key that is not the bank's
     rule: input.caller.key_kind != 'none' && input.caller.key_kind != 'bank'
-    message: The caller is the bank, or has no key
+    failure_message: The caller is the bank, or has no key
 
   is_the_bank:
     description: The caller is the shell, reporting for the bank
     rule: input.caller.key_kind == 'bank'
-    message: Only the bank may settle a payment
+    failure_message: Only the bank may settle a payment
 
   is_the_merchants_secret_key:
     description: The caller has the secret key of the merchant that the request names
     rule: input.caller.key_kind == 'secret' && has(input.caller.merchant_id) && input.caller.merchant_id == input.merchant_id
-    message: Only the merchant's secret key may make this call
+    failure_message: Only the merchant's secret key may make this call
 
   is_the_merchants_key:
     description: The caller has a key, secret or read-only, of the merchant that the request names
     rule: >-
       (input.caller.key_kind == 'secret' || input.caller.key_kind == 'read_only') &&
       has(input.caller.merchant_id) && input.caller.merchant_id == input.merchant_id
-    message: Only a key of the merchant may make this call
+    failure_message: Only a key of the merchant may make this call
 
   is_another_merchants_secret_key:
     description: The caller has a secret key of a merchant other than the one that the request names
     rule: >-
       input.caller.key_kind == 'secret' &&
       (!has(input.caller.merchant_id) || input.caller.merchant_id != input.merchant_id)
-    message: The key is of the merchant that the request names
+    failure_message: The key is of the merchant that the request names
 
   names_the_merchants_payment:
     description: The stored payment belongs to the merchant that the request names
     rule: input.stored_payment.merchant_id == input.merchant_id
-    message: The payment belongs to another merchant
+    failure_message: The payment belongs to another merchant
 
   is_not_the_merchants_payment_to_change:
     description: A secret key of another merchant, or a payment of another merchant
@@ -614,7 +614,7 @@ rules:
       input.caller.key_kind == 'secret' &&
       (!has(input.caller.merchant_id) || input.caller.merchant_id != input.merchant_id ||
       input.stored_payment.merchant_id != input.merchant_id)
-    message: The key and the payment are of the merchant that the request names
+    failure_message: The key and the payment are of the merchant that the request names
 
   is_not_the_merchants_payment_to_read:
     description: A merchant's key of another merchant, or a payment of another merchant
@@ -622,12 +622,12 @@ rules:
       (input.caller.key_kind == 'secret' || input.caller.key_kind == 'read_only') &&
       (!has(input.caller.merchant_id) || input.caller.merchant_id != input.merchant_id ||
       input.stored_payment.merchant_id != input.merchant_id)
-    message: The key and the payment are of the merchant that the request names
+    failure_message: The key and the payment are of the merchant that the request names
 
   names_the_merchants_refund:
     description: The stored refund belongs to the merchant that the request names
     rule: input.stored_refund.merchant_id == input.merchant_id
-    message: The refund belongs to another merchant
+    failure_message: The refund belongs to another merchant
 
   is_not_the_merchants_refund:
     description: A merchant's key of another merchant, or a refund of another merchant
@@ -635,24 +635,24 @@ rules:
       (input.caller.key_kind == 'secret' || input.caller.key_kind == 'read_only') &&
       (!has(input.caller.merchant_id) || input.caller.merchant_id != input.merchant_id ||
       input.stored_refund.merchant_id != input.merchant_id)
-    message: The key and the refund are of the merchant that the request names
+    failure_message: The key and the refund are of the merchant that the request names
 
   # Creating a payment
 
   line_items_add_up:
     description: When the request has line items, the amount is the sum of quantity times unit amount over all lines
     rule: '!has(input.line_items) || input.amount == input.line_items.map(i, i.quantity * i.unit_amount).sum()'
-    message: The line items do not add up to the amount
+    failure_message: The line items do not add up to the amount
 
   line_items_do_not_add_up:
     description: The request has line items that do not add up to the amount
     rule: has(input.line_items) && input.amount != input.line_items.map(i, i.quantity * i.unit_amount).sum()
-    message: The line items add up to the amount
+    failure_message: The line items add up to the amount
 
   pays_by_card:
     description: The request pays by card
     rule: input.method == 'card'
-    message: Only a card payment can be refused by the issuer of the card
+    failure_message: Only a card payment can be refused by the issuer of the card
 
   creates_the_payment:
     description: >-
@@ -665,7 +665,7 @@ rules:
       output.payment.status in ['authorized', 'pending'] &&
       output.payment.captured_amount == 0 && output.payment.refunded_amount == 0 &&
       !has(output.payment.captured_at)
-    message: The new payment differs from the request
+    failure_message: The new payment differs from the request
 
   # The answer shows of a card only its brand, the last 4 digits of its number and its expiry,
   # and its payment id does not hold the card number.
@@ -678,7 +678,7 @@ rules:
       output.payment.card_summary.exp_month == input.card.exp_month &&
       output.payment.card_summary.exp_year == input.card.exp_year &&
       !output.payment.payment_id.matches(input.card.card_number))
-    message: The answer must show the last 4 digits and the expiry of the card, and nothing else of it
+    failure_message: The answer must show the last 4 digits and the expiry of the card, and nothing else of it
 
   announces_the_new_payment:
     description: The event of a new payment has the event id of the call, the payment's id, merchant, amount, currency and status, no previous status, and the time of the call
@@ -691,31 +691,31 @@ rules:
       !has(output.payment_event.previous_status) &&
       output.payment_event.new_status == output.payment.status &&
       output.payment_event.occurred_at == input.now
-    message: The event does not describe the new payment
+    failure_message: The event does not describe the new payment
 
   names_the_currency:
     description: The refusal names the currency of the request
     rule: output.currency == input.currency
-    message: The refusal names another currency
+    failure_message: The refusal names another currency
 
   names_the_key:
     description: The refusal names the idempotency key of the request
     rule: output.idempotency_key == input.idempotency_key
-    message: The refusal names another idempotency key
+    failure_message: The refusal names another idempotency key
 
   # Moving a payment
 
   was_authorized:
     description: The stored payment is authorized
     rule: input.stored_payment.status == 'authorized'
-    message: The payment is not authorized
+    failure_message: The payment is not authorized
 
   # A card payment is authorized when it is created (only a bank transfer can be pending), so its
   # created_at is the time of its authorization.
   is_within_7_days:
     description: A card payment is less than 7 days past its authorization
     rule: input.stored_payment.method != 'card' || timestamp(input.now) < timestamp(input.stored_payment.created_at) + duration('168h')
-    message: A card payment can no longer be captured or voided 7 days after its authorization
+    failure_message: A card payment can no longer be captured or voided 7 days after its authorization
 
   cannot_capture_or_void:
     description: The stored payment is not authorized, or it is a card payment 7 days or more past its authorization
@@ -723,22 +723,22 @@ rules:
       input.stored_payment.status != 'authorized' ||
       (input.stored_payment.method == 'card' &&
       timestamp(input.now) >= timestamp(input.stored_payment.created_at) + duration('168h'))
-    message: The payment can be captured or voided
+    failure_message: The payment can be captured or voided
 
   names_the_status:
     description: The refusal names the status of the stored payment
     rule: output.status == input.stored_payment.status
-    message: The refusal names another status
+    failure_message: The refusal names another status
 
   capture_within_authorized:
     description: A capture amount, when the request has one, is at most the authorized amount
     rule: '!has(input.amount) || input.amount <= input.stored_payment.amount'
-    message: The capture amount is more than the authorized amount
+    failure_message: The capture amount is more than the authorized amount
 
   capture_exceeds_authorized_amount:
     description: The capture amount is more than the authorized amount
     rule: has(input.amount) && input.amount > input.stored_payment.amount
-    message: The capture amount is at most the authorized amount
+    failure_message: The capture amount is at most the authorized amount
 
   captures_the_amount:
     description: >-
@@ -759,7 +759,7 @@ rules:
       has(output.payment.captured_at) && output.payment.captured_at == input.now &&
       ((has(input.amount) && output.payment.captured_amount == input.amount) ||
       (!has(input.amount) && output.payment.captured_amount == input.stored_payment.amount))
-    message: The capture differs from the request or the payment
+    failure_message: The capture differs from the request or the payment
 
   names_the_excess:
     description: The refusal names the capture amount, the currency and the authorized amount
@@ -767,7 +767,7 @@ rules:
       has(input.amount) && output.amount == input.amount &&
       output.currency == input.stored_payment.currency &&
       output.authorized_amount == input.stored_payment.amount
-    message: The refusal names other amounts
+    failure_message: The refusal names other amounts
 
   keeps_the_payment:
     description: A change of status changes the status of the stored payment only
@@ -786,7 +786,7 @@ rules:
       ((has(output.payment.captured_at) && has(input.stored_payment.captured_at) &&
       output.payment.captured_at == input.stored_payment.captured_at) ||
       (!has(output.payment.captured_at) && !has(input.stored_payment.captured_at)))
-    message: The call may change only the status of the payment
+    failure_message: The call may change only the status of the payment
 
   announces_the_change:
     description: The event of a change describes the stored payment, its status before and after, and the time of the call
@@ -800,82 +800,82 @@ rules:
       output.payment_event.previous_status == input.stored_payment.status &&
       output.payment_event.new_status == output.payment.status &&
       output.payment_event.occurred_at == input.now
-    message: The event does not describe the change
+    failure_message: The event does not describe the change
 
   becomes_voided:
     description: The payment is voided
     rule: output.payment.status == 'voided'
-    message: The payment is not voided
+    failure_message: The payment is not voided
 
   is_due:
     description: The stored payment is an authorized card payment 7 days or more past its authorization
     rule: >-
       input.stored_payment.status == 'authorized' && input.stored_payment.method == 'card' &&
       timestamp(input.now) >= timestamp(input.stored_payment.created_at) + duration('168h')
-    message: The payment is not due to expire
+    failure_message: The payment is not due to expire
 
   is_not_due:
     description: The stored payment is not an authorized card payment 7 days or more past its authorization
     rule: >-
       input.stored_payment.status != 'authorized' || input.stored_payment.method != 'card' ||
       timestamp(input.now) < timestamp(input.stored_payment.created_at) + duration('168h')
-    message: The payment is due to expire
+    failure_message: The payment is due to expire
 
   becomes_expired:
     description: The payment is expired
     rule: output.payment.status == 'expired'
-    message: The payment is not expired
+    failure_message: The payment is not expired
 
   was_pending:
     description: The stored payment is pending
     rule: input.stored_payment.status == 'pending'
-    message: The payment is not pending
+    failure_message: The payment is not pending
 
   was_not_pending:
     description: The stored payment is not pending
     rule: input.stored_payment.status != 'pending'
-    message: The payment is pending
+    failure_message: The payment is pending
 
   settles_the_transfer:
     description: A transfer that arrived authorizes the payment, and one that failed fails it
     rule: >-
       (input.transfer_outcome == 'arrived' && output.payment.status == 'authorized') ||
       (input.transfer_outcome == 'failed' && output.payment.status == 'failed')
-    message: The status does not follow what the bank reported
+    failure_message: The status does not follow what the bank reported
 
   # Refunding a payment
 
   was_captured:
     description: The stored payment is captured or partially refunded
     rule: input.stored_payment.status in ['captured', 'partially_refunded']
-    message: The payment is not captured
+    failure_message: The payment is not captured
 
   was_not_captured:
     description: The stored payment is neither captured nor partially refunded
     rule: "!(input.stored_payment.status in ['captured', 'partially_refunded'])"
-    message: The payment is captured
+    failure_message: The payment is captured
 
   # At most 180 days after the capture, to the millisecond: on the instant 180 days after it a
   # refund is allowed.
   is_within_refund_window:
     description: The time of the call is at most 180 days after the capture
     rule: has(input.stored_payment.captured_at) && timestamp(input.now) <= timestamp(input.stored_payment.captured_at) + duration('4320h')
-    message: The payment was captured more than 180 days ago
+    failure_message: The payment was captured more than 180 days ago
 
   refund_window_is_closed:
     description: The time of the call is more than 180 days after the capture
     rule: '!has(input.stored_payment.captured_at) || timestamp(input.now) > timestamp(input.stored_payment.captured_at) + duration(''4320h'')'
-    message: The payment was captured at most 180 days ago
+    failure_message: The payment was captured at most 180 days ago
 
   refund_within_captured:
     description: The refunds of the payment, this one included, are at most its captured amount
     rule: input.stored_payment.refunded_amount + input.amount <= input.stored_payment.captured_amount
-    message: The refund is more than is left of the captured amount
+    failure_message: The refund is more than is left of the captured amount
 
   refund_exceeds_captured:
     description: The refunds of the payment, this one included, would be more than its captured amount
     rule: input.stored_payment.refunded_amount + input.amount > input.stored_payment.captured_amount
-    message: The refund is at most what is left of the captured amount
+    failure_message: The refund is at most what is left of the captured amount
 
   makes_the_refund:
     description: The refund has the amount of the request, the payment's merchant, currency and captured amount, the new total of its refunds, and the time of the call
@@ -887,7 +887,7 @@ rules:
       output.refund.captured_amount == input.stored_payment.captured_amount &&
       output.refund.refunded_total == input.stored_payment.refunded_amount + input.amount &&
       output.refund.created_at == input.now
-    message: The refund differs from the request or the payment
+    failure_message: The refund differs from the request or the payment
 
   refunds_the_payment:
     description: >-
@@ -909,7 +909,7 @@ rules:
       output.payment.refunded_amount == output.refund.refunded_total &&
       ((output.payment.refunded_amount < output.payment.captured_amount && output.payment.status == 'partially_refunded') ||
       (output.payment.refunded_amount == output.payment.captured_amount && output.payment.status == 'refunded'))
-    message: The payment after the refund differs from the stored payment and the refund
+    failure_message: The payment after the refund differs from the stored payment and the refund
 
   names_the_shortfall:
     description: The refusal names the refund amount, the currency, and the captured and refunded amounts of the payment
@@ -917,19 +917,19 @@ rules:
       output.amount == input.amount && output.currency == input.stored_payment.currency &&
       output.captured_amount == input.stored_payment.captured_amount &&
       output.refunded_amount == input.stored_payment.refunded_amount
-    message: The refusal names other amounts
+    failure_message: The refusal names other amounts
 
   # Reading
 
   returns_the_payment:
     description: The answer is the stored payment
     rule: output == input.stored_payment
-    message: The answer is not the stored payment
+    failure_message: The answer is not the stored payment
 
   returns_the_refund:
     description: The answer is the stored refund
     rule: output == input.stored_refund
-    message: The answer is not the stored refund
+    failure_message: The answer is not the stored refund
 
 operations:
   create_payment:

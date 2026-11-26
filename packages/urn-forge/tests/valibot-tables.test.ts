@@ -57,7 +57,7 @@ describe('the schemas', () => {
     expect(result.success).toBe(false);
     const check = generated['check'] as (d: string, value: unknown) => { ok: boolean; failures?: unknown[] };
     expect(check('booking', { ...booking, party_size: 0 }).failures).toEqual([
-      { definition: 'party_size', rule: 'minimum', path: 'party_size', message: 'Must be at least 1' },
+      { definition: 'party_size', rule: 'minimum', path: 'party_size', failure_message: 'Must be at least 1' },
     ]);
   });
 });

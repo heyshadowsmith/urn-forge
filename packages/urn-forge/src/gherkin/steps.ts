@@ -58,7 +58,7 @@ function canonical(value: unknown): string {
 }
 
 function show(failures: readonly Failure[]): string {
-  return failures.map((f) => `${f.rule} of ${f.definition}${f.path ? ` at ${f.path}` : ''}: ${f.message}`).join('; ');
+  return failures.map((f) => `${f.rule} of ${f.definition}${f.path ? ` at ${f.path}` : ''}: ${f.failure_message}`).join('; ');
 }
 
 /** Registers the steps for a domain. Call it once, in the support code. */

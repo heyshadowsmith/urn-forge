@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { compileManifest } from '../src/compile.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = it.fails;
+const target = it;
 
 const BOOKING = readFileSync(new URL('./fixtures/booking/domain.manifest.yaml', import.meta.url), 'utf8');
 const booking = { reference: 'ABCDEFGH', party_size: 0, state: 'confirmed', starts_at: '2026-11-24T19:00:00Z', ends_at: '2026-11-24T21:00:00Z', contact: { email: 'ada@example.com' } };
@@ -24,14 +24,15 @@ describe('a failure', () => {
 });
 
 describe('the manifest', () => {
-  const asFailureMessage = BOOKING.replace(/^ {4}message: /gm, '    failure_message: ');
+  const asFailureMessage = BOOKING;
+  const asMessage = BOOKING.replace(/^ {4}failure_message: /gm, '    message: ');
 
   target('takes failure_message on a rule', () => {
     expect(compileManifest(asFailureMessage).diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
   });
 
   target('refuses message, and says to write failure_message', () => {
-    const compiled = compileManifest(BOOKING);
+    const compiled = compileManifest(asMessage);
     expect(compiled.diagnostics).toContainEqual(
       expect.objectContaining({ code: 'manifest-shape', path: ['rules', 'at_least', 'message'], message: expect.stringContaining('failure_message') }),
     );

@@ -152,42 +152,42 @@ rules:
     description: The value is the bound or more
     parameters: [limit]
     rule: self >= limit
-    message: Must be at least {limit}
+    failure_message: Must be at least {limit}
 
   large_party_pays_deposit:
     description: A party of 7 or more pays a deposit
     rule: self.party_size < 7 || (has(self.deposit) && self.deposit > 0)
-    message: A party of 7 or more pays a deposit
+    failure_message: A party of 7 or more pays a deposit
 
   ends_after_start:
     description: A booking ends after it starts
     rule: timestamp(self.ends_at) > timestamp(self.starts_at) + duration('30m')
-    message: A booking lasts more than 30 minutes
+    failure_message: A booking lasts more than 30 minutes
 
   total_is_the_dishes:
     description: The total is the sum of the dishes
     rule: '!has(self.dishes) || (has(self.total) && self.total == self.dishes.map(d, d.amount).sum())'
-    message: The total is not the sum of the dishes
+    failure_message: The total is not the sum of the dishes
 
   names_the_booking:
     description: The request names the booking that was loaded
     rule: self.reference == self.stored_booking.reference
-    message: The request names another booking than the one loaded
+    failure_message: The request names another booking than the one loaded
 
   was_confirmed:
     description: The booking was confirmed
     rule: input.stored_booking.state == 'confirmed'
-    message: The booking was not confirmed
+    failure_message: The booking was not confirmed
 
   was_not_confirmed:
     description: The booking was not confirmed
     rule: input.stored_booking.state != 'confirmed'
-    message: The booking was confirmed
+    failure_message: The booking was confirmed
 
   is_seated:
     description: The booking is seated
     rule: output.state == 'seated'
-    message: The booking is not seated
+    failure_message: The booking is not seated
 
   keeps_the_party:
     description: Seating changes the state only
@@ -195,12 +195,12 @@ rules:
       output.reference == input.stored_booking.reference &&
       output.party_size == input.stored_booking.party_size &&
       output.contact == input.stored_booking.contact
-    message: Seating may change only the state
+    failure_message: Seating may change only the state
 
   names_the_request:
     description: A refusal names the booking of the request
     rule: output.reference == input.reference
-    message: The refusal names another booking
+    failure_message: The refusal names another booking
 
 operations:
   seat_booking:

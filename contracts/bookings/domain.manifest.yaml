@@ -424,32 +424,32 @@ rules:
   in_utc:
     description: The time is in UTC, written with a trailing Z
     rule: self.matches('Z$')
-    message: Must be a time in UTC, with a trailing Z
+    failure_message: Must be a time in UTC, with a trailing Z
 
   staff_works_for_a_restaurant:
     description: Staff carry the restaurant they work for
     rule: self.role != 'staff' || has(self.restaurant_id)
-    message: Staff need a restaurant
+    failure_message: Staff need a restaurant
 
   email_or_phone:
     description: A contact has an email address, a phone number, or both
     rule: has(self.email) || has(self.phone)
-    message: A contact needs an email address or a phone number
+    failure_message: A contact needs an email address or a phone number
 
   deposit_has_terms:
     description: A deposit comes with the amount for each guest and the currency
     rule: '!has(self.deposit_amount) || (has(self.deposit_per_guest) && has(self.currency))'
-    message: A deposit needs the amount for each guest and the currency
+    failure_message: A deposit needs the amount for each guest and the currency
 
   deposit_is_per_guest:
     description: A deposit is the amount for each guest times the party size
     rule: '!has(self.deposit_amount) || !has(self.deposit_per_guest) || self.deposit_amount == self.party_size * self.deposit_per_guest'
-    message: A deposit must be the amount for each guest times the party size
+    failure_message: A deposit must be the amount for each guest times the party size
 
   first_call_has_the_key:
     description: The first call that the shell gives has the idempotency key of this request
     rule: '!has(self.first_call) || self.first_call.booking_request.idempotency_key == self.booking_request.idempotency_key'
-    message: The first call has another idempotency key
+    failure_message: The first call has another idempotency key
 
   first_call_is_recent:
     description: The first call that the shell gives was made in the 24 hours before this one
@@ -457,41 +457,41 @@ rules:
       !has(self.first_call) ||
       (timestamp(self.first_call.called_at) <= timestamp(self.now) &&
       timestamp(self.now) <= timestamp(self.first_call.called_at) + duration('24h'))
-    message: The first call was not made in the last 24 hours
+    failure_message: The first call was not made in the last 24 hours
 
   cancellation_is_recorded:
     description: A cancelled booking records its refund and the time of its cancellation
     rule: self.state != 'CANCELLED' || (has(self.refund_amount) && has(self.cancelled_at))
-    message: A cancelled booking needs its refund and the time of its cancellation
+    failure_message: A cancelled booking needs its refund and the time of its cancellation
 
   names_the_booking:
     description: The booking that the shell loaded is the one the request names
     rule: '!has(self.stored_booking) || self.reference == self.stored_booking.reference'
-    message: The request names another booking than the one loaded
+    failure_message: The request names another booking than the one loaded
 
   move_has_starts_at:
     description: A move gives the new start as starts_at with the new local date or time, and starts_at comes only with a move
     rule: >-
       (has(self.starts_at) && (has(self.local_date) || has(self.local_time))) ||
       (!has(self.starts_at) && !has(self.local_date) && !has(self.local_time))
-    message: A new start needs starts_at with the local date or time that the guest gave
+    failure_message: A new start needs starts_at with the local date or time that the guest gave
 
   each_at_another_time:
     description: No two alternatives have the same local time
     rule: self.all(a, self.exists_one(b, b.local_time == a.local_time))
-    message: Two alternatives have the same local time
+    failure_message: Two alternatives have the same local time
 
   # Who may call
 
   booking_was_found:
     description: A booking has the reference
     rule: has(input.stored_booking)
-    message: No booking has the reference
+    failure_message: No booking has the reference
 
   booking_was_not_found:
     description: No booking has the reference
     rule: '!has(input.stored_booking)'
-    message: A booking has the reference
+    failure_message: A booking has the reference
 
   caller_may_act:
     description: >-
@@ -501,7 +501,7 @@ rules:
       (input.caller.role == 'guest' && has(input.email) && has(input.stored_booking.email) && input.email == input.stored_booking.email) ||
       (input.caller.role == 'guest' && has(input.phone) && has(input.stored_booking.phone) && input.phone == input.stored_booking.phone) ||
       (input.caller.role == 'staff' && has(input.caller.restaurant_id) && input.caller.restaurant_id == input.stored_booking.restaurant_id))
-    message: The caller may not act on this booking
+    failure_message: The caller may not act on this booking
 
   caller_may_not_act:
     description: >-
@@ -511,111 +511,111 @@ rules:
       (input.caller.role == 'guest' && has(input.email) && has(input.stored_booking.email) && input.email == input.stored_booking.email) ||
       (input.caller.role == 'guest' && has(input.phone) && has(input.stored_booking.phone) && input.phone == input.stored_booking.phone) ||
       (input.caller.role == 'staff' && has(input.caller.restaurant_id) && input.caller.restaurant_id == input.stored_booking.restaurant_id))
-    message: The caller may act on this booking
+    failure_message: The caller may act on this booking
 
   staff_may_act:
     description: The caller is staff of the restaurant of the booking
     rule: >-
       has(input.stored_booking) && input.caller.role == 'staff' && has(input.caller.restaurant_id) &&
       input.caller.restaurant_id == input.stored_booking.restaurant_id
-    message: Only staff of the restaurant may do this
+    failure_message: Only staff of the restaurant may do this
 
   staff_may_not_act:
     description: The booking was found, and the caller is not staff of its restaurant
     rule: >-
       has(input.stored_booking) && !(input.caller.role == 'staff' && has(input.caller.restaurant_id) &&
       input.caller.restaurant_id == input.stored_booking.restaurant_id)
-    message: The caller is staff of the restaurant
+    failure_message: The caller is staff of the restaurant
 
   # States
 
   was_confirmed:
     description: The booking was CONFIRMED
     rule: has(input.stored_booking) && input.stored_booking.state == 'CONFIRMED'
-    message: The booking was not CONFIRMED
+    failure_message: The booking was not CONFIRMED
 
   was_not_confirmed:
     description: The booking was not CONFIRMED
     rule: has(input.stored_booking) && input.stored_booking.state != 'CONFIRMED'
-    message: The booking was CONFIRMED
+    failure_message: The booking was CONFIRMED
 
   was_seated:
     description: The booking was SEATED
     rule: has(input.stored_booking) && input.stored_booking.state == 'SEATED'
-    message: The booking was not SEATED
+    failure_message: The booking was not SEATED
 
   was_not_seated:
     description: The booking was not SEATED
     rule: has(input.stored_booking) && input.stored_booking.state != 'SEATED'
-    message: The booking was SEATED
+    failure_message: The booking was SEATED
 
   was_cancelled:
     description: The booking was CANCELLED
     rule: has(input.stored_booking) && input.stored_booking.state == 'CANCELLED'
-    message: The booking was not CANCELLED
+    failure_message: The booking was not CANCELLED
 
   was_neither_confirmed_nor_cancelled:
     description: The booking was neither CONFIRMED nor CANCELLED
     rule: has(input.stored_booking) && input.stored_booking.state != 'CONFIRMED' && input.stored_booking.state != 'CANCELLED'
-    message: The booking was CONFIRMED or CANCELLED
+    failure_message: The booking was CONFIRMED or CANCELLED
 
   is_confirmed:
     description: The booking is CONFIRMED after the call
     rule: output.booking.state == 'CONFIRMED'
-    message: The booking is not CONFIRMED
+    failure_message: The booking is not CONFIRMED
 
   is_seated:
     description: The booking is SEATED after the call
     rule: output.booking.state == 'SEATED'
-    message: The booking is not SEATED
+    failure_message: The booking is not SEATED
 
   is_completed:
     description: The booking is COMPLETED after the call
     rule: output.booking.state == 'COMPLETED'
-    message: The booking is not COMPLETED
+    failure_message: The booking is not COMPLETED
 
   is_no_show:
     description: The booking is NO_SHOW after the call
     rule: output.booking.state == 'NO_SHOW'
-    message: The booking is not NO_SHOW
+    failure_message: The booking is not NO_SHOW
 
   # Times
 
   two_hours_before_start:
     description: The call is 2 hours or more before the start of the booking
     rule: has(input.stored_booking) && timestamp(input.now) <= timestamp(input.stored_booking.starts_at) - duration('2h')
-    message: The booking starts in less than 2 hours
+    failure_message: The booking starts in less than 2 hours
 
   less_than_two_hours_before_start:
     description: The call is less than 2 hours before the start of the booking
     rule: has(input.stored_booking) && timestamp(input.now) > timestamp(input.stored_booking.starts_at) - duration('2h')
-    message: The booking starts in 2 hours or more
+    failure_message: The booking starts in 2 hours or more
 
   fifteen_minutes_after_start:
     description: The call is 15 minutes or more after the start of the booking
     rule: has(input.stored_booking) && timestamp(input.now) >= timestamp(input.stored_booking.starts_at) + duration('15m')
-    message: The booking started less than 15 minutes ago
+    failure_message: The booking started less than 15 minutes ago
 
   cannot_be_marked_no_show:
     description: The booking is not CONFIRMED, or started less than 15 minutes ago
     rule: >-
       has(input.stored_booking) && (input.stored_booking.state != 'CONFIRMED' ||
       timestamp(input.now) < timestamp(input.stored_booking.starts_at) + duration('15m'))
-    message: The booking can be marked NO_SHOW
+    failure_message: The booking can be marked NO_SHOW
 
   in_the_booking_window:
     description: The call is from 90 days to 2 hours before the requested start, both edges included
     rule: >-
       timestamp(input.now) >= timestamp(input.booking_request.starts_at) - duration('2160h') &&
       timestamp(input.now) <= timestamp(input.booking_request.starts_at) - duration('2h')
-    message: The start is outside the booking window
+    failure_message: The start is outside the booking window
 
   outside_the_booking_window:
     description: The call is more than 90 days or less than 2 hours before the requested start
     rule: >-
       timestamp(input.now) < timestamp(input.booking_request.starts_at) - duration('2160h') ||
       timestamp(input.now) > timestamp(input.booking_request.starts_at) - duration('2h')
-    message: The start is in the booking window
+    failure_message: The start is in the booking window
 
   move_in_the_booking_window:
     description: A new start is from 90 days to 2 hours after the call, both edges included
@@ -623,7 +623,7 @@ rules:
       !has(input.starts_at) ||
       (timestamp(input.now) >= timestamp(input.starts_at) - duration('2160h') &&
       timestamp(input.now) <= timestamp(input.starts_at) - duration('2h'))
-    message: The new start is outside the booking window
+    failure_message: The new start is outside the booking window
 
   move_outside_the_booking_window:
     description: A new start is more than 90 days or less than 2 hours after the call
@@ -631,85 +631,85 @@ rules:
       has(input.starts_at) &&
       (timestamp(input.now) < timestamp(input.starts_at) - duration('2160h') ||
       timestamp(input.now) > timestamp(input.starts_at) - duration('2h'))
-    message: The new start is in the booking window
+    failure_message: The new start is in the booking window
 
   # Party size and deposit
 
   party_fits_online:
     description: The party has fewer than 13 guests
     rule: input.booking_request.party_size < 13
-    message: A party of 13 or more books by phone
+    failure_message: A party of 13 or more books by phone
 
   party_too_large:
     description: The party has 13 or more guests
     rule: input.booking_request.party_size >= 13
-    message: The party has fewer than 13 guests
+    failure_message: The party has fewer than 13 guests
 
   deposit_token_if_needed:
     description: A party of 7 or more gives a deposit token
     rule: input.booking_request.party_size < 7 || has(input.booking_request.deposit_token)
-    message: A party of 7 or more needs a deposit
+    failure_message: A party of 7 or more needs a deposit
 
   deposit_token_missing:
     description: A party of 7 to 12 gives no deposit token
     rule: input.booking_request.party_size >= 7 && input.booking_request.party_size < 13 && !has(input.booking_request.deposit_token)
-    message: The request needs no deposit token, or has one
+    failure_message: The request needs no deposit token, or has one
 
   paid_with_a_token:
     description: The request gives a deposit token
     rule: has(input.booking_request.deposit_token) && output.deposit_token == input.booking_request.deposit_token
-    message: The refusal names another deposit token than the request
+    failure_message: The refusal names another deposit token than the request
 
   new_party_fits_online:
     description: A new party size is less than 13
     rule: '!has(input.party_size) || input.party_size < 13'
-    message: A party of 13 or more books by phone
+    failure_message: A party of 13 or more books by phone
 
   new_party_too_large:
     description: A new party size is 13 or more
     rule: has(input.party_size) && input.party_size >= 13
-    message: The new party has fewer than 13 guests
+    failure_message: The new party has fewer than 13 guests
 
   new_deposit_token_if_needed:
     description: A new party size of 7 or more comes with a deposit token
     rule: '!has(input.party_size) || input.party_size < 7 || has(input.deposit_token)'
-    message: A party of 7 or more needs a deposit
+    failure_message: A party of 7 or more needs a deposit
 
   new_deposit_token_missing:
     description: A new party size of 7 to 12 comes with no deposit token
     rule: has(input.party_size) && input.party_size >= 7 && input.party_size < 13 && !has(input.deposit_token)
-    message: The change needs no deposit token, or has one
+    failure_message: The change needs no deposit token, or has one
 
   names_the_party:
     description: The refusal names the party size of the request
     rule: output.party_size == input.booking_request.party_size
-    message: The refusal names another party size
+    failure_message: The refusal names another party size
 
   names_the_new_party:
     description: The refusal names the new party size of the request
     rule: has(input.party_size) && output.party_size == input.party_size
-    message: The refusal names another party size
+    failure_message: The refusal names another party size
 
   # Create
 
   is_not_a_repeat:
     description: No call with the same idempotency key was answered with a booking in the last 24 hours
     rule: '!has(input.first_call)'
-    message: The idempotency key was used in the last 24 hours
+    failure_message: The idempotency key was used in the last 24 hours
 
   repeats_the_first_answer:
     description: A repeat of the first call with the same body gets the first answer again
     rule: >-
       has(input.first_call) && input.first_call.booking_request == input.booking_request &&
       output.confirmation == input.first_call.confirmation
-    message: A repeat must give the first answer, to the same request
+    failure_message: A repeat must give the first answer, to the same request
 
   reuses_the_key:
     description: The idempotency key was used in the last 24 hours with a different body
     rule: >-
       has(input.first_call) && input.first_call.booking_request != input.booking_request &&
       output.idempotency_key == input.booking_request.idempotency_key
-    message: The key was not used with a different request
+    failure_message: The key was not used with a different request
 
   confirms_the_request:
     description: The confirmation gives the restaurant, the start, the local date and time and the party size of the request
@@ -719,7 +719,7 @@ rules:
       output.confirmation.local_date == input.booking_request.local_date &&
       output.confirmation.local_time == input.booking_request.local_time &&
       output.confirmation.party_size == input.booking_request.party_size
-    message: The confirmation does not match the request
+    failure_message: The confirmation does not match the request
 
   records_the_confirmation:
     description: The record to store is the confirmed booking, with the email and the phone of the contact
@@ -740,7 +740,7 @@ rules:
       ((has(output.booking.phone) && has(input.booking_request.contact.phone) && output.booking.phone == input.booking_request.contact.phone) ||
       (!has(output.booking.phone) && !has(input.booking_request.contact.phone))) &&
       !has(output.booking.refund_amount) && !has(output.booking.cancelled_at)
-    message: The record to store is not the confirmed booking
+    failure_message: The record to store is not the confirmed booking
 
   names_the_requested_start:
     description: The refusal names the start of the request
@@ -748,12 +748,12 @@ rules:
       output.starts_at == input.booking_request.starts_at &&
       has(output.local_date) && output.local_date == input.booking_request.local_date &&
       has(output.local_time) && output.local_time == input.booking_request.local_time
-    message: The refusal names another start
+    failure_message: The refusal names another start
 
   names_the_new_start:
     description: The refusal names the new start of the request
     rule: has(input.starts_at) && output.starts_at == input.starts_at
-    message: The refusal names another start
+    failure_message: The refusal names another start
 
   names_the_requested_time:
     description: The refusal names the local date, the local time and the party size of the request
@@ -761,7 +761,7 @@ rules:
       output.local_date == input.booking_request.local_date &&
       output.local_time == input.booking_request.local_time &&
       output.party_size == input.booking_request.party_size
-    message: The refusal names another time or party size
+    failure_message: The refusal names another time or party size
 
   offers_nearby_times:
     description: Each alternative is on the requested local date, within 2 hours of the requested start, for the same party size
@@ -771,14 +771,14 @@ rules:
       a.party_size == input.booking_request.party_size &&
       timestamp(a.starts_at) >= timestamp(input.booking_request.starts_at) - duration('2h') &&
       timestamp(a.starts_at) <= timestamp(input.booking_request.starts_at) + duration('2h'))
-    message: An alternative is on another date, more than 2 hours away, or for another party size
+    failure_message: An alternative is on another date, more than 2 hours away, or for another party size
 
   # Changes to a stored booking
 
   answers_the_stored_booking:
     description: The answer is the booking as it is stored
     rule: has(input.stored_booking) && output == input.stored_booking
-    message: The answer is not the stored booking
+    failure_message: The answer is not the stored booking
 
   keeps_all_but_the_state:
     description: The record to store is the stored booking; only its state, refund and cancellation time may change
@@ -798,7 +798,7 @@ rules:
       (!has(output.booking.email) && !has(input.stored_booking.email))) &&
       ((has(output.booking.phone) && has(input.stored_booking.phone) && output.booking.phone == input.stored_booking.phone) ||
       (!has(output.booking.phone) && !has(input.stored_booking.phone)))
-    message: The record to store changes more than its state
+    failure_message: The record to store changes more than its state
 
   applies_the_change:
     description: >-
@@ -818,7 +818,7 @@ rules:
       (!has(output.booking.email) && !has(input.stored_booking.email))) &&
       ((has(output.booking.phone) && has(input.stored_booking.phone) && output.booking.phone == input.stored_booking.phone) ||
       (!has(output.booking.phone) && !has(input.stored_booking.phone)))
-    message: The record to store is not the stored booking with the change
+    failure_message: The record to store is not the stored booking with the change
 
   refunds_by_the_deadline:
     description: >-
@@ -832,7 +832,7 @@ rules:
       (has(input.stored_booking.deposit_amount) &&
       timestamp(input.now) > timestamp(input.stored_booking.starts_at) - duration('24h') &&
       output.cancellation.refund_amount == 0))
-    message: The refund is not the deposit by the deadline
+    failure_message: The refund is not the deposit by the deadline
 
   records_the_cancellation:
     description: The answer and the record to store are CANCELLED now, with the same refund
@@ -843,7 +843,7 @@ rules:
       output.booking.state == 'CANCELLED' &&
       has(output.booking.refund_amount) && output.booking.refund_amount == output.cancellation.refund_amount &&
       has(output.booking.cancelled_at) && output.booking.cancelled_at == output.cancellation.cancelled_at
-    message: The cancellation is not recorded as answered
+    failure_message: The cancellation is not recorded as answered
 
   repeats_the_cancellation:
     description: A cancellation of a CANCELLED booking answers the refund and the time of the first cancellation
@@ -853,19 +853,19 @@ rules:
       output.cancellation.state == 'CANCELLED' &&
       output.cancellation.refund_amount == input.stored_booking.refund_amount &&
       output.cancellation.cancelled_at == input.stored_booking.cancelled_at
-    message: The answer is not the first cancellation
+    failure_message: The answer is not the first cancellation
 
   # Refusals of a stored booking
 
   names_the_request:
     description: The refusal names the booking of the request
     rule: output.reference == input.reference
-    message: The refusal names another booking
+    failure_message: The refusal names another booking
 
   names_the_stored_state:
     description: The refusal names the state of the booking as stored
     rule: has(input.stored_booking) && output.state == input.stored_booking.state
-    message: The refusal names another state
+    failure_message: The refusal names another state
 
   # Events
 
@@ -882,37 +882,37 @@ rules:
       output.booking_event.local_time == output.booking.local_time &&
       output.booking_event.time_zone == output.booking.time_zone &&
       output.booking_event.occurred_at == input.now
-    message: The event does not describe the change
+    failure_message: The event does not describe the change
 
   event_is_created:
     description: The event is BookingCreated
     rule: output.booking_event.event_type == 'BookingCreated'
-    message: The event is not BookingCreated
+    failure_message: The event is not BookingCreated
 
   event_is_changed:
     description: The event is BookingChanged
     rule: output.booking_event.event_type == 'BookingChanged'
-    message: The event is not BookingChanged
+    failure_message: The event is not BookingChanged
 
   event_is_cancelled:
     description: The event is BookingCancelled
     rule: output.booking_event.event_type == 'BookingCancelled'
-    message: The event is not BookingCancelled
+    failure_message: The event is not BookingCancelled
 
   event_is_seated:
     description: The event is BookingSeated
     rule: output.booking_event.event_type == 'BookingSeated'
-    message: The event is not BookingSeated
+    failure_message: The event is not BookingSeated
 
   event_is_completed:
     description: The event is BookingCompleted
     rule: output.booking_event.event_type == 'BookingCompleted'
-    message: The event is not BookingCompleted
+    failure_message: The event is not BookingCompleted
 
   event_is_no_show:
     description: The event is BookingNoShow
     rule: output.booking_event.event_type == 'BookingNoShow'
-    message: The event is not BookingNoShow
+    failure_message: The event is not BookingNoShow
 
 # Each output lists the rules that hold when it comes back. The refusals are in order: a refusal holds the
 # negation of each one before it, so one request has one answer.

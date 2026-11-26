@@ -91,7 +91,7 @@ rules:
   after_2000:
     description: After 2000
     rule: timestamp(self.day + 'T00:00:00Z') > timestamp('2000-01-01T00:00:00Z')
-    message: Before 2000
+    failure_message: Before 2000
 `;
   const compiled = compileManifest(manifest);
   const sql = postgresSchema(compiled.model!, compiled.applications, { tables: ['holiday'] });

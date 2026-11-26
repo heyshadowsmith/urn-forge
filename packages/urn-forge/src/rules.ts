@@ -233,12 +233,12 @@ function checkArgument(use: RuleUse, rule: Rule, owner: Model, diagnostics: Diag
   return ok ? parameters : undefined;
 }
 
-/** A message names only the rule's parameters: `{bound}`. */
+/** A failure message names only the rule's parameters: `{bound}`. */
 function checkMessage(rule: Rule, diagnostics: Diagnostics): void {
-  for (const [, name] of rule.message.matchAll(/\{([^{}]*)\}/g)) {
+  for (const [, name] of rule.failureMessage.matchAll(/\{([^{}]*)\}/g)) {
     if (!rule.parameters.includes(name!)) {
       const known = rule.parameters.length === 0 ? 'the rule has no parameter' : `the parameters are ${rule.parameters.join(', ')}`;
-      diagnostics.error('invalid-message', [...rule.path, 'message'], `{${name}} is not a parameter of ${rule.name}; ${known}`);
+      diagnostics.error('invalid-message', [...rule.path, 'failure_message'], `{${name}} is not a parameter of ${rule.name}; ${known}`);
     }
   }
 }

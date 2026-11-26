@@ -213,11 +213,12 @@
       "required": [
         "description",
         "rule",
-        "message"
+        "failure_message"
       ],
       "properties": {
         "description": {
-          "$ref": "#/$defs/text"
+          "$ref": "#/$defs/text",
+          "description": "What the rule checks, and why, for a reader of the manifest"
         },
         "parameters": {
           "$ref": "#/$defs/names",
@@ -227,9 +228,9 @@
           "$ref": "#/$defs/text",
           "description": "An expression of the CEL subset that gives true when the value keeps the rule"
         },
-        "message": {
+        "failure_message": {
           "$ref": "#/$defs/text",
-          "description": "The text of a failure; {parameter} puts in its argument"
+          "description": "What a failure says when the rule breaks; {parameter} puts in its argument"
         },
         "deprecated": {
           "type": "boolean"

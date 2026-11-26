@@ -54,17 +54,17 @@ rules:
   fits_express:
     description: A parcel that goes by express weighs 5000 grams at most
     rule: '!has(input.express) || !input.express || input.weight_grams <= 5000'
-    message: An express parcel can weigh 5000 grams at most
+    failure_message: An express parcel can weigh 5000 grams at most
 
   over_express_limit:
     description: The parcel goes by express and weighs more than 5000 grams
     rule: has(input.express) && input.express && input.weight_grams > 5000
-    message: The parcel fits express delivery
+    failure_message: The parcel fits express delivery
 
   names_the_weight:
     description: The refusal names the weight of the parcel
     rule: output.weight_grams == input.weight_grams
-    message: The refusal names another weight
+    failure_message: The refusal names another weight
 
 operations:
   quote_shipping:
