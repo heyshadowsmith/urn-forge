@@ -1,4 +1,3 @@
-@target
 Feature: The direction of a new bound
 
   diff and gate 5 compare a new bound of a standard rule by the form of the rule. A larger bound of a
@@ -38,7 +37,7 @@ Feature: The direction of a new bound
       | required | bound_change | minimum    | 1         |           |
 
   Scenario: A direction is one of three
-    When I check a "direction" with:
+    When I check a "bound_judged" with:
       | direction |
       | up        |
     Then the value is rejected by "enum" of "direction"

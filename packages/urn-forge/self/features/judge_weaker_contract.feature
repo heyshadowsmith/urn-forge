@@ -1,4 +1,3 @@
-@target
 Feature: A weaker contract and its version
 
   Gate 5 allows a contract to lose a rule, an output or a scenario, or a rule to accept more, only

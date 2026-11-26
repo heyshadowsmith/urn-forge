@@ -1,4 +1,3 @@
-@target
 Feature: The URN of a part
 
   Each part of a manifest has a URN: urn, the namespace, the domain, the section of the part and

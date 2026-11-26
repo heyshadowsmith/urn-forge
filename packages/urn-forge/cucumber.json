@@ -23,8 +23,7 @@
     "format": [
       "progress"
     ],
-    "strict": true,
-    "tags": "not @target"
+    "strict": true
   },
   "insurance": {
     "paths": [

@@ -1,4 +1,3 @@
-@target
 Feature: URN namespaces
 
   The namespace of a manifest is also the namespace of its URNs, so it takes the form of a URN
