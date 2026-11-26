@@ -365,11 +365,11 @@ export function $or(left: () => unknown, right: () => unknown): boolean {
 }
 
 /** CEL's all(): false if one item gives false, even when another gives an error. */
-export function $all(list: readonly unknown[], test: (item: any) => unknown): boolean {
+export function $all(list: readonly unknown[], test: (item: any, index: number) => unknown): boolean {
   let error: unknown;
-  for (const item of list) {
+  for (const [index, item] of list.entries()) {
     try {
-      if (test(item) === false) return false;
+      if (test(item, index) === false) return false;
     } catch (e) {
       if (!(e instanceof RuleError || e instanceof TypeError)) throw e;
       error ??= e;
@@ -380,11 +380,11 @@ export function $all(list: readonly unknown[], test: (item: any) => unknown): bo
 }
 
 /** CEL's exists(): true if one item gives true, even when another gives an error. */
-export function $exists(list: readonly unknown[], test: (item: any) => unknown): boolean {
+export function $exists(list: readonly unknown[], test: (item: any, index: number) => unknown): boolean {
   let error: unknown;
-  for (const item of list) {
+  for (const [index, item] of list.entries()) {
     try {
-      if (test(item) === true) return true;
+      if (test(item, index) === true) return true;
     } catch (e) {
       if (!(e instanceof RuleError || e instanceof TypeError)) throw e;
       error ??= e;
@@ -502,6 +502,54 @@ export function $bitShiftLeft(a: number, n: number): number {
 export function $bitShiftRight(a: number, n: number): number {
   if (n < 0) throw new RuleError('a negative shift');
   return n >= 64 ? 0 : $bits((x, y) => BigInt.asUintN(64, x) >> y, a, n);
+}
+
+/** CEL's order of two values of one type: numbers, strings, bools, timestamps or durations. */
+function $compare(a: any, b: any): number {
+  if (typeof a !== typeof b) throw new RuleError('values of two types have no order');
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** The lists extension's sort(): the items in order. */
+export function $sort(list: readonly unknown[]): unknown[] {
+  return [...list].sort($compare);
+}
+
+/** The lists extension's sortBy(): the items in the order of their keys; items with the same key keep their order. */
+export function $sortBy(list: readonly unknown[], key: (item: any, index: number) => unknown): unknown[] {
+  const keyed = list.map((item, i) => ({ item, key: key(item, i) }));
+  return keyed.sort((a, b) => $compare(a.key, b.key)).map((k) => k.item);
+}
+
+/** The lists extension's slice(): the items from `start` up to `end`, not included. */
+export function $slice(list: readonly unknown[], start: number, end: number): unknown[] {
+  if (start < 0 || end < 0 || start > end || end > list.length) throw new RuleError(`the range ${start} to ${end} is out of the list`);
+  return list.slice(start, end);
+}
+
+/** The lists extension's flatten(): the items of each list inside, to a depth. */
+export function $flatten(list: readonly unknown[], depth = 1): unknown[] {
+  if (depth < 0) throw new RuleError('a negative depth');
+  return (list as unknown[]).flat(depth);
+}
+
+/** The lists extension's distinct(): each item once, in the order of its first place. */
+export function $distinct(list: readonly unknown[]): unknown[] {
+  const kept: unknown[] = [];
+  for (const item of list) if (!kept.some((k) => $eq(k, item))) kept.push(item);
+  return kept;
+}
+
+/** The lists extension's reverse() of a list. */
+export function $reverseList(list: readonly unknown[]): unknown[] {
+  return [...list].reverse();
+}
+
+/** The lists extension's lists.range(n): 0 to n - 1. */
+export function $range(n: number): number[] {
+  if (n < 0) throw new RuleError('lists.range() of a negative number');
+  if (n > 1_000_000) throw new RuleError('lists.range() of more than 1000000 items');
+  return Array.from({ length: n }, (_, i) => i);
 }
 
 /** CEL's / of two ints: toward 0. A division by 0 is an error. */

@@ -167,11 +167,24 @@ class Checker {
         const target = this.type(expr.target, names, guards);
         if (!target) return undefined;
         if (target.kind !== 'list' && target.kind !== 'any') return this.wrong(expr, `${expr.macro}() is a macro of a list`, target);
-        if (Object.hasOwn(names, expr.variable)) return this.problem('rule-scope', expr.at, `${expr.variable} is already a name; give each item another name`);
-        const body = this.type(expr.body, { ...names, [expr.variable]: target.kind === 'list' ? target.of : target }, guards);
+        for (const name of [expr.variable, ...(expr.index !== undefined ? [expr.index] : [])]) {
+          if (Object.hasOwn(names, name)) return this.problem('rule-scope', expr.at, `${name} is already a name; give each item another name`);
+        }
+        if (expr.index === expr.variable) return this.problem('rule-scope', expr.at, `${expr.index} names both the position and the item`);
+        const inner = { ...names, [expr.variable]: target.kind === 'list' ? target.of : target, ...(expr.index !== undefined ? { [expr.index]: INT } : {}) };
+        if (expr.filter) {
+          const filter = this.type(expr.filter, inner, guards);
+          if (!filter) return undefined;
+          if (filter.kind !== 'bool' && filter.kind !== 'any') return this.wrong(expr, `the condition of ${expr.macro}() must be a bool`, filter);
+        }
+        const body = this.type(expr.body, inner, guards);
         if (!body) return undefined;
-        if (expr.macro === 'map') return { kind: 'list', of: body };
-        if (body.kind !== 'bool') return this.wrong(expr, `the condition of ${expr.macro}() must be a bool`, body);
+        if (expr.macro === 'map' || expr.macro === 'transformList') return { kind: 'list', of: body };
+        if (expr.macro === 'sortBy') {
+          const ordered = ['int', 'double', 'string', 'bool', 'timestamp', 'duration', 'any'].includes(body.kind);
+          return ordered ? target : this.wrong(expr, 'the key of sortBy() must be an int, a double, a string, a bool, a timestamp or a duration', body);
+        }
+        if (body.kind !== 'bool' && body.kind !== 'any') return this.wrong(expr, `the condition of ${expr.macro}() must be a bool`, body);
         // filter() keeps the items for which the condition is true: a list of the same type.
         return expr.macro === 'filter' ? target : BOOL;
       }
@@ -272,6 +285,15 @@ class Checker {
     }
     const target = expr.target ? this.type(expr.target, names, guards) : undefined;
     const args = expr.args.map((arg) => this.type(arg, names, guards));
+    if (expr.fn === 'flatten' && expr.args.length === 1 && target) {
+      // The type depends on the depth, so the depth is a literal, as the depth of a list is known.
+      const depth = expr.args[0]!;
+      if (depth.kind !== 'int') return this.problem('rule-type', expr.at, 'flatten() takes a literal depth, such as flatten(2)');
+      if (depth.value < 0) return this.problem('rule-type', expr.at, 'flatten() takes a depth of 0 or more');
+      let type = target;
+      for (let level = 0; level < depth.value && type.kind === 'list' && type.of.kind === 'list'; level++) type = type.of;
+      return type;
+    }
     if ((expr.target && !target) || args.some((a) => a === undefined)) return undefined;
     const resolved = resolve(expr.fn, target, args as CelType[]);
     if (resolved) return resolved.result;

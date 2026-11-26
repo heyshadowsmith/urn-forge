@@ -59,20 +59,26 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
       }
       case 'macro': {
         const variable = `v_${e.variable}`;
-        const inner = { ...scope, [e.variable]: variable };
+        const index = e.index !== undefined ? `v_${e.index}` : '_i';
+        const inner = { ...scope, [e.variable]: variable, ...(e.index !== undefined ? { [e.index]: index } : {}) };
         const list = `(${emit(e.target, scope)} as any[])`;
-        const body = emit(e.body, inner);
+        const fn = (body: Expr): string => `(${variable}: any, ${index}: number) => ${emit(body, inner)}`;
         switch (e.macro) {
           case 'all':
-            return `$all(${list}, (${variable}: any) => ${body})`;
+            return `$all(${list}, ${fn(e.body)})`;
           case 'exists':
-            return `$exists(${list}, (${variable}: any) => ${body})`;
+            return `$exists(${list}, ${fn(e.body)})`;
           case 'exists_one':
-            return `(${list}.filter((${variable}: any) => ${body}).length === 1)`;
+          case 'existsOne':
+            return `(${list}.filter(${fn(e.body)}).length === 1)`;
           case 'map':
-            return `${list}.map((${variable}: any) => ${body})`;
+            return `${list}.map(${fn(e.body)})`;
           case 'filter':
-            return `${list}.filter((${variable}: any) => ${body})`;
+            return `${list}.filter(${fn(e.body)})`;
+          case 'transformList':
+            return e.filter ? `${list}.flatMap((${variable}: any, ${index}: number) => (${emit(e.filter, inner)} ? [${emit(e.body, inner)}] : []))` : `${list}.map(${fn(e.body)})`;
+          case 'sortBy':
+            return `$sortBy(${list}, ${fn(e.body)})`;
         }
         break;
       }

@@ -14,13 +14,15 @@
  *   `string(x)`, and the methods `x.size()`, `s.matches(re)`, `s.startsWith(t)`, `s.endsWith(t)`,
  *   `s.contains(t)`, `l.sum()`, and from the strings extension `s.split(t)`, `s.lowerAscii()` and
  *   `s.upperAscii()`;
- * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)` and `l.filter(x, p)`.
+ * - the macros `l.all(x, p)`, `l.exists(x, p)`, `l.exists_one(x, p)`, `l.map(x, e)`, `l.filter(x, p)`
+ *   and `l.sortBy(x, k)`; the two-variable macros `l.all(i, x, p)`, `l.exists(i, x, p)`,
+ *   `l.existsOne(i, x, p)` and `l.transformList(i, x, [p,] e)`, where `i` is the position of `x`.
  */
 
 import { arities, isFunction, takes } from './functions.js';
 
 export type BinaryOp = '||' | '&&' | '==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | '+' | '-' | '*' | '/' | '%';
-export type MacroName = 'all' | 'exists' | 'exists_one' | 'map' | 'filter';
+export type MacroName = 'all' | 'exists' | 'exists_one' | 'existsOne' | 'map' | 'filter' | 'sortBy' | 'transformList';
 /** `has`, `duration`, or a name of the table of functions (src/cel/functions.ts). */
 export type FunctionName = string;
 
@@ -35,7 +37,18 @@ export type Expr =
   | { readonly kind: 'select'; readonly operand: Expr; readonly field: string; readonly at: number }
   | { readonly kind: 'index'; readonly operand: Expr; readonly index: Expr; readonly at: number }
   | { readonly kind: 'call'; readonly fn: FunctionName; readonly target?: Expr; readonly args: readonly Expr[]; readonly at: number }
-  | { readonly kind: 'macro'; readonly macro: MacroName; readonly target: Expr; readonly variable: string; readonly body: Expr; readonly at: number }
+  | {
+      readonly kind: 'macro';
+      readonly macro: MacroName;
+      readonly target: Expr;
+      /** The name of the position of the item, in a two-variable macro. */
+      readonly index?: string;
+      readonly variable: string;
+      /** The condition of transformList(i, x, p, e): only the items for which it is true. */
+      readonly filter?: Expr;
+      readonly body: Expr;
+      readonly at: number;
+    }
   | { readonly kind: 'unary'; readonly op: '!' | '-'; readonly operand: Expr; readonly at: number }
   | { readonly kind: 'binary'; readonly op: BinaryOp; readonly left: Expr; readonly right: Expr; readonly at: number }
   | { readonly kind: 'conditional'; readonly condition: Expr; readonly then: Expr; readonly otherwise: Expr; readonly at: number };
@@ -156,7 +169,9 @@ function lex(text: string): Token[] {
 }
 
 const RELATIONS: readonly BinaryOp[] = ['==', '!=', '<', '<=', '>', '>=', 'in'];
-const MACROS: readonly string[] = ['all', 'exists', 'exists_one', 'map', 'filter'];
+const MACROS: readonly string[] = ['all', 'exists', 'exists_one', 'existsOne', 'map', 'filter', 'sortBy', 'transformList'];
+/** The macros that take a position and an item: all(i, x, p). */
+const TWO_VARIABLES: readonly string[] = ['all', 'exists', 'existsOne', 'transformList'];
 /** The namespaces of functions, such as math in math.greatest(). */
 const NAMESPACES: readonly string[] = ['math', 'lists', 'strings'];
 const RESERVED = new Set(['true', 'false', 'null', 'in', 'as', 'break', 'const', 'continue', 'else', 'for', 'function', 'if', 'import', 'let', 'loop', 'package', 'namespace', 'return', 'var', 'void', 'while']);
@@ -281,13 +296,28 @@ class Parser {
         continue;
       }
       if (MACROS.includes(token.text)) {
-        const variable = this.next;
-        if (variable.kind !== 'name' || RESERVED.has(variable.text)) throw new CelSyntaxError(`the first argument of ${token.text} must be a name for each item`, variable.at);
-        this.index++;
-        this.expect(',', `, after ${variable.text}`);
-        const body = this.expr();
-        this.expect(')', `) to close ${token.text}`);
-        expr = { kind: 'macro', macro: token.text as MacroName, target: expr, variable: variable.text, body, at: token.at };
+        const macro = token.text as MacroName;
+        const name = (): string => {
+          const variable = this.next;
+          if (variable.kind !== 'name' || RESERVED.has(variable.text)) throw new CelSyntaxError(`the first argument of ${macro} must be a name for each item`, variable.at);
+          this.index++;
+          this.expect(',', `, after ${variable.text}`);
+          return variable.text;
+        };
+        const first = name();
+        // A second name before the body: all(i, x, p), where i is the position.
+        const second = this.next.kind === 'name' && this.tokens[this.index + 1]?.kind === 'symbol' && (this.tokens[this.index + 1] as { text: string }).text === ',' ? name() : undefined;
+        if (second !== undefined && !TWO_VARIABLES.includes(macro)) throw new CelSyntaxError(`${macro}() takes one name for each item, not two`, token.at);
+        if (second === undefined && (macro === 'existsOne' || macro === 'transformList')) throw new CelSyntaxError(`${macro}() takes a name for the position and a name for each item`, token.at);
+        let body = this.expr();
+        let filter: Expr | undefined;
+        if (macro === 'transformList' && this.symbol(',')) {
+          filter = body;
+          body = this.expr();
+        }
+        this.expect(')', `) to close ${macro}`);
+        const variables = second === undefined ? { variable: first } : { index: first, variable: second };
+        expr = { kind: 'macro', macro, target: expr, ...variables, ...(filter ? { filter } : {}), body, at: token.at };
         continue;
       }
       const args = this.args();
