@@ -69,3 +69,22 @@ Each must turn CI red:
 
 - **A core that builds a rule of the standard set.** `argumentDirection` takes a rule as the compiler gives it, not a name. The core loads the standard set to find the rule. This is not a circle: the compiler does not use the output of `self/`.
 - **Rules that repeat the code.** The rule of `name_part` says what `partUrn` does, in other words. That is the point of a contract. If the two disagree, a scenario fails.
+
+## What was built
+
+Each step is one commit, and each commit is green.
+
+- **Step 0.** The four operations and their scenarios, with a core that answered wrongly. Each new rule of an answer caught the wrong answer that it was written for: `joins_the_parts`, `is_a_urn_namespace`, `the_version_changed` and `direction_by_the_form`. CI runs the scenarios of `self/`, so the new scenarios had the tag `@target`, and the `self` profile left them out until step 1.
+- **Step 1.** `allowsWeaker(from, to)` in `src/verify/contract.ts`, and gate 5 uses it. The core calls `partUrn`, `NAMESPACE`, `allowsWeaker`, and `argumentDirection` with the rule of the standard set.
+- **Step 2.** `version` has the pattern of `SEMVER`, with a scenario for `2.0.0-01`, which the old pattern accepted. The header comment and `contributing/dogfooding.md` describe the six operations, and the guide records the finding of decision 6 and the functions that are still out.
+
+Two changes from the plan:
+
+- **`judge_weaker_contract` answers with `breaking_allowed` and `breaking_refused`**, the objects that `judge_version_change` answers with. There are no new `weaker_allowed` and `weaker_refused`: the shape is the same, and the rules of each answer say what differs.
+- **No rule `allows_a_breaking_change`.** "A new major version" needs the number before the first dot as a number, and the rule language cannot read a number from a text. `the_version_changed` holds the half that the language can state. `keeps_the_version_or_a_stable_major` holds the refusal.
+
+All three sabotages turned the scenarios red, each through its own rule:
+
+1. `partUrn` joined with `/` → `joins_the_parts`, in 3 scenarios.
+2. `allowsWeaker` allowed the same version → `the_version_changed`, in 2 scenarios.
+3. `argumentDirection` swapped the direction of a bound → `direction_by_the_form`, in 10 scenarios.

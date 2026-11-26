@@ -1,5 +1,7 @@
-# urn-forge's own domain: two pure functions of the compiler, declared with urn-forge. The core
-# calls the functions the compiler really uses, so the scenarios test the toolchain, not a copy.
+# urn-forge's own domain: pure functions of the toolchain whose results a user sees, declared with
+# urn-forge. The core calls the functions that urn-forge really uses, so the scenarios test the
+# toolchain, not a copy: the type name of a definition, the URN of a part, a URN namespace, the
+# verdicts of diff and of gate 5 on a version change, and the direction of a new bound.
 manifest:
   namespace: urn-forge
   domain: toolchain
@@ -33,10 +35,10 @@ definitions:
       - required: [type_name]
 
   version:
-    description: A semver version of a manifest, such as 1.4.0 or 2.0.0-alpha.1
+    description: A semver version of a manifest, such as 1.4.0 or 2.0.0-alpha.1, with the pattern that the manifest reader checks
     type: string
     rules:
-      - pattern: '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+      - pattern: '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'
 
   from_version:
     description: The version of the old manifest
