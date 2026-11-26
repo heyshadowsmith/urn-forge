@@ -103,7 +103,7 @@ You do not need to read the generated files, the types of the code, or each rule
 
 ## What the contract cannot state yet
 
-The contract cannot state some rules yet: time zones and calendar months, either-or shapes, maps with free keys, and check digits. Put these rules in the code, with a refusal as an answer, and ask the agent for scenarios at their edges.
+A rule can use each form of [the rule syntax](/reference/syntax) on strings, numbers, bools, times and lists: time zones, calendar months and check digits too. The contract cannot state some shapes yet: either-or shapes, and maps with free keys. Put these rules in the code, with a refusal as an answer, and ask the agent for scenarios at their edges.
 
 ## The reference
 

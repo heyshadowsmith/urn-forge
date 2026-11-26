@@ -58,11 +58,13 @@ The model does not type the rules. A rule has a type only where it is applied, b
 
 ## The rule language: `cel/`
 
-urn-forge parses its subset of CEL itself. A CEL library evaluates a rule, but urn-forge must also type each rule, translate it to SQL, compare it in `diff` and find its guards. Every rule that the subset accepts is valid CEL.
+urn-forge parses CEL and its extensions itself, for the types of a manifest. A CEL library evaluates a rule, but urn-forge must also type each rule, translate it to SQL, compare it in `diff` and find its guards. Every rule that urn-forge accepts is valid CEL. CEL's conformance tests, in `tests/conformance/`, prove the result of each form.
 
 | File | Job |
 | --- | --- |
-| `cel/parse.ts` | The lexer and the parser. The result is an `Expr` tree. A form of CEL outside the subset is a `CelSyntaxError` that names the form. The comment at the top of the file lists the subset |
+| `cel/parse.ts` | The lexer and the parser. The result is an `Expr` tree. A form outside the language is a `CelSyntaxError` that names the form. The comment at the top of the file lists the forms |
+| `cel/functions.ts` | The table of functions and methods: the overloads of each name, and the helper of the generated code that runs each. The parser, the type checker and the code generator read it |
+| `cel/time.ts` | The milliseconds of a duration literal, and CEL's range of a duration |
 | `cel/print.ts` | The canonical text of an `Expr`: one space around each operator, and parentheses only where the precedence needs them. `diff` compares rules by this text |
 | `cel/check.ts` | The type of each node, and the guards. `checkRule` takes a `Scope`: the names and their types, and the properties of each object. It gives the type of the rule, its problems (`rule-type`, `rule-guard`, `rule-scope`) and a map from each node to its type |
 
@@ -165,7 +167,9 @@ The tests are in `packages/urn-forge/tests`:
 | --- | --- |
 | `target.test.ts` | The booking fixture loads, and each kind of mistake stops it with its code at its place |
 | `model.test.ts` | The reader and the model: shape and names |
-| `cel.test.ts` | Parse, print, types and guards of the CEL subset |
+| `cel.test.ts` | Parse, print, types and guards of the rule language |
+| `conformance.test.ts` | CEL's conformance tests, with the list of known gaps, which is empty |
+| `rule-forms.test.ts` | The forms that the plans added, and the agreement of their SQL with the generated check, on PGlite |
 | `rules.test.ts` | The standard set, arguments, and the names of each place |
 | `generated.test.ts` | The committed generated file of the fixture is current, and its checks and its harness keep the contract |
 | `features.test.ts` | Cucumber runs the features of the fixture |
@@ -182,6 +186,6 @@ Most tests read [the booking fixture](../packages/urn-forge/tests/fixtures/booki
 
 - [Dogfooding](./dogfooding.md)
 - [Add a standard rule](./add-a-standard-rule.md)
-- [Add a form to the CEL subset](./add-a-cel-form.md)
+- [Change the rule language](./add-a-cel-form.md)
 - [The rule syntax](../docs/reference/syntax.md)
 - [How urn-forge proves it](../docs/methodology.md)

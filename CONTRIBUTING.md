@@ -78,7 +78,7 @@ Examine the diff of the generated files. Make sure that each change is a change 
 urn-forge gives general constructs only (decision 10 of the [contract completeness roadmap](planning/contract-completeness-roadmap.md)). Before you add a rule, a form of CEL or a step, make sure that it passes the three tests of that decision.
 
 - [Add a standard rule](contributing/add-a-standard-rule.md)
-- [Add a form to the CEL subset](contributing/add-a-cel-form.md)
+- [Change the rule language](contributing/add-a-cel-form.md)
 - [Add a Gherkin step](contributing/add-a-gherkin-step.md)
 - [Add a diagnostic](contributing/add-a-diagnostic.md)
 - [Add a test fixture](contributing/add-a-fixture.md)
