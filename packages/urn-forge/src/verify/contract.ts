@@ -20,6 +20,7 @@ import type { Code } from '../codes.js';
 import { argumentDirection, type Side } from '../diff/classify.js';
 import { allowsBreaking } from '../diff/command.js';
 import type { Application } from '../rules.js';
+import { partUrn } from '../urn.js';
 import type { FeatureFile } from './gherkin.js';
 import type { GateOutcome, GateProblem } from './types.js';
 
@@ -53,19 +54,23 @@ export function scenarioNames(features: readonly FeatureFile[]): Map<string, { c
   return names;
 }
 
-/** The place of a use of a rule: `definitions.party_size`, `operations.seat_booking.booking`, `operations.seat_booking`. */
-function placeOf(application: Application): { key: string; path: (string | number)[] } {
+/**
+ * The place of a use of a rule, by URN: `urn:demo:booking:definition:party_size`,
+ * `urn:demo:booking:operation:seat_booking` with `of the output booking`.
+ */
+function placeOf(header: Side['model']['header'], application: Application): { key: string; path: (string | number)[] } {
   const place = application.place;
-  if (place.kind === 'definition') return { key: `definitions.${place.definition}`, path: ['definitions', place.definition] };
-  if (place.kind === 'output') return { key: `operations.${place.operation}.${place.object}`, path: ['operations', place.operation, 'output'] };
-  return { key: `operations.${place.operation}`, path: ['operations', place.operation] };
+  if (place.kind === 'definition') return { key: partUrn(header, 'definition', place.definition), path: ['definitions', place.definition] };
+  if (place.kind === 'output') return { key: `${partUrn(header, 'operation', place.operation)} (the output ${place.object})`, path: ['operations', place.operation, 'output'] };
+  return { key: partUrn(header, 'operation', place.operation), path: ['operations', place.operation] };
 }
 
-function uses(side: Side): Map<string, { application: Application; path: (string | number)[] }> {
-  const map = new Map<string, { application: Application; path: (string | number)[] }>();
+/** The uses of the rules of a side, by place and rule. Both sides take the URNs of the new header, so that their places match. */
+function uses(side: Side, header: Side['model']['header']): Map<string, { place: string; application: Application; path: (string | number)[] }> {
+  const map = new Map<string, { place: string; application: Application; path: (string | number)[] }>();
   for (const application of side.applications) {
-    const { key, path } = placeOf(application);
-    map.set(`${key} ${application.rule.name}`, { application, path });
+    const { key, path } = placeOf(header, application);
+    map.set(`${key}\n${application.rule.name}`, { place: key, application, path });
   }
   return map;
 }
@@ -85,10 +90,9 @@ export function contractGate(input: ContractGateInput): GateOutcome {
   };
 
   // The rules: each use of a rule of the base, by its place and its name.
-  const before = uses(old);
-  const after = uses(next);
-  for (const [key, { application, path }] of before) {
-    const [place] = key.split(' ');
+  const before = uses(old, next.model.header);
+  const after = uses(next, next.model.header);
+  for (const [key, { place, application, path }] of before) {
     const now = after.get(key);
     // The rules of an output or an operation that is removed go with it: removed-output names it.
     const owner = application.place;
@@ -112,18 +116,18 @@ export function contractGate(input: ContractGateInput): GateOutcome {
     const was = old.model.rules[rule.name];
     if (!was?.expr || !rule.expr || print(was.expr) === print(rule.expr)) continue;
     if (!next.applications.some((a) => a.rule.name === rule.name && a.owner === next.model)) continue;
-    add('wider-rule', ['rules', rule.name, 'rule'], `the rule ${rule.name} is now ${print(rule.expr)}, not ${print(was.expr)}: it can accept other values`);
+    add('wider-rule', ['rules', rule.name, 'rule'], `the rule ${partUrn(next.model.header, 'rule', rule.name)} is now ${print(rule.expr)}, not ${print(was.expr)}: it can accept other values`);
   }
 
   // The outputs.
   for (const operation of Object.values(old.model.operations)) {
     const now = next.model.operations[operation.name];
     if (!now) {
-      add('removed-output', ['operations'], `the operation ${operation.name} is removed, with its outputs ${operation.outputs.map((o) => o.object).join(', ')}`);
+      add('removed-output', ['operations'], `the operation ${partUrn(next.model.header, 'operation', operation.name)} is removed, with its outputs ${operation.outputs.map((o) => o.object).join(', ')}`);
       continue;
     }
     for (const output of operation.outputs) {
-      if (!now.outputs.some((o) => o.object === output.object)) add('removed-output', ['operations', operation.name, 'output'], `the output ${output.object} of ${operation.name} is removed`);
+      if (!now.outputs.some((o) => o.object === output.object)) add('removed-output', ['operations', operation.name, 'output'], `the output ${output.object} of ${partUrn(next.model.header, 'operation', operation.name)} is removed`);
     }
   }
 

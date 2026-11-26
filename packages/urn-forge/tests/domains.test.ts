@@ -12,7 +12,7 @@ import { compileManifest } from '../src/compile.js';
 import { classify } from '../src/diff/classify.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { strict: it, namespace: it, urns: it.fails, domains: it.fails };
+const target = { strict: it, namespace: it, urns: it, domains: it.fails };
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const BOOKING = join(FIXTURES, 'booking');
