@@ -6,6 +6,9 @@
 import { describe, expect, it } from 'vitest';
 import { checksOf, compileManifest } from '../src/compile.js';
 import { PGlite } from '@electric-sql/pglite';
+import { join } from 'node:path';
+import ts from 'typescript';
+import { generatedFile } from '../src/generate/code.js';
 import { postgresSchema } from '../src/generate/postgres.js';
 
 /** A manifest whose object `subject` keeps one rule, `the_rule`. */
@@ -177,5 +180,31 @@ describe('the SQL of each form', () => {
     for (const [amount, ratio] of [[-7, -2.5], [0, 0.5], [3, 3.0], [-1, -0.25]] as const) rows.push({ text: texts[0]!, flag: true, amount, ratio } as never);
     const stored = await stores(rule, rows);
     expect(rows.map((row, i) => ({ ...row, stored: stored[i] }))).toEqual(rows.map((row) => ({ ...row, stored: holds(rule, row) })));
+  });
+});
+
+describe('the types of the generated code', () => {
+  /** The type errors of the generated file of a rule, as gate 1 would see them. */
+  function typeErrors(rule: string): string[] {
+    const compiled = compileManifest(manifest(rule));
+    const file = join(import.meta.dirname, '__rule__.generated.ts');
+    const text = generatedFile(compiled.model!, compiled.applications, 'domain.manifest.yaml', () => 'x');
+    const options: ts.CompilerOptions = { strict: true, noEmit: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, skipLibCheck: true };
+    const host = ts.createCompilerHost(options);
+    const read = host.getSourceFile.bind(host);
+    host.getSourceFile = (name, version) => (name === file ? ts.createSourceFile(name, text, version) : read(name, version));
+    const fileExists = host.fileExists.bind(host);
+    host.fileExists = (name) => name === file || fileExists(name);
+    const program = ts.createProgram([file], options, host);
+    // Only the errors on the line of the rule: the test manifest has no operation, which the rest of the file reads.
+    const lineOf = (start: number): string => text.slice(text.lastIndexOf('\n', start) + 1, text.indexOf('\n', start));
+    return ts
+      .getPreEmitDiagnostics(program)
+      .filter((d) => d.start !== undefined && lineOf(d.start).includes('"the_rule"'))
+      .map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
+  }
+
+  it('type-checks a helper that takes the item of a list', () => {
+    expect(typeErrors('math.least(size(self.words), [3, 4][1]) == 3 && [self.text][0].startsWith(\'1\')')).toEqual([]);
   });
 });

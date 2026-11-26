@@ -55,7 +55,8 @@ export function $sum(list: unknown): number {
 }
 
 /** CEL's l[i]: the item at i, from 0. An index out of the list is an error. */
-export function $index(list: unknown, i: number): unknown {
+// The item of a list has the type that the checker gave it, so the generated code reads it as any, as a property.
+export function $index(list: unknown, i: number): any {
   if (!Array.isArray(list) || !Number.isInteger(i) || i < 0 || i >= list.length) throw new RuleError(`the index ${i} is out of the list`);
   return list[i];
 }
