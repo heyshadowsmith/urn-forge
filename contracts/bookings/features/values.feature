@@ -24,6 +24,10 @@ Feature: The values of the contract
       | deposit_has_terms    | confirmation      | ABCDEFGH  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 8          | 120              | 16000          | 2000              |          |
       | deposit_is_per_guest | confirmation      | ABCDEFGH  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 8          | 120              | 14000          | 2000              | EUR      |
       | required             | confirmation      |           | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 8          | 120              | 16000          | 2000              | EUR      |
+      | local_start_is_starts_at | confirmation  | ABCDEFGH  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T03:00:00Z | 2026-12-24 | 19:30      | Europe/Paris | 8          | 120              | 16000          | 2000              | EUR      |
+      | local_start_is_starts_at | confirmation  | ABCDEFGH  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T19:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 8          | 120              | 16000          | 2000              | EUR      |
+      | local_start_is_starts_at | confirmation  | ABCDEFGH  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-25 | 19:30      | Europe/Paris | 8          | 120              | 16000          | 2000              | EUR      |
+      | local_start_is_starts_at | confirmation  | ABCDEFGH  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Atlantis | 8       | 120              | 16000          | 2000              | EUR      |
 
   Scenario Outline: A booking that breaks a rule is rejected
     When I check a "booking" with:
@@ -38,6 +42,26 @@ Feature: The values of the contract
       | minimum  | refund_amount | ABCDEFGH  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CANCELLED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | -1            | 2026-11-20T08:00:00Z      |
       | format   | cancelled_at  | ABCDEFGH  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CANCELLED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 0             | 20 Nov 2026               |
       | in_utc   | cancelled_at  | ABCDEFGH  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CANCELLED | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris | 4          | 120              | 0             | 2026-11-20T09:00:00+01:00 |
+      | local_start_is_starts_at | booking | ABCDEFGH | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-26T18:30:00Z | 2026-12-24 | 19:30 | Europe/Paris | 4 | 120 | | |
+      | local_start_is_starts_at | booking | ABCDEFGH | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-07-14T18:30:00Z | 2026-07-14 | 19:30 | Europe/Paris | 4 | 120 | | |
+      | local_start_is_starts_at | booking | ABCDEFGH | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2026-12-24T18:30:30Z | 2026-12-24 | 19:30 | Europe/Paris | 4 | 120 | | |
+      | local_start_is_starts_at | booking | ABCDEFGH | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | 2027-03-28T01:30:00Z | 2027-03-28 | 02:30 | Europe/Paris | 4 | 120 | | |
+
+  Scenario Outline: A booking whose starts_at is its local date and time in its time zone is accepted
+    When I check a "booking" with:
+      | reference | restaurant_id                        | state     | starts_at   | local_date   | local_time   | time_zone   | party_size | duration_minutes |
+      | ABCDEFGH  | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED | <starts_at> | <local_date> | <local_time> | <time_zone> | 4          | 120              |
+    Then the value is accepted
+
+    Examples:
+      | starts_at            | local_date | local_time | time_zone        |
+      | 2026-12-24T18:30:00Z | 2026-12-24 | 19:30      | Europe/Paris     |
+      | 2026-07-14T17:30:00Z | 2026-07-14 | 19:30      | Europe/Paris     |
+      | 2026-12-24T23:15:00Z | 2026-12-25 | 00:15      | Europe/Paris     |
+      | 2027-03-28T01:00:00Z | 2027-03-28 | 03:00      | Europe/Paris     |
+      | 2026-12-25T00:30:00Z | 2026-12-24 | 19:30      | America/New_York |
+      | 2026-12-24T14:00:00Z | 2026-12-24 | 19:30      | Asia/Kolkata     |
+      | 2026-12-24T19:30:00Z | 2026-12-24 | 19:30      | UTC              |
 
   Scenario Outline: An event that breaks a rule is rejected
     When I check a "booking_event" with:
@@ -66,6 +90,17 @@ Feature: The values of the contract
       | required             | alternative     | 2026-12-24 | 20:00      | Europe/Paris | 4          | [{"starts_at": "2026-12-24T18:00:00Z", "local_date": "2026-12-24"}]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
       | maxItems             | alternatives    | 2026-12-24 | 20:00      | Europe/Paris | 4          | [{"starts_at": "2026-12-24T18:00:00Z", "local_date": "2026-12-24", "local_time": "17:00", "party_size": 4}, {"starts_at": "2026-12-24T18:00:00Z", "local_date": "2026-12-24", "local_time": "18:00", "party_size": 4}, {"starts_at": "2026-12-24T18:00:00Z", "local_date": "2026-12-24", "local_time": "19:00", "party_size": 4}, {"starts_at": "2026-12-24T18:00:00Z", "local_date": "2026-12-24", "local_time": "21:00", "party_size": 4}, {"starts_at": "2026-12-24T18:00:00Z", "local_date": "2026-12-24", "local_time": "21:15", "party_size": 4}, {"starts_at": "2026-12-24T18:00:00Z", "local_date": "2026-12-24", "local_time": "22:00", "party_size": 4}] |
       | each_at_another_time | alternatives    | 2026-12-24 | 20:00      | Europe/Paris | 4          | [{"starts_at": "2026-12-24T18:00:00Z", "local_date": "2026-12-24", "local_time": "19:00", "party_size": 4}, {"starts_at": "2026-12-24T18:00:00Z", "local_date": "2026-12-24", "local_time": "19:00", "party_size": 4}]                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+  Scenario Outline: A refusal for no availability whose alternative is not at its local time is rejected
+    When I check a "no_availability" with:
+      | local_date | local_time | time_zone    | party_size | alternatives   |
+      | 2026-12-24 | 23:45      | Europe/Paris | 4          | <alternatives> |
+    Then the value is rejected by "alternatives_at_their_local_time" of "no_availability"
+
+    Examples:
+      | alternatives                                                                                                                                                                                     |
+      | [{"starts_at": "2026-12-24T23:30:00Z", "local_date": "2026-12-24", "local_time": "00:30", "party_size": 4}]                                                                                    |
+      | [{"starts_at": "2026-12-24T21:45:00Z", "local_date": "2026-12-24", "local_time": "22:45", "party_size": 4}, {"starts_at": "2026-12-24T22:00:00Z", "local_date": "2026-12-24", "local_time": "22:00", "party_size": 4}] |
 
   Scenario Outline: An object that leaves out a required part is rejected
     When I check a "<definition>" with:

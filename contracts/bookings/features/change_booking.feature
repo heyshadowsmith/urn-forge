@@ -56,16 +56,16 @@ Feature: Change a booking
 
   Scenario Outline: A move to a start less than 2 hours or more than 90 days away is refused
     When I run "change_booking" with:
-      | reference | caller.role | caller.restaurant_id                 | now                  | starts_at   | local_date   | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
-      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z | <starts_at> | <local_date> | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
+      | reference | caller.role | caller.restaurant_id                 | now                  | starts_at   | local_date   | local_time   | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z | <starts_at> | <local_date> | <local_time> | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        |
     Then the output is "outside_booking_window":
       | starts_at   |
       | <starts_at> |
 
     Examples:
-      | starts_at            | local_date |
-      | 2026-11-22T11:00:00Z | 2026-11-22 |
-      | 2027-03-01T18:30:00Z | 2027-03-01 |
+      | starts_at            | local_date | local_time |
+      | 2026-11-22T11:00:00Z | 2026-11-22 | 12:00      |
+      | 2027-03-01T18:30:00Z | 2027-03-01 | 19:30      |
 
   Scenario Outline: A move gives starts_at with the local date or time, and starts_at comes only with a move
     When I run "change_booking" with:
@@ -78,6 +78,32 @@ Feature: Change a booking
       | 2026-12-25T18:30:00Z |            |            |
       |                      | 2026-12-25 |            |
       |                      |            | 20:00      |
+
+  Scenario Outline: A move whose starts_at is not the new local date and time in the zone of the booking is rejected
+    # The local date or time that the request leaves out is the stored one.
+    When I run "change_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone | starts_at   | local_date   | local_time   |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2026-11-22T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2026-12-24T18:30:00Z     | 2026-12-24                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        | <starts_at> | <local_date> | <local_time> |
+    Then the input is rejected by "move_is_at_its_local_time" of "change_request"
+
+    Examples:
+      | starts_at            | local_date | local_time |
+      | 2026-12-25T03:00:00Z | 2026-12-25 |            |
+      | 2026-12-24T20:00:00Z |            | 20:00      |
+      | 2026-12-24T18:30:00Z | 2026-12-25 |            |
+      | 2026-12-24T19:00:00Z | 2026-12-25 | 20:00      |
+
+  Scenario Outline: A move in the zone of the booking, across a change of its offset, is changed
+    When I run "change_booking" with:
+      | reference | caller.role | caller.restaurant_id                 | now                  | stored_booking.reference | stored_booking.restaurant_id         | stored_booking.state | stored_booking.starts_at | stored_booking.local_date | stored_booking.local_time | stored_booking.time_zone | stored_booking.party_size | stored_booking.duration_minutes | stored_booking.email | stored_booking.phone | starts_at   | local_date   | local_time   |
+      | ABCDEFGH  | staff       | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | 2027-01-10T10:00:00Z | ABCDEFGH                 | 3f2504e0-4f89-41d3-9a0c-0305e82c3301 | CONFIRMED            | 2027-03-01T18:30:00Z     | 2027-03-01                | 19:30                     | Europe/Paris             | 4                         | 120                             | ada@example.com      | +447911123456        | <starts_at> | <local_date> | <local_time> |
+    Then the output is "booking_change"
+
+    Examples:
+      | starts_at            | local_date | local_time |
+      | 2027-03-28T17:30:00Z | 2027-03-28 |            |
+      | 2027-03-27T23:15:00Z | 2027-03-28 | 00:15      |
+      | 2027-03-28T01:00:00Z | 2027-03-28 | 03:00      |
 
   Scenario: An unknown reference is not found
     When I run "change_booking" with:
