@@ -2,7 +2,7 @@
  * `urn-forge.config.ts`: the paths of a project, and its options.
  *
  *   import { defineConfig } from 'urn-forge/config';
- *   export default defineConfig({ coverage: 'error' });
+ *   export default defineConfig({ shell: ['src/shell'] });
  *
  * Paths are relative to the config file. Flags on the command line override the config.
  */
@@ -30,8 +30,6 @@ export interface UrnForgeConfig {
   readonly tsconfig?: string;
   /** verify: the files and directories of the shell, which gate 2 checks besides the core. Default: none. */
   readonly shell?: readonly string[];
-  /** verify: whether a gap in the scenarios is a warning or an error. Default: `warn`. */
-  readonly coverage?: 'warn' | 'error';
   /** compile: write a Postgres schema of these tables, `schema.generated.sql`. */
   readonly postgres?: PostgresConfig;
 }
@@ -43,7 +41,12 @@ export function defineConfig(config: UrnForgeConfig): UrnForgeConfig {
 
 export const CONFIG_FILE = 'urn-forge.config.ts';
 
-const KEYS = ['manifest', 'out', 'core', 'features', 'tsconfig', 'shell', 'coverage', 'postgres'];
+const KEYS = ['manifest', 'out', 'core', 'features', 'tsconfig', 'shell', 'postgres'];
+
+/** Options that urn-forge no longer has, with what to do. */
+const REMOVED: Readonly<Record<string, string>> = {
+  coverage: 'config.coverage is removed: a gap in the scenarios is always an error; remove the option',
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -56,12 +59,14 @@ const isTexts = (value: unknown): boolean => Array.isArray(value) && value.every
 export function configProblems(config: unknown): string[] {
   if (!isRecord(config)) return ['the config must be an object: export default defineConfig({ … })'];
   const problems: string[] = [];
-  for (const key of Object.keys(config)) if (!KEYS.includes(key)) problems.push(`config.${key} is not an option; the options are ${KEYS.join(', ')}`);
+  for (const key of Object.keys(config)) {
+    if (REMOVED[key]) problems.push(REMOVED[key]);
+    else if (!KEYS.includes(key)) problems.push(`config.${key} is not an option; the options are ${KEYS.join(', ')}`);
+  }
   for (const key of ['manifest', 'out', 'core', 'features', 'tsconfig']) {
     if (config[key] !== undefined && !isText(config[key])) problems.push(`config.${key} must be a path`);
   }
   if (config['shell'] !== undefined && !isTexts(config['shell'])) problems.push('config.shell must be a list of paths');
-  if (config['coverage'] !== undefined && config['coverage'] !== 'warn' && config['coverage'] !== 'error') problems.push("config.coverage must be 'warn' or 'error'");
   const postgres = config['postgres'];
   if (postgres !== undefined) {
     if (!isRecord(postgres) || !isTexts(postgres['tables'])) problems.push('config.postgres must have tables, a list of object names');

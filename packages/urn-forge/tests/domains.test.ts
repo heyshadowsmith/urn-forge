@@ -12,7 +12,7 @@ import { compileManifest } from '../src/compile.js';
 import { classify } from '../src/diff/classify.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { strict: it.fails, namespace: it.fails, urns: it.fails, domains: it.fails };
+const target = { strict: it, namespace: it.fails, urns: it.fails, domains: it.fails };
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const BOOKING = join(FIXTURES, 'booking');
@@ -59,6 +59,7 @@ function twoDomains(config?: string): string {
 describe('always strict', () => {
   target.strict('refuses the coverage option', async () => {
     const dir = copy();
+    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace('  postgres:', "  coverage: 'error',\n  postgres:"));
     const { code, err } = await run(dir, ['compile']);
     expect(code).toBe(1);
     expect(err.join('\n')).toMatch(/config-invalid {2}config\.coverage is removed: a gap in the scenarios is always an error/);
@@ -66,7 +67,6 @@ describe('always strict', () => {
 
   target.strict('fails a gap with no coverage option', async () => {
     const dir = copy();
-    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("  coverage: 'error',\n", ''));
     edit(join(dir, 'features', 'seat.feature'), (t) => t.replace(/^.*\| maxLength .*\n/m, ''));
     const { code, out } = await run(dir, ['verify']);
     expect(code).toBe(1);

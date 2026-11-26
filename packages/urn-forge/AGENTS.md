@@ -164,7 +164,6 @@ A table has a header row of properties and one row of values. `contact.email` is
 | `features` | `features` | The folder of the `.feature` files |
 | `tsconfig` | `tsconfig.json` | The tsconfig of gate 1 |
 | `shell` | none | Files and folders of the shell, for gate 2 |
-| `coverage` | `'warn'` | `'error'` makes a gap in the scenarios fail gate 3 |
 | `postgres` | none | `{ tables, references?, unique? }`: a Postgres schema and a store file |
 
 ## The commands
@@ -182,7 +181,7 @@ Exit codes: `0` pass (also with warnings), `1` failure, `2` wrong command line.
 | --- | --- |
 | 1. completeness | `tsc` fails over the core, or no export `satisfies DomainCore` |
 | 2. boundary | The shell calls the core without `runOperation`, or a file suppresses a type check |
-| 3. gherkin | A step names an unknown part, or (with `coverage: 'error'`) an operation, an output or a rule has no scenario |
+| 3. gherkin | A step names an unknown part, or an operation, an output or a rule has no scenario |
 | 4. drift | A generated file is not what `compile` writes now |
 | 5. contract | Only with `--base <ref>`: a rule, an output or a scenario of the ref is gone, or a rule accepts more, and the version does not allow it |
 

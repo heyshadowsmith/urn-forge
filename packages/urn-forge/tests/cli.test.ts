@@ -86,7 +86,7 @@ describe('verify', () => {
   it('gate 2: fails a shell that calls the core without the harness', async () => {
     const dir = copy();
     writeFileSync(join(dir, 'shell.ts'), "import { core } from './core.js';\n\nexport const seated = core.seat_booking;\n");
-    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("coverage: 'error',", "coverage: 'error',\n  shell: ['shell.ts'],"));
+    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("  postgres:", "  shell: ['shell.ts'],\n  postgres:"));
     const { code, out } = await run(dir, ['verify']);
     expect(code).toBe(1);
     expect(out).toContain('    shell.ts:3  error  direct-call  core.seat_booking runs the core without the harness; call runOperation(core, …), which checks the input and the answer');
@@ -95,7 +95,7 @@ describe('verify', () => {
   it('gate 2: fails a shell that takes a function out of the core', async () => {
     const dir = copy();
     writeFileSync(join(dir, 'shell.ts'), "import { core } from './core.js';\n\nexport const { seat_booking } = core;\n");
-    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("coverage: 'error',", "coverage: 'error',\n  shell: ['shell.ts'],"));
+    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("  postgres:", "  shell: ['shell.ts'],\n  postgres:"));
     expect((await run(dir, ['verify'])).out.some((l) => l.includes('shell.ts:3  error  direct-call  { seat_booking } = core takes a function of the core without the harness'))).toBe(true);
   });
 
@@ -113,7 +113,7 @@ describe('verify', () => {
     expect((await run(dir, ['verify'])).out).toContain('    core.ts:1  error  suppressed-check  @ts-nocheck can hide a broken contract; fix the type error');
   });
 
-  it('gate 3: fails a gap with coverage: error', async () => {
+  it('gate 3: fails a gap', async () => {
     const dir = copy();
     edit(join(dir, 'features', 'seat.feature'), (t) => t.replace(/^.*\| maxLength .*\n/m, ''));
     const { out, err } = await run(dir, ['verify']);
@@ -154,9 +154,9 @@ describe('diff', () => {
 describe('the command line', () => {
   it('reports a config option that does not exist', async () => {
     const dir = copy();
-    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("coverage: 'error',", "coverage: 'error',\n  plugins: [],") );
+    edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("  postgres:", "  plugins: [],\n  postgres:") );
     expect((await run(dir, ['compile'])).err).toEqual([
-      'urn-forge.config.ts  error  config-invalid  config.plugins is not an option; the options are manifest, out, core, features, tsconfig, shell, coverage, postgres',
+      'urn-forge.config.ts  error  config-invalid  config.plugins is not an option; the options are manifest, out, core, features, tsconfig, shell, postgres',
       '  fix: Change the config to use only the options of defineConfig, with the types that the message names.',
     ]);
   });

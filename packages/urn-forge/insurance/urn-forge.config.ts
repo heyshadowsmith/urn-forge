@@ -5,8 +5,6 @@ export default defineConfig({
   out: 'generated',
   core: 'core.ts',
   tsconfig: '../tsconfig.json',
-  // Strict from the start.
-  coverage: 'error',
   // The customer and the policy are tables; a policy's holder refers to its customer.
   postgres: {
     tables: ['customer', 'policy'],

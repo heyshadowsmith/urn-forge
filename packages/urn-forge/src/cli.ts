@@ -299,7 +299,6 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
       model: result.compiled.model,
       applications: result.compiled.applications,
       features: featureFiles,
-      coverage: p.config.coverage ?? 'warn',
     }),
     await driftGate(p.outDir, result.files, show),
   ];
