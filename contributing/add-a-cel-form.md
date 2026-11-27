@@ -34,13 +34,6 @@ A macro, an operator, a kind of literal or a special form such as `cel.bind` tou
 2. `src/cel/print.ts`: the canonical text. `diff` compares two rules by this text, so the text must parse to the same tree.
 3. `src/cel/check.ts`: the type, and `rule-type` for each type that CEL refuses.
 4. `src/generate/emit-cel.ts`: the TypeScript. Use the types of the checker where CEL and JavaScript differ.
-5. `src/generate/postgres.ts`: see the next section.
-
-## SQL
-
-Translate a form in `toSql` only if Postgres gives the same result as CEL for each value. If not, throw `Untranslatable`: the schema names the rule in a comment, and the harness checks it.
-
-Add each translated form to "the SQL of each form" in `tests/rule-forms.test.ts`, with the values at the edges where SQL and CEL can differ. The test runs the schema on PGlite and compares each row with the generated check. Examples of edges that were found: Postgres casts `' 12'` to a number, orders `NaN` above each number, rounds a double half to even, and reads an offset such as `'+02:00'` with the other sign.
 
 ## Test and finish
 

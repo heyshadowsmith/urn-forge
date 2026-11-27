@@ -30,7 +30,6 @@ From the contract, urn-forge generates one TypeScript file. It has the types, a 
 - `urn-forge verify` fails CI when the code, the shell, the scenarios or the generated files do not agree with the contract. It also fails when a change makes the contract weaker.
 - Each problem has a stable code and a fix, as text or JSON.
 - `urn-forge init` writes an `AGENTS.md` for the agent, and a skill for Claude Code.
-- If you want, urn-forge also writes a Postgres schema. Each rule that SQL can state becomes a constraint.
 
 The version is 0.2.0. This version is not on npm yet. Read the [documentation](docs/index.md) and [the methodology](docs/methodology.md). The reference is [`AGENTS.md` of the package](packages/urn-forge/AGENTS.md).
 
@@ -55,7 +54,7 @@ An npm-workspaces monorepo:
 | Path | What it is |
 | --- | --- |
 | [`packages/urn-forge`](packages/urn-forge) | The CLI (`init`, `compile`, `verify`, `diff`), the steps of the scenarios, the skill, the tests, and the projects in the rows below |
-| [`packages/urn-forge/tests/fixtures/booking`](packages/urn-forge/tests/fixtures/booking) | The reference example: a restaurant booking that uses all constructs, with a Postgres schema |
+| [`packages/urn-forge/tests/fixtures/booking`](packages/urn-forge/tests/fixtures/booking) | The reference example: a restaurant booking that uses all constructs |
 | [`packages/urn-forge/templates/starter`](packages/urn-forge/templates/starter) | The project that `urn-forge init` writes |
 | [`packages/urn-forge/self`](packages/urn-forge/self) | urn-forge's own domain: functions of the compiler, which its scenarios test |
 | [`docs`](docs) | The VitePress documentation site |

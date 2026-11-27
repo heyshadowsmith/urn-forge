@@ -12,7 +12,7 @@ The site has two pages to read and three pages to look things up. Keep it so: a 
 | `methodology.md` | A person who wants to understand it | The split, the loop, the contract, the harness, the gates, what they cannot prove, the review, and the limits |
 | `reference/manifest.md` | A person who looks up a key | The sections, definitions, operations, rules, the standard rules, and an example |
 | `reference/syntax.md` | A person who writes a rule | The types, operators, functions and macros of the rule language, and what it does not have |
-| `reference/cli.md` | A person who runs a command | The commands, the JSON output, the config, Postgres, `diff`, the gates and each code |
+| `reference/cli.md` | A person who runs a command | The commands, the JSON output, the config, `diff`, the gates and each code |
 
 `packages/urn-forge/AGENTS.md` is the same reference in one page, for agents. A test keeps it complete. When you change a fact, change it in both.
 

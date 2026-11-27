@@ -7,10 +7,9 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
-import { CONFIG_FILE, loadConfig, type PostgresConfig, type UrnForgeConfig } from './config.js';
+import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
 import { fixOf, type Code } from './codes.js';
 import type { Diagnostic, Path } from './diagnostics.js';
-import { longNames, postgresProblems, postgresSchema } from './generate/postgres.js';
 import { initProject, nameProblem } from './init.js';
 import { domainUrn } from './urn.js';
 import { boundaryGate } from './verify/boundary.js';
@@ -148,7 +147,6 @@ interface DomainProject {
   readonly outDir: string;
   readonly corePath: string;
   readonly featuresPath: string;
-  readonly postgres?: PostgresConfig;
 }
 
 interface Project {
@@ -203,7 +201,6 @@ async function project(io: CliIo, report: Report, values: Record<string, string 
     outDir: path(values['out'], d.out, 'src/generated'),
     corePath: path(values['core'], d.core, 'src/core.ts'),
     featuresPath: path(values['features'], d.features, 'features'),
-    ...(d.postgres ? { postgres: d.postgres } : {}),
   }));
   // Two domains must not share a manifest, a folder of generated files or a folder of scenarios.
   const clashes: [keyof DomainProject, string][] = [
@@ -255,23 +252,10 @@ function compileDomain(io: CliIo, report: Report, p: Project, d: DomainProject):
   if (compiled.model) report.domain = domainUrn(compiled.model.header);
   showDiagnostics(report, display(io, d.manifestPath), text, compiled.diagnostics);
   if (!compiled.model) return undefined;
-  if (d.postgres) {
-    const problems = postgresProblems(compiled.model, d.postgres);
-    if (problems.length === 0) {
-      // Every name of the schema, also of a constraint, a function or a trigger, must fit in 63 bytes.
-      for (const name of longNames(postgresSchema(compiled.model, compiled.applications, d.postgres))) {
-        problems.push({ code: 'postgres-column', severity: 'error', path: ['postgres'], message: `${name} is longer than 63 bytes, the most that Postgres takes for a name` });
-      }
-    }
-    for (const problem of problems) {
-      report.problem({ code: problem.code, severity: 'error', file: display(io, p.configPath), path: problem.path, message: `${problem.path.join('.')}: ${problem.message}` });
-    }
-    if (problems.length > 0) return undefined;
-  }
   // The header names the manifest relative to the config, so that it does not depend on the working directory.
   const source = relative(p.base, d.manifestPath).split('\\').join('/');
   const model = compiled as Compiled & { model: NonNullable<Compiled['model']> };
-  const files = generate(model, source, d.postgres ? { postgres: d.postgres } : {});
+  const files = generate(model, source);
   return { domain: d, urn: domainUrn(compiled.model.header), compiled: model, files, text };
 }
 

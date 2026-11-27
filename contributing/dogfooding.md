@@ -48,7 +48,7 @@ The rule language states each rule of `self/` exactly. `is_the_type_name` builds
 
 The verdicts on a version change are complete: `allows_a_breaking_change` reads the major version with `int(…split('.')[0])`, and `keeps_the_major` and `keeps_the_version_or_the_major` hold each refusal.
 
-`self/` does not declare these pure functions yet: the failure message of a rule (`fillMessage`), the fix of a code (`fixOf`), the names of the Postgres schema, and the direction of a new argument of `enum` and `required`. Each can be one more operation.
+`self/` does not declare these pure functions yet: the failure message of a rule (`fillMessage`), the fix of a code (`fixOf`), and the direction of a new argument of `enum` and `required`. Each can be one more operation.
 
 ## The target, written first
 

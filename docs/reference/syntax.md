@@ -104,7 +104,7 @@ The language has no maps, no bytes, no unsigned numbers, no `null`, no optional 
 
 It also leaves out some forms that a rule is unlikely to need: `format()`, `strings.quote()`, `trim()`, `replace()`, `reverse()`, `sort()`, `sortBy()`, `distinct()`, `slice()`, `lists.range()`, `math.round()` and the `math.bit` functions. A form comes back when a rule of a real domain needs it.
 
-Each rule becomes plain TypeScript in the schema of its definition, with no interpreter at run time. Where SQL states the rule with the same meaning, it also becomes a Postgres constraint. Another rule, such as a rule with a macro, an index or `split()`, does not: the schema names it in a comment, and the harness checks it.
+Each rule becomes plain TypeScript in the check of its definition, with no interpreter at run time.
 
 | Applied to | The rule reads |
 | --- | --- |

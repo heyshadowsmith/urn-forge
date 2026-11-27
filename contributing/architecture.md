@@ -24,9 +24,6 @@ domain.manifest.yaml
    │                            src/generate/code.ts      domain.generated.ts
    │                            src/generate/emit-cel.ts  each rule as TypeScript
    │                            src/generate/runtime.ts   the helpers, copied into the file
-   │                            src/generate/tables.ts    the tables of a value (with postgres)
-   │                            src/generate/postgres.ts  schema.generated.sql (with postgres)
-   │                            src/generate/store.ts     domain.store.generated.ts (with postgres)
    │
    ├─▶ compile writes them                src/cli.ts, src/write.ts
    ├─▶ verify gives them to gates 1 to 4  src/verify/
@@ -79,7 +76,7 @@ A guard is `has(x) && …` or `!has(x) || …`. `check.ts` collects the facts th
 3. Makes the scope of the place. A definition has `self`. An output has `input` and `output`. An operation has `input`, and also `output` if it has one output only. Each parameter is a name with the type of its definition.
 4. Types the rule in that scope with `checkRule`. The rule must give a `bool`.
 
-Each use that checks becomes an `Application`: the use, the rule, the model that owns the rule, the `Place`, the arguments by parameter, and the types of the nodes. The generated code, the Postgres schema, gate 3 and `diff` all read the applications, not the rule uses.
+Each use that checks becomes an `Application`: the use, the rule, the model that owns the rule, the `Place`, the arguments by parameter, and the types of the nodes. The generated code, gate 3 and `diff` all read the applications, not the rule uses.
 
 `checkRules` also refuses a manifest rule with the name of a standard rule (`standard-name`), and a `{name}` in a message that is not a parameter (`invalid-message`).
 
@@ -93,7 +90,7 @@ The standard set is a manifest in the package: [`src/standard.manifest.yaml`](..
 
 ## The generated file: `generate/`
 
-`generate` writes one TypeScript file, `domain.generated.ts`. If the config has `postgres`, it also writes a Postgres schema and the store file. `domain.generated.ts` imports one package, `valibot`, as `v`. `valibot` is a dependency of `urn-forge`.
+`generate` writes one TypeScript file, `domain.generated.ts`. `domain.generated.ts` imports one package, `valibot`, as `v`. `valibot` is a dependency of `urn-forge`.
 
 | Part | Made by | Content |
 | --- | --- | --- |
@@ -110,23 +107,6 @@ The standard set is a manifest in the package: [`src/standard.manifest.yaml`](..
 `runOperation` checks the input. If the input breaks a rule, the result is `InputRejected` and the core does not run. Then it calls the core, and checks the answer: the output must be one of the outputs, its value must pass its check, and the rules of that output and of the operation must hold. Else the result is `ContractViolation`. A failure names the definition (or the operation), the rule, the path of the value and the message, with the arguments in the message.
 
 The header of a file has a fingerprint: the SHA-256 of its body. The same manifest gives the same bytes on each computer, in each locale and in each time zone. The determinism job of CI makes sure of this. Do not read the clock, the environment or the locale in `src/generate/`.
-
-### The Postgres schema: `tables.ts` and `postgres.ts`
-
-`buildTables` in `tables.ts` gives the tables of each object of `postgres.tables`. The schema and the store file both use it, so they cannot disagree:
-
-- a value is a column, named by its path, such as `contact_email`;
-- an embedded object is the columns of its parts, at any depth;
-- a list is a child table, `<table>__<path>`, keyed by the parent's key and `position`. A list of values has the column `value`. A list of objects has the columns of the item. A list inside an item is a grandchild table, with `<parent path>_position`;
-- an optional list adds `has_<path>`, a `BOOLEAN`, to its parent.
-
-`buildTables` gives a `TableProblem` for two parts with one column name, a name longer than 63 bytes, or a list of lists. `postgresProblems` reports them as `postgres-column`, after the checks of the config (`postgres-config`).
-
-`postgresSchema` writes each table, with its key as its primary key. `toSql` translates a rule to a `CHECK` constraint in the table that holds its values. A required part of an optional embedded object is a `CHECK` that applies only when the object is present. `uniqueItems` is `UNIQUE NULLS NOT DISTINCT`. `minItems`, `maxItems` and the `has_` flag are in a deferred constraint trigger (`countTrigger`), which counts at the end of the transaction. A form that SQL cannot say throws `Untranslatable`, and a comment of the schema names the rule. The harness checks that rule.
-
-### The store file: `store.ts`
-
-`storeFile` writes `domain.store.generated.ts`. For each table, it writes `insert<Table>`, `delete<Table>`, `replace<Table>`, `select<Table>` and `<table>FromRows`. They describe the tree of `buildTables` as data, and give statements as `{ text, values }`. They make no call: the shell runs the statements with its own driver, in its own transaction. The file imports only the types of `domain.generated.ts`.
 
 ## The CLI: `cli.ts`, `config.ts`, `init.ts`
 
@@ -168,13 +148,12 @@ The tests are in `packages/urn-forge/tests`:
 | `target.test.ts` | The booking fixture loads, and each kind of mistake stops it with its code at its place |
 | `model.test.ts` | The reader and the model: shape and names |
 | `cel.test.ts` | Parse, print, types and guards of the rule language |
-| `rule-forms.test.ts` | The forms that the plans added, and the agreement of their SQL with the generated check, on PGlite |
+| `rule-forms.test.ts` | The forms that the plans added: each keeps or breaks a rule as CEL does, and its generated code type-checks |
 | `rules.test.ts` | The standard set, arguments, and the names of each place |
 | `generated.test.ts` | The committed generated file of the fixture is current, and its checks and its harness keep the contract |
 | `features.test.ts` | Cucumber runs the features of the fixture |
 | `gherkin-gate.test.ts` | Gate 3 |
 | `cli.test.ts` | `compile` and `verify` on copies of the fixture, with each gate broken in turn |
-| `postgres.test.ts` | The schema of the fixture runs on PGlite, and its `CHECK` constraints refuse what the rules refuse |
 | `diff.test.ts` | Each change of `diff`, and the version rule |
 | `starter.test.ts` | The starter of `init` |
 

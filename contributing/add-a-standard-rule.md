@@ -77,7 +77,6 @@ Add the rule to the `rules` section of the standard set. Use the order of decisi
 
 2. Add the rule to the test "applies to the types that its rule types for". If the rule must refuse a type, add a test such as "refuses a rule that types for another type: enum on an integer".
 3. Examine the direction in `diff`. `argumentDirection` in `src/diff/classify.ts` finds it for a rule of the form `self op parameter` or `size(self) op parameter`. `enum` and `required` compare their lists. For each other rule, a new argument breaks both sides. If the keyword has a clear direction that the code does not find, add it, and add a case to `tests/diff.test.ts`.
-4. Examine the SQL. `toSql` in `src/generate/postgres.ts` translates the rule to a `CHECK` constraint if it can. If it cannot, the schema names the rule in a comment, and the harness checks it. If the rule translates, add a case to `tests/postgres.test.ts`.
 
 ## Use the rule in the booking fixture
 
@@ -110,7 +109,7 @@ If a manifest has one, rename its rule in the same pull request.
 
 ## Result
 
-A manifest can apply the rule with no declaration. `compile` checks each argument, the generated check gives a failure with the name of the rule, and `diff` and the Postgres schema handle it.
+A manifest can apply the rule with no declaration. `compile` checks each argument, the generated check gives a failure with the name of the rule, and `diff` handles it.
 
 ## Related pages
 

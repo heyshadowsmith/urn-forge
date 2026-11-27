@@ -56,32 +56,10 @@ urn-forge reads `urn-forge.config.ts` from the current folder, or from the file 
 | `out` | `src/generated` | The folder of the generated files |
 | `core` | `src/core.ts` | The core file, which exports a value that `satisfies DomainCore` |
 | `features` | `features` | The folder of the `.feature` files |
-| `postgres` | none | Writes a Postgres schema and a store file. Refer to [Postgres](#postgres) |
 
 A gap in the scenarios is always an error, so there is no option for it. `--manifest`, `--out`, `--core` and `--features` work only when the config has one domain. Two domains with one manifest, one `out`, one `features` or one URN fail with `config-invalid`.
 
 Your core and your shell import only the generated file. The project also uses `urn-forge/config`, `urn-forge/cucumber` (`registerSteps`) and `urn-forge/register-tsx`. `urn-forge/register-tsx` lets `npx cucumber-js` load TypeScript. For your own tools, `urn-forge` exports `loadManifest`, `compileManifest`, `generate` and the rule parser. Because the entry points are TypeScript source, run code that imports them through a loader such as `tsx`.
-
-## Postgres
-
-With `postgres` in a domain of the config, `compile` also writes `schema.generated.sql` and `domain.store.generated.ts`, and gate 4 checks them. Each table is an object definition with an `identifier`, which becomes the primary key. urn-forge writes no migrations, and it never connects to a database: apply the schema with your migration tool, and run the statements of the store file with your driver.
-
-```ts
-      postgres: {
-        tables: ['customer', 'policy'],
-        references: { policy: { holder: 'customer' } },
-      },
-```
-
-| Key | Value |
-| --- | --- |
-| `tables` | The object definitions that become tables |
-| `references` | For a table, a property that holds the identifier of another table. It becomes a `FOREIGN KEY` |
-| `unique` | For a table, lists of properties that two rows cannot share, such as `unique: { customer: [['email']] }` |
-
-An embedded object becomes columns of its table, such as `contact_email`. A list becomes a child table, `<table>__<property>`. Each rule that SQL can state becomes a `CHECK` constraint.
-
-The store file has pure functions for each table: `insert<Table>(value)`, `delete<Table>(identifier)`, `replace<Table>(value)` and `select<Table>(identifier)` give the statements, as `{ text, values }`. `<table>FromRows(rows)` builds the value from the rows of `select<Table>`.
 
 ## diff
 
@@ -151,8 +129,6 @@ Each code has one fix, which the output shows on the line below the problem. `no
 | `usage` | The command line is wrong (only with `--format json`; as text, the usage shows) |
 | `manifest-unreadable`, `config-unreadable` | The manifest file, or the file that `--config` names, does not exist |
 | `config-invalid` | The config does not load, or an option is unknown or of the wrong type |
-| `postgres-config` | A table has no identifier, or an entry of `postgres` names a part that is not there |
-| `postgres-column` | Two parts give one column name, a name is longer than 63 bytes, or a list contains lists (put the inner list in an object) |
 | `yaml-syntax` | The file is not valid YAML, or a map has one key two times |
 | `manifest-shape` | A key that is not allowed, a key that is not there, or a value of the wrong shape |
 | `unknown-definition`, `unknown-property`, `unknown-rule` | A name that the manifest does not have |
