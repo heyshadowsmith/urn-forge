@@ -3,8 +3,9 @@
 # not a copy. It declares the type name of a definition, the URN of a part, a URN namespace, the verdicts
 # of diff and of gate 5 on a version change, the direction of a new bound, the fix of each code, each
 # standard rule, the signatures of each function of the rule language, the steps of a scenario, the
-# verdict of a gate, and the failure message of a rule use. tests/self.test.ts keeps its vocabulary equal
-# to the package and to the pages that name it.
+# verdict of a gate, the rules that gate 3 reports, the failure message of a rule use, the language of a
+# manifest, and the results of a call, a check and a command. tests/self.test.ts keeps its vocabulary
+# equal to the package and to the pages that name it.
 manifest:
   namespace: urn-forge
   domain: toolchain
@@ -241,6 +242,7 @@ definitions:
     type: string
     rules:
       - minLength: 1
+      - pattern: '\S'
 
   standard_rule_request:
     description: A standard rule that is asked for
@@ -411,6 +413,595 @@ definitions:
     rules:
       - required: [filled_text]
 
+
+  # Which rules gate 3 reports
+  rule_place:
+    description: A rule of a definition, as the definition and the rule with a space, such as party_size minimum
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]* [a-z][A-Za-z0-9_]*$'
+
+  rule_places:
+    description: Rules of definitions
+    type: array
+    items: rule_place
+
+  coverage_facts:
+    description: The rules that the definitions apply, and the rules that a scenario breaks
+    type: object
+    properties:
+      - applied_rules: rule_places
+      - broken_rules: rule_places
+    rules:
+      - required: [applied_rules, broken_rules]
+
+  uncovered_rules:
+    description: The rules that no scenario breaks, each once
+    type: array
+    items: rule_place
+    rules:
+      - uniqueItems
+
+  rules_found:
+    description: The rules that gate 3 reports as uncovered-rule
+    type: object
+    properties: [uncovered_rules]
+    rules:
+      - required: [uncovered_rules]
+
+  # The language of a manifest: the shape that the manifest reader accepts, key by key. A manifest that
+  # breaks it fails compile with manifest-shape. tests/agents.test.ts checks each manifest of the
+  # repository with it, and checks that the reader refuses what it refuses.
+  manifest:
+    description: A manifest, the contract of a domain - its header, and its definitions, rules and operations by name
+    type: object
+    properties:
+      - manifest: manifest_header
+      - definitions: definition_declarations
+      - rules: rule_declarations
+      - operations: operation_declarations
+    rules:
+      - required: [manifest]
+
+  manifest_header:
+    description: The header of a manifest, which names the domain and its version
+    type: object
+    properties:
+      - namespace: namespace_name
+      - domain: domain_name
+      - version
+      - compatibility
+    rules:
+      - required: [namespace, domain, version]
+
+  compatibility:
+    description: What the callers of the domain do with a part that they do not know
+    type: object
+    properties: [callers]
+    rules:
+      - required: [callers]
+
+  callers:
+    description: ignore-unknown - the callers ignore a property or an output that they do not know, so a new one is compatible
+    type: string
+    rules:
+      - enum: [ignore-unknown]
+
+  description:
+    description: What a part is, for a reader of the manifest - text with a character that is not a space
+    type: string
+    rules:
+      - pattern: '\S'
+
+  deprecated:
+    description: True when the part is deprecated - it still works, and each use of it in a live part gives a warning
+    type: boolean
+
+  definition_declarations:
+    description: The definitions of a manifest, by name
+    type: map
+    keys: definition_name
+    values: definition_declaration
+
+  definition_declaration:
+    description: A definition - the structure of a value, and the rules that each value keeps
+    type: object
+    properties:
+      - description
+      - type: type_reference
+      - properties: property_entries
+      - items: definition_name
+      - values: definition_name
+      - keys: definition_name
+      - tag: property_name
+      - variants
+      - identifier: property_name
+      - rules: rule_uses
+      - deprecated
+    rules:
+      - required: [description, type]
+      - structure_of_an_object
+      - structure_of_an_array
+      - structure_of_a_map
+      - structure_of_a_union
+
+  type_reference:
+    description: >-
+      The type of a definition - string, number, integer, boolean, object, array, map or union, or the name
+      of another definition, whose structure it has
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
+
+  property_name:
+    description: The name of a property of an object
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
+
+  property_entries:
+    description: The properties of an object, in their order
+    type: array
+    items: property_entry
+
+  property_entry:
+    description: A property - the name of its definition, or a name with its own definition
+    type: union
+    variants: [definition_name, property_with_definition]
+
+  property_with_definition:
+    description: A property with its own definition, such as { address - street_address } in YAML flow form
+    type: map
+    keys: property_name
+    values: definition_name
+    rules:
+      - one_entry
+
+  variants:
+    description: The variants of a union - a list of definitions of different JSON types, or, with a tag, each value of the tag to its object variant
+    type: union
+    variants: [variant_list, tagged_variants]
+
+  variant_list:
+    description: The variants of a union with no tag, at most one of each JSON type
+    type: array
+    items: definition_name
+
+  tagged_variants:
+    description: The variants of a union with a tag - each value of the tag to its object variant
+    type: map
+    values: definition_name
+
+  rule_uses:
+    description: The rules that a part applies, by name, in their order
+    type: array
+    items: rule_use
+
+  rule_use:
+    description: A rule applied by name - the name alone, or the name with its argument
+    type: union
+    variants: [rule_use_name, rule_with_argument]
+
+  rule_use_name:
+    description: The name of a rule in a use - a rule of the manifest, or a standard rule, whose names are camelCase
+    type: string
+    rules:
+      - pattern: '^[a-z][A-Za-z0-9_]{0,62}$'
+
+  rule_with_argument:
+    description: A rule with its argument, such as minimum - 1, or between - { low - 1, high - 9 }
+    type: map
+    keys: rule_use_name
+    values: json_value
+    rules:
+      - one_entry
+
+  json_value:
+    description: Any JSON value but null - the argument of a rule use, or the value of an answer
+    type: union
+    variants: [json_string, json_number, json_flag, json_list, json_map]
+
+  json_string:
+    description: A JSON value that is a string
+    type: string
+
+  json_number:
+    description: A JSON value that is a number
+    type: number
+
+  json_flag:
+    description: A JSON value that is true or false
+    type: boolean
+
+  json_list:
+    description: A JSON value that is a list
+    type: array
+    items: json_value
+
+  json_map:
+    description: A JSON value that is a map, such as the arguments of the parameters of a rule by name
+    type: map
+    values: json_value
+
+  rule_declarations:
+    description: The rules of a manifest, by name
+    type: map
+    keys: rule_name
+    values: rule_declaration
+
+  rule_name:
+    description: The name of a rule of a manifest, in lowercase snake_case
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
+
+  rule_declaration:
+    description: A rule - an expression of the rule language, its parameters, and what its failure says
+    type: object
+    properties:
+      - description
+      - parameters: parameter_names
+      - rule: rule_text
+      - failure_message: failure_text
+      - deprecated
+    rules:
+      - required: [description, rule, failure_message]
+
+  rule_text:
+    description: An expression of the rule language that gives true when the value keeps the rule
+    type: string
+    rules:
+      - pattern: '\S'
+
+  operation_declarations:
+    description: The operations of a manifest, by name
+    type: map
+    keys: operation_name
+    values: operation_declaration
+
+  operation_name:
+    description: The name of an operation of a manifest, in lowercase snake_case
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
+
+  operation_declaration:
+    description: An operation - its input, its outputs, and the rules of each answer
+    type: object
+    properties:
+      - description
+      - input: definition_name
+      - output: output_entries
+      - rules: rule_uses
+      - deprecated
+    rules:
+      - required: [description, input, output]
+
+  output_entries:
+    description: The outputs of an operation - the core answers exactly one of them
+    type: array
+    items: output_entry
+    rules:
+      - minItems: 1
+
+  output_entry:
+    description: An output - the name of its object, or the name with the rules of the output
+    type: union
+    variants: [definition_name, output_with_rules]
+
+  output_with_rules:
+    description: An output with its rules, such as booked - [deposit_paid]
+    type: map
+    keys: definition_name
+    values: rule_uses
+    rules:
+      - one_entry
+
+  # The results: what check and runOperation of a generated file give, and the report of a command with
+  # --format json. The CLI checks each report with these definitions before it writes it.
+  failure:
+    description: A rule that a value breaks - the definition or the operation of the rule, the rule, the place of the value, and the failure message
+    type: object
+    properties:
+      - definition: part_name
+      - rule: part_name
+      - path: value_path
+      - failure_message: failure_text
+    rules:
+      - required: [definition, rule, path, failure_message]
+
+  value_path:
+    description: The place of a value in the value that is checked, such as contact.email or dishes[0].amount, or empty for the whole value
+    type: string
+
+  failures:
+    description: The rules that a value breaks, one or more
+    type: array
+    items: failure
+    rules:
+      - minItems: 1
+
+  accepted:
+    description: True - the value keeps the contract
+    type: boolean
+    rules:
+      - is_true
+
+  refused:
+    description: False - the value breaks the contract
+    type: boolean
+    rules:
+      - is_false
+
+  check_accepted:
+    description: The result of check for a value that keeps each rule of its definition
+    type: object
+    properties:
+      - ok: accepted
+      - domain: urn
+      - value: json_value
+    rules:
+      - required: [ok, domain, value]
+
+  check_refused:
+    description: The result of check for a value that breaks a rule of its definition
+    type: object
+    properties:
+      - ok: refused
+      - domain: urn
+      - failures
+    rules:
+      - required: [ok, domain, failures]
+
+  call_answered:
+    description: The result of runOperation when the input and the answer keep the contract - the answer of the core, its output and its value
+    type: object
+    properties:
+      - ok: accepted
+      - domain: urn
+      - operation: operation_name
+      - output: definition_name
+      - value: json_value
+    rules:
+      - required: [ok, domain, operation, output, value]
+
+  call_refused:
+    description: The result of runOperation when the input or the answer breaks the contract, by its kind
+    type: union
+    tag: kind
+    variants:
+      InputRejected: input_rejected
+      ContractViolation: contract_violation
+
+  refusal_kind:
+    description: >-
+      Why a call is refused - InputRejected, the caller sent an input that breaks the contract, so the core
+      did not run; or ContractViolation, the core answered what the contract does not allow, which is a bug
+      in the core
+    type: string
+    rules:
+      - enum: [InputRejected, ContractViolation]
+
+  input_rejected:
+    description: A call whose input breaks the contract; the core did not run
+    type: object
+    properties:
+      - ok: refused
+      - domain: urn
+      - operation: operation_name
+      - kind: refusal_kind
+      - failures
+    rules:
+      - required: [ok, domain, operation, kind, failures]
+
+  contract_violation:
+    description: A call whose answer breaks the contract, which is a bug in the core
+    type: object
+    properties:
+      - ok: refused
+      - domain: urn
+      - operation: operation_name
+      - kind: refusal_kind
+      - failures
+    rules:
+      - required: [ok, domain, operation, kind, failures]
+
+  problem:
+    description: A problem that a command found - its code, its severity, its place, what it says, and its fix
+    type: object
+    properties:
+      - code
+      - severity
+      - file: file_path
+      - line: line_number
+      - path: problem_path
+      - domain: urn
+      - message: problem_message
+      - fix
+    rules:
+      - required: [code, severity, message, fix]
+
+  problems:
+    description: The problems of a command, in the order it found them
+    type: array
+    items: problem
+
+  file_path:
+    description: A file, relative to the folder of the command, with forward slashes
+    type: string
+    rules:
+      - minLength: 1
+
+  line_number:
+    description: A line of a file, from 1
+    type: integer
+    rules:
+      - minimum: 1
+
+  problem_path:
+    description: The place of a problem in the manifest or the config, as a list of keys, such as definitions, party_size, rules, 0
+    type: array
+    items: path_key
+
+  path_key:
+    description: A key of a place - the name of a key of a map, or the index of an item of a list
+    type: union
+    variants: [key_name, key_index]
+
+  key_name:
+    description: The name of a key of a map
+    type: string
+
+  key_index:
+    description: The index of an item of a list, from 0
+    type: integer
+    rules:
+      - minimum: 0
+
+  problem_message:
+    description: What a problem says
+    type: string
+    rules:
+      - pattern: '\S'
+
+  passed:
+    description: True when the command passed - its exit code is 0
+    type: boolean
+
+  compile_report:
+    description: The report of compile --format json - the files that it wrote or removed, and its problems
+    type: object
+    properties:
+      - ok: passed
+      - files: written_files
+      - problems
+    rules:
+      - required: [ok, problems]
+      - an_error_fails
+
+  written_files:
+    description: The generated files of compile, for each domain
+    type: array
+    items: written_file
+
+  written_file:
+    description: A generated file, and what compile did with it
+    type: object
+    properties:
+      - domain: urn
+      - status: write_status
+      - path: file_path
+    rules:
+      - required: [domain, status, path]
+
+  write_status:
+    description: What compile did with a generated file - wrote it, found it unchanged, or removed it because no domain gives it
+    type: string
+    rules:
+      - enum: [wrote, unchanged, removed]
+
+  verify_report:
+    description: The report of verify --format json - each gate of each domain, the count of warnings, and the problems
+    type: object
+    properties:
+      - ok: passed
+      - gates: gate_reports
+      - domains: domain_reports
+      - warnings: warning_count
+      - problems
+    rules:
+      - required: [ok, problems]
+      - an_error_fails
+      - a_failed_gate_fails
+
+  gate_report:
+    description: The outcome of a gate - its number, its name, whether it passed, and its summary
+    type: object
+    properties:
+      - domain: urn
+      - gate: gate_number
+      - name: gate_name
+      - pass: passed
+      - summary: gate_summary
+    rules:
+      - required: [gate, name, pass, summary]
+
+  gate_reports:
+    description: The outcomes of the gates, of each domain in turn
+    type: array
+    items: gate_report
+
+  gate_summary:
+    description: What a gate checked, in one line, such as 1 generated file(s) compared byte for byte
+    type: string
+
+  domain_report:
+    description: The outcomes of the gates of one domain
+    type: object
+    properties:
+      - urn
+      - gates: gate_reports
+    rules:
+      - required: [urn, gates]
+
+  domain_reports:
+    description: The outcomes of the gates, by domain
+    type: array
+    items: domain_report
+
+  warning_count:
+    description: The number of problems that are warnings
+    type: integer
+    rules:
+      - minimum: 0
+
+  diff_report:
+    description: The report of diff --format json - the versions, each change with its class, and whether the versions allow the breaking changes
+    type: object
+    properties:
+      - ok: passed
+      - from: from_version
+      - to: to_version
+      - breaking: breaking_count
+      - changes
+      - allowed: breaking_allowed_flag
+      - why: reason
+      - problems
+    rules:
+      - required: [ok, problems]
+      - an_error_fails
+
+  breaking_count:
+    description: The number of changes that are breaking
+    type: integer
+    rules:
+      - minimum: 0
+
+  breaking_allowed_flag:
+    description: True when the versions allow the breaking changes, or when no change is breaking
+    type: boolean
+
+  changes:
+    description: The changes from the old manifest to the new one
+    type: array
+    items: change
+
+  change:
+    description: A change of a part - its class, the URN of the part, and what changed
+    type: object
+    properties:
+      - class: change_class
+      - place: urn
+      - message: problem_message
+    rules:
+      - required: [class, place, message]
+
+  change_class:
+    description: Whether a change can break a caller (breaking) or not (compatible)
+    type: string
+    rules:
+      - enum: [breaking, compatible]
+
 rules:
   is_the_type_name:
     description: >-
@@ -557,6 +1148,60 @@ rules:
       (size(input.message_arguments) > 0 || output.filled_text == input.message_text)
     failure_message: A parameter in braces is not its argument
 
+  each_unbroken_rule_once:
+    description: >-
+      Gate 3 reports each rule that a definition applies and no scenario breaks, and no other rule. A rule
+      that no scenario breaks is a gap, as an output that no scenario answers is
+    rule: >-
+      input.applied_rules.all(r, r in input.broken_rules || r in output.uncovered_rules) &&
+      output.uncovered_rules.all(r, r in input.applied_rules && !(r in input.broken_rules))
+    failure_message: Gate 3 must report each rule that no scenario breaks, and only these
+
+  one_entry:
+    description: A name with its value is a map of exactly one entry
+    rule: size(self) == 1
+    failure_message: Must be one name with its value
+
+  structure_of_an_object:
+    description: An object needs properties; properties and identifier are only for type object
+    rule: "self.type == 'object' ? has(self.properties) : !has(self.properties) && !has(self.identifier)"
+    failure_message: An object needs properties, and only an object has properties or an identifier
+
+  structure_of_an_array:
+    description: An array needs items; items are only for type array
+    rule: "self.type == 'array' ? has(self.items) : !has(self.items)"
+    failure_message: An array needs items, and only an array has items
+
+  structure_of_a_map:
+    description: A map needs values; values and keys are only for type map
+    rule: "self.type == 'map' ? has(self.values) : !has(self.values) && !has(self.keys)"
+    failure_message: A map needs values, and only a map has values or keys
+
+  structure_of_a_union:
+    description: A union needs variants; variants and a tag are only for type union
+    rule: "self.type == 'union' ? has(self.variants) : !has(self.variants) && !has(self.tag)"
+    failure_message: A union needs variants, and only a union has variants or a tag
+
+  is_true:
+    description: The flag is true
+    rule: self
+    failure_message: Must be true
+
+  is_false:
+    description: The flag is false
+    rule: "!self"
+    failure_message: Must be false
+
+  an_error_fails:
+    description: A command with a problem that is an error does not pass
+    rule: "!self.problems.exists(p, p.severity == 'error') || !self.ok"
+    failure_message: A command with an error must not pass
+
+  a_failed_gate_fails:
+    description: verify does not pass when a gate fails
+    rule: "!has(self.gates) || self.gates.all(g, g.pass) || !self.ok"
+    failure_message: verify must not pass when a gate fails
+
 operations:
   to_type_name:
     description: Name the TypeScript type of a definition, as the generated file does
@@ -634,3 +1279,9 @@ operations:
     input: message_request
     output:
       - filled_message: [fills_each_argument]
+
+  find_uncovered_rules:
+    description: The rules of the definitions that gate 3 reports, because no scenario breaks them
+    input: coverage_facts
+    output:
+      - rules_found: [each_unbroken_rule_once]

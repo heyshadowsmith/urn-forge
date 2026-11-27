@@ -38,4 +38,5 @@ Feature: The standard rules
       | pattern   | parameter_name   | ["Bound"]  | A bound     | F       |
       | minLength | rule_description | ["bound"]  | ""          | F       |
       | minLength | failure_text     | ["bound"]  | A bound     | ""      |
+      | pattern   | failure_text     | ["bound"]  | A bound     | " "     |
       | required  | standard_rule    | ["bound"]  | A bound     |         |

@@ -10,6 +10,7 @@
  */
 import type { Expr } from '../cel/parse.js';
 import { print } from '../cel/print.js';
+import { propertyType } from '../manifest.js';
 import { variantsOf, type Model } from '../model.js';
 import type { Application } from '../rules.js';
 import { domainUrn, partUrn } from '../urn.js';
@@ -40,7 +41,7 @@ export function sides(model: Model): { readonly sent: ReadonlySet<string>; reado
       seen.add(name);
       if (definition.root !== name) visit(definition.type);
       const root = model.definitions[definition.root];
-      root?.properties?.forEach(visit);
+      root?.properties?.forEach((p) => visit(propertyType(root, p)));
       if (root?.items) visit(root.items);
       if (root?.values) visit(root.values);
       if (root?.keys) visit(root.keys);
@@ -185,6 +186,9 @@ export function classify(old: Side, next: Side): Change[] {
       add(verdict('wider', sent, received, ignoreUnknown), place, `the property ${property} is new`);
     }
     for (const property of oldProps.filter((p) => !newProps.includes(p))) add(used ? 'breaking' : 'compatible', place, `the property ${property} is removed`);
+    for (const property of newProps.filter((p) => oldProps.includes(p) && propertyType(before, p) !== propertyType(after, p))) {
+      add(used ? 'breaking' : 'compatible', place, `the property ${property} is now of ${propertyType(after, property)}, not ${propertyType(before, property)}`);
+    }
   }
 
   // Rules of definitions, by name and argument.

@@ -9,7 +9,7 @@ import type { DomainConfig } from './config.js';
 import { Diagnostics, type Diagnostic } from './diagnostics.js';
 import { checksModule, generatedFile, header, type GeneratedFile } from './generate/code.js';
 import type { Failure } from './generate/runtime.js';
-import { readManifest } from './manifest.js';
+import { propertyType, readManifest } from './manifest.js';
 import { buildModel, type Model } from './model.js';
 import { checkRules, standard, standardApplications, type Application } from './rules.js';
 
@@ -59,7 +59,7 @@ function checkDeprecated(model: Model, diagnostics: Diagnostics): void {
     if (!['string', 'number', 'integer', 'boolean', 'object', 'array'].includes(definition.type) && deprecated(definition.type)) {
       warn([...definition.path, 'type'], definition.name, definition.type, 'definition');
     }
-    definition.properties?.forEach((p, i) => deprecated(p) && warn([...definition.path, 'properties', i], definition.name, p, 'definition'));
+    definition.properties?.forEach((p, i) => deprecated(propertyType(definition, p)) && warn([...definition.path, 'properties', i], definition.name, propertyType(definition, p), 'definition'));
     if (definition.items && deprecated(definition.items)) warn([...definition.path, 'items'], definition.name, definition.items, 'definition');
     for (const use of definition.rules) if (model.rules[use.rule]?.deprecated) warn(use.path, definition.name, use.rule, 'rule');
   }

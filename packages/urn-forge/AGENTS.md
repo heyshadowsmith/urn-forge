@@ -83,7 +83,7 @@ operations:
 
 A rule's `description` says what it checks and why, for a reader of the manifest. Its `failure_message` is what a failure says when it breaks; `{parameter}` puts in an argument.
 
-- `properties` and `identifier` are only for `type: object`; `properties` is required there. `items` is only for `type: array`, and required there. `values` is only for `type: map`, and required there; `keys`, a `string` definition, gives the rules of each key. `variants` is only for `type: union`, and required there: a list of definitions of different JSON types, or, with `tag`, each value of the tag to its object variant (`variants: { circle: circle }`, `tag: kind`). A value with another tag breaks `variant`. Each variant needs a scenario (`uncovered-variant`).
+- `properties` and `identifier` are only for `type: object`; `properties` is required there. A property is the name of its definition, or a name with its own definition: `- address: street_address`. `items` is only for `type: array`, and required there. `values` is only for `type: map`, and required there; `keys`, a `string` definition, gives the rules of each key. `variants` is only for `type: union`, and required there: a list of definitions of different JSON types, or, with `tag`, each value of the tag to its object variant (`variants: { circle: circle }`, `tag: kind`). A value with another tag breaks `variant`. Each variant needs a scenario (`uncovered-variant`).
 - `type: <definition>` gives the structure and the rules of that definition, plus its own rules.
 - Apply a rule with no parameter by name (`- uniqueItems`), with one parameter as `- minimum: 1`, with more as `- between: { low: 1, high: 9 }`.
 - A rule of a definition reads `self`. A rule of an output reads `input` and `output`. A rule of an operation reads `input`, and `output` when the operation has one output.
@@ -211,7 +211,7 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `config-invalid` | Change the config to use only the options of defineConfig, with the types that the message names. |
 | `manifest-unreadable` | Give --manifest, or manifest in the config, the path of a manifest that exists. |
 | `yaml-syntax` | Correct the YAML at the line that the problem gives. |
-| `manifest-shape` | Use only the keys that the message lists, with values of the type that it names; manifest.schema.json has the full shape. |
+| `manifest-shape` | Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key. |
 | `unknown-definition` | Add the definition to definitions:, or correct the name to one that is in definitions:. |
 | `type-cycle` | Give one definition of the cycle a base type (string, number, integer, boolean, object or array) in place of the name of another definition. |
 | `duplicate-property` | Remove the second copy of the name from properties:. |

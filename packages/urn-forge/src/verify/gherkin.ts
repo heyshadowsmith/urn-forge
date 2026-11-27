@@ -14,8 +14,10 @@ import { AstBuilder, compile, GherkinClassicTokenMatcher, Parser } from '@cucumb
 import { IdGenerator } from '@cucumber/messages';
 import { STEPS } from '../gherkin/steps.js';
 import { tableValue, type DefinitionsTable } from '../gherkin/cells.js';
+import { propertyType } from '../manifest.js';
 import { variantsOf, type Model } from '../model.js';
 import type { Application } from '../rules.js';
+import { decide } from '../self.js';
 import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
 
 export interface FeatureFile {
@@ -42,7 +44,7 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
   const table: DefinitionsTable = Object.fromEntries(
     Object.values(model.definitions).map((d) => {
       const root = model.definitions[d.root]!;
-      return [d.name, { base: d.base, ...(root.items ? { items: root.items } : {}), ...(root.properties ? { properties: root.properties } : {}) }];
+      return [d.name, { base: d.base, ...(root.items ? { items: root.items } : {}), ...(root.properties ? { properties: root.properties } : {}), ...(root.propertyTypes ? { propertyTypes: root.propertyTypes } : {}), ...(root.tag !== undefined && root.variants && !Array.isArray(root.variants) ? { tag: root.tag, tagged: root.variants as Readonly<Record<string, string>> } : {}) }];
     }),
   );
   const reach = (value: unknown, name: string): void => {
@@ -50,7 +52,7 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
     if (!definition || value === undefined) return;
     const root = model.definitions[definition.root]!;
     const isObject = typeof value === 'object' && value !== null && !Array.isArray(value);
-    if (definition.base === 'object' && isObject) for (const p of root.properties ?? []) reach((value as Record<string, unknown>)[p], p);
+    if (definition.base === 'object' && isObject) for (const p of root.properties ?? []) reach((value as Record<string, unknown>)[p], propertyType(root, p));
     else if (definition.base === 'array' && Array.isArray(value)) value.forEach((item) => reach(item, root.items!));
     else if (definition.base === 'map' && isObject) Object.values(value).forEach((v) => reach(v, root.values!));
     else if (definition.base === 'union') {
@@ -187,17 +189,15 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
       });
     }
   }
-  const seen = new Set<string>();
-  for (const application of applications) {
-    if (application.place.kind !== 'definition') continue;
-    const key = `${application.place.definition} ${application.rule.name}`;
-    if (seen.has(key) || broken.has(key)) continue;
-    seen.add(key);
+  const appliedRules = applications.flatMap((a) => (a.place.kind === 'definition' ? [`${a.place.definition} ${a.rule.name}`] : []));
+  const { uncovered_rules } = decide('find_uncovered_rules', { applied_rules: appliedRules, broken_rules: [...broken] }).value;
+  for (const key of uncovered_rules) {
+    const [definition, rule] = key.split(' ') as [string, string];
     problems.push({
       code: 'uncovered-rule',
       severity: gap,
       file: 'features',
-      message: `no scenario breaks ${application.rule.name} of ${application.place.definition}; add one that ends with Then the input is rejected by "${application.rule.name}" of "${application.place.definition}", or Then the value is rejected by …`,
+      message: `no scenario breaks ${rule} of ${definition}; add one that ends with Then the input is rejected by "${rule}" of "${definition}", or Then the value is rejected by …`,
     });
   }
 

@@ -12,6 +12,8 @@ import { CODES } from '../src/codes.js';
 import { STEPS } from '../src/gherkin/steps.js';
 import { standard } from '../src/rules.js';
 import { GATES } from '../src/verify/types.js';
+import { brokenBy } from '../src/self.js';
+import { check as selfCheck } from '../self/generated/domain.generated.js';
 import { readdirSync } from 'node:fs';
 
 const read = (path: string): string => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -88,7 +90,7 @@ describe('the vocabulary of self/', () => {
 describe('urn-forge through its own harness', () => {
   // The functions of the operations of self/ that the shell of urn-forge uses. The shell calls them only
   // with decide() of src/self.ts, which runs them through the harness of self/.
-  const DECLARED = ['fixOf', 'allowsWeaker', 'allowsBreaking', 'gatePasses'];
+  const DECLARED = ['fixOf', 'allowsWeaker', 'allowsBreaking', 'gatePasses', 'uncoveredRules'];
   const SHELL = ['src/cli.ts', 'src/diff/command.ts', ...readdirSync(new URL('../src/verify/', import.meta.url)).map((f) => `src/verify/${f}`)];
 
   it('calls no declared decision but through the harness', () => {
@@ -103,5 +105,38 @@ describe('urn-forge through its own harness', () => {
         });
     }
     expect(direct).toEqual([]);
+  });
+});
+
+describe('the results in self/', () => {
+  const booking = {
+    reference: 'ABCDEFGH',
+    party_size: 4,
+    state: 'confirmed',
+    starts_at: '2026-11-24T19:00:00Z',
+    ends_at: '2026-11-24T21:00:00Z',
+    contact: { email: 'ada@example.com' },
+  };
+  const kept = (definition: 'check_accepted' | 'check_refused' | 'call_answered' | 'call_refused', value: unknown): string[] => {
+    const result = selfCheck(definition, value);
+    return result.ok ? [] : result.failures.map((f) => `${f.rule} of ${f.definition} at ${f.path}`);
+  };
+
+  it('are the results of a generated file', async () => {
+    const { core } = await import('./fixtures/booking/core.js');
+    const generated = await import('./fixtures/booking/generated/domain.generated.js');
+    expect(kept('check_accepted', generated.check('booking', booking))).toEqual([]);
+    expect(kept('check_refused', generated.check('booking', { ...booking, party_size: 0 }))).toEqual([]);
+    expect(kept('call_answered', generated.runOperation(core, 'seat_booking', { reference: 'ABCDEFGH', stored_booking: booking }))).toEqual([]);
+    expect(kept('call_refused', generated.runOperation(core, 'seat_booking', { reference: 'ABCDEFGH' }))).toEqual([]);
+    const other = { seat_booking: () => ({ output: 'receipt', value: {} }) } as never;
+    expect(kept('call_refused', generated.runOperation(other, 'seat_booking', { reference: 'ABCDEFGH', stored_booking: booking }))).toEqual([]);
+  });
+
+  it('stop a report of a command that breaks them', () => {
+    expect(brokenBy('verify_report', { ok: false, problems: [] })).toBeUndefined();
+    const error = { code: 'drift', severity: 'error', message: 'M', fix: 'F' };
+    expect(brokenBy('verify_report', { ok: true, problems: [error] })).toMatch(/^urn-forge broke its own contract: an_error_fails of verify_report/);
+    expect(brokenBy('compile_report', { ok: false, problems: [{ ...error, file: null }] })).toMatch(/at problems\[0\]\.file/);
   });
 });

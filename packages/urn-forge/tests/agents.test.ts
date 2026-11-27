@@ -1,6 +1,6 @@
 /**
  * The target of the plan of coding agents as the primary user: a problem has a stable code and a fix;
- * the commands give JSON; the package holds a complete reference and a JSON Schema of the manifest;
+ * the commands give JSON; the package holds a complete reference; self/ states the language of a manifest;
  * init writes the instructions of a project; and gate 5 fails a contract that gets weaker with no
  * version bump. Each test is it.fails until its step.
  */
@@ -8,12 +8,12 @@ import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Ajv2020 } from 'ajv/dist/2020.js';
-import { parse } from 'yaml';
+import { parse, stringify } from 'yaml';
 import { afterEach, describe, expect, it } from 'vitest';
 import { main } from '../src/cli.js';
 import { compileManifest } from '../src/compile.js';
 import { contractGate } from '../src/verify/contract.js';
+import { check } from '../self/generated/domain.generated.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
 const target = { fixes: it, json: it, reference: it, schema: it, init: it, base: it };
@@ -110,10 +110,15 @@ describe('the reference in the package', () => {
   });
 });
 
-describe('the schema of the manifest', () => {
-  target.schema('accepts each manifest of the repository, and refuses an unknown key', () => {
-    const schema = JSON.parse(readFileSync(join(PACKAGE, 'manifest.schema.json'), 'utf8')) as object;
-    const validate = new Ajv2020({ allErrors: true }).compile(schema);
+describe('the language of a manifest', () => {
+  // self/ states the language of a manifest as its definition manifest. The reader of compile and that
+  // definition must agree: on each manifest of the repository, and on each manifest that one refuses.
+  target.schema('accepts each manifest of the repository, and refuses what the reader refuses', () => {
+    const accepted = (value: unknown): string[] => {
+      const result = check('manifest', value);
+      return result.ok ? [] : result.failures.map((f) => `${f.rule} of ${f.definition} at ${f.path}`);
+    };
+    const refusedByTheReader = (value: unknown): boolean => compileManifest(stringify(value)).diagnostics.some((d) => d.code === 'manifest-shape');
     // The standard set is not a manifest of a project: its rules have the camelCase names of JSON Schema.
     const manifests = execFileSync('git', ['ls-files', '*.manifest.yaml'], { cwd: ROOT, encoding: 'utf8' })
       .trim()
@@ -124,30 +129,39 @@ describe('the schema of the manifest', () => {
     for (const file of manifests) {
       // The starter's template has the placeholders of init.
       const text = readFileSync(join(ROOT, file), 'utf8').replaceAll('{{namespace}}', 'app').replaceAll('{{domain}}', 'starter');
-      const ok = validate(parse(text));
-      expect(ok ? [] : validate.errors, file).toEqual([]);
+      expect(accepted(parse(text)), file).toEqual([]);
     }
+    const header = { namespace: 'ab', domain: 'b', version: '0.1.0' };
     const booking = parse(readFileSync(join(FIXTURES, 'booking/domain.manifest.yaml'), 'utf8')) as { definitions: Record<string, Record<string, unknown>> };
     booking.definitions['party_size']!['minimum'] = 1;
-    expect(validate(booking)).toBe(false);
-    const shape = (definition: object): boolean => validate({ manifest: { namespace: 'ab', domain: 'b', version: '0.1.0' }, definitions: { x: definition } });
-    expect(shape({ description: 'X', type: 'object', properties: [] })).toBe(true);
-    expect(shape({ description: 'X', type: 'object' })).toBe(false);
-    expect(shape({ description: 'X', type: 'string', items: 'y' })).toBe(false);
-    expect(shape({ description: 'X', type: 'string', rules: [{ minLength: 1, maxLength: 2 }] })).toBe(false);
-    const pkg = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as { files: string[] };
-    expect(pkg.files).toContain('manifest.schema.json');
+    const refused: unknown[] = [
+      booking,
+      { manifest: { ...header, version: '1.0' } },
+      { manifest: header, definitions: { x: { description: 'X', type: 'object' } } },
+      { manifest: header, definitions: { x: { description: 'X', type: 'string', items: 'y' } } },
+      { manifest: header, definitions: { x: { description: 'X', type: 'map', keys: 'y' } } },
+      { manifest: header, definitions: { x: { description: 'X', type: 'string', tag: 'y' } } },
+      { manifest: header, definitions: { x: { description: 'X', type: 'string', rules: [{ minLength: 1, maxLength: 2 }] } } },
+      { manifest: header, definitions: { x: { description: 'X', type: 'object', properties: [{ a: 'b', c: 'd' }] } } },
+      { manifest: header, rules: { r: { description: 'R', rule: 'true' } } },
+      { manifest: header, operations: { o: { description: 'O', input: 'x', output: [] } } },
+      { manifest: header, operations: { o: { description: 'O', input: 'x', output: [{ x: null }] } } },
+    ];
+    for (const value of refused) {
+      expect(accepted(value), JSON.stringify(value).slice(0, 120)).not.toEqual([]);
+      expect(refusedByTheReader(value), JSON.stringify(value).slice(0, 120)).toBe(true);
+    }
+    expect(accepted({ manifest: header, definitions: { x: { description: 'X', type: 'object', properties: [] } } })).toEqual([]);
   });
 });
 
 describe('init', () => {
-  target.init('writes AGENTS.md and the schema line, and no CLAUDE.md', async () => {
+  target.init('writes AGENTS.md, and no CLAUDE.md', async () => {
     const dir = mkdtempSync(join(PACKAGE, '.agents-init-'));
     dirs.push(dir);
     expect((await run(dir, ['init'])).code).toBe(0);
     expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toContain('node_modules/urn-forge/AGENTS.md');
     expect(existsSync(join(dir, 'CLAUDE.md'))).toBe(false);
-    expect(readFileSync(join(dir, 'domain.manifest.yaml'), 'utf8')).toMatch(/^# yaml-language-server: \$schema=/);
   });
 
   it('keeps an AGENTS.md that exists', async () => {

@@ -4,7 +4,7 @@ urn-forge uses itself. Some of its own functions are a urn-forge domain. Each la
 
 ## `self/`: urn-forge's own domain
 
-The folder [`packages/urn-forge/self/`](../packages/urn-forge/self) holds a manifest with the namespace `urn-forge` and the domain `toolchain`. It declares twelve operations of the toolchain:
+The folder [`packages/urn-forge/self/`](../packages/urn-forge/self) holds a manifest with the namespace `urn-forge` and the domain `toolchain`. It declares thirteen operations of the toolchain:
 
 - `to_type_name` gives the TypeScript type name of a definition, as the generated file does: `seat_booking` → `SeatBooking`. A name that the generated file declares itself, such as `failure`, gets `Value` after it.
 - `name_part` gives the URN of a part: `urn:demo:booking:definition:party_size`.
@@ -18,6 +18,7 @@ The folder [`packages/urn-forge/self/`](../packages/urn-forge/self) holds a mani
 - `match_step` tells which step of urn-forge a step text is, or that it is none.
 - `judge_gate` tells if a gate passes, from the problems that it found: it passes when none of them is an error.
 - `fill_message` gives the failure message of a rule use, with its arguments in place.
+- `find_uncovered_rules` gives the rules that gate 3 reports as `uncovered-rule`: each rule of a definition that no scenario breaks, and no other.
 
 Its definitions are also the vocabulary of urn-forge: each code, each standard rule, each function of the rule language, each step and each gate, as an enum. [`tests/self.test.ts`](../packages/urn-forge/tests/self.test.ts) keeps each list equal to its source in the package, and to the pages that name it: `AGENTS.md`, the skill and the reference.
 
@@ -39,12 +40,18 @@ Each function of the core in [`self/core.ts`](../packages/urn-forge/self/core.ts
 - `match_step` tests the text with `STEPS` from `src/gherkin/steps.ts`, in their order.
 - `judge_gate` calls `gatePasses` from `src/verify/types.ts`, which each gate also uses.
 - `fill_message` calls `fillMessage` from `src/generate/code.ts`.
+- `find_uncovered_rules` calls `uncoveredRules` from `src/verify/types.ts`, which gate 3 uses.
 
 Thus the scenarios of `self/` test the toolchain. If a change to `typeName` or `allowsBreaking` changes a result, a scenario of `self/` fails. The rules of the outputs also hold the functions to the contract. For example, `stable_and_final` makes sure that `breaking_refused` never comes back for a `0.x` version or a pre-release.
 
 ### What `self/` declares, and what it does not
 
-`self/` declares only pure leaf functions: from strings to strings. It does not declare the reader, the model, the rule uses or the generated code. If it did, the compiler would depend on its own output for its core logic.
+`self/` declares pure decisions of the toolchain, and two sets of definitions with no operation:
+
+- **The language of a manifest**: the definition `manifest` gives each key of a manifest and its rules. It replaces the JSON Schema of the manifest. The reader of `compile` has its own code, so that its messages can tell what to change. A test of `tests/agents.test.ts` keeps the two equal: `self/` accepts each manifest of the repository, and refuses each value that the reader refuses.
+- **The results**: a failure, the result of `check` and of `runOperation`, a problem, and the report of each command with `--format json`. The CLI checks each report against `self/` before it writes it, and a report that breaks it gives `internal-contract`.
+
+`self/` does not declare the model, the rule uses or the generated code. If it did, the compiler would depend on its own output for its core logic.
 
 Some pure functions of urn-forge give a result that a user can see, such as a name in the generated file or a verdict of `diff`. If you add one, think about an operation for it in `self/`. To add one:
 

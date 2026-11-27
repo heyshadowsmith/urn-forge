@@ -14,7 +14,7 @@
  */
 
 /** What the steps know of each definition: the generated `Definitions`. */
-export type DefinitionsTable = Readonly<Record<string, { readonly base: string; readonly items?: string; readonly properties?: readonly string[] }>>;
+export type DefinitionsTable = Readonly<Record<string, { readonly base: string; readonly items?: string; readonly properties?: readonly string[]; readonly propertyTypes?: Readonly<Record<string, string>>; readonly tag?: string; readonly tagged?: Readonly<Record<string, string>> }>>;
 
 function json(text: string): { value: unknown } | undefined {
   try {
@@ -60,6 +60,14 @@ export function cellValue(text: string, definition: string, definitions: Definit
 export function tableValue(rows: readonly (readonly string[])[], definition: string, definitions: DefinitionsTable): Record<string, unknown> {
   if (rows.length !== 2) throw new Error(`the table must have a header row and one row of values; it has ${rows.length} rows`);
   const [header, values] = rows as [readonly string[], readonly string[]];
+  // A union with a tag: the tag column names the variant, whose properties the header names.
+  const union = definitions[definition];
+  if (union?.tag !== undefined && union.tagged) {
+    const tag = values[header.findIndex((column) => column.trim() === union.tag)]?.trim();
+    const variant = tag === undefined ? undefined : union.tagged[tag];
+    if (variant === undefined) throw new Error(`the table of ${definition} needs a column ${union.tag} with one of ${Object.keys(union.tagged).join(', ')}`);
+    return tableValue(rows, variant, definitions);
+  }
   const value: Record<string, unknown> = {};
   header.forEach((column, index) => {
     const cell = values[index] ?? '';
@@ -72,13 +80,13 @@ export function tableValue(rows: readonly (readonly string[])[], definition: str
       const meta = definitions[owner];
       if (!meta?.properties?.includes(step)) throw new Error(`${steps.slice(0, i + 1).join('.')} is not a property of ${owner}`);
       if (i === steps.length - 1) {
-        target[step] = cellValue(cell, step, definitions);
+        target[step] = cellValue(cell, meta.propertyTypes?.[step] ?? step, definitions);
         return;
       }
       const next = (target[step] ??= {}) as Record<string, unknown>;
       target = next;
       // The generated table gives a definition named as a type the properties of its root.
-      owner = step;
+      owner = meta.propertyTypes?.[step] ?? step;
     });
   });
   return value;

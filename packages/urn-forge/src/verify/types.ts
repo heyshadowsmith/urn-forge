@@ -18,6 +18,14 @@ export function gatePasses(problems: readonly Pick<GateProblem, 'severity'>[]): 
   return !problems.some((p) => p.severity === 'error');
 }
 
+/**
+ * The rules that gate 3 reports as uncovered-rule: each rule of a definition that no scenario breaks,
+ * once, in the order of the manifest. A rule is its definition and its name with a space: `party_size minimum`.
+ */
+export function uncoveredRules(applied: readonly string[], broken: readonly string[]): string[] {
+  return [...new Set(applied)].filter((rule) => !broken.includes(rule));
+}
+
 /** The outcome of a gate, with its pass from its problems. */
 export function gateOutcome(gate: 1 | 2 | 3 | 4 | 5, summary: string, problems: readonly GateProblem[]): GateOutcome {
   const verdict = decide('judge_gate', { gate_number: gate, gate_problems: problems.map((p) => ({ code: p.code, severity: p.severity })) });

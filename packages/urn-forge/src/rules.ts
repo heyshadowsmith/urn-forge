@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { BOOL, checkRule, DOUBLE, INT, STRING, type CelType, type PropertyType, type Scope } from './cel/check.js';
 import type { Expr } from './cel/parse.js';
 import { Diagnostics, type Path } from './diagnostics.js';
-import { readManifest, RULE_NAME, type RuleUse } from './manifest.js';
+import { propertyType, readManifest, RULE_NAME, type RuleUse } from './manifest.js';
 import { variantsOf, buildModel, requiredOf, type Definition, type Model, type Rule } from './model.js';
 
 /** The standard set, loaded once, with the uses of its rules in its own definitions. A problem in it is a bug in urn-forge. */
@@ -78,7 +78,7 @@ function propertiesOf(model: Model): Scope['properties'] {
     const required = requiredOf(root);
     const properties: Record<string, PropertyType> = {};
     for (const property of root.properties) {
-      const definition = model.definitions[property];
+      const definition = model.definitions[propertyType(root, property)];
       if (definition) properties[property] = { type: celType(definition, model), optional: !required.has(property) };
     }
     return properties;
@@ -131,7 +131,7 @@ function notAValue(value: unknown, definition: Definition, model: Model): string
       for (const key of Object.keys(value)) if (!root.properties?.includes(key)) return `${key} is not a property of ${root.name}`;
       for (const name of requiredOf(root)) if (!Object.hasOwn(value, name)) return `it has no ${name}`;
       for (const [key, item] of Object.entries(value)) {
-        const property = model.definitions[key];
+        const property = model.definitions[propertyType(root, key)];
         const why = property && notAValue(item, property, model);
         if (why) return why;
       }

@@ -15,7 +15,7 @@ export const CODES = {
 
   // The manifest.
   'yaml-syntax': { fix: 'Correct the YAML at the line that the problem gives.' },
-  'manifest-shape': { fix: 'Use only the keys that the message lists, with values of the type that it names; manifest.schema.json has the full shape.' },
+  'manifest-shape': { fix: 'Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key.' },
   'unknown-definition': { fix: 'Add the definition to definitions:, or correct the name to one that is in definitions:.' },
   'type-cycle': { fix: 'Give one definition of the cycle a base type (string, number, integer, boolean, object or array) in place of the name of another definition.' },
   'duplicate-property': { fix: 'Remove the second copy of the name from properties:.' },

@@ -15,6 +15,7 @@ import {
   type OperationDecl,
   type RuleDecl,
   type RuleUse,
+  propertyType,
 } from './manifest.js';
 
 export interface Definition extends DefinitionDecl {
@@ -94,7 +95,8 @@ export function buildModel(decl: ManifestDecl, diagnostics: Diagnostics): Model 
     const seen = new Set<string>();
     definition.properties?.forEach((name, index) => {
       const path = [...definition.path, 'properties', index];
-      if (!known(name)) unknown(name, path);
+      const type = propertyType(definition, name);
+      if (!known(type)) unknown(type, type === name ? path : [...path, name]);
       else if (seen.has(name)) diagnostics.error('duplicate-property', path, `${definition.name} lists ${name} two times`);
       seen.add(name);
     });
@@ -200,12 +202,13 @@ function checkUnion(
 function checkIdentifier(definition: Definition, definitions: Readonly<Record<string, Definition>>, diagnostics: Diagnostics): void {
   const name = definition.identifier!;
   const path = [...definition.path, 'identifier'];
+  const type = definitions[propertyType(definition, name)];
   const why = !definition.properties?.includes(name)
     ? `is not a property of ${definition.name}`
     : !requiredOf(definition).has(name)
       ? `is optional; list it in the required rule of ${definition.name}`
-      : definitions[name] && (definitions[name].base === 'object' || definitions[name].base === 'array' || definitions[name].base === 'map')
-        ? `is of type ${definitions[name].base}; an identifier is one value`
+      : type && (type.base === 'object' || type.base === 'array' || type.base === 'map')
+        ? `is of type ${type.base}; an identifier is one value`
         : undefined;
   if (why) diagnostics.error('invalid-identifier', path, `the identifier ${name} ${why}`);
 }

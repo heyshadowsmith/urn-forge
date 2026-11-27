@@ -5,6 +5,7 @@
  */
 import { domainUrn, partUrn } from '../urn.js';
 import { readFileSync } from 'node:fs';
+import { propertyType } from '../manifest.js';
 import { variantsOf, type Model } from '../model.js';
 import type { Application } from '../rules.js';
 import { emitRule } from './emit-cel.js';
@@ -185,8 +186,9 @@ export function checkFunctions(model: Model, applications: readonly Application[
       for (const p of properties) {
         const key = JSON.stringify(p);
         const read = `value[${key}]`;
-        if (requiredProperties.has(p)) body.push(`  if (${read} === undefined) missing = true;`, `  else if (!check_${p}(${read}, $at(path, ${key}), failures)) ok = false;`);
-        else body.push(`  if (${read} !== undefined && !check_${p}(${read}, $at(path, ${key}), failures)) ok = false;`);
+        const check = `check_${propertyType(definition, p)}`;
+        if (requiredProperties.has(p)) body.push(`  if (${read} === undefined) missing = true;`, `  else if (!${check}(${read}, $at(path, ${key}), failures)) ok = false;`);
+        else body.push(`  if (${read} !== undefined && !${check}(${read}, $at(path, ${key}), failures)) ok = false;`);
       }
       const message = required[name] ?? 'Must have each required property';
       body.push(`  if (missing) { failures.push({ definition: ${JSON.stringify(name)}, rule: 'required', path, failure_message: ${JSON.stringify(message)} }); ok = false; }`);
@@ -245,7 +247,7 @@ function types(model: Model, applications: readonly Application[]): string {
         lines.push(...doc, `export type ${name} = readonly ${typeName(definition.items!)}[];`, '');
         break;
       case 'map':
-        lines.push(...doc, `export type ${name} = Readonly<Record<string, ${typeName(definition.values!)}>>;`, '');
+        lines.push(...doc, `export type ${name} = { readonly [key: string]: ${typeName(definition.values!)} };`, '');
         break;
       case 'union':
         lines.push(...doc, `export type ${name} = ${variantsOf(definition).map(typeName).join(' | ')};`, '');
@@ -259,9 +261,10 @@ function types(model: Model, applications: readonly Application[]): string {
         }
         lines.push(...doc, `export interface ${name} {`);
         for (const property of definition.properties ?? []) {
-          const target = model.definitions[property]!;
+          const type = propertyType(definition, property);
+          const target = model.definitions[type]!;
           lines.push(`  /** ${target.description}${target.deprecated ? ' @deprecated' : ''} */`);
-          lines.push(`  readonly ${property}${required.has(property) ? '' : '?'}: ${typeName(property)};`);
+          lines.push(`  readonly ${property}${required.has(property) ? '' : '?'}: ${typeName(type)};`);
         }
         lines.push('}', '');
         break;
@@ -279,7 +282,9 @@ function definitionsTable(model: Model, applications: readonly Application[]): s
     if (root.items) parts.push(`items: ${JSON.stringify(root.items)}`);
     if (root.values) parts.push(`values: ${JSON.stringify(root.values)}`);
     if (root.variants) parts.push(`variants: ${JSON.stringify(variantsOf(root))}`);
+    if (root.tag !== undefined && root.variants && !Array.isArray(root.variants)) parts.push(`tag: ${JSON.stringify(root.tag)}, tagged: ${JSON.stringify(root.variants)}`);
     if (root.properties) parts.push(`properties: ${JSON.stringify(root.properties)}`);
+    if (root.propertyTypes) parts.push(`propertyTypes: ${JSON.stringify(root.propertyTypes)}`);
     const rules = applications.filter((a) => a.place.kind === 'definition' && a.place.definition === definition.name).map((a) => a.rule.name);
     parts.push(`rules: ${JSON.stringify(rules)}`);
     return `  ${definition.name}: { urn: ${JSON.stringify(partUrn(model.header, 'definition', definition.name))}, ${parts.join(', ')} },`;

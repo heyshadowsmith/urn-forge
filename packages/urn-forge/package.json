@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit",
     "compile:self": "node bin/urn-forge.js compile --config self/urn-forge.config.ts",
     "verify:self": "node bin/urn-forge.js verify --config self/urn-forge.config.ts",
-    "test:features": "cucumber-js --profile self",
+    "test:features": "cucumber-js",
     "test:tarball": "node scripts/test-tarball.mjs",
     "diff:base": "node scripts/diff-base.mjs"
   },
@@ -32,7 +32,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
-    "ajv": "^8.20.0",
     "vitest": "^5.1.1"
   },
   "bin": {
@@ -41,7 +40,6 @@
   "files": [
     "AGENTS.md",
     "bin",
-    "manifest.schema.json",
     "self",
     "skills",
     "src",
