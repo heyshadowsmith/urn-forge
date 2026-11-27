@@ -16,7 +16,7 @@ Feature: The fix of a code
       | drift          | error    | Gate 4: a generated file is not what `compile` writes now, or it is missing, or `compile` no longer writes it | error      | Run urn-forge compile, and do not edit a generated file by hand.                                                              |
       | usage          |          | The command line is wrong                                                  | error      | Run urn-forge --help, and call the command with the arguments and options that it shows.                                     |
       | deprecated-use | warning  | A live part uses a deprecated part                                         | warning    | Use a definition or a rule that is not deprecated, or remove deprecated: true if it is still the right one.                  |
-      | removed-rule   | warning  | Gate 5: the contract is weaker than at the base, and the version does not allow it | by-version | Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+      | removed-rule   | warning  | Gate 5: a rule of the base is gone | by-version | Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
 
   Scenario Outline: A request that breaks a rule is rejected at the boundary
     When I run "fix_of" with:

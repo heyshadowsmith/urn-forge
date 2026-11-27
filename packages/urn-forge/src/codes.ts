@@ -60,10 +60,10 @@ export const CODES = {
 
   // Gate 5: the contract against the base.
   'base-unreadable': { meaning: 'Gate 5: the folder is not in a git repository, or the ref is not a commit', severity: 'error', fix: 'Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists.' },
-  'removed-rule': { meaning: 'Gate 5: the contract is weaker than at the base, and the version does not allow it', severity: 'by-version', fix: 'Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
-  'wider-rule': { meaning: 'Gate 5: the contract is weaker than at the base, and the version does not allow it', severity: 'by-version', fix: 'Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
-  'removed-output': { meaning: 'Gate 5: the contract is weaker than at the base, and the version does not allow it', severity: 'by-version', fix: 'Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
-  'removed-scenario': { meaning: 'Gate 5: the contract is weaker than at the base, and the version does not allow it', severity: 'by-version', fix: 'Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
+  'removed-rule': { meaning: 'Gate 5: a rule of the base is gone', severity: 'by-version', fix: 'Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
+  'wider-rule': { meaning: 'Gate 5: a rule accepts more than at the base', severity: 'by-version', fix: 'Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
+  'removed-output': { meaning: 'Gate 5: an output of the base is gone', severity: 'by-version', fix: 'Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
+  'removed-scenario': { meaning: 'Gate 5: a scenario of the base is gone', severity: 'by-version', fix: 'Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
 
   // urn-forge itself: it checks its own decisions against its contract, self/.
   'internal-contract': { meaning: 'urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge', severity: 'error', fix: 'Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it.' },

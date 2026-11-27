@@ -194,9 +194,9 @@ Exit codes: `0` pass (also with warnings), `1` failure, `2` wrong command line.
 | --- | --- |
 | 1. completeness | `tsc` fails over the core, or no export `satisfies DomainCore` |
 | 2. boundary | The shell calls the core without `runOperation`, or a file suppresses a type check |
-| 3. gherkin | A step names an unknown part, or an operation, an output or a rule has no scenario |
+| 3. gherkin | A step names an unknown part, or an operation, an output, a variant or a rule has no scenario |
 | 4. drift | A generated file is not what `compile` writes now |
-| 5. contract | Only with `--base <ref>`: a rule, an output or a scenario of the ref is gone, or a rule accepts more, and the version does not allow it |
+| 5. contract | Only with `--base <ref>`: the ref cannot be read, or a rule, an output or a scenario of the ref is gone, or a rule accepts more, and the version does not allow it |
 
 `diff` allows a breaking change in `0.x`, in a pre-release, or across a new major version. Gate 5 allows a weaker contract only when the version also changes: to another `0.x` version, a pre-release, or a new major version. Then each change is a warning. A scenario is known by its name: a renamed scenario counts as removed.
 
@@ -242,8 +242,8 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `uncovered-rule` | Gate 3: no scenario breaks a rule of a definition | error | Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>". |
 | `drift` | Gate 4: a generated file is not what `compile` writes now, or it is missing, or `compile` no longer writes it | error | Run urn-forge compile, and do not edit a generated file by hand. |
 | `base-unreadable` | Gate 5: the folder is not in a git repository, or the ref is not a commit | error | Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists. |
-| `removed-rule` | Gate 5: the contract is weaker than at the base, and the version does not allow it | by-version | Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
-| `wider-rule` | Gate 5: the contract is weaker than at the base, and the version does not allow it | by-version | Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
-| `removed-output` | Gate 5: the contract is weaker than at the base, and the version does not allow it | by-version | Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
-| `removed-scenario` | Gate 5: the contract is weaker than at the base, and the version does not allow it | by-version | Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `removed-rule` | Gate 5: a rule of the base is gone | by-version | Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `wider-rule` | Gate 5: a rule accepts more than at the base | by-version | Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `removed-output` | Gate 5: an output of the base is gone | by-version | Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `removed-scenario` | Gate 5: a scenario of the base is gone | by-version | Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
 | `internal-contract` | urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge | error | Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it. |

@@ -158,7 +158,10 @@ Each code has one fix, which the output shows on the line below the problem. `no
 | `uncovered-rule` | error | Gate 3: no scenario breaks a rule of a definition |
 | `drift` | error | Gate 4: a generated file is not what `compile` writes now, or it is missing, or `compile` no longer writes it |
 | `base-unreadable` | error | Gate 5: the folder is not in a git repository, or the ref is not a commit |
-| `removed-rule`, `wider-rule`, `removed-output`, `removed-scenario` | by-version | Gate 5: the contract is weaker than at the base, and the version does not allow it |
+| `removed-rule` | by-version | Gate 5: a rule of the base is gone |
+| `wider-rule` | by-version | Gate 5: a rule accepts more than at the base |
+| `removed-output` | by-version | Gate 5: an output of the base is gone |
+| `removed-scenario` | by-version | Gate 5: a scenario of the base is gone |
 | `internal-contract` | error | urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge |
 
 A severity of `by-version` is a warning when the new version allows the change, and an error when it does not. `usage` comes as a problem only with `--format json`; as text, the usage shows. urn-forge gives `rule-syntax` at the line of `rule:`, with the column, and the other rule errors at the line where you apply the rule; [the rule language](./manifest#the-rule-language) lists each form. For `base-unreadable` in CI, fetch the base branch.

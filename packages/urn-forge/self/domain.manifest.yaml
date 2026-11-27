@@ -1542,19 +1542,19 @@ operations:
                 severity: error
                 fix: Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists.
               removed-rule:
-                meaning: "Gate 5: the contract is weaker than at the base, and the version does not allow it"
+                meaning: "Gate 5: a rule of the base is gone"
                 severity: by-version
                 fix: Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
               wider-rule:
-                meaning: "Gate 5: the contract is weaker than at the base, and the version does not allow it"
+                meaning: "Gate 5: a rule accepts more than at the base"
                 severity: by-version
                 fix: Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
               removed-output:
-                meaning: "Gate 5: the contract is weaker than at the base, and the version does not allow it"
+                meaning: "Gate 5: an output of the base is gone"
                 severity: by-version
                 fix: Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
               removed-scenario:
-                meaning: "Gate 5: the contract is weaker than at the base, and the version does not allow it"
+                meaning: "Gate 5: a scenario of the base is gone"
                 severity: by-version
                 fix: Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
               internal-contract:
@@ -1706,7 +1706,7 @@ operations:
             gate_codes: [direct-call, suppressed-check, tsconfig-unreadable]
           "3":
             gate_name: gherkin
-            gate_check: "A step names an unknown part, or an operation, an output or a rule has no scenario"
+            gate_check: "A step names an unknown part, or an operation, an output, a variant or a rule has no scenario"
             gate_codes: [unknown-name, feature-syntax, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule]
           "4":
             gate_name: drift
@@ -1714,7 +1714,7 @@ operations:
             gate_codes: [drift]
           "5":
             gate_name: contract
-            gate_check: "Only with `--base <ref>`: a rule, an output or a scenario of the ref is gone, or a rule accepts more, and the version does not allow it"
+            gate_check: "Only with `--base <ref>`: the ref cannot be read, or a rule, an output or a scenario of the ref is gone, or a rule accepts more, and the version does not allow it"
             gate_codes: [removed-rule, wider-rule, removed-output, removed-scenario, base-unreadable]
 
   fill_message:
