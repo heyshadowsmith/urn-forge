@@ -60,6 +60,9 @@ export const CODES = {
   'wider-rule': { fix: 'Put the argument or the text of the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.' },
   'removed-output': { fix: 'Put the output back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.' },
   'removed-scenario': { fix: 'Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.' },
+
+  // urn-forge itself: it checks its own decisions against its contract, self/.
+  'internal-contract': { fix: 'Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it.' },
 } as const satisfies Record<string, { readonly fix: string }>;
 
 export type Code = keyof typeof CODES;

@@ -191,7 +191,7 @@ definitions:
     description: A code of a problem that urn-forge reports. A tool or an agent acts on the code, not on the message
     type: string
     rules:
-      - enum: [usage, config-unreadable, config-invalid, manifest-unreadable, yaml-syntax, manifest-shape, unknown-definition, type-cycle, duplicate-property, unknown-property, not-an-object, duplicate-output, invalid-identifier, deprecated-use, standard-name, unknown-rule, rule-argument, rule-syntax, rule-type, rule-guard, rule-scope, invalid-message, tsconfig-unreadable, core-not-found, type-error, core-not-satisfying, direct-call, suppressed-check, feature-syntax, unknown-name, uncovered-operation, uncovered-output, uncovered-rule, drift, base-unreadable, removed-rule, wider-rule, removed-output, removed-scenario]
+      - enum: [usage, config-unreadable, config-invalid, manifest-unreadable, yaml-syntax, manifest-shape, unknown-definition, type-cycle, duplicate-property, unknown-property, not-an-object, duplicate-output, invalid-identifier, deprecated-use, standard-name, unknown-rule, rule-argument, rule-syntax, rule-type, rule-guard, rule-scope, invalid-message, tsconfig-unreadable, core-not-found, type-error, core-not-satisfying, direct-call, suppressed-check, feature-syntax, unknown-name, uncovered-operation, uncovered-output, uncovered-rule, drift, base-unreadable, removed-rule, wider-rule, removed-output, removed-scenario, internal-contract]
 
   fix:
     description: What to do about each case of a code, in one sentence

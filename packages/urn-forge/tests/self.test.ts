@@ -12,6 +12,7 @@ import { CODES } from '../src/codes.js';
 import { STEPS } from '../src/gherkin/steps.js';
 import { standard } from '../src/rules.js';
 import { GATES } from '../src/verify/types.js';
+import { readdirSync } from 'node:fs';
 
 const read = (path: string): string => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const self = parse(read('self/domain.manifest.yaml')) as {
@@ -81,5 +82,26 @@ describe('the vocabulary of self/', () => {
     for (const line of SKILL.split('\n').filter((l) => l.startsWith('| The ') && l.includes('`'))) {
       for (const [, name] of line.matchAll(/`([a-z][a-z-]*)`/g)) expect(codes.has(name!), `SKILL.md names ${name}`).toBe(true);
     }
+  });
+});
+
+describe('urn-forge through its own harness', () => {
+  // The functions of the operations of self/ that the shell of urn-forge uses. The shell calls them only
+  // with decide() of src/self.ts, which runs them through the harness of self/.
+  const DECLARED = ['fixOf', 'allowsWeaker', 'allowsBreaking', 'gatePasses'];
+  const SHELL = ['src/cli.ts', 'src/diff/command.ts', ...readdirSync(new URL('../src/verify/', import.meta.url)).map((f) => `src/verify/${f}`)];
+
+  it('calls no declared decision but through the harness', () => {
+    const direct: string[] = [];
+    for (const file of SHELL) {
+      read(file)
+        .split('\n')
+        .forEach((line, i, lines) => {
+          // A definition, and a line marked "self:" or after such a comment, is the implementation, not a call.
+          if (/^\s*(export )?function /.test(line) || /\/\/ self:/.test(lines[i - 1] ?? '') || /\/\/ self:/.test(line)) return;
+          for (const name of DECLARED) if (new RegExp(`(?<![\\w.])${name}\\(`).test(line)) direct.push(`${file}:${i + 1}: ${line.trim()}`);
+        });
+    }
+    expect(direct).toEqual([]);
   });
 });

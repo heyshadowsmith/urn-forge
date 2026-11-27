@@ -20,6 +20,7 @@ import type { Code } from '../codes.js';
 import { argumentDirection, type Side } from '../diff/classify.js';
 import { allowsBreaking } from '../diff/command.js';
 import type { Application } from '../rules.js';
+import { decide } from '../self.js';
 import { partUrn } from '../urn.js';
 import type { FeatureFile } from './gherkin.js';
 import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
@@ -81,7 +82,7 @@ function uses(side: Side, header: Side['model']['header']): Map<string, { place:
  */
 export function allowsWeaker(from: string, to: string): { readonly allowed: boolean; readonly why: string } {
   if (from === to) return { allowed: false, why: `${from} → ${to} keeps the version; a weaker contract needs a new version` };
-  return allowsBreaking(from, to);
+  return allowsBreaking(from, to); // self: the implementation of judge_weaker_contract
 }
 
 export function contractGate(input: ContractGateInput): GateOutcome {
@@ -151,7 +152,7 @@ export function contractGate(input: ContractGateInput): GateOutcome {
 
   const from = old.model.header.version;
   const to = next.model.header.version;
-  const { allowed } = allowsWeaker(from, to);
+  const allowed = decide('judge_weaker_contract', { from_version: from, to_version: to }).output === 'breaking_allowed';
   const problems: GateProblem[] = changes.map((c) => {
     const where = c.file ? { file: c.file } : input.at(c.path);
     return { code: c.code, severity: allowed ? 'warning' : 'error', ...where, message: c.message };

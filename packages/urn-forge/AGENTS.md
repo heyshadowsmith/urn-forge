@@ -243,3 +243,4 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `wider-rule` | Put the argument or the text of the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
 | `removed-output` | Put the output back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
 | `removed-scenario` | Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
+| `internal-contract` | Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it. |

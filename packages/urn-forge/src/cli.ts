@@ -9,6 +9,7 @@ import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
 import { fixOf, type Code } from './codes.js';
+import { decide, InternalContractError } from './self.js';
 import type { Diagnostic, Path } from './diagnostics.js';
 import { initProject, nameProblem } from './init.js';
 import { domainUrn } from './urn.js';
@@ -96,7 +97,7 @@ export class Report {
     const write = stream === 'stdout' ? this.io.stdout : this.io.stderr;
     const where = problem.file ? `${problem.file}${problem.line ? `:${problem.line}` : ''}  ` : '';
     write(`${indent}${where}${problem.severity}  ${problem.code}  ${problem.message}`);
-    write(`${indent}  fix: ${fixOf(problem.code)}`);
+    write(`${indent}  fix: ${fixFor(problem.code)}`);
   }
 
   /** Ends the command with its exit code: as JSON, writes the one object. */
@@ -110,7 +111,7 @@ export class Report {
         path: p.path ?? null,
         domain: p.domain ?? null,
         message: p.message,
-        fix: fixOf(p.code),
+        fix: fixFor(p.code),
       }));
       this.io.stdout(JSON.stringify({ ok: code === 0, ...extra, problems }));
     }
@@ -490,6 +491,10 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
         return 2;
     }
   } catch (error) {
+    if (error instanceof InternalContractError) {
+      report.problem({ code: 'internal-contract', severity: 'error', message: error.message });
+      return report.end(1);
+    }
     if (error instanceof UsageError || (error as { code?: string }).code?.startsWith('ERR_PARSE_ARGS')) {
       if (report.format === 'json') {
         report.problem({ code: 'usage', severity: 'error', message: (error as Error).message });
@@ -500,6 +505,13 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
     }
     throw error;
   }
+}
+
+/** The fix of a code, from urn-forge's own contract (fix_of of self/). */
+function fixFor(code: Code): string {
+  // self: the fix of internal-contract is read directly, so that a fix_of that breaks its contract can still be reported.
+  if (code === 'internal-contract') return fixOf(code);
+  return decide('fix_of', { code }).value.fix;
 }
 
 export { UsageError };

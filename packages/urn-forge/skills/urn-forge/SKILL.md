@@ -46,6 +46,7 @@ Run `npx urn-forge verify --format json`, then `npx cucumber-js`. Correct the fi
 | The scenarios | `feature-syntax`, `unknown-name`, `uncovered-operation`, `uncovered-output`, `uncovered-rule` |
 | Nothing by hand: run `npx urn-forge compile` | `drift` |
 | Nothing: stop and ask (step 5) | `removed-rule`, `wider-rule`, `removed-output`, `removed-scenario` |
+| Nothing: stop, and tell the person that urn-forge has a bug | `internal-contract` |
 | Fetch the base branch, then run again | `base-unreadable` |
 
 A `type-error` in `src/generated/` comes from a file that is not current: run `npx urn-forge compile` first.

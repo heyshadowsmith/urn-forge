@@ -145,4 +145,5 @@ Each code has one fix, which the output shows on the line below the problem. `no
 | `rule-guard` | The rule reads an optional property without `has()` |
 | `rule-scope` | The rule reads a name that is not available where you apply the rule, such as `output` in a rule of a definition |
 | `removed-rule`, `wider-rule`, `removed-output`, `removed-scenario` | Gate 5: the contract is weaker than at the base, and the version does not allow it |
+| `internal-contract` | urn-forge broke its own contract: an answer of urn-forge itself does not keep a rule of urn-forge's contract, `self/domain.manifest.yaml`. This is a bug of urn-forge |
 | `base-unreadable` | Gate 5: the folder is not in a git repository, or the ref is not a commit. In CI, fetch the base branch |

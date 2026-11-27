@@ -42,6 +42,7 @@
     "AGENTS.md",
     "bin",
     "manifest.schema.json",
+    "self",
     "skills",
     "src",
     "templates"
