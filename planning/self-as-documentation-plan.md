@@ -326,3 +326,39 @@ The sabotages of part 4, each caught:
 3. A gate text of `AGENTS.md` that `self/` does not have → `tests/self.test.ts`.
 
 `self/` has 13 operations and 211 scenarios. Layer 4 is not built (decision 19).
+
+## Part 5: the meaning and the severity of each code
+
+Both cold readers asked for the same change: next to the fix of each code, what the code means and whether it is an error or a warning. Today `self/` gives each code its fix, and the meaning is only in the table "Code | Cause" of the CLI reference. The severity is in no list: each place that reports a problem writes it.
+
+What part 5 found before it started:
+
+- **The meaning exists.** The table of causes in `docs/reference/cli.md` has each of the 41 codes, in 21 rows: some rows hold several codes with one cause, such as `manifest-unreadable` and `config-unreadable`.
+- **The severity is fixed for 37 codes.** Each place that reports one of them writes the same severity. The four codes of gate 5 (`removed-rule`, `wider-rule`, `removed-output`, `removed-scenario`) are a warning when the new version allows the change, and an error when it does not.
+
+### Decisions to confirm
+
+| # | Question | Recommendation | Why |
+| --- | --- | --- | --- |
+| 26 | Where the meaning comes from | **`src/codes.ts` gives each code a `meaning`, from the table of causes of the CLI reference. A test keeps the two equal; codes in one row of the table share one meaning** | The text exists and users read it. No new sentences, and the reference keeps its rows |
+| 27 | The severity | **`src/codes.ts` gives each code a `severity`: `error`, `warning`, or `by-version` for the four codes of gate 5. The places that report a problem keep their own severity; the harness checks it (decision 29)** | It states what the code does now, and changes no place that reports one |
+| 28 | One map for each code | **The argument of `is_the_fix` becomes one map of each code to its meaning, its severity and its fix, under a new rule `is_the_code`. `fix_of` gives the meaning and the severity with the fix** | The reader finds the three facts in one place, as both readers asked. It replaces a map; it does not add one |
+| 29 | A check of the severity | **The CLI asks for the fix of each problem with its code and its severity. The rule `has_its_severity` of `fix_of` checks the severity against the map, so a problem of the wrong severity stops the command with `internal-contract`** | Each problem already goes through `fix_of`. One more input property makes each severity checked on each run |
+| 30 | `AGENTS.md` | **Its table of codes gets the meaning and the severity: `Code | Meaning | Severity | Fix`. The JSON report and the text output do not change** | The agent reads `AGENTS.md`. The output already has the message, which says what is wrong in this case |
+| 31 | The version | **0.2.2** | A rule of `fix_of` is replaced and its output changes, which gate 5 refuses at the same version |
+
+Not in part 5: a plain sentence next to each rule whose meaning is only in its rule text, which the second reader also asked for. Its source would be new text, not text that exists.
+
+### Build order
+
+| Step | Commit | Done when |
+| --- | --- | --- |
+| 1 | `meaning` and `severity` in `src/codes.ts`; the table of `AGENTS.md`; the test against the reference | The test fails when a meaning differs from the reference |
+| 2 | The map of each code in `self/`, `fix_of` with the severity, the CLI that sends it, and 0.2.2 | A problem reported with another severity stops a real command with `internal-contract` |
+| 3 | The cold-reader questions 1 and 5 again, the docs and the plan notes | The reader gives the meaning and the severity of `rule-guard` and of `uncovered-rule` from the file alone |
+
+### Sabotages
+
+1. Report `deprecated-use` as an error → a real `compile` stops with `internal-contract`.
+2. Change the meaning of a code in `src/codes.ts` → the scenario of `fix_of`, and the test against the reference.
+3. Report a code of gate 5 as a warning when the version does not allow the change → not caught: `by-version` allows both. Record it as a limit, or split the four codes by severity, if you want it caught.
