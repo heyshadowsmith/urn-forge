@@ -90,7 +90,7 @@ describe('the vocabulary of self/', () => {
 describe('urn-forge through its own harness', () => {
   // The functions of the operations of self/ that the shell of urn-forge uses. The shell calls them only
   // with decide() of src/self.ts, which runs them through the harness of self/.
-  const DECLARED = ['fixOf', 'allowsWeaker', 'allowsBreaking', 'gatePasses'];
+  const DECLARED = ['fixOf', 'allowsWeaker', 'allowsBreaking', 'gatePasses', 'uncoveredRules'];
   const SHELL = ['src/cli.ts', 'src/diff/command.ts', ...readdirSync(new URL('../src/verify/', import.meta.url)).map((f) => `src/verify/${f}`)];
 
   it('calls no declared decision but through the harness', () => {

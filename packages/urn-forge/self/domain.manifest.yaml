@@ -3,9 +3,9 @@
 # not a copy. It declares the type name of a definition, the URN of a part, a URN namespace, the verdicts
 # of diff and of gate 5 on a version change, the direction of a new bound, the fix of each code, each
 # standard rule, the signatures of each function of the rule language, the steps of a scenario, the
-# verdict of a gate, the failure message of a rule use, the language of a manifest, and the results of a
-# call, a check and a command. tests/self.test.ts keeps its vocabulary equal to the package and to the
-# pages that name it.
+# verdict of a gate, the rules that gate 3 reports, the failure message of a rule use, the language of a
+# manifest, and the results of a call, a check and a command. tests/self.test.ts keeps its vocabulary
+# equal to the package and to the pages that name it.
 manifest:
   namespace: urn-forge
   domain: toolchain
@@ -411,6 +411,42 @@ definitions:
     properties: [filled_text]
     rules:
       - required: [filled_text]
+
+
+  # Which rules gate 3 reports
+  rule_place:
+    description: A rule of a definition, as the definition and the rule with a space, such as party_size minimum
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]* [a-z][A-Za-z0-9_]*$'
+
+  rule_places:
+    description: Rules of definitions
+    type: array
+    items: rule_place
+
+  coverage_facts:
+    description: The rules that the definitions apply, and the rules that a scenario breaks
+    type: object
+    properties:
+      - applied_rules: rule_places
+      - broken_rules: rule_places
+    rules:
+      - required: [applied_rules, broken_rules]
+
+  uncovered_rules:
+    description: The rules that no scenario breaks, each once
+    type: array
+    items: rule_place
+    rules:
+      - uniqueItems
+
+  rules_found:
+    description: The rules that gate 3 reports as uncovered-rule
+    type: object
+    properties: [uncovered_rules]
+    rules:
+      - required: [uncovered_rules]
 
   # The language of a manifest: the shape that the manifest reader accepts, key by key. A manifest that
   # breaks it fails compile with manifest-shape. tests/agents.test.ts checks each manifest of the
@@ -1111,6 +1147,15 @@ rules:
       (size(input.message_arguments) > 0 || output.filled_text == input.message_text)
     failure_message: A parameter in braces is not its argument
 
+  each_unbroken_rule_once:
+    description: >-
+      Gate 3 reports each rule that a definition applies and no scenario breaks, and no other rule. A rule
+      that no scenario breaks is a gap, as an output that no scenario answers is
+    rule: >-
+      input.applied_rules.all(r, r in input.broken_rules || r in output.uncovered_rules) &&
+      output.uncovered_rules.all(r, r in input.applied_rules && !(r in input.broken_rules))
+    failure_message: Gate 3 must report each rule that no scenario breaks, and only these
+
   one_entry:
     description: A name with its value is a map of exactly one entry
     rule: size(self) == 1
@@ -1233,3 +1278,9 @@ operations:
     input: message_request
     output:
       - filled_message: [fills_each_argument]
+
+  find_uncovered_rules:
+    description: The rules of the definitions that gate 3 reports, because no scenario breaks them
+    input: coverage_facts
+    output:
+      - rules_found: [each_unbroken_rule_once]

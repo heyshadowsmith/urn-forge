@@ -10,7 +10,7 @@ import { NAMESPACE } from '../src/manifest.js';
 import { standard, type Application } from '../src/rules.js';
 import { partUrn } from '../src/urn.js';
 import { allowsWeaker } from '../src/verify/contract.js';
-import { gatePasses, GATES } from '../src/verify/types.js';
+import { gatePasses, GATES, uncoveredRules } from '../src/verify/types.js';
 import { answer, type DomainCore } from './generated/domain.generated.js';
 
 export const core = {
@@ -48,6 +48,7 @@ export const core = {
     const named = { gate_number, gate_name: GATES[gate_number - 1]! };
     return gatePasses(gate_problems) ? answer('gate_passed', named) : answer('gate_failed', named);
   },
+  find_uncovered_rules: ({ applied_rules, broken_rules }) => answer('rules_found', { uncovered_rules: uncoveredRules(applied_rules, broken_rules) }),
   fill_message: ({ message_text, message_arguments }) =>
     answer('filled_message', { filled_text: fillMessage(message_text, Object.fromEntries(message_arguments.map((a) => [a.argument_name, a.argument_text]))) }),
 } satisfies DomainCore;

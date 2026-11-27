@@ -17,6 +17,7 @@ import { tableValue, type DefinitionsTable } from '../gherkin/cells.js';
 import { propertyType } from '../manifest.js';
 import { variantsOf, type Model } from '../model.js';
 import type { Application } from '../rules.js';
+import { decide } from '../self.js';
 import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
 
 export interface FeatureFile {
@@ -188,17 +189,15 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
       });
     }
   }
-  const seen = new Set<string>();
-  for (const application of applications) {
-    if (application.place.kind !== 'definition') continue;
-    const key = `${application.place.definition} ${application.rule.name}`;
-    if (seen.has(key) || broken.has(key)) continue;
-    seen.add(key);
+  const appliedRules = applications.flatMap((a) => (a.place.kind === 'definition' ? [`${a.place.definition} ${a.rule.name}`] : []));
+  const { uncovered_rules } = decide('find_uncovered_rules', { applied_rules: appliedRules, broken_rules: [...broken] }).value;
+  for (const key of uncovered_rules) {
+    const [definition, rule] = key.split(' ') as [string, string];
     problems.push({
       code: 'uncovered-rule',
       severity: gap,
       file: 'features',
-      message: `no scenario breaks ${application.rule.name} of ${application.place.definition}; add one that ends with Then the input is rejected by "${application.rule.name}" of "${application.place.definition}", or Then the value is rejected by …`,
+      message: `no scenario breaks ${rule} of ${definition}; add one that ends with Then the input is rejected by "${rule}" of "${definition}", or Then the value is rejected by …`,
     });
   }
 
