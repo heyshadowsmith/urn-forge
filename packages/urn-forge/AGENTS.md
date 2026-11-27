@@ -213,7 +213,7 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `yaml-syntax` | Correct the YAML at the line that the problem gives. |
 | `manifest-shape` | Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key. |
 | `unknown-definition` | Add the definition to definitions:, or correct the name to one that is in definitions:. |
-| `type-cycle` | Give one definition of the cycle a base type (string, number, integer, boolean, object or array) in place of the name of another definition. |
+| `type-cycle` | Give one definition of the cycle a base type (string, number, integer, boolean, object, array, map or union) in place of the name of another definition. |
 | `duplicate-property` | Remove the second copy of the name from properties:. |
 | `unknown-property` | Add the name to properties: of the object, or remove it from the rule. |
 | `not-an-object` | Make the input or the output of the operation a definition of type: object. |
@@ -242,8 +242,8 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `uncovered-rule` | Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>". |
 | `drift` | Run urn-forge compile, and do not edit a generated file by hand. |
 | `base-unreadable` | Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists. |
-| `removed-rule` | Put the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
-| `wider-rule` | Put the argument or the text of the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
-| `removed-output` | Put the output back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
-| `removed-scenario` | Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
+| `removed-rule` | Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `wider-rule` | Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `removed-output` | Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `removed-scenario` | Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
 | `internal-contract` | Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it. |

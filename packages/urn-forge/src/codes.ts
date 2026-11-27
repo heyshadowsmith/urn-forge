@@ -17,7 +17,7 @@ export const CODES = {
   'yaml-syntax': { fix: 'Correct the YAML at the line that the problem gives.' },
   'manifest-shape': { fix: 'Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key.' },
   'unknown-definition': { fix: 'Add the definition to definitions:, or correct the name to one that is in definitions:.' },
-  'type-cycle': { fix: 'Give one definition of the cycle a base type (string, number, integer, boolean, object or array) in place of the name of another definition.' },
+  'type-cycle': { fix: 'Give one definition of the cycle a base type (string, number, integer, boolean, object, array, map or union) in place of the name of another definition.' },
   'duplicate-property': { fix: 'Remove the second copy of the name from properties:.' },
   'unknown-property': { fix: 'Add the name to properties: of the object, or remove it from the rule.' },
   'not-an-object': { fix: 'Make the input or the output of the operation a definition of type: object.' },
@@ -57,10 +57,10 @@ export const CODES = {
 
   // Gate 5: the contract against the base.
   'base-unreadable': { fix: 'Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists.' },
-  'removed-rule': { fix: 'Put the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.' },
-  'wider-rule': { fix: 'Put the argument or the text of the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.' },
-  'removed-output': { fix: 'Put the output back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.' },
-  'removed-scenario': { fix: 'Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.' },
+  'removed-rule': { fix: 'Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
+  'wider-rule': { fix: 'Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
+  'removed-output': { fix: 'Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
+  'removed-scenario': { fix: 'Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
 
   // urn-forge itself: it checks its own decisions against its contract, self/.
   'internal-contract': { fix: 'Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it.' },

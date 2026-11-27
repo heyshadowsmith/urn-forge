@@ -9,7 +9,7 @@
 manifest:
   namespace: urn-forge
   domain: toolchain
-  version: 0.2.0
+  version: 0.2.1
 
 definitions:
   definition_name:
@@ -251,7 +251,7 @@ definitions:
       - pattern: '\S'
 
   standard_rule_meaning:
-    description: What a standard rule is - its parameters, what it checks and what its failure says
+    description: "What a standard rule is: its parameters, what it checks and what its failure says"
     type: object
     properties: [parameter_names, rule_description, failure_text]
     rules:
@@ -478,7 +478,7 @@ definitions:
   # breaks it fails compile with manifest-shape. tests/agents.test.ts checks each manifest of the
   # repository with it, and checks that the reader refuses what it refuses.
   manifest:
-    description: A manifest, the contract of a domain - its header, and its definitions, rules and operations by name
+    description: "A manifest, the contract of a domain: its header, and its definitions, rules and operations by name"
     type: object
     properties:
       - manifest: manifest_header
@@ -507,19 +507,19 @@ definitions:
       - required: [callers]
 
   callers:
-    description: ignore-unknown - the callers ignore a property or an output that they do not know, so a new one is compatible
+    description: "ignore-unknown: the callers ignore a property or an output that they do not know, so a new one is compatible"
     type: string
     rules:
       - enum: [ignore-unknown]
 
   description:
-    description: What a part is, for a reader of the manifest - text with a character that is not a space
+    description: "What a part is, for a reader of the manifest: text with a character that is not a space"
     type: string
     rules:
       - pattern: '\S'
 
   deprecated:
-    description: True when the part is deprecated - it still works, and each use of it in a live part gives a warning
+    description: "True when the part is deprecated: it still works, and each use of it in a live part gives a warning"
     type: boolean
 
   definition_declarations:
@@ -529,7 +529,7 @@ definitions:
     values: definition_declaration
 
   definition_declaration:
-    description: A definition - the structure of a value, and the rules that each value keeps
+    description: "A definition: the structure of a value, and the rules that each value keeps"
     type: object
     properties:
       - description
@@ -570,12 +570,12 @@ definitions:
     items: property_entry
 
   property_entry:
-    description: A property - the name of its definition, or a name with its own definition
+    description: "A property: the name of its definition, or a name with its own definition"
     type: union
     variants: [definition_name, property_with_definition]
 
   property_with_definition:
-    description: A property with its own definition, such as { address - street_address } in YAML flow form
+    description: "A property with its own definition, such as { address: street_address } in YAML flow form"
     type: map
     keys: property_name
     values: definition_name
@@ -583,7 +583,7 @@ definitions:
       - one_entry
 
   variants:
-    description: The variants of a union - a list of definitions of different JSON types, or, with a tag, each value of the tag to its object variant
+    description: "The variants of a union: a list of definitions of different JSON types, or, with a tag, each value of the tag to its object variant"
     type: union
     variants: [variant_list, tagged_variants]
 
@@ -593,7 +593,7 @@ definitions:
     items: definition_name
 
   tagged_variants:
-    description: The variants of a union with a tag - each value of the tag to its object variant
+    description: "The variants of a union with a tag: each value of the tag to its object variant"
     type: map
     values: definition_name
 
@@ -603,18 +603,18 @@ definitions:
     items: rule_use
 
   rule_use:
-    description: A rule applied by name - the name alone, or the name with its argument
+    description: "A rule applied by name: the name alone, or the name with its argument"
     type: union
     variants: [rule_use_name, rule_with_argument]
 
   rule_use_name:
-    description: The name of a rule in a use - a rule of the manifest, or a standard rule, whose names are camelCase
+    description: "The name of a rule in a use: a rule of the manifest, or a standard rule, whose names are camelCase"
     type: string
     rules:
       - pattern: '^[a-z][A-Za-z0-9_]{0,62}$'
 
   rule_with_argument:
-    description: A rule with its argument, such as minimum - 1, or between - { low - 1, high - 9 }
+    description: "A rule with its argument, such as minimum: 1, or between: { low: 1, high: 9 }"
     type: map
     keys: rule_use_name
     values: json_value
@@ -622,7 +622,7 @@ definitions:
       - one_entry
 
   json_value:
-    description: Any JSON value but null - the argument of a rule use, or the value of an answer
+    description: "Any JSON value but null: the argument of a rule use, or the value of an answer"
     type: union
     variants: [json_string, json_number, json_flag, json_list, json_map]
 
@@ -661,7 +661,7 @@ definitions:
       - pattern: '^[a-z][a-z0-9_]{0,62}$'
 
   rule_declaration:
-    description: A rule - an expression of the rule language, its parameters, and what its failure says
+    description: "A rule: an expression of the rule language, its parameters, and what its failure says"
     type: object
     properties:
       - description
@@ -691,7 +691,7 @@ definitions:
       - pattern: '^[a-z][a-z0-9_]{0,62}$'
 
   operation_declaration:
-    description: An operation - its input, its outputs, and the rules of each answer
+    description: "An operation: its input, its outputs, and the rules of each answer"
     type: object
     properties:
       - description
@@ -703,19 +703,19 @@ definitions:
       - required: [description, input, output]
 
   output_entries:
-    description: The outputs of an operation - the core answers exactly one of them
+    description: "The outputs of an operation: the core answers exactly one of them"
     type: array
     items: output_entry
     rules:
       - minItems: 1
 
   output_entry:
-    description: An output - the name of its object, or the name with the rules of the output
+    description: "An output: the name of its object, or the name with the rules of the output"
     type: union
     variants: [definition_name, output_with_rules]
 
   output_with_rules:
-    description: An output with its rules, such as booked - [deposit_paid]
+    description: "An output with its rules, such as booked: [deposit_paid]"
     type: map
     keys: definition_name
     values: rule_uses
@@ -725,7 +725,7 @@ definitions:
   # The results: what check and runOperation of a generated file give, and the report of a command with
   # --format json. The CLI checks each report with these definitions before it writes it.
   failure:
-    description: A rule that a value breaks - the definition or the operation of the rule, the rule, the place of the value, and the failure message
+    description: "A rule that a value breaks: the definition or the operation of the rule, the rule, the place of the value, and the failure message"
     type: object
     properties:
       - definition: part_name
@@ -747,13 +747,13 @@ definitions:
       - minItems: 1
 
   accepted:
-    description: True - the value keeps the contract
+    description: "True: the value keeps the contract"
     type: boolean
     rules:
       - is_true
 
   refused:
-    description: False - the value breaks the contract
+    description: "False: the value breaks the contract"
     type: boolean
     rules:
       - is_false
@@ -779,7 +779,7 @@ definitions:
       - required: [ok, domain, failures]
 
   call_answered:
-    description: The result of runOperation when the input and the answer keep the contract - the answer of the core, its output and its value
+    description: "The result of runOperation when the input and the answer keep the contract: the answer of the core, its output and its value"
     type: object
     properties:
       - ok: accepted
@@ -832,7 +832,7 @@ definitions:
       - required: [ok, domain, operation, kind, failures]
 
   problem:
-    description: A problem that a command found - its code, its severity, its place, what it says, and its fix
+    description: "A problem that a command found: its code, its severity, its place, what it says, and its fix"
     type: object
     properties:
       - code
@@ -869,7 +869,7 @@ definitions:
     items: path_key
 
   path_key:
-    description: A key of a place - the name of a key of a map, or the index of an item of a list
+    description: "A key of a place: the name of a key of a map, or the index of an item of a list"
     type: union
     variants: [key_name, key_index]
 
@@ -890,11 +890,11 @@ definitions:
       - pattern: '\S'
 
   passed:
-    description: True when the command passed - its exit code is 0
+    description: "True when the command passed: its exit code is 0"
     type: boolean
 
   compile_report:
-    description: The report of compile --format json - the files that it wrote or removed, and its problems
+    description: "The report of compile --format json: the files that it wrote or removed, and its problems"
     type: object
     properties:
       - ok: passed
@@ -920,13 +920,13 @@ definitions:
       - required: [domain, status, path]
 
   write_status:
-    description: What compile did with a generated file - wrote it, found it unchanged, or removed it because no domain gives it
+    description: "What compile did with a generated file: wrote it, found it unchanged, or removed it because no domain gives it"
     type: string
     rules:
       - enum: [wrote, unchanged, removed]
 
   verify_report:
-    description: The report of verify --format json - each gate of each domain, the count of warnings, and the problems
+    description: "The report of verify --format json: each gate of each domain, the count of warnings, and the problems"
     type: object
     properties:
       - ok: passed
@@ -940,7 +940,7 @@ definitions:
       - a_failed_gate_fails
 
   gate_report:
-    description: The outcome of a gate - its number, its name, whether it passed, and its summary
+    description: "The outcome of a gate: its number, its name, whether it passed, and its summary"
     type: object
     properties:
       - domain: urn
@@ -981,7 +981,7 @@ definitions:
       - minimum: 0
 
   diff_report:
-    description: The report of diff --format json - the versions, each change with its class, and whether the versions allow the breaking changes
+    description: "The report of diff --format json: the versions, each change with its class, and whether the versions allow the breaking changes"
     type: object
     properties:
       - ok: passed
@@ -1012,7 +1012,7 @@ definitions:
     items: change
 
   change:
-    description: A change of a part - its class, the URN of the part, and what changed
+    description: "A change of a part: its class, the URN of the part, and what changed"
     type: object
     properties:
       - class: change_class
@@ -1090,7 +1090,7 @@ rules:
     failure_message: A weaker contract with the same version is allowed
 
   keeps_the_version_or_a_stable_major:
-    description: Gate 5 refuses a weaker contract that keeps its version, or that stays within one stable major version
+    description: "Gate 5 refuses a weaker contract that keeps its version, or whose new version is stable: not 0.x, and not a pre-release"
     rule: "input.from_version == input.to_version || (!input.to_version.matches(r'^0\\.') && !input.to_version.matches(r'^[0-9]+\\.[0-9]+\\.[0-9]+-'))"
     failure_message: A weaker contract is refused, but its version changed to a 0.x version or a pre-release
 
@@ -1117,7 +1117,7 @@ rules:
 
   fix_is_a_sentence:
     description: A fix is one sentence, which starts with a capital letter and ends with a period
-    rule: output.fix.endsWith('.') && output.fix.substring(0, 1) == output.fix.substring(0, 1).upperAscii() && output.fix.substring(0, 1) != output.fix.substring(0, 1).lowerAscii()
+    rule: output.fix.endsWith('.') && !output.fix.matches(r'\. [A-Z]') && output.fix.substring(0, 1) == output.fix.substring(0, 1).upperAscii() && output.fix.substring(0, 1) != output.fix.substring(0, 1).lowerAscii()
     failure_message: The fix is not one sentence that starts with a capital letter and ends with a period
 
   names_the_standard_rule:
@@ -1304,7 +1304,7 @@ operations:
               yaml-syntax: Correct the YAML at the line that the problem gives.
               manifest-shape: Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key.
               unknown-definition: Add the definition to definitions:, or correct the name to one that is in definitions:.
-              type-cycle: Give one definition of the cycle a base type (string, number, integer, boolean, object or array) in place of the name of another definition.
+              type-cycle: Give one definition of the cycle a base type (string, number, integer, boolean, object, array, map or union) in place of the name of another definition.
               duplicate-property: Remove the second copy of the name from properties:.
               unknown-property: "Add the name to properties: of the object, or remove it from the rule."
               not-an-object: "Make the input or the output of the operation a definition of type: object."
@@ -1333,10 +1333,10 @@ operations:
               uncovered-rule: Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".
               drift: Run urn-forge compile, and do not edit a generated file by hand.
               base-unreadable: Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists.
-              removed-rule: "Put the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version."
-              wider-rule: "Put the argument or the text of the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version."
-              removed-output: "Put the output back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version."
-              removed-scenario: "Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version."
+              removed-rule: "Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version."
+              wider-rule: "Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version."
+              removed-output: "Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version."
+              removed-scenario: "Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version."
               internal-contract: "Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it."
 
   describe_standard_rule:
