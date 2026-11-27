@@ -14,7 +14,7 @@
  */
 
 /** What the steps know of each definition: the generated `Definitions`. */
-export type DefinitionsTable = Readonly<Record<string, { readonly base: string; readonly items?: string; readonly properties?: readonly string[] }>>;
+export type DefinitionsTable = Readonly<Record<string, { readonly base: string; readonly items?: string; readonly properties?: readonly string[]; readonly propertyTypes?: Readonly<Record<string, string>> }>>;
 
 function json(text: string): { value: unknown } | undefined {
   try {
@@ -72,13 +72,13 @@ export function tableValue(rows: readonly (readonly string[])[], definition: str
       const meta = definitions[owner];
       if (!meta?.properties?.includes(step)) throw new Error(`${steps.slice(0, i + 1).join('.')} is not a property of ${owner}`);
       if (i === steps.length - 1) {
-        target[step] = cellValue(cell, step, definitions);
+        target[step] = cellValue(cell, meta.propertyTypes?.[step] ?? step, definitions);
         return;
       }
       const next = (target[step] ??= {}) as Record<string, unknown>;
       target = next;
       // The generated table gives a definition named as a type the properties of its root.
-      owner = step;
+      owner = meta.propertyTypes?.[step] ?? step;
     });
   });
   return value;

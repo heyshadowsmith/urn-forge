@@ -28,7 +28,13 @@ export interface DefinitionDecl {
   readonly name: string;
   readonly description: string;
   readonly type: string;
+  /** The names of the properties of an object. */
   readonly properties?: readonly string[];
+  /**
+   * The definition of each property that names another definition than its own name: `- rules: rule_uses`.
+   * A property absent here has the definition of its name.
+   */
+  readonly propertyTypes?: Readonly<Record<string, string>>;
   readonly items?: string;
   /** The definition of each value of a map. */
   readonly values?: string;
@@ -252,6 +258,11 @@ function readHeader(read: Reader, value: unknown): ManifestHeader | undefined {
   return { namespace, domain, version, ...(compatibility ? { compatibility } : {}) };
 }
 
+/** The definition of a property of an object: the one that the object names, or the one of its name. */
+export function propertyType(object: Pick<DefinitionDecl, 'propertyTypes'>, property: string): string {
+  return object.propertyTypes?.[property] ?? property;
+}
+
 function readDefinition(read: Reader, name: string, value: unknown, path: Path): DefinitionDecl | undefined {
   const decl = read.map(value, path, ['description', 'type', 'properties', 'items', 'values', 'keys', 'tag', 'variants', 'identifier', 'rules', 'deprecated'], ['description', 'type']);
   if (!decl) return undefined;
@@ -268,7 +279,35 @@ function readDefinition(read: Reader, name: string, value: unknown, path: Path):
     read.shape([...path, key], `${show([...path, key])} is only for a definition of type: ${base}`);
     return false;
   };
-  const properties = decl['properties'] !== undefined && only('properties', 'object') ? read.names(decl['properties'], [...path, 'properties']) : undefined;
+  let properties: string[] | undefined;
+  const propertyTypes: Record<string, string> = {};
+  if (decl['properties'] !== undefined && only('properties', 'object')) {
+    const raw = decl['properties'];
+    if (!Array.isArray(raw)) read.shape([...path, 'properties'], `${show([...path, 'properties'])} must be a list of names`);
+    else {
+      properties = [];
+      raw.forEach((item, index) => {
+        const at = [...path, 'properties', index];
+        // A property with its own definition: a map of one key, its name to the name of the definition.
+        if (isRecord(item)) {
+          const entries = Object.entries(item);
+          if (entries.length !== 1) {
+            read.shape(at, `${show(at)} must be a name, or one name with its definition, such as { rules: rule_uses }`);
+            return;
+          }
+          const [property, definition] = entries[0]!;
+          const name = read.name(property, at);
+          const type = read.name(definition, [...at, property]);
+          if (name === undefined || type === undefined) return;
+          properties!.push(name);
+          if (type !== name) propertyTypes[name] = type;
+          return;
+        }
+        const name = read.name(item, at);
+        if (name !== undefined) properties!.push(name);
+      });
+    }
+  }
   const items = decl['items'] !== undefined && only('items', 'array') ? read.name(decl['items'], [...path, 'items']) : undefined;
   const values = decl['values'] !== undefined && only('values', 'map') ? read.name(decl['values'], [...path, 'values']) : undefined;
   const keys = decl['keys'] !== undefined && only('keys', 'map') ? read.name(decl['keys'], [...path, 'keys']) : undefined;
@@ -301,6 +340,7 @@ function readDefinition(read: Reader, name: string, value: unknown, path: Path):
     description,
     type,
     ...(properties ? { properties } : {}),
+    ...(Object.keys(propertyTypes).length > 0 ? { propertyTypes } : {}),
     ...(items ? { items } : {}),
     ...(values ? { values } : {}),
     ...(keys ? { keys } : {}),

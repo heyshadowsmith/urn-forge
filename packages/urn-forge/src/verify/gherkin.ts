@@ -14,6 +14,7 @@ import { AstBuilder, compile, GherkinClassicTokenMatcher, Parser } from '@cucumb
 import { IdGenerator } from '@cucumber/messages';
 import { STEPS } from '../gherkin/steps.js';
 import { tableValue, type DefinitionsTable } from '../gherkin/cells.js';
+import { propertyType } from '../manifest.js';
 import { variantsOf, type Model } from '../model.js';
 import type { Application } from '../rules.js';
 import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
@@ -42,7 +43,7 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
   const table: DefinitionsTable = Object.fromEntries(
     Object.values(model.definitions).map((d) => {
       const root = model.definitions[d.root]!;
-      return [d.name, { base: d.base, ...(root.items ? { items: root.items } : {}), ...(root.properties ? { properties: root.properties } : {}) }];
+      return [d.name, { base: d.base, ...(root.items ? { items: root.items } : {}), ...(root.properties ? { properties: root.properties } : {}), ...(root.propertyTypes ? { propertyTypes: root.propertyTypes } : {}) }];
     }),
   );
   const reach = (value: unknown, name: string): void => {
@@ -50,7 +51,7 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
     if (!definition || value === undefined) return;
     const root = model.definitions[definition.root]!;
     const isObject = typeof value === 'object' && value !== null && !Array.isArray(value);
-    if (definition.base === 'object' && isObject) for (const p of root.properties ?? []) reach((value as Record<string, unknown>)[p], p);
+    if (definition.base === 'object' && isObject) for (const p of root.properties ?? []) reach((value as Record<string, unknown>)[p], propertyType(root, p));
     else if (definition.base === 'array' && Array.isArray(value)) value.forEach((item) => reach(item, root.items!));
     else if (definition.base === 'map' && isObject) Object.values(value).forEach((v) => reach(v, root.values!));
     else if (definition.base === 'union') {
