@@ -45,7 +45,26 @@ These remain in the unit tests. The manifest declares their inputs and outputs, 
 | 7 | Recursive functions | **Declare them node by node, where a local rule states them. For example, "the type of each node follows from its children's types". Do not declare a whole parse or print** | The rule language has no recursion, on purpose, so that a rule always ends |
 | 8 | The order | **Layers 2, 3 and 5 first, with no new construct. Then maps. Then unions. Then layers 1 and 4, which need both** | Each step is useful alone, and the new shapes come only when a layer needs them |
 | 9 | urn-forge through its own harness | **The CLI calls each operation of `self/` through `runOperation(selfCore, …)`, and never calls the function directly. A `ContractViolation` stops the command with a new code, `internal-contract`, which names the operation, the rule and the input, and asks for an issue. Gate 2 checks it: `src/cli.ts` and `src/verify/` are the shell of `self/` in its config** | The contract then documents and checks the real behaviour. Gate 2 already finds a direct call to the core from a shell file, so this needs no new gate |
+| 11 | Values of any JSON type | **The variants of a union can also be base types, told apart by their JSON type: a string, a number, a bool, a list or an object, with no tag. A union has at most one variant of each JSON type, and object variants still need a tag** | The arguments of a rule use (`minimum: 1`, `pattern: '^…'`, `enum: [a, b]`), the value of a Gherkin cell and the `choices` of an enum have no tag. One rule covers "any JSON value", with no `any` type |
+| 12 | The meaning of each item of the vocabulary | **The vocabulary is a map, stated as a literal in a rule: each code to `{ fix, area }`, each gate to its check, each command to its options. An enum does not get a description for each choice** | It needs no new key of the manifest: maps come anyway. Each item then has its own sentence, and the rule checks that the real function gives the same |
+| 13 | The standard set and the version | **No reference from one manifest to another. The test of decision 6 also checks that `self/`'s list of standard rules is the keys of `src/standard.manifest.yaml`, and that `self/`'s `manifest.version` is the version of the package** | A reference between manifests is the old hole D1, and a feature of its own. A test keeps the two lists equal, and the documentation names the version that it describes |
 | 10 | The cost | **Accept the check on each call. If a command becomes slower than 10% on the booking fixture, the plan stops and records the time** | The decisions are small values, and each check is a few rules. Speed is a reason to stop, not a reason to skip the check quietly |
+
+## Limits that this plan accepts
+
+These stay out of the manifest. Each is a limit of a contract, not a gap that a construct closes:
+
+| Limit | Why it stays |
+| --- | --- |
+| **No recursion in a rule.** The parser, the printer and the code generator are never stated as a whole | A rule always ends because it cannot call itself. Rules node by node, and the unit tests, are the split |
+| **The meaning of CEL is circular.** The runtime helpers are CEL's meaning. A rule such as `output == input.s.substring(a, b)` would state CEL with CEL | The tests of the rule forms prove the helpers. The table of functions in layer 2 documents them |
+| **Text tied to a file.** A diagnostic has a line of a YAML file, and the generated file is program text | They depend on the bytes of a file, not on values. The contract states the code and the message of a diagnostic; the unit tests check the lines and the generated text |
+
+Already in reach, with no new construct:
+
+- **Effects** (files, `tsc`, git, Cucumber): the shell gathers the facts, and the decisions take them as their input.
+- **Names that refer to other parts** become rules once maps exist, such as `self.definitions.all(d, self.definitions[d].properties.all(p, p in self.definitions))`.
+- **Examples:** the scenarios of `self/` are its examples, and gate 3 makes sure that each part has one.
 
 ## The target, written first
 
@@ -56,14 +75,15 @@ Step 0 adds the scenarios of each new operation and each new definition of `self
 | Step | Commit | Done when |
 | --- | --- | --- |
 | 0 | The target | The new scenarios and tests fail for the reason expected |
-| 1 | Layer 2: the vocabulary of `self/`, and the test of decision 6 | The test fails when a page names a code that the enum does not have |
+| 1 | Layer 2: the vocabulary of `self/` as enums, and the test of decisions 6 and 13 | The test fails when a page names a code that the enum does not have, when a standard rule is missing from `self/`, or when the versions differ |
 | 2 | Layer 3: the decisions with flat values. These are `fix_of`, `fill_message`, `classify_change`, `judge_gate_1` to `judge_gate_5` and `read_cell`; the core calls the real functions | Each scenario passes |
 | 3 | Layer 5: the results and the diagnostics | Each scenario passes |
 | 3b | urn-forge through its own harness: the CLI and the gates call the operations of `self/` through `runOperation`; `src/cli.ts` and `src/verify/` are the shell in `self/`'s config; the new code `internal-contract` | Gate 2 of `self/` passes. A direct call in the shell fails it. The time of `compile` and `verify` on the booking fixture is recorded before and after |
 | 4 | Maps: the manifest, the model, the types, the checks, the rule language, gate 3, `diff` and gate 5 | `tests/maps.test.ts` passes |
-| 5 | Unions: the same parts, with the guard of a tag | `tests/unions.test.ts` passes |
+| 5 | Unions: the same parts, with the guard of a tag, and variants of base types told apart by their JSON type | `tests/unions.test.ts` passes, also for a union of a string, a number and a list |
 | 6 | Layer 1: the language of a manifest. `manifest.schema.json` goes, and the schema test reads `self/` | Each manifest of the repository is accepted by `self/`'s definition of a manifest, and a manifest with an unknown key is refused |
 | 7 | Layer 4: the rule tree and the type of each node | Each scenario passes |
+| 7b | The meaning of each item of the vocabulary, as maps of decision 12: `fix_of` reads the map of the codes | Each scenario passes, and a fix that differs from `src/codes.ts` fails one |
 | 8 | The docs: the reference pages point to `self/` for each list. The methodology removes maps and either-or from what the contract cannot state | The docs build |
 
 ## Sabotages at the end
@@ -77,6 +97,8 @@ Each must turn CI red:
 5. Let a map key break its key rule → `tests/maps.test.ts`.
 6. Call `allowsWeaker` directly in `src/verify/contract.ts` → gate 2 of `self/`.
 7. Make `allowsWeaker` allow a weaker contract with the same version → a real `verify --base` stops with `internal-contract`, as well as the scenario.
+8. Add a rule to `src/standard.manifest.yaml` and not to `self/` → the test of decision 13.
+9. Make a union of a string and a number accept a bool → `tests/unions.test.ts`.
 
 ## Risks
 
