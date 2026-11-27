@@ -1,70 +1,73 @@
 /**
- * Each code that urn-forge can give, with its fix: one sentence that says what to do. A code is
- * stable: a tool or an agent can act on it without reading the message. The message says what is
- * wrong in this case; the fix says what to do about each case of the code.
+ * Each code that urn-forge can give: what it means, its severity, and its fix, one sentence that says
+ * what to do. A code is stable: a tool or an agent can act on it without reading the message. The
+ * message says what is wrong in this case; the meaning and the fix are the same for each case.
  *
- * The reference of the package (AGENTS.md) lists each code with its fix, and a test keeps the two the
- * same.
+ * The severity is `by-version` for the codes of gate 5 that a new version can allow: a warning when
+ * the version allows the change, and an error when it does not.
+ *
+ * AGENTS.md lists each code with its meaning, severity and fix, and the CLI reference lists each code
+ * with its meaning and severity. Tests keep them the same, and self/ states each one.
  */
 export const CODES = {
   // The command line.
-  usage: { fix: 'Run urn-forge --help, and call the command with the arguments and options that it shows.' },
-  'config-unreadable': { fix: 'Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts.' },
-  'config-invalid': { fix: 'Change the config to use only the options of defineConfig, with the types that the message names.' },
-  'manifest-unreadable': { fix: 'Give --manifest, or manifest in the config, the path of a manifest that exists.' },
+  usage: { meaning: 'The command line is wrong', severity: 'error', fix: 'Run urn-forge --help, and call the command with the arguments and options that it shows.' },
+  'config-unreadable': { meaning: 'The manifest file, or the file that `--config` names, does not exist', severity: 'error', fix: 'Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts.' },
+  'config-invalid': { meaning: 'The config does not load, or an option is unknown or of the wrong type', severity: 'error', fix: 'Change the config to use only the options of defineConfig, with the types that the message names.' },
+  'manifest-unreadable': { meaning: 'The manifest file, or the file that `--config` names, does not exist', severity: 'error', fix: 'Give --manifest, or manifest in the config, the path of a manifest that exists.' },
 
   // The manifest.
-  'yaml-syntax': { fix: 'Correct the YAML at the line that the problem gives.' },
-  'manifest-shape': { fix: 'Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key.' },
-  'unknown-definition': { fix: 'Add the definition to definitions:, or correct the name to one that is in definitions:.' },
-  'type-cycle': { fix: 'Give one definition of the cycle a base type (string, number, integer, boolean, object, array, map or union) in place of the name of another definition.' },
-  'duplicate-property': { fix: 'Remove the second copy of the name from properties:.' },
-  'unknown-property': { fix: 'Add the name to properties: of the object, or remove it from the rule.' },
-  'not-an-object': { fix: 'Make the input or the output of the operation a definition of type: object.' },
-  'duplicate-output': { fix: 'Remove the second copy of the object from output:.' },
-  'invalid-identifier': { fix: 'Make the identifier a property of the object, list it in the required rule of the object, and give it one value: not an object or a list.' },
-  'deprecated-use': { fix: 'Use a definition or a rule that is not deprecated, or remove deprecated: true if it is still the right one.' },
-  'standard-name': { fix: 'Give the rule of the manifest a name that is not the name of a standard rule.' },
-  'unknown-rule': { fix: 'Add the rule to rules:, or correct the name to a rule of the manifest or a standard rule.' },
-  'rule-argument': { fix: 'Give the rule an argument that its parameters accept, or no argument when the rule has no parameters.' },
-  'rule-syntax': { fix: 'Write the rule in the rule language of urn-forge: the names, operators, functions and macros of the reference.' },
-  'rule-type': { fix: 'Change the rule so that each part has the type that the message names, and the rule gives a bool.' },
-  'rule-guard': { fix: 'Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) || self.x > 0.' },
-  'rule-scope': { fix: 'Use only the names that the message lists: self, input, output, the parameters of the rule, and the variable of a macro.' },
-  'invalid-message': { fix: 'Use in {braces} only the names of the parameters of the rule.' },
+  'yaml-syntax': { meaning: 'The file is not valid YAML, or a map has one key two times', severity: 'error', fix: 'Correct the YAML at the line that the problem gives.' },
+  'manifest-shape': { meaning: 'A key that is not allowed, a key that is not there, or a value of the wrong shape', severity: 'error', fix: 'Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key.' },
+  'unknown-definition': { meaning: 'A name that the manifest does not have', severity: 'error', fix: 'Add the definition to definitions:, or correct the name to one that is in definitions:.' },
+  'type-cycle': { meaning: 'A chain of `type` names goes back to its start', severity: 'error', fix: 'Give one definition of the cycle a base type (string, number, integer, boolean, object, array, map or union) in place of the name of another definition.' },
+  'duplicate-property': { meaning: 'A list names a property or an output two times', severity: 'error', fix: 'Remove the second copy of the name from properties:.' },
+  'unknown-property': { meaning: 'A name that the manifest does not have', severity: 'error', fix: 'Add the name to properties: of the object, or remove it from the rule.' },
+  'not-an-object': { meaning: 'The input or an output is not an object', severity: 'error', fix: 'Make the input or the output of the operation a definition of type: object.' },
+  'duplicate-output': { meaning: 'A list names a property or an output two times', severity: 'error', fix: 'Remove the second copy of the object from output:.' },
+  'invalid-identifier': { meaning: 'The identifier is not a required property with one value', severity: 'error', fix: 'Make the identifier a property of the object, list it in the required rule of the object, and give it one value: not an object or a list.' },
+  'deprecated-use': { meaning: 'A live part uses a deprecated part', severity: 'warning', fix: 'Use a definition or a rule that is not deprecated, or remove deprecated: true if it is still the right one.' },
+  'standard-name': { meaning: 'A rule of the manifest has the name of a standard rule', severity: 'error', fix: 'Give the rule of the manifest a name that is not the name of a standard rule.' },
+  'unknown-rule': { meaning: 'A name that the manifest does not have', severity: 'error', fix: 'Add the rule to rules:, or correct the name to a rule of the manifest or a standard rule.' },
+  'rule-argument': { meaning: 'An argument does not agree with the parameters of the rule', severity: 'error', fix: 'Give the rule an argument that its parameters accept, or no argument when the rule has no parameters.' },
+  'rule-syntax': { meaning: 'The rule does not parse, or uses a form that is not in the rule language', severity: 'error', fix: 'Write the rule in the rule language of urn-forge: the names, operators, functions and macros of the reference.' },
+  'rule-type': { meaning: 'A type in the rule is wrong, the rule does not give a `bool`, or `has()` reads a required property', severity: 'error', fix: 'Change the rule so that each part has the type that the message names, and the rule gives a bool.' },
+  'rule-guard': { meaning: 'The rule reads an optional property without `has()`', severity: 'error', fix: 'Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) || self.x > 0.' },
+  'rule-scope': { meaning: 'The rule reads a name that is not available where you apply the rule, such as `output` in a rule of a definition', severity: 'error', fix: 'Use only the names that the message lists: self, input, output, the parameters of the rule, and the variable of a macro.' },
+  'invalid-message': { meaning: 'A message names `{x}`, but `x` is not a parameter', severity: 'error', fix: 'Use in {braces} only the names of the parameters of the rule.' },
 
 
   // Gate 1: the core.
-  'tsconfig-unreadable': { fix: 'Give --tsconfig, or tsconfig in the config, the path of a tsconfig that TypeScript can read.' },
-  'core-not-found': { fix: 'Create the core file, or give --core, or core in the config, its path.' },
-  'type-error': { fix: 'Correct the type error at the line that the problem gives; do not suppress it.' },
-  'core-not-satisfying': { fix: 'Export the core as export const core = { … } satisfies DomainCore, with one function for each operation.' },
+  'tsconfig-unreadable': { meaning: 'Gate 1 or gate 2: the tsconfig does not exist, or does not parse', severity: 'error', fix: 'Give --tsconfig, or tsconfig in the config, the path of a tsconfig that TypeScript can read.' },
+  'core-not-found': { meaning: 'Gate 1: the file of the core does not exist', severity: 'error', fix: 'Create the core file, or give --core, or core in the config, its path.' },
+  'type-error': { meaning: 'Gate 1: `tsc` finds a type error in the core, with the tsconfig of the project', severity: 'error', fix: 'Correct the type error at the line that the problem gives; do not suppress it.' },
+  'core-not-satisfying': { meaning: 'Gate 1: no export of the core `satisfies DomainCore`', severity: 'error', fix: 'Export the core as export const core = { … } satisfies DomainCore, with one function for each operation.' },
 
   // Gate 2: the boundary.
-  'direct-call': { fix: 'Call the core through runOperation(core, operation, input), which checks the input and the answer.' },
-  'suppressed-check': { fix: 'Remove the @ts- comment and correct the type error that it hides.' },
+  'direct-call': { meaning: 'Gate 2: a shell file calls a function of the core directly, without `runOperation`', severity: 'error', fix: 'Call the core through runOperation(core, operation, input), which checks the input and the answer.' },
+  'suppressed-check': { meaning: 'Gate 2: a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`', severity: 'error', fix: 'Remove the @ts- comment and correct the type error that it hides.' },
 
   // Gate 3: the scenarios.
-  'feature-syntax': { fix: 'Correct the Gherkin of the feature file at the line that the message gives.' },
-  'unknown-name': { fix: 'Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says.' },
-  'uncovered-operation': { fix: 'Add a scenario with When I run "<operation>" with:.' },
-  'uncovered-output': { fix: 'Add a scenario of the operation that ends with Then the output is "<output>".' },
-  'uncovered-variant': { fix: 'Add a scenario whose table has a value of the variant: for a union with a tag, a value with that value of the tag.' },
-  'uncovered-rule': { fix: 'Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".' },
+  'feature-syntax': { meaning: 'Gate 3: a `.feature` file does not parse', severity: 'error', fix: 'Correct the Gherkin of the feature file at the line that the message gives.' },
+  'unknown-name': { meaning: 'Gate 3: a step names a part that the manifest does not have', severity: 'error', fix: 'Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says.' },
+  'uncovered-operation': { meaning: 'Gate 3: no scenario runs an operation', severity: 'error', fix: 'Add a scenario with When I run "<operation>" with:.' },
+  'uncovered-output': { meaning: 'Gate 3: no scenario of an operation ends with one of its outputs', severity: 'error', fix: 'Add a scenario of the operation that ends with Then the output is "<output>".' },
+  'uncovered-variant': { meaning: 'Gate 3: no scenario reaches a variant of a union', severity: 'error', fix: 'Add a scenario whose table has a value of the variant: for a union with a tag, a value with that value of the tag.' },
+  'uncovered-rule': { meaning: 'Gate 3: no scenario breaks a rule of a definition', severity: 'error', fix: 'Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".' },
 
   // Gate 4: the generated files.
-  drift: { fix: 'Run urn-forge compile, and do not edit a generated file by hand.' },
+  drift: { meaning: 'Gate 4: a generated file is not what `compile` writes now, or it is missing, or `compile` no longer writes it', severity: 'error', fix: 'Run urn-forge compile, and do not edit a generated file by hand.' },
 
   // Gate 5: the contract against the base.
-  'base-unreadable': { fix: 'Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists.' },
-  'removed-rule': { fix: 'Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
-  'wider-rule': { fix: 'Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
-  'removed-output': { fix: 'Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
-  'removed-scenario': { fix: 'Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
+  'base-unreadable': { meaning: 'Gate 5: the folder is not in a git repository, or the ref is not a commit', severity: 'error', fix: 'Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists.' },
+  'removed-rule': { meaning: 'Gate 5: a rule of the base is gone', severity: 'by-version', fix: 'Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
+  'wider-rule': { meaning: 'Gate 5: a rule accepts more than at the base', severity: 'by-version', fix: 'Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
+  'removed-output': { meaning: 'Gate 5: an output of the base is gone', severity: 'by-version', fix: 'Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
+  'removed-scenario': { meaning: 'Gate 5: a scenario of the base is gone', severity: 'by-version', fix: 'Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
 
   // urn-forge itself: it checks its own decisions against its contract, self/.
-  'internal-contract': { fix: 'Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it.' },
-} as const satisfies Record<string, { readonly fix: string }>;
+  'internal-contract': { meaning: 'urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge', severity: 'error', fix: 'Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it.' },
+} as const satisfies Record<string, { readonly meaning: string; readonly severity: 'error' | 'warning' | 'by-version'; readonly fix: string }>;
 
 export type Code = keyof typeof CODES;
 

@@ -362,3 +362,30 @@ Not in part 5: a plain sentence next to each rule whose meaning is only in its r
 1. Report `deprecated-use` as an error → a real `compile` stops with `internal-contract`.
 2. Change the meaning of a code in `src/codes.ts` → the scenario of `fix_of`, and the test against the reference.
 3. Report a code of gate 5 as a warning when the version does not allow the change → not caught: `by-version` allows both. Record it as a limit, or split the four codes by severity, if you want it caught.
+
+## What was built: part 5
+
+| Step | Result |
+| --- | --- |
+| 1 | `src/codes.ts` gives each of the 41 codes its meaning and its severity. The code table of `AGENTS.md` is `Code \| Meaning \| Severity \| Fix`, and the CLI reference has one row for each meaning, with its severity. Tests keep both equal to `src/codes.ts` |
+| 2 | One map in `self/`, the argument of `is_the_code` of `fix_of`, gives each code its meaning, severity and fix. `fix_of` takes the severity of the problem, and `has_its_severity` checks it. The CLI sends it with each problem. The package and `self/` are 0.2.2 |
+| 3 | The cold-reader questions 1 and 5 again, and a new question on the severities; the docs and these notes |
+
+Changes from the plan:
+
+- **The table of causes did not have each code.** It had 30 codes. The 11 codes of gates 1 to 4 were only in the table of the gates, so their meanings come from that table's text.
+- **The notes in some cells moved under the table.** "Only with `--format json`" for `usage`, the line of `rule-syntax`, and "fetch the base branch" for `base-unreadable` are now a paragraph, so that each cell is the meaning.
+- **The four codes of gate 5 got their own meanings.** The third cold reader found that their shared cause, "the version does not allow it", contradicts the warning that a new version gives them. Each now says what changed: a rule is gone, a rule accepts more, an output is gone, a scenario is gone.
+- **The texts of gates 3 and 5 name all their codes.** The same reader found that gate 3 did not name variants and gate 5 did not name an unreadable ref.
+
+### The cold-reader test of part 5
+
+A fresh agent answered three questions from the file alone, all correctly. One search gave the meaning, the severity and the fix of `rule-guard`, in one place. It also named which codes are warnings and when, from the map. It reported that the codes of the manifest and the rule language belong to no gate: `compile` reports them, and the file does not say so. It also reported a wrong rule, `has_its_severity`, but the rule is right: it compares the severity of the code in the answer with the severity of the problem in the input.
+
+The sabotages of part 5:
+
+1. `deprecated-use` reported as an error → a real `compile` stopped with `internal-contract`: `has_its_severity of fix_of`.
+2. The meaning of `rule-guard` changed in `src/codes.ts` → `tests/agents.test.ts` and `tests/self.test.ts`, and each real report of `rule-guard`. Not the scenarios of `fix_of`: they name only some codes.
+3. A code of gate 5 with the wrong severity → not caught, as planned: `by-version` takes both.
+
+`self/` has 13 operations and 215 scenarios.

@@ -5,11 +5,11 @@
 # The definitions come in four sections: 1. the vocabulary; 2. the decisions, each under the name of its
 # operation; 3. the language of a manifest; 4. the results of a call, a check and a command. Then the
 # rules, and the operations. The meaning of each item of the vocabulary is the argument of a rule of an
-# operation, such as the fix of each code in is_the_fix of fix_of.
+# operation, such as the meaning, severity and fix of each code in is_the_code of fix_of.
 manifest:
   namespace: urn-forge
   domain: toolchain
-  version: 0.2.1
+  version: 0.2.2
 
 definitions:
   # 1. The vocabulary
@@ -18,7 +18,7 @@ definitions:
   # judge_gate. A test keeps each list equal to its source in the package, and to the pages that name it.
 
   code:
-    description: A code of a problem that urn-forge reports. A tool or an agent acts on the code, not on the message. The fix of each code is the argument of is_the_fix, in the operation fix_of; the codes of each gate are the argument of reports_its_codes, in the operation judge_gate
+    description: A code of a problem that urn-forge reports. A tool or an agent acts on the code, not on the message. The meaning, the severity and the fix of each code are the argument of is_the_code, in the operation fix_of; the codes of each gate are the argument of reports_its_codes, in the operation judge_gate
     type: string
     rules:
       - enum: [usage, config-unreadable, config-invalid, manifest-unreadable, yaml-syntax, manifest-shape, unknown-definition, type-cycle, duplicate-property, unknown-property, not-an-object, duplicate-output, invalid-identifier, deprecated-use, standard-name, unknown-rule, rule-argument, rule-syntax, rule-type, rule-guard, rule-scope, invalid-message, tsconfig-unreadable, core-not-found, type-error, core-not-satisfying, direct-call, suppressed-check, feature-syntax, unknown-name, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule, drift, base-unreadable, removed-rule, wider-rule, removed-output, removed-scenario, internal-contract]
@@ -29,11 +29,33 @@ definitions:
     rules:
       - minLength: 1
 
-  fixes:
-    description: The fix of each code
+  code_meaning:
+    description: What a code means, the same for each case of the code
+    type: string
+    rules:
+      - pattern: '\S'
+
+  code_severity:
+    description: "The severity of each problem of a code: error, warning, or by-version for the codes of gate 5 that a new version can allow, which are a warning when the version allows the change and an error when it does not"
+    type: string
+    rules:
+      - enum: [error, warning, by-version]
+
+  code_entry:
+    description: "What a code is: what it means, its severity and its fix"
+    type: object
+    properties:
+      - meaning: code_meaning
+      - severity: code_severity
+      - fix
+    rules:
+      - required: [meaning, severity, fix]
+
+  code_entries:
+    description: Each code, and what it is
     type: map
     keys: code
-    values: fix
+    values: code_entry
 
   standard_rule_name:
     description: The name of a rule of the standard set, which a manifest uses with no declaration. The parameters and texts of each rule are the argument of is_the_standard_rule, in the operation describe_standard_rule
@@ -331,18 +353,22 @@ definitions:
   # 2. Decision: fix_of
 
   code_request:
-    description: A code whose fix is asked for
+    description: A code whose meaning and fix are asked for, with the severity of the problem that has it, when there is one
     type: object
-    properties: [code]
+    properties: [code, severity]
     rules:
       - required: [code]
 
   code_fix:
-    description: A code and its fix
+    description: A code, what it means, its severity and its fix
     type: object
-    properties: [code, fix]
+    properties:
+      - code
+      - meaning: code_meaning
+      - severity: code_severity
+      - fix
     rules:
-      - required: [code, fix]
+      - required: [code, meaning, severity, fix]
 
   # 2. Decision: describe_standard_rule
 
@@ -1163,11 +1189,18 @@ rules:
     rule: output.code == input.code
     failure_message: The answer names another code
 
-  is_the_fix:
-    description: The fix is the fix of the code, as the contract states it for each code
-    parameters: [fixes]
-    rule: output.fix == fixes[input.code]
-    failure_message: The fix is not the fix of the code
+  is_the_code:
+    description: The meaning, the severity and the fix are those of the code, as the contract states them for each code
+    parameters: [code_entries]
+    rule: >-
+      output.meaning == code_entries[input.code].meaning && output.severity == code_entries[input.code].severity &&
+      output.fix == code_entries[input.code].fix
+    failure_message: The answer is not what the code is
+
+  has_its_severity:
+    description: A problem has the severity of its code; a code of severity by-version can be a warning or an error
+    rule: "!has(input.severity) || output.severity == input.severity || output.severity == 'by-version'"
+    failure_message: The problem does not have the severity of its code
 
   fix_is_a_sentence:
     description: A fix is one sentence, which starts with a capital letter and ends with a period
@@ -1361,49 +1394,173 @@ operations:
       - code_fix:
           - names_the_code
           - fix_is_a_sentence
-          # The fix of each code: what each report of the code tells to do.
-          - is_the_fix:
-              usage: Run urn-forge --help, and call the command with the arguments and options that it shows.
-              config-unreadable: Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts.
-              config-invalid: Change the config to use only the options of defineConfig, with the types that the message names.
-              manifest-unreadable: Give --manifest, or manifest in the config, the path of a manifest that exists.
-              yaml-syntax: Correct the YAML at the line that the problem gives.
-              manifest-shape: Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key.
-              unknown-definition: Add the definition to definitions:, or correct the name to one that is in definitions:.
-              type-cycle: Give one definition of the cycle a base type (string, number, integer, boolean, object, array, map or union) in place of the name of another definition.
-              duplicate-property: Remove the second copy of the name from properties:.
-              unknown-property: "Add the name to properties: of the object, or remove it from the rule."
-              not-an-object: "Make the input or the output of the operation a definition of type: object."
-              duplicate-output: Remove the second copy of the object from output:.
-              invalid-identifier: "Make the identifier a property of the object, list it in the required rule of the object, and give it one value: not an object or a list."
-              deprecated-use: "Use a definition or a rule that is not deprecated, or remove deprecated: true if it is still the right one."
-              standard-name: Give the rule of the manifest a name that is not the name of a standard rule.
-              unknown-rule: Add the rule to rules:, or correct the name to a rule of the manifest or a standard rule.
-              rule-argument: Give the rule an argument that its parameters accept, or no argument when the rule has no parameters.
-              rule-syntax: "Write the rule in the rule language of urn-forge: the names, operators, functions and macros of the reference."
-              rule-type: Change the rule so that each part has the type that the message names, and the rule gives a bool.
-              rule-guard: "Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) || self.x > 0."
-              rule-scope: "Use only the names that the message lists: self, input, output, the parameters of the rule, and the variable of a macro."
-              invalid-message: Use in {braces} only the names of the parameters of the rule.
-              tsconfig-unreadable: Give --tsconfig, or tsconfig in the config, the path of a tsconfig that TypeScript can read.
-              core-not-found: Create the core file, or give --core, or core in the config, its path.
-              type-error: Correct the type error at the line that the problem gives; do not suppress it.
-              core-not-satisfying: Export the core as export const core = { … } satisfies DomainCore, with one function for each operation.
-              direct-call: Call the core through runOperation(core, operation, input), which checks the input and the answer.
-              suppressed-check: Remove the @ts- comment and correct the type error that it hides.
-              feature-syntax: Correct the Gherkin of the feature file at the line that the message gives.
-              unknown-name: Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says.
-              uncovered-operation: Add a scenario with When I run "<operation>" with:.
-              uncovered-output: Add a scenario of the operation that ends with Then the output is "<output>".
-              uncovered-variant: "Add a scenario whose table has a value of the variant: for a union with a tag, a value with that value of the tag."
-              uncovered-rule: Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".
-              drift: Run urn-forge compile, and do not edit a generated file by hand.
-              base-unreadable: Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists.
-              removed-rule: "Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version."
-              wider-rule: "Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version."
-              removed-output: "Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version."
-              removed-scenario: "Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version."
-              internal-contract: "Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it."
+          # Each code: what it means, its severity, and its fix, which each report of the code shows.
+          - has_its_severity
+          - is_the_code:
+              usage:
+                meaning: The command line is wrong
+                severity: error
+                fix: Run urn-forge --help, and call the command with the arguments and options that it shows.
+              config-unreadable:
+                meaning: The manifest file, or the file that `--config` names, does not exist
+                severity: error
+                fix: Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts.
+              config-invalid:
+                meaning: The config does not load, or an option is unknown or of the wrong type
+                severity: error
+                fix: Change the config to use only the options of defineConfig, with the types that the message names.
+              manifest-unreadable:
+                meaning: The manifest file, or the file that `--config` names, does not exist
+                severity: error
+                fix: Give --manifest, or manifest in the config, the path of a manifest that exists.
+              yaml-syntax:
+                meaning: The file is not valid YAML, or a map has one key two times
+                severity: error
+                fix: Correct the YAML at the line that the problem gives.
+              manifest-shape:
+                meaning: A key that is not allowed, a key that is not there, or a value of the wrong shape
+                severity: error
+                fix: Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key.
+              unknown-definition:
+                meaning: A name that the manifest does not have
+                severity: error
+                fix: Add the definition to definitions:, or correct the name to one that is in definitions:.
+              type-cycle:
+                meaning: A chain of `type` names goes back to its start
+                severity: error
+                fix: Give one definition of the cycle a base type (string, number, integer, boolean, object, array, map or union) in place of the name of another definition.
+              duplicate-property:
+                meaning: A list names a property or an output two times
+                severity: error
+                fix: Remove the second copy of the name from properties:.
+              unknown-property:
+                meaning: A name that the manifest does not have
+                severity: error
+                fix: "Add the name to properties: of the object, or remove it from the rule."
+              not-an-object:
+                meaning: The input or an output is not an object
+                severity: error
+                fix: "Make the input or the output of the operation a definition of type: object."
+              duplicate-output:
+                meaning: A list names a property or an output two times
+                severity: error
+                fix: Remove the second copy of the object from output:.
+              invalid-identifier:
+                meaning: The identifier is not a required property with one value
+                severity: error
+                fix: "Make the identifier a property of the object, list it in the required rule of the object, and give it one value: not an object or a list."
+              deprecated-use:
+                meaning: A live part uses a deprecated part
+                severity: warning
+                fix: "Use a definition or a rule that is not deprecated, or remove deprecated: true if it is still the right one."
+              standard-name:
+                meaning: A rule of the manifest has the name of a standard rule
+                severity: error
+                fix: Give the rule of the manifest a name that is not the name of a standard rule.
+              unknown-rule:
+                meaning: A name that the manifest does not have
+                severity: error
+                fix: Add the rule to rules:, or correct the name to a rule of the manifest or a standard rule.
+              rule-argument:
+                meaning: An argument does not agree with the parameters of the rule
+                severity: error
+                fix: Give the rule an argument that its parameters accept, or no argument when the rule has no parameters.
+              rule-syntax:
+                meaning: The rule does not parse, or uses a form that is not in the rule language
+                severity: error
+                fix: "Write the rule in the rule language of urn-forge: the names, operators, functions and macros of the reference."
+              rule-type:
+                meaning: A type in the rule is wrong, the rule does not give a `bool`, or `has()` reads a required property
+                severity: error
+                fix: Change the rule so that each part has the type that the message names, and the rule gives a bool.
+              rule-guard:
+                meaning: The rule reads an optional property without `has()`
+                severity: error
+                fix: "Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) || self.x > 0."
+              rule-scope:
+                meaning: The rule reads a name that is not available where you apply the rule, such as `output` in a rule of a definition
+                severity: error
+                fix: "Use only the names that the message lists: self, input, output, the parameters of the rule, and the variable of a macro."
+              invalid-message:
+                meaning: A message names `{x}`, but `x` is not a parameter
+                severity: error
+                fix: Use in {braces} only the names of the parameters of the rule.
+              tsconfig-unreadable:
+                meaning: "Gate 1 or gate 2: the tsconfig does not exist, or does not parse"
+                severity: error
+                fix: Give --tsconfig, or tsconfig in the config, the path of a tsconfig that TypeScript can read.
+              core-not-found:
+                meaning: "Gate 1: the file of the core does not exist"
+                severity: error
+                fix: Create the core file, or give --core, or core in the config, its path.
+              type-error:
+                meaning: "Gate 1: `tsc` finds a type error in the core, with the tsconfig of the project"
+                severity: error
+                fix: Correct the type error at the line that the problem gives; do not suppress it.
+              core-not-satisfying:
+                meaning: "Gate 1: no export of the core `satisfies DomainCore`"
+                severity: error
+                fix: Export the core as export const core = { … } satisfies DomainCore, with one function for each operation.
+              direct-call:
+                meaning: "Gate 2: a shell file calls a function of the core directly, without `runOperation`"
+                severity: error
+                fix: Call the core through runOperation(core, operation, input), which checks the input and the answer.
+              suppressed-check:
+                meaning: "Gate 2: a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`"
+                severity: error
+                fix: Remove the @ts- comment and correct the type error that it hides.
+              feature-syntax:
+                meaning: "Gate 3: a `.feature` file does not parse"
+                severity: error
+                fix: Correct the Gherkin of the feature file at the line that the message gives.
+              unknown-name:
+                meaning: "Gate 3: a step names a part that the manifest does not have"
+                severity: error
+                fix: Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says.
+              uncovered-operation:
+                meaning: "Gate 3: no scenario runs an operation"
+                severity: error
+                fix: Add a scenario with When I run "<operation>" with:.
+              uncovered-output:
+                meaning: "Gate 3: no scenario of an operation ends with one of its outputs"
+                severity: error
+                fix: Add a scenario of the operation that ends with Then the output is "<output>".
+              uncovered-variant:
+                meaning: "Gate 3: no scenario reaches a variant of a union"
+                severity: error
+                fix: "Add a scenario whose table has a value of the variant: for a union with a tag, a value with that value of the tag."
+              uncovered-rule:
+                meaning: "Gate 3: no scenario breaks a rule of a definition"
+                severity: error
+                fix: Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".
+              drift:
+                meaning: "Gate 4: a generated file is not what `compile` writes now, or it is missing, or `compile` no longer writes it"
+                severity: error
+                fix: Run urn-forge compile, and do not edit a generated file by hand.
+              base-unreadable:
+                meaning: "Gate 5: the folder is not in a git repository, or the ref is not a commit"
+                severity: error
+                fix: Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists.
+              removed-rule:
+                meaning: "Gate 5: a rule of the base is gone"
+                severity: by-version
+                fix: Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
+              wider-rule:
+                meaning: "Gate 5: a rule accepts more than at the base"
+                severity: by-version
+                fix: Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
+              removed-output:
+                meaning: "Gate 5: an output of the base is gone"
+                severity: by-version
+                fix: Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
+              removed-scenario:
+                meaning: "Gate 5: a scenario of the base is gone"
+                severity: by-version
+                fix: Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
+              internal-contract:
+                meaning: "urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge"
+                severity: error
+                fix: "Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it."
 
   describe_standard_rule:
     description: A standard rule, with its parameters, what it checks and what its failure says
@@ -1549,7 +1706,7 @@ operations:
             gate_codes: [direct-call, suppressed-check, tsconfig-unreadable]
           "3":
             gate_name: gherkin
-            gate_check: "A step names an unknown part, or an operation, an output or a rule has no scenario"
+            gate_check: "A step names an unknown part, or an operation, an output, a variant or a rule has no scenario"
             gate_codes: [unknown-name, feature-syntax, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule]
           "4":
             gate_name: drift
@@ -1557,7 +1714,7 @@ operations:
             gate_codes: [drift]
           "5":
             gate_name: contract
-            gate_check: "Only with `--base <ref>`: a rule, an output or a scenario of the ref is gone, or a rule accepts more, and the version does not allow it"
+            gate_check: "Only with `--base <ref>`: the ref cannot be read, or a rule, an output or a scenario of the ref is gone, or a rule accepts more, and the version does not allow it"
             gate_codes: [removed-rule, wider-rule, removed-output, removed-scenario, base-unreadable]
 
   fill_message:

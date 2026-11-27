@@ -149,9 +149,12 @@ describe('the meaning of each item in self/', () => {
     return (uses.find((u) => typeof u === 'object' && u !== null && rule in u) as Record<string, Record<string, unknown>>)[rule]!;
   };
 
-  it('gives each code its fix, and the fix of src/codes.ts keeps it', () => {
-    expect(Object.keys(meanings('fix_of', 'code_fix', 'is_the_fix'))).toEqual(Object.keys(CODES));
-    for (const code of Object.keys(CODES) as (keyof typeof CODES)[]) expect(decide('fix_of', { code }).value.fix).toBe(CODES[code].fix);
+  it('gives each code its meaning, severity and fix, and src/codes.ts keeps them', () => {
+    expect(Object.keys(meanings('fix_of', 'code_fix', 'is_the_code'))).toEqual(Object.keys(CODES));
+    for (const code of Object.keys(CODES) as (keyof typeof CODES)[]) {
+      const { value } = decide('fix_of', { code });
+      expect({ meaning: value.meaning, severity: value.severity, fix: value.fix }).toEqual(CODES[code]);
+    }
   });
 
   it('gives each standard rule its parameters and texts, and the standard set keeps them', () => {

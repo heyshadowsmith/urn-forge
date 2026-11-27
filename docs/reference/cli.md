@@ -3,7 +3,7 @@
 Run `npx urn-forge <command>` in a project where urn-forge is installed. These are the first lines of `npx urn-forge --help`:
 
 ```
-urn-forge 0.2.1
+urn-forge 0.2.2
 
 Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
@@ -124,26 +124,44 @@ domain.manifest.yaml:75  error  rule-guard  over_express_limit: input.express ca
 
 Each code has one fix, which the output shows on the line below the problem. `node_modules/urn-forge/AGENTS.md` lists each code with its fix.
 
-| Code | Cause |
-| --- | --- |
-| `usage` | The command line is wrong (only with `--format json`; as text, the usage shows) |
-| `manifest-unreadable`, `config-unreadable` | The manifest file, or the file that `--config` names, does not exist |
-| `config-invalid` | The config does not load, or an option is unknown or of the wrong type |
-| `yaml-syntax` | The file is not valid YAML, or a map has one key two times |
-| `manifest-shape` | A key that is not allowed, a key that is not there, or a value of the wrong shape |
-| `unknown-definition`, `unknown-property`, `unknown-rule` | A name that the manifest does not have |
-| `type-cycle` | A chain of `type` names goes back to its start |
-| `duplicate-property`, `duplicate-output` | A list names a property or an output two times |
-| `invalid-identifier` | The identifier is not a required property with one value |
-| `not-an-object` | The input or an output is not an object |
-| `deprecated-use` (warning) | A live part uses a deprecated part |
-| `standard-name` | A rule of the manifest has the name of a standard rule |
-| `rule-argument` | An argument does not agree with the parameters of the rule |
-| `invalid-message` | A message names `{x}`, but `x` is not a parameter |
-| `rule-syntax` | The rule does not parse, or uses a form that is not in [the rule language](./manifest#the-rule-language). urn-forge gives this error at the line of `rule:`, with the column. It gives the other rule errors at the line where you apply the rule |
-| `rule-type` | A type in the rule is wrong, the rule does not give a `bool`, or `has()` reads a required property |
-| `rule-guard` | The rule reads an optional property without `has()` |
-| `rule-scope` | The rule reads a name that is not available where you apply the rule, such as `output` in a rule of a definition |
-| `removed-rule`, `wider-rule`, `removed-output`, `removed-scenario` | Gate 5: the contract is weaker than at the base, and the version does not allow it |
-| `internal-contract` | urn-forge broke its own contract: an answer of urn-forge itself does not keep a rule of urn-forge's contract, `self/domain.manifest.yaml`. This is a bug of urn-forge |
-| `base-unreadable` | Gate 5: the folder is not in a git repository, or the ref is not a commit. In CI, fetch the base branch |
+| Code | Severity | Cause |
+| --- | --- | --- |
+| `usage` | error | The command line is wrong |
+| `config-unreadable`, `manifest-unreadable` | error | The manifest file, or the file that `--config` names, does not exist |
+| `config-invalid` | error | The config does not load, or an option is unknown or of the wrong type |
+| `yaml-syntax` | error | The file is not valid YAML, or a map has one key two times |
+| `manifest-shape` | error | A key that is not allowed, a key that is not there, or a value of the wrong shape |
+| `unknown-definition`, `unknown-property`, `unknown-rule` | error | A name that the manifest does not have |
+| `type-cycle` | error | A chain of `type` names goes back to its start |
+| `duplicate-property`, `duplicate-output` | error | A list names a property or an output two times |
+| `not-an-object` | error | The input or an output is not an object |
+| `invalid-identifier` | error | The identifier is not a required property with one value |
+| `deprecated-use` | warning | A live part uses a deprecated part |
+| `standard-name` | error | A rule of the manifest has the name of a standard rule |
+| `rule-argument` | error | An argument does not agree with the parameters of the rule |
+| `rule-syntax` | error | The rule does not parse, or uses a form that is not in the rule language |
+| `rule-type` | error | A type in the rule is wrong, the rule does not give a `bool`, or `has()` reads a required property |
+| `rule-guard` | error | The rule reads an optional property without `has()` |
+| `rule-scope` | error | The rule reads a name that is not available where you apply the rule, such as `output` in a rule of a definition |
+| `invalid-message` | error | A message names `{x}`, but `x` is not a parameter |
+| `tsconfig-unreadable` | error | Gate 1 or gate 2: the tsconfig does not exist, or does not parse |
+| `core-not-found` | error | Gate 1: the file of the core does not exist |
+| `type-error` | error | Gate 1: `tsc` finds a type error in the core, with the tsconfig of the project |
+| `core-not-satisfying` | error | Gate 1: no export of the core `satisfies DomainCore` |
+| `direct-call` | error | Gate 2: a shell file calls a function of the core directly, without `runOperation` |
+| `suppressed-check` | error | Gate 2: a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` |
+| `feature-syntax` | error | Gate 3: a `.feature` file does not parse |
+| `unknown-name` | error | Gate 3: a step names a part that the manifest does not have |
+| `uncovered-operation` | error | Gate 3: no scenario runs an operation |
+| `uncovered-output` | error | Gate 3: no scenario of an operation ends with one of its outputs |
+| `uncovered-variant` | error | Gate 3: no scenario reaches a variant of a union |
+| `uncovered-rule` | error | Gate 3: no scenario breaks a rule of a definition |
+| `drift` | error | Gate 4: a generated file is not what `compile` writes now, or it is missing, or `compile` no longer writes it |
+| `base-unreadable` | error | Gate 5: the folder is not in a git repository, or the ref is not a commit |
+| `removed-rule` | by-version | Gate 5: a rule of the base is gone |
+| `wider-rule` | by-version | Gate 5: a rule accepts more than at the base |
+| `removed-output` | by-version | Gate 5: an output of the base is gone |
+| `removed-scenario` | by-version | Gate 5: a scenario of the base is gone |
+| `internal-contract` | error | urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge |
+
+A severity of `by-version` is a warning when the new version allows the change, and an error when it does not. `usage` comes as a problem only with `--format json`; as text, the usage shows. urn-forge gives `rule-syntax` at the line of `rule:`, with the column, and the other rule errors at the line where you apply the rule; [the rule language](./manifest#the-rule-language) lists each form. For `base-unreadable` in CI, fetch the base branch.
