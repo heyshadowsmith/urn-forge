@@ -156,7 +156,7 @@ Part 2 builds layer 1 and layer 5, and the construct that layer 1 needs. Each st
 | Layer 5 | The results: a failure, the result of `check` and of `runOperation` (a refused call is a union tagged by `kind`), a problem, and the report of `compile`, `verify` and `diff` with `--format json`. The CLI checks each report against `self/` before it writes it |
 | Sabotage 2 | The operation `find_uncovered_rules`: gate 3 finds the rules that no scenario breaks through the harness of `self/` |
 
-`self/` now has 13 operations and 206 scenarios.
+`self/` now has 13 operations and 207 scenarios. Gate 5 of `self/` found that `pattern` in place of `minLength` on `failure_text` removes a rule, so `failure_text` keeps both.
 
 Changes from the plan:
 

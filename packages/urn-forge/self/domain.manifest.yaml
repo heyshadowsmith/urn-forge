@@ -241,6 +241,7 @@ definitions:
     description: What a failure of a rule says, with each argument in braces, such as Must be at least {bound}
     type: string
     rules:
+      - minLength: 1
       - pattern: '\S'
 
   standard_rule_request:
