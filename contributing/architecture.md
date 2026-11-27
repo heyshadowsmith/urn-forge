@@ -86,19 +86,18 @@ The standard set is a manifest in the package: [`src/standard.manifest.yaml`](..
 
 ### Arguments
 
-`compileManifest` checks each argument against the rules of its parameter's definition. For example, `count` has `minimum: 0`, so `minLength: -1` is `rule-argument`. The compiler does not have its own code for this. `checksOf` in `src/compile.ts` transpiles the schemas and the checks of the generated file (`checksModule` in `code.ts`), and runs them with Valibot passed in as `v`. Thus an argument and a value obey the same code.
+`compileManifest` checks each argument against the rules of its parameter's definition. For example, `count` has `minimum: 0`, so `minLength: -1` is `rule-argument`. The compiler does not have its own code for this. `checksOf` in `src/compile.ts` transpiles the checks of the generated file (`checksModule` in `code.ts`), and runs them. Thus an argument and a value obey the same code.
 
 ## The generated file: `generate/`
 
-`generate` writes one TypeScript file, `domain.generated.ts`. `domain.generated.ts` imports one package, `valibot`, as `v`. `valibot` is a dependency of `urn-forge`.
+`generate` writes one TypeScript file, `domain.generated.ts`. It imports nothing.
 
 | Part | Made by | Content |
 | --- | --- | --- |
-| The header | `header` in `code.ts` | The comment, the fingerprint and `import * as v from 'valibot'` |
-| The helpers | `runtimeSource` in `code.ts` | The functions of `runtime.ts`, copied without `export` and without its import of `valibot`: `$eq`, `$in`, `$size`, `$timestamp`, `$holds`, `$rule`, `$validate` and the others. The type `Failure` stays exported |
+| The header | `header` in `code.ts` | The comment and the fingerprint |
+| The helpers | `runtimeSource` in `code.ts` | The functions of `runtime.ts` that the file uses, and the functions that they call, copied without `export`: `$eq`, `$in`, `$size`, `$timestamp`, `$holds` and the others. The type `Failure` stays exported |
 | The types | `types` in `code.ts` | A TypeScript type for each definition. `typeName` gives the name: `seat_booking` → `SeatBooking` |
-| The schemas | `schemasCode` in `code.ts` | A Valibot schema for each definition, `<Name>Schema`: `v.string()`, `v.number()`, `v.array()`, `v.strictObject()` with `v.optional()` for a property outside `required`. Each other rule is a `$rule`: a `v.check` whose requirement keeps the definition and the rule's name |
-| The checks | `checkFunctions` in `code.ts` | A `check_<definition>` function for each definition. It runs `$validate`, which parses with the schema and makes a `Failure` from each Valibot issue: a check by its rule's name, a wrong type as `type`, an unknown key as `properties`, and absent required keys as one `required` |
+| The checks | `checkFunctions` in `code.ts` | A `check_<definition>` function for each definition. It checks the structure first: a wrong type is `type`, a property that the object does not have is `properties`, and missing properties are one `required`. It checks each part with the check of the part's definition. Then, only if the structure and each part pass, it runs each rule of the definition, and a broken rule is a failure with the rule's name |
 | `Definitions` and `check` | `definitionsCode` in `code.ts` | The base, the items and the properties of each definition, for the Gherkin steps. `check(definition, value)` runs one check |
 | The harness | `operationsCode` in `code.ts` | `DomainCore`, `Operations`, `answer` and `runOperation` |
 

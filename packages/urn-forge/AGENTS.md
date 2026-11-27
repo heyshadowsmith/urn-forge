@@ -132,7 +132,6 @@ CEL and its standard extensions, for the types of a manifest. Each rule must giv
 | Export | What it is |
 | --- | --- |
 | `<Name>` | The TypeScript type of each definition |
-| `<Name>Schema` | A Valibot schema of each definition, with each rule; a Standard Schema |
 | `check(definition, value)` | `{ ok: true, domain, value }` or `{ ok: false, domain, failures }` |
 | `answer(output, value)` | What a function of the core returns |
 | `DomainCore` | The type of the core: one function for each operation |

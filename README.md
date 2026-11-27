@@ -25,7 +25,7 @@ An agent's change makes the code seat a cancelled booking:
 - **Without urn-forge**, `tsc` passes, because the answer is still a `Booking`. You release the bug.
 - **With urn-forge**, the generated harness, `runOperation`, checks each answer. In place of the wrong answer, it gives `ContractViolation` with the rule `was_confirmed`. If the agent then deletes the rule or its test, gate 5 fails the change. It passes only with a new version of the contract, which you see in the review.
 
-From the contract, urn-forge generates one TypeScript file. It has the types, a schema for each definition, and `runOperation`. `runOperation` checks each input before the code runs, and each answer after it.
+From the contract, urn-forge generates one TypeScript file. It has no dependency: the types, a check for each definition, and `runOperation`. `runOperation` checks each input before the code runs, and each answer after it.
 
 - `urn-forge verify` fails CI when the code, the shell, the scenarios or the generated files do not agree with the contract. It also fails when a change makes the contract weaker.
 - Each problem has a stable code and a fix, as text or JSON.
