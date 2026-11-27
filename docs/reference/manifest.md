@@ -37,7 +37,7 @@ The structure (`type`, `properties`, `items`, `values`, `keys`, `variants`, `tag
 | `boolean` | `true` or `false` | `boolean` |
 | `object` | Named properties, and no others | `interface` |
 | `array` | A list of items | `readonly T[]` |
-| `map` | Named values: each key is a text, and each value keeps the rules of `values` | `Readonly<Record<string, T>>` |
+| `map` | Named values: each key is a text, and each value keeps the rules of `values` | `{ readonly [key: string]: T }` |
 | `union` | A value of one of its variants | `A \| B` |
 
 There is no date type and no decimal type. A date is a `string` with `format: date`. A time is a `string` with `format: date-time` (`2026-11-24T19:00:00Z`). Money is an `integer` of its smallest unit, such as cents.

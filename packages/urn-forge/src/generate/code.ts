@@ -247,7 +247,7 @@ function types(model: Model, applications: readonly Application[]): string {
         lines.push(...doc, `export type ${name} = readonly ${typeName(definition.items!)}[];`, '');
         break;
       case 'map':
-        lines.push(...doc, `export type ${name} = Readonly<Record<string, ${typeName(definition.values!)}>>;`, '');
+        lines.push(...doc, `export type ${name} = { readonly [key: string]: ${typeName(definition.values!)} };`, '');
         break;
       case 'union':
         lines.push(...doc, `export type ${name} = ${variantsOf(definition).map(typeName).join(' | ')};`, '');

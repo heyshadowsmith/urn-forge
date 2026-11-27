@@ -390,7 +390,7 @@ function readOperation(read: Reader, name: string, value: unknown, path: Path): 
       } else if (isRecord(entry) && Object.keys(entry).length === 1) {
         const [key, uses] = Object.entries(entry)[0]!;
         const object = read.name(key, at);
-        const rules = read.ruleUses(uses ?? [], [...at, key]);
+        const rules = read.ruleUses(uses, [...at, key]);
         if (object !== undefined) outputs.push({ object, rules, path: at });
       } else {
         read.shape(at, `${show(at)} must be the name of an object, or a map of one object name to its rules`);

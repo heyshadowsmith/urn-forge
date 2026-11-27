@@ -43,7 +43,7 @@ function failures(value: unknown, rule?: string): Failure[] {
 describe('a map', () => {
   target.maps('has the type of a record of its values', () => {
     const c = compiled();
-    expect(generatedFile(c.model!, c.applications, 'domain.manifest.yaml', () => 'x')).toContain('export type Counts = Readonly<Record<string, Count>>;');
+    expect(generatedFile(c.model!, c.applications, 'domain.manifest.yaml', () => 'x')).toContain('export type Counts = { readonly [key: string]: Count };');
   });
 
   target.maps('checks each value with the check of its values, and each key with the check of its keys', () => {

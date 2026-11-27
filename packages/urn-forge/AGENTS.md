@@ -211,7 +211,7 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `config-invalid` | Change the config to use only the options of defineConfig, with the types that the message names. |
 | `manifest-unreadable` | Give --manifest, or manifest in the config, the path of a manifest that exists. |
 | `yaml-syntax` | Correct the YAML at the line that the problem gives. |
-| `manifest-shape` | Use only the keys that the message lists, with values of the type that it names; manifest.schema.json has the full shape. |
+| `manifest-shape` | Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key. |
 | `unknown-definition` | Add the definition to definitions:, or correct the name to one that is in definitions:. |
 | `type-cycle` | Give one definition of the cycle a base type (string, number, integer, boolean, object or array) in place of the name of another definition. |
 | `duplicate-property` | Remove the second copy of the name from properties:. |

@@ -3,7 +3,7 @@
 # not a copy. It declares the type name of a definition, the URN of a part, a URN namespace, the verdicts
 # of diff and of gate 5 on a version change, the direction of a new bound, the fix of each code, each
 # standard rule, the signatures of each function of the rule language, the steps of a scenario, the
-# verdict of a gate, and the failure message of a rule use. tests/self.test.ts keeps its vocabulary equal
+# verdict of a gate, the failure message of a rule use, and the language of a manifest. tests/self.test.ts keeps its vocabulary equal
 # to the package and to the pages that name it.
 manifest:
   namespace: urn-forge
@@ -240,7 +240,7 @@ definitions:
     description: What a failure of a rule says, with each argument in braces, such as Must be at least {bound}
     type: string
     rules:
-      - minLength: 1
+      - pattern: '\S'
 
   standard_rule_request:
     description: A standard rule that is asked for
@@ -411,6 +411,254 @@ definitions:
     rules:
       - required: [filled_text]
 
+  # The language of a manifest: the shape that the manifest reader accepts, key by key. A manifest that
+  # breaks it fails compile with manifest-shape. tests/agents.test.ts checks each manifest of the
+  # repository with it, and checks that the reader refuses what it refuses.
+  manifest:
+    description: A manifest, the contract of a domain - its header, and its definitions, rules and operations by name
+    type: object
+    properties:
+      - manifest: manifest_header
+      - definitions: definition_declarations
+      - rules: rule_declarations
+      - operations: operation_declarations
+    rules:
+      - required: [manifest]
+
+  manifest_header:
+    description: The header of a manifest, which names the domain and its version
+    type: object
+    properties:
+      - namespace: namespace_name
+      - domain: domain_name
+      - version
+      - compatibility
+    rules:
+      - required: [namespace, domain, version]
+
+  compatibility:
+    description: What the callers of the domain do with a part that they do not know
+    type: object
+    properties: [callers]
+    rules:
+      - required: [callers]
+
+  callers:
+    description: ignore-unknown - the callers ignore a property or an output that they do not know, so a new one is compatible
+    type: string
+    rules:
+      - enum: [ignore-unknown]
+
+  description:
+    description: What a part is, for a reader of the manifest - text with a character that is not a space
+    type: string
+    rules:
+      - pattern: '\S'
+
+  deprecated:
+    description: True when the part is deprecated - it still works, and each use of it in a live part gives a warning
+    type: boolean
+
+  definition_declarations:
+    description: The definitions of a manifest, by name
+    type: map
+    keys: definition_name
+    values: definition_declaration
+
+  definition_declaration:
+    description: A definition - the structure of a value, and the rules that each value keeps
+    type: object
+    properties:
+      - description
+      - type: type_reference
+      - properties: property_entries
+      - items: definition_name
+      - values: definition_name
+      - keys: definition_name
+      - tag: property_name
+      - variants
+      - identifier: property_name
+      - rules: rule_uses
+      - deprecated
+    rules:
+      - required: [description, type]
+      - structure_of_an_object
+      - structure_of_an_array
+      - structure_of_a_map
+      - structure_of_a_union
+
+  type_reference:
+    description: >-
+      The type of a definition - string, number, integer, boolean, object, array, map or union, or the name
+      of another definition, whose structure it has
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
+
+  property_name:
+    description: The name of a property of an object
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
+
+  property_entries:
+    description: The properties of an object, in their order
+    type: array
+    items: property_entry
+
+  property_entry:
+    description: A property - the name of its definition, or a name with its own definition
+    type: union
+    variants: [definition_name, property_with_definition]
+
+  property_with_definition:
+    description: A property with its own definition, such as { address - street_address } in YAML flow form
+    type: map
+    keys: property_name
+    values: definition_name
+    rules:
+      - one_entry
+
+  variants:
+    description: The variants of a union - a list of definitions of different JSON types, or, with a tag, each value of the tag to its object variant
+    type: union
+    variants: [variant_list, tagged_variants]
+
+  variant_list:
+    description: The variants of a union with no tag, at most one of each JSON type
+    type: array
+    items: definition_name
+
+  tagged_variants:
+    description: The variants of a union with a tag - each value of the tag to its object variant
+    type: map
+    values: definition_name
+
+  rule_uses:
+    description: The rules that a part applies, by name, in their order
+    type: array
+    items: rule_use
+
+  rule_use:
+    description: A rule applied by name - the name alone, or the name with its argument
+    type: union
+    variants: [rule_use_name, rule_with_argument]
+
+  rule_use_name:
+    description: The name of a rule in a use - a rule of the manifest, or a standard rule, whose names are camelCase
+    type: string
+    rules:
+      - pattern: '^[a-z][A-Za-z0-9_]{0,62}$'
+
+  rule_with_argument:
+    description: A rule with its argument, such as minimum - 1, or between - { low - 1, high - 9 }
+    type: map
+    keys: rule_use_name
+    values: argument
+    rules:
+      - one_entry
+
+  argument:
+    description: The argument of a rule use - any JSON value, which compile checks against the parameters of the rule
+    type: union
+    variants: [argument_string, argument_number, argument_flag, argument_list, argument_map]
+
+  argument_string:
+    description: An argument that is a string
+    type: string
+
+  argument_number:
+    description: An argument that is a number
+    type: number
+
+  argument_flag:
+    description: An argument that is true or false
+    type: boolean
+
+  argument_list:
+    description: An argument that is a list
+    type: array
+    items: argument
+
+  argument_map:
+    description: An argument that is a map, such as the arguments of the parameters of a rule by name
+    type: map
+    values: argument
+
+  rule_declarations:
+    description: The rules of a manifest, by name
+    type: map
+    keys: rule_name
+    values: rule_declaration
+
+  rule_name:
+    description: The name of a rule of a manifest, in lowercase snake_case
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
+
+  rule_declaration:
+    description: A rule - an expression of the rule language, its parameters, and what its failure says
+    type: object
+    properties:
+      - description
+      - parameters: parameter_names
+      - rule: rule_text
+      - failure_message: failure_text
+      - deprecated
+    rules:
+      - required: [description, rule, failure_message]
+
+  rule_text:
+    description: An expression of the rule language that gives true when the value keeps the rule
+    type: string
+    rules:
+      - pattern: '\S'
+
+  operation_declarations:
+    description: The operations of a manifest, by name
+    type: map
+    keys: operation_name
+    values: operation_declaration
+
+  operation_name:
+    description: The name of an operation of a manifest, in lowercase snake_case
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
+
+  operation_declaration:
+    description: An operation - its input, its outputs, and the rules of each answer
+    type: object
+    properties:
+      - description
+      - input: definition_name
+      - output: output_entries
+      - rules: rule_uses
+      - deprecated
+    rules:
+      - required: [description, input, output]
+
+  output_entries:
+    description: The outputs of an operation - the core answers exactly one of them
+    type: array
+    items: output_entry
+    rules:
+      - minItems: 1
+
+  output_entry:
+    description: An output - the name of its object, or the name with the rules of the output
+    type: union
+    variants: [definition_name, output_with_rules]
+
+  output_with_rules:
+    description: An output with its rules, such as booked - [deposit_paid]
+    type: map
+    keys: definition_name
+    values: rule_uses
+    rules:
+      - one_entry
+
 rules:
   is_the_type_name:
     description: >-
@@ -556,6 +804,31 @@ rules:
       (!input.message_text.contains('{' + a.argument_name + '}') || output.filled_text.contains(a.argument_text))) &&
       (size(input.message_arguments) > 0 || output.filled_text == input.message_text)
     failure_message: A parameter in braces is not its argument
+
+  one_entry:
+    description: A name with its value is a map of exactly one entry
+    rule: size(self) == 1
+    failure_message: Must be one name with its value
+
+  structure_of_an_object:
+    description: An object needs properties; properties and identifier are only for type object
+    rule: "self.type == 'object' ? has(self.properties) : !has(self.properties) && !has(self.identifier)"
+    failure_message: An object needs properties, and only an object has properties or an identifier
+
+  structure_of_an_array:
+    description: An array needs items; items are only for type array
+    rule: "self.type == 'array' ? has(self.items) : !has(self.items)"
+    failure_message: An array needs items, and only an array has items
+
+  structure_of_a_map:
+    description: A map needs values; values and keys are only for type map
+    rule: "self.type == 'map' ? has(self.values) : !has(self.values) && !has(self.keys)"
+    failure_message: A map needs values, and only a map has values or keys
+
+  structure_of_a_union:
+    description: A union needs variants; variants and a tag are only for type union
+    rule: "self.type == 'union' ? has(self.variants) : !has(self.variants) && !has(self.tag)"
+    failure_message: A union needs variants, and only a union has variants or a tag
 
 operations:
   to_type_name:
