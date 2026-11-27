@@ -144,3 +144,32 @@ The sabotages of part 1, each caught:
 9. A union of a string and a number that takes a bool → `tests/unions.test.ts`.
 
 Sabotages 2 and 4 belong to part 2.
+
+## What was built: part 2
+
+Part 2 builds layer 1 and layer 5, and the construct that layer 1 needs. Each step is one commit, and each commit is green. Layer 4 (the rule tree) and step 7b (the meaning of each item of the vocabulary) are left for a later plan: step 7b needs map literals in the rule language.
+
+| Step | Result |
+| --- | --- |
+| Decision 14 | A property can have its own definition: `- address: street_address` in `properties`. The reader, the model, the types, the checks, the rule language, the Gherkin tables, gate 3 and `diff` follow it. `diff` reports a property whose definition changed |
+| 6 | Layer 1: the definition `manifest` of `self/` states each key of a manifest and its rules. `manifest.schema.json`, its editor line in the starter, and Ajv are gone. The schema test checks each manifest of the repository with `self/`, and checks that the reader refuses each value that `self/` refuses |
+| Layer 5 | The results: a failure, the result of `check` and of `runOperation` (a refused call is a union tagged by `kind`), a problem, and the report of `compile`, `verify` and `diff` with `--format json`. The CLI checks each report against `self/` before it writes it |
+| Sabotage 2 | The operation `find_uncovered_rules`: gate 3 finds the rules that no scenario breaks through the harness of `self/` |
+
+`self/` now has 13 operations and 206 scenarios.
+
+Changes from the plan:
+
+- **Decision 14 is new.** A manifest reuses keys with different types: `rules` is a map at the top and a list in a definition, and `domain` is a name in the header and a URN in a result. Without a property of its own definition, `self/` could not state a manifest exactly.
+- **The reader stays.** `self/` states the shape of a manifest, and the reader of `compile` keeps its own code, so that each message tells what to change. A test keeps the two equal.
+- **The JSON report has no `null`.** A manifest has no null, so a key that does not apply is now absent. An output entry with no rules is now `- order`, not `- order:` with no value; no manifest used it.
+- **A map's type is an index signature**, `{ readonly [key: string]: T }`, in place of `Readonly<Record<string, T>>`: TypeScript refuses a `Record` that holds itself through a union, and the JSON value of a rule argument does.
+- **A table of a tagged union** is read as the variant that its tag column names, so that a scenario can check a refused call.
+- **The flags `ok: true` and `ok: false` are rules** (`is_true`, `is_false`): the standard `const` takes only a string.
+- **Not stated:** that the variants of a union with a tag are a map, and with no tag a list. No form of the rule language tells the JSON type of an untagged union.
+- **Editors lose the schema of the manifest.** The editor line of the starter pointed to `manifest.schema.json`. `compile` gives each problem of shape with its fix.
+
+The sabotages of part 2:
+
+2. Gate 3 that skips the rule `minimum` → at first, no test failed: `judge_gate` judges the problems, and nothing stated which rules gate 3 must report. With `find_uncovered_rules`, the same change in `uncoveredRules` fails its scenario, and 5 tests of gate 3 stop with `internal-contract`.
+4. A tagged union that checks each value with its first variant → `tests/unions.test.ts`.

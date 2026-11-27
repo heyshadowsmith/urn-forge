@@ -2,7 +2,7 @@
 
 This page is for you. The agent reads the same facts, in a shorter form, in `node_modules/urn-forge/AGENTS.md`.
 
-The manifest is one YAML file, `domain.manifest.yaml` by default. It has four top-level sections. Only `manifest` is required. If a key is not on this page, `compile` stops with `manifest-shape`. The [booking example](#example) at the end of this page uses all constructs.
+The manifest is one YAML file, `domain.manifest.yaml` by default. It has four top-level sections. Only `manifest` is required. If a key is not on this page, `compile` stops with `manifest-shape`. The definition `manifest` in `node_modules/urn-forge/self/domain.manifest.yaml` states each key and its rules, as a manifest itself. The [booking example](#example) at the end of this page uses all constructs.
 
 | Section | Holds |
 | --- | --- |
