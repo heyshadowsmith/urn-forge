@@ -59,7 +59,6 @@ An npm-workspaces monorepo:
 | [`packages/urn-forge/tutorial`](packages/urn-forge/tutorial) | The result of each part of the tutorial: a shipping quote |
 | [`packages/urn-forge/templates/starter`](packages/urn-forge/templates/starter) | The project that `urn-forge init` writes |
 | [`packages/urn-forge/example`](packages/urn-forge/example), [`insurance`](packages/urn-forge/insurance), [`self`](packages/urn-forge/self) | More domains: a math example, an insurance domain with Postgres, and the compiler functions of urn-forge |
-| [`contracts`](contracts) | Six contracts of real domains. Each promise in them has a status |
 | [`docs`](docs) | The VitePress documentation site |
 | [`contributing`](contributing) | Guides for people who change urn-forge. Start at [CONTRIBUTING.md](CONTRIBUTING.md) |
 | [`planning`](planning) | Plans and decisions. We do not publish them |
@@ -81,7 +80,6 @@ npm run verify:insurance         # urn-forge verify on the insurance domain
 npm run test:features:insurance  # cucumber-js on the insurance domain
 npm run verify:tutorial          # urn-forge verify on the three parts of the tutorial
 npm run test:features:tutorial   # cucumber-js on the three parts of the tutorial
-npm run corpus                   # the share of the promises of the corpus that are declared
 npm run diff:base --workspace urn-forge -- origin/main  # urn-forge diff of each domain against origin/main
 npm run docs:dev                 # the docs site with live reload, on http://localhost:5173
 npm run docs:build               # a static build of the docs site

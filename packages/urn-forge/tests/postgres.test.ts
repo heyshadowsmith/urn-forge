@@ -256,7 +256,6 @@ describe('every committed schema of the repository', () => {
   const files = [
     'tests/fixtures/booking/generated/schema.generated.sql',
     'insurance/generated/schema.generated.sql',
-    ...['bookings', 'claims', 'inventory', 'payments', 'subscriptions', 'ticketing'].map((c) => `../../contracts/${c}/src/generated/schema.generated.sql`),
   ];
   it.each(files)('%s runs on PGlite', async (file) => {
     const db = new PGlite();

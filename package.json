@@ -25,7 +25,6 @@
     "pack:tarball": "npm pack --workspace urn-forge",
     "test:tarball": "npm run test:tarball --workspace urn-forge",
     "verify:insurance": "npm run verify:insurance --workspace urn-forge",
-    "test:features:insurance": "npm run test:features:insurance --workspace urn-forge",
-    "corpus": "npm run corpus --workspace urn-forge"
+    "test:features:insurance": "npm run test:features:insurance --workspace urn-forge"
   }
 }

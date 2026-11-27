@@ -16,7 +16,6 @@ Commands run from `packages/urn-forge`, except where a step says the root folder
 | --- | --- | --- |
 | A sample domain | `packages/urn-forge/<name>/` | A real use of constructs that the other domains do not use together. `insurance` has times, amounts in cents, a stored record in the input, events in the outputs and a Postgres schema |
 | A tutorial snapshot | `packages/urn-forge/tutorial/<n>-<name>/` | The shipping domain in three steps, from init to the edges. The tarball test runs its end state |
-| A contract of the corpus | `contracts/<name>/` | A real contract, with a `promises.yaml` that the corpus scores. Refer to [CONTRIBUTING.md](../CONTRIBUTING.md), the section "The contract corpus" |
 | `self/` | `packages/urn-forge/self/` | urn-forge's own functions. Refer to [Dogfooding](./dogfooding.md) |
 
 A domain is not a fixture. A fixture tests one part of urn-forge with Vitest. Refer to [Add a test fixture](./add-a-fixture.md).
@@ -72,7 +71,6 @@ Each of these files lists the domains. Add the new domain to each:
    - the domain in the `determinism` job: `npm run compile:<name>` and `npm run verify:<name>`.
 7. `README.md`: a row in the table of the layout, and the commands in the list of commands.
 
-A contract of the corpus needs none of these. The `corpus` job of CI finds each folder in `contracts/`.
 
 ## Run the checks
 

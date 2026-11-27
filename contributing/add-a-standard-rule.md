@@ -17,7 +17,7 @@ The standard set is decision 19 of the [redesign notes](../planning/manifest-red
 1. It is a keyword of JSON Schema. It has the name and the meaning that JSON Schema gives it.
 2. It passes the three tests of decision 10 of the [contract completeness roadmap](../planning/contract-completeness-roadmap.md). A keyword for one domain is not a standard rule.
 3. No standard rule states it already. For example, a choice of numbers is `minimum` and `maximum`, or a rule of the user. It is not a new keyword.
-4. A real manifest needs it. Name the manifest, or the promise of the corpus, in the pull request.
+4. A real manifest needs it. Name the manifest in the pull request.
 
 If the keyword fails a test, the user declares the rule in the manifest. [Add a rule](../packages/urn-forge/AGENTS.md) shows how.
 
@@ -98,7 +98,7 @@ The booking fixture is the target of the redesign, and its coverage is `error`. 
 A manifest rule cannot have the name of a standard rule (`standard-name`). A new name in lowercase, such as `const`, can thus stop a manifest that compiled before. Search the domains, the fixture, the starter and the contracts for a part with the new name. The search also finds definitions, which do not clash:
 
 ```bash
-grep -rn "^  <name>:" --include=domain.manifest.yaml example self insurance tutorial templates tests ../../contracts
+grep -rn "^  <name>:" --include=domain.manifest.yaml example self insurance tutorial templates tests
 ```
 
 If a manifest has one, rename its rule in the same pull request.

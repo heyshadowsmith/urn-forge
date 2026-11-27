@@ -177,7 +177,6 @@ The tests are in `packages/urn-forge/tests`:
 | `postgres.test.ts` | The schema of the fixture runs on PGlite, and its `CHECK` constraints refuse what the rules refuse |
 | `diff.test.ts` | Each change of `diff`, and the version rule |
 | `starter.test.ts` | The starter of `init` |
-| `corpus.test.ts` | The checker and the score of the corpus |
 
 Most tests read [the booking fixture](../packages/urn-forge/tests/fixtures/booking). Tests of mistakes write small manifests inline.
 

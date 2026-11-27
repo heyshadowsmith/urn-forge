@@ -28,8 +28,7 @@
     "test:features:insurance": "cucumber-js --profile insurance",
     "test:features:tutorial": "cucumber-js --profile tutorial-1 && cucumber-js --profile tutorial-2 && cucumber-js --profile tutorial-3",
     "test:tarball": "node scripts/test-tarball.mjs",
-    "diff:base": "node scripts/diff-base.mjs",
-    "corpus": "node --import tsx scripts/corpus.ts"
+    "diff:base": "node scripts/diff-base.mjs"
   },
   "dependencies": {
     "@cucumber/cucumber": "^13.3.0",
