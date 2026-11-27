@@ -373,6 +373,31 @@ definitions:
     type: array
     items: gate_problem
 
+  gate_check:
+    description: What makes a gate fail, in one line, as AGENTS.md says it
+    type: string
+    rules:
+      - pattern: '\S'
+
+  gate_codes:
+    description: The codes of the problems that a gate reports
+    type: array
+    items: code
+    rules:
+      - uniqueItems
+
+  gate_meaning:
+    description: "What a gate is: its name, what makes it fail, and the codes of the problems that it reports"
+    type: object
+    properties: [gate_name, gate_check, gate_codes]
+    rules:
+      - required: [gate_name, gate_check, gate_codes]
+
+  gate_meanings:
+    description: Each gate, by its number from 1 to 5, and what it is
+    type: map
+    values: gate_meaning
+
   gate_facts:
     description: A gate and the problems that it found in a project
     type: object
@@ -1174,6 +1199,12 @@ rules:
     rule: output.gate_number == input.gate_number && output.gate_name == ['completeness', 'boundary', 'gherkin', 'drift', 'contract'][input.gate_number - 1]
     failure_message: The answer names another gate
 
+  reports_its_codes:
+    description: Each problem of a gate has one of the codes of that gate, as the contract states them for each gate
+    parameters: [gate_meanings]
+    rule: input.gate_problems.all(p, p.code in gate_meanings[string(input.gate_number)].gate_codes)
+    failure_message: A problem of the gate has a code that the gate does not report
+
   passes_with_no_error:
     description: A gate passes when none of its problems is an error; a warning does not fail it
     rule: "!input.gate_problems.exists(p, p.severity == 'error')"
@@ -1470,6 +1501,29 @@ operations:
     output:
       - gate_passed: [names_the_gate, passes_with_no_error]
       - gate_failed: [names_the_gate, fails_with_an_error]
+    rules:
+      # Each gate: what makes it fail, and the codes of the problems that it reports.
+      - reports_its_codes:
+          "1":
+            gate_name: completeness
+            gate_check: "`tsc` fails over the core, or no export `satisfies DomainCore`"
+            gate_codes: [type-error, core-not-satisfying, core-not-found, tsconfig-unreadable]
+          "2":
+            gate_name: boundary
+            gate_check: "The shell calls the core without `runOperation`, or a file suppresses a type check"
+            gate_codes: [direct-call, suppressed-check, tsconfig-unreadable]
+          "3":
+            gate_name: gherkin
+            gate_check: "A step names an unknown part, or an operation, an output or a rule has no scenario"
+            gate_codes: [unknown-name, feature-syntax, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule]
+          "4":
+            gate_name: drift
+            gate_check: "A generated file is not what `compile` writes now"
+            gate_codes: [drift]
+          "5":
+            gate_name: contract
+            gate_check: "Only with `--base <ref>`: a rule, an output or a scenario of the ref is gone, or a rule accepts more, and the version does not allow it"
+            gate_codes: [removed-rule, wider-rule, removed-output, removed-scenario, base-unreadable]
 
   fill_message:
     description: The failure message of a use of a rule, with its arguments in place, as a failure gives it

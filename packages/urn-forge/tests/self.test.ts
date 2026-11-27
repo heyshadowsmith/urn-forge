@@ -160,6 +160,22 @@ describe('the meaning of each item in self/', () => {
     for (const name of Object.keys(rules)) expect(decide('describe_standard_rule', { standard_rule_name: name as never }).value.failure_text).toBe(rules[name]!.failureMessage);
   });
 
+  it('gives each gate what makes it fail and its codes, as AGENTS.md and the reference say', () => {
+    const manifest = parse(read('self/domain.manifest.yaml')) as { operations: Record<string, { rules: Record<string, Record<string, { gate_name: string; gate_check: string; gate_codes: string[] }>>[] }> };
+    const gates = manifest.operations['judge_gate']!.rules.find((u) => 'reports_its_codes' in u)!['reports_its_codes']!;
+    expect(Object.values(gates).map((g) => g.gate_name)).toEqual([...GATES]);
+    const agents = read('AGENTS.md');
+    const reference = readFileSync(new URL('../../../docs/reference/cli.md', import.meta.url), 'utf8');
+    for (const [n, g] of Object.entries(gates)) {
+      expect(agents, g.gate_name).toContain(`| ${n}. ${g.gate_name} | ${g.gate_check} |`);
+      // The reference gives the codes of each gate in its last column.
+      const row = reference.split('\n').find((l) => l.startsWith(`| ${n}. `))!;
+      expect(row.split('|').at(-2)!.trim(), g.gate_name).toBe(g.gate_codes.map((c) => `\`${c}\``).join(', '));
+    }
+    const all = Object.values(gates).flatMap((g) => g.gate_codes);
+    for (const code of all) expect(Object.keys(CODES)).toContain(code);
+  });
+
   it('gives each function its signatures, and the table of functions keeps them', () => {
     expect(Object.keys(meanings('signatures_of', 'function_signatures', 'are_the_signatures'))).toEqual(Object.keys(FUNCTIONS));
     for (const name of Object.keys(FUNCTIONS)) expect(decide('signatures_of', { function_name: name as never }).value.signature_text).toBe(signatures(name));
