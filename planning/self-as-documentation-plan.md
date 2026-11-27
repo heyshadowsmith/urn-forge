@@ -254,3 +254,40 @@ The sabotages of part 3, each caught:
 4. The fix of `drift` removed from the map → `tests/self.test.ts`.
 
 `self/` now has 13 operations and 208 scenarios. Layer 4, the rule tree, is still open.
+
+## Part 4: a manifest that a reader can find things in
+
+A cold-reader test checked `self/` as documentation. An agent got only `self/domain.manifest.yaml` and ten questions that a user or a coding agent asks. It answered all ten correctly, which the code confirms, but finding each answer was slow. It named three causes:
+
+1. **The meaning of an item is far from its list.** The codes are at line 195; their fixes are 1,100 lines lower, in the argument of a rule of `fix_of`, and nothing points from one to the other. The same holds for the standard rules and the functions.
+2. **Nothing links a gate to its codes.** A gate is only a name. What it checks, and which codes it reports, is not in `self/`.
+3. **The order is the order of the work.** The file has the sections in the order that the parts were built, and only some sections have a heading.
+
+It also found four defects: the fix of `type-cycle` does not list `map` and `union`; four fixes are two sentences, although a fix is one sentence; the description of the rule `keeps_the_version_or_a_stable_major` says that it checks the major, which another rule checks; and some descriptions write ` - ` in place of `:` (`minimum - 1`).
+
+### Decisions to confirm
+
+| # | Question | Recommendation | Why |
+| --- | --- | --- | --- |
+| 19 | Layer 4, the rule tree | **Do not build it. The unit tests of the rule language stay its proof** | It would add hundreds of small definitions to a file whose problem is finding things. The test showed the cost before the layer |
+| 20 | The meaning of each gate | **A map of each gate to what it checks and the codes that it reports, as the argument of a rule of `judge_gate`. The rule checks that each problem of the gate has one of its codes. `gateOutcome` already runs `judge_gate` with the problems of each real gate, so a gate that reports another code stops with `internal-contract`** | No new construct, and no new table in `src/`: the gates report their codes today, and the map states them. A test keeps the text of "what it checks" equal to the table of the gates in `AGENTS.md` |
+| 21 | A pointer from each list to its meaning | **The description of `code`, `standard_rule_name`, `function_name` and `gate_name` names the operation and the rule that give the meaning of each item** | One sentence each; it is the shortest path from the list to the map |
+| 22 | The order of the file | **One heading comment for each section, in the order a reader needs: the vocabulary, the decisions, the language of a manifest, the results; then the rules, then the operations. The operations keep the maps of meanings** | Order does not change the contract: `diff` and gate 5 compare by name |
+| 23 | One sentence for each fix | **The four fixes of gate 5 become one sentence each, and `fix_is_a_sentence` also refuses a period followed by a space and a capital letter inside the fix** | The rule then checks what its description says |
+| 24 | The version | **The package and `self/` go to 0.2.1** | A new text of a fix changes the argument of `is_the_fix`, and gate 5 refuses a changed argument at the same version: it cannot tell if the new text accepts more. Decision 13 keeps the two versions equal. The version is not on npm, so no user sees the bump |
+| 25 | A meaning for each code, apart from its fix | **Not in this part** | The cold reader asked for it, but `src/` has no such text, and a fix with its gate tells what the code is about. Add it when a reader still cannot tell a code from its fix and gate |
+
+### Build order
+
+| Step | Commit | Done when |
+| --- | --- | --- |
+| 1 | The four defects, the stronger `fix_is_a_sentence`, and the version 0.2.1 | `verify --base` of `self/` passes. `AGENTS.md`, the reference and the docs show the new fixes and version |
+| 2 | The meaning of each gate, and the test of its text against `AGENTS.md` | A gate that reports a code of another gate fails the scenario of `judge_gate`, and a real `verify` stops with `internal-contract` |
+| 3 | The pointers, the order and the headings | The graph of the manifest, made again, shows the same parts and references as before step 3 |
+| 4 | The cold-reader test again, with the same ten questions, and the plan notes | Each answer stays correct, and the agent reports less friction for questions 1, 4 and 10 |
+
+### Sabotages
+
+1. Make gate 2 report `drift` → the scenario of `judge_gate`, and a real `verify` stops with `internal-contract`.
+2. Write a fix as two sentences → the scenario of `fix_of`.
+3. Change what a gate checks in `AGENTS.md` and not in `self/` → the test of decision 20.
