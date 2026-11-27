@@ -111,7 +111,7 @@ The structure of a value gives two more rule names in a failure: `type` (a value
 
 ## The rule language
 
-CEL and its standard extensions, for the types of a manifest. Each rule must give a `bool`. CEL's own conformance tests check the language: `tests/conformance/` in the repository.
+CEL and its standard extensions, for the types of a manifest. Each rule must give a `bool`.
 
 - **Names:** `self`, `input`, `output`, the parameters of the rule, the variables of a macro, and `cel.bind(name, value, rule)`.
 - **Literals:** `5000`, `-1`, `0x1F`, `0.5`, `'text'`, `"text"`, `r'^[0-9]{4}$'`, `'''text'''`, `true`, `false`, `['a', 'b']`, `[]`.

@@ -58,7 +58,7 @@ The model does not type the rules. A rule has a type only where it is applied, b
 
 ## The rule language: `cel/`
 
-urn-forge parses CEL and its extensions itself, for the types of a manifest. A CEL library evaluates a rule, but urn-forge must also type each rule, translate it to SQL, compare it in `diff` and find its guards. Every rule that urn-forge accepts is valid CEL. CEL's conformance tests, in `tests/conformance/`, prove the result of each form.
+urn-forge parses CEL and its extensions itself, for the types of a manifest. A CEL library evaluates a rule, but urn-forge must also type each rule, translate it to SQL, compare it in `diff` and find its guards. Every rule that urn-forge accepts is valid CEL.
 
 | File | Job |
 | --- | --- |
@@ -168,7 +168,6 @@ The tests are in `packages/urn-forge/tests`:
 | `target.test.ts` | The booking fixture loads, and each kind of mistake stops it with its code at its place |
 | `model.test.ts` | The reader and the model: shape and names |
 | `cel.test.ts` | Parse, print, types and guards of the rule language |
-| `conformance.test.ts` | CEL's conformance tests, with the list of known gaps, which is empty |
 | `rule-forms.test.ts` | The forms that the plans added, and the agreement of their SQL with the generated check, on PGlite |
 | `rules.test.ts` | The standard set, arguments, and the names of each place |
 | `generated.test.ts` | The committed generated file of the fixture is current, and its checks and its harness keep the contract |
