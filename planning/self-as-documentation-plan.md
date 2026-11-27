@@ -418,3 +418,25 @@ A new description is not a change of the contract: `diff` of two manifests that 
 | --- | --- | --- |
 | 1 | The description of `code`, and the four descriptions | `diff` against `main` finds no change, and `verify --base` of `self/` passes |
 | 2 | The graph of the manifest, made again and published; the cold-reader question "Which command reports `rule-guard`, and what are the names that get `Value`?"; the plan notes | The reader answers from the file alone |
+
+## What was built: part 6
+
+| Step | Result |
+| --- | --- |
+| 1 | The description of `code` says which command reports a code that is in no gate. The descriptions of `is_the_type_name`, `is_the_step_of_its_text` and `matches_no_step` name the nine names that get `Value` and the seven forms of a step. `diff` against `main` finds no change |
+| 2 | The graph of the manifest, made again and published: 206 parts and 291 references. The cold-reader questions on the three gaps, and these notes |
+
+Changes from the plan:
+
+- **Three rules, not four.** The description of `direction_by_the_form` already names its four rules. The script that compared the texts missed it: the rule quotes the names, and the description does not.
+
+### The cold-reader test of part 6
+
+A fresh agent answered three questions from the file alone, all correctly. The names that get `Value` took one call, and the forms of a step took two. Which command reports `rule-guard` took five: the description of `code` gives the general sentence, and the reader must find that `rule-guard` is in no list of a gate. This is the cost of decision 32, one sentence and no map of each command to its codes.
+
+It also noted two things that are on purpose:
+
+- Some codes share one meaning, such as `unknown-definition`, `unknown-property` and `unknown-rule`, as the table of causes of the CLI reference groups them. Their fixes tell them apart.
+- `tsconfig-unreadable` is a code of gate 1 and of gate 2: each of them reads the tsconfig.
+
+The plan of urn-forge's own contract is complete. `self/` has 13 operations and 215 scenarios. Layer 4 is not built (decision 19), and the severity of the four codes of gate 5 is not checked (part 5).
