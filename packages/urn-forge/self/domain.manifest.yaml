@@ -207,6 +207,12 @@ definitions:
     rules:
       - required: [code]
 
+  fixes:
+    description: The fix of each code
+    type: map
+    keys: code
+    values: fix
+
   code_fix:
     description: A code and its fix
     type: object
@@ -1084,6 +1090,12 @@ rules:
     rule: output.code == input.code
     failure_message: The answer names another code
 
+  is_the_fix:
+    description: The fix is the fix of the code, as the contract states it for each code
+    parameters: [fixes]
+    rule: output.fix == fixes[input.code]
+    failure_message: The fix is not the fix of the code
+
   fix_is_a_sentence:
     description: A fix is one sentence, which starts with a capital letter and ends with a period
     rule: output.fix.endsWith('.') && output.fix.substring(0, 1) == output.fix.substring(0, 1).upperAscii() && output.fix.substring(0, 1) != output.fix.substring(0, 1).lowerAscii()
@@ -1246,7 +1258,52 @@ operations:
     description: The fix of a code, which each report of the code shows
     input: code_request
     output:
-      - code_fix: [names_the_code, fix_is_a_sentence]
+      - code_fix:
+          - names_the_code
+          - fix_is_a_sentence
+          # The fix of each code: what each report of the code tells to do.
+          - is_the_fix:
+              usage: Run urn-forge --help, and call the command with the arguments and options that it shows.
+              config-unreadable: Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts.
+              config-invalid: Change the config to use only the options of defineConfig, with the types that the message names.
+              manifest-unreadable: Give --manifest, or manifest in the config, the path of a manifest that exists.
+              yaml-syntax: Correct the YAML at the line that the problem gives.
+              manifest-shape: Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key.
+              unknown-definition: Add the definition to definitions:, or correct the name to one that is in definitions:.
+              type-cycle: Give one definition of the cycle a base type (string, number, integer, boolean, object or array) in place of the name of another definition.
+              duplicate-property: Remove the second copy of the name from properties:.
+              unknown-property: "Add the name to properties: of the object, or remove it from the rule."
+              not-an-object: "Make the input or the output of the operation a definition of type: object."
+              duplicate-output: Remove the second copy of the object from output:.
+              invalid-identifier: "Make the identifier a property of the object, list it in the required rule of the object, and give it one value: not an object or a list."
+              deprecated-use: "Use a definition or a rule that is not deprecated, or remove deprecated: true if it is still the right one."
+              standard-name: Give the rule of the manifest a name that is not the name of a standard rule.
+              unknown-rule: Add the rule to rules:, or correct the name to a rule of the manifest or a standard rule.
+              rule-argument: Give the rule an argument that its parameters accept, or no argument when the rule has no parameters.
+              rule-syntax: "Write the rule in the rule language of urn-forge: the names, operators, functions and macros of the reference."
+              rule-type: Change the rule so that each part has the type that the message names, and the rule gives a bool.
+              rule-guard: "Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) || self.x > 0."
+              rule-scope: "Use only the names that the message lists: self, input, output, the parameters of the rule, and the variable of a macro."
+              invalid-message: Use in {braces} only the names of the parameters of the rule.
+              tsconfig-unreadable: Give --tsconfig, or tsconfig in the config, the path of a tsconfig that TypeScript can read.
+              core-not-found: Create the core file, or give --core, or core in the config, its path.
+              type-error: Correct the type error at the line that the problem gives; do not suppress it.
+              core-not-satisfying: Export the core as export const core = { … } satisfies DomainCore, with one function for each operation.
+              direct-call: Call the core through runOperation(core, operation, input), which checks the input and the answer.
+              suppressed-check: Remove the @ts- comment and correct the type error that it hides.
+              feature-syntax: Correct the Gherkin of the feature file at the line that the message gives.
+              unknown-name: Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says.
+              uncovered-operation: Add a scenario with When I run "<operation>" with:.
+              uncovered-output: Add a scenario of the operation that ends with Then the output is "<output>".
+              uncovered-variant: "Add a scenario whose table has a value of the variant: for a union with a tag, a value with that value of the tag."
+              uncovered-rule: Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".
+              drift: Run urn-forge compile, and do not edit a generated file by hand.
+              base-unreadable: Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists.
+              removed-rule: "Put the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version."
+              wider-rule: "Put the argument or the text of the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version."
+              removed-output: "Put the output back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version."
+              removed-scenario: "Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version."
+              internal-contract: "Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it."
 
   describe_standard_rule:
     description: A standard rule, with its parameters, what it checks and what its failure says

@@ -12,7 +12,7 @@ import { CODES } from '../src/codes.js';
 import { STEPS } from '../src/gherkin/steps.js';
 import { standard } from '../src/rules.js';
 import { GATES } from '../src/verify/types.js';
-import { brokenBy } from '../src/self.js';
+import { brokenBy, decide } from '../src/self.js';
 import { check as selfCheck } from '../self/generated/domain.generated.js';
 import { readdirSync } from 'node:fs';
 
@@ -138,5 +138,19 @@ describe('the results in self/', () => {
     const error = { code: 'drift', severity: 'error', message: 'M', fix: 'F' };
     expect(brokenBy('verify_report', { ok: true, problems: [error] })).toMatch(/^urn-forge broke its own contract: an_error_fails of verify_report/);
     expect(brokenBy('compile_report', { ok: false, problems: [{ ...error, file: null }] })).toMatch(/at problems\[0\]\.file/);
+  });
+});
+
+describe('the meaning of each item in self/', () => {
+  // The argument of a rule use of an output of an operation of self/: a map of each item to its meaning.
+  const meanings = (operation: string, output: string, rule: string): Record<string, unknown> => {
+    const manifest = parse(read('self/domain.manifest.yaml')) as { operations: Record<string, { output: Record<string, unknown[]>[] }> };
+    const uses = manifest.operations[operation]!.output.find((o) => output in o)![output]!;
+    return (uses.find((u) => typeof u === 'object' && u !== null && rule in u) as Record<string, Record<string, unknown>>)[rule]!;
+  };
+
+  it('gives each code its fix, and the fix of src/codes.ts keeps it', () => {
+    expect(Object.keys(meanings('fix_of', 'code_fix', 'is_the_fix'))).toEqual(Object.keys(CODES));
+    for (const code of Object.keys(CODES) as (keyof typeof CODES)[]) expect(decide('fix_of', { code }).value.fix).toBe(CODES[code].fix);
   });
 });
