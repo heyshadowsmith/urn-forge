@@ -43,7 +43,7 @@ Run `npx urn-forge verify --format json`, then `npx cucumber-js`. Correct the fi
 | The config, `urn-forge.config.ts`, or the command | `usage`, `config-unreadable`, `config-invalid`, `manifest-unreadable`, `tsconfig-unreadable` |
 | The core | `core-not-found`, `core-not-satisfying`, `type-error` |
 | The shell: call the core through `runOperation(core, operation, input)` | `direct-call`, `suppressed-check` |
-| The scenarios | `feature-syntax`, `unknown-name`, `uncovered-operation`, `uncovered-output`, `uncovered-rule` |
+| The scenarios | `feature-syntax`, `unknown-name`, `uncovered-operation`, `uncovered-output`, `uncovered-variant`, `uncovered-rule` |
 | Nothing by hand: run `npx urn-forge compile` | `drift` |
 | Nothing: stop and ask (step 5) | `removed-rule`, `wider-rule`, `removed-output`, `removed-scenario` |
 | Nothing: stop, and tell the person that urn-forge has a bug | `internal-contract` |

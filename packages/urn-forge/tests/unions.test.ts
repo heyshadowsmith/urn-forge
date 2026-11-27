@@ -1,7 +1,7 @@
 /**
  * The target of unions (decisions 2, 3 and 11 of the plan of urn-forge's own contract): a tagged
- * union of object variants, a guard by the tag in the rule language, and a union of base types told
- * apart by their JSON type. Each test is it.fails until its step.
+ * union of object variants, each by the value of its tag; a guard by the tag in the rule language;
+ * and a union of base types told apart by their JSON type. Each test is it.fails until its step.
  */
 import { describe, expect, it } from 'vitest';
 import { checksOf, compileManifest } from '../src/compile.js';
@@ -9,18 +9,16 @@ import { generatedFile } from '../src/generate/code.js';
 import type { Failure } from '../src/generate/runtime.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { unions: it.fails };
+const target = { unions: it };
 
 const manifest = (rule = 'true') => `manifest: {namespace: test, domain: unions, version: 0.1.0}
 definitions:
   kind: {description: The kind of a shape, type: string, rules: [{enum: [circle, square]}]}
-  circle_kind: {description: The kind of a circle, type: kind, rules: [{enum: [circle]}]}
-  square_kind: {description: The kind of a square, type: kind, rules: [{enum: [square]}]}
   radius: {description: The radius of a circle, type: number, rules: [{exclusiveMinimum: 0}]}
   side: {description: The side of a square, type: number, rules: [{exclusiveMinimum: 0}]}
-  circle: {description: A circle, type: object, properties: [circle_kind, radius], rules: [{required: [circle_kind, radius]}]}
-  square: {description: A square, type: object, properties: [square_kind, side], rules: [{required: [square_kind, side]}]}
-  shape: {description: A circle or a square, type: union, tag: kind, variants: [circle, square]}
+  circle: {description: A circle, type: object, properties: [kind, radius], rules: [{required: [kind, radius]}]}
+  square: {description: A square, type: object, properties: [kind, side], rules: [{required: [kind, side]}]}
+  shape: {description: A circle or a square by its kind, type: union, tag: kind, variants: {circle: circle, square: square}}
   label: {description: A label, type: string}
   amount: {description: An amount, type: number}
   labels: {description: Labels, type: array, items: label}
@@ -87,7 +85,24 @@ describe('a union of base types', () => {
   target.unions('refuses two variants of one JSON type, and an object variant with no tag', () => {
     const two = compileManifest(manifest().replace('variants: [label, amount, labels]', 'variants: [label, kind]'));
     expect(two.diagnostics.map((d) => `${d.code}: ${d.message}`)).toContain('manifest-shape: argument: two variants are a string: label and kind; give a union one variant of each JSON type');
-    const untagged = compileManifest(manifest().replace('type: union, tag: kind, variants', 'type: union, variants'));
+    const untagged = compileManifest(manifest().replace('type: union, tag: kind, variants: {circle: circle, square: square}', 'type: union, variants: [circle, square]'));
     expect(untagged.diagnostics.map((d) => `${d.code}: ${d.message}`)).toContain('manifest-shape: shape: two variants are an object: circle and square; give the union a tag');
+  });
+});
+
+describe('gate 3 and a union', () => {
+  it('reports a variant that no scenario reaches', async () => {
+    const { gherkinGate } = await import('../src/verify/gherkin.js');
+    const c = compiled();
+    const feature = (shape: string): string => `Feature: Drawings\n\n  Scenario: A drawing\n    When I check a "drawing" with:\n      | shape   | argument |\n      | ${shape} | x        |\n    Then the value is accepted\n`;
+    const gaps = (text: string): string[] =>
+      gherkinGate({ model: c.model!, applications: c.applications, features: [{ path: 'features/drawing.feature', text }] } as never)
+        .problems.filter((p) => p.code === 'uncovered-variant')
+        .map((p) => p.message);
+    expect(gaps(feature('{"kind": "circle", "radius": 2}'))).toEqual([
+      'no scenario reaches the variant square of shape; add one whose table has a value of it',
+      'no scenario reaches the variant amount of argument; add one whose table has a value of it',
+      'no scenario reaches the variant labels of argument; add one whose table has a value of it',
+    ]);
   });
 });

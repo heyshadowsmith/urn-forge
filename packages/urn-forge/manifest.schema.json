@@ -127,7 +127,7 @@
         },
         "type": {
           "$ref": "#/$defs/name",
-          "description": "string, number, integer, boolean, object, array, map, or the name of another definition"
+          "description": "string, number, integer, boolean, object, array, map, union, or the name of another definition"
         },
         "properties": {
           "$ref": "#/$defs/names",
@@ -144,6 +144,24 @@
         "keys": {
           "$ref": "#/$defs/name",
           "description": "type: map: a string definition, with the rules of each key"
+        },
+        "tag": {
+          "$ref": "#/$defs/name",
+          "description": "type: union: the property of each object variant whose value names the variant"
+        },
+        "variants": {
+          "description": "type: union: a list of definitions of different JSON types, or, with a tag, each value of the tag to its object variant",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/names"
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/name"
+              }
+            }
+          ]
         },
         "identifier": {
           "$ref": "#/$defs/name",
@@ -237,6 +255,36 @@
                 {
                   "required": [
                     "keys"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "union"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "variants"
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "tag"
+                  ]
+                },
+                {
+                  "required": [
+                    "variants"
                   ]
                 }
               ]

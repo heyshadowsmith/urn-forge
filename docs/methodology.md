@@ -101,9 +101,14 @@ urn-forge has checked that the code keeps the contract. Your review is about the
 
 You do not need to read the generated files, the types of the code, or each rule in the code. The gates and the harness check them. Read the code of an operation only where you are not certain of an expected value, or where the code chooses between answers that are all permitted.
 
-## What the contract cannot state yet
+## What the contract cannot state
 
-A rule can use each form of [the rule syntax](/reference/syntax) on strings, numbers, bools, times, lists and maps: time zones, calendar months and check digits too. The contract cannot state one shape yet: either-or shapes. Put these rules in the code, with a refusal as an answer, and ask the agent for scenarios at their edges.
+A rule can use each form of [the rule syntax](/reference/syntax) on strings, numbers, bools, times, lists, maps and unions: time zones, calendar months and check digits too. Two kinds of promise are outside a rule:
+
+- **A promise across calls.** A rule reads one call: its input and its answer. Two calls that load one record at the same time, or a repeat of one request, can each keep the rules. Make the shell keep these promises, for example with a lock or a unique key of the database.
+- **A rule that calls itself.** A rule has no loop, so that it always ends. A rule can read each item of a list or a map, but it cannot follow a tree of any depth.
+
+Put these rules in the code or in the shell, with a refusal as an answer, and ask the agent for scenarios at their edges.
 
 ## The reference
 

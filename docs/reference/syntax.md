@@ -11,6 +11,7 @@ If a form is not in the language, `compile` stops with `rule-syntax`.
 | `bool` | A `boolean` | `true`, `false` |
 | `list(T)` | An `array` | `['main', 'dessert']`, `[]` |
 | `map(string, T)` | A `map` | none |
+| A union | A `union` with a `tag` | none; read its tag with `.` |
 | An object | An `object` | none; read its properties with `.` |
 | `timestamp`, `duration` | `timestamp(s)`, `duration(s)` | |
 
@@ -107,6 +108,10 @@ A timestamp is from the year 1 to the year 9999, to the millisecond, and a durat
 ## Optional properties
 
  If the object does not require a property, a rule must read it only after a guard. The guard is `has(self.deposit) && …` or `!has(self.deposit) || …`. If not, `compile` stops with `rule-guard`, before the rule can fail at run time.
+
+## Unions
+
+A rule reads the tag of a union with a tag at any time. It reads another property of a variant only after a test of the tag shows that variant, as a guard does: `self.shape.kind == 'circle' && self.shape.radius > 0`, or `self.shape.kind != 'circle' || self.shape.radius > 0`. If not, `compile` stops with `rule-guard`.
 
 ## Not in the language
 

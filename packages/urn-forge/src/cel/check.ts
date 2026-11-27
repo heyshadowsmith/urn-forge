@@ -20,6 +20,8 @@ export type CelType =
   | { readonly kind: 'map'; readonly of: CelType }
   /** The item of an empty list, `[]`: it fits each type. */
   | { readonly kind: 'any' }
+  /** A tagged union: the name of its definition. Its tag tells its variant. */
+  | { readonly kind: 'union'; readonly name: string }
   /** An object: the name of the definition that declares its properties. */
   | { readonly kind: 'object'; readonly name: string };
 
@@ -40,6 +42,8 @@ export interface PropertyType {
 export interface Scope {
   readonly names: Readonly<Record<string, CelType>>;
   readonly properties: (object: string) => Readonly<Record<string, PropertyType>> | undefined;
+  /** The tag of a tagged union, and the object variant of each value of the tag. */
+  readonly union?: (name: string) => { readonly tag: string; readonly variants: Readonly<Record<string, string>> } | undefined;
 }
 
 /** A problem in a rule: `rule-type`, `rule-guard` or `rule-scope`, with the offset of the node. */
@@ -66,7 +70,7 @@ function same(a: CelType, b: CelType): boolean {
   if (a.kind === 'any' || b.kind === 'any') return true;
   if (a.kind !== b.kind) return false;
   if (a.kind === 'list' || a.kind === 'map') return same(a.of, (b as typeof a).of);
-  if (a.kind === 'object') return a.name === (b as typeof a).name;
+  if (a.kind === 'object' || a.kind === 'union') return a.name === (b as typeof a).name;
   return true;
 }
 
@@ -94,6 +98,11 @@ function facts(expr: Expr, when: boolean): Set<string> {
   if (expr.kind === 'call' && expr.fn === 'has' && when) {
     const name = chain(expr.args[0]!);
     return new Set(name === undefined ? [] : [name]);
+  }
+  // x.tag == 'v' shows the variant of a tagged union: x.tag=v. So does x.tag != 'v' when it is false.
+  if (expr.kind === 'binary' && expr.op === (when ? '==' : '!=') && expr.left.kind === 'select' && expr.right.kind === 'string') {
+    const name = chain(expr.left);
+    return new Set(name === undefined ? [] : [`${name}=${expr.right.value}`]);
   }
   if (expr.kind === 'unary' && expr.op === '!') return facts(expr.operand, !when);
   if (expr.kind === 'binary' && expr.op === (when ? '&&' : '||')) return new Set([...facts(expr.left, when), ...facts(expr.right, when)]);
@@ -209,6 +218,7 @@ class Checker {
   private select(expr: Expr & { kind: 'select' }, names: Readonly<Record<string, CelType>>, guards: ReadonlySet<string>, inHas: boolean): CelType | undefined {
     const operand = this.type(expr.operand, names, guards);
     if (!operand) return undefined;
+    if (operand.kind === 'union') return this.variantProperty(expr, operand.name, guards);
     if (operand.kind !== 'object') return this.problem('rule-type', expr.at, `${print(expr.operand)} is a ${showType(operand)}, which has no property ${expr.field}`);
     const property = this.scope.properties(operand.name)?.[expr.field];
     if (!property) {
@@ -221,6 +231,28 @@ class Checker {
       if (name === undefined || !guards.has(name)) {
         return this.problem('rule-guard', expr.at, `${print(expr)} can be absent: read it after has(${print(expr)}) &&, or after !has(${print(expr)}) ||`);
       }
+    }
+    return property.type;
+  }
+
+  /** A property of a tagged union: its tag at any time; another property only after a test of the tag shows a variant that has it. */
+  private variantProperty(expr: Expr & { kind: 'select' }, union: string, guards: ReadonlySet<string>): CelType | undefined {
+    const info = this.scope.union?.(union);
+    if (!info) return this.problem('rule-type', expr.at, `${print(expr.operand)} is a ${union}, which has no property ${expr.field}`);
+    const variants = Object.entries(info.variants);
+    if (expr.field === info.tag) return this.scope.properties(variants[0]![1])?.[info.tag]?.type;
+    const operand = chain(expr.operand);
+    const shown = variants.find(([value]) => operand !== undefined && guards.has(`${operand}.${info.tag}=${value}`));
+    if (!shown) {
+      const having = variants.filter(([, v]) => this.scope.properties(v)?.[expr.field]).map(([value]) => `${print(expr.operand)}.${info.tag} == '${value}'`);
+      if (having.length === 0) return this.problem('rule-type', expr.at, `${expr.field} is not a property of a variant of ${union}`);
+      return this.problem('rule-guard', expr.at, `${print(expr)} is a property of one variant of ${union}: read it after ${having.join(' or ')} &&`);
+    }
+    const property = this.scope.properties(shown[1])?.[expr.field];
+    if (!property) return this.problem('rule-type', expr.at, `${expr.field} is not a property of ${shown[1]}, the variant of ${print(expr.operand)}.${info.tag} == '${shown[0]}'`);
+    if (property.optional) {
+      const name = chain(expr);
+      if (name === undefined || !guards.has(name)) return this.problem('rule-guard', expr.at, `${print(expr)} can be absent: read it after has(${print(expr)}) &&, or after !has(${print(expr)}) ||`);
     }
     return property.type;
   }

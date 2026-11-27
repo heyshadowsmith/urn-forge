@@ -39,6 +39,7 @@ export function cellValue(text: string, definition: string, definitions: Definit
     case 'boolean':
       return cell === 'true' ? true : cell === 'false' ? false : cell;
     case 'map':
+    case 'union':
       return json(cell)?.value ?? cell;
     case 'array': {
       const parsed = json(cell);

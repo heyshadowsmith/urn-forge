@@ -36,7 +36,7 @@ describe('definitions', () => {
     const [problem] = load('definitions:\n  sku:\n    description: A SKU\n    type: string\n    minLength: 1\n').diagnostics;
     expect(problem?.code).toBe('manifest-shape');
     expect(problem?.path).toEqual(['definitions', 'sku', 'minLength']);
-    expect(problem?.message).toContain('the keys are description, type, properties, items, values, keys, identifier, rules, deprecated');
+    expect(problem?.message).toContain('the keys are description, type, properties, items, values, keys, tag, variants, identifier, rules, deprecated');
   });
 
   it('give properties to type: object only, and items to type: array only', () => {

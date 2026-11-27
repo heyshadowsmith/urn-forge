@@ -49,6 +49,7 @@ export const CODES = {
   'unknown-name': { fix: 'Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says.' },
   'uncovered-operation': { fix: 'Add a scenario with When I run "<operation>" with:.' },
   'uncovered-output': { fix: 'Add a scenario of the operation that ends with Then the output is "<output>".' },
+  'uncovered-variant': { fix: 'Add a scenario whose table has a value of the variant: for a union with a tag, a value with that value of the tag.' },
   'uncovered-rule': { fix: 'Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".' },
 
   // Gate 4: the generated files.
