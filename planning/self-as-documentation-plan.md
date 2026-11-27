@@ -108,3 +108,38 @@ Each must turn CI red:
 - **A check on each call.** It makes each command slower. Decision 10 gives the limit.
 - **A wrong contract stops a real run.** If a rule of `self/` is wrong, a correct answer of urn-forge stops the user's command. The code `internal-contract` says so, and asks for an issue.
 - **Node-by-node rules are weaker than the whole.** Layer 4 states the checker node by node, so a wrong order of the nodes, or a wrong tree, is not found. The unit tests of the parser and the printer stay.
+
+## What was built: part 1
+
+Part 1 builds steps 0 to 5 and step 3b. Each step is one commit, and each commit is green. Part 2 builds the rest: layer 1 (the language of a manifest, which replaces `manifest.schema.json`), layer 4 (the rule tree), layer 5 (the results), and step 7b (the meaning of each item of the vocabulary).
+
+| Step | Result |
+| --- | --- |
+| 0 | `tests/maps.test.ts` and `tests/unions.test.ts`, with `it.fails` |
+| 1 and 2 | `self/` declares the vocabulary as enums (each code, standard rule, function, step and gate), and six decisions on it: `fix_of`, `describe_standard_rule`, `signatures_of`, `match_step`, `judge_gate` and `fill_message`. `self/` has 12 operations and 128 scenarios. `tests/self.test.ts` keeps each enum equal to the package, and the pages naming each item and no other, and the version of `self/` equal to the package's |
+| 3b | `src/self.ts` runs the operations of `self/` through the harness. The CLI and the gates use it for the fix of each code, the verdict of each gate, `judge_weaker_contract` and `judge_version_change`. A violation stops the command with the new code `internal-contract`. The time of `compile` and `verify` on the booking fixture did not change: about 850 ms each |
+| 4 | Maps: `type: map`, with `values` and `keys`, the map forms of the rule language, the check of each key and value, and `diff` |
+| 5 | Unions: `type: union`, with a tag and `variants: { value: variant }`, or of base types; a guard by the tag; gate 3 reports a variant that no scenario reaches (`uncovered-variant`); and `diff` |
+
+Changes from the plan:
+
+- **Steps 1 and 2 are one commit.** A vocabulary enum needs a scenario that breaks it, so each enum is the input of the decision that reads it.
+- **The scenarios of each operation come with its step**, not all in step 0.
+- **Layer 5 moves to part 2.** A result is an either-or by nature, so it needs unions first.
+- **The gates decide in one way.** So that `judge_gate` declares a real function, each gate passes when none of its problems is an error (`gatePasses`), and a failing gate names its problem. Gate 2 with a tsconfig that cannot be read now reports `tsconfig-unreadable`.
+- **Gate 2 does not see a direct call of a declared function.** It sees a call of the core, not of the function that the core wraps. A test of `tests/self.test.ts` fails when a file of the shell calls one directly.
+- **A tagged union maps each tag value to its variant.** In a manifest, a property's definition is global by its name, so the variants share one definition of the tag. The map says which value is which variant.
+- **A union of base types types as `any`.** No form of the rule language tells the JSON type of a value.
+- **The package ships `self/`**, as `src/self.ts` uses it.
+
+The sabotages of part 1, each caught:
+
+1. The fix of `drift` changed in `src/codes.ts` → the scenario of `fix_of`.
+3. A code in `AGENTS.md` that `self/` does not have → `tests/self.test.ts`.
+5. A map check that skips the key rule → `tests/maps.test.ts`.
+6. `allowsWeaker` called directly in `src/verify/contract.ts` → `tests/self.test.ts`.
+7. `allowsWeaker` that allows the same version → a real `verify --base` stopped with `internal-contract`, and named the rule and the input.
+8. A standard rule that `self/` does not list → `tests/self.test.ts`.
+9. A union of a string and a number that takes a bool → `tests/unions.test.ts`.
+
+Sabotages 2 and 4 belong to part 2.
