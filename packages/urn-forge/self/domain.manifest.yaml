@@ -207,6 +207,12 @@ definitions:
     rules:
       - required: [code]
 
+  fixes:
+    description: The fix of each code
+    type: map
+    keys: code
+    values: fix
+
   code_fix:
     description: A code and its fix
     type: object
@@ -244,6 +250,19 @@ definitions:
       - minLength: 1
       - pattern: '\S'
 
+  standard_rule_meaning:
+    description: What a standard rule is - its parameters, what it checks and what its failure says
+    type: object
+    properties: [parameter_names, rule_description, failure_text]
+    rules:
+      - required: [parameter_names, rule_description, failure_text]
+
+  standard_rule_meanings:
+    description: Each standard rule and what it is
+    type: map
+    keys: standard_rule_name
+    values: standard_rule_meaning
+
   standard_rule_request:
     description: A standard rule that is asked for
     type: object
@@ -269,6 +288,12 @@ definitions:
     type: string
     rules:
       - minLength: 1
+
+  function_meanings:
+    description: The signatures of each function of the rule language
+    type: map
+    keys: function_name
+    values: signature_text
 
   function_request:
     description: A function of the rule language whose signatures are asked for
@@ -1084,6 +1109,12 @@ rules:
     rule: output.code == input.code
     failure_message: The answer names another code
 
+  is_the_fix:
+    description: The fix is the fix of the code, as the contract states it for each code
+    parameters: [fixes]
+    rule: output.fix == fixes[input.code]
+    failure_message: The fix is not the fix of the code
+
   fix_is_a_sentence:
     description: A fix is one sentence, which starts with a capital letter and ends with a period
     rule: output.fix.endsWith('.') && output.fix.substring(0, 1) == output.fix.substring(0, 1).upperAscii() && output.fix.substring(0, 1) != output.fix.substring(0, 1).lowerAscii()
@@ -1094,10 +1125,25 @@ rules:
     rule: output.standard_rule_name == input.standard_rule_name
     failure_message: The answer is another standard rule
 
+  is_the_standard_rule:
+    description: The parameters, the text and the failure message are those of the rule, as the contract states them for each standard rule
+    parameters: [standard_rule_meanings]
+    rule: >-
+      output.parameter_names == standard_rule_meanings[input.standard_rule_name].parameter_names &&
+      output.rule_description == standard_rule_meanings[input.standard_rule_name].rule_description &&
+      output.failure_text == standard_rule_meanings[input.standard_rule_name].failure_text
+    failure_message: The answer is not what the standard rule is
+
   names_the_function:
     description: The answer is the function that was asked for, and each of its signatures names it
     rule: output.function_name == input.function_name && output.signature_text.contains(input.function_name + '(')
     failure_message: The answer is another function, or a signature that does not name it
+
+  are_the_signatures:
+    description: The signatures are those of the function, as the contract states them for each function
+    parameters: [function_meanings]
+    rule: output.signature_text == function_meanings[input.function_name]
+    failure_message: The signatures are not those of the function
 
   is_the_step_of_its_text:
     description: A step text is the step of urn-forge whose form it has, and of no other
@@ -1246,19 +1292,170 @@ operations:
     description: The fix of a code, which each report of the code shows
     input: code_request
     output:
-      - code_fix: [names_the_code, fix_is_a_sentence]
+      - code_fix:
+          - names_the_code
+          - fix_is_a_sentence
+          # The fix of each code: what each report of the code tells to do.
+          - is_the_fix:
+              usage: Run urn-forge --help, and call the command with the arguments and options that it shows.
+              config-unreadable: Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts.
+              config-invalid: Change the config to use only the options of defineConfig, with the types that the message names.
+              manifest-unreadable: Give --manifest, or manifest in the config, the path of a manifest that exists.
+              yaml-syntax: Correct the YAML at the line that the problem gives.
+              manifest-shape: Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key.
+              unknown-definition: Add the definition to definitions:, or correct the name to one that is in definitions:.
+              type-cycle: Give one definition of the cycle a base type (string, number, integer, boolean, object or array) in place of the name of another definition.
+              duplicate-property: Remove the second copy of the name from properties:.
+              unknown-property: "Add the name to properties: of the object, or remove it from the rule."
+              not-an-object: "Make the input or the output of the operation a definition of type: object."
+              duplicate-output: Remove the second copy of the object from output:.
+              invalid-identifier: "Make the identifier a property of the object, list it in the required rule of the object, and give it one value: not an object or a list."
+              deprecated-use: "Use a definition or a rule that is not deprecated, or remove deprecated: true if it is still the right one."
+              standard-name: Give the rule of the manifest a name that is not the name of a standard rule.
+              unknown-rule: Add the rule to rules:, or correct the name to a rule of the manifest or a standard rule.
+              rule-argument: Give the rule an argument that its parameters accept, or no argument when the rule has no parameters.
+              rule-syntax: "Write the rule in the rule language of urn-forge: the names, operators, functions and macros of the reference."
+              rule-type: Change the rule so that each part has the type that the message names, and the rule gives a bool.
+              rule-guard: "Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) || self.x > 0."
+              rule-scope: "Use only the names that the message lists: self, input, output, the parameters of the rule, and the variable of a macro."
+              invalid-message: Use in {braces} only the names of the parameters of the rule.
+              tsconfig-unreadable: Give --tsconfig, or tsconfig in the config, the path of a tsconfig that TypeScript can read.
+              core-not-found: Create the core file, or give --core, or core in the config, its path.
+              type-error: Correct the type error at the line that the problem gives; do not suppress it.
+              core-not-satisfying: Export the core as export const core = { … } satisfies DomainCore, with one function for each operation.
+              direct-call: Call the core through runOperation(core, operation, input), which checks the input and the answer.
+              suppressed-check: Remove the @ts- comment and correct the type error that it hides.
+              feature-syntax: Correct the Gherkin of the feature file at the line that the message gives.
+              unknown-name: Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says.
+              uncovered-operation: Add a scenario with When I run "<operation>" with:.
+              uncovered-output: Add a scenario of the operation that ends with Then the output is "<output>".
+              uncovered-variant: "Add a scenario whose table has a value of the variant: for a union with a tag, a value with that value of the tag."
+              uncovered-rule: Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".
+              drift: Run urn-forge compile, and do not edit a generated file by hand.
+              base-unreadable: Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists.
+              removed-rule: "Put the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version."
+              wider-rule: "Put the argument or the text of the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version."
+              removed-output: "Put the output back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version."
+              removed-scenario: "Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version."
+              internal-contract: "Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it."
 
   describe_standard_rule:
     description: A standard rule, with its parameters, what it checks and what its failure says
     input: standard_rule_request
     output:
-      - standard_rule: [names_the_standard_rule]
+      - standard_rule:
+          - names_the_standard_rule
+          # Each standard rule: its parameters, what it checks and what its failure says.
+          - is_the_standard_rule:
+              enum:
+                parameter_names: [choices]
+                rule_description: The value is one of the choices
+                failure_text: "Must be one of {choices}"
+              const:
+                parameter_names: [choice]
+                rule_description: The value is the choice
+                failure_text: "Must be {choice}"
+              minimum:
+                parameter_names: [bound]
+                rule_description: The value is the bound or more
+                failure_text: "Must be at least {bound}"
+              maximum:
+                parameter_names: [bound]
+                rule_description: The value is the bound or less
+                failure_text: "Must be at most {bound}"
+              exclusiveMinimum:
+                parameter_names: [bound]
+                rule_description: The value is more than the bound
+                failure_text: "Must be more than {bound}"
+              exclusiveMaximum:
+                parameter_names: [bound]
+                rule_description: The value is less than the bound
+                failure_text: "Must be less than {bound}"
+              multipleOf:
+                parameter_names: [factor]
+                rule_description: The integer is a multiple of the factor
+                failure_text: "Must be a multiple of {factor}"
+              minLength:
+                parameter_names: [count]
+                rule_description: The text has the count of characters or more
+                failure_text: Must have at least {count} characters
+              maxLength:
+                parameter_names: [count]
+                rule_description: The text has the count of characters or fewer
+                failure_text: Must have at most {count} characters
+              pattern:
+                parameter_names: [regular_expression]
+                rule_description: The text matches the regular expression
+                failure_text: "Must match {regular_expression}"
+              format:
+                parameter_names: [date_format]
+                rule_description: The text is a date (2026-11-24) or a date and time (2026-11-24T19:00:00Z)
+                failure_text: "Must be a {date_format}"
+              minItems:
+                parameter_names: [count]
+                rule_description: The list has the count of items or more
+                failure_text: Must have at least {count} items
+              maxItems:
+                parameter_names: [count]
+                rule_description: The list has the count of items or fewer
+                failure_text: Must have at most {count} items
+              uniqueItems:
+                parameter_names: []
+                rule_description: No item of the list occurs two times
+                failure_text: Must not have an item two times
+              required:
+                parameter_names: [property_names]
+                rule_description: The object has each of the properties
+                failure_text: "Must have {property_names}"
 
   signatures_of:
     description: The types that a function of the rule language takes and gives
     input: function_request
     output:
-      - function_signatures: [names_the_function]
+      - function_signatures:
+          - names_the_function
+          # The types that each function of the rule language takes and gives.
+          - are_the_signatures:
+              size: size(string), size(list(T)), size(map(string, T)), string.size(), list(T).size(), map(string, T).size()
+              sum: list(int).sum(), list(double).sum()
+              matches: string.matches(string), matches(string, string)
+              startsWith: string.startsWith(string)
+              endsWith: string.endsWith(string)
+              contains: string.contains(string)
+              split: string.split(string), string.split(string, int)
+              charAt: string.charAt(int)
+              indexOf: string.indexOf(string), string.indexOf(string, int)
+              lastIndexOf: string.lastIndexOf(string), string.lastIndexOf(string, int)
+              substring: string.substring(int), string.substring(int, int)
+              join: list(string).join(), list(string).join(string)
+              flatten: list(list(T)).flatten(), list(T).flatten(int)
+              math.greatest: math.greatest(int), math.greatest(double), math.greatest(list(int)), math.greatest(list(double))
+              math.least: math.least(int), math.least(double), math.least(list(int)), math.least(list(double))
+              math.ceil: math.ceil(double)
+              math.floor: math.floor(double)
+              math.trunc: math.trunc(double)
+              math.abs: math.abs(int), math.abs(double)
+              math.sign: math.sign(int), math.sign(double)
+              math.isNaN: math.isNaN(double)
+              math.isInf: math.isInf(double)
+              math.isFinite: math.isFinite(double)
+              lowerAscii: string.lowerAscii()
+              upperAscii: string.upperAscii()
+              int: int(int), int(double), int(string), int(timestamp)
+              double: double(double), double(int), double(string)
+              string: string(string), string(int), string(double), string(bool), string(timestamp), string(duration)
+              bool: bool(bool), bool(string)
+              getFullYear: timestamp.getFullYear(), timestamp.getFullYear(string)
+              getMonth: timestamp.getMonth(), timestamp.getMonth(string)
+              getDate: timestamp.getDate(), timestamp.getDate(string)
+              getDayOfMonth: timestamp.getDayOfMonth(), timestamp.getDayOfMonth(string)
+              getDayOfWeek: timestamp.getDayOfWeek(), timestamp.getDayOfWeek(string)
+              getDayOfYear: timestamp.getDayOfYear(), timestamp.getDayOfYear(string)
+              getHours: timestamp.getHours(), timestamp.getHours(string), duration.getHours()
+              getMinutes: timestamp.getMinutes(), timestamp.getMinutes(string), duration.getMinutes()
+              getSeconds: timestamp.getSeconds(), timestamp.getSeconds(string), duration.getSeconds()
+              getMilliseconds: timestamp.getMilliseconds(), timestamp.getMilliseconds(string), duration.getMilliseconds()
+              timestamp: timestamp(string), timestamp(timestamp), timestamp(int)
 
   match_step:
     description: Whether a step text is a step of urn-forge, and which one, as Cucumber reads it

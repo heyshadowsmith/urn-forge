@@ -231,3 +231,26 @@ The rule `fix_is_a_sentence` stays: it states the style of every fix.
 ### Left out
 
 - **Layer 4, the rule tree.** It is the largest layer, and the least readable. Decide on it after part 3, when the manifest shows how readable a large `self/` is.
+
+## What was built: part 3
+
+| Step | Result |
+| --- | --- |
+| 1 | `is_the_fix` of `fix_of` takes the fix of each of the 41 codes. A test checks that the map has each code, and runs each code through `fix_of` |
+| 2 | `is_the_standard_rule` of `describe_standard_rule` takes the parameters, the text and the failure message of each of the 15 standard rules |
+| 3 | `are_the_signatures` of `signatures_of` takes the signatures of each of the 40 functions |
+| 4 | The dogfooding page says what `self/` states of each item, and that a change to one needs a change to `self/` |
+
+Changes from the plan:
+
+- **Step 0 is in each step.** The test of decision 18 came with each map, as in part 1.
+- **The maps were written once from `src/`.** From then on, the harness and the test keep them equal.
+
+The sabotages of part 3, each caught:
+
+1. The fix of `drift` changed in `src/codes.ts` → the scenario of `fix_of`, 3 tests, and a real `verify` of the booking fixture with a stale generated file stopped with `internal-contract`.
+2. The failure message of `minimum` changed in `src/standard.manifest.yaml` → the scenario of `describe_standard_rule`.
+3. A new overload of `endsWith` → `tests/self.test.ts`, not a scenario: the scenarios of `signatures_of` name only some functions, and the CLI never runs `signatures_of`.
+4. The fix of `drift` removed from the map → `tests/self.test.ts`.
+
+`self/` now has 13 operations and 208 scenarios. Layer 4, the rule tree, is still open.
