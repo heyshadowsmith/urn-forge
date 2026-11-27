@@ -9,7 +9,7 @@ import { BOOL, checkRule, DOUBLE, INT, STRING, type CelType, type PropertyType, 
 import type { Expr } from './cel/parse.js';
 import { Diagnostics, type Path } from './diagnostics.js';
 import { readManifest, RULE_NAME, type RuleUse } from './manifest.js';
-import { buildModel, requiredOf, type Definition, type Model, type Rule } from './model.js';
+import { variantsOf, buildModel, requiredOf, type Definition, type Model, type Rule } from './model.js';
 
 /** The standard set, loaded once, with the uses of its rules in its own definitions. A problem in it is a bug in urn-forge. */
 let standardSet: { readonly model: Model; readonly applications: readonly Application[] } | undefined;
@@ -57,6 +57,16 @@ export function celType(definition: Definition, model: Model): CelType {
       // An unknown item type is reported by the model; it types as a string here, with no more problems.
       return { kind: 'list', of: items ? celType(items, model) : STRING };
     }
+    case 'map': {
+      const root = model.definitions[definition.root]!;
+      const values = model.definitions[root.values!];
+      return { kind: 'map', of: values ? celType(values, model) : STRING };
+    }
+    case 'union': {
+      // A tagged union tells its variant by its tag. A union of base types has no form of the rule language that tells its JSON type, so it fits each type.
+      const root = model.definitions[definition.root]!;
+      return root.tag !== undefined ? { kind: 'union', name: definition.root } : { kind: 'any' };
+    }
   }
 }
 
@@ -96,6 +106,22 @@ function notAValue(value: unknown, definition: Definition, model: Model): string
       const items = model.definitions[root.items!];
       for (const item of value) {
         const why = items && notAValue(item, items, model);
+        if (why) return why;
+      }
+      return undefined;
+    }
+    case 'union': {
+      for (const name of variantsOf(root)) {
+        const variant = model.definitions[name];
+        if (variant && notAValue(value, variant, model) === undefined) return undefined;
+      }
+      return `${JSON.stringify(value)} is not a value of a variant of ${root.name}`;
+    }
+    case 'map': {
+      if (!isRecord(value)) return `${JSON.stringify(value)} is not a map`;
+      const values = model.definitions[root.values!];
+      for (const item of Object.values(value)) {
+        const why = values && notAValue(item, values, model);
         if (why) return why;
       }
       return undefined;
@@ -163,6 +189,11 @@ export function checkRules(model: Model, standardSet: Model, diagnostics: Diagno
     const scope: Scope = {
       names: { ...names, ...Object.fromEntries(parameters.map((p) => [p, celType(owner.definitions[p]!, owner)])) },
       properties,
+      union: (name) => {
+        const root = model.definitions[name];
+        if (root?.tag === undefined || !root.variants || Array.isArray(root.variants)) return undefined;
+        return { tag: root.tag, variants: root.variants as Readonly<Record<string, string>> };
+      },
     };
     const { type, problems, types } = checkRule(rule.expr, scope);
     for (const problem of problems) {

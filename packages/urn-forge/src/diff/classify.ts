@@ -10,7 +10,7 @@
  */
 import type { Expr } from '../cel/parse.js';
 import { print } from '../cel/print.js';
-import type { Model } from '../model.js';
+import { variantsOf, type Model } from '../model.js';
 import type { Application } from '../rules.js';
 import { domainUrn, partUrn } from '../urn.js';
 
@@ -42,6 +42,9 @@ export function sides(model: Model): { readonly sent: ReadonlySet<string>; reado
       const root = model.definitions[definition.root];
       root?.properties?.forEach(visit);
       if (root?.items) visit(root.items);
+      if (root?.values) visit(root.values);
+      if (root?.keys) visit(root.keys);
+      if (root) variantsOf(root).forEach(visit);
     };
     roots.forEach(visit);
     return seen;
@@ -165,6 +168,14 @@ export function classify(old: Side, next: Side): Change[] {
     }
     if (before.type !== after.type) add(used ? 'breaking' : 'compatible', place, `the type is now ${after.type}, not ${before.type}`);
     if (before.items !== after.items) add(used ? 'breaking' : 'compatible', place, `the items are now ${after.items}, not ${before.items}`);
+    if (before.values !== after.values) add(used ? 'breaking' : 'compatible', place, `the values are now ${after.values}, not ${before.values}`);
+    // A new variant is a value that a reader did not know; a removed one, a value that a writer can no longer give.
+    const oldVariants = variantsOf(before);
+    const newVariants = variantsOf(after);
+    for (const v of newVariants.filter((x) => !oldVariants.includes(x))) add(used ? 'breaking' : 'compatible', place, `the variant ${v} is new`);
+    for (const v of oldVariants.filter((x) => !newVariants.includes(x))) add(used ? 'breaking' : 'compatible', place, `the variant ${v} is removed`);
+    if (before.tag !== after.tag) add(used ? 'breaking' : 'compatible', place, `the tag is now ${after.tag ?? 'none'}, not ${before.tag ?? 'none'}`);
+    if (before.keys !== after.keys) add(used ? 'breaking' : 'compatible', place, `the keys are now ${after.keys ?? 'any string'}, not ${before.keys ?? 'any string'}`);
     if (before.identifier !== after.identifier) add(used ? 'breaking' : 'compatible', place, `the identifier is now ${after.identifier ?? 'none'}, not ${before.identifier ?? 'none'}`);
     if (!before.deprecated && after.deprecated) add('compatible', place, 'the definition is deprecated');
     const oldProps = before.properties ?? [];

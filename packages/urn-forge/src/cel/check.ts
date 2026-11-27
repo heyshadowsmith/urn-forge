@@ -16,8 +16,12 @@ export type CelType =
   | { readonly kind: 'timestamp' }
   | { readonly kind: 'duration' }
   | { readonly kind: 'list'; readonly of: CelType }
+  /** A map with string keys: the type of each value. */
+  | { readonly kind: 'map'; readonly of: CelType }
   /** The item of an empty list, `[]`: it fits each type. */
   | { readonly kind: 'any' }
+  /** A tagged union: the name of its definition. Its tag tells its variant. */
+  | { readonly kind: 'union'; readonly name: string }
   /** An object: the name of the definition that declares its properties. */
   | { readonly kind: 'object'; readonly name: string };
 
@@ -38,6 +42,8 @@ export interface PropertyType {
 export interface Scope {
   readonly names: Readonly<Record<string, CelType>>;
   readonly properties: (object: string) => Readonly<Record<string, PropertyType>> | undefined;
+  /** The tag of a tagged union, and the object variant of each value of the tag. */
+  readonly union?: (name: string) => { readonly tag: string; readonly variants: Readonly<Record<string, string>> } | undefined;
 }
 
 /** A problem in a rule: `rule-type`, `rule-guard` or `rule-scope`, with the offset of the node. */
@@ -51,6 +57,8 @@ export function showType(type: CelType): string {
   switch (type.kind) {
     case 'list':
       return `list(${showType(type.of)})`;
+    case 'map':
+      return `map(string, ${showType(type.of)})`;
     case 'object':
       return type.name;
     default:
@@ -61,8 +69,8 @@ export function showType(type: CelType): string {
 function same(a: CelType, b: CelType): boolean {
   if (a.kind === 'any' || b.kind === 'any') return true;
   if (a.kind !== b.kind) return false;
-  if (a.kind === 'list') return same(a.of, (b as typeof a).of);
-  if (a.kind === 'object') return a.name === (b as typeof a).name;
+  if (a.kind === 'list' || a.kind === 'map') return same(a.of, (b as typeof a).of);
+  if (a.kind === 'object' || a.kind === 'union') return a.name === (b as typeof a).name;
   return true;
 }
 
@@ -90,6 +98,11 @@ function facts(expr: Expr, when: boolean): Set<string> {
   if (expr.kind === 'call' && expr.fn === 'has' && when) {
     const name = chain(expr.args[0]!);
     return new Set(name === undefined ? [] : [name]);
+  }
+  // x.tag == 'v' shows the variant of a tagged union: x.tag=v. So does x.tag != 'v' when it is false.
+  if (expr.kind === 'binary' && expr.op === (when ? '==' : '!=') && expr.left.kind === 'select' && expr.right.kind === 'string') {
+    const name = chain(expr.left);
+    return new Set(name === undefined ? [] : [`${name}=${expr.right.value}`]);
   }
   if (expr.kind === 'unary' && expr.op === '!') return facts(expr.operand, !when);
   if (expr.kind === 'binary' && expr.op === (when ? '&&' : '||')) return new Set([...facts(expr.left, when), ...facts(expr.right, when)]);
@@ -141,7 +154,8 @@ class Checker {
         const operand = this.type(expr.operand, names, guards);
         const index = this.type(expr.index, names, guards);
         if (!operand || !index) return undefined;
-        // A list and an int: the manifest has no map, so no other index.
+        // A map and a string key; a list and an int.
+        if (operand.kind === 'map') return index.kind === 'string' || index.kind === 'any' ? operand.of : this.wrong(expr, '[ ] of a map takes a string key', operand, index);
         return (operand.kind === 'list' || operand.kind === 'any') && (index.kind === 'int' || index.kind === 'any') ? (operand.kind === 'list' ? operand.of : operand) : this.wrong(expr, '[ ] takes a list and an int', operand, index);
       }
       case 'unary': {
@@ -173,12 +187,14 @@ class Checker {
       case 'macro': {
         const target = this.type(expr.target, names, guards);
         if (!target) return undefined;
-        if (target.kind !== 'list' && target.kind !== 'any') return this.wrong(expr, `${expr.macro}() is a macro of a list`, target);
+        // A macro of a map runs over its keys, as in CEL.
+        if (target.kind === 'map' && !['all', 'exists', 'exists_one'].includes(expr.macro)) return this.wrong(expr, `${expr.macro}() is a macro of a list; of a map, all(), exists() and exists_one() run over its keys`, target);
+        if (target.kind !== 'list' && target.kind !== 'any' && target.kind !== 'map') return this.wrong(expr, `${expr.macro}() is a macro of a list or a map`, target);
         for (const name of [expr.variable, ...(expr.index !== undefined ? [expr.index] : [])]) {
           if (Object.hasOwn(names, name)) return this.problem('rule-scope', expr.at, `${name} is already a name; give each item another name`);
         }
         if (expr.index === expr.variable) return this.problem('rule-scope', expr.at, `${expr.index} names both the position and the item`);
-        const inner = { ...names, [expr.variable]: target.kind === 'list' ? target.of : target, ...(expr.index !== undefined ? { [expr.index]: INT } : {}) };
+        const inner = { ...names, [expr.variable]: target.kind === 'list' ? target.of : target.kind === 'map' ? STRING : target, ...(expr.index !== undefined ? { [expr.index]: INT } : {}) };
         if (expr.filter) {
           const filter = this.type(expr.filter, inner, guards);
           if (!filter) return undefined;
@@ -202,6 +218,7 @@ class Checker {
   private select(expr: Expr & { kind: 'select' }, names: Readonly<Record<string, CelType>>, guards: ReadonlySet<string>, inHas: boolean): CelType | undefined {
     const operand = this.type(expr.operand, names, guards);
     if (!operand) return undefined;
+    if (operand.kind === 'union') return this.variantProperty(expr, operand.name, guards);
     if (operand.kind !== 'object') return this.problem('rule-type', expr.at, `${print(expr.operand)} is a ${showType(operand)}, which has no property ${expr.field}`);
     const property = this.scope.properties(operand.name)?.[expr.field];
     if (!property) {
@@ -214,6 +231,28 @@ class Checker {
       if (name === undefined || !guards.has(name)) {
         return this.problem('rule-guard', expr.at, `${print(expr)} can be absent: read it after has(${print(expr)}) &&, or after !has(${print(expr)}) ||`);
       }
+    }
+    return property.type;
+  }
+
+  /** A property of a tagged union: its tag at any time; another property only after a test of the tag shows a variant that has it. */
+  private variantProperty(expr: Expr & { kind: 'select' }, union: string, guards: ReadonlySet<string>): CelType | undefined {
+    const info = this.scope.union?.(union);
+    if (!info) return this.problem('rule-type', expr.at, `${print(expr.operand)} is a ${union}, which has no property ${expr.field}`);
+    const variants = Object.entries(info.variants);
+    if (expr.field === info.tag) return this.scope.properties(variants[0]![1])?.[info.tag]?.type;
+    const operand = chain(expr.operand);
+    const shown = variants.find(([value]) => operand !== undefined && guards.has(`${operand}.${info.tag}=${value}`));
+    if (!shown) {
+      const having = variants.filter(([, v]) => this.scope.properties(v)?.[expr.field]).map(([value]) => `${print(expr.operand)}.${info.tag} == '${value}'`);
+      if (having.length === 0) return this.problem('rule-type', expr.at, `${expr.field} is not a property of a variant of ${union}`);
+      return this.problem('rule-guard', expr.at, `${print(expr)} is a property of one variant of ${union}: read it after ${having.join(' or ')} &&`);
+    }
+    const property = this.scope.properties(shown[1])?.[expr.field];
+    if (!property) return this.problem('rule-type', expr.at, `${expr.field} is not a property of ${shown[1]}, the variant of ${print(expr.operand)}.${info.tag} == '${shown[0]}'`);
+    if (property.optional) {
+      const name = chain(expr);
+      if (name === undefined || !guards.has(name)) return this.problem('rule-guard', expr.at, `${print(expr)} can be absent: read it after has(${print(expr)}) &&, or after !has(${print(expr)}) ||`);
     }
     return property.type;
   }
@@ -246,8 +285,8 @@ class Checker {
       case 'in':
         if (right.kind === 'any') return BOOL;
         if (right.kind === 'list' && (same(left, right.of) || (isNumber(left) && isNumber(right.of)))) return BOOL;
-        if (right.kind === 'object' && left.kind === 'string') return BOOL;
-        return this.wrong(expr, 'in takes a value and a list of that type, or a name and an object', left, right);
+        if ((right.kind === 'object' || right.kind === 'map') && left.kind === 'string') return BOOL;
+        return this.wrong(expr, 'in takes a value and a list of that type, a key and a map, or a name and an object', left, right);
       case '+':
         if (same(left, right) && ['int', 'double', 'string', 'list', 'duration', 'any'].includes(left.kind)) return merge(left, right);
         if (left.kind === 'timestamp' && right.kind === 'duration') return TIMESTAMP;

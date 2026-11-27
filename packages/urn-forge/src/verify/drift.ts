@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { GeneratedFile } from '../generate/code.js';
 import { listGenerated } from '../write.js';
-import type { GateOutcome, GateProblem } from './types.js';
+import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
 
 function firstDifferentLine(a: string, b: string): number {
   const x = a.split('\n');
@@ -29,5 +29,5 @@ export async function driftGate(outDir: string, files: readonly GeneratedFile[],
   for (const name of await listGenerated(outDir)) {
     if (!made.has(name)) problems.push({ code: 'drift', severity: 'error', file: show(join(outDir, name)), message: 'compile no longer makes this file; run urn-forge compile, which removes it' });
   }
-  return { gate: 4, name: 'drift', pass: problems.length === 0, summary: `${files.length} generated file(s) compared byte for byte against ${show(outDir)}`, problems };
+  return { ...gateOutcome(4, '', problems), summary: `${files.length} generated file(s) compared byte for byte against ${show(outDir)}`, problems };
 }

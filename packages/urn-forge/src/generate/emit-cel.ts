@@ -35,7 +35,7 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
       case 'select':
         return `(${emit(e.operand, scope)} as any)[${JSON.stringify(e.field)}]`;
       case 'index':
-        return `$index(${emit(e.operand, scope)}, ${emit(e.index, scope)})`;
+        return typeOf(e.operand)?.kind === 'map' ? `$key(${emit(e.operand, scope)}, ${emit(e.index, scope)})` : `$index(${emit(e.operand, scope)}, ${emit(e.index, scope)})`;
       case 'call': {
         if (e.fn === 'has') {
           const select = e.args[0] as Expr & { kind: 'select' };
@@ -56,7 +56,8 @@ export function emitRule(expr: Expr, types: ReadonlyMap<Expr, CelType>, names: R
         const variable = `v_${e.variable}`;
         const index = e.index !== undefined ? `v_${e.index}` : '_i';
         const inner = { ...scope, [e.variable]: variable, ...(e.index !== undefined ? { [e.index]: index } : {}) };
-        const list = `(${emit(e.target, scope)} as any[])`;
+        // A macro of a map runs over its keys.
+        const list = typeOf(e.target)?.kind === 'map' ? `Object.keys(${emit(e.target, scope)} as object)` : `(${emit(e.target, scope)} as any[])`;
         const fn = (body: Expr): string => `(${variable}: any, ${index}: number) => ${emit(body, inner)}`;
         switch (e.macro) {
           case 'all':

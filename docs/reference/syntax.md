@@ -10,6 +10,8 @@ If a form is not in the language, `compile` stops with `rule-syntax`.
 | `string` | A `string` | `'confirmed'`, `"confirmed"`, raw `r'^[0-9]{4}$'`, `'''three quotes'''`, escapes such as `\n` and `\u00e9` |
 | `bool` | A `boolean` | `true`, `false` |
 | `list(T)` | An `array` | `['main', 'dessert']`, `[]` |
+| `map(string, T)` | A `map` | none |
+| A union | A `union` with a `tag` | none; read its tag with `.` |
 | An object | An `object` | none; read its properties with `.` |
 | `timestamp`, `duration` | `timestamp(s)`, `duration(s)` | |
 
@@ -90,6 +92,15 @@ A timestamp is from the year 1 to the year 9999, to the millisecond, and a durat
 | `l.sum()` | The total of a list of numbers |
 | `l.flatten()`, `l.flatten(n)` | The items of the lists inside the list, to the depth `n` (a number in the rule) |
 
+### Maps
+
+| Form | Gives |
+| --- | --- |
+| `m[k]` | The value of the key `k`. A key that is not in the map breaks the rule |
+| `k in m` | Whether the map has the key `k` |
+| `size(m)`, `m.size()` | The number of keys |
+| `m.all(k, p)`, `m.exists(k, p)`, `m.exists_one(k, p)` | Whether `p` is true for each key, for one or more keys, or for exactly one key |
+
 ### Names
 
 `cel.bind(name, value, rule)` gives a name to a value inside the rule: `cel.bind(parts, self.version.split('.'), size(parts) == 3 && int(parts[0]) >= 1)`.
@@ -98,9 +109,13 @@ A timestamp is from the year 1 to the year 9999, to the millisecond, and a durat
 
  If the object does not require a property, a rule must read it only after a guard. The guard is `has(self.deposit) && …` or `!has(self.deposit) || …`. If not, `compile` stops with `rule-guard`, before the rule can fail at run time.
 
+## Unions
+
+A rule reads the tag of a union with a tag at any time. It reads another property of a variant only after a test of the tag shows that variant, as a guard does: `self.shape.kind == 'circle' && self.shape.radius > 0`, or `self.shape.kind != 'circle' || self.shape.radius > 0`. If not, `compile` stops with `rule-guard`.
+
 ## Not in the language
 
-The language has no maps, no bytes, no unsigned numbers, no `null`, no optional values, no type values such as `type(x)`, and no list that holds items of more than one type. These are not types of a manifest.
+The language has no bytes, no unsigned numbers, no `null`, no optional values, no type values such as `type(x)`, and no list that holds items of more than one type. These are not types of a manifest.
 
 It also leaves out some forms that a rule is unlikely to need: `format()`, `strings.quote()`, `trim()`, `replace()`, `reverse()`, `sort()`, `sortBy()`, `distinct()`, `slice()`, `lists.range()`, `math.round()` and the `math.bit` functions. A form comes back when a rule of a real domain needs it.
 

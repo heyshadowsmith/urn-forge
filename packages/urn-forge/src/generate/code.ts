@@ -5,7 +5,7 @@
  */
 import { domainUrn, partUrn } from '../urn.js';
 import { readFileSync } from 'node:fs';
-import type { Model } from '../model.js';
+import { variantsOf, type Model } from '../model.js';
 import type { Application } from '../rules.js';
 import { emitRule } from './emit-cel.js';
 
@@ -148,6 +148,31 @@ export function checkFunctions(model: Model, applications: readonly Application[
       body.push('  let ok = true;');
       body.push(`  for (const [i, item] of value.entries()) if (!check_${definition.items}(item, $item(path, i), failures)) ok = false;`);
       body.push('  if (!ok) return false;');
+    } else if (definition.base === 'union' && definition.tag !== undefined) {
+      // A tagged union: the value of the tag names the variant whose check runs.
+      const variants = definition.variants as Readonly<Record<string, string>>;
+      const failure = `{ failures.push({ definition: ${JSON.stringify(name)}, rule: 'variant', path, failure_message: ${JSON.stringify(`Must have ${definition.tag}: one of ${Object.keys(variants).join(', ')}`)} }); return false; }`;
+      body.push(`  const variant = $isObject(value) ? value[${JSON.stringify(definition.tag)}] : undefined;`);
+      body.push('  switch (variant) {');
+      for (const [value, variant] of Object.entries(variants)) body.push(`    case ${JSON.stringify(value)}: if (!check_${variant}(value, path, failures)) return false; break;`);
+      body.push(`    default: ${failure}`);
+      body.push('  }');
+    } else if (definition.base === 'union') {
+      // A union of base types: the JSON type of the value names the variant whose check runs.
+      const of = (base: string): string => (base === 'array' ? 'Array.isArray(value)' : base === 'object' || base === 'map' ? '$isObject(value)' : base === 'integer' || base === 'number' ? "typeof value === 'number'" : base === 'boolean' ? "typeof value === 'boolean'" : "typeof value === 'string'");
+      const names = variantsOf(definition);
+      const branches = names.map((v) => `${of(model.definitions[v]!.base)} ? check_${v}(value, path, failures)`);
+      const kinds = names.map((v) => model.definitions[v]!.base);
+      body.push(`  const ok = ${branches.join(' : ')} : (failures.push({ definition: ${JSON.stringify(name)}, rule: 'type', path, failure_message: ${JSON.stringify(`Must be one of: ${kinds.join(', ')}`)} }), false);`);
+      body.push('  if (!ok) return false;');
+    } else if (definition.base === 'map') {
+      body.push(`  if (!$isObject(value)) ${typeFailure('Must be a map')}`);
+      body.push('  let ok = true;');
+      body.push('  for (const [key, item] of Object.entries(value)) {');
+      if (definition.keys) body.push(`    if (!check_${definition.keys}(key, $at(path, key), failures)) ok = false;`);
+      body.push(`    if (!check_${definition.values}(item, $at(path, key), failures)) ok = false;`);
+      body.push('  }');
+      body.push('  if (!ok) return false;');
     } else if (definition.base === 'object') {
       const requiredProperties = new Set<string>();
       for (const a of rulesOf.get(name) ?? []) {
@@ -219,6 +244,12 @@ function types(model: Model, applications: readonly Application[]): string {
       case 'array':
         lines.push(...doc, `export type ${name} = readonly ${typeName(definition.items!)}[];`, '');
         break;
+      case 'map':
+        lines.push(...doc, `export type ${name} = Readonly<Record<string, ${typeName(definition.values!)}>>;`, '');
+        break;
+      case 'union':
+        lines.push(...doc, `export type ${name} = ${variantsOf(definition).map(typeName).join(' | ')};`, '');
+        break;
       case 'object': {
         const required = new Set<string>();
         for (const application of applications) {
@@ -246,6 +277,8 @@ function definitionsTable(model: Model, applications: readonly Application[]): s
     const root = model.definitions[definition.root]!;
     const parts: string[] = [`base: ${JSON.stringify(definition.base)}`];
     if (root.items) parts.push(`items: ${JSON.stringify(root.items)}`);
+    if (root.values) parts.push(`values: ${JSON.stringify(root.values)}`);
+    if (root.variants) parts.push(`variants: ${JSON.stringify(variantsOf(root))}`);
     if (root.properties) parts.push(`properties: ${JSON.stringify(root.properties)}`);
     const rules = applications.filter((a) => a.place.kind === 'definition' && a.place.definition === definition.name).map((a) => a.rule.name);
     parts.push(`rules: ${JSON.stringify(rules)}`);

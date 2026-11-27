@@ -100,7 +100,7 @@ describe('the standard set', () => {
   it('refuses a rule that types for another type: enum on an integer', () => {
     const text = HEADER + 'definitions:\n  size:\n    description: A size\n    type: integer\n    rules:\n      - enum: [s, m]\n';
     expect(loadManifest(text).diagnostics.map((d) => d.message)).toEqual([
-      'enum: self in choices: in takes a value and a list of that type, or a name and an object, not int and list(string)',
+      'enum: self in choices: in takes a value and a list of that type, a key and a map, or a name and an object, not int and list(string)',
     ]);
   });
 });

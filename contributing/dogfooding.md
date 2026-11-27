@@ -4,7 +4,7 @@ urn-forge uses itself. Some of its own functions are a urn-forge domain. Each la
 
 ## `self/`: urn-forge's own domain
 
-The folder [`packages/urn-forge/self/`](../packages/urn-forge/self) holds a manifest with the namespace `urn-forge` and the domain `toolchain`. It declares six operations of the toolchain:
+The folder [`packages/urn-forge/self/`](../packages/urn-forge/self) holds a manifest with the namespace `urn-forge` and the domain `toolchain`. It declares twelve operations of the toolchain:
 
 - `to_type_name` gives the TypeScript type name of a definition, as the generated file does: `seat_booking` → `SeatBooking`. A name that the generated file declares itself, such as `failure`, gets `Value` after it.
 - `name_part` gives the URN of a part: `urn:demo:booking:definition:party_size`.
@@ -12,6 +12,14 @@ The folder [`packages/urn-forge/self/`](../packages/urn-forge/self) holds a mani
 - `judge_version_change` tells if two versions of a manifest allow a breaking change, as `diff` judges it by semver. It answers `breaking_allowed` or `breaking_refused`, each with the reason.
 - `judge_weaker_contract` tells if two versions allow a weaker contract, as gate 5 judges it: only with a new version, and only to one that `diff` would allow.
 - `judge_bound_change` tells if a new bound of a standard rule, such as `minimum: 1` to `minimum: 2`, accepts fewer values, more, or the same, as `diff` and gate 5 judge it.
+- `fix_of` gives the fix of a code, the sentence that each report of the code shows.
+- `describe_standard_rule` gives a standard rule: its parameters, what it checks and what its failure says.
+- `signatures_of` gives the types that a function of the rule language takes and gives.
+- `match_step` tells which step of urn-forge a step text is, or that it is none.
+- `judge_gate` tells if a gate passes, from the problems that it found: it passes when none of them is an error.
+- `fill_message` gives the failure message of a rule use, with its arguments in place.
+
+Its definitions are also the vocabulary of urn-forge: each code, each standard rule, each function of the rule language, each step and each gate, as an enum. [`tests/self.test.ts`](../packages/urn-forge/tests/self.test.ts) keeps each list equal to its source in the package, and to the pages that name it: `AGENTS.md`, the skill and the reference.
 
 `self/` goes through the same chain as any other domain. It has a manifest, a generated file, a core and features. A gap in its scenarios is an error, as in each domain. CI runs `verify` and Cucumber on it, and diffs its manifest against the base branch.
 
@@ -25,6 +33,12 @@ Each function of the core in [`self/core.ts`](../packages/urn-forge/self/core.ts
 - `judge_version_change` calls `allowsBreaking` from `src/diff/command.ts`.
 - `judge_weaker_contract` calls `allowsWeaker` from `src/verify/contract.ts`, which gate 5 also uses.
 - `judge_bound_change` calls `argumentDirection` from `src/diff/classify.ts`, with the rule of the standard set.
+- `fix_of` calls `fixOf` from `src/codes.ts`.
+- `describe_standard_rule` reads the rule from the standard set, as `compile` does.
+- `signatures_of` calls `signatures` from `src/cel/functions.ts`.
+- `match_step` tests the text with `STEPS` from `src/gherkin/steps.ts`, in their order.
+- `judge_gate` calls `gatePasses` from `src/verify/types.ts`, which each gate also uses.
+- `fill_message` calls `fillMessage` from `src/generate/code.ts`.
 
 Thus the scenarios of `self/` test the toolchain. If a change to `typeName` or `allowsBreaking` changes a result, a scenario of `self/` fails. The rules of the outputs also hold the functions to the contract. For example, `stable_and_final` makes sure that `breaking_refused` never comes back for a `0.x` version or a pre-release.
 
@@ -42,13 +56,13 @@ Some pure functions of urn-forge give a result that a user can see, such as a na
 
 ### The limit of `self/`
 
-`self/` has strings and numbers only, and six small operations. It cannot show how urn-forge serves a business domain.
+`self/` declares the decisions of urn-forge, not a business domain. It cannot show how urn-forge serves one.
 
 The rule language states each rule of `self/` exactly. `is_the_type_name` builds the PascalCase name with `split`, `filter`, `substring`, `upperAscii` and `join`, and names it with `cel.bind`. Its list of the names that get `Value` must be the list of `src/generate/code.ts`: if one changes and the other does not, a scenario fails. `at_most_the_name_and_value` stays, because gate 5 refuses to remove a rule without a new version.
 
 The verdicts on a version change are complete: `allows_a_breaking_change` reads the major version with `int(…split('.')[0])`, and `keeps_the_major` and `keeps_the_version_or_the_major` hold each refusal.
 
-`self/` does not declare these pure functions yet: the failure message of a rule (`fillMessage`), the fix of a code (`fixOf`), and the direction of a new argument of `enum` and `required`. Each can be one more operation.
+`self/` does not declare the direction of a new argument of `enum` and `required` yet. The [plan of urn-forge's own contract](../planning/self-as-documentation-plan.md) adds the rest.
 
 ## The target, written first
 

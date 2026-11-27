@@ -13,9 +13,10 @@
 import { AstBuilder, compile, GherkinClassicTokenMatcher, Parser } from '@cucumber/gherkin';
 import { IdGenerator } from '@cucumber/messages';
 import { STEPS } from '../gherkin/steps.js';
-import type { Model } from '../model.js';
+import { tableValue, type DefinitionsTable } from '../gherkin/cells.js';
+import { variantsOf, type Model } from '../model.js';
 import type { Application } from '../rules.js';
-import type { GateOutcome, GateProblem } from './types.js';
+import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
 
 export interface FeatureFile {
   readonly path: string;
@@ -36,6 +37,54 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
   const answered = new Set<string>();
   const broken = new Set<string>();
   let scenarios = 0;
+  // The variants of the unions that the values of the tables reach, as `union value`.
+  const reached = new Set<string>();
+  const table: DefinitionsTable = Object.fromEntries(
+    Object.values(model.definitions).map((d) => {
+      const root = model.definitions[d.root]!;
+      return [d.name, { base: d.base, ...(root.items ? { items: root.items } : {}), ...(root.properties ? { properties: root.properties } : {}) }];
+    }),
+  );
+  const reach = (value: unknown, name: string): void => {
+    const definition = model.definitions[name];
+    if (!definition || value === undefined) return;
+    const root = model.definitions[definition.root]!;
+    const isObject = typeof value === 'object' && value !== null && !Array.isArray(value);
+    if (definition.base === 'object' && isObject) for (const p of root.properties ?? []) reach((value as Record<string, unknown>)[p], p);
+    else if (definition.base === 'array' && Array.isArray(value)) value.forEach((item) => reach(item, root.items!));
+    else if (definition.base === 'map' && isObject) Object.values(value).forEach((v) => reach(v, root.values!));
+    else if (definition.base === 'union') {
+      if (root.tag !== undefined && isObject && !Array.isArray(root.variants)) {
+        const tag = (value as Record<string, unknown>)[root.tag];
+        const variant = typeof tag === 'string' ? (root.variants as Record<string, string>)[tag] : undefined;
+        if (variant) {
+          reached.add(`${root.name} ${tag}`);
+          reach(value, variant);
+        }
+      } else {
+        const variant = variantsOf(root).find((v) => matches(value, model.definitions[v]?.base));
+        if (variant) {
+          reached.add(`${root.name} ${variant}`);
+          reach(value, variant);
+        }
+      }
+    }
+  };
+  const matches = (value: unknown, base: string | undefined): boolean =>
+    base === 'array' ? Array.isArray(value)
+    : base === 'object' || base === 'map' ? typeof value === 'object' && value !== null && !Array.isArray(value)
+    : base === 'integer' || base === 'number' ? typeof value === 'number'
+    : base === 'boolean' ? typeof value === 'boolean'
+    : typeof value === 'string';
+  /** The value of the table of a step, for the variants that it reaches; a table that does not read is no value. */
+  const reachTable = (rows: readonly (readonly string[])[] | undefined, definition: string): void => {
+    if (!rows) return;
+    try {
+      reach(tableValue(rows, definition, table), definition);
+    } catch {
+      // The steps report a table that does not read; the gate counts only what it can read.
+    }
+  };
 
   // The rules of each definition, as `definition rule`; a definition named as a type has its root's rules too.
   const applied = new Set<string>();
@@ -80,13 +129,18 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
           problems.push({ code: 'unknown-name', severity: 'error', file: feature.path, ...(line ? { line } : {}), message });
         };
         let m: RegExpExecArray | null;
+        const rows = step.argument?.dataTable?.rows.map((r) => r.cells.map((c) => c.value));
         if ((m = STEPS.run.exec(text))) {
           operation = m[1]!;
           if (!model.operations[operation]) unknown(`${operation} is not an operation of the manifest`);
-          else ran.add(operation);
+          else {
+            ran.add(operation);
+            reachTable(rows, model.operations[operation]!.input);
+          }
         } else if ((m = STEPS.check.exec(text))) {
           operation = undefined;
           if (!model.definitions[m[1]!]) unknown(`${m[1]} is not a definition of the manifest`);
+          else reachTable(rows, m[1]!);
         } else if ((m = STEPS.output.exec(text) ?? STEPS.outputWith.exec(text))) {
           const object = m[1]!;
           const contract = operation ? model.operations[operation] : undefined;
@@ -120,6 +174,19 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
       }
     }
   }
+  for (const union of Object.values(model.definitions)) {
+    if (union.base !== 'union' || union.root !== union.name || !union.variants) continue;
+    const each = union.tag !== undefined && !Array.isArray(union.variants) ? Object.keys(union.variants) : variantsOf(union);
+    for (const variant of each) {
+      if (reached.has(`${union.name} ${variant}`)) continue;
+      problems.push({
+        code: 'uncovered-variant',
+        severity: gap,
+        file: 'features',
+        message: `no scenario reaches the variant ${variant} of ${union.name}; add one whose table has a value of it`,
+      });
+    }
+  }
   const seen = new Set<string>();
   for (const application of applications) {
     if (application.place.kind !== 'definition') continue;
@@ -139,11 +206,5 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
   problems.splice(0, problems.length, ...unique.values());
   const errors = problems.filter((p) => p.severity === 'error').length;
   const operations = Object.keys(model.operations).length;
-  return {
-    gate: 3,
-    name: 'gherkin',
-    pass: errors === 0,
-    summary: `${features.length} feature(s), ${scenarios} scenario(s), ${ran.size}/${operations} operation(s) run, ${broken.size} rule(s) broken`,
-    problems,
-  };
+  return gateOutcome(3, `${features.length} feature(s), ${scenarios} scenario(s), ${ran.size}/${operations} operation(s) run, ${broken.size} rule(s) broken`, problems);
 }

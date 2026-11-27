@@ -38,6 +38,9 @@ export function cellValue(text: string, definition: string, definitions: Definit
       return cell !== '' && /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(cell) ? Number(cell) : cell;
     case 'boolean':
       return cell === 'true' ? true : cell === 'false' ? false : cell;
+    case 'map':
+    case 'union':
+      return json(cell)?.value ?? cell;
     case 'array': {
       const parsed = json(cell);
       if (parsed) return parsed.value;

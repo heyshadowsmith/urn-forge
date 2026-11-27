@@ -3,6 +3,7 @@
  * base type (one of JSON Schema's six) and its root: the definition that declares its structure. A
  * definition whose type names another definition has the structure of that definition, and adds rules.
  */
+import type { Path } from './diagnostics.js';
 import { CelSyntaxError, parseRule, type Expr } from './cel/parse.js';
 import type { Diagnostics } from './diagnostics.js';
 import {
@@ -98,6 +99,15 @@ export function buildModel(decl: ManifestDecl, diagnostics: Diagnostics): Model 
       seen.add(name);
     });
     if (definition.items !== undefined && !known(definition.items)) unknown(definition.items, [...definition.path, 'items']);
+    if (definition.values !== undefined && !known(definition.values)) unknown(definition.values, [...definition.path, 'values']);
+    if (definition.variants !== undefined) checkUnion(definition, definitions, known, unknown, diagnostics);
+    if (definition.keys !== undefined) {
+      const keys = definitions[definition.keys];
+      if (!known(definition.keys)) unknown(definition.keys, [...definition.path, 'keys']);
+      else if (keys && keys.base !== 'string') {
+        diagnostics.error('manifest-shape', [...definition.path, 'keys'], `${definition.name}: the keys of a map are a string definition, and ${keys.name} is ${/^[aeiou]/.test(keys.base) ? 'an' : 'a'} ${keys.base}`);
+      }
+    }
     for (const name of requiredOf(definition)) {
       if (definition.base === 'object' && !definitions[definition.root]?.properties?.includes(name)) {
         const use = definition.rules.find((u) => u.rule === REQUIRED)!;
@@ -142,6 +152,51 @@ export function buildModel(decl: ManifestDecl, diagnostics: Diagnostics): Model 
 }
 
 /** The identifier is a required property of the object, with one value: not an object or a list. */
+/** The JSON type of a base: a number is one JSON type, and so is an object or a map. */
+function jsonType(base: BaseType): string {
+  return base === 'integer' ? 'number' : base === 'map' ? 'object' : base === 'array' ? 'list' : base === 'boolean' ? 'bool' : base;
+}
+
+/** The names of the variants of a union, in their order. */
+export function variantsOf(definition: Pick<DefinitionDecl, 'variants'>): string[] {
+  const variants = definition.variants;
+  if (!variants) return [];
+  return Array.isArray(variants) ? [...variants] : Object.values(variants);
+}
+
+/** A union has one variant of each JSON type, or, with a tag, object variants that each have the tag. */
+function checkUnion(
+  definition: Definition,
+  definitions: Readonly<Record<string, Definition>>,
+  known: (name: string) => boolean,
+  unknown: (name: string, path: Path) => void,
+  diagnostics: Diagnostics,
+): void {
+  const names = variantsOf(definition);
+  names.forEach((name) => {
+    if (!known(name)) unknown(name, [...definition.path, 'variants']);
+  });
+  const typed = names.filter((n) => definitions[n]).map((n) => ({ name: n, type: jsonType(definitions[n]!.base) }));
+  if (definition.tag === undefined) {
+    for (const type of new Set(typed.map((t) => t.type))) {
+      const same = typed.filter((t) => t.type === type);
+      if (same.length < 2) continue;
+      const fix = type === 'object' ? 'give the union a tag' : 'give a union one variant of each JSON type';
+      diagnostics.error('manifest-shape', [...definition.path, 'variants'], `${definition.name}: two variants are ${type === 'object' ? 'an' : 'a'} ${type}: ${same.map((t) => t.name).join(' and ')}; ${fix}`);
+    }
+    return;
+  }
+  for (const { name, type } of typed) {
+    const variant = definitions[name]!;
+    const root = definitions[variant.root];
+    if (type !== 'object' || variant.base !== 'object') {
+      diagnostics.error('manifest-shape', [...definition.path, 'variants'], `${definition.name}: the variant ${name} of a union with a tag is an object, not ${variant.base}`);
+    } else if (!root?.properties?.includes(definition.tag) || !requiredOf(root).has(definition.tag)) {
+      diagnostics.error('manifest-shape', [...definition.path, 'tag'], `${definition.name}: the tag ${definition.tag} is a required property of each variant, and ${name} has no required ${definition.tag}`);
+    }
+  }
+}
+
 function checkIdentifier(definition: Definition, definitions: Readonly<Record<string, Definition>>, diagnostics: Diagnostics): void {
   const name = definition.identifier!;
   const path = [...definition.path, 'identifier'];
@@ -149,7 +204,7 @@ function checkIdentifier(definition: Definition, definitions: Readonly<Record<st
     ? `is not a property of ${definition.name}`
     : !requiredOf(definition).has(name)
       ? `is optional; list it in the required rule of ${definition.name}`
-      : definitions[name] && (definitions[name].base === 'object' || definitions[name].base === 'array')
+      : definitions[name] && (definitions[name].base === 'object' || definitions[name].base === 'array' || definitions[name].base === 'map')
         ? `is of type ${definitions[name].base}; an identifier is one value`
         : undefined;
   if (why) diagnostics.error('invalid-identifier', path, `the identifier ${name} ${why}`);

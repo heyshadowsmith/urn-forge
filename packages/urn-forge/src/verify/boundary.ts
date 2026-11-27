@@ -10,7 +10,7 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import ts from 'typescript';
-import type { GateOutcome, GateProblem } from './types.js';
+import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
 
 const SOURCE = /\.(?:ts|tsx|mts|cts)$/u;
 
@@ -37,8 +37,10 @@ export interface BoundaryOptions {
 }
 
 export function boundaryGate(options: BoundaryOptions, coreProgram: ts.Program | string): GateOutcome {
-  const result = (pass: boolean, summary: string, problems: GateProblem[]): GateOutcome => ({ gate: 2, name: 'boundary', pass, summary, problems });
-  if (typeof coreProgram === 'string') return result(false, 'the tsconfig cannot be read', []);
+  const result = (_pass: boolean, summary: string, problems: GateProblem[]): GateOutcome => gateOutcome(2, summary, problems);
+  if (typeof coreProgram === 'string') {
+    return result(false, 'the tsconfig cannot be read', [{ code: 'tsconfig-unreadable', severity: 'error', file: options.show(options.tsconfigPath), message: coreProgram }]);
+  }
   const coreDir = dirname(resolve(options.corePath)) + sep;
   const generated = resolve(options.generatedPath);
   const coreFiles = coreProgram

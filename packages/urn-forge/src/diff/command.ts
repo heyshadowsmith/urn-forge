@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { CliIo, Report } from '../cli.js';
 import { compileManifest } from '../compile.js';
+import { decide } from '../self.js';
 import { classify, type Change } from './classify.js';
 
 interface Version {
@@ -69,7 +70,9 @@ export async function diffCommand(io: CliIo, report: Report, argv: readonly stri
     report.out(`diff passed: ${summary}`);
     return report.end(0, { ...result, allowed: true, why: 'no change is breaking' });
   }
-  const { allowed, why } = allowsBreaking(from, to);
+  const verdict = decide('judge_version_change', { from_version: from, to_version: to });
+  const allowed = verdict.output === 'breaking_allowed';
+  const why = verdict.value.reason;
   if (allowed || values.report) {
     report.out(`diff passed: ${summary}: ${allowed ? `allowed, as ${why}` : `not allowed, as ${why} (reported only)`}`);
     return report.end(0, { ...result, allowed, why });

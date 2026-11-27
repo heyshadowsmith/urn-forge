@@ -77,13 +77,13 @@ operations:
 | Section | Keys |
 | --- | --- |
 | `manifest` | `namespace`, `domain`, `version`, `compatibility` |
-| `definitions.<name>` | `description`, `type`, `properties`, `items`, `identifier`, `rules`, `deprecated` |
+| `definitions.<name>` | `description`, `type`, `properties`, `items`, `values`, `keys`, `variants`, `tag`, `identifier`, `rules`, `deprecated` |
 | `rules.<name>` | `description`, `parameters`, `rule`, `failure_message`, `deprecated` |
 | `operations.<name>` | `description`, `input`, `output`, `rules`, `deprecated` |
 
 A rule's `description` says what it checks and why, for a reader of the manifest. Its `failure_message` is what a failure says when it breaks; `{parameter}` puts in an argument.
 
-- `properties` and `identifier` are only for `type: object`; `properties` is required there. `items` is only for `type: array`, and required there.
+- `properties` and `identifier` are only for `type: object`; `properties` is required there. `items` is only for `type: array`, and required there. `values` is only for `type: map`, and required there; `keys`, a `string` definition, gives the rules of each key. `variants` is only for `type: union`, and required there: a list of definitions of different JSON types, or, with `tag`, each value of the tag to its object variant (`variants: { circle: circle }`, `tag: kind`). A value with another tag breaks `variant`. Each variant needs a scenario (`uncovered-variant`).
 - `type: <definition>` gives the structure and the rules of that definition, plus its own rules.
 - Apply a rule with no parameter by name (`- uniqueItems`), with one parameter as `- minimum: 1`, with more as `- between: { low: 1, high: 9 }`.
 - A rule of a definition reads `self`. A rule of an output reads `input` and `output`. A rule of an operation reads `input`, and `output` when the operation has one output.
@@ -123,7 +123,9 @@ CEL and its standard extensions, for the types of a manifest. Each rule must giv
 - **Lists:** `all`, `exists`, `exists_one`, `map`, `filter`, `sum`, `flatten`, and the two-variable `all(i, x, p)`, `exists(i, x, p)`, `existsOne(i, x, p)`, `transformList(i, x, [p,] e)`, where `i` is the position. A count: `size(l.filter(x, p))`.
 - **Errors:** a value that a form cannot take breaks the rule: `int('1x')`, an index out of the list, a division by 0, an int larger than 2^53 − 1. `&&`, `||`, `all` and `exists` ignore an error when the other side decides the result, as in CEL.
 - **Optional properties:** read one only after a guard: `has(self.deposit) && self.deposit > 0`, or `!has(self.deposit) || self.deposit > 0`.
-- **Not in the language:** maps, bytes, unsigned ints, `null`, optional values, `type()`, `dyn()`, and lists of items of more than one type. Also these forms of CEL, which a rule is unlikely to need: `format`, `strings.quote`, `trim`, `replace`, `reverse`, `sort`, `sortBy`, `distinct`, `slice`, `lists.range`, `math.round` and the `math.bit` functions.
+- **Maps:** `m[k]` (a key that is not there breaks the rule), `k in m`, `size(m)`, and `all`, `exists` and `exists_one` over the keys.
+- **Unions:** read the tag of a union with a tag at any time. Read another property only after a test of the tag: `self.shape.kind != 'circle' || self.shape.radius > 0`.
+- **Not in the language:** bytes, unsigned ints, `null`, optional values, `type()`, `dyn()`, and lists of items of more than one type. Also these forms of CEL, which a rule is unlikely to need: `format`, `strings.quote`, `trim`, `replace`, `reverse`, `sort`, `sortBy`, `distinct`, `slice`, `lists.range`, `math.round` and the `math.bit` functions.
 
 ## The generated file
 
@@ -236,6 +238,7 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `unknown-name` | Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says. |
 | `uncovered-operation` | Add a scenario with When I run "<operation>" with:. |
 | `uncovered-output` | Add a scenario of the operation that ends with Then the output is "<output>". |
+| `uncovered-variant` | Add a scenario whose table has a value of the variant: for a union with a tag, a value with that value of the tag. |
 | `uncovered-rule` | Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>". |
 | `drift` | Run urn-forge compile, and do not edit a generated file by hand. |
 | `base-unreadable` | Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists. |
@@ -243,3 +246,4 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `wider-rule` | Put the argument or the text of the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
 | `removed-output` | Put the output back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
 | `removed-scenario` | Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version. |
+| `internal-contract` | Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it. |

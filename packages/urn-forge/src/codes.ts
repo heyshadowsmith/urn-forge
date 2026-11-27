@@ -49,6 +49,7 @@ export const CODES = {
   'unknown-name': { fix: 'Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says.' },
   'uncovered-operation': { fix: 'Add a scenario with When I run "<operation>" with:.' },
   'uncovered-output': { fix: 'Add a scenario of the operation that ends with Then the output is "<output>".' },
+  'uncovered-variant': { fix: 'Add a scenario whose table has a value of the variant: for a union with a tag, a value with that value of the tag.' },
   'uncovered-rule': { fix: 'Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".' },
 
   // Gate 4: the generated files.
@@ -60,6 +61,9 @@ export const CODES = {
   'wider-rule': { fix: 'Put the argument or the text of the rule back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.' },
   'removed-output': { fix: 'Put the output back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.' },
   'removed-scenario': { fix: 'Put the scenario back. If the change is on purpose, stop and ask a person: only a person decides a new manifest.version.' },
+
+  // urn-forge itself: it checks its own decisions against its contract, self/.
+  'internal-contract': { fix: 'Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it.' },
 } as const satisfies Record<string, { readonly fix: string }>;
 
 export type Code = keyof typeof CODES;
