@@ -30,6 +30,8 @@ The rule language also has no recursion, on purpose. So the meaning of a recursi
 
 These remain in the unit tests. The manifest declares their inputs and outputs, and the descriptions say what the unit tests prove.
 
+**urn-forge runs through its own harness.** Today, `self/`'s contract is checked only in its scenarios. In real use, the CLI calls `allowsWeaker` and the other functions directly, so nothing checks their answers. With this plan, the CLI calls each declared decision through `runOperation(selfCore, …)`. Each real run of `compile`, `verify` and `diff` then checks urn-forge's own answers against its contract, which is the promise urn-forge makes to its users. Only the decisions run this way. The parser, the printer, the code generator and the runtime helpers are not operations of `self/`.
+
 ## Decisions to confirm
 
 | # | Question | Recommendation | Why |
@@ -42,6 +44,8 @@ These remain in the unit tests. The manifest declares their inputs and outputs, 
 | 6 | The vocabulary and the docs | **A test checks that `AGENTS.md`, the skill and the reference pages name each item of the vocabulary enums of `self/`, and no other. The pages stay prose. They are not generated** | `self/` becomes the source of truth, and the pages cannot drift from it. Generating the pages would put a documentation generator in urn-forge, which is a feature that calls for more features |
 | 7 | Recursive functions | **Declare them node by node, where a local rule states them. For example, "the type of each node follows from its children's types". Do not declare a whole parse or print** | The rule language has no recursion, on purpose, so that a rule always ends |
 | 8 | The order | **Layers 2, 3 and 5 first, with no new construct. Then maps. Then unions. Then layers 1 and 4, which need both** | Each step is useful alone, and the new shapes come only when a layer needs them |
+| 9 | urn-forge through its own harness | **The CLI calls each operation of `self/` through `runOperation(selfCore, …)`, and never calls the function directly. A `ContractViolation` stops the command with a new code, `internal-contract`, which names the operation, the rule and the input, and asks for an issue. Gate 2 checks it: `src/cli.ts` and `src/verify/` are the shell of `self/` in its config** | The contract then documents and checks the real behaviour. Gate 2 already finds a direct call to the core from a shell file, so this needs no new gate |
+| 10 | The cost | **Accept the check on each call. If a command becomes slower than 10% on the booking fixture, the plan stops and records the time** | The decisions are small values, and each check is a few rules. Speed is a reason to stop, not a reason to skip the check quietly |
 
 ## The target, written first
 
@@ -55,6 +59,7 @@ Step 0 adds the scenarios of each new operation and each new definition of `self
 | 1 | Layer 2: the vocabulary of `self/`, and the test of decision 6 | The test fails when a page names a code that the enum does not have |
 | 2 | Layer 3: the decisions with flat values. These are `fix_of`, `fill_message`, `classify_change`, `judge_gate_1` to `judge_gate_5` and `read_cell`; the core calls the real functions | Each scenario passes |
 | 3 | Layer 5: the results and the diagnostics | Each scenario passes |
+| 3b | urn-forge through its own harness: the CLI and the gates call the operations of `self/` through `runOperation`; `src/cli.ts` and `src/verify/` are the shell in `self/`'s config; the new code `internal-contract` | Gate 2 of `self/` passes. A direct call in the shell fails it. The time of `compile` and `verify` on the booking fixture is recorded before and after |
 | 4 | Maps: the manifest, the model, the types, the checks, the rule language, gate 3, `diff` and gate 5 | `tests/maps.test.ts` passes |
 | 5 | Unions: the same parts, with the guard of a tag | `tests/unions.test.ts` passes |
 | 6 | Layer 1: the language of a manifest. `manifest.schema.json` goes, and the schema test reads `self/` | Each manifest of the repository is accepted by `self/`'s definition of a manifest, and a manifest with an unknown key is refused |
@@ -70,10 +75,14 @@ Each must turn CI red:
 3. Name a code in `AGENTS.md` that the enum of `self/` does not have → the test of decision 6.
 4. Make a union value of two variants pass its check → `tests/unions.test.ts`.
 5. Let a map key break its key rule → `tests/maps.test.ts`.
+6. Call `allowsWeaker` directly in `src/verify/contract.ts` → gate 2 of `self/`.
+7. Make `allowsWeaker` allow a weaker contract with the same version → a real `verify --base` stops with `internal-contract`, as well as the scenario.
 
 ## Risks
 
 - **New shapes call for more features.** Maps and unions are the first new kinds of value since the redesign. Each is CEL's own, or JSON's own, and urn-forge needs both. A request for a third kind needs its own reason.
 - **A large `self/`.** The manifest could pass 1000 lines. It is documentation, so each part needs a `description` that a person can read. The layers become sections with a comment at the head of each.
 - **A circle.** urn-forge compiles and checks its own contract. A bug that is in both the compiler and the contract of the compiler can hide. The unit tests and the booking fixture stay, and they do not use `self/`.
+- **A check on each call.** It makes each command slower. Decision 10 gives the limit.
+- **A wrong contract stops a real run.** If a rule of `self/` is wrong, a correct answer of urn-forge stops the user's command. The code `internal-contract` says so, and asks for an issue.
 - **Node-by-node rules are weaker than the whole.** Layer 4 states the checker node by node, so a wrong order of the nodes, or a wrong tree, is not found. The unit tests of the parser and the printer stay.
