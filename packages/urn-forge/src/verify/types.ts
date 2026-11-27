@@ -9,6 +9,19 @@ export interface GateProblem {
   readonly message: string;
 }
 
+/** The gates, in order: gate 1 is completeness. */
+export const GATES = ['completeness', 'boundary', 'gherkin', 'drift', 'contract'] as const;
+
+/** A gate passes when no problem of it is an error. A warning does not fail it, and a failing gate names its problem. */
+export function gatePasses(problems: readonly Pick<GateProblem, 'severity'>[]): boolean {
+  return !problems.some((p) => p.severity === 'error');
+}
+
+/** The outcome of a gate, with its pass from its problems. */
+export function gateOutcome(gate: 1 | 2 | 3 | 4 | 5, summary: string, problems: readonly GateProblem[]): GateOutcome {
+  return { gate, name: GATES[gate - 1]!, pass: gatePasses(problems), summary, problems };
+}
+
 /** The outcome of a gate: whether it passes, a one-line summary, and its problems. */
 export interface GateOutcome {
   readonly gate: number;

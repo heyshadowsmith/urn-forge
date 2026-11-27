@@ -15,7 +15,7 @@ import { IdGenerator } from '@cucumber/messages';
 import { STEPS } from '../gherkin/steps.js';
 import type { Model } from '../model.js';
 import type { Application } from '../rules.js';
-import type { GateOutcome, GateProblem } from './types.js';
+import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
 
 export interface FeatureFile {
   readonly path: string;
@@ -139,11 +139,5 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
   problems.splice(0, problems.length, ...unique.values());
   const errors = problems.filter((p) => p.severity === 'error').length;
   const operations = Object.keys(model.operations).length;
-  return {
-    gate: 3,
-    name: 'gherkin',
-    pass: errors === 0,
-    summary: `${features.length} feature(s), ${scenarios} scenario(s), ${ran.size}/${operations} operation(s) run, ${broken.size} rule(s) broken`,
-    problems,
-  };
+  return gateOutcome(3, `${features.length} feature(s), ${scenarios} scenario(s), ${ran.size}/${operations} operation(s) run, ${broken.size} rule(s) broken`, problems);
 }

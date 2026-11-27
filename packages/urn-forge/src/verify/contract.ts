@@ -22,7 +22,7 @@ import { allowsBreaking } from '../diff/command.js';
 import type { Application } from '../rules.js';
 import { partUrn } from '../urn.js';
 import type { FeatureFile } from './gherkin.js';
-import type { GateOutcome, GateProblem } from './types.js';
+import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
 
 export interface ContractGateInput {
   /** The git ref of the base, as the user gave it. */
@@ -85,7 +85,7 @@ export function allowsWeaker(from: string, to: string): { readonly allowed: bool
 }
 
 export function contractGate(input: ContractGateInput): GateOutcome {
-  const outcome = (pass: boolean, summary: string, problems: readonly GateProblem[]): GateOutcome => ({ gate: 5, name: 'contract', pass, summary, problems });
+  const outcome = (_pass: boolean, summary: string, problems: readonly GateProblem[]): GateOutcome => gateOutcome(5, summary, problems);
   if ('problem' in input.old) {
     return outcome(false, `cannot read ${input.base}`, [{ code: 'base-unreadable', severity: 'error', file: input.base, message: input.old.problem }]);
   }

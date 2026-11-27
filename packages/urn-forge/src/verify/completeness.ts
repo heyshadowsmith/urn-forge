@@ -6,7 +6,7 @@
  */
 import { dirname, resolve } from 'node:path';
 import ts from 'typescript';
-import type { GateOutcome, GateProblem } from './types.js';
+import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
 
 export interface CoreOptions {
   readonly corePath: string;
@@ -63,7 +63,7 @@ function satisfyingExports(source: ts.SourceFile, checker: ts.TypeChecker, gener
 }
 
 export function completenessGate(options: CoreOptions, program: ts.Program | string): GateOutcome {
-  const result = (pass: boolean, summary: string, problems: GateProblem[]): GateOutcome => ({ gate: 1, name: 'completeness', pass, summary, problems });
+  const result = (_pass: boolean, summary: string, problems: GateProblem[]): GateOutcome => gateOutcome(1, summary, problems);
   if (typeof program === 'string') {
     return result(false, 'the tsconfig cannot be read', [{ code: 'tsconfig-unreadable', severity: 'error', file: options.show(options.tsconfigPath), message: program }]);
   }

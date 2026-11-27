@@ -1,7 +1,10 @@
-# urn-forge's own domain: pure functions of the toolchain whose results a user sees, declared with
-# urn-forge. The core calls the functions that urn-forge really uses, so the scenarios test the
-# toolchain, not a copy: the type name of a definition, the URN of a part, a URN namespace, the
-# verdicts of diff and of gate 5 on a version change, and the direction of a new bound.
+# urn-forge's own contract: the decisions of urn-forge that a user sees, and its vocabulary, declared with
+# urn-forge. The core calls the functions that urn-forge really uses, so the scenarios test the toolchain,
+# not a copy. It declares the type name of a definition, the URN of a part, a URN namespace, the verdicts
+# of diff and of gate 5 on a version change, the direction of a new bound, the fix of each code, each
+# standard rule, the signatures of each function of the rule language, the steps of a scenario, the
+# verdict of a gate, and the failure message of a rule use. tests/self.test.ts keeps its vocabulary equal
+# to the package and to the pages that name it.
 manifest:
   namespace: urn-forge
   domain: toolchain
@@ -181,6 +184,233 @@ definitions:
     rules:
       - required: [direction]
 
+  # The vocabulary of urn-forge: each code, standard rule, function of the rule language, step and gate.
+  # A test keeps each list equal to its source in the package, and to the pages that name it.
+
+  code:
+    description: A code of a problem that urn-forge reports. A tool or an agent acts on the code, not on the message
+    type: string
+    rules:
+      - enum: [usage, config-unreadable, config-invalid, manifest-unreadable, yaml-syntax, manifest-shape, unknown-definition, type-cycle, duplicate-property, unknown-property, not-an-object, duplicate-output, invalid-identifier, deprecated-use, standard-name, unknown-rule, rule-argument, rule-syntax, rule-type, rule-guard, rule-scope, invalid-message, tsconfig-unreadable, core-not-found, type-error, core-not-satisfying, direct-call, suppressed-check, feature-syntax, unknown-name, uncovered-operation, uncovered-output, uncovered-rule, drift, base-unreadable, removed-rule, wider-rule, removed-output, removed-scenario]
+
+  fix:
+    description: What to do about each case of a code, in one sentence
+    type: string
+    rules:
+      - minLength: 1
+
+  code_request:
+    description: A code whose fix is asked for
+    type: object
+    properties: [code]
+    rules:
+      - required: [code]
+
+  code_fix:
+    description: A code and its fix
+    type: object
+    properties: [code, fix]
+    rules:
+      - required: [code, fix]
+
+  standard_rule_name:
+    description: The name of a rule of the standard set, which a manifest uses with no declaration
+    type: string
+    rules:
+      - enum: [enum, const, minimum, maximum, exclusiveMinimum, exclusiveMaximum, multipleOf, minLength, maxLength, pattern, format, minItems, maxItems, uniqueItems, required]
+
+  parameter_name:
+    description: The name of a parameter of a rule, which is also the name of a definition of its argument
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
+
+  parameter_names:
+    description: The parameters of a rule, in their order
+    type: array
+    items: parameter_name
+
+  rule_description:
+    description: What a rule checks, and why
+    type: string
+    rules:
+      - minLength: 1
+
+  failure_text:
+    description: What a failure of a rule says, with each argument in braces, such as Must be at least {bound}
+    type: string
+    rules:
+      - minLength: 1
+
+  standard_rule_request:
+    description: A standard rule that is asked for
+    type: object
+    properties: [standard_rule_name]
+    rules:
+      - required: [standard_rule_name]
+
+  standard_rule:
+    description: A standard rule, with its parameters, what it checks and what its failure says
+    type: object
+    properties: [standard_rule_name, parameter_names, rule_description, failure_text]
+    rules:
+      - required: [standard_rule_name, parameter_names, rule_description, failure_text]
+
+  function_name:
+    description: The name of a function or a method of the rule language. A name with a dot is a function of a namespace, such as math.greatest
+    type: string
+    rules:
+      - enum: [size, sum, matches, startsWith, endsWith, contains, split, charAt, indexOf, lastIndexOf, substring, join, flatten, math.greatest, math.least, math.ceil, math.floor, math.trunc, math.abs, math.sign, math.isNaN, math.isInf, math.isFinite, lowerAscii, upperAscii, int, double, string, bool, getFullYear, getMonth, getDate, getDayOfMonth, getDayOfWeek, getDayOfYear, getHours, getMinutes, getSeconds, getMilliseconds, timestamp]
+
+  signature_text:
+    description: The types that a function takes and gives, such as string.startsWith(string)
+    type: string
+    rules:
+      - minLength: 1
+
+  function_request:
+    description: A function of the rule language whose signatures are asked for
+    type: object
+    properties: [function_name]
+    rules:
+      - required: [function_name]
+
+  function_signatures:
+    description: A function of the rule language and its signatures
+    type: object
+    properties: [function_name, signature_text]
+    rules:
+      - required: [function_name, signature_text]
+
+  step_text:
+    description: The text of a step of a scenario, after Given, When, Then, And or But
+    type: string
+    rules:
+      - minLength: 1
+
+  step_kind:
+    description: A step of urn-forge, by its name in the steps of the package
+    type: string
+    rules:
+      - enum: [run, check, output, outputWith, inputRejected, valueRejected, accepted]
+
+  step_request:
+    description: A step text to read
+    type: object
+    properties: [step_text]
+    rules:
+      - required: [step_text]
+
+  matched_step:
+    description: A step text that is a step of urn-forge, and its kind
+    type: object
+    properties: [step_text, step_kind]
+    rules:
+      - required: [step_text, step_kind]
+
+  unmatched_step:
+    description: A step text that is no step of urn-forge
+    type: object
+    properties: [step_text]
+    rules:
+      - required: [step_text]
+
+  gate_number:
+    description: The number of a gate of verify, from 1 to 5
+    type: integer
+    rules:
+      - minimum: 1
+      - maximum: 5
+
+  gate_name:
+    description: The name of a gate, as verify prints it
+    type: string
+    rules:
+      - enum: [completeness, boundary, gherkin, drift, contract]
+
+  severity:
+    description: Whether a problem fails its gate (error) or only shows it (warning)
+    type: string
+    rules:
+      - enum: [error, warning]
+
+  gate_problem:
+    description: A problem that a gate found, by its code and its severity
+    type: object
+    properties: [code, severity]
+    rules:
+      - required: [code, severity]
+
+  gate_problems:
+    description: The problems that a gate found
+    type: array
+    items: gate_problem
+
+  gate_facts:
+    description: A gate and the problems that it found in a project
+    type: object
+    properties: [gate_number, gate_problems]
+    rules:
+      - required: [gate_number, gate_problems]
+
+  gate_passed:
+    description: The gate passes
+    type: object
+    properties: [gate_number, gate_name]
+    rules:
+      - required: [gate_number, gate_name]
+
+  gate_failed:
+    description: The gate fails
+    type: object
+    properties: [gate_number, gate_name]
+    rules:
+      - required: [gate_number, gate_name]
+
+  message_text:
+    description: The failure message of a rule, with a parameter in braces where its argument goes
+    type: string
+
+  argument_name:
+    description: The name of the parameter of an argument
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
+
+  argument_text:
+    description: An argument of a rule use, as its failure message shows it
+    type: string
+
+  message_argument:
+    description: One argument of a rule use, by the name of its parameter
+    type: object
+    properties: [argument_name, argument_text]
+    rules:
+      - required: [argument_name, argument_text]
+
+  message_arguments:
+    description: The arguments of a rule use
+    type: array
+    items: message_argument
+
+  message_request:
+    description: A failure message and the arguments of a use of its rule
+    type: object
+    properties: [message_text, message_arguments]
+    rules:
+      - required: [message_text, message_arguments]
+
+  filled_text:
+    description: The failure message of a rule use, with its arguments in place
+    type: string
+
+  filled_message:
+    description: The failure message with the arguments in place
+    type: object
+    properties: [filled_text]
+    rules:
+      - required: [filled_text]
+
 rules:
   is_the_type_name:
     description: >-
@@ -258,6 +488,75 @@ rules:
       (output.direction == 'narrower') == ((input.bound_rule in ['minimum', 'exclusiveMinimum', 'minLength', 'minItems']) == (input.new_bound > input.old_bound)))
     failure_message: The direction of the new bound is wrong for the form of the rule
 
+  names_the_code:
+    description: The answer names the code that was asked for
+    rule: output.code == input.code
+    failure_message: The answer names another code
+
+  fix_is_a_sentence:
+    description: A fix is one sentence, which starts with a capital letter and ends with a period
+    rule: output.fix.endsWith('.') && output.fix.substring(0, 1) == output.fix.substring(0, 1).upperAscii() && output.fix.substring(0, 1) != output.fix.substring(0, 1).lowerAscii()
+    failure_message: The fix is not one sentence that starts with a capital letter and ends with a period
+
+  names_the_standard_rule:
+    description: The answer is the standard rule that was asked for
+    rule: output.standard_rule_name == input.standard_rule_name
+    failure_message: The answer is another standard rule
+
+  names_the_function:
+    description: The answer is the function that was asked for, and each of its signatures names it
+    rule: output.function_name == input.function_name && output.signature_text.contains(input.function_name + '(')
+    failure_message: The answer is another function, or a signature that does not name it
+
+  is_the_step_of_its_text:
+    description: A step text is the step of urn-forge whose form it has, and of no other
+    rule: >-
+      (output.step_kind == 'run') == input.step_text.matches(r'^I run "[^"]+" with:$') &&
+      (output.step_kind == 'check') == input.step_text.matches(r'^I check an? "[^"]+" with:$') &&
+      (output.step_kind == 'output') == input.step_text.matches(r'^the output is "[^"]+"$') &&
+      (output.step_kind == 'outputWith') == input.step_text.matches(r'^the output is "[^"]+":$') &&
+      (output.step_kind == 'inputRejected') == input.step_text.matches(r'^the input is rejected by "[^"]+" of "[^"]+"$') &&
+      (output.step_kind == 'valueRejected') == input.step_text.matches(r'^the value is rejected by "[^"]+" of "[^"]+"$') &&
+      (output.step_kind == 'accepted') == input.step_text.matches(r'^the value is accepted$')
+    failure_message: The kind of the step is not the form of its text
+
+  matches_no_step:
+    description: A step text that has the form of no step of urn-forge is no step
+    rule: >-
+      !input.step_text.matches(r'^I run "[^"]+" with:$') &&
+      !input.step_text.matches(r'^I check an? "[^"]+" with:$') &&
+      !input.step_text.matches(r'^the output is "[^"]+"$') &&
+      !input.step_text.matches(r'^the output is "[^"]+":$') &&
+      !input.step_text.matches(r'^the input is rejected by "[^"]+" of "[^"]+"$') &&
+      !input.step_text.matches(r'^the value is rejected by "[^"]+" of "[^"]+"$') &&
+      !input.step_text.matches(r'^the value is accepted$')
+    failure_message: The step text has the form of a step of urn-forge
+
+  names_the_gate:
+    description: The answer names the gate by its number, in the order of verify
+    rule: output.gate_number == input.gate_number && output.gate_name == ['completeness', 'boundary', 'gherkin', 'drift', 'contract'][input.gate_number - 1]
+    failure_message: The answer names another gate
+
+  passes_with_no_error:
+    description: A gate passes when none of its problems is an error; a warning does not fail it
+    rule: "!input.gate_problems.exists(p, p.severity == 'error')"
+    failure_message: The gate passes with a problem that is an error
+
+  fails_with_an_error:
+    description: A gate fails only with a problem that is an error, so a failing gate names its problem
+    rule: input.gate_problems.exists(p, p.severity == 'error')
+    failure_message: The gate fails with no problem that is an error
+
+  fills_each_argument:
+    description: >-
+      Each parameter in braces that has an argument becomes the argument; no braces of an argument stay; and a
+      message with no argument stays as it is
+    rule: >-
+      input.message_arguments.all(a, !output.filled_text.contains('{' + a.argument_name + '}') &&
+      (!input.message_text.contains('{' + a.argument_name + '}') || output.filled_text.contains(a.argument_text))) &&
+      (size(input.message_arguments) > 0 || output.filled_text == input.message_text)
+    failure_message: A parameter in braces is not its argument
+
 operations:
   to_type_name:
     description: Name the TypeScript type of a definition, as the generated file does
@@ -297,3 +596,41 @@ operations:
     input: bound_change
     output:
       - bound_judged: [direction_by_the_form]
+
+  fix_of:
+    description: The fix of a code, which each report of the code shows
+    input: code_request
+    output:
+      - code_fix: [names_the_code, fix_is_a_sentence]
+
+  describe_standard_rule:
+    description: A standard rule, with its parameters, what it checks and what its failure says
+    input: standard_rule_request
+    output:
+      - standard_rule: [names_the_standard_rule]
+
+  signatures_of:
+    description: The types that a function of the rule language takes and gives
+    input: function_request
+    output:
+      - function_signatures: [names_the_function]
+
+  match_step:
+    description: Whether a step text is a step of urn-forge, and which one, as Cucumber reads it
+    input: step_request
+    output:
+      - matched_step: [is_the_step_of_its_text]
+      - unmatched_step: [matches_no_step]
+
+  judge_gate:
+    description: Whether a gate passes, from the problems that it found
+    input: gate_facts
+    output:
+      - gate_passed: [names_the_gate, passes_with_no_error]
+      - gate_failed: [names_the_gate, fails_with_an_error]
+
+  fill_message:
+    description: The failure message of a use of a rule, with its arguments in place, as a failure gives it
+    input: message_request
+    output:
+      - filled_message: [fills_each_argument]
