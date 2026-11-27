@@ -104,7 +104,14 @@ describe('the reference in the package', () => {
     for (const step of ['I run "', 'I check a "', 'the output is "', 'the input is rejected by "', 'the value is rejected by "', 'the value is accepted']) expect(reference, step).toContain(step);
     for (const code of sourceCodes()) expect(reference, code).toContain(`\`${code}\``);
     const { CODES } = await import('../src/codes.js');
-    for (const [code, { fix }] of Object.entries(CODES)) expect(reference, code).toContain(`| \`${code}\` | ${fix.replaceAll('|', '\\|')} |`);
+    const cell = (text: string): string => text.replaceAll('|', '\\|');
+    for (const [code, { meaning, severity, fix }] of Object.entries(CODES)) expect(reference, code).toContain(`| \`${code}\` | ${cell(meaning)} | ${severity} | ${cell(fix)} |`);
+    // The CLI reference gives each code its severity and its cause, which is its meaning; codes of one meaning share a row.
+    const cli = readFileSync(join(ROOT, 'docs/reference/cli.md'), 'utf8').split('\n');
+    for (const [code, { meaning, severity }] of Object.entries(CODES)) {
+      const row = cli.find((l) => l.startsWith('| `') && l.split(' | ')[0]!.includes(`\`${code}\``));
+      expect(row, code).toBe(`${row!.split(' | ')[0]} | ${severity} | ${cell(meaning)} |`);
+    }
     const pkg = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as { files: string[] };
     expect(pkg.files).toContain('AGENTS.md');
   });
