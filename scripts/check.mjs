@@ -9,7 +9,6 @@
 // Each check runs even when one before it fails, so that one failure does not hide another. The
 // script exits with 1 when any check fails, and lists the failed checks at the end.
 import { spawnSync } from 'node:child_process';
-import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -24,32 +23,14 @@ if (baseAt >= 0 && (!base || base.startsWith('--'))) {
   process.exit(2);
 }
 const ci = process.env.GITHUB_ACTIONS === 'true';
-const contracts = readdirSync(join(root, 'contracts'))
-  .filter((name) => statSync(join(root, 'contracts', name)).isDirectory())
-  .sort();
 
 /** The checks, in order: a name, a command, and the folder to run it in. */
 const checks = [
   ['tests', 'npm', ['test'], root],
   ['typecheck', 'npm', ['run', 'typecheck'], root],
-  ['verify example', 'npm', ['run', '-s', 'verify:example'], pkg],
-  ['scenarios example', 'npx', ['cucumber-js'], pkg],
-  ['verify self', 'npm', ['run', '-s', 'verify:self'], pkg],
-  ['scenarios self', 'npx', ['cucumber-js', '--profile', 'self'], pkg],
-  ['verify insurance', 'npm', ['run', '-s', 'verify:insurance'], pkg],
-  ['scenarios insurance', 'npm', ['run', '-s', 'test:features:insurance'], pkg],
-  ['verify tutorial', 'npm', ['run', '-s', 'verify:tutorial'], pkg],
-  ['scenarios tutorial', 'npm', ['run', '-s', 'test:features:tutorial'], pkg],
-  ...contracts.flatMap((name) => [
-    [`verify contract ${name}`, 'node', ['packages/urn-forge/bin/urn-forge.js', 'verify', '--config', `contracts/${name}/urn-forge.config.ts`, ...(base ? ['--base', base] : [])], root],
-    [
-      `scenarios contract ${name}`,
-      'npx',
-      ['cucumber-js', '--import', '../../packages/urn-forge/src/gherkin/register-tsx.mjs', '--import', 'features/support/**/*.ts', 'features/**/*.feature'],
-      join(root, 'contracts', name),
-    ],
-  ]),
-  ['corpus score', 'npm', ['run', '-s', 'corpus'], root],
+  // With --base, gate 5 runs on self/: it compares its contract with the base.
+  ['verify self', 'node', ['bin/urn-forge.js', 'verify', '--config', 'self/urn-forge.config.ts', ...(base ? ['--base', base] : [])], pkg],
+  ['scenarios self', 'npx', ['cucumber-js'], pkg],
   // The domains here are test domains, which change on purpose: diff is a report, not a failure.
   ...(base ? [['diff against the base (report)', 'npm', ['run', '-s', 'diff:base', '--', base, '--report'], pkg]] : []),
   ...(quick ? [] : [['tarball', 'npm', ['run', '-s', 'test:tarball'], root], ['docs build', 'npm', ['run', '-s', 'docs:build'], root]]),

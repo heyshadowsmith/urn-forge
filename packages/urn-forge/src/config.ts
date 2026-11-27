@@ -9,15 +9,6 @@
  */
 import { pathToFileURL } from 'node:url';
 
-export interface PostgresConfig {
-  /** The objects that become tables. Each needs an identifier. */
-  readonly tables: readonly string[];
-  /** A property that holds the identifier of another table: `{ booking: { restaurant_ref: 'restaurant' } }`. */
-  readonly references?: Readonly<Record<string, Readonly<Record<string, string>>>>;
-  /** Properties whose values no two rows of a table share: `{ booking: [['restaurant_ref', 'starts_at']] }`. */
-  readonly unique?: Readonly<Record<string, readonly (readonly string[])[]>>;
-}
-
 /** One domain of a project: its manifest, its generated files, its core and its scenarios. */
 export interface DomainConfig {
   /** The manifest. Default: `domain.manifest.yaml`. */
@@ -28,8 +19,6 @@ export interface DomainConfig {
   readonly core?: string;
   /** verify: the directory of the `.feature` files. Default: `features`. */
   readonly features?: string;
-  /** compile: write a Postgres schema of these tables, `schema.generated.sql`. */
-  readonly postgres?: PostgresConfig;
 }
 
 export interface UrnForgeConfig {
@@ -49,7 +38,7 @@ export function defineConfig(config: UrnForgeConfig): UrnForgeConfig {
 export const CONFIG_FILE = 'urn-forge.config.ts';
 
 const KEYS = ['tsconfig', 'shell', 'domains'];
-const DOMAIN_KEYS = ['manifest', 'out', 'core', 'features', 'postgres'];
+const DOMAIN_KEYS = ['manifest', 'out', 'core', 'features'];
 
 /** Options that urn-forge no longer has, or that moved, with what to do. */
 const REMOVED: Readonly<Record<string, string>> = {
@@ -88,21 +77,6 @@ function domainProblems(domain: unknown, at: string): string[] {
   const problems: string[] = [];
   for (const key of Object.keys(domain)) if (!DOMAIN_KEYS.includes(key)) problems.push(`${at}.${key} is not an option; the options are ${DOMAIN_KEYS.join(', ')}`);
   for (const key of ['manifest', 'out', 'core', 'features']) if (domain[key] !== undefined && !isText(domain[key])) problems.push(`${at}.${key} must be a path`);
-  const postgres = domain['postgres'];
-  if (postgres !== undefined) {
-    if (!isRecord(postgres) || !isTexts(postgres['tables'])) problems.push(`${at}.postgres must have tables, a list of object names`);
-    else {
-      for (const key of Object.keys(postgres)) if (!['tables', 'references', 'unique'].includes(key)) problems.push(`${at}.postgres.${key} is not an option`);
-      const references = postgres['references'];
-      if (references !== undefined && (!isRecord(references) || !Object.values(references).every((r) => isRecord(r) && Object.values(r).every(isText)))) {
-        problems.push(`${at}.postgres.references must map a table to its properties, each to the table it refers to`);
-      }
-      const unique = postgres['unique'];
-      if (unique !== undefined && (!isRecord(unique) || !Object.values(unique).every((u) => Array.isArray(u) && u.every(isTexts)))) {
-        problems.push(`${at}.postgres.unique must map a table to a list of lists of properties`);
-      }
-    }
-  }
   return problems;
 }
 

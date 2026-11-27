@@ -33,9 +33,6 @@ export const CODES = {
   'rule-scope': { fix: 'Use only the names that the message lists: self, input, output, the parameters of the rule, and the variable of a macro.' },
   'invalid-message': { fix: 'Use in {braces} only the names of the parameters of the rule.' },
 
-  // The Postgres schema.
-  'postgres-config': { fix: 'Name in postgres: only object definitions that have an identifier, and their properties.' },
-  'postgres-column': { fix: 'Give the definitions shorter names, or rename a property so that no two parts give one column name.' },
 
   // Gate 1: the core.
   'tsconfig-unreadable': { fix: 'Give --tsconfig, or tsconfig in the config, the path of a tsconfig that TypeScript can read.' },

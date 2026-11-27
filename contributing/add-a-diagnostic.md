@@ -21,7 +21,7 @@ A problem belongs to the first stage that can see it. Put the check there:
 | A use of a rule: its name, its argument, its message | Rule uses | `src/rules.ts` | `diagnostics.error(code, path, message)` |
 | The type or the names of a rule where it is applied | Rule language | `src/cel/check.ts` | A `RuleProblem`: `rule-type`, `rule-guard` or `rule-scope` |
 | An argument against the rules of its parameter, or a use of a deprecated part | Compile | `src/compile.ts` | `diagnostics.error` or `diagnostics.warning` |
-| The config | Config | `src/config.ts`, `src/generate/postgres.ts` | A message of `config-invalid`, or a `postgres-config` problem |
+| The config | Config | `src/config.ts` | A message of `config-invalid` |
 | The core, the shell, the features or the generated files | A gate | `src/verify/` | A `GateProblem` with a file and an optional line |
 
 Do not check a problem in a later stage if an earlier stage can find it. For example, the model does not check the keys of a definition, because the shape stage reported them.

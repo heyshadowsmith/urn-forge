@@ -16,21 +16,11 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "compile:example": "node bin/urn-forge.js compile --config example/urn-forge.config.ts",
     "compile:self": "node bin/urn-forge.js compile --config self/urn-forge.config.ts",
-    "compile:insurance": "node bin/urn-forge.js compile --config insurance/urn-forge.config.ts",
-    "verify:example": "node bin/urn-forge.js verify --config example/urn-forge.config.ts",
     "verify:self": "node bin/urn-forge.js verify --config self/urn-forge.config.ts",
-    "verify:insurance": "node bin/urn-forge.js verify --config insurance/urn-forge.config.ts",
-    "verify:tutorial": "node bin/urn-forge.js verify --config tutorial/1-first-domain/urn-forge.config.ts && node bin/urn-forge.js verify --config tutorial/2-declared-errors/urn-forge.config.ts && node bin/urn-forge.js verify --config tutorial/3-edges/urn-forge.config.ts",
-    "test:features": "cucumber-js",
-    "test:features:self": "cucumber-js --profile self",
-    "test:features:insurance": "cucumber-js --profile insurance",
-    "test:features:tutorial": "cucumber-js --profile tutorial-1 && cucumber-js --profile tutorial-2 && cucumber-js --profile tutorial-3",
+    "test:features": "cucumber-js --profile self",
     "test:tarball": "node scripts/test-tarball.mjs",
-    "diff:base": "node scripts/diff-base.mjs",
-    "corpus": "node --import tsx scripts/corpus.ts",
-    "conformance": "node --import tsx scripts/conformance.ts"
+    "diff:base": "node scripts/diff-base.mjs"
   },
   "dependencies": {
     "@cucumber/cucumber": "^13.3.0",
@@ -38,11 +28,9 @@
     "@cucumber/messages": "^35.0.0",
     "tsx": "^4.23.15",
     "typescript": "~5.9",
-    "valibot": "^1.5.0",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.17",
     "@types/node": "^22.20.5",
     "ajv": "^8.20.0",
     "vitest": "^5.1.1"

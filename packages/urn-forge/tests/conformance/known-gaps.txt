@@ -1,1 +1,0 @@
-# The conformance tests of cel-spec in scope that urn-forge does not pass yet. Each step removes lines.

@@ -1,6 +1,6 @@
 /**
  * urn-forge: a manifest of definitions, rules and operations, compiled into a checked TypeScript
- * harness, Gherkin coverage, a Postgres schema and a diff of breaking changes.
+ * harness, Gherkin coverage and a diff of breaking changes.
  */
 import { compileManifest } from './compile.js';
 import type { Diagnostic } from './diagnostics.js';

@@ -1,8 +1,7 @@
 /**
- * The helpers of the generated code. The generator copies this file into each generated file, with
- * no `export` and with no import: the generated file imports Valibot itself, as `v`.
+ * The helpers of the generated code. The generator copies the helpers that a file uses into it, with
+ * no `export`: the generated file has no import.
  */
-import * as v from 'valibot';
 
 /** A rule that a value breaks: the definition and the rule, the place of the value, and the failure message of the rule. */
 export interface Failure {
@@ -544,88 +543,3 @@ export function $holds(rule: () => boolean): boolean {
   }
 }
 
-/** A rule in the pipe of a schema: a Valibot check whose requirement keeps the definition and the rule's name. */
-export function $rule(definition: string, rule: string, message: string, test: (value: any) => boolean) {
-  return v.check<any, string>(Object.assign((value: unknown) => $holds(() => test(value)), { definition, rule }), message);
-}
-
-/** What the failures need of a definition: its base type, its root, and the parts of a list or an object. */
-export interface Shape {
-  readonly base: string;
-  readonly root: string;
-  readonly items?: string;
-  readonly properties?: readonly string[];
-}
-
-const TYPE_MESSAGES: Readonly<Record<string, string>> = {
-  string: 'Must be a string',
-  integer: 'Must be an integer',
-  number: 'Must be a number',
-  boolean: 'Must be true or false',
-  array: 'Must be a list',
-  object: 'Must be an object',
-};
-
-/**
- * Checks a value with the schema of a definition, and adds a failure for each rule it breaks: the
- * rule of a check by its name, a value of the wrong type as `type`, a property that the object does
- * not have as `properties`, and missing properties as one `required` of the object.
- */
-export function $validate(
-  schema: v.GenericSchema,
-  definition: string,
-  value: unknown,
-  path: string,
-  failures: Failure[],
-  shapes: Readonly<Record<string, Shape>>,
-  required: Readonly<Record<string, string>>,
-): boolean {
-  const result = v.safeParse(schema, value);
-  if (result.success) return true;
-  const found: Failure[] = [];
-  const seen = new Set<string>();
-  for (const issue of result.issues) {
-    // The place of the issue, and the definition of each step: a key is a property, which is a definition of its own name.
-    let place = path;
-    let current = definition;
-    const steps = issue.path ?? [];
-    let owner = current;
-    let ownerPlace = place;
-    for (const step of steps) {
-      owner = current;
-      ownerPlace = place;
-      const key = step.key;
-      if (typeof key === 'number') {
-        place = $item(place, key);
-        current = shapes[shapes[current]?.root ?? current]?.items ?? current;
-      } else {
-        place = $at(place, String(key));
-        current = String(key);
-      }
-    }
-    const requirement = (issue as { requirement?: unknown }).requirement as { definition?: string; rule?: string } | undefined;
-    let failure: Failure;
-    if (issue.type === 'check' && requirement?.rule) {
-      failure = { definition: requirement.definition!, rule: requirement.rule, path: place, failure_message: issue.message };
-    } else if ((issue.type === 'strict_object' || issue.type === 'object') && issue.expected === 'never') {
-      const root = shapes[owner]?.root ?? owner;
-      failure = { definition: root, rule: 'properties', path: place, failure_message: `Must be one of the properties of ${root}: ${(shapes[root]?.properties ?? []).join(', ')}` };
-    } else if ((issue.type === 'strict_object' || issue.type === 'object') && issue.received === 'undefined' && steps.length > 0) {
-      const root = shapes[owner]?.root ?? owner;
-      failure = { definition: root, rule: 'required', path: ownerPlace, failure_message: required[root] ?? `Must have ${current}` };
-    } else {
-      const base = shapes[current]?.base ?? 'object';
-      failure = { definition: shapes[current]?.root ?? current, rule: 'type', path: place, failure_message: TYPE_MESSAGES[base] ?? 'Must be a value of its type' };
-    }
-    const key = `${failure.definition} ${failure.rule} ${failure.path}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    found.push(failure);
-  }
-  // A rule of an object or a list reads its parts: it counts only when no part of it broke.
-  const inside = (outer: string, inner: string): boolean =>
-    inner !== outer && (outer === path ? inner.length > outer.length : inner.startsWith(`${outer}.`) || inner.startsWith(`${outer}[`));
-  const structural = new Set(['type', 'properties', 'required']);
-  failures.push(...found.filter((f) => structural.has(f.rule) || !found.some((g) => inside(f.path, g.path))));
-  return false;
-}

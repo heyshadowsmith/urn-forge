@@ -4,9 +4,8 @@ Coding agents write the code. You own the contract. urn-forge generates a harnes
 
 - **State the rules** of a domain in one short contract that you review: the values, the operations, the answers of each operation, and named rules with messages.
 - **Let the agent write the code.** `init` writes an `AGENTS.md` for any coding agent and a skill for Claude Code. Each problem has a stable code and one sentence that says what to do, as text or JSON.
-- **Generate** one TypeScript file: a type and a schema for each definition, and `runOperation`. This harness checks the input before the code runs, and the answer after it.
+- **Generate** one TypeScript file with no dependency: a type and a check for each definition, and `runOperation`. This harness checks the input before the code runs, and the answer after it.
 - **Prove** with `urn-forge verify` that the contract and the code agree. The core has a function for each operation, and the shell calls it only through the harness. Scenarios cover each operation, answer and rule, and the generated files are current. Gate 5 fails a change that removes a rule, an answer or a scenario without a new version. `urn-forge diff` fails a change that breaks callers, unless the major version increases.
-- **Store** objects in Postgres, if you want. urn-forge writes a schema. Each rule that SQL can state becomes a `CHECK` constraint. It also writes the statements that write and read the rows.
 
 ## Start
 
@@ -48,4 +47,4 @@ export const core = {
 
 The shell calls `runOperation(core, 'split', input)`. The result is one of three: the answer; `InputRejected` for an input that breaks a rule; or `ContractViolation` for an answer that breaks the contract.
 
-The documentation is in the [`docs/` folder of the repository](https://github.com/heyshadowsmith/urn-forge/tree/main/docs). It has a tutorial, guides, a reference, and the reasons for the design.
+The documentation is in the [`docs/` folder of the repository](https://github.com/heyshadowsmith/urn-forge/tree/main/docs). It has the methodology, and a reference of the manifest, the rule syntax and the CLI.

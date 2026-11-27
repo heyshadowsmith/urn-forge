@@ -31,39 +31,21 @@ CI runs `npm run check -- --base` with the base branch on each pull request, in 
 | Command | What it checks |
 | --- | --- |
 | `npm test` | The Vitest suite in `packages/urn-forge/tests` |
-| `npm run typecheck` | `tsc` over `src`, `tests`, `example`, `self` and `insurance`. Vitest does not type-check, so this command is necessary |
-| `npm run verify:example` | `urn-forge verify` on the math example |
+| `npm run typecheck` | `tsc` over `src`, `tests` and `self`. Vitest does not type-check, so this command is necessary |
 | `npm run verify:self` | `urn-forge verify` on urn-forge's own domain |
-| `npm run verify:insurance` | `urn-forge verify` on the insurance domain |
-| `npm run verify:tutorial` | `urn-forge verify` on the three tutorial snapshots |
-| `npm run test:features` | Cucumber on the math example |
-| `npm run test:features:self` | Cucumber on `self/` |
-| `npm run test:features:insurance` | Cucumber on the insurance domain |
-| `npm run test:features:tutorial` | Cucumber on the three tutorial snapshots |
-| `npm run corpus` | The score of the contract corpus. It fails below the minimum |
+| `npm run test:features` | Cucumber on `self/` |
 | `npm run docs:build` | The VitePress site. A broken page, a dead link or a snippet file that does not exist fails it |
 | `npm run test:tarball` | Packs urn-forge, installs the tarball in a new project, and runs `init`, `compile`, `verify` and the scenarios. It needs the npm registry |
 
-For each contract in `contracts/`, `npm run check` also runs `verify` and Cucumber. To do this for one contract, run these commands from the root:
-
-```bash
-node packages/urn-forge/bin/urn-forge.js verify --config contracts/bookings/urn-forge.config.ts
-(cd contracts/bookings && npx cucumber-js --import ../../packages/urn-forge/src/gherkin/register-tsx.mjs --import 'features/support/**/*.ts' 'features/**/*.feature')
-```
-
-A second workflow, **Determinism**, runs once a week and on demand. It runs `npm test` with `TZ=Pacific/Chatham` and `LC_ALL=tr_TR.UTF-8`. Then it compiles `example`, `self` and `insurance` again, and `git diff --exit-code` must show no change. To start it, open Actions → Determinism → Run workflow.
+A second workflow, **Determinism**, runs once a week and on demand. It runs `npm test` with `TZ=Pacific/Chatham` and `LC_ALL=tr_TR.UTF-8`. Then it compiles `self` and the booking fixture again, and `git diff --exit-code` must show no change. To start it, open Actions → Determinism → Run workflow.
 
 ## Compile the generated files again
 
-The generated files are committed. If you change the generated code (`src/generate/`), each generated file changes. Gate 4 then fails for each domain until you compile it again. Run these commands from `packages/urn-forge`:
+The generated files are committed. If you change the generated code (`src/generate/`), each generated file changes. Gate 4 then fails for `self/` and for the booking fixture until you compile them again. Run these commands from `packages/urn-forge`:
 
 ```bash
-npm run compile:example
 npm run compile:self
-npm run compile:insurance
-for step in 1-first-domain 2-declared-errors 3-edges; do node bin/urn-forge.js compile --config tutorial/$step/urn-forge.config.ts; done
 node bin/urn-forge.js compile --config tests/fixtures/booking/urn-forge.config.ts
-for dir in ../../contracts/*/; do node bin/urn-forge.js compile --config "$dir/urn-forge.config.ts"; done
 ```
 
 Examine the diff of the generated files. Make sure that each change is a change that you intended.
@@ -82,23 +64,10 @@ urn-forge gives general constructs only (decision 10 of the [contract completene
 - [Add a Gherkin step](contributing/add-a-gherkin-step.md)
 - [Add a diagnostic](contributing/add-a-diagnostic.md)
 - [Add a test fixture](contributing/add-a-fixture.md)
-- [Add a domain](contributing/add-a-domain.md)
 
 ## Write documentation
 
 The pages in `docs/` are for users. They follow the [documentation style guide](contributing/docs-style.md). A page quotes only output that urn-forge really gives. The pages in `contributing/` follow the same English rules.
-
-## The contract corpus
-
-The [`contracts/`](contracts) folder measures how much of a real contract a manifest can declare. Each contract has a `promises.yaml`: its promises, each with a status (`declared`, `workaround` or `not-declarable`). A promise that is not declared names the hole of the roadmap that would declare it. Each contract is also a domain that passes `verify` with strict coverage.
-
-```bash
-npm run corpus    # the score: declared ÷ all promises, and the count by hole
-```
-
-CI fails if the score falls below the `minimum` of `contracts/corpus.yaml`. The score of 0.2.0 is 64 of 143 promises (44.8%). A change that declares more promises sets their status to `declared`, and raises the minimum to the new score.
-
-A promise is `declared` only if a core that breaks it fails a generated check. The [test of declared](docs/methodology.md) gives the rule. If every check passes while the promise breaks, the promise is a `workaround`, with a comment that names the break.
 
 ## Plans
 

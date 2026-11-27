@@ -1,8 +1,7 @@
 # Every check of the repository, in one job: `npm run check`, the same command that a person or an
 # agent runs before a pull request (scripts/check.mjs). It runs the tests and the type check, verify
-# and the scenarios of each domain, tutorial snapshot and contract of the corpus, the score of the
-# corpus, the tarball test and the docs build. On a pull request, it also compares each domain with
-# the base branch: diff as a report, and gate 5 on each contract.
+# and the scenarios of each domain, the tarball test and the docs build. On a pull request, it also
+# compares each domain with the base branch: diff as a report, and gate 5 on self/.
 #
 # A pull request is checked out as its merge commit, so HEAD^1 is the tip of the base branch. A
 # change only to plans or contributor guides runs no check.

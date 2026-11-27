@@ -111,7 +111,7 @@ describe('the reference in the package', () => {
 });
 
 describe('the schema of the manifest', () => {
-  target.schema('accepts each manifest of the fixtures, the domains and the contracts, and refuses an unknown key', () => {
+  target.schema('accepts each manifest of the repository, and refuses an unknown key', () => {
     const schema = JSON.parse(readFileSync(join(PACKAGE, 'manifest.schema.json'), 'utf8')) as object;
     const validate = new Ajv2020({ allErrors: true }).compile(schema);
     // The standard set is not a manifest of a project: its rules have the camelCase names of JSON Schema.
@@ -119,7 +119,8 @@ describe('the schema of the manifest', () => {
       .trim()
       .split('\n')
       .filter((file) => !file.endsWith('src/standard.manifest.yaml'));
-    expect(manifests.length).toBeGreaterThan(8);
+    // self/, the starter and the booking fixture, at least.
+    expect(manifests.length).toBeGreaterThanOrEqual(3);
     for (const file of manifests) {
       // The starter's template has the placeholders of init.
       const text = readFileSync(join(ROOT, file), 'utf8').replaceAll('{{namespace}}', 'app').replaceAll('{{domain}}', 'starter');

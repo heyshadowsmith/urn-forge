@@ -24,12 +24,7 @@ const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: pkg, e
 
 /** The manifest of each domain, relative to the package. */
 const DOMAINS = [
-  'example/domain.manifest.yaml',
   'self/domain.manifest.yaml',
-  'insurance/domain.manifest.yaml',
-  'tutorial/1-first-domain/domain.manifest.yaml',
-  'tutorial/2-declared-errors/domain.manifest.yaml',
-  'tutorial/3-edges/domain.manifest.yaml',
 ];
 
 const temp = mkdtempSync(join(tmpdir(), 'urn-forge-diff-'));

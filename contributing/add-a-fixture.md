@@ -21,9 +21,7 @@ The only fixture at this time is `booking`: a restaurant booking. It was the tar
 - a deprecated definition;
 - an operation with rules for each output.
 
-Its config has `coverage: 'error'` and a Postgres table.
-
-- **To test a construct that compiles,** add it to the booking fixture. Most tests read it, so a new construct gets the generated code, the scenarios, the gates and the Postgres schema at no extra cost.
+- **To test a construct that compiles,** add it to the booking fixture. Most tests read it, so a new construct gets the generated code, the scenarios and the gates at no extra cost.
 - **To test a mistake,** write a small manifest inline in the test, not a fixture. `tests/model.test.ts`, `tests/rules.test.ts` and `tests/diff.test.ts` do this. To break the booking fixture in one place, use the helper `changed` of `tests/target.test.ts`.
 - **Make a new fixture** only if the booking fixture cannot hold the case, for example a different config.
 
@@ -53,8 +51,6 @@ The package tsconfig includes `tests`, so `npm run typecheck` type-checks the co
 
    ```
    wrote      tests/fixtures/booking/generated/domain.generated.ts
-   unchanged  tests/fixtures/booking/generated/schema.generated.sql
-   unchanged  tests/fixtures/booking/generated/domain.store.generated.ts
    ```
 
 3. If the change adds an operation, an output or a rule of a definition, add a scenario for it to `features/seat.feature`. If the change adds an operation, add its function to `core.ts`.
@@ -95,7 +91,6 @@ If you change the generated code later, compile each fixture again with the othe
 
 ## Related pages
 
-- [Add a domain](./add-a-domain.md)
 - [Dogfooding](./dogfooding.md)
 - [How urn-forge is built](./architecture.md)
 - [Diagnostics](../docs/reference/cli.md)

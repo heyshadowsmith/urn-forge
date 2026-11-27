@@ -1,6 +1,6 @@
 # Dogfooding
 
-urn-forge uses itself. Some of its own functions are a urn-forge domain, and the tutorials are tested code. Each large change starts from a target that is written before the code. This page tells how these parts work, and what they found in the redesign of 0.2.
+urn-forge uses itself. Some of its own functions are a urn-forge domain. Each large change starts from a target that is written before the code. This page tells how these parts work, and what they found in the redesign of 0.2.
 
 ## `self/`: urn-forge's own domain
 
@@ -38,7 +38,7 @@ Some pure functions of urn-forge give a result that a user can see, such as a na
 2. Compile `self/` with `npm run compile:self`.
 3. Add the function to `self/core.ts`. It must call the real function of `src/`.
 4. Add scenarios to `self/features/`. Coverage is `error`, so each output and each rule of a definition needs one.
-5. Run `npm run verify:self` and `npm run test:features:self` from the root folder.
+5. Run `npm run verify:self` and `npm run test:features` from the root folder.
 
 ### The limit of `self/`
 
@@ -48,13 +48,7 @@ The rule language states each rule of `self/` exactly. `is_the_type_name` builds
 
 The verdicts on a version change are complete: `allows_a_breaking_change` reads the major version with `int(…split('.')[0])`, and `keeps_the_major` and `keeps_the_version_or_the_major` hold each refusal.
 
-`self/` does not declare these pure functions yet: the failure message of a rule (`fillMessage`), the fix of a code (`fixOf`), the names of the Postgres schema, and the direction of a new argument of `enum` and `required`. Each can be one more operation. The `insurance` domain and the six contracts of the corpus do that. Refer to [Add a domain](./add-a-domain.md).
-
-## The tutorial snapshots
-
-The three tutorials build a shipping domain in three stages. Each stage is a snapshot in [`packages/urn-forge/tutorial/`](../packages/urn-forge/tutorial), with its own configuration, generated file, core and features. CI runs `verify` and Cucumber on each snapshot. The tutorial pages import their code from the snapshots, so the code in a tutorial is code that compiles, verifies and passes.
-
-If a change to urn-forge changes the generated file of a snapshot, compile the snapshot again. Then build the docs, and read the tutorial pages that import the file.
+`self/` does not declare these pure functions yet: the failure message of a rule (`fillMessage`), the fix of a code (`fixOf`), and the direction of a new argument of `enum` and `required`. Each can be one more operation.
 
 ## The target, written first
 
@@ -78,6 +72,5 @@ A target that is written first meets the real code early. These are some of the 
 ## Related pages
 
 - [Add a test fixture](./add-a-fixture.md)
-- [Add a domain](./add-a-domain.md)
 - [How urn-forge is built](./architecture.md)
 - [Tutorial: build the shipping domain](../docs/index.md)

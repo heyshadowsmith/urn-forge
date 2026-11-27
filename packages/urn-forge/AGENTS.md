@@ -14,7 +14,7 @@ Use `--format json` on `compile`, `verify` and `diff` to get one JSON object: `{
 
 ## Do not
 
-- Edit a file in the generated folder (`*.generated.ts`, `*.generated.sql`). Gate 4 fails. Change the manifest, and run `compile`.
+- Edit a file in the generated folder (`*.generated.ts`). Gate 4 fails. Change the manifest, and run `compile`.
 - Add `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`. Gate 2 fails. Correct the type error.
 - Call a function of the core directly from the shell (`core.x(…)`, `const { x } = core`). Gate 2 fails. Call `runOperation(core, 'x', input)`.
 - Remove or weaken a rule, an output or a scenario to make a check pass. Gate 5 (`verify --base <ref>`) fails. Correct the core or the scenario. A weaker contract needs a new `version`, which a person decides: stop and ask.
@@ -27,7 +27,7 @@ One YAML file with four sections. Only `manifest` is required. A name is lowerca
 ```yaml
 manifest:
   namespace: acme            # required; a URN namespace: lowercase letters, digits and hyphens
-  domain: bookings           # required; also the Postgres schema
+  domain: bookings           # required
   version: 0.1.0             # required; semver, read by diff and gate 5
   compatibility:             # optional
     callers: ignore-unknown  # callers ignore a property or an output they do not know
@@ -111,7 +111,7 @@ The structure of a value gives two more rule names in a failure: `type` (a value
 
 ## The rule language
 
-CEL and its standard extensions, for the types of a manifest. Each rule must give a `bool`. CEL's own conformance tests check the language: `tests/conformance/` in the repository.
+CEL and its standard extensions, for the types of a manifest. Each rule must give a `bool`.
 
 - **Names:** `self`, `input`, `output`, the parameters of the rule, the variables of a macro, and `cel.bind(name, value, rule)`.
 - **Literals:** `5000`, `-1`, `0x1F`, `0.5`, `'text'`, `"text"`, `r'^[0-9]{4}$'`, `'''text'''`, `true`, `false`, `['a', 'b']`, `[]`.
@@ -132,7 +132,6 @@ CEL and its standard extensions, for the types of a manifest. Each rule must giv
 | Export | What it is |
 | --- | --- |
 | `<Name>` | The TypeScript type of each definition |
-| `<Name>Schema` | A Valibot schema of each definition, with each rule; a Standard Schema |
 | `check(definition, value)` | `{ ok: true, domain, value }` or `{ ok: false, domain, failures }` |
 | `answer(output, value)` | What a function of the core returns |
 | `DomainCore` | The type of the core: one function for each operation |
@@ -144,7 +143,6 @@ Each part has a URN: `urn:<namespace>:<domain>:<definition|rule|operation>:<name
 
 A failure is `{ definition, rule, path, failure_message }`, such as `{ definition: 'party_size', rule: 'minimum', path: 'party_size', failure_message: 'Must be at least 1' }`. `InputRejected` is the caller's fault. `ContractViolation` is a bug in the core.
 
-With `postgres: { tables: [...] }` in the config, `compile` also writes `schema.generated.sql` and `domain.store.generated.ts` (`insert<Table>`, `delete<Table>`, `replace<Table>`, `select<Table>`, `<table>FromRows`: pure functions that give statements for your driver).
 
 ## The steps
 
@@ -176,7 +174,6 @@ A table has a header row of properties and one row of values. `contact.email` is
 | `out` | `src/generated` | The folder of the generated files |
 | `core` | `src/core.ts` | The core |
 | `features` | `features` | The folder of the `.feature` files |
-| `postgres` | none | `{ tables, references?, unique? }`: a Postgres schema and a store file |
 
 With several domains, `compile` and `verify` handle each one in one run, and start each with its URN. Each domain has its own `features` folder, and its own Cucumber profile, because the steps use short names. Two domains with one manifest, one `out`, one `features` or one URN fail with `config-invalid`.
 
@@ -229,8 +226,6 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `rule-guard` | Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) \|\| self.x > 0. |
 | `rule-scope` | Use only the names that the message lists: self, input, output, the parameters of the rule, and the variable of a macro. |
 | `invalid-message` | Use in {braces} only the names of the parameters of the rule. |
-| `postgres-config` | Name in postgres: only object definitions that have an identifier, and their properties. |
-| `postgres-column` | Give the definitions shorter names, or rename a property so that no two parts give one column name. |
 | `tsconfig-unreadable` | Give --tsconfig, or tsconfig in the config, the path of a tsconfig that TypeScript can read. |
 | `core-not-found` | Create the core file, or give --core, or core in the config, its path. |
 | `type-error` | Correct the type error at the line that the problem gives; do not suppress it. |

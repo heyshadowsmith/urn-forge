@@ -48,7 +48,7 @@ function twoDomains(config?: string): string {
   }
   edit(join(dir, 'second', 'domain.manifest.yaml'), (t) => t.replace('domain: booking', 'domain: second'));
   const domain = (name: string): string =>
-    `{ manifest: '${name}/domain.manifest.yaml', out: '${name}/generated', core: '${name}/core.ts', features: '${name}/features', postgres: { tables: ['booking'] } }`;
+    `{ manifest: '${name}/domain.manifest.yaml', out: '${name}/generated', core: '${name}/core.ts', features: '${name}/features' }`;
   writeFileSync(
     join(dir, 'urn-forge.config.ts'),
     config ?? `import { defineConfig } from '../../../src/config.js';\n\nexport default defineConfig({\n  tsconfig: '../../../tsconfig.json',\n  domains: [${domain('booking')}, ${domain('second')}],\n});\n`,

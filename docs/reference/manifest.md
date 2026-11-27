@@ -6,12 +6,12 @@ The manifest is one YAML file, `domain.manifest.yaml` by default. It has four to
 
 | Section | Holds |
 | --- | --- |
-| `manifest` | The header: `namespace`, `domain`, `version` (major.minor.patch, read by `diff` and gate 5), and the optional `compatibility: { callers: ignore-unknown }` (refer to [diff](./cli#diff)). The Postgres schema gets the name of the domain |
+| `manifest` | The header: `namespace`, `domain`, `version` (major.minor.patch, read by `diff` and gate 5), and the optional `compatibility: { callers: ignore-unknown }` (refer to [diff](./cli#diff)). |
 | `definitions` | The values: numbers, strings, objects, lists |
 | `rules` | The text of each of your own rules |
 | `operations` | Each operation: an input, the outputs, and their rules |
 
-A name is lowercase snake_case: `^[a-z][a-z0-9_]{0,62}$`. The `namespace` is a URN namespace: 2 to 32 lowercase letters, digits and hyphens, starting with a letter, such as `acme` or `my-shop`. Each part then has a URN, `urn:<namespace>:<domain>:<definition|rule|operation>:<name>`, which `diff`, gate 5 and the JSON output use. Each definition, rule and operation has a `description`. The generated code and the Postgres schema use the `description` as a comment. `deprecated: true` marks a part `@deprecated`, and each live use of the part gets the warning `deprecated-use`.
+A name is lowercase snake_case: `^[a-z][a-z0-9_]{0,62}$`. The `namespace` is a URN namespace: 2 to 32 lowercase letters, digits and hyphens, starting with a letter, such as `acme` or `my-shop`. Each part then has a URN, `urn:<namespace>:<domain>:<definition|rule|operation>:<name>`, which `diff`, gate 5 and the JSON output use. Each definition, rule and operation has a `description`. The generated code uses the `description` as a comment. `deprecated: true` marks a part `@deprecated`, and each live use of the part gets the warning `deprecated-use`.
 
 ## Definitions
 
@@ -20,7 +20,7 @@ A name is lowercase snake_case: `^[a-z][a-z0-9_]{0,62}$`. The `namespace` is a U
 | `type` | All definitions, required | One of the six types, or the name of another definition |
 | `properties` | `object`, required | The names of the definitions that are its properties |
 | `items` | `array`, required | The name of the definition of each item |
-| `identifier` | `object` | A required property that is not an object or a list. It makes each object different from all other objects. It is the Postgres primary key |
+| `identifier` | `object` | A required property that is not an object or a list. It makes each object different from all other objects. |
 | `rules` | All definitions | The rules that the value keeps |
 
 The structure (`type`, `properties`, `items`, `identifier`) tells what a value is. Each condition that must be true of the value is a rule, also `required` and `enum`.
