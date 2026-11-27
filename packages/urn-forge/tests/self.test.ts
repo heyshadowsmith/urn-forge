@@ -153,4 +153,10 @@ describe('the meaning of each item in self/', () => {
     expect(Object.keys(meanings('fix_of', 'code_fix', 'is_the_fix'))).toEqual(Object.keys(CODES));
     for (const code of Object.keys(CODES) as (keyof typeof CODES)[]) expect(decide('fix_of', { code }).value.fix).toBe(CODES[code].fix);
   });
+
+  it('gives each standard rule its parameters and texts, and the standard set keeps them', () => {
+    const rules = standard().rules;
+    expect(Object.keys(meanings('describe_standard_rule', 'standard_rule', 'is_the_standard_rule'))).toEqual(Object.keys(rules));
+    for (const name of Object.keys(rules)) expect(decide('describe_standard_rule', { standard_rule_name: name as never }).value.failure_text).toBe(rules[name]!.failureMessage);
+  });
 });

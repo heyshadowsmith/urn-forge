@@ -250,6 +250,19 @@ definitions:
       - minLength: 1
       - pattern: '\S'
 
+  standard_rule_meaning:
+    description: What a standard rule is - its parameters, what it checks and what its failure says
+    type: object
+    properties: [parameter_names, rule_description, failure_text]
+    rules:
+      - required: [parameter_names, rule_description, failure_text]
+
+  standard_rule_meanings:
+    description: Each standard rule and what it is
+    type: map
+    keys: standard_rule_name
+    values: standard_rule_meaning
+
   standard_rule_request:
     description: A standard rule that is asked for
     type: object
@@ -1106,6 +1119,15 @@ rules:
     rule: output.standard_rule_name == input.standard_rule_name
     failure_message: The answer is another standard rule
 
+  is_the_standard_rule:
+    description: The parameters, the text and the failure message are those of the rule, as the contract states them for each standard rule
+    parameters: [standard_rule_meanings]
+    rule: >-
+      output.parameter_names == standard_rule_meanings[input.standard_rule_name].parameter_names &&
+      output.rule_description == standard_rule_meanings[input.standard_rule_name].rule_description &&
+      output.failure_text == standard_rule_meanings[input.standard_rule_name].failure_text
+    failure_message: The answer is not what the standard rule is
+
   names_the_function:
     description: The answer is the function that was asked for, and each of its signatures names it
     rule: output.function_name == input.function_name && output.signature_text.contains(input.function_name + '(')
@@ -1309,7 +1331,70 @@ operations:
     description: A standard rule, with its parameters, what it checks and what its failure says
     input: standard_rule_request
     output:
-      - standard_rule: [names_the_standard_rule]
+      - standard_rule:
+          - names_the_standard_rule
+          # Each standard rule: its parameters, what it checks and what its failure says.
+          - is_the_standard_rule:
+              enum:
+                parameter_names: [choices]
+                rule_description: The value is one of the choices
+                failure_text: "Must be one of {choices}"
+              const:
+                parameter_names: [choice]
+                rule_description: The value is the choice
+                failure_text: "Must be {choice}"
+              minimum:
+                parameter_names: [bound]
+                rule_description: The value is the bound or more
+                failure_text: "Must be at least {bound}"
+              maximum:
+                parameter_names: [bound]
+                rule_description: The value is the bound or less
+                failure_text: "Must be at most {bound}"
+              exclusiveMinimum:
+                parameter_names: [bound]
+                rule_description: The value is more than the bound
+                failure_text: "Must be more than {bound}"
+              exclusiveMaximum:
+                parameter_names: [bound]
+                rule_description: The value is less than the bound
+                failure_text: "Must be less than {bound}"
+              multipleOf:
+                parameter_names: [factor]
+                rule_description: The integer is a multiple of the factor
+                failure_text: "Must be a multiple of {factor}"
+              minLength:
+                parameter_names: [count]
+                rule_description: The text has the count of characters or more
+                failure_text: Must have at least {count} characters
+              maxLength:
+                parameter_names: [count]
+                rule_description: The text has the count of characters or fewer
+                failure_text: Must have at most {count} characters
+              pattern:
+                parameter_names: [regular_expression]
+                rule_description: The text matches the regular expression
+                failure_text: "Must match {regular_expression}"
+              format:
+                parameter_names: [date_format]
+                rule_description: The text is a date (2026-11-24) or a date and time (2026-11-24T19:00:00Z)
+                failure_text: "Must be a {date_format}"
+              minItems:
+                parameter_names: [count]
+                rule_description: The list has the count of items or more
+                failure_text: Must have at least {count} items
+              maxItems:
+                parameter_names: [count]
+                rule_description: The list has the count of items or fewer
+                failure_text: Must have at most {count} items
+              uniqueItems:
+                parameter_names: []
+                rule_description: No item of the list occurs two times
+                failure_text: Must not have an item two times
+              required:
+                parameter_names: [property_names]
+                rule_description: The object has each of the properties
+                failure_text: "Must have {property_names}"
 
   signatures_of:
     description: The types that a function of the rule language takes and gives

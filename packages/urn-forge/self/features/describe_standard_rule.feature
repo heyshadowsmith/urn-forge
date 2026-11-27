@@ -40,3 +40,9 @@ Feature: The standard rules
       | minLength | failure_text     | ["bound"]  | A bound     | ""      |
       | pattern   | failure_text     | ["bound"]  | A bound     | " "     |
       | required  | standard_rule    | ["bound"]  | A bound     |         |
+
+  Scenario: What a standard rule is has its parameters, what it checks and what its failure says
+    When I check a "standard_rule_meaning" with:
+      | parameter_names | rule_description |
+      | ["bound"]       | A bound          |
+    Then the value is rejected by "required" of "standard_rule_meaning"
