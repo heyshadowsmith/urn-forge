@@ -389,3 +389,32 @@ The sabotages of part 5:
 3. A code of gate 5 with the wrong severity → not caught, as planned: `by-version` takes both.
 
 `self/` has 13 operations and 215 scenarios.
+
+## Part 6: the last gaps that the cold readers found
+
+Two gaps are left from the three cold-reader tests:
+
+1. **Which command reports a code of the manifest.** Each code of a gate is in the map of `judge_gate`. The other 23 codes (the command line, the config, the manifest, the rule language, and `internal-contract`) are in no list of a command, so a reader cannot tell that `compile` reports the codes of the manifest and the rule language.
+2. **Facts that only a rule text states.** A script compared the strings and lists of each rule text with its description. Four rules state a fact that their description does not name:
+   - `is_the_type_name`: the nine names that get `Value`, such as `Failure` and `CheckResult`.
+   - `direction_by_the_form`: the four rules whose bound is a lower bound (`minimum`, `exclusiveMinimum`, `minLength`, `minItems`).
+   - `is_the_step_of_its_text` and `matches_no_step`: the form of the text of each step.
+
+   The other differences are not facts for a reader, such as `input.code` or the `.` of a version.
+
+A new description is not a change of the contract: `diff` of two manifests that differ only in a description finds no change. So part 6 needs no new version.
+
+### Decisions to confirm
+
+| # | Question | Recommendation | Why |
+| --- | --- | --- | --- |
+| 32 | Which command reports a code | **The description of `code` says that `compile`, and `verify` before its gates, reports each code that is in no gate; and that `diff` reports `usage` and the codes of the manifest** | One sentence answers it. A map of each command to its codes would need a decision of the CLI to check it, and no function of `src/` gives that list |
+| 33 | Facts that only a rule text states | **The descriptions of the four rules name the facts: the nine names, the four rules, and the form of each step** | The text exists in the rule; the description gives it in words |
+| 34 | A test that keeps them equal | **None** | The scenarios of each of the four operations fail if the rule changes. A test that compares a description with a rule text would compare prose |
+
+### Build order
+
+| Step | Commit | Done when |
+| --- | --- | --- |
+| 1 | The description of `code`, and the four descriptions | `diff` against `main` finds no change, and `verify --base` of `self/` passes |
+| 2 | The graph of the manifest, made again and published; the cold-reader question "Which command reports `rule-guard`, and what are the names that get `Value`?"; the plan notes | The reader answers from the file alone |
