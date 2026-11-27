@@ -173,3 +173,61 @@ The sabotages of part 2:
 
 2. Gate 3 that skips the rule `minimum` → at first, no test failed: `judge_gate` judges the problems, and nothing stated which rules gate 3 must report. With `find_uncovered_rules`, the same change in `uncoveredRules` fails its scenario, and 5 tests of gate 3 stop with `internal-contract`.
 4. A tagged union that checks each value with its first variant → `tests/unions.test.ts`.
+
+## Part 3: the meaning of each item of the vocabulary
+
+Part 3 builds step 7b. Today `self/` lists each code, standard rule and function as an enum, but it does not say what each one means. `fix_of` only checks that the fix is one sentence. After part 3, `self/` gives each item its meaning, and the harness holds the real function to it.
+
+### What part 3 found before it started
+
+The plan expected map literals in the rule language (decision 12). They are not necessary. Since part 1, a rule can take a map as its argument, and a rule use writes the argument as YAML. A test of this already passes:
+
+```yaml
+rules:
+  is_the_fix:
+    description: The fix is the fix of the code
+    parameters: [fixes]
+    rule: output.fix == fixes[input.code]
+    failure_message: Must be the fix of the code
+operations:
+  fix_of:
+    output:
+      - code_fix:
+          - is_the_fix:
+              drift: Run urn-forge compile, and do not edit a generated file by hand.
+              usage: Run urn-forge --help, and call the command with the arguments and options that it shows.
+```
+
+A core that answers another fix gives `ContractViolation` of `is_the_fix`. The rule language does not change.
+
+### Decisions to confirm
+
+| # | Question | Recommendation | Why |
+| --- | --- | --- | --- |
+| 15 | Map literals | **Do not build them. The meaning of each item is the argument of a rule use, a YAML map. This replaces "a literal in a rule" of decision 12** | No new construct. A YAML map is easier to read than a map in the text of a rule, and the manifest is the documentation. A map literal can come later, when a rule of a real domain needs one |
+| 16 | Which lists get a meaning | **Each code to its fix (41). Each standard rule to its parameters, what it checks and what its failure says (15). Each function to its signatures (40). Not the gates and the steps: their names are their meaning, and the reference pages describe them** | These are the three decisions that today check only a name. Each becomes exact |
+| 17 | The source of the text | **Both `src/` and `self/` keep the text. They are not generated from each other. The harness keeps them equal: each report of a code runs `fix_of`, so a fix that differs stops the command with `internal-contract`** | The contract states, and the code implements, as in any domain. Generating one from the other would make the check say nothing |
+| 18 | A missing item | **A test of `tests/self.test.ts` checks that the keys of each map are the items of its enum** | `keys: code` checks that each key is a code, but not that each code has a key |
+
+The rule `fix_is_a_sentence` stays: it states the style of every fix.
+
+### Build order
+
+| Step | Commit | Done when |
+| --- | --- | --- |
+| 0 | The target: the scenarios of `fix_of`, `describe_standard_rule` and `signatures_of` give the meaning, with a core that answers wrongly where it can; the test of decision 18 with `it.fails` | They fail for the reason expected |
+| 1 | The fix of each code | Each scenario passes. A fix that differs from `src/codes.ts` fails one, and stops a real command with `internal-contract` |
+| 2 | Each standard rule: its parameters, what it checks, what its failure says | A change to `src/standard.manifest.yaml` that `self/` does not have fails a scenario |
+| 3 | The signatures of each function | A new overload in `src/cel/functions.ts` that `self/` does not have fails a scenario |
+| 4 | Docs, sabotages, plan notes | The docs build. The dogfooding page says what `self/` states of each item |
+
+### Sabotages
+
+1. Change the fix of one code in `src/codes.ts` → the scenario of `fix_of`, and a real `verify` that reports the code stops with `internal-contract`.
+2. Change the failure message of a standard rule → the scenario of `describe_standard_rule`.
+3. Add an overload to a function → the scenario of `signatures_of`.
+4. Remove a code from the map of fixes → the test of decision 18.
+
+### Left out
+
+- **Layer 4, the rule tree.** It is the largest layer, and the least readable. Decide on it after part 3, when the manifest shows how readable a large `self/` is.
