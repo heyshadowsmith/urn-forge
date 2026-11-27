@@ -98,6 +98,14 @@ export function buildModel(decl: ManifestDecl, diagnostics: Diagnostics): Model 
       seen.add(name);
     });
     if (definition.items !== undefined && !known(definition.items)) unknown(definition.items, [...definition.path, 'items']);
+    if (definition.values !== undefined && !known(definition.values)) unknown(definition.values, [...definition.path, 'values']);
+    if (definition.keys !== undefined) {
+      const keys = definitions[definition.keys];
+      if (!known(definition.keys)) unknown(definition.keys, [...definition.path, 'keys']);
+      else if (keys && keys.base !== 'string') {
+        diagnostics.error('manifest-shape', [...definition.path, 'keys'], `${definition.name}: the keys of a map are a string definition, and ${keys.name} is ${/^[aeiou]/.test(keys.base) ? 'an' : 'a'} ${keys.base}`);
+      }
+    }
     for (const name of requiredOf(definition)) {
       if (definition.base === 'object' && !definitions[definition.root]?.properties?.includes(name)) {
         const use = definition.rules.find((u) => u.rule === REQUIRED)!;
@@ -149,7 +157,7 @@ function checkIdentifier(definition: Definition, definitions: Readonly<Record<st
     ? `is not a property of ${definition.name}`
     : !requiredOf(definition).has(name)
       ? `is optional; list it in the required rule of ${definition.name}`
-      : definitions[name] && (definitions[name].base === 'object' || definitions[name].base === 'array')
+      : definitions[name] && (definitions[name].base === 'object' || definitions[name].base === 'array' || definitions[name].base === 'map')
         ? `is of type ${definitions[name].base}; an identifier is one value`
         : undefined;
   if (why) diagnostics.error('invalid-identifier', path, `the identifier ${name} ${why}`);

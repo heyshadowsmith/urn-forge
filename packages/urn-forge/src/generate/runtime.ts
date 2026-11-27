@@ -44,13 +44,20 @@ export function $in(value: unknown, container: unknown): boolean {
 export function $size(value: unknown): number {
   if (typeof value === 'string') return [...value].length;
   if (Array.isArray(value)) return value.length;
-  throw new RuleError('size() of a value that is not a string or a list');
+  if ($isObject(value)) return Object.keys(value).length;
+  throw new RuleError('size() of a value that is not a string, a list or a map');
 }
 
 /** The total of a list of numbers. */
 export function $sum(list: unknown): number {
   if (!Array.isArray(list)) throw new RuleError('sum() of a value that is not a list');
   return list.reduce((total: number, item: number) => total + item, 0);
+}
+
+/** CEL's m[k]: the value of a key. A key that is not in the map is an error. */
+export function $key(map: unknown, key: string): any {
+  if (!$isObject(map) || !Object.hasOwn(map, key) || map[key] === undefined) throw new RuleError(`the key ${JSON.stringify(key)} is not in the map`);
+  return map[key];
 }
 
 /** CEL's l[i]: the item at i, from 0. An index out of the list is an error. */

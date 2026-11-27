@@ -9,7 +9,7 @@ import { generatedFile } from '../src/generate/code.js';
 import type { Failure } from '../src/generate/runtime.js';
 
 /** A test of the target that does not pass yet: it.fails until its step is built, then it. */
-const target = { maps: it.fails };
+const target = { maps: it };
 
 const manifest = (rule = 'size(self.counts) >= 0') => `manifest: {namespace: test, domain: maps, version: 0.1.0}
 definitions:

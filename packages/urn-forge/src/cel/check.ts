@@ -16,6 +16,8 @@ export type CelType =
   | { readonly kind: 'timestamp' }
   | { readonly kind: 'duration' }
   | { readonly kind: 'list'; readonly of: CelType }
+  /** A map with string keys: the type of each value. */
+  | { readonly kind: 'map'; readonly of: CelType }
   /** The item of an empty list, `[]`: it fits each type. */
   | { readonly kind: 'any' }
   /** An object: the name of the definition that declares its properties. */
@@ -51,6 +53,8 @@ export function showType(type: CelType): string {
   switch (type.kind) {
     case 'list':
       return `list(${showType(type.of)})`;
+    case 'map':
+      return `map(string, ${showType(type.of)})`;
     case 'object':
       return type.name;
     default:
@@ -61,7 +65,7 @@ export function showType(type: CelType): string {
 function same(a: CelType, b: CelType): boolean {
   if (a.kind === 'any' || b.kind === 'any') return true;
   if (a.kind !== b.kind) return false;
-  if (a.kind === 'list') return same(a.of, (b as typeof a).of);
+  if (a.kind === 'list' || a.kind === 'map') return same(a.of, (b as typeof a).of);
   if (a.kind === 'object') return a.name === (b as typeof a).name;
   return true;
 }
@@ -141,7 +145,8 @@ class Checker {
         const operand = this.type(expr.operand, names, guards);
         const index = this.type(expr.index, names, guards);
         if (!operand || !index) return undefined;
-        // A list and an int: the manifest has no map, so no other index.
+        // A map and a string key; a list and an int.
+        if (operand.kind === 'map') return index.kind === 'string' || index.kind === 'any' ? operand.of : this.wrong(expr, '[ ] of a map takes a string key', operand, index);
         return (operand.kind === 'list' || operand.kind === 'any') && (index.kind === 'int' || index.kind === 'any') ? (operand.kind === 'list' ? operand.of : operand) : this.wrong(expr, '[ ] takes a list and an int', operand, index);
       }
       case 'unary': {
@@ -173,12 +178,14 @@ class Checker {
       case 'macro': {
         const target = this.type(expr.target, names, guards);
         if (!target) return undefined;
-        if (target.kind !== 'list' && target.kind !== 'any') return this.wrong(expr, `${expr.macro}() is a macro of a list`, target);
+        // A macro of a map runs over its keys, as in CEL.
+        if (target.kind === 'map' && !['all', 'exists', 'exists_one'].includes(expr.macro)) return this.wrong(expr, `${expr.macro}() is a macro of a list; of a map, all(), exists() and exists_one() run over its keys`, target);
+        if (target.kind !== 'list' && target.kind !== 'any' && target.kind !== 'map') return this.wrong(expr, `${expr.macro}() is a macro of a list or a map`, target);
         for (const name of [expr.variable, ...(expr.index !== undefined ? [expr.index] : [])]) {
           if (Object.hasOwn(names, name)) return this.problem('rule-scope', expr.at, `${name} is already a name; give each item another name`);
         }
         if (expr.index === expr.variable) return this.problem('rule-scope', expr.at, `${expr.index} names both the position and the item`);
-        const inner = { ...names, [expr.variable]: target.kind === 'list' ? target.of : target, ...(expr.index !== undefined ? { [expr.index]: INT } : {}) };
+        const inner = { ...names, [expr.variable]: target.kind === 'list' ? target.of : target.kind === 'map' ? STRING : target, ...(expr.index !== undefined ? { [expr.index]: INT } : {}) };
         if (expr.filter) {
           const filter = this.type(expr.filter, inner, guards);
           if (!filter) return undefined;
@@ -246,8 +253,8 @@ class Checker {
       case 'in':
         if (right.kind === 'any') return BOOL;
         if (right.kind === 'list' && (same(left, right.of) || (isNumber(left) && isNumber(right.of)))) return BOOL;
-        if (right.kind === 'object' && left.kind === 'string') return BOOL;
-        return this.wrong(expr, 'in takes a value and a list of that type, or a name and an object', left, right);
+        if ((right.kind === 'object' || right.kind === 'map') && left.kind === 'string') return BOOL;
+        return this.wrong(expr, 'in takes a value and a list of that type, a key and a map, or a name and an object', left, right);
       case '+':
         if (same(left, right) && ['int', 'double', 'string', 'list', 'duration', 'any'].includes(left.kind)) return merge(left, right);
         if (left.kind === 'timestamp' && right.kind === 'duration') return TIMESTAMP;

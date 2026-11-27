@@ -148,6 +148,14 @@ export function checkFunctions(model: Model, applications: readonly Application[
       body.push('  let ok = true;');
       body.push(`  for (const [i, item] of value.entries()) if (!check_${definition.items}(item, $item(path, i), failures)) ok = false;`);
       body.push('  if (!ok) return false;');
+    } else if (definition.base === 'map') {
+      body.push(`  if (!$isObject(value)) ${typeFailure('Must be a map')}`);
+      body.push('  let ok = true;');
+      body.push('  for (const [key, item] of Object.entries(value)) {');
+      if (definition.keys) body.push(`    if (!check_${definition.keys}(key, $at(path, key), failures)) ok = false;`);
+      body.push(`    if (!check_${definition.values}(item, $at(path, key), failures)) ok = false;`);
+      body.push('  }');
+      body.push('  if (!ok) return false;');
     } else if (definition.base === 'object') {
       const requiredProperties = new Set<string>();
       for (const a of rulesOf.get(name) ?? []) {
@@ -219,6 +227,9 @@ function types(model: Model, applications: readonly Application[]): string {
       case 'array':
         lines.push(...doc, `export type ${name} = readonly ${typeName(definition.items!)}[];`, '');
         break;
+      case 'map':
+        lines.push(...doc, `export type ${name} = Readonly<Record<string, ${typeName(definition.values!)}>>;`, '');
+        break;
       case 'object': {
         const required = new Set<string>();
         for (const application of applications) {
@@ -246,6 +257,7 @@ function definitionsTable(model: Model, applications: readonly Application[]): s
     const root = model.definitions[definition.root]!;
     const parts: string[] = [`base: ${JSON.stringify(definition.base)}`];
     if (root.items) parts.push(`items: ${JSON.stringify(root.items)}`);
+    if (root.values) parts.push(`values: ${JSON.stringify(root.values)}`);
     if (root.properties) parts.push(`properties: ${JSON.stringify(root.properties)}`);
     const rules = applications.filter((a) => a.place.kind === 'definition' && a.place.definition === definition.name).map((a) => a.rule.name);
     parts.push(`rules: ${JSON.stringify(rules)}`);

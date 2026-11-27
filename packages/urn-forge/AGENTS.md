@@ -77,13 +77,13 @@ operations:
 | Section | Keys |
 | --- | --- |
 | `manifest` | `namespace`, `domain`, `version`, `compatibility` |
-| `definitions.<name>` | `description`, `type`, `properties`, `items`, `identifier`, `rules`, `deprecated` |
+| `definitions.<name>` | `description`, `type`, `properties`, `items`, `values`, `keys`, `identifier`, `rules`, `deprecated` |
 | `rules.<name>` | `description`, `parameters`, `rule`, `failure_message`, `deprecated` |
 | `operations.<name>` | `description`, `input`, `output`, `rules`, `deprecated` |
 
 A rule's `description` says what it checks and why, for a reader of the manifest. Its `failure_message` is what a failure says when it breaks; `{parameter}` puts in an argument.
 
-- `properties` and `identifier` are only for `type: object`; `properties` is required there. `items` is only for `type: array`, and required there.
+- `properties` and `identifier` are only for `type: object`; `properties` is required there. `items` is only for `type: array`, and required there. `values` is only for `type: map`, and required there; `keys`, a `string` definition, gives the rules of each key.
 - `type: <definition>` gives the structure and the rules of that definition, plus its own rules.
 - Apply a rule with no parameter by name (`- uniqueItems`), with one parameter as `- minimum: 1`, with more as `- between: { low: 1, high: 9 }`.
 - A rule of a definition reads `self`. A rule of an output reads `input` and `output`. A rule of an operation reads `input`, and `output` when the operation has one output.
@@ -123,7 +123,8 @@ CEL and its standard extensions, for the types of a manifest. Each rule must giv
 - **Lists:** `all`, `exists`, `exists_one`, `map`, `filter`, `sum`, `flatten`, and the two-variable `all(i, x, p)`, `exists(i, x, p)`, `existsOne(i, x, p)`, `transformList(i, x, [p,] e)`, where `i` is the position. A count: `size(l.filter(x, p))`.
 - **Errors:** a value that a form cannot take breaks the rule: `int('1x')`, an index out of the list, a division by 0, an int larger than 2^53 − 1. `&&`, `||`, `all` and `exists` ignore an error when the other side decides the result, as in CEL.
 - **Optional properties:** read one only after a guard: `has(self.deposit) && self.deposit > 0`, or `!has(self.deposit) || self.deposit > 0`.
-- **Not in the language:** maps, bytes, unsigned ints, `null`, optional values, `type()`, `dyn()`, and lists of items of more than one type. Also these forms of CEL, which a rule is unlikely to need: `format`, `strings.quote`, `trim`, `replace`, `reverse`, `sort`, `sortBy`, `distinct`, `slice`, `lists.range`, `math.round` and the `math.bit` functions.
+- **Maps:** `m[k]` (a key that is not there breaks the rule), `k in m`, `size(m)`, and `all`, `exists` and `exists_one` over the keys.
+- **Not in the language:** bytes, unsigned ints, `null`, optional values, `type()`, `dyn()`, and lists of items of more than one type. Also these forms of CEL, which a rule is unlikely to need: `format`, `strings.quote`, `trim`, `replace`, `reverse`, `sort`, `sortBy`, `distinct`, `slice`, `lists.range`, `math.round` and the `math.bit` functions.
 
 ## The generated file
 

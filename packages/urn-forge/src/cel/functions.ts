@@ -10,6 +10,7 @@ import type { CelType } from './check.js';
 export type Pattern =
   | { readonly kind: 'int' | 'double' | 'string' | 'bool' | 'timestamp' | 'duration' }
   | { readonly kind: 'list'; readonly of: Pattern }
+  | { readonly kind: 'map'; readonly of: Pattern }
   | { readonly kind: 'var' };
 
 export interface Overload {
@@ -56,7 +57,14 @@ function numbersOrList(helper: string): Overload[] {
 
 /** The overloads of each name. A name with a dot, such as `math.greatest`, is a function of a namespace. */
 export const FUNCTIONS: Readonly<Record<string, readonly Overload[]>> = {
-  size: [fn([P.string], P.int, '$size'), fn([list(P.T)], P.int, '$size'), method(P.string, [], P.int, '$size'), method(list(P.T), [], P.int, '$size')],
+  size: [
+    fn([P.string], P.int, '$size'),
+    fn([list(P.T)], P.int, '$size'),
+    fn([{ kind: 'map', of: P.T }], P.int, '$size'),
+    method(P.string, [], P.int, '$size'),
+    method(list(P.T), [], P.int, '$size'),
+    method({ kind: 'map', of: P.T }, [], P.int, '$size'),
+  ],
   sum: [method(list(P.int), [], P.int, '$sum'), method(list(P.double), [], P.double, '$sum')],
   matches: [method(P.string, [P.string], P.bool, '$matches'), fn([P.string, P.string], P.bool, '$matches')],
   startsWith: [method(P.string, [P.string], P.bool, '$startsWith')],
@@ -135,13 +143,14 @@ function fits(pattern: Pattern, type: CelType, bound: { T?: CelType }): boolean 
     return sameType(bound.T, type);
   }
   if (pattern.kind === 'list') return type.kind === 'list' && fits(pattern.of, type.of, bound);
+  if (pattern.kind === 'map') return type.kind === 'map' && fits(pattern.of, type.of, bound);
   return pattern.kind === type.kind;
 }
 
 function sameType(a: CelType, b: CelType): boolean {
   if (a.kind === 'any' || b.kind === 'any') return true;
   if (a.kind !== b.kind) return false;
-  if (a.kind === 'list') return sameType(a.of, (b as typeof a).of);
+  if (a.kind === 'list' || a.kind === 'map') return sameType(a.of, (b as typeof a).of);
   if (a.kind === 'object') return a.name === (b as typeof a).name;
   return true;
 }
@@ -149,6 +158,7 @@ function sameType(a: CelType, b: CelType): boolean {
 function instance(pattern: Pattern, bound: { T?: CelType }): CelType {
   if (pattern.kind === 'var') return bound.T ?? { kind: 'any' };
   if (pattern.kind === 'list') return { kind: 'list', of: instance(pattern.of, bound) };
+  if (pattern.kind === 'map') return { kind: 'map', of: instance(pattern.of, bound) };
   return pattern;
 }
 
@@ -167,6 +177,6 @@ export function resolve(name: string, target: CelType | undefined, args: readonl
 
 /** The types that a name takes, for a message: `string.startsWith(string)`. */
 export function signatures(name: string): string {
-  const show = (p: Pattern): string => (p.kind === 'var' ? 'T' : p.kind === 'list' ? `list(${show(p.of)})` : p.kind);
+  const show = (p: Pattern): string => (p.kind === 'var' ? 'T' : p.kind === 'list' ? `list(${show(p.of)})` : p.kind === 'map' ? `map(string, ${show(p.of)})` : p.kind);
   return (FUNCTIONS[name] ?? []).map((o) => `${o.target ? `${show(o.target)}.` : ''}${name}(${o.args.map(show).join(', ')})`).join(', ');
 }

@@ -127,7 +127,7 @@
         },
         "type": {
           "$ref": "#/$defs/name",
-          "description": "string, number, integer, boolean, object, array, or the name of another definition"
+          "description": "string, number, integer, boolean, object, array, map, or the name of another definition"
         },
         "properties": {
           "$ref": "#/$defs/names",
@@ -136,6 +136,14 @@
         "items": {
           "$ref": "#/$defs/name",
           "description": "type: array: the definition of each item"
+        },
+        "values": {
+          "$ref": "#/$defs/name",
+          "description": "type: map: the definition of each value"
+        },
+        "keys": {
+          "$ref": "#/$defs/name",
+          "description": "type: map: a string definition, with the rules of each key"
         },
         "identifier": {
           "$ref": "#/$defs/name",
@@ -201,6 +209,36 @@
             "not": {
               "required": [
                 "items"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "map"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "values"
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "values"
+                  ]
+                },
+                {
+                  "required": [
+                    "keys"
+                  ]
+                }
               ]
             }
           }

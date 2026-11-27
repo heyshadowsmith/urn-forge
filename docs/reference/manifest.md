@@ -17,13 +17,15 @@ A name is lowercase snake_case: `^[a-z][a-z0-9_]{0,62}$`. The `namespace` is a U
 
 | Key | For | Value |
 | --- | --- | --- |
-| `type` | All definitions, required | One of the six types, or the name of another definition |
+| `type` | All definitions, required | One of the seven types, or the name of another definition |
 | `properties` | `object`, required | The names of the definitions that are its properties |
 | `items` | `array`, required | The name of the definition of each item |
+| `values` | `map`, required | The name of the definition of each value |
+| `keys` | `map` | The name of a `string` definition, whose rules each key keeps. With no `keys`, a key is any text |
 | `identifier` | `object` | A required property that is not an object or a list. It makes each object different from all other objects. |
 | `rules` | All definitions | The rules that the value keeps |
 
-The structure (`type`, `properties`, `items`, `identifier`) tells what a value is. Each condition that must be true of the value is a rule, also `required` and `enum`.
+The structure (`type`, `properties`, `items`, `values`, `keys`, `identifier`) tells what a value is. Each condition that must be true of the value is a rule, also `required` and `enum`.
 
 | `type` | A value | TypeScript |
 | --- | --- | --- |
@@ -33,11 +35,13 @@ The structure (`type`, `properties`, `items`, `identifier`) tells what a value i
 | `boolean` | `true` or `false` | `boolean` |
 | `object` | Named properties, and no others | `interface` |
 | `array` | A list of items | `readonly T[]` |
+| `map` | Named values: each key is a text, and each value keeps the rules of `values` | `Readonly<Record<string, T>>` |
 
 There is no date type and no decimal type. A date is a `string` with `format: date`. A time is a `string` with `format: date-time` (`2026-11-24T19:00:00Z`). Money is an `integer` of its smallest unit, such as cents.
 
 - **An object** lists its properties by the names of their definitions, and the properties keep the rules of these definitions. You cannot give a property a different name, or make it narrower, in the object. A property that `required` does not list is optional (`?` in TypeScript). An object definition in `properties` embeds that object.
 - **A list** has items of its `items` definition, with their rules. The rules of the list, such as `maxItems`, apply to the full list.
+- **A map** has a value of its `values` definition for each key. Use it where the keys are names that the contract does not know before, such as a count for each tag. A key keeps the rules of its `keys` definition. Where the keys are known, use an object.
 - **A definition as a type**: `type: booking` makes a definition with the structure and rules of `booking`, and with its own rules. Use this to give one kind of value two functions (`from_account` and `to_account`). You can also use it to refer to an object by its identifier (`holder` of `type: customer_id`).
 
 ## Operations

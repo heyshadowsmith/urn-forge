@@ -6,7 +6,7 @@ import { isMap, parseDocument } from 'yaml';
 import type { Diagnostics, Path } from './diagnostics.js';
 
 /** The types of JSON Schema. A definition can also name another definition as its type. */
-export const BASE_TYPES = ['string', 'number', 'integer', 'boolean', 'object', 'array'] as const;
+export const BASE_TYPES = ['string', 'number', 'integer', 'boolean', 'object', 'array', 'map'] as const;
 export type BaseType = (typeof BASE_TYPES)[number];
 
 /** A rule applied by name (a rule of the manifest, or a standard rule such as `minLength`), with its argument when the rule has parameters: `- even` or `- minimum: 1`. */
@@ -30,6 +30,10 @@ export interface DefinitionDecl {
   readonly type: string;
   readonly properties?: readonly string[];
   readonly items?: string;
+  /** The definition of each value of a map. */
+  readonly values?: string;
+  /** The definition of each key of a map: a string definition, with the rules of a key. */
+  readonly keys?: string;
   readonly identifier?: string;
   readonly rules: readonly RuleUse[];
   readonly deprecated: boolean;
@@ -242,7 +246,7 @@ function readHeader(read: Reader, value: unknown): ManifestHeader | undefined {
 }
 
 function readDefinition(read: Reader, name: string, value: unknown, path: Path): DefinitionDecl | undefined {
-  const decl = read.map(value, path, ['description', 'type', 'properties', 'items', 'identifier', 'rules', 'deprecated'], ['description', 'type']);
+  const decl = read.map(value, path, ['description', 'type', 'properties', 'items', 'values', 'keys', 'identifier', 'rules', 'deprecated'], ['description', 'type']);
   if (!decl) return undefined;
   const description = read.text(decl['description'], [...path, 'description']);
   const type = read.name(decl['type'], [...path, 'type']);
@@ -259,9 +263,12 @@ function readDefinition(read: Reader, name: string, value: unknown, path: Path):
   };
   const properties = decl['properties'] !== undefined && only('properties', 'object') ? read.names(decl['properties'], [...path, 'properties']) : undefined;
   const items = decl['items'] !== undefined && only('items', 'array') ? read.name(decl['items'], [...path, 'items']) : undefined;
+  const values = decl['values'] !== undefined && only('values', 'map') ? read.name(decl['values'], [...path, 'values']) : undefined;
+  const keys = decl['keys'] !== undefined && only('keys', 'map') ? read.name(decl['keys'], [...path, 'keys']) : undefined;
   const identifier = decl['identifier'] !== undefined && only('identifier', 'object') ? read.name(decl['identifier'], [...path, 'identifier']) : undefined;
   if (type === 'object' && decl['properties'] === undefined) read.shape([...path, 'properties'], `${show(path)} is of type: object, so it needs properties`);
   if (type === 'array' && decl['items'] === undefined) read.shape([...path, 'items'], `${show(path)} is of type: array, so it needs items`);
+  if (type === 'map' && decl['values'] === undefined) read.shape([...path, 'values'], `${show(path)} is of type: map, so it needs values`);
 
   return {
     name,
@@ -269,6 +276,8 @@ function readDefinition(read: Reader, name: string, value: unknown, path: Path):
     type,
     ...(properties ? { properties } : {}),
     ...(items ? { items } : {}),
+    ...(values ? { values } : {}),
+    ...(keys ? { keys } : {}),
     ...(identifier ? { identifier } : {}),
     rules,
     deprecated,

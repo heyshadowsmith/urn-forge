@@ -42,6 +42,8 @@ export function sides(model: Model): { readonly sent: ReadonlySet<string>; reado
       const root = model.definitions[definition.root];
       root?.properties?.forEach(visit);
       if (root?.items) visit(root.items);
+      if (root?.values) visit(root.values);
+      if (root?.keys) visit(root.keys);
     };
     roots.forEach(visit);
     return seen;
@@ -165,6 +167,8 @@ export function classify(old: Side, next: Side): Change[] {
     }
     if (before.type !== after.type) add(used ? 'breaking' : 'compatible', place, `the type is now ${after.type}, not ${before.type}`);
     if (before.items !== after.items) add(used ? 'breaking' : 'compatible', place, `the items are now ${after.items}, not ${before.items}`);
+    if (before.values !== after.values) add(used ? 'breaking' : 'compatible', place, `the values are now ${after.values}, not ${before.values}`);
+    if (before.keys !== after.keys) add(used ? 'breaking' : 'compatible', place, `the keys are now ${after.keys ?? 'any string'}, not ${before.keys ?? 'any string'}`);
     if (before.identifier !== after.identifier) add(used ? 'breaking' : 'compatible', place, `the identifier is now ${after.identifier ?? 'none'}, not ${before.identifier ?? 'none'}`);
     if (!before.deprecated && after.deprecated) add('compatible', place, 'the definition is deprecated');
     const oldProps = before.properties ?? [];

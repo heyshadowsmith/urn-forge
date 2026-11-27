@@ -57,6 +57,11 @@ export function celType(definition: Definition, model: Model): CelType {
       // An unknown item type is reported by the model; it types as a string here, with no more problems.
       return { kind: 'list', of: items ? celType(items, model) : STRING };
     }
+    case 'map': {
+      const root = model.definitions[definition.root]!;
+      const values = model.definitions[root.values!];
+      return { kind: 'map', of: values ? celType(values, model) : STRING };
+    }
   }
 }
 
@@ -96,6 +101,15 @@ function notAValue(value: unknown, definition: Definition, model: Model): string
       const items = model.definitions[root.items!];
       for (const item of value) {
         const why = items && notAValue(item, items, model);
+        if (why) return why;
+      }
+      return undefined;
+    }
+    case 'map': {
+      if (!isRecord(value)) return `${JSON.stringify(value)} is not a map`;
+      const values = model.definitions[root.values!];
+      for (const item of Object.values(value)) {
+        const why = values && notAValue(item, values, model);
         if (why) return why;
       }
       return undefined;

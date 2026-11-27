@@ -10,6 +10,7 @@ If a form is not in the language, `compile` stops with `rule-syntax`.
 | `string` | A `string` | `'confirmed'`, `"confirmed"`, raw `r'^[0-9]{4}$'`, `'''three quotes'''`, escapes such as `\n` and `\u00e9` |
 | `bool` | A `boolean` | `true`, `false` |
 | `list(T)` | An `array` | `['main', 'dessert']`, `[]` |
+| `map(string, T)` | A `map` | none |
 | An object | An `object` | none; read its properties with `.` |
 | `timestamp`, `duration` | `timestamp(s)`, `duration(s)` | |
 
@@ -90,6 +91,15 @@ A timestamp is from the year 1 to the year 9999, to the millisecond, and a durat
 | `l.sum()` | The total of a list of numbers |
 | `l.flatten()`, `l.flatten(n)` | The items of the lists inside the list, to the depth `n` (a number in the rule) |
 
+### Maps
+
+| Form | Gives |
+| --- | --- |
+| `m[k]` | The value of the key `k`. A key that is not in the map breaks the rule |
+| `k in m` | Whether the map has the key `k` |
+| `size(m)`, `m.size()` | The number of keys |
+| `m.all(k, p)`, `m.exists(k, p)`, `m.exists_one(k, p)` | Whether `p` is true for each key, for one or more keys, or for exactly one key |
+
 ### Names
 
 `cel.bind(name, value, rule)` gives a name to a value inside the rule: `cel.bind(parts, self.version.split('.'), size(parts) == 3 && int(parts[0]) >= 1)`.
@@ -100,7 +110,7 @@ A timestamp is from the year 1 to the year 9999, to the millisecond, and a durat
 
 ## Not in the language
 
-The language has no maps, no bytes, no unsigned numbers, no `null`, no optional values, no type values such as `type(x)`, and no list that holds items of more than one type. These are not types of a manifest.
+The language has no bytes, no unsigned numbers, no `null`, no optional values, no type values such as `type(x)`, and no list that holds items of more than one type. These are not types of a manifest.
 
 It also leaves out some forms that a rule is unlikely to need: `format()`, `strings.quote()`, `trim()`, `replace()`, `reverse()`, `sort()`, `sortBy()`, `distinct()`, `slice()`, `lists.range()`, `math.round()` and the `math.bit` functions. A form comes back when a rule of a real domain needs it.
 
