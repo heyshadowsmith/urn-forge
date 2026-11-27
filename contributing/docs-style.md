@@ -45,7 +45,7 @@ Both pages use STE. These are the rules that this site applies.
   - A *refusal* is an output. Do not write *error* for it.
   - *The core* is the functions of the operations. *The shell* is the code that calls `runOperation`. *The harness* is `runOperation`.
   - *Standard rules* are the common checks that urn-forge ships, such as `minimum`. The site does not name the technologies under urn-forge.
-- **Versions:** urn-forge 0.2.1. Do not promise future work. To say that a part is not built, write "urn-forge does not have … at this time". [The methodology](../docs/methodology.md) tells why some promises stay outside the manifest.
+- **Versions:** urn-forge 0.2.2. Do not promise future work. To say that a part is not built, write "urn-forge does not have … at this time". [The methodology](../docs/methodology.md) tells why some promises stay outside the manifest.
 - **The navigation** is in `docs/.vitepress/config.mts`. The old addresses of the site redirect to the methodology, in `docs/vercel.json`.
 
 ## 4. Check a page

@@ -31,16 +31,16 @@ From the contract, urn-forge generates one TypeScript file. It has no dependency
 - Each problem has a stable code and a fix, as text or JSON.
 - `urn-forge init` writes an `AGENTS.md` for the agent, and a skill for Claude Code.
 
-The version is 0.2.1. This version is not on npm yet. Read the [documentation](docs/index.md) and [the methodology](docs/methodology.md). The reference is [`AGENTS.md` of the package](packages/urn-forge/AGENTS.md).
+The version is 0.2.2. This version is not on npm yet. Read the [documentation](docs/index.md) and [the methodology](docs/methodology.md). The reference is [`AGENTS.md` of the package](packages/urn-forge/AGENTS.md).
 
 ## Try it
 
 ```bash
 npm ci
-npm run pack:tarball                      # makes urn-forge-0.2.1.tgz
+npm run pack:tarball                      # makes urn-forge-0.2.2.tgz
 # then, in a new folder:
 npm init -y
-npm install /path/to/urn-forge-0.2.1.tgz
+npm install /path/to/urn-forge-0.2.2.tgz
 npx urn-forge init                        # a starter domain whose scenarios cover it
 npx urn-forge compile
 npx urn-forge verify

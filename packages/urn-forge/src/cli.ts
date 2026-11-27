@@ -99,7 +99,7 @@ export class Report {
     const write = stream === 'stdout' ? this.io.stdout : this.io.stderr;
     const where = problem.file ? `${problem.file}${problem.line ? `:${problem.line}` : ''}  ` : '';
     write(`${indent}${where}${problem.severity}  ${problem.code}  ${problem.message}`);
-    write(`${indent}  fix: ${fixFor(problem.code)}`);
+    write(`${indent}  fix: ${fixFor(problem.code, problem.severity)}`);
   }
 
   /** Ends the command with its exit code: as JSON, writes the one object. */
@@ -114,13 +114,13 @@ export class Report {
         ...(p.path !== undefined ? { path: p.path } : {}),
         ...(p.domain !== undefined ? { domain: p.domain } : {}),
         message: p.message,
-        fix: fixFor(p.code),
+        fix: fixFor(p.code, p.severity),
       }));
       const value = { ok: code === 0, ...extra, problems };
       // urn-forge checks its own report against self/ before it writes it.
       const broken = this.definition && brokenBy(this.definition, value);
       if (broken) {
-        this.io.stdout(JSON.stringify({ ok: false, problems: [{ code: 'internal-contract', severity: 'error', message: broken, fix: fixFor('internal-contract') }] }));
+        this.io.stdout(JSON.stringify({ ok: false, problems: [{ code: 'internal-contract', severity: 'error', message: broken, fix: fixFor('internal-contract', 'error') }] }));
         return 1;
       }
       this.io.stdout(JSON.stringify(value));
@@ -517,11 +517,11 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
   }
 }
 
-/** The fix of a code, from urn-forge's own contract (fix_of of self/). */
-function fixFor(code: Code): string {
+/** The fix of a code, from urn-forge's own contract (fix_of of self/), which also checks the severity of the problem. */
+function fixFor(code: Code, severity: 'error' | 'warning'): string {
   // self: the fix of internal-contract is read directly, so that a fix_of that breaks its contract can still be reported.
   if (code === 'internal-contract') return fixOf(code);
-  return decide('fix_of', { code }).value.fix;
+  return decide('fix_of', { code, severity }).value.fix;
 }
 
 export { UsageError };

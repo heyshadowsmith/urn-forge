@@ -2,7 +2,7 @@
 
 This guide is for persons who change urn-forge itself. To use urn-forge in a project, read the [documentation](docs/index.md).
 
-This guide describes urn-forge 0.2.1: a manifest of definitions, rules and operations, with rules in a subset of CEL. The decisions behind it are in the [redesign notes](planning/manifest-redesign-notes.md). The [redesign plan](planning/manifest-redesign-plan.md) tells where the build differs from the notes, in the section "What was built".
+This guide describes urn-forge 0.2.2: a manifest of definitions, rules and operations, with rules in a subset of CEL. The decisions behind it are in the [redesign notes](planning/manifest-redesign-notes.md). The [redesign plan](planning/manifest-redesign-plan.md) tells where the build differs from the notes, in the section "What was built".
 
 ## Set up
 

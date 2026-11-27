@@ -3,7 +3,7 @@
 Run `npx urn-forge <command>` in a project where urn-forge is installed. These are the first lines of `npx urn-forge --help`:
 
 ```
-urn-forge 0.2.1
+urn-forge 0.2.2
 
 Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
