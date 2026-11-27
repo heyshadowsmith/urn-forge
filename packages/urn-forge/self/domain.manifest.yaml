@@ -1,17 +1,155 @@
 # urn-forge's own contract: the decisions of urn-forge that a user sees, and its vocabulary, declared with
 # urn-forge. The core calls the functions that urn-forge really uses, so the scenarios test the toolchain,
-# not a copy. It declares the type name of a definition, the URN of a part, a URN namespace, the verdicts
-# of diff and of gate 5 on a version change, the direction of a new bound, the fix of each code, each
-# standard rule, the signatures of each function of the rule language, the steps of a scenario, the
-# verdict of a gate, the rules that gate 3 reports, the failure message of a rule use, the language of a
-# manifest, and the results of a call, a check and a command. tests/self.test.ts keeps its vocabulary
-# equal to the package and to the pages that name it.
+# not a copy. tests/self.test.ts keeps its vocabulary equal to the package and to the pages that name it.
+#
+# The definitions come in four sections: 1. the vocabulary; 2. the decisions, each under the name of its
+# operation; 3. the language of a manifest; 4. the results of a call, a check and a command. Then the
+# rules, and the operations. The meaning of each item of the vocabulary is the argument of a rule of an
+# operation, such as the fix of each code in is_the_fix of fix_of.
 manifest:
   namespace: urn-forge
   domain: toolchain
   version: 0.2.1
 
 definitions:
+  # 1. The vocabulary
+  # Each code, standard rule, function of the rule language, step kind and gate. The meaning of each item is
+  # the argument of a rule of the operation that names it: fix_of, describe_standard_rule, signatures_of and
+  # judge_gate. A test keeps each list equal to its source in the package, and to the pages that name it.
+
+  code:
+    description: A code of a problem that urn-forge reports. A tool or an agent acts on the code, not on the message. The fix of each code is the argument of is_the_fix, in the operation fix_of; the codes of each gate are the argument of reports_its_codes, in the operation judge_gate
+    type: string
+    rules:
+      - enum: [usage, config-unreadable, config-invalid, manifest-unreadable, yaml-syntax, manifest-shape, unknown-definition, type-cycle, duplicate-property, unknown-property, not-an-object, duplicate-output, invalid-identifier, deprecated-use, standard-name, unknown-rule, rule-argument, rule-syntax, rule-type, rule-guard, rule-scope, invalid-message, tsconfig-unreadable, core-not-found, type-error, core-not-satisfying, direct-call, suppressed-check, feature-syntax, unknown-name, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule, drift, base-unreadable, removed-rule, wider-rule, removed-output, removed-scenario, internal-contract]
+
+  fix:
+    description: What to do about each case of a code, in one sentence
+    type: string
+    rules:
+      - minLength: 1
+
+  fixes:
+    description: The fix of each code
+    type: map
+    keys: code
+    values: fix
+
+  standard_rule_name:
+    description: The name of a rule of the standard set, which a manifest uses with no declaration. The parameters and texts of each rule are the argument of is_the_standard_rule, in the operation describe_standard_rule
+    type: string
+    rules:
+      - enum: [enum, const, minimum, maximum, exclusiveMinimum, exclusiveMaximum, multipleOf, minLength, maxLength, pattern, format, minItems, maxItems, uniqueItems, required]
+
+  parameter_name:
+    description: The name of a parameter of a rule, which is also the name of a definition of its argument
+    type: string
+    rules:
+      - pattern: '^[a-z][a-z0-9_]{0,62}$'
+
+  parameter_names:
+    description: The parameters of a rule, in their order
+    type: array
+    items: parameter_name
+
+  rule_description:
+    description: What a rule checks, and why
+    type: string
+    rules:
+      - minLength: 1
+
+  failure_text:
+    description: What a failure of a rule says, with each argument in braces, such as Must be at least {bound}
+    type: string
+    rules:
+      - minLength: 1
+      - pattern: '\S'
+
+  standard_rule_meaning:
+    description: "What a standard rule is: its parameters, what it checks and what its failure says"
+    type: object
+    properties: [parameter_names, rule_description, failure_text]
+    rules:
+      - required: [parameter_names, rule_description, failure_text]
+
+  standard_rule_meanings:
+    description: Each standard rule and what it is
+    type: map
+    keys: standard_rule_name
+    values: standard_rule_meaning
+
+  function_name:
+    description: The name of a function or a method of the rule language. A name with a dot is a function of a namespace, such as math.greatest. The signatures of each function are the argument of are_the_signatures, in the operation signatures_of
+    type: string
+    rules:
+      - enum: [size, sum, matches, startsWith, endsWith, contains, split, charAt, indexOf, lastIndexOf, substring, join, flatten, math.greatest, math.least, math.ceil, math.floor, math.trunc, math.abs, math.sign, math.isNaN, math.isInf, math.isFinite, lowerAscii, upperAscii, int, double, string, bool, getFullYear, getMonth, getDate, getDayOfMonth, getDayOfWeek, getDayOfYear, getHours, getMinutes, getSeconds, getMilliseconds, timestamp]
+
+  signature_text:
+    description: The types that a function takes and gives, such as string.startsWith(string)
+    type: string
+    rules:
+      - minLength: 1
+
+  function_meanings:
+    description: The signatures of each function of the rule language
+    type: map
+    keys: function_name
+    values: signature_text
+
+  step_kind:
+    description: A step of urn-forge, by its name in the steps of the package
+    type: string
+    rules:
+      - enum: [run, check, output, outputWith, inputRejected, valueRejected, accepted]
+
+  gate_number:
+    description: The number of a gate of verify, from 1 to 5
+    type: integer
+    rules:
+      - minimum: 1
+      - maximum: 5
+
+  gate_name:
+    description: The name of a gate, as verify prints it. What makes each gate fail, and its codes, are the argument of reports_its_codes, in the operation judge_gate
+    type: string
+    rules:
+      - enum: [completeness, boundary, gherkin, drift, contract]
+
+  severity:
+    description: Whether a problem fails its gate (error) or only shows it (warning)
+    type: string
+    rules:
+      - enum: [error, warning]
+
+  gate_check:
+    description: What makes a gate fail, in one line, as AGENTS.md says it
+    type: string
+    rules:
+      - pattern: '\S'
+
+  gate_codes:
+    description: The codes of the problems that a gate reports
+    type: array
+    items: code
+    rules:
+      - uniqueItems
+
+  gate_meaning:
+    description: "What a gate is: its name, what makes it fail, and the codes of the problems that it reports"
+    type: object
+    properties: [gate_name, gate_check, gate_codes]
+    rules:
+      - required: [gate_name, gate_check, gate_codes]
+
+  gate_meanings:
+    description: Each gate, by its number from 1 to 5, and what it is
+    type: map
+    values: gate_meaning
+
+  # 2. The decisions: the input and the outputs of each operation, under the name of the operation
+
+  # 2. Decision: to_type_name
+
   definition_name:
     description: The name of a definition of a manifest, in lowercase snake_case, such as party_size
     type: string
@@ -37,6 +175,8 @@ definitions:
     properties: [type_name]
     rules:
       - required: [type_name]
+
+  # 2. Decision: judge_version_change and judge_weaker_contract
 
   version:
     description: A semver version of a manifest, such as 1.4.0 or 2.0.0-alpha.1, with the pattern that the manifest reader checks
@@ -79,7 +219,8 @@ definitions:
     rules:
       - required: [reason]
 
-  # The URN of a part
+  # 2. Decision: name_part
+
   namespace_name:
     description: The namespace of a manifest, which is also the namespace of its URNs
     type: string
@@ -122,7 +263,8 @@ definitions:
     rules:
       - required: [urn]
 
-  # A URN namespace
+  # 2. Decision: check_namespace
+
   candidate:
     description: A text that can be the namespace of a manifest, or not
     type: string
@@ -150,7 +292,8 @@ definitions:
     rules:
       - required: [candidate]
 
-  # The direction of a new bound
+  # 2. Decision: judge_bound_change
+
   bound_rule:
     description: A standard rule with one bound, a number that the value is compared with
     type: string
@@ -185,20 +328,7 @@ definitions:
     rules:
       - required: [direction]
 
-  # The vocabulary of urn-forge: each code, standard rule, function of the rule language, step and gate.
-  # A test keeps each list equal to its source in the package, and to the pages that name it.
-
-  code:
-    description: A code of a problem that urn-forge reports. A tool or an agent acts on the code, not on the message
-    type: string
-    rules:
-      - enum: [usage, config-unreadable, config-invalid, manifest-unreadable, yaml-syntax, manifest-shape, unknown-definition, type-cycle, duplicate-property, unknown-property, not-an-object, duplicate-output, invalid-identifier, deprecated-use, standard-name, unknown-rule, rule-argument, rule-syntax, rule-type, rule-guard, rule-scope, invalid-message, tsconfig-unreadable, core-not-found, type-error, core-not-satisfying, direct-call, suppressed-check, feature-syntax, unknown-name, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule, drift, base-unreadable, removed-rule, wider-rule, removed-output, removed-scenario, internal-contract]
-
-  fix:
-    description: What to do about each case of a code, in one sentence
-    type: string
-    rules:
-      - minLength: 1
+  # 2. Decision: fix_of
 
   code_request:
     description: A code whose fix is asked for
@@ -207,12 +337,6 @@ definitions:
     rules:
       - required: [code]
 
-  fixes:
-    description: The fix of each code
-    type: map
-    keys: code
-    values: fix
-
   code_fix:
     description: A code and its fix
     type: object
@@ -220,48 +344,7 @@ definitions:
     rules:
       - required: [code, fix]
 
-  standard_rule_name:
-    description: The name of a rule of the standard set, which a manifest uses with no declaration
-    type: string
-    rules:
-      - enum: [enum, const, minimum, maximum, exclusiveMinimum, exclusiveMaximum, multipleOf, minLength, maxLength, pattern, format, minItems, maxItems, uniqueItems, required]
-
-  parameter_name:
-    description: The name of a parameter of a rule, which is also the name of a definition of its argument
-    type: string
-    rules:
-      - pattern: '^[a-z][a-z0-9_]{0,62}$'
-
-  parameter_names:
-    description: The parameters of a rule, in their order
-    type: array
-    items: parameter_name
-
-  rule_description:
-    description: What a rule checks, and why
-    type: string
-    rules:
-      - minLength: 1
-
-  failure_text:
-    description: What a failure of a rule says, with each argument in braces, such as Must be at least {bound}
-    type: string
-    rules:
-      - minLength: 1
-      - pattern: '\S'
-
-  standard_rule_meaning:
-    description: "What a standard rule is: its parameters, what it checks and what its failure says"
-    type: object
-    properties: [parameter_names, rule_description, failure_text]
-    rules:
-      - required: [parameter_names, rule_description, failure_text]
-
-  standard_rule_meanings:
-    description: Each standard rule and what it is
-    type: map
-    keys: standard_rule_name
-    values: standard_rule_meaning
+  # 2. Decision: describe_standard_rule
 
   standard_rule_request:
     description: A standard rule that is asked for
@@ -277,23 +360,7 @@ definitions:
     rules:
       - required: [standard_rule_name, parameter_names, rule_description, failure_text]
 
-  function_name:
-    description: The name of a function or a method of the rule language. A name with a dot is a function of a namespace, such as math.greatest
-    type: string
-    rules:
-      - enum: [size, sum, matches, startsWith, endsWith, contains, split, charAt, indexOf, lastIndexOf, substring, join, flatten, math.greatest, math.least, math.ceil, math.floor, math.trunc, math.abs, math.sign, math.isNaN, math.isInf, math.isFinite, lowerAscii, upperAscii, int, double, string, bool, getFullYear, getMonth, getDate, getDayOfMonth, getDayOfWeek, getDayOfYear, getHours, getMinutes, getSeconds, getMilliseconds, timestamp]
-
-  signature_text:
-    description: The types that a function takes and gives, such as string.startsWith(string)
-    type: string
-    rules:
-      - minLength: 1
-
-  function_meanings:
-    description: The signatures of each function of the rule language
-    type: map
-    keys: function_name
-    values: signature_text
+  # 2. Decision: signatures_of
 
   function_request:
     description: A function of the rule language whose signatures are asked for
@@ -309,17 +376,13 @@ definitions:
     rules:
       - required: [function_name, signature_text]
 
+  # 2. Decision: match_step
+
   step_text:
     description: The text of a step of a scenario, after Given, When, Then, And or But
     type: string
     rules:
       - minLength: 1
-
-  step_kind:
-    description: A step of urn-forge, by its name in the steps of the package
-    type: string
-    rules:
-      - enum: [run, check, output, outputWith, inputRejected, valueRejected, accepted]
 
   step_request:
     description: A step text to read
@@ -342,24 +405,7 @@ definitions:
     rules:
       - required: [step_text]
 
-  gate_number:
-    description: The number of a gate of verify, from 1 to 5
-    type: integer
-    rules:
-      - minimum: 1
-      - maximum: 5
-
-  gate_name:
-    description: The name of a gate, as verify prints it
-    type: string
-    rules:
-      - enum: [completeness, boundary, gherkin, drift, contract]
-
-  severity:
-    description: Whether a problem fails its gate (error) or only shows it (warning)
-    type: string
-    rules:
-      - enum: [error, warning]
+  # 2. Decision: judge_gate
 
   gate_problem:
     description: A problem that a gate found, by its code and its severity
@@ -372,31 +418,6 @@ definitions:
     description: The problems that a gate found
     type: array
     items: gate_problem
-
-  gate_check:
-    description: What makes a gate fail, in one line, as AGENTS.md says it
-    type: string
-    rules:
-      - pattern: '\S'
-
-  gate_codes:
-    description: The codes of the problems that a gate reports
-    type: array
-    items: code
-    rules:
-      - uniqueItems
-
-  gate_meaning:
-    description: "What a gate is: its name, what makes it fail, and the codes of the problems that it reports"
-    type: object
-    properties: [gate_name, gate_check, gate_codes]
-    rules:
-      - required: [gate_name, gate_check, gate_codes]
-
-  gate_meanings:
-    description: Each gate, by its number from 1 to 5, and what it is
-    type: map
-    values: gate_meaning
 
   gate_facts:
     description: A gate and the problems that it found in a project
@@ -418,6 +439,8 @@ definitions:
     properties: [gate_number, gate_name]
     rules:
       - required: [gate_number, gate_name]
+
+  # 2. Decision: fill_message
 
   message_text:
     description: The failure message of a rule, with a parameter in braces where its argument goes
@@ -463,8 +486,8 @@ definitions:
     rules:
       - required: [filled_text]
 
+  # 2. Decision: find_uncovered_rules
 
-  # Which rules gate 3 reports
   rule_place:
     description: A rule of a definition, as the definition and the rule with a space, such as party_size minimum
     type: string
@@ -499,9 +522,11 @@ definitions:
     rules:
       - required: [uncovered_rules]
 
-  # The language of a manifest: the shape that the manifest reader accepts, key by key. A manifest that
-  # breaks it fails compile with manifest-shape. tests/agents.test.ts checks each manifest of the
-  # repository with it, and checks that the reader refuses what it refuses.
+  # 3. The language of a manifest
+  # The shape that the manifest reader accepts, key by key. A manifest that breaks it fails compile with
+  # manifest-shape. tests/agents.test.ts checks each manifest of the repository with it, and checks that the
+  # reader refuses what it refuses.
+
   manifest:
     description: "A manifest, the contract of a domain: its header, and its definitions, rules and operations by name"
     type: object
@@ -747,8 +772,10 @@ definitions:
     rules:
       - one_entry
 
-  # The results: what check and runOperation of a generated file give, and the report of a command with
-  # --format json. The CLI checks each report with these definitions before it writes it.
+  # 4. The results
+  # What check and runOperation of a generated file give, and the report of a command with --format json.
+  # The CLI checks each report with these definitions before it writes it.
+
   failure:
     description: "A rule that a value breaks: the definition or the operation of the rule, the rule, the place of the value, and the failure message"
     type: object
@@ -1053,6 +1080,8 @@ definitions:
       - enum: [breaking, compatible]
 
 rules:
+  # Rules of the decisions, in the order of the operations
+
   is_the_type_name:
     description: >-
       The type name is the PascalCase of the definition name: each part between underscores, with its first letter
@@ -1234,6 +1263,8 @@ rules:
       output.uncovered_rules.all(r, r in input.applied_rules && !(r in input.broken_rules))
     failure_message: Gate 3 must report each rule that no scenario breaks, and only these
 
+  # Rules of the language of a manifest
+
   one_entry:
     description: A name with its value is a map of exactly one entry
     rule: size(self) == 1
@@ -1259,6 +1290,8 @@ rules:
     rule: "self.type == 'union' ? has(self.variants) : !has(self.variants) && !has(self.tag)"
     failure_message: A union needs variants, and only a union has variants or a tag
 
+  # Rules of the results
+
   is_true:
     description: The flag is true
     rule: self
@@ -1280,6 +1313,8 @@ rules:
     failure_message: verify must not pass when a gate fails
 
 operations:
+  # The operations: each decision of urn-forge, with its input, its outputs and the rules of each answer.
+
   to_type_name:
     description: Name the TypeScript type of a definition, as the generated file does
     input: naming_request
