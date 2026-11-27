@@ -289,6 +289,12 @@ definitions:
     rules:
       - minLength: 1
 
+  function_meanings:
+    description: The signatures of each function of the rule language
+    type: map
+    keys: function_name
+    values: signature_text
+
   function_request:
     description: A function of the rule language whose signatures are asked for
     type: object
@@ -1133,6 +1139,12 @@ rules:
     rule: output.function_name == input.function_name && output.signature_text.contains(input.function_name + '(')
     failure_message: The answer is another function, or a signature that does not name it
 
+  are_the_signatures:
+    description: The signatures are those of the function, as the contract states them for each function
+    parameters: [function_meanings]
+    rule: output.signature_text == function_meanings[input.function_name]
+    failure_message: The signatures are not those of the function
+
   is_the_step_of_its_text:
     description: A step text is the step of urn-forge whose form it has, and of no other
     rule: >-
@@ -1400,7 +1412,50 @@ operations:
     description: The types that a function of the rule language takes and gives
     input: function_request
     output:
-      - function_signatures: [names_the_function]
+      - function_signatures:
+          - names_the_function
+          # The types that each function of the rule language takes and gives.
+          - are_the_signatures:
+              size: size(string), size(list(T)), size(map(string, T)), string.size(), list(T).size(), map(string, T).size()
+              sum: list(int).sum(), list(double).sum()
+              matches: string.matches(string), matches(string, string)
+              startsWith: string.startsWith(string)
+              endsWith: string.endsWith(string)
+              contains: string.contains(string)
+              split: string.split(string), string.split(string, int)
+              charAt: string.charAt(int)
+              indexOf: string.indexOf(string), string.indexOf(string, int)
+              lastIndexOf: string.lastIndexOf(string), string.lastIndexOf(string, int)
+              substring: string.substring(int), string.substring(int, int)
+              join: list(string).join(), list(string).join(string)
+              flatten: list(list(T)).flatten(), list(T).flatten(int)
+              math.greatest: math.greatest(int), math.greatest(double), math.greatest(list(int)), math.greatest(list(double))
+              math.least: math.least(int), math.least(double), math.least(list(int)), math.least(list(double))
+              math.ceil: math.ceil(double)
+              math.floor: math.floor(double)
+              math.trunc: math.trunc(double)
+              math.abs: math.abs(int), math.abs(double)
+              math.sign: math.sign(int), math.sign(double)
+              math.isNaN: math.isNaN(double)
+              math.isInf: math.isInf(double)
+              math.isFinite: math.isFinite(double)
+              lowerAscii: string.lowerAscii()
+              upperAscii: string.upperAscii()
+              int: int(int), int(double), int(string), int(timestamp)
+              double: double(double), double(int), double(string)
+              string: string(string), string(int), string(double), string(bool), string(timestamp), string(duration)
+              bool: bool(bool), bool(string)
+              getFullYear: timestamp.getFullYear(), timestamp.getFullYear(string)
+              getMonth: timestamp.getMonth(), timestamp.getMonth(string)
+              getDate: timestamp.getDate(), timestamp.getDate(string)
+              getDayOfMonth: timestamp.getDayOfMonth(), timestamp.getDayOfMonth(string)
+              getDayOfWeek: timestamp.getDayOfWeek(), timestamp.getDayOfWeek(string)
+              getDayOfYear: timestamp.getDayOfYear(), timestamp.getDayOfYear(string)
+              getHours: timestamp.getHours(), timestamp.getHours(string), duration.getHours()
+              getMinutes: timestamp.getMinutes(), timestamp.getMinutes(string), duration.getMinutes()
+              getSeconds: timestamp.getSeconds(), timestamp.getSeconds(string), duration.getSeconds()
+              getMilliseconds: timestamp.getMilliseconds(), timestamp.getMilliseconds(string), duration.getMilliseconds()
+              timestamp: timestamp(string), timestamp(timestamp), timestamp(int)
 
   match_step:
     description: Whether a step text is a step of urn-forge, and which one, as Cucumber reads it

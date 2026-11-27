@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
-import { FUNCTIONS } from '../src/cel/functions.js';
+import { FUNCTIONS, signatures } from '../src/cel/functions.js';
 import { CODES } from '../src/codes.js';
 import { STEPS } from '../src/gherkin/steps.js';
 import { standard } from '../src/rules.js';
@@ -158,5 +158,10 @@ describe('the meaning of each item in self/', () => {
     const rules = standard().rules;
     expect(Object.keys(meanings('describe_standard_rule', 'standard_rule', 'is_the_standard_rule'))).toEqual(Object.keys(rules));
     for (const name of Object.keys(rules)) expect(decide('describe_standard_rule', { standard_rule_name: name as never }).value.failure_text).toBe(rules[name]!.failureMessage);
+  });
+
+  it('gives each function its signatures, and the table of functions keeps them', () => {
+    expect(Object.keys(meanings('signatures_of', 'function_signatures', 'are_the_signatures'))).toEqual(Object.keys(FUNCTIONS));
+    for (const name of Object.keys(FUNCTIONS)) expect(decide('signatures_of', { function_name: name as never }).value.signature_text).toBe(signatures(name));
   });
 });
