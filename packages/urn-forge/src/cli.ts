@@ -9,7 +9,7 @@ import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
 import { fixOf, type Code } from './codes.js';
-import { decide, InternalContractError } from './self.js';
+import { brokenBy, decide, InternalContractError } from './self.js';
 import type { Diagnostic, Path } from './diagnostics.js';
 import { initProject, nameProblem } from './init.js';
 import { domainUrn } from './urn.js';
@@ -79,6 +79,8 @@ export class Report {
   constructor(
     private readonly io: CliIo,
     readonly format: Format,
+    /** The definition of self/ that the JSON report of the command keeps. */
+    private readonly definition?: 'compile_report' | 'verify_report' | 'diff_report',
   ) {}
 
   /** A line of text for stdout; nothing as JSON. */
@@ -103,17 +105,25 @@ export class Report {
   /** Ends the command with its exit code: as JSON, writes the one object. */
   end(code: number, extra: Record<string, unknown> = {}): number {
     if (this.format === 'json') {
+      // A key with no value is absent, not null: the manifest has no null.
       const problems = this.problems.map((p) => ({
         code: p.code,
         severity: p.severity,
-        file: p.file ?? null,
-        line: p.line ?? null,
-        path: p.path ?? null,
-        domain: p.domain ?? null,
+        ...(p.file !== undefined ? { file: p.file } : {}),
+        ...(p.line !== undefined ? { line: p.line } : {}),
+        ...(p.path !== undefined ? { path: p.path } : {}),
+        ...(p.domain !== undefined ? { domain: p.domain } : {}),
         message: p.message,
         fix: fixFor(p.code),
       }));
-      this.io.stdout(JSON.stringify({ ok: code === 0, ...extra, problems }));
+      const value = { ok: code === 0, ...extra, problems };
+      // urn-forge checks its own report against self/ before it writes it.
+      const broken = this.definition && brokenBy(this.definition, value);
+      if (broken) {
+        this.io.stdout(JSON.stringify({ ok: false, problems: [{ code: 'internal-contract', severity: 'error', message: broken, fix: fixFor('internal-contract') }] }));
+        return 1;
+      }
+      this.io.stdout(JSON.stringify(value));
     }
     return code;
   }
@@ -464,7 +474,7 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
   try {
     if (command === 'compile' || command === 'verify' || command === 'diff') {
       ({ format, rest } = takeFormat(args));
-      report = new Report(io, format);
+      report = new Report(io, format, `${command}_report`);
     }
     switch (command) {
       case 'init':

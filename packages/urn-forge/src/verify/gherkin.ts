@@ -43,7 +43,7 @@ export function gherkinGate(input: GherkinGateInput): GateOutcome {
   const table: DefinitionsTable = Object.fromEntries(
     Object.values(model.definitions).map((d) => {
       const root = model.definitions[d.root]!;
-      return [d.name, { base: d.base, ...(root.items ? { items: root.items } : {}), ...(root.properties ? { properties: root.properties } : {}), ...(root.propertyTypes ? { propertyTypes: root.propertyTypes } : {}) }];
+      return [d.name, { base: d.base, ...(root.items ? { items: root.items } : {}), ...(root.properties ? { properties: root.properties } : {}), ...(root.propertyTypes ? { propertyTypes: root.propertyTypes } : {}), ...(root.tag !== undefined && root.variants && !Array.isArray(root.variants) ? { tag: root.tag, tagged: root.variants as Readonly<Record<string, string>> } : {}) }];
     }),
   );
   const reach = (value: unknown, name: string): void => {

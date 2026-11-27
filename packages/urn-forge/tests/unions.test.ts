@@ -106,3 +106,20 @@ describe('gate 3 and a union', () => {
     ]);
   });
 });
+
+describe('a table of a union with a tag', () => {
+  it('is read as the variant that its tag column names', async () => {
+    const { gherkinGate } = await import('../src/verify/gherkin.js');
+    const c = compiled();
+    const feature = (kind: string): string =>
+      `Feature: Shapes\n\n  Scenario: A shape\n    When I check a "shape" with:\n      | kind    | radius |\n      | ${kind} | 2      |\n    Then the value is accepted\n`;
+    const problems = (text: string) => gherkinGate({ model: c.model!, applications: c.applications, features: [{ path: 'features/shape.feature', text }] } as never).problems;
+    expect(problems(feature('circle')).filter((p) => p.code === 'uncovered-variant' && p.message.includes('of shape')).map((p) => p.message)).toEqual([
+      expect.stringContaining('the variant square of shape'),
+    ]);
+    const { tableValue } = await import('../src/gherkin/cells.js');
+    const table = { shape: { base: 'union', tag: 'kind', tagged: { circle: 'circle' } }, circle: { base: 'object', properties: ['kind', 'radius'] }, kind: { base: 'string' }, radius: { base: 'number' } };
+    expect(tableValue([['kind', 'radius'], ['circle', '2']], 'shape', table)).toEqual({ kind: 'circle', radius: 2 });
+    expect(() => tableValue([['kind', 'radius'], ['oval', '2']], 'shape', table)).toThrow('the table of shape needs a column kind with one of circle');
+  });
+});

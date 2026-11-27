@@ -282,6 +282,7 @@ function definitionsTable(model: Model, applications: readonly Application[]): s
     if (root.items) parts.push(`items: ${JSON.stringify(root.items)}`);
     if (root.values) parts.push(`values: ${JSON.stringify(root.values)}`);
     if (root.variants) parts.push(`variants: ${JSON.stringify(variantsOf(root))}`);
+    if (root.tag !== undefined && root.variants && !Array.isArray(root.variants)) parts.push(`tag: ${JSON.stringify(root.tag)}, tagged: ${JSON.stringify(root.variants)}`);
     if (root.properties) parts.push(`properties: ${JSON.stringify(root.properties)}`);
     if (root.propertyTypes) parts.push(`propertyTypes: ${JSON.stringify(root.propertyTypes)}`);
     const rules = applications.filter((a) => a.place.kind === 'definition' && a.place.definition === definition.name).map((a) => a.rule.name);

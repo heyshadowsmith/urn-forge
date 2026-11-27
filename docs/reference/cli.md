@@ -23,12 +23,12 @@ Each command exits with `0` on a pass (also with warnings), `1` on a failure, an
 
 ## JSON output
 
-With `--format json`, `compile`, `verify` and `diff` write one JSON object to stdout, and nothing else. The exit code does not change.
+With `--format json`, `compile`, `verify` and `diff` write one JSON object to stdout, and nothing else. The exit code does not change. The definitions `compile_report`, `verify_report` and `diff_report` of `self/domain.manifest.yaml` in the package state each key, and urn-forge checks each object against them before it writes it.
 
 | Key | In | Value |
 | --- | --- | --- |
 | `ok` | All | `true` when the exit code is `0` |
-| `problems` | All | Each problem: `code`, `severity`, `file`, `line`, `path` (the keys in the manifest or the config), `domain` (the URN of its domain), `message` and `fix`. A key that does not apply is `null` |
+| `problems` | All | Each problem: `code`, `severity`, `file`, `line`, `path` (the keys in the manifest or the config), `domain` (the URN of its domain), `message` and `fix`. A key that does not apply is absent |
 | `files` | `compile` | Each generated file: `domain`, `status` and `path` |
 | `domains` | `verify` | Each domain: `urn`, and each gate that ran for it: `gate`, `name`, `pass` and `summary` |
 | `gates`, `warnings` | `verify` | Each gate of each domain, with its `domain`; the number of warnings |
@@ -37,7 +37,7 @@ With `--format json`, `compile`, `verify` and `diff` write one JSON object to st
 A wrong command line is a problem with the code `usage`:
 
 ```json
-{"ok":false,"problems":[{"code":"usage","severity":"error","file":null,"line":null,"path":null,"domain":null,"message":"Unknown option '--nope'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--nope\"","fix":"Run urn-forge --help, and call the command with the arguments and options that it shows."}]}
+{"ok":false,"problems":[{"code":"usage","severity":"error","message":"Unknown option '--nope'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--nope\"","fix":"Run urn-forge --help, and call the command with the arguments and options that it shows."}]}
 ```
 
 ## The config

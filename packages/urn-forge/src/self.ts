@@ -5,11 +5,19 @@
  * declared decision only here: tests/self.test.ts fails when it calls the function directly.
  */
 import { core } from '../self/core.js';
-import { runOperation, type OperationName } from '../self/generated/domain.generated.js';
+import { check, runOperation, type DefinitionName, type OperationName } from '../self/generated/domain.generated.js';
 
 /** urn-forge broke its own contract: a bug of urn-forge, not of the user's project. */
 export class InternalContractError extends Error {
   readonly code = 'internal-contract';
+}
+
+/** The first rule of a definition of self/ that a value of urn-forge breaks, as the message of internal-contract; undefined when it keeps each rule. */
+export function brokenBy(definition: DefinitionName, value: unknown): string | undefined {
+  const result = check(definition, value);
+  if (result.ok) return undefined;
+  const failure = result.failures[0]!;
+  return `urn-forge broke its own contract: ${failure.rule} of ${failure.definition}${failure.path ? ` at ${failure.path}` : ''}: ${failure.failure_message}; the value was ${JSON.stringify(value)}`;
 }
 
 type Input<N extends OperationName> = Parameters<(typeof core)[N]>[0];
