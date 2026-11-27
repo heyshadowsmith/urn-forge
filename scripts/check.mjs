@@ -28,15 +28,9 @@ const ci = process.env.GITHUB_ACTIONS === 'true';
 const checks = [
   ['tests', 'npm', ['test'], root],
   ['typecheck', 'npm', ['run', 'typecheck'], root],
-  ['verify example', 'npm', ['run', '-s', 'verify:example'], pkg],
-  ['scenarios example', 'npx', ['cucumber-js'], pkg],
   // With --base, gate 5 runs on self/: it compares its contract with the base.
   ['verify self', 'node', ['bin/urn-forge.js', 'verify', '--config', 'self/urn-forge.config.ts', ...(base ? ['--base', base] : [])], pkg],
-  ['scenarios self', 'npx', ['cucumber-js', '--profile', 'self'], pkg],
-  ['verify insurance', 'npm', ['run', '-s', 'verify:insurance'], pkg],
-  ['scenarios insurance', 'npm', ['run', '-s', 'test:features:insurance'], pkg],
-  ['verify tutorial', 'npm', ['run', '-s', 'verify:tutorial'], pkg],
-  ['scenarios tutorial', 'npm', ['run', '-s', 'test:features:tutorial'], pkg],
+  ['scenarios self', 'npx', ['cucumber-js'], pkg],
   // The domains here are test domains, which change on purpose: diff is a report, not a failure.
   ...(base ? [['diff against the base (report)', 'npm', ['run', '-s', 'diff:base', '--', base, '--report'], pkg]] : []),
   ...(quick ? [] : [['tarball', 'npm', ['run', '-s', 'test:tarball'], root], ['docs build', 'npm', ['run', '-s', 'docs:build'], root]]),

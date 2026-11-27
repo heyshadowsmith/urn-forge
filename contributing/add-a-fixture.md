@@ -95,7 +95,6 @@ If you change the generated code later, compile each fixture again with the othe
 
 ## Related pages
 
-- [Add a domain](./add-a-domain.md)
 - [Dogfooding](./dogfooding.md)
 - [How urn-forge is built](./architecture.md)
 - [Diagnostics](../docs/reference/cli.md)

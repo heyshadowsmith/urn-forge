@@ -31,29 +31,20 @@ CI runs `npm run check -- --base` with the base branch on each pull request, in 
 | Command | What it checks |
 | --- | --- |
 | `npm test` | The Vitest suite in `packages/urn-forge/tests` |
-| `npm run typecheck` | `tsc` over `src`, `tests`, `example`, `self` and `insurance`. Vitest does not type-check, so this command is necessary |
-| `npm run verify:example` | `urn-forge verify` on the math example |
+| `npm run typecheck` | `tsc` over `src`, `tests` and `self`. Vitest does not type-check, so this command is necessary |
 | `npm run verify:self` | `urn-forge verify` on urn-forge's own domain |
-| `npm run verify:insurance` | `urn-forge verify` on the insurance domain |
-| `npm run verify:tutorial` | `urn-forge verify` on the three tutorial snapshots |
-| `npm run test:features` | Cucumber on the math example |
-| `npm run test:features:self` | Cucumber on `self/` |
-| `npm run test:features:insurance` | Cucumber on the insurance domain |
-| `npm run test:features:tutorial` | Cucumber on the three tutorial snapshots |
+| `npm run test:features` | Cucumber on `self/` |
 | `npm run docs:build` | The VitePress site. A broken page, a dead link or a snippet file that does not exist fails it |
 | `npm run test:tarball` | Packs urn-forge, installs the tarball in a new project, and runs `init`, `compile`, `verify` and the scenarios. It needs the npm registry |
 
-A second workflow, **Determinism**, runs once a week and on demand. It runs `npm test` with `TZ=Pacific/Chatham` and `LC_ALL=tr_TR.UTF-8`. Then it compiles `example`, `self` and `insurance` again, and `git diff --exit-code` must show no change. To start it, open Actions → Determinism → Run workflow.
+A second workflow, **Determinism**, runs once a week and on demand. It runs `npm test` with `TZ=Pacific/Chatham` and `LC_ALL=tr_TR.UTF-8`. Then it compiles `self` and the booking fixture again, and `git diff --exit-code` must show no change. To start it, open Actions → Determinism → Run workflow.
 
 ## Compile the generated files again
 
-The generated files are committed. If you change the generated code (`src/generate/`), each generated file changes. Gate 4 then fails for each domain until you compile it again. Run these commands from `packages/urn-forge`:
+The generated files are committed. If you change the generated code (`src/generate/`), each generated file changes. Gate 4 then fails for `self/` and for the booking fixture until you compile them again. Run these commands from `packages/urn-forge`:
 
 ```bash
-npm run compile:example
 npm run compile:self
-npm run compile:insurance
-for step in 1-first-domain 2-declared-errors 3-edges; do node bin/urn-forge.js compile --config tutorial/$step/urn-forge.config.ts; done
 node bin/urn-forge.js compile --config tests/fixtures/booking/urn-forge.config.ts
 ```
 
@@ -73,7 +64,6 @@ urn-forge gives general constructs only (decision 10 of the [contract completene
 - [Add a Gherkin step](contributing/add-a-gherkin-step.md)
 - [Add a diagnostic](contributing/add-a-diagnostic.md)
 - [Add a test fixture](contributing/add-a-fixture.md)
-- [Add a domain](contributing/add-a-domain.md)
 
 ## Write documentation
 

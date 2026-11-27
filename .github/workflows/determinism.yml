@@ -34,14 +34,11 @@ jobs:
       - name: Recompile each domain; the committed files must not change
         working-directory: packages/urn-forge
         run: |
-          npm run compile:example
           npm run compile:self
-          npm run compile:insurance
+          node bin/urn-forge.js compile --config tests/fixtures/booking/urn-forge.config.ts
           git diff --exit-code
 
       - name: urn-forge verify
         working-directory: packages/urn-forge
         run: |
-          npm run verify:example
           npm run verify:self
-          npm run verify:insurance

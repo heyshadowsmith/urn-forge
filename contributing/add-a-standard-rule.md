@@ -98,7 +98,7 @@ The booking fixture is the target of the redesign, and its coverage is `error`. 
 A manifest rule cannot have the name of a standard rule (`standard-name`). A new name in lowercase, such as `const`, can thus stop a manifest that compiled before. Search the domains, the fixture, the starter and the contracts for a part with the new name. The search also finds definitions, which do not clash:
 
 ```bash
-grep -rn "^  <name>:" --include=domain.manifest.yaml example self insurance tutorial templates tests
+grep -rn "^  <name>:" --include=domain.manifest.yaml self templates tests
 ```
 
 If a manifest has one, rename its rule in the same pull request.

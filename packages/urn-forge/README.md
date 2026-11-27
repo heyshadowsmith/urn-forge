@@ -48,4 +48,4 @@ export const core = {
 
 The shell calls `runOperation(core, 'split', input)`. The result is one of three: the answer; `InputRejected` for an input that breaks a rule; or `ContractViolation` for an answer that breaks the contract.
 
-The documentation is in the [`docs/` folder of the repository](https://github.com/heyshadowsmith/urn-forge/tree/main/docs). It has a tutorial, guides, a reference, and the reasons for the design.
+The documentation is in the [`docs/` folder of the repository](https://github.com/heyshadowsmith/urn-forge/tree/main/docs). It has the methodology, and a reference of the manifest, the rule syntax and the CLI.

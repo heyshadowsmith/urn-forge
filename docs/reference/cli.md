@@ -66,7 +66,12 @@ Your core and your shell import only the generated file. The project also uses `
 
 With `postgres` in a domain of the config, `compile` also writes `schema.generated.sql` and `domain.store.generated.ts`, and gate 4 checks them. Each table is an object definition with an `identifier`, which becomes the primary key. urn-forge writes no migrations, and it never connects to a database: apply the schema with your migration tool, and run the statements of the store file with your driver.
 
-<<< @/../packages/urn-forge/insurance/urn-forge.config.ts{11-14}
+```ts
+      postgres: {
+        tables: ['customer', 'policy'],
+        references: { policy: { holder: 'customer' } },
+      },
+```
 
 | Key | Value |
 | --- | --- |

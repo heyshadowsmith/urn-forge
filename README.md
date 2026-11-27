@@ -54,11 +54,10 @@ An npm-workspaces monorepo:
 
 | Path | What it is |
 | --- | --- |
-| [`packages/urn-forge`](packages/urn-forge) | The CLI (`init`, `compile`, `verify`, `diff`), the steps of the scenarios, the skill, the tests, and the domains in the rows below |
+| [`packages/urn-forge`](packages/urn-forge) | The CLI (`init`, `compile`, `verify`, `diff`), the steps of the scenarios, the skill, the tests, and the projects in the rows below |
 | [`packages/urn-forge/tests/fixtures/booking`](packages/urn-forge/tests/fixtures/booking) | The reference example: a restaurant booking that uses all constructs, with a Postgres schema |
-| [`packages/urn-forge/tutorial`](packages/urn-forge/tutorial) | The result of each part of the tutorial: a shipping quote |
 | [`packages/urn-forge/templates/starter`](packages/urn-forge/templates/starter) | The project that `urn-forge init` writes |
-| [`packages/urn-forge/example`](packages/urn-forge/example), [`insurance`](packages/urn-forge/insurance), [`self`](packages/urn-forge/self) | More domains: a math example, an insurance domain with Postgres, and the compiler functions of urn-forge |
+| [`packages/urn-forge/self`](packages/urn-forge/self) | urn-forge's own domain: functions of the compiler, which its scenarios test |
 | [`docs`](docs) | The VitePress documentation site |
 | [`contributing`](contributing) | Guides for people who change urn-forge. Start at [CONTRIBUTING.md](CONTRIBUTING.md) |
 | [`planning`](planning) | Plans and decisions. We do not publish them |
@@ -72,14 +71,8 @@ npm ci                           # install every workspace
 npm run check                    # every check that CI runs, in one command
 npm test                         # the Vitest suite
 npm run typecheck                # tsc over the package
-npm run verify:example           # urn-forge verify on the math example
-npm run test:features            # cucumber-js on the math example
 npm run verify:self              # urn-forge verify on urn-forge's own domain
-npm run test:features:self       # cucumber-js on urn-forge's own domain
-npm run verify:insurance         # urn-forge verify on the insurance domain
-npm run test:features:insurance  # cucumber-js on the insurance domain
-npm run verify:tutorial          # urn-forge verify on the three parts of the tutorial
-npm run test:features:tutorial   # cucumber-js on the three parts of the tutorial
+npm run test:features            # cucumber-js on urn-forge's own domain
 npm run diff:base --workspace urn-forge -- origin/main  # urn-forge diff of each domain against origin/main
 npm run docs:dev                 # the docs site with live reload, on http://localhost:5173
 npm run docs:build               # a static build of the docs site

@@ -6,7 +6,7 @@
 //
 // Run with `npm run test:tarball`. It needs the npm registry for urn-forge's dependencies.
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -67,23 +67,6 @@ try {
   writeFileSync(generated, `${readFileSync(generated, 'utf8')}// edited\n`);
   const drift = run('npm', ['run', 'verify'], project);
   expect('a hand-edited generated file fails gate 4', drift.code !== 0 && drift.output.includes('the generated file is not current'));
-
-  // The tutorial snapshots start from init and change the manifest, the config, the core and
-  // the feature. Their end state must pass in a project made from the tarball.
-  const shipping = join(work, 'my-shipping');
-  execFileSync('mkdir', [shipping]);
-  run('npm', ['init', '-y'], shipping);
-  run('npm', ['install', '--no-audit', '--no-fund', tarball], shipping);
-  expect('tutorial: urn-forge init', run('npx', ['urn-forge', 'init', '--namespace', 'demo', '--domain', 'shipping'], shipping).code === 0);
-  rmSync(join(shipping, 'features/split.feature'));
-  const tutorial = join(packageDir, 'tutorial/3-edges');
-  for (const file of ['domain.manifest.yaml', 'urn-forge.config.ts', 'src/core.ts']) cpSync(join(tutorial, file), join(shipping, file));
-  for (const file of readdirSync(join(tutorial, 'features')).filter((f) => f.endsWith('.feature'))) cpSync(join(tutorial, 'features', file), join(shipping, 'features', file));
-  expect('tutorial: compile', run('npx', ['urn-forge', 'compile'], shipping).code === 0);
-  const tutorialVerify = run('npx', ['urn-forge', 'verify'], shipping);
-  expect('tutorial: verify passes with no warning', tutorialVerify.code === 0 && tutorialVerify.output.includes('verify passed (gates 1, 2, 3, 4)'));
-  const tutorialFeatures = run('npx', ['cucumber-js'], shipping);
-  expect('tutorial: every scenario passes', tutorialFeatures.code === 0 && /\d+ scenarios \(\d+ passed\)/.test(tutorialFeatures.output));
 } finally {
   rmSync(work, { recursive: true, force: true });
 }
