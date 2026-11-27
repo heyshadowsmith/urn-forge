@@ -56,3 +56,15 @@ Feature: The verdict of a gate
       | gate_passed | enum     | gate_name   | first |
       | gate_passed | required | gate_passed |       |
       | gate_failed | required | gate_failed |       |
+
+  Scenario Outline: What a gate is has its name, what makes it fail, and its codes
+    When I check a "gate_meaning" with:
+      | gate_name | gate_check | gate_codes |
+      | drift     | <check>    | <codes>    |
+    Then the value is rejected by "<rule>" of "<definition>"
+
+    Examples:
+      | rule        | definition   | check                                       | codes            |
+      | pattern     | gate_check   | " "                                         | [drift]          |
+      | uniqueItems | gate_codes   | A generated file is not what compile writes | [drift, drift]   |
+      | required    | gate_meaning | A generated file is not what compile writes |                  |

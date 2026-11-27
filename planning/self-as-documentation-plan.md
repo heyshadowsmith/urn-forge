@@ -291,3 +291,38 @@ It also found four defects: the fix of `type-cycle` does not list `map` and `uni
 1. Make gate 2 report `drift` → the scenario of `judge_gate`, and a real `verify` stops with `internal-contract`.
 2. Write a fix as two sentences → the scenario of `fix_of`.
 3. Change what a gate checks in `AGENTS.md` and not in `self/` → the test of decision 20.
+
+## What was built: part 4
+
+| Step | Result |
+| --- | --- |
+| 1 | The four defects are fixed, `fix_is_a_sentence` refuses a sentence break inside a fix, and the package and `self/` are 0.2.1. Gate 5 of `self/` allows the two changes as warnings, by the new version |
+| 2 | `reports_its_codes` of `judge_gate` takes each gate, by its number, with its name, what makes it fail and its codes. A test keeps it equal to `AGENTS.md` and to the CLI reference, which did not list `tsconfig-unreadable` for gate 2 |
+| 3 | Four headed sections of definitions (the vocabulary; the decisions, each under its operation; the language of a manifest; the results), headed rules and operations, a contents comment at the top, and a pointer from each list to its meanings. `diff` of the file before and after the move finds no change, and the graph has the same 202 parts and 284 references |
+| 4 | The cold-reader test again, with the same ten questions and a fresh agent |
+
+Changes from the plan:
+
+- **No key rule for the map of gates.** A scenario cannot check a map as the root of its table, so a rule on the keys could not get a scenario. The keys are the numbers 1 to 5, and `reports_its_codes` reads them by the number of the gate.
+
+### The cold-reader test, before and after
+
+Both agents answered all ten questions correctly. The second one did it in 16 small calls, not by reading the whole file.
+
+| Question | Before | After |
+| --- | --- | --- |
+| 1. The meaning of a code | The fix only, found 1,100 lines from the list | The fix, found from the pointer in the description of `code`. The meaning is still not stated (decision 25) |
+| 4. The report of `verify` | Correct, with renamed definitions to follow | The same: the report is in one section, but its parts are still separate definitions |
+| 10. A gate | Its name only; what it checks was not in the file | Its name, what makes it fail and its codes, with no friction |
+
+Both agents ask for the same next change: a meaning and a severity for each code, next to its fix. The second agent also asks for a plain sentence next to each rule whose meaning is only in its rule text, such as the names that get `Value`. These are the candidates for a next part, by decision 25.
+
+The second agent also reports the difference between `diff` and gate 5 at the same 0.x version as unstated. It is stated, in the descriptions of `allows_a_breaking_change` and `the_version_changed`, but only as two separate facts.
+
+The sabotages of part 4, each caught:
+
+1. Gate 2 that reports `drift` → a test of gate 2, and a real `verify` stopped with `internal-contract`: `reports_its_codes of judge_gate`.
+2. A fix of two sentences → the scenario of `fix_of`, by `fix_is_a_sentence`.
+3. A gate text of `AGENTS.md` that `self/` does not have → `tests/self.test.ts`.
+
+`self/` has 13 operations and 211 scenarios. Layer 4 is not built (decision 19).
