@@ -31,7 +31,7 @@ export async function diffCommand(io: CliIo, report: Report, argv: readonly stri
   });
   const [old, next] = sides;
   if (!old || !next) {
-    report.err('diff failed: a manifest does not compile');
+    report.out('diff failed: a manifest does not compile');
     return report.end(1, { changes: [] });
   }
   const changes: Change[] = classify(old, next);
@@ -52,6 +52,6 @@ export async function diffCommand(io: CliIo, report: Report, argv: readonly stri
     report.out(`diff passed: ${summary}: ${allowed ? `allowed, as ${why}` : `not allowed, as ${why} (reported only)`}`);
     return report.end(0, { ...result, allowed, why });
   }
-  report.err(`diff failed: ${summary}: ${why}`);
+  report.out(`diff failed: ${summary}: ${why}`);
   return report.end(1, { ...result, allowed, why });
 }

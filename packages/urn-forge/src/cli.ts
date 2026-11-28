@@ -73,15 +73,14 @@ export class Report {
     if (this.format === 'text') this.io.stdout(text);
   }
 
-  /** A line of text for stderr; nothing as JSON. */
-  err(text: string): void {
-    if (this.format === 'text') this.io.stderr(text);
-  }
-
-  problem(problem: Problem, stream: 'stdout' | 'stderr' = 'stderr', indent = ''): void {
+  /**
+   * A problem: on stdout, as each line of the report of the command, and on stderr only when urn-forge
+   * itself failed. A wrong command line goes to stderr too, but it is no problem of a report.
+   */
+  problem(problem: Problem, indent = ''): void {
     this.problems.push(problem.domain === undefined && this.domain !== undefined ? { ...problem, domain: this.domain } : problem);
     if (this.format !== 'text') return;
-    const write = stream === 'stdout' ? this.io.stdout : this.io.stderr;
+    const write = problem.code === 'internal-error' || problem.code === 'internal-contract' ? this.io.stderr : this.io.stdout;
     const where = problem.file ? `${problem.file}${problem.line ? `:${problem.line}` : ''}  ` : '';
     write(`${indent}${where}${problem.severity}  ${problem.code}  ${problem.message}`);
     write(`${indent}  fix: ${fixFor(problem.code, problem.severity, this.command)}`);
@@ -349,12 +348,12 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
   if (positionals.length > 0) throw new UsageError(`takes no argument: ${positionals.join(' ')}`);
   const p = await project(io, report, values);
   if (!p) {
-    report.err('verify failed: the config is not valid');
+    report.out('verify failed: the config is not valid');
     return report.end(1, { gates: [], domains: [] });
   }
   const results = compileProject(io, report, p);
   if (!results) {
-    report.err('verify failed: the manifest does not compile');
+    report.out('verify failed: the manifest does not compile');
     return report.end(1, { gates: [], domains: [] });
   }
   const show = (path: string): string => display(io, path);
@@ -408,7 +407,7 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
       report.out(`gate ${outcome.gate}  ${outcome.name.padEnd(12)}  ${outcome.pass ? 'PASS' : 'FAIL'}  ${outcome.summary}`);
       for (const problem of outcome.problems) {
         if (problem.severity === 'warning') warnings++;
-        report.problem(problem, 'stdout', '    ');
+        report.problem(problem, '    ');
       }
     }
     domains.push({ urn: result.urn, gates: outcomes.map((o) => ({ gate: o.gate, name: o.name, pass: o.pass, summary: o.summary })) });
@@ -420,7 +419,7 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
   const gates = domains.flatMap((d) => d.gates.map((g) => ({ domain: d.urn, ...g })));
   const extra = { gates, domains, warnings };
   if (failures.length > 0) {
-    report.err(`verify failed: ${failures.join('; ')}`);
+    report.out(`verify failed: ${failures.join('; ')}`);
     return report.end(1, extra);
   }
   const what = several ? `${results.length} domains, ${ran}` : ran;
@@ -437,7 +436,7 @@ async function initCommand(io: CliIo, argv: readonly string[]): Promise<number> 
   if (problem) throw new UsageError(problem);
   const result = await initProject({ cwd: io.cwd, namespace, domain });
   if (!result.ok) {
-    io.stderr(result.message);
+    io.stdout(result.message);
     return 1;
   }
   for (const line of result.lines) io.stdout(line);

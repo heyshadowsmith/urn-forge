@@ -83,9 +83,9 @@ describe('the binary', () => {
   it('compiles, verifies and diffs the fixture, with exit 0', () => {
     const dir = copy();
     const compile = bin(dir, ['compile']);
-    // The fixture uses a deprecated definition, which compile reports on stderr as a warning.
-    expect(compile.code).toBe(0);
-    expect(compile.err).toMatch(/^domain\.manifest\.yaml:\d+  warning  deprecated-use /);
+    // The fixture uses a deprecated definition, which compile reports as a warning of its report.
+    expect([compile.code, compile.err]).toEqual([0, '']);
+    expect(compile.out).toMatch(/^domain\.manifest\.yaml:\d+  warning  deprecated-use /);
     expect(compile.out).toMatch(/unchanged +generated\/domain\.generated\.ts/);
     const verify = bin(dir, ['verify']);
     expect(verify.code).toBe(0);
@@ -186,7 +186,7 @@ describe('the findings of the plan', () => {
     );
     const r = bin(dir, ['compile']);
     expect(r.code).toBe(1);
-    expect(r.err).toMatch(/config-invalid  two domains write/);
+    expect(r.out).toMatch(/config-invalid  two domains write/);
   });
 
   finding.D4('writes no file when package.json is not a JSON object', () => {
@@ -194,19 +194,19 @@ describe('the findings of the plan', () => {
     writeFileSync(join(dir, 'package.json'), '[1, 2]');
     const r = bin(dir, ['init']);
     expect(r.code).toBe(1);
-    expect(r.err).toMatch(/^init writes no file: package\.json must be a JSON object/);
+    expect(r.out).toMatch(/^init writes no file: package\.json must be a JSON object/);
     expect(existsSync(join(dir, 'domain.manifest.yaml'))).toBe(false);
     writeFileSync(join(dir, 'package.json'), '{ "name": "x", }');
     const invalid = bin(dir, ['init']);
     expect(invalid.code).toBe(1);
-    expect(invalid.err).toMatch(/^init writes no file: package\.json is not valid JSON: /);
+    expect(invalid.out).toMatch(/^init writes no file: package\.json is not valid JSON: /);
     noStack(invalid.err);
     expect(existsSync(join(dir, 'domain.manifest.yaml'))).toBe(false);
   });
 });
 
 /** The findings of the plan of ergonomics (planning/cli-ergonomics-plan.md): it.fails until their step. */
-const ergonomics = { A3: it, A9: it, A5: it, D8: it, A6: it, A4: it.fails, A7: it.fails, A10: it.fails, D10: it.fails };
+const ergonomics = { A3: it, A9: it, A5: it, D8: it, A6: it, A4: it, A7: it.fails, A10: it.fails, D10: it.fails };
 
 describe('the findings of the plan of ergonomics', () => {
   ergonomics.A3('prints the help of one command on stdout, with exit 0', () => {
