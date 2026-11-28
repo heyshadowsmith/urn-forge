@@ -1,16 +1,24 @@
 # The CLI and the config
 
-Run `npx urn-forge <command>` in a project where urn-forge is installed. These are the first lines of `npx urn-forge --help`:
+Run `npx urn-forge <command>` in a project where urn-forge is installed. This is the output of `npx urn-forge --help`:
 
 ```
-urn-forge 0.2.5
+urn-forge 0.2.5: the contract of a domain, checked by its compiler, its scenarios and its gates.
 
 Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
   urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
   urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--base <ref>] [--format text|json]
   urn-forge diff    <old manifest> <new manifest> [--report] [--format text|json]
+  urn-forge --help | -h | help [<command>]
+  urn-forge --version | -V | version
+
+Run urn-forge <command> --help for its options.
+
+Exit codes: 0 pass, 1 failure, 2 wrong command line, 3 urn-forge itself failed (report it)
 ```
+
+`urn-forge <command> --help`, `urn-forge <command> -h` and `urn-forge help <command>` give the help of one command: its options, with their defaults, and its exit codes. The options of a command come after the command. Each option is given one time; `--` ends the options.
 
 | Command | What it does |
 | --- | --- |
@@ -21,9 +29,16 @@ Usage:
 
 Each command exits with `0` on a pass (also with warnings), `1` on a failure, `2` on a wrong command line, and `3` when urn-forge itself fails (`internal-error` or `internal-contract`). Exit 3 is a bug of urn-forge, not of your project: report it in an issue. With `--format json`, each exit code comes with the one JSON object, also exit 3. When urn-forge cannot write its output at all, such as on a full disk, it says so in one line on stderr and exits with `1`.
 
+The report of a command goes to stdout: its result lines, its problems with their fixes, and its verdict. stderr gets only a wrong command line, `internal-error` and `internal-contract`, and the line that says the output cannot be written. A wrong command line is two lines:
+
+```
+urn-forge compile: unknown option --manfest; did you mean --manifest?
+Run urn-forge compile --help for its options.
+```
+
 ## JSON output
 
-With `--format json`, `compile`, `verify` and `diff` write one JSON object to stdout, and nothing else. The exit code does not change. The definitions `compile_report`, `verify_report` and `diff_report` of `self/domain.manifest.yaml` in the package state each key, and urn-forge checks each object against them before it writes it.
+With `--format json`, `compile`, `verify` and `diff` write one JSON object to stdout, and nothing else. The exit code does not change. Each object has each key of its command, on each path: a key that does not apply is empty, such as `files` of a `compile` that fails. Only `from`, `to`, `breaking`, `allowed` and `why` of `diff` can be absent: they are there when both manifests compile. The definitions `compile_report`, `verify_report` and `diff_report` of `self/domain.manifest.yaml` in the package state each key, and urn-forge checks each object against them before it writes it.
 
 | Key | In | Value |
 | --- | --- | --- |
@@ -37,7 +52,7 @@ With `--format json`, `compile`, `verify` and `diff` write one JSON object to st
 A wrong command line is a problem with the code `usage`:
 
 ```json
-{"ok":false,"problems":[{"code":"usage","severity":"error","message":"Unknown option '--nope'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--nope\"","fix":"Run urn-forge --help, and call the command with the arguments and options that it shows."}]}
+{"ok":false,"files":[],"problems":[{"code":"usage","severity":"error","message":"unknown option --nope","fix":"Run urn-forge --help, and call the command with the arguments and options that it shows."}]}
 ```
 
 ## The config

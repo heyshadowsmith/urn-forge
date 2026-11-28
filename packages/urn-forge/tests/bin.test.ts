@@ -287,3 +287,16 @@ describe('the findings of the plan of ergonomics', () => {
     expect(r.out).toMatch(/^bad\.manifest\.yaml:\d+  error  manifest-shape  /m);
   });
 });
+
+describe('the help of each command', () => {
+  it('names each option of the command in its Options section, and no other', async () => {
+    const { HELP } = await import('../src/usage.js');
+    const { COMMAND_OPTIONS } = await import('../src/options.js');
+    for (const [command, options] of Object.entries(COMMAND_OPTIONS)) {
+      // The lines of its Options section, each of which starts with the option.
+      const section = HELP[command as keyof typeof HELP].split('\nOptions:\n')[1]!.split('\n\n')[0]!;
+      const named = [...section.matchAll(/^ {2}--([a-z][a-z-]*)/gm)].map((m) => m[1]).sort();
+      expect(named, command).toEqual(Object.keys(options).sort());
+    }
+  });
+});

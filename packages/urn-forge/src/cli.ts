@@ -112,8 +112,9 @@ export class Report {
       // urn-forge checks its own report against self/ before it writes it.
       const broken = this.definition && brokenBy(this.definition, value);
       if (broken) {
-        this.io.stdout(JSON.stringify({ ok: false, problems: [{ code: 'internal-contract', severity: 'error', message: broken, fix: fixFor('internal-contract', 'error', this.command) }] }));
-        return 1;
+        // urn-forge itself failed: exit 3, as for internal-error, with the keys of the command.
+        this.io.stdout(JSON.stringify({ ok: false, ...(this.command ? EMPTY_REPORT[this.command] : {}), problems: [{ code: 'internal-contract', severity: 'error', message: broken, fix: fixFor('internal-contract', 'error', this.command) }] }));
+        return 3;
       }
       this.io.stdout(JSON.stringify(value));
     }

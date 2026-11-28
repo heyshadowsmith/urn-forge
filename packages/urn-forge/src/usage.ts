@@ -36,16 +36,17 @@ Options:
 Exit codes: 0 written, 1 a problem, 2 wrong command line, 3 urn-forge itself failed (report it)`,
   verify: `urn-forge verify [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--base <ref>] [--format text|json]
 
-Compiles each domain in memory and runs the gates; writes nothing. Gate 5 runs only with --base.
+Compiles each domain in memory and runs the gates; writes nothing. The report goes to stdout.
+Gate 1 checks the core, gate 2 the shell, gate 3 the scenarios, gate 4 the generated files; gate 5 runs only with --base.
 
 Options:
   --config <file>    The config (default: ${CONFIG_FILE}, when it exists). The flags below override it
   --manifest <file>  The manifest (default: domain.manifest.yaml)
-  --out <dir>        The directory of the generated files (default: src/generated)
+  --out <dir>        The directory of the generated files, which gate 4 compares (default: src/generated)
   --core <file>      The core, which exports … satisfies DomainCore (default: src/core.ts)
   --features <dir>   The directory of the .feature files (default: features)
   --tsconfig <file>  The tsconfig of gate 1 (default: tsconfig.json)
-  --base <ref>       Run gate 5, which compares the contract with the one at this git ref
+  --base <ref>       Run gate 5, which compares the contract with the one at this git ref (a branch, tag or commit)
   --format <format>  text (default), or json: one JSON object on stdout, and nothing else
 
 Exit codes: 0 pass (also with warnings), 1 a gate or a problem failed, 2 wrong command line, 3 urn-forge itself failed (report it)`,

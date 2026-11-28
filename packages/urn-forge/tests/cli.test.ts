@@ -6,7 +6,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { lineOf, main } from '../src/cli.js';
+import { lineOf, main, Report } from '../src/cli.js';
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const copies: string[] = [];
@@ -171,5 +171,13 @@ describe('the command line', () => {
     const text = 'a:\n  b:\n    c: 1\n  d: 2\n';
     expect(lineOf(text, ['a', 'b', 'c'])).toBe(3);
     expect(lineOf(text, ['a', 'd', 'missing'])).toBe(4);
+  });
+
+  it('reports a JSON report that breaks its definition as internal-contract, with exit 3', () => {
+    const out: string[] = [];
+    const report = new Report({ cwd: '.', stdout: (t) => out.push(t), stderr: () => {} }, 'json', 'compile');
+    expect(report.end(0, { files: 'not a list' })).toBe(3);
+    const value = JSON.parse(out[0]!) as { ok: boolean; files: unknown; problems: { code: string }[] };
+    expect([value.ok, value.files, value.problems.map((p) => p.code)]).toEqual([false, [], ['internal-contract']]);
   });
 });
