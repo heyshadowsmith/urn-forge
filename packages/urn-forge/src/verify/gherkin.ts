@@ -12,7 +12,7 @@
  */
 import { AstBuilder, compile, GherkinClassicTokenMatcher, Parser } from '@cucumber/gherkin';
 import { IdGenerator } from '@cucumber/messages';
-import { STEPS } from '../gherkin/steps.js';
+import { STEPS } from '../gherkin/patterns.js';
 import { tableValue, type DefinitionsTable } from '../gherkin/cells.js';
 import { propertyType } from '../manifest.js';
 import { variantsOf, type Model } from '../model.js';

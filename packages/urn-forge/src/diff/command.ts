@@ -11,28 +11,8 @@ import { compileManifest } from '../compile.js';
 import { decide } from '../self.js';
 import { classify, type Change } from './classify.js';
 
-interface Version {
-  readonly major: number;
-  readonly minor: number;
-  readonly patch: number;
-  readonly prerelease: boolean;
-}
-
-function parseVersion(text: string): Version {
-  const [core = '', pre] = text.split('+')[0]!.split(/-(.*)/s);
-  const [major = 0, minor = 0, patch = 0] = core.split('.').map(Number);
-  return { major, minor, patch, prerelease: pre !== undefined && pre !== '' };
-}
-
-/** Whether the versions allow a breaking change, and why. */
-export function allowsBreaking(from: string, to: string): { readonly allowed: boolean; readonly why: string } {
-  const a = parseVersion(from);
-  const b = parseVersion(to);
-  if (b.major === 0) return { allowed: true, why: `${to} is a 0.x version, where anything may change` };
-  if (b.prerelease) return { allowed: true, why: `${to} is a pre-release` };
-  if (b.major > a.major) return { allowed: true, why: `${to} is a new major version` };
-  return { allowed: false, why: `${from} → ${to} keeps the major version ${b.major}; a breaking change needs a new major version` };
-}
+export { allowsBreaking } from './versions.js';
+import { allowsBreaking } from './versions.js';
 
 export async function diffCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
   const { positionals, values } = parseOptions('diff', argv);

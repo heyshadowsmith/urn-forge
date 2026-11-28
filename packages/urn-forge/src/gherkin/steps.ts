@@ -21,16 +21,9 @@ import { Before, Then, When, type DataTable } from '@cucumber/cucumber';
 import type { Failure } from '../generate/runtime.js';
 import { tableValue, type DefinitionsTable } from './cells.js';
 
-/** The step texts, which gate 3 reads too. */
-export const STEPS = {
-  run: /^I run "([^"]+)" with:$/,
-  check: /^I check an? "([^"]+)" with:$/,
-  output: /^the output is "([^"]+)"$/,
-  outputWith: /^the output is "([^"]+)":$/,
-  inputRejected: /^the input is rejected by "([^"]+)" of "([^"]+)"$/,
-  valueRejected: /^the value is rejected by "([^"]+)" of "([^"]+)"$/,
-  accepted: /^the value is accepted$/,
-} as const;
+/** The step texts, which gate 3 and self/ read from patterns.ts. */
+export { STEPS } from './patterns.js';
+import { STEPS } from './patterns.js';
 
 type Result =
   | { readonly ok: true; readonly output?: string; readonly value: unknown }

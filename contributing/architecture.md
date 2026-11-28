@@ -124,7 +124,7 @@ The header of a file has a fingerprint: the SHA-256 of its body. The same manife
 | 3 Gherkin | `verify/gherkin.ts` | Each step names a part that exists. The scenarios run each operation, give each output, and break each rule that a definition applies. A gap is a warning, or an error with `coverage: 'error'` |
 | 4 drift | `verify/drift.ts` | The generated files are the files that `compile` gives now, byte for byte |
 
-Gate 3 reads the step texts from `STEPS` in `src/gherkin/steps.ts`. Thus the gate and the steps cannot disagree.
+Gate 3 and the steps read the step texts from `STEPS` in `src/gherkin/patterns.ts`, which imports nothing. Thus the gate and the steps cannot disagree.
 
 ## The Gherkin steps: `gherkin/`
 

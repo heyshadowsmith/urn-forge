@@ -7,6 +7,8 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
+import { answerWithoutCommand, USAGE, VERSION } from './usage.js';
+export { VERSION } from './usage.js';
 import { fixOf, type Code, type Command } from './codes.js';
 import { brokenBy, decide, InternalContractError } from './self.js';
 import type { Diagnostic, Path } from './diagnostics.js';
@@ -22,7 +24,6 @@ import { gherkinGate } from './verify/gherkin.js';
 import type { GateOutcome, GateProblem } from './verify/types.js';
 import { writeGenerated } from './write.js';
 
-export const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version as string;
 
 export interface CliIo {
   readonly cwd: string;
@@ -30,28 +31,6 @@ export interface CliIo {
   readonly stderr: (text: string) => void;
 }
 
-const USAGE = `urn-forge ${VERSION}
-
-Usage:
-  urn-forge init    [--namespace <name>] [--domain <name>]
-  urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format text|json]
-  urn-forge verify  [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--base <ref>] [--format text|json]
-  urn-forge diff    <old manifest> <new manifest> [--report] [--format text|json]
-
-Options:
-  --namespace <name> init: the namespace of the starter manifest (default: app)
-  --domain <name>    init: the domain of the starter manifest (default: starter)
-  --config <file>    The config (default: ${CONFIG_FILE}, when it exists). Flags override it
-  --manifest <file>  The manifest (default: domain.manifest.yaml)
-  --out <dir>        The directory of the generated files (default: src/generated)
-  --core <file>      verify: the core, which exports … satisfies DomainCore (default: src/core.ts)
-  --features <dir>   verify: the directory of the .feature files (default: features)
-  --tsconfig <file>  verify: the tsconfig of gate 1 (default: tsconfig.json)
-  --base <ref>       verify: run gate 5, which compares the contract with the one at this git ref
-  --report           diff: list the changes, and do not fail on a breaking change
-  --format <format>  compile, verify, diff: text (default), or json: one JSON object on stdout, and nothing else
-
-Exit codes: 0 pass, 1 failure, 2 wrong command line, 3 urn-forge itself failed (report it)`;
 
 
 /** A problem as the commands report it: a stable code, where it is, what is wrong, and (from its code) the fix. */
@@ -157,9 +136,15 @@ function display(io: CliIo, path: string): string {
 }
 
 /** The line of a path in a YAML text, or of the nearest part of it that exists. */
+/** The last manifest that lineOf parsed, so that the diagnostics of one manifest parse it once. */
+let parsed: { readonly text: string; readonly counter: LineCounter; readonly document: ReturnType<typeof parseDocument> } | undefined;
+
 export function lineOf(text: string, path: Path): number | undefined {
-  const counter = new LineCounter();
-  const document = parseDocument(text, { lineCounter: counter, keepSourceTokens: true });
+  if (parsed?.text !== text) {
+    const counter = new LineCounter();
+    parsed = { text, counter, document: parseDocument(text, { lineCounter: counter, keepSourceTokens: true }) };
+  }
+  const { counter, document } = parsed;
   for (let length = path.length; length >= 0; length--) {
     const node = document.getIn(path.slice(0, length), true);
     if (isNode(node) && node.range) return counter.linePos(node.range[0]).line;
@@ -501,18 +486,8 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
         const { diffCommand } = await import('./diff/command.js');
         return await diffCommand(io, report, rest);
       }
-      case undefined:
-      case '--help':
-      case '-h':
-      case 'help':
-        io.stdout(USAGE);
-        return command === undefined ? 2 : 0;
-      case '--version':
-        io.stdout(VERSION);
-        return 0;
       default:
-        io.stderr(`unknown command "${command}"\n\n${USAGE}`);
-        return 2;
+        return answerWithoutCommand(command, io) ?? 2;
     }
   } catch (error) {
     if (error instanceof InternalContractError) {

@@ -10,21 +10,7 @@ export interface GateProblem {
   readonly message: string;
 }
 
-/** The gates, in order: gate 1 is completeness. */
-export const GATES = ['completeness', 'boundary', 'gherkin', 'drift', 'contract'] as const;
-
-/** A gate passes when no problem of it is an error. A warning does not fail it, and a failing gate names its problem. */
-export function gatePasses(problems: readonly Pick<GateProblem, 'severity'>[]): boolean {
-  return !problems.some((p) => p.severity === 'error');
-}
-
-/**
- * The rules that gate 3 reports as uncovered-rule: each rule of a definition that no scenario breaks,
- * once, in the order of the manifest. A rule is its definition and its name with a space: `party_size minimum`.
- */
-export function uncoveredRules(applied: readonly string[], broken: readonly string[]): string[] {
-  return [...new Set(applied)].filter((rule) => !broken.includes(rule));
-}
+export { GATES, gatePasses, uncoveredRules } from './gate-rules.js';
 
 /** The outcome of a gate, with its pass from its problems. */
 export function gateOutcome(gate: 1 | 2 | 3 | 4 | 5, summary: string, problems: readonly GateProblem[]): GateOutcome {

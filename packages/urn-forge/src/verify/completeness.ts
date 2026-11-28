@@ -5,7 +5,8 @@
  * would switch the gate off.
  */
 import { dirname, resolve } from 'node:path';
-import ts from 'typescript';
+import type * as TS from 'typescript';
+import { ts } from '../ts.js';
 import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
 
 export interface CoreOptions {
@@ -17,22 +18,22 @@ export interface CoreOptions {
 }
 
 /** The program of the core, with the project's tsconfig, or the error of the tsconfig. */
-export function coreProgram(options: CoreOptions): ts.Program | string {
+export function coreProgram(options: CoreOptions): TS.Program | string {
   const config = ts.readConfigFile(options.tsconfigPath, ts.sys.readFile);
   if (config.error) return ts.flattenDiagnosticMessageText(config.error.messageText, '\n');
   const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, dirname(options.tsconfigPath));
   return ts.createProgram({ rootNames: [options.corePath], options: { ...parsed.options, noEmit: true } });
 }
 
-function unwrap(expression: ts.Expression): ts.Expression {
+function unwrap(expression: TS.Expression): TS.Expression {
   let current = expression;
   while (ts.isParenthesizedExpression(current) || ts.isAsExpression(current)) current = current.expression;
   return current;
 }
 
 /** The exported names of the core whose value `satisfies DomainCore` of the generated file. */
-function satisfyingExports(source: ts.SourceFile, checker: ts.TypeChecker, generatedPath: string): string[] {
-  const satisfies = (expression: ts.Expression | undefined): boolean => {
+function satisfyingExports(source: TS.SourceFile, checker: TS.TypeChecker, generatedPath: string): string[] {
+  const satisfies = (expression: TS.Expression | undefined): boolean => {
     if (!expression) return false;
     const inner = unwrap(expression);
     if (!ts.isSatisfiesExpression(inner) || !ts.isTypeReferenceNode(inner.type)) return false;
@@ -62,7 +63,7 @@ function satisfyingExports(source: ts.SourceFile, checker: ts.TypeChecker, gener
   return found;
 }
 
-export function completenessGate(options: CoreOptions, program: ts.Program | string): GateOutcome {
+export function completenessGate(options: CoreOptions, program: TS.Program | string): GateOutcome {
   const result = (_pass: boolean, summary: string, problems: GateProblem[]): GateOutcome => gateOutcome(1, summary, problems);
   if (typeof program === 'string') {
     return result(false, 'the tsconfig cannot be read', [{ code: 'tsconfig-unreadable', severity: 'error', file: options.show(options.tsconfigPath), message: program }]);

@@ -9,7 +9,8 @@
  */
 import { existsSync, realpathSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
-import ts from 'typescript';
+import type * as TS from 'typescript';
+import { ts } from '../ts.js';
 import { filesUnder } from '../files.js';
 import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
 
@@ -20,6 +21,21 @@ function sourcesUnder(path: string): string[] {
   return filesUnder(path, (name) => SOURCE.test(name) && !name.endsWith('.d.ts')).map((file) => realpathSync(file));
 }
 
+/**
+ * The program of gate 1 with the shell files too. Its host gives each file that gate 1 already parsed,
+ * the libraries and the core included, so that only the shell files are parsed again: as the watch mode
+ * of TypeScript shares files between two programs.
+ */
+function withShell(coreProgram: TS.Program, rootNames: readonly string[]): TS.Program {
+  const options = coreProgram.getCompilerOptions();
+  const base = ts.createCompilerHost(options);
+  const host: TS.CompilerHost = {
+    ...base,
+    getSourceFile: (fileName, languageVersion, onError, shouldCreate) => coreProgram.getSourceFile(fileName) ?? base.getSourceFile(fileName, languageVersion, onError, shouldCreate),
+  };
+  return ts.createProgram({ rootNames, options, host, oldProgram: coreProgram });
+}
+
 export interface BoundaryOptions {
   readonly corePath: string;
   readonly generatedPath: string;
@@ -28,7 +44,7 @@ export interface BoundaryOptions {
   readonly show: (path: string) => string;
 }
 
-export function boundaryGate(options: BoundaryOptions, coreProgram: ts.Program | string): GateOutcome {
+export function boundaryGate(options: BoundaryOptions, coreProgram: TS.Program | string): GateOutcome {
   const result = (_pass: boolean, summary: string, problems: GateProblem[]): GateOutcome => gateOutcome(2, summary, problems);
   if (typeof coreProgram === 'string') {
     return result(false, 'the tsconfig cannot be read', [{ code: 'tsconfig-unreadable', severity: 'error', file: options.show(options.tsconfigPath), message: coreProgram }]);
@@ -40,17 +56,17 @@ export function boundaryGate(options: BoundaryOptions, coreProgram: ts.Program |
     .map((s) => resolve(s.fileName))
     .filter((f) => f.startsWith(coreDir) && f !== generated && !f.includes(`${sep}node_modules${sep}`));
   const shellFiles = options.shell.flatMap(sourcesUnder).filter((f) => f !== generated && !coreFiles.includes(f));
-  const program = shellFiles.length === 0 ? coreProgram : ts.createProgram({ rootNames: [...coreFiles, ...shellFiles], options: coreProgram.getCompilerOptions() });
+  const program = shellFiles.length === 0 ? coreProgram : withShell(coreProgram, [...coreFiles, ...shellFiles]);
   const checker = program.getTypeChecker();
   // A shell path that does not exist would check no file and pass: it is a problem of the gate.
   const problems: GateProblem[] = options.shell
     .filter((path) => !existsSync(path))
     .map((path) => ({ code: 'missing-input', severity: 'error', file: options.show(path), message: 'the shell path does not exist, so gate 2 would check no file of it' }));
-  const at = (source: ts.SourceFile, position: number) => ({ file: options.show(source.fileName), line: source.getLineAndCharacterOfPosition(position).line + 1 });
+  const at = (source: TS.SourceFile, position: number) => ({ file: options.show(source.fileName), line: source.getLineAndCharacterOfPosition(position).line + 1 });
 
   // The exports of the core: a shell that reads a property of one calls the core directly.
   const coreSource = program.getSourceFile(resolve(options.corePath));
-  const coreExports = new Set<ts.Symbol>();
+  const coreExports = new Set<TS.Symbol>();
   if (coreSource) {
     const moduleSymbol = checker.getSymbolAtLocation(coreSource);
     for (const symbol of moduleSymbol ? checker.getExportsOfModule(moduleSymbol) : []) coreExports.add(symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol);
@@ -63,13 +79,13 @@ export function boundaryGate(options: BoundaryOptions, coreProgram: ts.Program |
       problems.push({ code: 'suppressed-check', severity: 'error', ...at(source, match.index), message: `@ts-${match[1]} can hide a broken contract; fix the type error` });
     }
     if (!shellFiles.includes(file)) continue;
-    const isCore = (expression: ts.Expression): boolean => {
+    const isCore = (expression: TS.Expression): boolean => {
       if (!ts.isIdentifier(expression)) return false;
       let symbol = checker.getSymbolAtLocation(expression);
       if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
       return symbol !== undefined && coreExports.has(symbol);
     };
-    const visit = (node: ts.Node): void => {
+    const visit = (node: TS.Node): void => {
       // const { quote_shipping } = core takes a function of the core out of it, as core.quote_shipping does.
       if (ts.isVariableDeclaration(node) && ts.isObjectBindingPattern(node.name) && node.initializer && isCore(node.initializer)) {
         problems.push({
