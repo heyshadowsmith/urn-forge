@@ -21,7 +21,7 @@ definitions:
     description: A code of a problem that urn-forge reports. A tool or an agent acts on the code, not on the message. The meaning, the severity, the commands and the fix of each code are the argument of is_the_code, in the operation fix_of; the codes of each gate are the argument of reports_its_codes, in the operation judge_gate.
     type: string
     rules:
-      - enum: [usage, config-unreadable, config-invalid, manifest-unreadable, yaml-syntax, manifest-shape, unknown-definition, type-cycle, duplicate-property, unknown-property, not-an-object, duplicate-output, invalid-identifier, deprecated-use, standard-name, unknown-rule, rule-argument, rule-syntax, rule-type, rule-guard, rule-scope, invalid-message, tsconfig-unreadable, core-not-found, type-error, core-not-satisfying, direct-call, suppressed-check, feature-syntax, unknown-name, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule, drift, base-unreadable, removed-rule, wider-rule, removed-output, removed-scenario, io-error, internal-error, internal-contract]
+      - enum: [usage, config-unreadable, config-invalid, manifest-unreadable, yaml-syntax, manifest-shape, unknown-definition, type-cycle, duplicate-property, unknown-property, not-an-object, duplicate-output, invalid-identifier, deprecated-use, standard-name, unknown-rule, rule-argument, rule-syntax, rule-type, rule-guard, rule-scope, invalid-message, tsconfig-unreadable, core-not-found, type-error, core-not-satisfying, direct-call, suppressed-check, missing-input, feature-syntax, unknown-name, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule, drift, base-unreadable, removed-rule, wider-rule, removed-output, removed-scenario, io-error, internal-error, internal-contract]
 
   fix:
     description: What to do about each case of a code, in one sentence
@@ -1568,6 +1568,11 @@ operations:
                 severity: error
                 commands: [verify]
                 fix: Remove the @ts- comment and correct the type error that it hides.
+              missing-input:
+                meaning: "Gate 2 or gate 3: a shell path or a features path does not exist, or the features path is a file that is not a `.feature` file, so the gate would check nothing of it"
+                severity: error
+                commands: [verify]
+                fix: Correct the path in shell or features of the config, or in --features, to a file or a folder that exists.
               feature-syntax:
                 meaning: "Gate 3: a `.feature` file does not parse"
                 severity: error
@@ -1784,12 +1789,12 @@ operations:
             gate_codes: [type-error, core-not-satisfying, core-not-found, tsconfig-unreadable]
           "2":
             gate_name: boundary
-            gate_check: "The shell calls the core without `runOperation`, or a file suppresses a type check"
-            gate_codes: [direct-call, suppressed-check, tsconfig-unreadable]
+            gate_check: "The shell calls the core without `runOperation`, a file suppresses a type check, or a shell path does not exist"
+            gate_codes: [direct-call, suppressed-check, tsconfig-unreadable, missing-input]
           "3":
             gate_name: gherkin
-            gate_check: "A step names an unknown part, or an operation, an output, a variant or a rule has no scenario"
-            gate_codes: [unknown-name, feature-syntax, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule]
+            gate_check: "A step names an unknown part, an operation, an output, a variant or a rule has no scenario, or the features path does not exist"
+            gate_codes: [unknown-name, feature-syntax, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule, missing-input]
           "4":
             gate_name: drift
             gate_check: "A generated file is not what `compile` writes now"

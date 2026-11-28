@@ -193,8 +193,8 @@ Exit codes: `0` pass (also with warnings), `1` failure, `2` wrong command line, 
 | Gate | It fails when |
 | --- | --- |
 | 1. completeness | `tsc` fails over the core, or no export `satisfies DomainCore` |
-| 2. boundary | The shell calls the core without `runOperation`, or a file suppresses a type check |
-| 3. gherkin | A step names an unknown part, or an operation, an output, a variant or a rule has no scenario |
+| 2. boundary | The shell calls the core without `runOperation`, a file suppresses a type check, or a shell path does not exist |
+| 3. gherkin | A step names an unknown part, an operation, an output, a variant or a rule has no scenario, or the features path does not exist |
 | 4. drift | A generated file is not what `compile` writes now |
 | 5. contract | Only with `--base <ref>`: the ref cannot be read, or a rule, an output or a scenario of the ref is gone, or a rule accepts more, and the version does not allow it |
 
@@ -234,6 +234,7 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `core-not-satisfying` | Gate 1: no export of the core `satisfies DomainCore` | error | verify | Export the core as export const core = { … } satisfies DomainCore, with one function for each operation. |
 | `direct-call` | Gate 2: a shell file calls a function of the core directly, without `runOperation` | error | verify | Call the core through runOperation(core, operation, input), which checks the input and the answer. |
 | `suppressed-check` | Gate 2: a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` | error | verify | Remove the @ts- comment and correct the type error that it hides. |
+| `missing-input` | Gate 2 or gate 3: a shell path or a features path does not exist, or the features path is a file that is not a `.feature` file, so the gate would check nothing of it | error | verify | Correct the path in shell or features of the config, or in --features, to a file or a folder that exists. |
 | `feature-syntax` | Gate 3: a `.feature` file does not parse | error | verify | Correct the Gherkin of the feature file at the line that the message gives. |
 | `unknown-name` | Gate 3: a step names a part that the manifest does not have | error | verify | Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says. |
 | `uncovered-operation` | Gate 3: no scenario runs an operation | error | verify | Add a scenario with When I run "<operation>" with:. |

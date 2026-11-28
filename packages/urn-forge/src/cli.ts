@@ -11,6 +11,7 @@ import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
 import { fixOf, type Code, type Command } from './codes.js';
 import { brokenBy, decide, InternalContractError } from './self.js';
 import type { Diagnostic, Path } from './diagnostics.js';
+import { filesUnder } from './files.js';
 import { initProject, nameProblem } from './init.js';
 import { domainUrn } from './urn.js';
 import { boundaryGate } from './verify/boundary.js';
@@ -18,7 +19,7 @@ import { completenessGate, coreProgram } from './verify/completeness.js';
 import { contractGate, type ContractGateInput } from './verify/contract.js';
 import { driftGate } from './verify/drift.js';
 import { gherkinGate } from './verify/gherkin.js';
-import type { GateOutcome } from './verify/types.js';
+import type { GateOutcome, GateProblem } from './verify/types.js';
 import { writeGenerated } from './write.js';
 
 export const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version as string;
@@ -344,10 +345,12 @@ async function compileCommand(io: CliIo, report: Report, argv: readonly string[]
   return report.end(0, { files });
 }
 
-function features(dir: string): string[] {
-  if (!existsSync(dir)) return [];
-  if (!statSync(dir).isDirectory()) return [dir];
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? features(join(dir, e.name)) : e.name.endsWith('.feature') ? [join(dir, e.name)] : [])).sort();
+/** The .feature files of a path, and the problems of the path: it does not exist, or it is not a .feature file. */
+function features(path: string, show: (path: string) => string): { files: string[]; problems: GateProblem[] } {
+  const problem = (message: string): GateProblem => ({ code: 'missing-input', severity: 'error', file: show(path), message });
+  if (!existsSync(path)) return { files: [], problems: [problem('the features path does not exist, so gate 3 would read no scenario')] };
+  if (!statSync(path).isDirectory() && !path.endsWith('.feature')) return { files: [], problems: [problem('the features path is a file, and not a .feature file')] };
+  return { files: filesUnder(path, (name) => name.endsWith('.feature')).sort(), problems: [] };
 }
 
 async function verifyCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
@@ -378,7 +381,8 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
     const generatedPath = join(d.outDir, GENERATED_FILE);
     const coreOptions = { corePath: d.corePath, generatedPath, tsconfigPath: p.tsconfigPath, show };
     const program = coreProgram(coreOptions);
-    const featureFiles = features(d.featuresPath).map((path) => ({ path: show(path), text: readFileSync(path, 'utf8') }));
+    const found = features(d.featuresPath, show);
+    const featureFiles = found.files.map((path) => ({ path: show(path), text: readFileSync(path, 'utf8') }));
     const boundary = boundaryGate({ ...coreOptions, shell: p.shell }, program);
     const outcomes: GateOutcome[] = [
       completenessGate(coreOptions, program),
@@ -391,7 +395,7 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
           return true;
         }),
       },
-      gherkinGate({ model: result.compiled.model, applications: result.compiled.applications, features: featureFiles }),
+      gherkinGate({ model: result.compiled.model, applications: result.compiled.applications, features: featureFiles, inputProblems: found.problems }),
       await driftGate(d.outDir, result.files, show),
     ];
     if (values['base'] !== undefined) {

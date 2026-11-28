@@ -29,11 +29,13 @@ export interface GherkinGateInput {
   readonly model: Model;
   readonly applications: readonly Application[];
   readonly features: readonly FeatureFile[];
+  /** The problems of the features path: it does not exist, or it is a file that is not a .feature file. */
+  readonly inputProblems?: readonly GateProblem[];
 }
 
 export function gherkinGate(input: GherkinGateInput): GateOutcome {
   const { model, applications, features } = input;
-  const problems: GateProblem[] = [];
+  const problems: GateProblem[] = [...(input.inputProblems ?? [])];
   const gap = 'error';
   const ran = new Set<string>();
   const answered = new Set<string>();

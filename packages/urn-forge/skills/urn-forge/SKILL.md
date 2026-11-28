@@ -40,7 +40,7 @@ Run `npx urn-forge verify --format json`, then `npx cucumber-js`. Correct the fi
 | Change | Codes |
 | --- | --- |
 | The manifest | `yaml-syntax`, `manifest-shape`, `unknown-definition`, `type-cycle`, `duplicate-property`, `unknown-property`, `not-an-object`, `duplicate-output`, `invalid-identifier`, `deprecated-use`, `standard-name`, `unknown-rule`, `rule-argument`, `rule-syntax`, `rule-type`, `rule-guard`, `rule-scope`, `invalid-message` |
-| The config, `urn-forge.config.ts`, or the command | `usage`, `config-unreadable`, `config-invalid`, `manifest-unreadable`, `tsconfig-unreadable` |
+| The config, `urn-forge.config.ts`, or the command | `usage`, `config-unreadable`, `config-invalid`, `manifest-unreadable`, `tsconfig-unreadable`, `missing-input` |
 | The path or the permissions that the message names | `io-error` |
 | The core | `core-not-found`, `core-not-satisfying`, `type-error` |
 | The shell: call the core through `runOperation(core, operation, input)` | `direct-call`, `suppressed-check` |

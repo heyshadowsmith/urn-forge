@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 /** A finding of the plan that is not fixed yet: it.fails until its step, then it. */
-const finding = { D1: it.fails, A1: it.fails, D3: it, A11: it, D2: it.fails, D4: it.fails };
+const finding = { D1: it, A1: it.fails, D3: it, A11: it, D2: it.fails, D4: it.fails };
 
 const BIN = fileURLToPath(new URL('../bin/urn-forge.js', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -117,6 +117,28 @@ describe('the findings of the plan', () => {
     const r = bin(dir, ['verify']);
     expect(r.code).toBe(1);
     expect(r.out).toMatch(/missing-input/);
+  });
+
+  finding.D1('fails verify when the features path does not exist, or is not a .feature file', () => {
+    const dir = copy();
+    const missing = bin(dir, ['verify', '--features', 'no-such-folder']);
+    expect(missing.code).toBe(1);
+    expect(missing.out).toMatch(/error  missing-input  the features path does not exist/);
+    const notFeature = bin(dir, ['verify', '--features', 'core.ts']);
+    expect(notFeature.code).toBe(1);
+    expect(notFeature.out).toMatch(/error  missing-input  the features path is a file, and not a \.feature file/);
+  });
+
+  finding.D1('follows a symlinked shell folder, so gate 2 checks its files', () => {
+    const dir = copy();
+    mkdirSync(join(dir, 'real-shell'));
+    writeFileSync(join(dir, 'real-shell', 'shell.ts'), "import { core } from '../core.js';\n\nexport const seated = core.seat_booking;\n");
+    mkdirSync(join(dir, 'outer'));
+    symlinkSync('../real-shell', join(dir, 'outer', 'inner'));
+    writeFileSync(join(dir, 'urn-forge.config.ts'), readFileSync(join(dir, 'urn-forge.config.ts'), 'utf8').replace('  domains:', "  shell: ['outer'],\n  domains:"));
+    const r = bin(dir, ['verify']);
+    expect(r.code).toBe(1);
+    expect(r.out).toMatch(/error  direct-call  /);
   });
 
   finding.A1('refuses a flag of another command, with exit 2', () => {

@@ -7,25 +7,17 @@
  *   harness. Passing `core` to runOperation is the boundary.
  * - `suppressed-check`: `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`, which can hide a broken contract.
  */
-import { existsSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, resolve, sep } from 'node:path';
+import { existsSync, realpathSync } from 'node:fs';
+import { dirname, resolve, sep } from 'node:path';
 import ts from 'typescript';
+import { filesUnder } from '../files.js';
 import { gateOutcome, type GateOutcome, type GateProblem } from './types.js';
 
 const SOURCE = /\.(?:ts|tsx|mts|cts)$/u;
 
+/** The source files under a path, by their real paths, as TypeScript gives the files of a program. */
 function sourcesUnder(path: string): string[] {
-  if (!existsSync(path)) return [];
-  if (!statSync(path).isDirectory()) return [resolve(path)];
-  return readdirSync(path, { withFileTypes: true }).flatMap((entry) =>
-    entry.name === 'node_modules' || entry.name.startsWith('.')
-      ? []
-      : entry.isDirectory()
-        ? sourcesUnder(join(path, entry.name))
-        : SOURCE.test(entry.name) && !entry.name.endsWith('.d.ts')
-          ? [resolve(path, entry.name)]
-          : [],
-  );
+  return filesUnder(path, (name) => SOURCE.test(name) && !name.endsWith('.d.ts')).map((file) => realpathSync(file));
 }
 
 export interface BoundaryOptions {
@@ -50,7 +42,10 @@ export function boundaryGate(options: BoundaryOptions, coreProgram: ts.Program |
   const shellFiles = options.shell.flatMap(sourcesUnder).filter((f) => f !== generated && !coreFiles.includes(f));
   const program = shellFiles.length === 0 ? coreProgram : ts.createProgram({ rootNames: [...coreFiles, ...shellFiles], options: coreProgram.getCompilerOptions() });
   const checker = program.getTypeChecker();
-  const problems: GateProblem[] = [];
+  // A shell path that does not exist would check no file and pass: it is a problem of the gate.
+  const problems: GateProblem[] = options.shell
+    .filter((path) => !existsSync(path))
+    .map((path) => ({ code: 'missing-input', severity: 'error', file: options.show(path), message: 'the shell path does not exist, so gate 2 would check no file of it' }));
   const at = (source: ts.SourceFile, position: number) => ({ file: options.show(source.fileName), line: source.getLineAndCharacterOfPosition(position).line + 1 });
 
   // The exports of the core: a shell that reads a property of one calls the core directly.

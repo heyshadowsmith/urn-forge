@@ -54,6 +54,9 @@ export const CODES = {
   'direct-call': { meaning: 'Gate 2: a shell file calls a function of the core directly, without `runOperation`', severity: 'error', commands: ['verify'], fix: 'Call the core through runOperation(core, operation, input), which checks the input and the answer.' },
   'suppressed-check': { meaning: 'Gate 2: a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`', severity: 'error', commands: ['verify'], fix: 'Remove the @ts- comment and correct the type error that it hides.' },
 
+  // Gates 2 and 3: a path that the config or a flag names for a gate.
+  'missing-input': { meaning: 'Gate 2 or gate 3: a shell path or a features path does not exist, or the features path is a file that is not a `.feature` file, so the gate would check nothing of it', severity: 'error', commands: ['verify'], fix: 'Correct the path in shell or features of the config, or in --features, to a file or a folder that exists.' },
+
   // Gate 3: the scenarios.
   'feature-syntax': { meaning: 'Gate 3: a `.feature` file does not parse', severity: 'error', commands: ['verify'], fix: 'Correct the Gherkin of the feature file at the line that the message gives.' },
   'unknown-name': { meaning: 'Gate 3: a step names a part that the manifest does not have', severity: 'error', commands: ['verify'], fix: 'Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says.' },
