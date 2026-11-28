@@ -13,5 +13,5 @@ for (const stream of [process.stdout, process.stderr]) {
 }
 
 register();
-const { main } = await import('../src/cli.ts');
-process.exitCode = await main(process.argv.slice(2));
+const { run } = await import('../src/entry.ts');
+process.exitCode = await run(process.argv.slice(2));

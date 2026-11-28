@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 
 /** A finding of the plan that is not fixed yet: it.fails until its step, then it. */
-const target = { lazy: it.fails, acyclic: it };
+const target = { lazy: it, acyclic: it };
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const BIN = join(PACKAGE, 'bin/urn-forge.js');
