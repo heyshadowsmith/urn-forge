@@ -159,10 +159,10 @@ describe('the command line', () => {
     ]);
   });
 
-  it('gives the usage for an unknown command, with exit code 2', async () => {
+  it('names an unknown command in one line, with exit code 2', async () => {
     const { code, err } = await run(copy(), ['build']);
     expect(code).toBe(2);
-    expect(err[0]).toMatch(/^unknown command "build"/);
+    expect(err).toEqual(['urn-forge: unknown command build\nRun urn-forge --help for the commands.']);
   });
 
   it('finds the line of a path, or of the nearest part of it that exists', () => {

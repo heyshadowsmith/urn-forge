@@ -465,6 +465,9 @@ function takeFormat(args: readonly string[]): { format: Format; rest: string[] }
 
 /** Runs a command. Gives the exit code: 0, 1 for a failure, 2 for a usage error, 3 for a failure of urn-forge itself. */
 export async function main(argv: readonly string[], io: CliIo = { cwd: process.cwd(), stdout: (t) => console.log(t), stderr: (t) => console.error(t) }): Promise<number> {
+  // The help, the version and a command line with no command: as the bin answers them.
+  const answered = answerWithoutCommand(argv, io);
+  if (answered !== undefined) return answered;
   const [command, ...args] = argv;
   // --format belongs to compile, verify and diff: it is taken out before their own options are read.
   let format: Format = 'text';
@@ -487,7 +490,7 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
         return await diffCommand(io, report, rest);
       }
       default:
-        return answerWithoutCommand(command, io) ?? 2;
+        return 2;
     }
   } catch (error) {
     if (error instanceof InternalContractError) {

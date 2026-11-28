@@ -71,7 +71,7 @@ describe('the binary', () => {
   it('refuses an unknown command on stderr, with exit 2', () => {
     const r = bin(empty(), ['build']);
     expect([r.code, r.out]).toEqual([2, '']);
-    expect(r.err).toMatch(/^unknown command "build"/);
+    expect(r.err).toBe('urn-forge: unknown command build\nRun urn-forge --help for the commands.\n');
   });
 
   it('refuses an unknown option, with exit 2', () => {
@@ -206,7 +206,7 @@ describe('the findings of the plan', () => {
 });
 
 /** The findings of the plan of ergonomics (planning/cli-ergonomics-plan.md): it.fails until their step. */
-const ergonomics = { A3: it.fails, A9: it.fails, A5: it.fails, D8: it.fails, A6: it.fails, A4: it.fails, A7: it.fails, A10: it.fails, D10: it.fails };
+const ergonomics = { A3: it, A9: it, A5: it.fails, D8: it.fails, A6: it.fails, A4: it.fails, A7: it.fails, A10: it.fails, D10: it.fails };
 
 describe('the findings of the plan of ergonomics', () => {
   ergonomics.A3('prints the help of one command on stdout, with exit 0', () => {
