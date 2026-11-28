@@ -77,7 +77,7 @@ describe('the binary', () => {
   it('refuses an unknown option, with exit 2', () => {
     const r = bin(copy(), ['compile', '--bogus']);
     expect([r.code, r.out]).toEqual([2, '']);
-    expect(r.err).toMatch(/Unknown option '--bogus'/);
+    expect(r.err).toBe('urn-forge compile: unknown option --bogus\nRun urn-forge compile --help for its options.\n');
   });
 
   it('compiles, verifies and diffs the fixture, with exit 0', () => {
@@ -144,10 +144,10 @@ describe('the findings of the plan', () => {
   finding.A1('refuses a flag of another command, with exit 2', () => {
     const r = bin(copy(), ['compile', '--base', 'main']);
     expect([r.code, r.out]).toEqual([2, '']);
-    expect(r.err).toMatch(/^--base is not an option of compile; it is an option of verify/);
+    expect(r.err).toMatch(/^urn-forge compile: --base is not an option of compile; it is an option of verify\n/);
     const init = bin(empty(), ['init', '--config', 'x.ts']);
     expect([init.code, init.out]).toEqual([2, '']);
-    expect(init.err).toMatch(/^--config is not an option of init; it is an option of compile and verify/);
+    expect(init.err).toMatch(/^urn-forge init: --config is not an option of init; it is an option of compile and verify\n/);
     const json = bin(copy(), ['verify', '--format', 'json', '--namespace', 'zz']);
     expect(json.code).toBe(2);
     expect(oneObject(json.out)).toMatchObject({ ok: false, problems: [{ code: 'usage', message: '--namespace is not an option of verify; it is an option of init' }] });
@@ -206,7 +206,7 @@ describe('the findings of the plan', () => {
 });
 
 /** The findings of the plan of ergonomics (planning/cli-ergonomics-plan.md): it.fails until their step. */
-const ergonomics = { A3: it, A9: it, A5: it.fails, D8: it.fails, A6: it.fails, A4: it.fails, A7: it.fails, A10: it.fails, D10: it.fails };
+const ergonomics = { A3: it, A9: it, A5: it, D8: it, A6: it, A4: it.fails, A7: it.fails, A10: it.fails, D10: it.fails };
 
 describe('the findings of the plan of ergonomics', () => {
   ergonomics.A3('prints the help of one command on stdout, with exit 0', () => {
@@ -234,7 +234,7 @@ describe('the findings of the plan of ergonomics', () => {
     // After --, --format is a manifest name: three manifests for diff.
     const after = bin(copy(), ['diff', 'domain.manifest.yaml', 'domain.manifest.yaml', '--', '--format']);
     expect(after.code).toBe(2);
-    expect(after.err).toMatch(/diff takes two manifests/);
+    expect(after.err).toMatch(/^urn-forge diff: takes two manifests/);
   });
 
   ergonomics.D8('refuses an option given two times', () => {

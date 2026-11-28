@@ -7,7 +7,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
-import { answerWithoutCommand, USAGE, VERSION } from './usage.js';
+import { answerWithoutCommand, usageLine } from './usage.js';
 export { VERSION } from './usage.js';
 import { fixOf, type Code, type Command } from './codes.js';
 import { brokenBy, decide, InternalContractError } from './self.js';
@@ -319,7 +319,7 @@ function baseContract(io: CliIo, d: DomainProject, ref: string): ContractGateInp
 
 async function compileCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
   const { values, positionals } = parseOptions('compile', argv);
-  if (positionals.length > 0) throw new UsageError(`compile takes no argument: ${positionals.join(' ')}`);
+  if (positionals.length > 0) throw new UsageError(`takes no argument: ${positionals.join(' ')}`);
   const p = await project(io, report, values);
   if (!p) return report.end(1);
   const results = compileProject(io, report, p);
@@ -346,7 +346,7 @@ function features(path: string, show: (path: string) => string): { files: string
 
 async function verifyCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
   const { values, positionals } = parseOptions('verify', argv);
-  if (positionals.length > 0) throw new UsageError(`verify takes no argument: ${positionals.join(' ')}`);
+  if (positionals.length > 0) throw new UsageError(`takes no argument: ${positionals.join(' ')}`);
   const p = await project(io, report, values);
   if (!p) {
     report.err('verify failed: the config is not valid');
@@ -430,7 +430,7 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
 
 async function initCommand(io: CliIo, argv: readonly string[]): Promise<number> {
   const { values, positionals } = parseOptions('init', argv);
-  if (positionals.length > 0) throw new UsageError(`init takes no argument: ${positionals.join(' ')}`);
+  if (positionals.length > 0) throw new UsageError(`takes no argument: ${positionals.join(' ')}`);
   const namespace = values['namespace'] ?? 'app';
   const domain = values['domain'] ?? 'starter';
   const problem = nameProblem('--namespace', namespace) ?? nameProblem('--domain', domain);
@@ -445,22 +445,14 @@ async function initCommand(io: CliIo, argv: readonly string[]): Promise<number> 
   return 0;
 }
 
-/** Takes --format <text|json> (or --format=<…>) out of the arguments of a command. */
-function takeFormat(args: readonly string[]): { format: Format; rest: string[] } {
-  const rest: string[] = [];
-  let format: string = 'text';
-  for (let i = 0; i < args.length; i++) {
+/** The format that a command line asks for, before its options are read: the first --format before --. */
+function formatOf(args: readonly string[]): string {
+  for (let i = 0; i < args.length && args[i] !== '--'; i++) {
     const arg = args[i]!;
-    if (arg === '--format') {
-      format = args[++i] ?? '';
-    } else if (arg.startsWith('--format=')) {
-      format = arg.slice('--format='.length);
-    } else {
-      rest.push(arg);
-    }
+    if (arg === '--format') return args[i + 1] ?? '';
+    if (arg.startsWith('--format=')) return arg.slice('--format='.length);
   }
-  if (format !== 'text' && format !== 'json') throw new UsageError(`--format must be text or json, not "${format}"`);
-  return { format, rest };
+  return 'text';
 }
 
 /** Runs a command. Gives the exit code: 0, 1 for a failure, 2 for a usage error, 3 for a failure of urn-forge itself. */
@@ -469,25 +461,21 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
   const answered = answerWithoutCommand(argv, io);
   if (answered !== undefined) return answered;
   const [command, ...args] = argv;
-  // --format belongs to compile, verify and diff: it is taken out before their own options are read.
-  let format: Format = 'text';
-  let rest = args;
-  let report = new Report(io, format);
+  // --format is an option of compile, verify and diff; the report needs it before the options are read.
+  const asked = command === 'compile' || command === 'verify' || command === 'diff' ? formatOf(args) : 'text';
+  const report = new Report(io, asked === 'json' ? 'json' : 'text', command === 'compile' || command === 'verify' || command === 'diff' ? command : undefined);
   try {
-    if (command === 'compile' || command === 'verify' || command === 'diff') {
-      ({ format, rest } = takeFormat(args));
-      report = new Report(io, format, command);
-    }
+    if (asked !== 'text' && asked !== 'json') throw new UsageError(`--format must be text or json, not "${asked}"`);
     switch (command) {
       case 'init':
-        return await initCommand(io, rest);
+        return await initCommand(io, args);
       case 'compile':
-        return await compileCommand(io, report, rest);
+        return await compileCommand(io, report, args);
       case 'verify':
-        return await verifyCommand(io, report, rest);
+        return await verifyCommand(io, report, args);
       case 'diff': {
         const { diffCommand } = await import('./diff/command.js');
-        return await diffCommand(io, report, rest);
+        return await diffCommand(io, report, args);
       }
       default:
         return 2;
@@ -507,7 +495,7 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
         report.problem({ code: 'usage', severity: 'error', message: (error as Error).message });
         return report.end(2);
       }
-      io.stderr(`${(error as Error).message}\n\n${USAGE}`);
+      io.stderr(usageLine(command, (error as Error).message));
       return 2;
     }
     // A failure that urn-forge does not expect: exit 3, with no stack unless URN_FORGE_DEBUG asks for it.

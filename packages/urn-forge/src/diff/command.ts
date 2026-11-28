@@ -5,7 +5,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parseOptions } from '../options.js';
+import { parseOptions, UsageError } from '../options.js';
 import type { CliIo, Report } from '../cli.js';
 import { compileManifest } from '../compile.js';
 import { decide } from '../self.js';
@@ -16,12 +16,7 @@ import { allowsBreaking } from './versions.js';
 
 export async function diffCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
   const { positionals, values } = parseOptions('diff', argv);
-  if (positionals.length !== 2) {
-    const message = 'diff takes two manifests: urn-forge diff <old manifest> <new manifest>';
-    if (report.format === 'json') report.problem({ code: 'usage', severity: 'error', message });
-    else io.stderr(message);
-    return report.end(2, { changes: [] });
-  }
+  if (positionals.length !== 2) throw new UsageError('takes two manifests: urn-forge diff <old manifest> <new manifest>');
   const sides = positionals.map((path) => {
     let text: string;
     try {
