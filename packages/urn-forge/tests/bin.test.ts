@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 /** A finding of the plan that is not fixed yet: it.fails until its step, then it. */
-const finding = { D1: it, A1: it, D3: it, A11: it, D2: it, D4: it.fails };
+const finding = { D1: it, A1: it, D3: it, A11: it, D2: it, D4: it };
 
 const BIN = fileURLToPath(new URL('../bin/urn-forge.js', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -194,7 +194,13 @@ describe('the findings of the plan', () => {
     writeFileSync(join(dir, 'package.json'), '[1, 2]');
     const r = bin(dir, ['init']);
     expect(r.code).toBe(1);
-    expect(r.err).toMatch(/^init writes no file: package\.json/);
+    expect(r.err).toMatch(/^init writes no file: package\.json must be a JSON object/);
+    expect(existsSync(join(dir, 'domain.manifest.yaml'))).toBe(false);
+    writeFileSync(join(dir, 'package.json'), '{ "name": "x", }');
+    const invalid = bin(dir, ['init']);
+    expect(invalid.code).toBe(1);
+    expect(invalid.err).toMatch(/^init writes no file: package\.json is not valid JSON: /);
+    noStack(invalid.err);
     expect(existsSync(join(dir, 'domain.manifest.yaml'))).toBe(false);
   });
 });
