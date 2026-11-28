@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 // Runs the TypeScript sources through tsx, so the CLI needs no build step.
+import module from 'node:module';
 import { register } from 'tsx/esm/api';
+
+// Keep the compiled code of each module in V8's cache between runs: a no-op where Node does not have it.
+module.enableCompileCache?.();
 
 // When the reader of the output stops early (`urn-forge verify | head`), drop the rest of the output.
 // When the output cannot be written at all, such as on a full disk, say so in one line and exit 1.

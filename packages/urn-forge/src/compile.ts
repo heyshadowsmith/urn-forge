@@ -4,7 +4,7 @@
  */
 import { domainUrn } from './urn.js';
 import { createHash } from 'node:crypto';
-import ts from 'typescript';
+import { ts } from './ts.js';
 import type { DomainConfig } from './config.js';
 import { Diagnostics, type Diagnostic } from './diagnostics.js';
 import { checksModule, generatedFile, header, type GeneratedFile } from './generate/code.js';
