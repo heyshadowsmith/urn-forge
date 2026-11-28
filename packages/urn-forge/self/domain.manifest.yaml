@@ -9,7 +9,7 @@
 manifest:
   namespace: urn-forge
   domain: toolchain
-  version: 0.2.2
+  version: 0.2.3
 
 definitions:
   # 1. The vocabulary
@@ -18,7 +18,7 @@ definitions:
   # judge_gate. A test keeps each list equal to its source in the package, and to the pages that name it.
 
   code:
-    description: A code of a problem that urn-forge reports. A tool or an agent acts on the code, not on the message. The meaning, the severity and the fix of each code are the argument of is_the_code, in the operation fix_of; the codes of each gate are the argument of reports_its_codes, in the operation judge_gate. compile, and verify before its gates, reports each code that is in no gate; diff reports usage and the codes of a manifest that does not compile
+    description: A code of a problem that urn-forge reports. A tool or an agent acts on the code, not on the message. The meaning, the severity, the commands and the fix of each code are the argument of is_the_code, in the operation fix_of; the codes of each gate are the argument of reports_its_codes, in the operation judge_gate.
     type: string
     rules:
       - enum: [usage, config-unreadable, config-invalid, manifest-unreadable, yaml-syntax, manifest-shape, unknown-definition, type-cycle, duplicate-property, unknown-property, not-an-object, duplicate-output, invalid-identifier, deprecated-use, standard-name, unknown-rule, rule-argument, rule-syntax, rule-type, rule-guard, rule-scope, invalid-message, tsconfig-unreadable, core-not-found, type-error, core-not-satisfying, direct-call, suppressed-check, feature-syntax, unknown-name, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule, drift, base-unreadable, removed-rule, wider-rule, removed-output, removed-scenario, internal-contract]
@@ -28,6 +28,20 @@ definitions:
     type: string
     rules:
       - minLength: 1
+
+  command_name:
+    description: A command of urn-forge that reports problems with a code. init gives a wrong command line as text, with no code
+    type: string
+    rules:
+      - enum: [compile, verify, diff]
+
+  command_names:
+    description: The commands that report problems with a code. verify and diff compile the manifest too, so a code of the manifest comes from each of them
+    type: array
+    items: command_name
+    rules:
+      - minItems: 1
+      - uniqueItems
 
   code_meaning:
     description: What a code means, the same for each case of the code
@@ -42,14 +56,15 @@ definitions:
       - enum: [error, warning, by-version]
 
   code_entry:
-    description: "What a code is: what it means, its severity and its fix"
+    description: "What a code is: what it means, its severity, the commands that report it, and its fix"
     type: object
     properties:
       - meaning: code_meaning
       - severity: code_severity
+      - commands: command_names
       - fix
     rules:
-      - required: [meaning, severity, fix]
+      - required: [meaning, severity, commands, fix]
 
   code_entries:
     description: Each code, and what it is
@@ -353,22 +368,26 @@ definitions:
   # 2. Decision: fix_of
 
   code_request:
-    description: A code whose meaning and fix are asked for, with the severity of the problem that has it, when there is one
+    description: A code whose meaning and fix are asked for, with the severity of the problem that has it and the command that reports it, when there is one
     type: object
-    properties: [code, severity]
+    properties:
+      - code
+      - severity
+      - command: command_name
     rules:
       - required: [code]
 
   code_fix:
-    description: A code, what it means, its severity and its fix
+    description: A code, what it means, its severity, the commands that report it, and its fix
     type: object
     properties:
       - code
       - meaning: code_meaning
       - severity: code_severity
+      - commands: command_names
       - fix
     rules:
-      - required: [code, meaning, severity, fix]
+      - required: [code, meaning, severity, commands, fix]
 
   # 2. Decision: describe_standard_rule
 
@@ -1192,12 +1211,17 @@ rules:
     failure_message: The answer names another code
 
   is_the_code:
-    description: The meaning, the severity and the fix are those of the code, as the contract states them for each code
+    description: The meaning, the severity, the commands and the fix are those of the code, as the contract states them for each code
     parameters: [code_entries]
     rule: >-
       output.meaning == code_entries[input.code].meaning && output.severity == code_entries[input.code].severity &&
-      output.fix == code_entries[input.code].fix
+      output.commands == code_entries[input.code].commands && output.fix == code_entries[input.code].fix
     failure_message: The answer is not what the code is
+
+  reported_by_its_command:
+    description: A problem comes from a command that reports its code
+    rule: "!has(input.command) || input.command in output.commands"
+    failure_message: The command does not report the code of the problem
 
   has_its_severity:
     description: A problem has the severity of its code; a code of severity by-version can be a warning or an error
@@ -1400,172 +1424,214 @@ operations:
       - code_fix:
           - names_the_code
           - fix_is_a_sentence
-          # Each code: what it means, its severity, and its fix, which each report of the code shows.
+          # Each code: what it means, its severity, the commands that report it, and its fix, which each report shows.
           - has_its_severity
+          - reported_by_its_command
           - is_the_code:
               usage:
                 meaning: The command line is wrong
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Run urn-forge --help, and call the command with the arguments and options that it shows.
               config-unreadable:
                 meaning: The manifest file, or the file that `--config` names, does not exist
                 severity: error
+                commands: [compile, verify]
                 fix: Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts.
               config-invalid:
                 meaning: The config does not load, or an option is unknown or of the wrong type
                 severity: error
+                commands: [compile, verify]
                 fix: Change the config to use only the options of defineConfig, with the types that the message names.
               manifest-unreadable:
                 meaning: The manifest file, or the file that `--config` names, does not exist
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Give --manifest, or manifest in the config, the path of a manifest that exists.
               yaml-syntax:
                 meaning: The file is not valid YAML, or a map has one key two times
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Correct the YAML at the line that the problem gives.
               manifest-shape:
                 meaning: A key that is not allowed, a key that is not there, or a value of the wrong shape
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key.
               unknown-definition:
                 meaning: A name that the manifest does not have
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Add the definition to definitions:, or correct the name to one that is in definitions:.
               type-cycle:
                 meaning: A chain of `type` names goes back to its start
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Give one definition of the cycle a base type (string, number, integer, boolean, object, array, map or union) in place of the name of another definition.
               duplicate-property:
                 meaning: A list names a property or an output two times
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Remove the second copy of the name from properties:.
               unknown-property:
                 meaning: A name that the manifest does not have
                 severity: error
+                commands: [compile, verify, diff]
                 fix: "Add the name to properties: of the object, or remove it from the rule."
               not-an-object:
                 meaning: The input or an output is not an object
                 severity: error
+                commands: [compile, verify, diff]
                 fix: "Make the input or the output of the operation a definition of type: object."
               duplicate-output:
                 meaning: A list names a property or an output two times
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Remove the second copy of the object from output:.
               invalid-identifier:
                 meaning: The identifier is not a required property with one value
                 severity: error
+                commands: [compile, verify, diff]
                 fix: "Make the identifier a property of the object, list it in the required rule of the object, and give it one value: not an object or a list."
               deprecated-use:
                 meaning: A live part uses a deprecated part
                 severity: warning
+                commands: [compile, verify]
                 fix: "Use a definition or a rule that is not deprecated, or remove deprecated: true if it is still the right one."
               standard-name:
                 meaning: A rule of the manifest has the name of a standard rule
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Give the rule of the manifest a name that is not the name of a standard rule.
               unknown-rule:
                 meaning: A name that the manifest does not have
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Add the rule to rules:, or correct the name to a rule of the manifest or a standard rule.
               rule-argument:
                 meaning: An argument does not agree with the parameters of the rule
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Give the rule an argument that its parameters accept, or no argument when the rule has no parameters.
               rule-syntax:
                 meaning: The rule does not parse, or uses a form that is not in the rule language
                 severity: error
+                commands: [compile, verify, diff]
                 fix: "Write the rule in the rule language of urn-forge: the names, operators, functions and macros of the reference."
               rule-type:
                 meaning: A type in the rule is wrong, the rule does not give a `bool`, or `has()` reads a required property
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Change the rule so that each part has the type that the message names, and the rule gives a bool.
               rule-guard:
                 meaning: The rule reads an optional property without `has()`
                 severity: error
+                commands: [compile, verify, diff]
                 fix: "Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) || self.x > 0."
               rule-scope:
                 meaning: The rule reads a name that is not available where you apply the rule, such as `output` in a rule of a definition
                 severity: error
+                commands: [compile, verify, diff]
                 fix: "Use only the names that the message lists: self, input, output, the parameters of the rule, and the variable of a macro."
               invalid-message:
                 meaning: A message names `{x}`, but `x` is not a parameter
                 severity: error
+                commands: [compile, verify, diff]
                 fix: Use in {braces} only the names of the parameters of the rule.
               tsconfig-unreadable:
                 meaning: "Gate 1 or gate 2: the tsconfig does not exist, or does not parse"
                 severity: error
+                commands: [verify]
                 fix: Give --tsconfig, or tsconfig in the config, the path of a tsconfig that TypeScript can read.
               core-not-found:
                 meaning: "Gate 1: the file of the core does not exist"
                 severity: error
+                commands: [verify]
                 fix: Create the core file, or give --core, or core in the config, its path.
               type-error:
                 meaning: "Gate 1: `tsc` finds a type error in the core, with the tsconfig of the project"
                 severity: error
+                commands: [verify]
                 fix: Correct the type error at the line that the problem gives; do not suppress it.
               core-not-satisfying:
                 meaning: "Gate 1: no export of the core `satisfies DomainCore`"
                 severity: error
+                commands: [verify]
                 fix: Export the core as export const core = { … } satisfies DomainCore, with one function for each operation.
               direct-call:
                 meaning: "Gate 2: a shell file calls a function of the core directly, without `runOperation`"
                 severity: error
+                commands: [verify]
                 fix: Call the core through runOperation(core, operation, input), which checks the input and the answer.
               suppressed-check:
                 meaning: "Gate 2: a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`"
                 severity: error
+                commands: [verify]
                 fix: Remove the @ts- comment and correct the type error that it hides.
               feature-syntax:
                 meaning: "Gate 3: a `.feature` file does not parse"
                 severity: error
+                commands: [verify]
                 fix: Correct the Gherkin of the feature file at the line that the message gives.
               unknown-name:
                 meaning: "Gate 3: a step names a part that the manifest does not have"
                 severity: error
+                commands: [verify]
                 fix: Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says.
               uncovered-operation:
                 meaning: "Gate 3: no scenario runs an operation"
                 severity: error
+                commands: [verify]
                 fix: Add a scenario with When I run "<operation>" with:.
               uncovered-output:
                 meaning: "Gate 3: no scenario of an operation ends with one of its outputs"
                 severity: error
+                commands: [verify]
                 fix: Add a scenario of the operation that ends with Then the output is "<output>".
               uncovered-variant:
                 meaning: "Gate 3: no scenario reaches a variant of a union"
                 severity: error
+                commands: [verify]
                 fix: "Add a scenario whose table has a value of the variant: for a union with a tag, a value with that value of the tag."
               uncovered-rule:
                 meaning: "Gate 3: no scenario breaks a rule of a definition"
                 severity: error
+                commands: [verify]
                 fix: Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>".
               drift:
                 meaning: "Gate 4: a generated file is not what `compile` writes now, or it is missing, or `compile` no longer writes it"
                 severity: error
+                commands: [verify]
                 fix: Run urn-forge compile, and do not edit a generated file by hand.
               base-unreadable:
                 meaning: "Gate 5: the folder is not in a git repository, or the ref is not a commit"
                 severity: error
+                commands: [verify]
                 fix: Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists.
               removed-rule:
                 meaning: "Gate 5: a rule of the base is gone"
                 severity: by-version
+                commands: [verify]
                 fix: Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
               wider-rule:
                 meaning: "Gate 5: a rule accepts more than at the base"
                 severity: by-version
+                commands: [verify]
                 fix: Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
               removed-output:
                 meaning: "Gate 5: an output of the base is gone"
                 severity: by-version
+                commands: [verify]
                 fix: Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
               removed-scenario:
                 meaning: "Gate 5: a scenario of the base is gone"
                 severity: by-version
+                commands: [verify]
                 fix: Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
               internal-contract:
                 meaning: "urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge"
                 severity: error
+                commands: [compile, verify, diff]
                 fix: "Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it."
 
   describe_standard_rule:

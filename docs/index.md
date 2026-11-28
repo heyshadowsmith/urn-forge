@@ -401,7 +401,7 @@ verify failed: gate 5
 You must have Node 22 or newer. In your project, run:
 
 ```bash
-npm install https://github.com/heyshadowsmith/urn-forge/releases/download/v0.2.2/urn-forge-0.2.2.tgz
+npm install https://github.com/heyshadowsmith/urn-forge/releases/download/v0.2.3/urn-forge-0.2.3.tgz
 npx urn-forge init
 npx urn-forge compile
 npx urn-forge verify

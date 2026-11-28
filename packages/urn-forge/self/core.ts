@@ -33,7 +33,7 @@ export const core = {
     const direction = argumentDirection({ rule } as unknown as Application, old_bound, new_bound);
     return answer('bound_judged', { direction: direction as 'narrower' | 'wider' | 'same' });
   },
-  fix_of: ({ code }) => answer('code_fix', { code, meaning: CODES[code].meaning, severity: CODES[code].severity, fix: fixOf(code) }),
+  fix_of: ({ code }) => answer('code_fix', { code, meaning: CODES[code].meaning, severity: CODES[code].severity, commands: [...CODES[code].commands], fix: fixOf(code) }),
   describe_standard_rule: ({ standard_rule_name }) => {
     const rule = standard().rules[standard_rule_name]!;
     return answer('standard_rule', { standard_rule_name, parameter_names: rule.parameters, rule_description: rule.description, failure_text: rule.failureMessage });
