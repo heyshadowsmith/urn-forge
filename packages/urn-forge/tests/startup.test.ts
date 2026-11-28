@@ -1,6 +1,6 @@
 /**
- * What the commands load (planning/startup-plan.md): --help and --version load no compiler and no test
- * runner, and src and self have no runtime import cycle. A timing test would be flaky on a shared
+ * What the commands load (planning/startup-plan.md): --help and --version load no command, no compiler
+ * and no test runner, and src and self have no runtime import cycle. A timing test would be flaky on a shared
  * machine; what loads is exact, and a new static import that undoes the gain fails here.
  */
 import { spawnSync } from 'node:child_process';
@@ -41,8 +41,11 @@ describe('what a command loads', () => {
   });
 
   for (const args of [['--help'], ['--version'], [], ['build']]) {
-    target.lazy(`loads no compiler and no test runner for ${args.join(' ') || 'no command'}`, () => {
-      expect(heavy(loaded(args))).toEqual([]);
+    target.lazy(`loads no command, no compiler and no test runner for ${args.join(' ') || 'no command'}`, () => {
+      const urls = loaded(args);
+      expect(heavy(urls)).toEqual([]);
+      // The CLI and its commands load only for a command: src/usage.ts answers these alone.
+      expect(urls.filter((u) => u.endsWith('/src/cli.ts'))).toEqual([]);
     });
   }
 });

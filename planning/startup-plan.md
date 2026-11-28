@@ -49,3 +49,40 @@ Not in this plan: the incremental `.tsbuildinfo` of gate 1 (C5, optional in the 
 
 - **Moved functions.** `tests/self.test.ts` reads the shell files as text to find a direct call of a declared decision. The new modules must keep the `// self:` markers, and the list of shell files must name any new command module.
 - **The public paths stay.** `urn-forge/cucumber` keeps `STEPS`, and the old modules re-export each moved name.
+
+## What was built
+
+The times, on the 4-core machine of the cloud session, the median of 7 runs (5 for the first column). The machine is shared, so a run can be 20% slower than its median; the gain of each step is larger than that.
+
+| Command | Before | After | |
+| --- | --- | --- | --- |
+| `--help` | 686 ms | 60 ms | 11× |
+| `--version` | 672 ms | 61 ms | 11× |
+| `compile --config self/urn-forge.config.ts` | 959 ms | 523 ms | −45% |
+| `diff self self` | 1055 ms | 661 ms | −37% |
+| `verify --config self/urn-forge.config.ts` | 3069 ms | 1710 ms | −44% |
+
+| Step | Result |
+| --- | --- |
+| 1 | `tests/startup.test.ts`: the binary runs with a resolve hook that records each module that it loads, and a walk of the static imports of `src/` and `self/` finds each runtime cycle |
+| 2 | `gherkin/patterns.ts`, `diff/versions.ts` and `verify/gate-rules.ts`, with no import; `self/core.ts` reads only these, and the three cycles through `src/self.ts` are gone |
+| 3 | `src/entry.ts` and `src/usage.ts`: the bin answers `--help`, `--version`, no command and an unknown command with the usage alone, and loads `cli.ts` only for a command. `cli.ts` answers these with the same function |
+| 4 | `src/ts.ts`: TypeScript through `createRequire`, on first use; and V8's compile cache in the bin |
+| 5 | Gate 2's program reuses each file of gate 1's program (334 ms to 34 ms on `self/`), and `lineOf` parses a manifest once |
+
+Changes from the plan:
+
+- **One entry, not one module for each command.** The bin enters through `src/entry.ts`, which loads all of `cli.ts` for a command. Each command does not load on its own: the gain of that would be small, as each command needs most of `cli.ts`, and the change would move most of `cli.ts` into new files.
+- **TypeScript on first use did more than the plan said.** It was the step of `compile` and `diff` as well as of `verify`: a command loads TypeScript only when it reads it. With step 4, `verify` was already under the target of 2.4 s.
+- **Gate 2's host builds on gate 1's program,** not on a shared host passed through both gates: it gives each file that gate 1 parsed, and parses only the rest. On `self/`, gate 2 takes 34 ms; the end-to-end gain is smaller, about 150 ms, as the rest of gate 2 still runs.
+- **The test of what loads also checks `src/cli.ts`.** With TypeScript on first use, a static import of `cli.ts` in `entry.ts` loaded neither TypeScript nor Cucumber, and the first test passed; but it made `--help` 147 ms, not 60 ms. The test now fails when `--help`, `--version`, no command or an unknown command loads `cli.ts`.
+
+The sabotages:
+
+1. `entry.ts` imports `cli.ts` statically → at first not caught (see above); with the check of `cli.ts`, the 4 tests of what loads fail.
+2. `self/core.ts` imports `allowsBreaking` from `diff/command.ts` again → the cycle test: `src/self.ts -> self/core.ts -> src/diff/command.ts -> src/self.ts`.
+3. Gate 2 without the shared files → not caught by a test, as planned. The times above are the record.
+
+### Decision 8: plain JS checks (C3)
+
+`compile` is now 523 ms and `diff` 661 ms. Both still load TypeScript to strip the types of the checks of the rule arguments (`ts.transpileModule`). Plain JS checks would save about 250 ms more of each. Recommendation: not now. An agent runs `verify` far more often than `compile` or `diff`, and the change has the medium risk of two copies of the checks.
