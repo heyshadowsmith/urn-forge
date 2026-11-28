@@ -3,7 +3,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
@@ -133,6 +133,22 @@ export class Report {
   }
 }
 
+/**
+ * The key of a path, so that two names of one file or folder are equal: its real path through each
+ * symlink (for a path that does not exist yet, the real path of the nearest folder that exists, and the
+ * rest), in lower case where the file system ignores case, as on macOS and Windows.
+ */
+function samePath(path: string): string {
+  let existing = path;
+  const rest: string[] = [];
+  while (!existsSync(existing) && dirname(existing) !== existing) {
+    rest.unshift(basename(existing));
+    existing = dirname(existing);
+  }
+  const real = join(realpathSync.native(existing), ...rest);
+  return process.platform === 'darwin' || process.platform === 'win32' ? real.toLowerCase() : real;
+}
+
 /** A path as the output shows it: relative to the working directory, with forward slashes. */
 function display(io: CliIo, path: string): string {
   return relative(io.cwd, path).split('\\').join('/') || '.';
@@ -217,11 +233,11 @@ async function project(io: CliIo, report: Report, values: Record<string, string 
     const seen = new Set<string>();
     for (const d of resolved) {
       const value = d[key] as string;
-      if (seen.has(value)) {
+      if (seen.has(samePath(value))) {
         report.problem({ code: 'config-invalid', severity: 'error', file: display(io, configPath), message: `two domains ${what} ${display(io, value)}; give each domain its own` });
         clash = true;
       }
-      seen.add(value);
+      seen.add(samePath(value));
     }
   }
   if (clash) return undefined;
