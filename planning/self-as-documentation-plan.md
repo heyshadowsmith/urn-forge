@@ -473,3 +473,23 @@ What part 7 found before it started:
 1. Make `diff` report `deprecated-use` → a real `diff` stops with `internal-contract`.
 2. Remove `compile` from the list of `rule-guard` in `src/codes.ts` → the scenario of `fix_of` and a real `compile` that reports `rule-guard`.
 3. Give `drift` the list `[compile, verify]` → the test of decision 37.
+
+## What was built: part 7
+
+| Step | Result |
+| --- | --- |
+| 1 | `src/codes.ts` gives each code the commands that report it, and `COMMANDS` lists them. The tables of `AGENTS.md` and of the CLI reference have a column of the commands. A test checks that the codes of the gates are the 18 codes that only `verify` reports |
+| 2 | The commands are a list of the vocabulary of `self/`. Each entry of `is_the_code` lists the commands of its code, `fix_of` gives them and takes the command of the problem, and `reported_by_its_command` checks it. Each report of the CLI sends its command. The sentence of decision 32 is gone. The package and `self/` are 0.2.3 |
+| 3 | The cold-reader questions, the graph made again (209 parts, 296 references), three descriptions that the reader found too broad, and these notes |
+
+### The cold-reader test of part 7
+
+A fresh agent answered three questions from the file alone, all correctly, in two calls in all. Which command reports `rule-guard` took one call; in part 6 it took five. It found three descriptions that said less than the facts, and they now say it: `diff` reports no warning and reads no config; `diff` gives changes, not problems, so it reports no code of gate 5; and a problem has the severity error or warning, while a code can also be `by-version`.
+
+The sabotages of part 7, each caught:
+
+1. A `diff` that reports `deprecated-use` → a real `diff` stopped with `internal-contract`: `reported_by_its_command of fix_of`. (With its severity forced to error, `has_its_severity` stops it first.)
+2. `compile` removed from the list of `rule-guard` → the scenario of `fix_of` and `tests/self.test.ts`.
+3. `drift` with the list `[compile, verify]` → the two tests of decision 37.
+
+`self/` has 13 operations and 219 scenarios.

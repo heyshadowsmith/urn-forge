@@ -30,13 +30,13 @@ definitions:
       - minLength: 1
 
   command_name:
-    description: A command of urn-forge that reports problems with a code. init gives a wrong command line as text, with no code
+    description: A command of urn-forge that reports problems with a code. init gives a wrong command line as text, with no code. diff gives the changes between two manifests in its changes, not as problems, so it reports no code of gate 5
     type: string
     rules:
       - enum: [compile, verify, diff]
 
   command_names:
-    description: The commands that report problems with a code. verify and diff compile the manifest too, so a code of the manifest comes from each of them
+    description: The commands that report problems with a code. verify and diff compile the manifest too, so an error of the manifest comes from each of them; diff reports no warning, and reads no config
     type: array
     items: command_name
     rules:
@@ -50,7 +50,7 @@ definitions:
       - pattern: '\S'
 
   code_severity:
-    description: "The severity of each problem of a code: error, warning, or by-version for the codes of gate 5 that a new version can allow, which are a warning when the version allows the change and an error when it does not"
+    description: "The severity of each problem of a code: error, warning, or by-version for the codes of gate 5 that a new version can allow, which are a warning when the version allows the change and an error when it does not. A problem itself has the severity error or warning"
     type: string
     rules:
       - enum: [error, warning, by-version]
