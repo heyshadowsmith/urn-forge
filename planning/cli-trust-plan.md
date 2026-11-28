@@ -52,3 +52,27 @@ Not in this plan: the hang of `compile --out /proc/nope/x` (the spec's open item
 
 - **Step 3 fails configs that pass today.** A project with a stale `shell` entry stops passing `verify`. This is the point of the step; the message names the path.
 - **Step 4 fails command lines that pass today.** A script that passes a flag that its command ignores gets exit 2. The message names the flag and the command.
+
+## What was built
+
+| Step | Result |
+| --- | --- |
+| 1 | `tests/bin.test.ts` spawns the real binary and checks its exit code, stdout and stderr apart: `--version`, `--help`, an unknown command and option, `compile`, `verify` and `diff` on the fixture, `--format json`, and a reader that stops early. Each finding was an `it.fails` test, which its step turned to `it` |
+| 2 | `io-error` (exit 1, one JSON object), `internal-error` (exit 3, no stack unless `URN_FORGE_DEBUG=1`), exit 3 for `internal-contract`, and one line on stderr when the output cannot be written. The package and `self/` are 0.2.4 |
+| 3 | `missing-input` of gate 2 for a shell path that does not exist, and of gate 3 for a features path that does not exist or is not a `.feature` file. The walk of both folders follows symlinked folders, each folder once |
+| 4 | `src/options.ts`: each command has its own options, and an option of another command is `usage`, exit 2, with its command: "--base is not an option of compile; it is an option of verify" |
+| 5 | The out folders, manifests and features of the domains are compared by their real paths, and without case on macOS and Windows |
+| 6 | `init` reads and checks `package.json` before it writes a file |
+| 7 | The usage and the docs list exit 3. A cold reader of `AGENTS.md` alone answered four questions correctly in three calls; it found two gaps, which are fixed: `config-unreadable` and `manifest-unreadable` shared one meaning, and the table of commands did not give each option or say that an option of another command is refused |
+
+Changes from the plan:
+
+- **The fixture warns.** The booking fixture uses a deprecated definition, so `compile` and `verify` write a warning on stderr. The tests of the binary expect it; the routing of the streams is task 14 of the spec, not this plan.
+- **Gate 2 reads files by their real path.** TypeScript gives the files of a program by their real paths, so a shell file under a symlinked folder was not found by its linked path. Gate 3 keeps the linked path, so that a features path shows as the user wrote it.
+
+The sabotages, each caught:
+
+1. No catch of `io-error` → the test of D3: a stack trace, and stdout with no JSON.
+2. A missing shell path that checks nothing again → the test of D1.
+3. `base` back in the options of `compile` → the test of A1.
+4. `missing-input` reported by `compile` → a real `compile` stopped with `internal-contract`, by `reported_by_its_command`, with exit 3.

@@ -127,9 +127,9 @@ Each code has one fix, which the output shows on the line below the problem. `no
 | Code | Severity | Commands | Cause |
 | --- | --- | --- | --- |
 | `usage` | error | compile, verify, diff | The command line is wrong |
-| `config-unreadable` | error | compile, verify | The manifest file, or the file that `--config` names, does not exist |
+| `config-unreadable` | error | compile, verify | The config file that `--config` names does not exist |
 | `config-invalid` | error | compile, verify | The config does not load, or an option is unknown or of the wrong type |
-| `manifest-unreadable` | error | compile, verify, diff | The manifest file, or the file that `--config` names, does not exist |
+| `manifest-unreadable` | error | compile, verify, diff | The manifest file does not exist |
 | `yaml-syntax` | error | compile, verify, diff | The file is not valid YAML, or a map has one key two times |
 | `manifest-shape` | error | compile, verify, diff | A key that is not allowed, a key that is not there, or a value of the wrong shape |
 | `unknown-definition`, `unknown-property`, `unknown-rule` | error | compile, verify, diff | A name that the manifest does not have |

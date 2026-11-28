@@ -19,9 +19,9 @@ export type Command = (typeof COMMANDS)[number];
 export const CODES = {
   // The command line.
   usage: { meaning: 'The command line is wrong', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Run urn-forge --help, and call the command with the arguments and options that it shows.' },
-  'config-unreadable': { meaning: 'The manifest file, or the file that `--config` names, does not exist', severity: 'error', commands: ['compile', 'verify'], fix: 'Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts.' },
+  'config-unreadable': { meaning: 'The config file that `--config` names does not exist', severity: 'error', commands: ['compile', 'verify'], fix: 'Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts.' },
   'config-invalid': { meaning: 'The config does not load, or an option is unknown or of the wrong type', severity: 'error', commands: ['compile', 'verify'], fix: 'Change the config to use only the options of defineConfig, with the types that the message names.' },
-  'manifest-unreadable': { meaning: 'The manifest file, or the file that `--config` names, does not exist', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Give --manifest, or manifest in the config, the path of a manifest that exists.' },
+  'manifest-unreadable': { meaning: 'The manifest file does not exist', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Give --manifest, or manifest in the config, the path of a manifest that exists.' },
 
   // The manifest.
   'yaml-syntax': { meaning: 'The file is not valid YAML, or a map has one key two times', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Correct the YAML at the line that the problem gives.' },

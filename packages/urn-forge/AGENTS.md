@@ -184,9 +184,11 @@ With several domains, `compile` and `verify` handle each one in one run, and sta
 | Command | What it does |
 | --- | --- |
 | `urn-forge init [--namespace <n>] [--domain <n>]` | Writes a starter project that passes `verify`, with `AGENTS.md` and a Claude Code skill for coding agents |
-| `urn-forge compile [--format json]` | Writes the generated files |
-| `urn-forge verify [--base <ref>] [--format json]` | Compiles in memory and runs the gates; writes nothing |
+| `urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format json]` | Writes the generated files |
+| `urn-forge verify [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--base <ref>] [--format json]` | Compiles in memory and runs the gates; writes nothing |
 | `urn-forge diff <old> <new> [--report] [--format json]` | Classifies the changes between two manifests as breaking or compatible |
+
+Each command takes only the options of its line: an option of another command is `usage`, with exit 2, such as `compile --base main`.
 
 Exit codes: `0` pass (also with warnings), `1` failure, `2` wrong command line, `3` urn-forge itself failed (`internal-error`, `internal-contract`): report it, and do not change the project for it.
 
@@ -207,9 +209,9 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | Code | Meaning | Severity | Commands | Fix |
 | --- | --- | --- | --- | --- |
 | `usage` | The command line is wrong | error | compile, verify, diff | Run urn-forge --help, and call the command with the arguments and options that it shows. |
-| `config-unreadable` | The manifest file, or the file that `--config` names, does not exist | error | compile, verify | Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts. |
+| `config-unreadable` | The config file that `--config` names does not exist | error | compile, verify | Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts. |
 | `config-invalid` | The config does not load, or an option is unknown or of the wrong type | error | compile, verify | Change the config to use only the options of defineConfig, with the types that the message names. |
-| `manifest-unreadable` | The manifest file, or the file that `--config` names, does not exist | error | compile, verify, diff | Give --manifest, or manifest in the config, the path of a manifest that exists. |
+| `manifest-unreadable` | The manifest file does not exist | error | compile, verify, diff | Give --manifest, or manifest in the config, the path of a manifest that exists. |
 | `yaml-syntax` | The file is not valid YAML, or a map has one key two times | error | compile, verify, diff | Correct the YAML at the line that the problem gives. |
 | `manifest-shape` | A key that is not allowed, a key that is not there, or a value of the wrong shape | error | compile, verify, diff | Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key. |
 | `unknown-definition` | A name that the manifest does not have | error | compile, verify, diff | Add the definition to definitions:, or correct the name to one that is in definitions:. |
