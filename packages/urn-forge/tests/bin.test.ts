@@ -71,21 +71,21 @@ describe('the binary', () => {
   it('refuses an unknown command on stderr, with exit 2', () => {
     const r = bin(empty(), ['build']);
     expect([r.code, r.out]).toEqual([2, '']);
-    expect(r.err).toMatch(/^unknown command "build"/);
+    expect(r.err).toBe('urn-forge: unknown command build\nRun urn-forge --help for the commands.\n');
   });
 
   it('refuses an unknown option, with exit 2', () => {
     const r = bin(copy(), ['compile', '--bogus']);
     expect([r.code, r.out]).toEqual([2, '']);
-    expect(r.err).toMatch(/Unknown option '--bogus'/);
+    expect(r.err).toBe('urn-forge compile: unknown option --bogus\nRun urn-forge compile --help for its options.\n');
   });
 
   it('compiles, verifies and diffs the fixture, with exit 0', () => {
     const dir = copy();
     const compile = bin(dir, ['compile']);
-    // The fixture uses a deprecated definition, which compile reports on stderr as a warning.
-    expect(compile.code).toBe(0);
-    expect(compile.err).toMatch(/^domain\.manifest\.yaml:\d+  warning  deprecated-use /);
+    // The fixture uses a deprecated definition, which compile reports as a warning of its report.
+    expect([compile.code, compile.err]).toEqual([0, '']);
+    expect(compile.out).toMatch(/^domain\.manifest\.yaml:\d+  warning  deprecated-use /);
     expect(compile.out).toMatch(/unchanged +generated\/domain\.generated\.ts/);
     const verify = bin(dir, ['verify']);
     expect(verify.code).toBe(0);
@@ -144,10 +144,10 @@ describe('the findings of the plan', () => {
   finding.A1('refuses a flag of another command, with exit 2', () => {
     const r = bin(copy(), ['compile', '--base', 'main']);
     expect([r.code, r.out]).toEqual([2, '']);
-    expect(r.err).toMatch(/^--base is not an option of compile; it is an option of verify/);
+    expect(r.err).toMatch(/^urn-forge compile: --base is not an option of compile; it is an option of verify\n/);
     const init = bin(empty(), ['init', '--config', 'x.ts']);
     expect([init.code, init.out]).toEqual([2, '']);
-    expect(init.err).toMatch(/^--config is not an option of init; it is an option of compile and verify/);
+    expect(init.err).toMatch(/^urn-forge init: --config is not an option of init; it is an option of compile and verify\n/);
     const json = bin(copy(), ['verify', '--format', 'json', '--namespace', 'zz']);
     expect(json.code).toBe(2);
     expect(oneObject(json.out)).toMatchObject({ ok: false, problems: [{ code: 'usage', message: '--namespace is not an option of verify; it is an option of init' }] });
@@ -186,7 +186,7 @@ describe('the findings of the plan', () => {
     );
     const r = bin(dir, ['compile']);
     expect(r.code).toBe(1);
-    expect(r.err).toMatch(/config-invalid  two domains write/);
+    expect(r.out).toMatch(/config-invalid  two domains write/);
   });
 
   finding.D4('writes no file when package.json is not a JSON object', () => {
@@ -194,13 +194,109 @@ describe('the findings of the plan', () => {
     writeFileSync(join(dir, 'package.json'), '[1, 2]');
     const r = bin(dir, ['init']);
     expect(r.code).toBe(1);
-    expect(r.err).toMatch(/^init writes no file: package\.json must be a JSON object/);
+    expect(r.out).toMatch(/^init writes no file: package\.json must be a JSON object/);
     expect(existsSync(join(dir, 'domain.manifest.yaml'))).toBe(false);
     writeFileSync(join(dir, 'package.json'), '{ "name": "x", }');
     const invalid = bin(dir, ['init']);
     expect(invalid.code).toBe(1);
-    expect(invalid.err).toMatch(/^init writes no file: package\.json is not valid JSON: /);
+    expect(invalid.out).toMatch(/^init writes no file: package\.json is not valid JSON: /);
     noStack(invalid.err);
     expect(existsSync(join(dir, 'domain.manifest.yaml'))).toBe(false);
+  });
+});
+
+/** The findings of the plan of ergonomics (planning/cli-ergonomics-plan.md): it.fails until their step. */
+const ergonomics = { A3: it, A9: it, A5: it, D8: it, A6: it, A4: it, A7: it, A10: it, D10: it };
+
+describe('the findings of the plan of ergonomics', () => {
+  ergonomics.A3('prints the help of one command on stdout, with exit 0', () => {
+    for (const args of [['compile', '--help'], ['compile', '-h'], ['help', 'compile']]) {
+      const r = bin(empty(), args);
+      expect([r.code, r.err], args.join(' ')).toEqual([0, '']);
+      expect(r.out, args.join(' ')).toMatch(/^urn-forge compile /);
+      expect(r.out).toMatch(/--manifest <file>/);
+      expect(r.out).not.toMatch(/--base/);
+    }
+    expect(bin(empty(), ['--help']).out).toMatch(/Run urn-forge <command> --help for its options/);
+  });
+
+  ergonomics.A9('takes -V and version as --version, and refuses an argument after it', () => {
+    expect(bin(empty(), ['-V'])).toEqual({ code: 0, out: `${VERSION}\n`, err: '' });
+    expect(bin(empty(), ['version'])).toEqual({ code: 0, out: `${VERSION}\n`, err: '' });
+    const extra = bin(empty(), ['--version', 'extra']);
+    expect([extra.code, extra.out]).toEqual([2, '']);
+  });
+
+  ergonomics.A5('reads --format as an option of its command, and stops at --', () => {
+    const before = bin(copy(), ['--format', 'json', 'verify']);
+    expect([before.code, before.out]).toEqual([2, '']);
+    expect(before.err).toMatch(/put --format after the command/);
+    // After --, --format is a manifest name: three manifests for diff.
+    const after = bin(copy(), ['diff', 'domain.manifest.yaml', 'domain.manifest.yaml', '--', '--format']);
+    expect(after.code).toBe(2);
+    expect(after.err).toMatch(/^urn-forge diff: takes two manifests/);
+  });
+
+  ergonomics.D8('refuses an option given two times', () => {
+    const r = bin(copy(), ['compile', '--manifest', 'a.yaml', '--manifest', 'domain.manifest.yaml']);
+    expect([r.code, r.out]).toEqual([2, '']);
+    expect(r.err).toMatch(/--manifest is given two times/);
+    expect(bin(copy(), ['compile', '--format', 'json', '--format', 'text']).code).toBe(2);
+  });
+
+  ergonomics.A6('says a usage error in one line, with the help of its command and the nearest option', () => {
+    const r = bin(copy(), ['compile', '--manfest', 'x']);
+    expect([r.code, r.out]).toEqual([2, '']);
+    expect(r.err).toBe("urn-forge compile: unknown option --manfest; did you mean --manifest?\nRun urn-forge compile --help for its options.\n");
+    const short = bin(copy(), ['compile', '-c', 'x']);
+    expect(short.err).toBe('urn-forge compile: unknown option -c\nRun urn-forge compile --help for its options.\n');
+  });
+
+  ergonomics.A4('writes the whole report on stdout, and nothing on stderr for a failure of the project', () => {
+    const dir = copy();
+    const compile = bin(dir, ['compile']);
+    expect([compile.code, compile.err]).toEqual([0, '']);
+    expect(compile.out).toMatch(/warning  deprecated-use/);
+    writeFileSync(join(dir, 'urn-forge.config.ts'), readFileSync(join(dir, 'urn-forge.config.ts'), 'utf8').replace('  domains:', "  shell: ['no-such-shell.ts'],\n  domains:"));
+    const verify = bin(dir, ['verify']);
+    expect([verify.code, verify.err]).toEqual([1, '']);
+    expect(verify.out).toMatch(/^verify failed: gate 2$/m);
+  });
+
+  ergonomics.A7('gives each key of its command in each JSON report', () => {
+    const dir = copy();
+    expect(Object.keys(oneObject(bin(dir, ['verify', '--format', 'json', '--nope']).out)).sort()).toEqual(['domains', 'gates', 'ok', 'problems', 'warnings']);
+    expect(Object.keys(oneObject(bin(dir, ['compile', '--format', 'json', '--manifest', 'nope.yaml']).out)).sort()).toEqual(['files', 'ok', 'problems']);
+    expect(Object.keys(oneObject(bin(dir, ['diff', '--format', 'json']).out)).sort()).toEqual(['changes', 'ok', 'problems']);
+  });
+
+  ergonomics.A10('says why a path cannot be read, and shows a path outside the folder as absolute', () => {
+    const dir = copy();
+    const folder = bin(dir, ['compile', '--manifest', 'generated']);
+    expect(folder.code).toBe(1);
+    expect(folder.out).toMatch(/generated  error  manifest-unreadable  the manifest is a folder, not a file/);
+    const outside = bin(dir, ['verify', '--core', '/dev/null']);
+    expect(outside.out).toMatch(/^    \/dev\/null  error  core-not-found/m);
+  });
+
+  ergonomics.D10('gives the line of a problem of a manifest in diff', () => {
+    const dir = copy();
+    writeFileSync(join(dir, 'bad.manifest.yaml'), readFileSync(join(dir, 'domain.manifest.yaml'), 'utf8').replace(/^definitions:$/m, 'definitions:\n  wrong: {description: Wrong, type: string, colour: red}'));
+    const r = bin(dir, ['diff', 'bad.manifest.yaml', 'domain.manifest.yaml']);
+    expect(r.code).toBe(1);
+    expect(r.out).toMatch(/^bad\.manifest\.yaml:\d+  error  manifest-shape  /m);
+  });
+});
+
+describe('the help of each command', () => {
+  it('names each option of the command in its Options section, and no other', async () => {
+    const { HELP } = await import('../src/usage.js');
+    const { COMMAND_OPTIONS } = await import('../src/options.js');
+    for (const [command, options] of Object.entries(COMMAND_OPTIONS)) {
+      // The lines of its Options section, each of which starts with the option.
+      const section = HELP[command as keyof typeof HELP].split('\nOptions:\n')[1]!.split('\n\n')[0]!;
+      const named = [...section.matchAll(/^ {2}--([a-z][a-z-]*)/gm)].map((m) => m[1]).sort();
+      expect(named, command).toEqual(Object.keys(options).sort());
+    }
   });
 });

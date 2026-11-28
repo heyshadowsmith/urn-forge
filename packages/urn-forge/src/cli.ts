@@ -3,11 +3,11 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
-import { answerWithoutCommand, USAGE, VERSION } from './usage.js';
+import { answerWithoutCommand, usageLine } from './usage.js';
 export { VERSION } from './usage.js';
 import { fixOf, type Code, type Command } from './codes.js';
 import { brokenBy, decide, InternalContractError } from './self.js';
@@ -48,6 +48,13 @@ export interface Problem {
 
 export type Format = 'text' | 'json';
 
+/** The keys of the report of each command, empty: the report of a failure has them too. */
+const EMPTY_REPORT: Readonly<Record<Command, Record<string, unknown>>> = {
+  compile: { files: [] },
+  verify: { gates: [], domains: [], warnings: 0 },
+  diff: { changes: [] },
+};
+
 /**
  * The output of a command. As text, it writes each line as it comes, and each problem with its fix on
  * the next line. As JSON, it writes nothing until the end, and then one object to stdout.
@@ -73,15 +80,14 @@ export class Report {
     if (this.format === 'text') this.io.stdout(text);
   }
 
-  /** A line of text for stderr; nothing as JSON. */
-  err(text: string): void {
-    if (this.format === 'text') this.io.stderr(text);
-  }
-
-  problem(problem: Problem, stream: 'stdout' | 'stderr' = 'stderr', indent = ''): void {
+  /**
+   * A problem: on stdout, as each line of the report of the command, and on stderr only when urn-forge
+   * itself failed. A wrong command line goes to stderr too, but it is no problem of a report.
+   */
+  problem(problem: Problem, indent = ''): void {
     this.problems.push(problem.domain === undefined && this.domain !== undefined ? { ...problem, domain: this.domain } : problem);
     if (this.format !== 'text') return;
-    const write = stream === 'stdout' ? this.io.stdout : this.io.stderr;
+    const write = problem.code === 'internal-error' || problem.code === 'internal-contract' ? this.io.stderr : this.io.stdout;
     const where = problem.file ? `${problem.file}${problem.line ? `:${problem.line}` : ''}  ` : '';
     write(`${indent}${where}${problem.severity}  ${problem.code}  ${problem.message}`);
     write(`${indent}  fix: ${fixFor(problem.code, problem.severity, this.command)}`);
@@ -101,12 +107,14 @@ export class Report {
         message: p.message,
         fix: fixFor(p.code, p.severity, this.command),
       }));
-      const value = { ok: code === 0, ...extra, problems };
+      // Each key of the report of the command, empty when it does not apply, so that its shape is one on each path.
+      const value = { ok: code === 0, ...(this.command ? EMPTY_REPORT[this.command] : {}), ...extra, problems };
       // urn-forge checks its own report against self/ before it writes it.
       const broken = this.definition && brokenBy(this.definition, value);
       if (broken) {
-        this.io.stdout(JSON.stringify({ ok: false, problems: [{ code: 'internal-contract', severity: 'error', message: broken, fix: fixFor('internal-contract', 'error', this.command) }] }));
-        return 1;
+        // urn-forge itself failed: exit 3, as for internal-error, with the keys of the command.
+        this.io.stdout(JSON.stringify({ ok: false, ...(this.command ? EMPTY_REPORT[this.command] : {}), problems: [{ code: 'internal-contract', severity: 'error', message: broken, fix: fixFor('internal-contract', 'error', this.command) }] }));
+        return 3;
       }
       this.io.stdout(JSON.stringify(value));
     }
@@ -131,8 +139,18 @@ function samePath(path: string): string {
 }
 
 /** A path as the output shows it: relative to the working directory, with forward slashes. */
-function display(io: CliIo, path: string): string {
-  return relative(io.cwd, path).split('\\').join('/') || '.';
+export function display(io: CliIo, path: string): string {
+  const shown = relative(io.cwd, path);
+  return (shown.startsWith('..') || isAbsolute(shown) ? resolve(io.cwd, path) : shown).split('\\').join('/') || '.';
+}
+
+/** Why a file cannot be read, as the message of its problem: "the manifest is a folder, not a file". */
+export function unreadable(what: string, error: unknown): string {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  if (code === 'ENOENT' || code === 'ENOTDIR') return `the ${what} does not exist`;
+  if (code === 'EISDIR') return `the ${what} is a folder, not a file`;
+  if (code === 'EACCES' || code === 'EPERM') return `the ${what} cannot be read: permission denied`;
+  return `the ${what} cannot be read: ${code ?? String(error)}`;
 }
 
 /** The line of a path in a YAML text, or of the nearest part of it that exists. */
@@ -152,7 +170,7 @@ export function lineOf(text: string, path: Path): number | undefined {
   return undefined;
 }
 
-function showDiagnostics(report: Report, file: string, text: string, diagnostics: readonly Diagnostic[]): void {
+export function showDiagnostics(report: Report, file: string, text: string, diagnostics: readonly Diagnostic[]): void {
   for (const d of diagnostics) {
     const line = d.line ?? lineOf(text, d.path);
     report.problem({ code: d.code, severity: d.severity, file, ...(line ? { line } : {}), path: d.path, message: d.message });
@@ -183,8 +201,10 @@ async function project(io: CliIo, report: Report, values: Record<string, string 
   const configPath = values['config'] ? resolve(io.cwd, values['config']) : join(io.cwd, CONFIG_FILE);
   let config: UrnForgeConfig = {};
   if (values['config'] || existsSync(configPath)) {
-    if (!existsSync(configPath)) {
-      report.problem({ code: 'config-unreadable', severity: 'error', file: display(io, configPath), message: 'the config does not exist' });
+    try {
+      readFileSync(configPath);
+    } catch (error) {
+      report.problem({ code: 'config-unreadable', severity: 'error', file: display(io, configPath), message: unreadable('config', error) });
       return undefined;
     }
     const loaded = await loadConfig(configPath);
@@ -251,8 +271,8 @@ function compileDomain(io: CliIo, report: Report, p: Project, d: DomainProject):
   let text: string;
   try {
     text = readFileSync(d.manifestPath, 'utf8');
-  } catch {
-    report.problem({ code: 'manifest-unreadable', severity: 'error', file: display(io, d.manifestPath), message: 'the manifest does not exist' });
+  } catch (error) {
+    report.problem({ code: 'manifest-unreadable', severity: 'error', file: display(io, d.manifestPath), message: unreadable('manifest', error) });
     return undefined;
   }
   const compiled = compileManifest(text);
@@ -319,7 +339,7 @@ function baseContract(io: CliIo, d: DomainProject, ref: string): ContractGateInp
 
 async function compileCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
   const { values, positionals } = parseOptions('compile', argv);
-  if (positionals.length > 0) throw new UsageError(`compile takes no argument: ${positionals.join(' ')}`);
+  if (positionals.length > 0) throw new UsageError(`takes no argument: ${positionals.join(' ')}`);
   const p = await project(io, report, values);
   if (!p) return report.end(1);
   const results = compileProject(io, report, p);
@@ -346,15 +366,15 @@ function features(path: string, show: (path: string) => string): { files: string
 
 async function verifyCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
   const { values, positionals } = parseOptions('verify', argv);
-  if (positionals.length > 0) throw new UsageError(`verify takes no argument: ${positionals.join(' ')}`);
+  if (positionals.length > 0) throw new UsageError(`takes no argument: ${positionals.join(' ')}`);
   const p = await project(io, report, values);
   if (!p) {
-    report.err('verify failed: the config is not valid');
+    report.out(`verify failed: ${report.problems.some((x) => x.code === 'config-unreadable') ? 'the config cannot be read' : 'the config is not valid'}`);
     return report.end(1, { gates: [], domains: [] });
   }
   const results = compileProject(io, report, p);
   if (!results) {
-    report.err('verify failed: the manifest does not compile');
+    report.out(`verify failed: ${report.problems.some((x) => x.code === 'manifest-unreadable') ? 'the manifest cannot be read' : 'the manifest does not compile'}`);
     return report.end(1, { gates: [], domains: [] });
   }
   const show = (path: string): string => display(io, path);
@@ -408,7 +428,7 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
       report.out(`gate ${outcome.gate}  ${outcome.name.padEnd(12)}  ${outcome.pass ? 'PASS' : 'FAIL'}  ${outcome.summary}`);
       for (const problem of outcome.problems) {
         if (problem.severity === 'warning') warnings++;
-        report.problem(problem, 'stdout', '    ');
+        report.problem(problem, '    ');
       }
     }
     domains.push({ urn: result.urn, gates: outcomes.map((o) => ({ gate: o.gate, name: o.name, pass: o.pass, summary: o.summary })) });
@@ -420,7 +440,7 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
   const gates = domains.flatMap((d) => d.gates.map((g) => ({ domain: d.urn, ...g })));
   const extra = { gates, domains, warnings };
   if (failures.length > 0) {
-    report.err(`verify failed: ${failures.join('; ')}`);
+    report.out(`verify failed: ${failures.join('; ')}`);
     return report.end(1, extra);
   }
   const what = several ? `${results.length} domains, ${ran}` : ran;
@@ -430,14 +450,14 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
 
 async function initCommand(io: CliIo, argv: readonly string[]): Promise<number> {
   const { values, positionals } = parseOptions('init', argv);
-  if (positionals.length > 0) throw new UsageError(`init takes no argument: ${positionals.join(' ')}`);
+  if (positionals.length > 0) throw new UsageError(`takes no argument: ${positionals.join(' ')}`);
   const namespace = values['namespace'] ?? 'app';
   const domain = values['domain'] ?? 'starter';
   const problem = nameProblem('--namespace', namespace) ?? nameProblem('--domain', domain);
   if (problem) throw new UsageError(problem);
   const result = await initProject({ cwd: io.cwd, namespace, domain });
   if (!result.ok) {
-    io.stderr(result.message);
+    io.stdout(result.message);
     return 1;
   }
   for (const line of result.lines) io.stdout(line);
@@ -445,49 +465,40 @@ async function initCommand(io: CliIo, argv: readonly string[]): Promise<number> 
   return 0;
 }
 
-/** Takes --format <text|json> (or --format=<…>) out of the arguments of a command. */
-function takeFormat(args: readonly string[]): { format: Format; rest: string[] } {
-  const rest: string[] = [];
-  let format: string = 'text';
-  for (let i = 0; i < args.length; i++) {
+/** The format that a command line asks for, before its options are read: the first --format before --. */
+function formatOf(args: readonly string[]): string {
+  for (let i = 0; i < args.length && args[i] !== '--'; i++) {
     const arg = args[i]!;
-    if (arg === '--format') {
-      format = args[++i] ?? '';
-    } else if (arg.startsWith('--format=')) {
-      format = arg.slice('--format='.length);
-    } else {
-      rest.push(arg);
-    }
+    if (arg === '--format') return args[i + 1] ?? '';
+    if (arg.startsWith('--format=')) return arg.slice('--format='.length);
   }
-  if (format !== 'text' && format !== 'json') throw new UsageError(`--format must be text or json, not "${format}"`);
-  return { format, rest };
+  return 'text';
 }
 
 /** Runs a command. Gives the exit code: 0, 1 for a failure, 2 for a usage error, 3 for a failure of urn-forge itself. */
 export async function main(argv: readonly string[], io: CliIo = { cwd: process.cwd(), stdout: (t) => console.log(t), stderr: (t) => console.error(t) }): Promise<number> {
+  // The help, the version and a command line with no command: as the bin answers them.
+  const answered = answerWithoutCommand(argv, io);
+  if (answered !== undefined) return answered;
   const [command, ...args] = argv;
-  // --format belongs to compile, verify and diff: it is taken out before their own options are read.
-  let format: Format = 'text';
-  let rest = args;
-  let report = new Report(io, format);
+  // --format is an option of compile, verify and diff; the report needs it before the options are read.
+  const asked = command === 'compile' || command === 'verify' || command === 'diff' ? formatOf(args) : 'text';
+  const report = new Report(io, asked === 'json' ? 'json' : 'text', command === 'compile' || command === 'verify' || command === 'diff' ? command : undefined);
   try {
-    if (command === 'compile' || command === 'verify' || command === 'diff') {
-      ({ format, rest } = takeFormat(args));
-      report = new Report(io, format, command);
-    }
+    if (asked !== 'text' && asked !== 'json') throw new UsageError(`--format must be text or json, not "${asked}"`);
     switch (command) {
       case 'init':
-        return await initCommand(io, rest);
+        return await initCommand(io, args);
       case 'compile':
-        return await compileCommand(io, report, rest);
+        return await compileCommand(io, report, args);
       case 'verify':
-        return await verifyCommand(io, report, rest);
+        return await verifyCommand(io, report, args);
       case 'diff': {
         const { diffCommand } = await import('./diff/command.js');
-        return await diffCommand(io, report, rest);
+        return await diffCommand(io, report, args);
       }
       default:
-        return answerWithoutCommand(command, io) ?? 2;
+        return 2;
     }
   } catch (error) {
     if (error instanceof InternalContractError) {
@@ -504,7 +515,7 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
         report.problem({ code: 'usage', severity: 'error', message: (error as Error).message });
         return report.end(2);
       }
-      io.stderr(`${(error as Error).message}\n\n${USAGE}`);
+      io.stderr(usageLine(command, (error as Error).message));
       return 2;
     }
     // A failure that urn-forge does not expect: exit 3, with no stack unless URN_FORGE_DEBUG asks for it.

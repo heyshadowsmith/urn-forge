@@ -40,7 +40,7 @@ describe('what a command loads', () => {
     expect(heavy(loaded(['verify', '--config', join(PACKAGE, 'self/urn-forge.config.ts')]))).toContain('typescript');
   });
 
-  for (const args of [['--help'], ['--version'], [], ['build']]) {
+  for (const args of [['--help'], ['--version'], [], ['build'], ['compile', '--help'], ['help', 'verify']]) {
     target.lazy(`loads no command, no compiler and no test runner for ${args.join(' ') || 'no command'}`, () => {
       const urls = loaded(args);
       expect(heavy(urls)).toEqual([]);

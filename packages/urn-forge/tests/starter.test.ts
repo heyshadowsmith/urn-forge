@@ -41,5 +41,5 @@ it('init writes a project that compiles, verifies with no warning, and passes it
   const cucumber = execFileSync(process.execPath, [join(PACKAGE, '../../node_modules/@cucumber/cucumber/bin/cucumber.js'), '--format', 'summary'], { cwd: dir, encoding: 'utf8' });
   expect(cucumber).toMatch(/^11 scenarios \(11 passed\)$/m);
 
-  expect((await run(['init'])).err[0]).toMatch(/^init writes no file: these exist already: /);
+  expect((await run(['init'])).out[0]).toMatch(/^init writes no file: these exist already: /);
 }, 60_000);

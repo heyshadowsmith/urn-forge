@@ -5,8 +5,8 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parseOptions } from '../options.js';
-import type { CliIo, Report } from '../cli.js';
+import { parseOptions, UsageError } from '../options.js';
+import { display, showDiagnostics, unreadable, type CliIo, type Report } from '../cli.js';
 import { compileManifest } from '../compile.js';
 import { decide } from '../self.js';
 import { classify, type Change } from './classify.js';
@@ -16,27 +16,22 @@ import { allowsBreaking } from './versions.js';
 
 export async function diffCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
   const { positionals, values } = parseOptions('diff', argv);
-  if (positionals.length !== 2) {
-    const message = 'diff takes two manifests: urn-forge diff <old manifest> <new manifest>';
-    if (report.format === 'json') report.problem({ code: 'usage', severity: 'error', message });
-    else io.stderr(message);
-    return report.end(2, { changes: [] });
-  }
+  if (positionals.length !== 2) throw new UsageError('takes two manifests: urn-forge diff <old manifest> <new manifest>');
   const sides = positionals.map((path) => {
     let text: string;
     try {
       text = readFileSync(resolve(io.cwd, path), 'utf8');
-    } catch {
-      report.problem({ code: 'manifest-unreadable', severity: 'error', file: path, message: 'the manifest does not exist' });
+    } catch (error) {
+      report.problem({ code: 'manifest-unreadable', severity: 'error', file: display(io, resolve(io.cwd, path)), message: unreadable('manifest', error) });
       return undefined;
     }
     const compiled = compileManifest(text);
-    for (const d of compiled.diagnostics.filter((x) => x.severity === 'error')) report.problem({ code: d.code, severity: 'error', file: path, path: d.path, message: d.message });
+    showDiagnostics(report, display(io, resolve(io.cwd, path)), text, compiled.diagnostics.filter((x) => x.severity === 'error'));
     return compiled.model ? { model: compiled.model, applications: compiled.applications } : undefined;
   });
   const [old, next] = sides;
   if (!old || !next) {
-    report.err('diff failed: a manifest does not compile');
+    report.out('diff failed: a manifest does not compile');
     return report.end(1, { changes: [] });
   }
   const changes: Change[] = classify(old, next);
@@ -57,6 +52,6 @@ export async function diffCommand(io: CliIo, report: Report, argv: readonly stri
     report.out(`diff passed: ${summary}: ${allowed ? `allowed, as ${why}` : `not allowed, as ${why} (reported only)`}`);
     return report.end(0, { ...result, allowed, why });
   }
-  report.err(`diff failed: ${summary}: ${why}`);
+  report.out(`diff failed: ${summary}: ${why}`);
   return report.end(1, { ...result, allowed, why });
 }

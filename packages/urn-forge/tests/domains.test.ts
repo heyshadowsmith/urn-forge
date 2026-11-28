@@ -60,9 +60,9 @@ describe('always strict', () => {
   target.strict('refuses the coverage option', async () => {
     const dir = copy();
     edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace('  domains:', "  coverage: 'error',\n  domains:"));
-    const { code, err } = await run(dir, ['compile']);
+    const { code, out } = await run(dir, ['compile']);
     expect(code).toBe(1);
-    expect(err.join('\n')).toMatch(/config-invalid {2}config\.coverage is removed: a gap in the scenarios is always an error/);
+    expect(out.join('\n')).toMatch(/config-invalid {2}config\.coverage is removed: a gap in the scenarios is always an error/);
   });
 
   target.strict('fails a gap with no coverage option', async () => {
@@ -143,8 +143,8 @@ describe('several domains', () => {
   target.domains('refuse two domains with the same out', async () => {
     const dir = twoDomains();
     edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("out: 'second/generated'", "out: 'booking/generated'"));
-    const { code, err } = await run(dir, ['compile']);
+    const { code, out } = await run(dir, ['compile']);
     expect(code).toBe(1);
-    expect(err.join('\n')).toMatch(/config-invalid {2}two domains write to booking\/generated/);
+    expect(out.join('\n')).toMatch(/config-invalid {2}two domains write to booking\/generated/);
   });
 });

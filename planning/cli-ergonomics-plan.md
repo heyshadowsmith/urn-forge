@@ -55,3 +55,29 @@ Not in this plan: short aliases of the options (`-c`, `-o`), which the spec offe
 
 - **Step 4 moves lines between the streams.** A script that greps stderr for the problems of `compile` finds them on stdout. The JSON output does not change.
 - **The help text is a copy of the options.** The help of each command and the tables of options of `src/options.ts` must agree: a test checks that the help of each command names each of its options, and no other.
+
+## What was built
+
+| Step | Result |
+| --- | --- |
+| 1 | The tests of each finding in `tests/bin.test.ts`, each an `it.fails` until its step turned it to `it` |
+| 2 | `src/usage.ts` gives the help of each command for `<command> --help`, `<command> -h` and `help <command>`, on stdout with exit 0, and loads no command. `-V` and `version` are `--version`; an argument after `--help` or `--version` is `usage` |
+| 3 | `--format` is in the options of `compile`, `verify` and `diff`, so `--` ends it too; before the command it is `usage`. A repeated option is `usage`: "--manifest is given two times". A usage error is one line and the line of its help: "urn-forge compile: unknown option --manfest; did you mean --manifest?" |
+| 4 | The report of each command goes to stdout: its result lines, its problems and its verdict. stderr gets only a wrong command line, `internal-error`, `internal-contract` and the line of output that cannot be written |
+| 5 | Each JSON report has each key of its command on each path; `self/` makes them required. The package and `self/` are 0.2.5 |
+| 6 | A file that cannot be read says why: it does not exist, is a folder, or cannot be read. A path outside the folder shows as absolute. The verdict of `verify` names its cause. `diff` gives the line of each problem of a manifest. The fix of `manifest-unreadable` names each way to give a manifest |
+| 7 | The CLI reference quotes the help, the streams and a usage error. A test checks that the Options section of each help names each option of its command and no other |
+
+Changes from the plan:
+
+- **Sabotage 3 found a bug.** A JSON report that breaks its definition gave `internal-contract` with exit 1, not exit 3 as the trust plan says, and without the keys of its command. It now gives exit 3 and the keys, and a test of `tests/cli.test.ts` checks it.
+- **The help of `verify` names the gates.** The cold reader of `verify --help` alone answered each of its seven questions correctly: the options and their defaults, a command with `--core`, `--base`, exit 1 against exit 3, exit 0 with warnings, that `verify` writes nothing, and `--format json`. Of the gaps that it listed, three were cheap to close in the help: what each gate checks, why `verify` takes `--out` (gate 4 compares the generated files), and what `--base` takes (a branch, tag or commit). The others (the shape of the JSON report, the config) are in the CLI reference, and the help stays short.
+- **The config is read the same way as the manifest.** `config-unreadable` also says why, and both meanings now say "does not exist, or cannot be read".
+
+The sabotages, each caught:
+
+1. `compile --help` reaches the CLI → the test of what `--help` loads, and the test of A3.
+2. The verdict of a failed `verify` on stderr → the test of the streams, and 3 tests of `tests/cli.test.ts`.
+3. No `files` in a failed `compile` report → `internal-contract`, by `required` of `compile_report`, and 4 tests of `tests/bin.test.ts`.
+4. A repeated `--manifest` accepted → the test of D8.
+5. (Added) `--tsconfig` left out of the Options section of the help of `verify` → the test of the help. At first the test read the whole help, and the usage line still named the option; it now reads the Options section alone.

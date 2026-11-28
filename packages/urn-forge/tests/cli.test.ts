@@ -6,7 +6,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { lineOf, main } from '../src/cli.js';
+import { lineOf, main, Report } from '../src/cli.js';
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const copies: string[] = [];
@@ -33,9 +33,11 @@ const edit = (path: string, change: (text: string) => string): void => writeFile
 describe('compile', () => {
   it('writes nothing when the files are current', async () => {
     const dir = copy();
-    const { code, out } = await run(dir, ['compile']);
+    const { code, out, err } = await run(dir, ['compile']);
     expect(code).toBe(0);
-    expect(out).toEqual(['unchanged  generated/domain.generated.ts']);
+    // The report is on stdout: the warning of the deprecated note, with its fix, then the files.
+    expect(out.filter((l) => !/^domain\.manifest\.yaml:\d+  warning|^  fix: /.test(l))).toEqual(['unchanged  generated/domain.generated.ts']);
+    expect(err).toEqual([]);
   });
 
   it('reports a diagnostic at its line, and writes nothing', async () => {
@@ -43,22 +45,22 @@ describe('compile', () => {
     edit(join(dir, 'domain.manifest.yaml'), (t) => t.replace('      - minimum: 1\n      - maximum: 12', '      - minimum: one\n      - maximum: 12'));
     const { code, err, out } = await run(dir, ['compile']);
     expect(code).toBe(1);
-    expect(out).toEqual([]);
-    expect(err).toContain('domain.manifest.yaml:23  error  rule-argument  minimum: "one" is not a number; bound is a number that a value is compared with');
+    expect(err).toEqual([]);
+    expect(out).toContain('domain.manifest.yaml:23  error  rule-argument  minimum: "one" is not a number; bound is a number that a value is compared with');
   });
 
   it('reports a YAML error at its line', async () => {
     const dir = copy();
     edit(join(dir, 'domain.manifest.yaml'), (t) => t.replace('  invalid_state:\n', '  invalid_state:\n   bad: [\n'));
-    const { err } = await run(dir, ['compile']);
-    expect(err[0]).toMatch(/^domain\.manifest\.yaml:(\d+) {2}error {2}yaml-syntax {2}/);
-    expect(Number(/:(\d+)/.exec(err[0]!)![1])).toBeGreaterThan(100);
+    const { out } = await run(dir, ['compile']);
+    expect(out[0]).toMatch(/^domain\.manifest\.yaml:(\d+) {2}error {2}yaml-syntax {2}/);
+    expect(Number(/:(\d+)/.exec(out[0]!)![1])).toBeGreaterThan(100);
   });
 
   it('removes a generated file that it no longer makes', async () => {
     const dir = copy();
     writeFileSync(join(dir, 'generated', 'old.generated.ts'), '');
-    expect((await run(dir, ['compile'])).out).toEqual([
+    expect((await run(dir, ['compile'])).out.filter((l) => !/^domain\.manifest\.yaml:\d+  warning|^  fix: /.test(l))).toEqual([
       'unchanged  generated/domain.generated.ts',
       'removed    generated/old.generated.ts',
     ]);
@@ -77,7 +79,7 @@ describe('verify', () => {
     edit(join(dir, 'core.ts'), (t) => t.replace('} satisfies DomainCore;', '};'));
     const { code, out, err } = await run(dir, ['verify']);
     expect(code).toBe(1);
-    expect(err.at(-1)).toBe('verify failed: gate 1');
+    expect(out.at(-1)).toBe('verify failed: gate 1');
     expect(out).toContain('    core.ts  error  core-not-satisfying  the core exports no value that satisfies DomainCore of the generated file: export const core = { … } satisfies DomainCore');
   });
 
@@ -115,7 +117,7 @@ describe('verify', () => {
     const dir = copy();
     edit(join(dir, 'features', 'seat.feature'), (t) => t.replace(/^.*\| maxLength .*\n/m, ''));
     const { out, err } = await run(dir, ['verify']);
-    expect(err.at(-1)).toBe('verify failed: gate 3');
+    expect(out.at(-1)).toBe('verify failed: gate 3');
     expect(out.some((l) => l.includes('error  uncovered-rule  no scenario breaks maxLength of note'))).toBe(true);
   });
 
@@ -123,7 +125,7 @@ describe('verify', () => {
     const dir = copy();
     edit(join(dir, 'generated', 'domain.generated.ts'), (t) => t.replace('Must be at least', 'Must be at minimum'));
     const { out, err } = await run(dir, ['verify']);
-    expect(err.at(-1)).toBe('verify failed: gate 4');
+    expect(out.at(-1)).toBe('verify failed: gate 4');
     expect(out.find((l) => l.includes('error  drift'))).toMatch(/^ {4}generated\/domain\.generated\.ts:\d+ {2}error {2}drift {2}the generated file is not current; run urn-forge compile$/);
   });
 });
@@ -142,8 +144,8 @@ describe('diff', () => {
     edit(manifest, (t) => t.replace('version: 1.0.0', 'version: 1.1.0').replace('      - maximum: 12', '      - maximum: 10'));
     const minor = await run(dir, ['diff', 'old.yaml', 'domain.manifest.yaml']);
     expect(minor.code).toBe(1);
-    expect(minor.out).toEqual(['breaking    urn:demo:booking:definition:party_size  maximum is now 10, not 12: it accepts less']);
-    expect(minor.err).toEqual(['diff failed: 1 change(s), 1 breaking, 1.0.0 → 1.1.0: 1.0.0 → 1.1.0 keeps the major version 1; a breaking change needs a new major version']);
+    expect(minor.err).toEqual([]);
+    expect(minor.out).toEqual(['breaking    urn:demo:booking:definition:party_size  maximum is now 10, not 12: it accepts less', 'diff failed: 1 change(s), 1 breaking, 1.0.0 → 1.1.0: 1.0.0 → 1.1.0 keeps the major version 1; a breaking change needs a new major version']);
     edit(manifest, (t) => t.replace('version: 1.1.0', 'version: 2.0.0'));
     expect((await run(dir, ['diff', 'old.yaml', 'domain.manifest.yaml'])).out.at(-1)).toBe('diff passed: 1 change(s), 1 breaking, 1.0.0 → 2.0.0: allowed, as 2.0.0 is a new major version');
   });
@@ -153,21 +155,29 @@ describe('the command line', () => {
   it('reports a config option that does not exist', async () => {
     const dir = copy();
     edit(join(dir, 'urn-forge.config.ts'), (t) => t.replace("  domains:", "  plugins: [],\n  domains:") );
-    expect((await run(dir, ['compile'])).err).toEqual([
+    expect((await run(dir, ['compile'])).out).toEqual([
       'urn-forge.config.ts  error  config-invalid  config.plugins is not an option; the options are tsconfig, shell, domains',
       '  fix: Change the config to use only the options of defineConfig, with the types that the message names.',
     ]);
   });
 
-  it('gives the usage for an unknown command, with exit code 2', async () => {
+  it('names an unknown command in one line, with exit code 2', async () => {
     const { code, err } = await run(copy(), ['build']);
     expect(code).toBe(2);
-    expect(err[0]).toMatch(/^unknown command "build"/);
+    expect(err).toEqual(['urn-forge: unknown command build\nRun urn-forge --help for the commands.']);
   });
 
   it('finds the line of a path, or of the nearest part of it that exists', () => {
     const text = 'a:\n  b:\n    c: 1\n  d: 2\n';
     expect(lineOf(text, ['a', 'b', 'c'])).toBe(3);
     expect(lineOf(text, ['a', 'd', 'missing'])).toBe(4);
+  });
+
+  it('reports a JSON report that breaks its definition as internal-contract, with exit 3', () => {
+    const out: string[] = [];
+    const report = new Report({ cwd: '.', stdout: (t) => out.push(t), stderr: () => {} }, 'json', 'compile');
+    expect(report.end(0, { files: 'not a list' })).toBe(3);
+    const value = JSON.parse(out[0]!) as { ok: boolean; files: unknown; problems: { code: string }[] };
+    expect([value.ok, value.files, value.problems.map((p) => p.code)]).toEqual([false, [], ['internal-contract']]);
   });
 });

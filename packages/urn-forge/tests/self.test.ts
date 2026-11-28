@@ -134,10 +134,11 @@ describe('the results in self/', () => {
   });
 
   it('stop a report of a command that breaks them', () => {
-    expect(brokenBy('verify_report', { ok: false, problems: [] })).toBeUndefined();
+    expect(brokenBy('verify_report', { ok: false, gates: [], domains: [], warnings: 0, problems: [] })).toBeUndefined();
+    expect(brokenBy('verify_report', { ok: false, problems: [] })).toMatch(/required of verify_report/);
     const error = { code: 'drift', severity: 'error', message: 'M', fix: 'F' };
-    expect(brokenBy('verify_report', { ok: true, problems: [error] })).toMatch(/^urn-forge broke its own contract: an_error_fails of verify_report/);
-    expect(brokenBy('compile_report', { ok: false, problems: [{ ...error, file: null }] })).toMatch(/at problems\[0\]\.file/);
+    expect(brokenBy('verify_report', { ok: true, gates: [], domains: [], warnings: 0, problems: [error] })).toMatch(/^urn-forge broke its own contract: an_error_fails of verify_report/);
+    expect(brokenBy('compile_report', { ok: false, files: [], problems: [{ ...error, file: null }] })).toMatch(/at problems\[0\]\.file/);
   });
 });
 
