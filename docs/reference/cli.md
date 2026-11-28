@@ -3,7 +3,7 @@
 Run `npx urn-forge <command>` in a project where urn-forge is installed. These are the first lines of `npx urn-forge --help`:
 
 ```
-urn-forge 0.2.3
+urn-forge 0.2.4
 
 Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
@@ -19,7 +19,7 @@ Usage:
 | `verify` | Compiles in memory and runs the [gates](#the-gates). It writes nothing, and it does not run the scenarios. `cucumber-js` runs them. `--base <ref>` also runs gate 5 against a git ref |
 | `diff` | Compares two manifests, the old one first. Refer to [diff](#diff). It does not read the config |
 
-Each command exits with `0` on a pass (also with warnings), `1` on a failure, and `2` on a wrong command line.
+Each command exits with `0` on a pass (also with warnings), `1` on a failure, `2` on a wrong command line, and `3` when urn-forge itself fails (`internal-error` or `internal-contract`). Exit 3 is a bug of urn-forge, not of your project: report it in an issue. With `--format json`, each exit code comes with the one JSON object, also exit 3. When urn-forge cannot write its output at all, such as on a full disk, it says so in one line on stderr and exits with `1`.
 
 ## JSON output
 
@@ -163,6 +163,8 @@ Each code has one fix, which the output shows on the line below the problem. `no
 | `wider-rule` | by-version | verify | Gate 5: a rule accepts more than at the base |
 | `removed-output` | by-version | verify | Gate 5: an output of the base is gone |
 | `removed-scenario` | by-version | verify | Gate 5: a scenario of the base is gone |
+| `io-error` | error | compile, verify, diff | A file or a folder cannot be read or written: it does not exist, it is not a folder, or the permissions refuse it |
+| `internal-error` | error | compile, verify, diff | urn-forge failed in a way that it does not expect, which is a bug of urn-forge |
 | `internal-contract` | error | compile, verify, diff | urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge |
 
 A severity of `by-version` is a warning when the new version allows the change, and an error when it does not. `usage` comes as a problem only with `--format json`; as text, the usage shows. urn-forge gives `rule-syntax` at the line of `rule:`, with the column, and the other rule errors at the line where you apply the rule; [the rule language](./manifest#the-rule-language) lists each form. For `base-unreadable` in CI, fetch the base branch.

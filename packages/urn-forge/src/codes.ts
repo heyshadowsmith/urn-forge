@@ -72,7 +72,11 @@ export const CODES = {
   'removed-output': { meaning: 'Gate 5: an output of the base is gone', severity: 'by-version', commands: ['verify'], fix: 'Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
   'removed-scenario': { meaning: 'Gate 5: a scenario of the base is gone', severity: 'by-version', commands: ['verify'], fix: 'Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
 
-  // urn-forge itself: it checks its own decisions against its contract, self/.
+  // The files: a file or a folder that the command cannot read or write.
+  'io-error': { meaning: 'A file or a folder cannot be read or written: it does not exist, it is not a folder, or the permissions refuse it', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Correct the path or the permissions that the message names, and run the command again.' },
+
+  // urn-forge itself: it checks its own decisions against its contract, self/, and exits with 3 on a failure of its own.
+  'internal-error': { meaning: 'urn-forge failed in a way that it does not expect, which is a bug of urn-forge', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Report it in an issue of urn-forge, with the message; run the command again with URN_FORGE_DEBUG=1 to add the stack.' },
   'internal-contract': { meaning: 'urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it.' },
 } as const satisfies Record<string, { readonly meaning: string; readonly severity: 'error' | 'warning' | 'by-version'; readonly commands: readonly Command[]; readonly fix: string }>;
 

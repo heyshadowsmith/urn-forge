@@ -188,7 +188,7 @@ With several domains, `compile` and `verify` handle each one in one run, and sta
 | `urn-forge verify [--base <ref>] [--format json]` | Compiles in memory and runs the gates; writes nothing |
 | `urn-forge diff <old> <new> [--report] [--format json]` | Classifies the changes between two manifests as breaking or compatible |
 
-Exit codes: `0` pass (also with warnings), `1` failure, `2` wrong command line.
+Exit codes: `0` pass (also with warnings), `1` failure, `2` wrong command line, `3` urn-forge itself failed (`internal-error`, `internal-contract`): report it, and do not change the project for it.
 
 | Gate | It fails when |
 | --- | --- |
@@ -246,4 +246,6 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `wider-rule` | Gate 5: a rule accepts more than at the base | by-version | verify | Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
 | `removed-output` | Gate 5: an output of the base is gone | by-version | verify | Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
 | `removed-scenario` | Gate 5: a scenario of the base is gone | by-version | verify | Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `io-error` | A file or a folder cannot be read or written: it does not exist, it is not a folder, or the permissions refuse it | error | compile, verify, diff | Correct the path or the permissions that the message names, and run the command again. |
+| `internal-error` | urn-forge failed in a way that it does not expect, which is a bug of urn-forge | error | compile, verify, diff | Report it in an issue of urn-forge, with the message; run the command again with URN_FORGE_DEBUG=1 to add the stack. |
 | `internal-contract` | urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge | error | compile, verify, diff | Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it. |

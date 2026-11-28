@@ -468,7 +468,7 @@ function takeFormat(args: readonly string[]): { format: Format; rest: string[] }
   return { format, rest };
 }
 
-/** Runs a command. Gives the exit code: 0, 1 for a failure, 2 for a usage error. */
+/** Runs a command. Gives the exit code: 0, 1 for a failure, 2 for a usage error, 3 for a failure of urn-forge itself. */
 export async function main(argv: readonly string[], io: CliIo = { cwd: process.cwd(), stdout: (t) => console.log(t), stderr: (t) => console.error(t) }): Promise<number> {
   const [command, ...args] = argv;
   // --format belongs to compile, verify and diff: it is taken out before their own options are read.
@@ -507,6 +507,11 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
   } catch (error) {
     if (error instanceof InternalContractError) {
       report.problem({ code: 'internal-contract', severity: 'error', message: error.message });
+      return report.end(3);
+    }
+    if (isSystemError(error)) {
+      const where = error.path === undefined ? {} : { file: display(io, error.path) };
+      report.problem({ code: 'io-error', severity: 'error', ...where, message: `${error.syscall ?? 'the operation'} failed: ${error.code}` });
       return report.end(1);
     }
     if (error instanceof UsageError || (error as { code?: string }).code?.startsWith('ERR_PARSE_ARGS')) {
@@ -517,14 +522,24 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
       io.stderr(`${(error as Error).message}\n\n${USAGE}`);
       return 2;
     }
-    throw error;
+    // A failure that urn-forge does not expect: exit 3, with no stack unless URN_FORGE_DEBUG asks for it.
+    const message = error instanceof Error ? error.message : String(error);
+    report.problem({ code: 'internal-error', severity: 'error', message });
+    if (process.env['URN_FORGE_DEBUG'] && error instanceof Error && error.stack) io.stderr(error.stack);
+    return report.end(3);
   }
+}
+
+/** An error of the system, such as ENOENT or EACCES, with the call and the path that failed. */
+function isSystemError(error: unknown): error is { code: string; syscall?: string; path?: string } {
+  const code = (error as { code?: unknown } | null)?.code;
+  return error instanceof Error && typeof code === 'string' && /^E[A-Z]+$/.test(code);
 }
 
 /** The fix of a code, from urn-forge's own contract (fix_of of self/), which also checks the severity and the command of the problem. */
 function fixFor(code: Code, severity: 'error' | 'warning', command: Command | undefined): string {
-  // self: the fix of internal-contract is read directly, so that a fix_of that breaks its contract can still be reported.
-  if (code === 'internal-contract') return fixOf(code);
+  // self: the fixes of urn-forge's own failures are read directly, so that a fix_of that fails can still be reported.
+  if (code === 'internal-contract' || code === 'internal-error') return fixOf(code);
   return decide('fix_of', { code, severity, ...(command ? { command } : {}) }).value.fix;
 }
 

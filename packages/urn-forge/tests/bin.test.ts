@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 /** A finding of the plan that is not fixed yet: it.fails until its step, then it. */
-const finding = { D1: it.fails, A1: it.fails, D3: it.fails, A11: it.fails, D2: it.fails, D4: it.fails };
+const finding = { D1: it.fails, A1: it.fails, D3: it, A11: it, D2: it.fails, D4: it.fails };
 
 const BIN = fileURLToPath(new URL('../bin/urn-forge.js', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -130,7 +130,9 @@ describe('the findings of the plan', () => {
     writeFileSync(join(dir, 'a-file'), '');
     const r = bin(dir, ['compile', '--format', 'json', '--out', 'a-file/x']);
     expect([r.code, r.err]).toEqual([1, '']);
-    expect(oneObject(r.out)).toMatchObject({ ok: false, problems: [{ code: 'io-error' }] });
+    const report = oneObject(r.out) as { ok: boolean; problems: { code: string; file?: string; message: string }[] };
+    expect(report.ok).toBe(false);
+    expect(report.problems).toContainEqual(expect.objectContaining({ code: 'io-error', file: 'a-file/x', message: 'mkdir failed: ENOTDIR' }));
     const text = bin(dir, ['compile', '--out', 'a-file/x']);
     expect(text.code).toBe(1);
     noStack(text.err);

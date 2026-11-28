@@ -9,7 +9,7 @@
 manifest:
   namespace: urn-forge
   domain: toolchain
-  version: 0.2.3
+  version: 0.2.4
 
 definitions:
   # 1. The vocabulary
@@ -21,7 +21,7 @@ definitions:
     description: A code of a problem that urn-forge reports. A tool or an agent acts on the code, not on the message. The meaning, the severity, the commands and the fix of each code are the argument of is_the_code, in the operation fix_of; the codes of each gate are the argument of reports_its_codes, in the operation judge_gate.
     type: string
     rules:
-      - enum: [usage, config-unreadable, config-invalid, manifest-unreadable, yaml-syntax, manifest-shape, unknown-definition, type-cycle, duplicate-property, unknown-property, not-an-object, duplicate-output, invalid-identifier, deprecated-use, standard-name, unknown-rule, rule-argument, rule-syntax, rule-type, rule-guard, rule-scope, invalid-message, tsconfig-unreadable, core-not-found, type-error, core-not-satisfying, direct-call, suppressed-check, feature-syntax, unknown-name, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule, drift, base-unreadable, removed-rule, wider-rule, removed-output, removed-scenario, internal-contract]
+      - enum: [usage, config-unreadable, config-invalid, manifest-unreadable, yaml-syntax, manifest-shape, unknown-definition, type-cycle, duplicate-property, unknown-property, not-an-object, duplicate-output, invalid-identifier, deprecated-use, standard-name, unknown-rule, rule-argument, rule-syntax, rule-type, rule-guard, rule-scope, invalid-message, tsconfig-unreadable, core-not-found, type-error, core-not-satisfying, direct-call, suppressed-check, feature-syntax, unknown-name, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule, drift, base-unreadable, removed-rule, wider-rule, removed-output, removed-scenario, io-error, internal-error, internal-contract]
 
   fix:
     description: What to do about each case of a code, in one sentence
@@ -1628,6 +1628,16 @@ operations:
                 severity: by-version
                 commands: [verify]
                 fix: Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.
+              io-error:
+                meaning: "A file or a folder cannot be read or written: it does not exist, it is not a folder, or the permissions refuse it"
+                severity: error
+                commands: [compile, verify, diff]
+                fix: Correct the path or the permissions that the message names, and run the command again.
+              internal-error:
+                meaning: urn-forge failed in a way that it does not expect, which is a bug of urn-forge
+                severity: error
+                commands: [compile, verify, diff]
+                fix: Report it in an issue of urn-forge, with the message; run the command again with URN_FORGE_DEBUG=1 to add the stack.
               internal-contract:
                 meaning: "urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge"
                 severity: error
