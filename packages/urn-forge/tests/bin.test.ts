@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 /** A finding of the plan that is not fixed yet: it.fails until its step, then it. */
-const finding = { D1: it, A1: it.fails, D3: it, A11: it, D2: it.fails, D4: it.fails };
+const finding = { D1: it, A1: it, D3: it, A11: it, D2: it.fails, D4: it.fails };
 
 const BIN = fileURLToPath(new URL('../bin/urn-forge.js', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -144,7 +144,13 @@ describe('the findings of the plan', () => {
   finding.A1('refuses a flag of another command, with exit 2', () => {
     const r = bin(copy(), ['compile', '--base', 'main']);
     expect([r.code, r.out]).toEqual([2, '']);
-    expect(r.err).toMatch(/--base is not an option of compile/);
+    expect(r.err).toMatch(/^--base is not an option of compile; it is an option of verify/);
+    const init = bin(empty(), ['init', '--config', 'x.ts']);
+    expect([init.code, init.out]).toEqual([2, '']);
+    expect(init.err).toMatch(/^--config is not an option of init; it is an option of compile and verify/);
+    const json = bin(copy(), ['verify', '--format', 'json', '--namespace', 'zz']);
+    expect(json.code).toBe(2);
+    expect(oneObject(json.out)).toMatchObject({ ok: false, problems: [{ code: 'usage', message: '--namespace is not an option of verify; it is an option of init' }] });
   });
 
   finding.D3('reports a filesystem error as one JSON object, with exit 1 and no stack', () => {

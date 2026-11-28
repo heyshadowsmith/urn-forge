@@ -4,7 +4,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { parseArgs } from 'node:util';
 import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
@@ -13,6 +12,7 @@ import { brokenBy, decide, InternalContractError } from './self.js';
 import type { Diagnostic, Path } from './diagnostics.js';
 import { filesUnder } from './files.js';
 import { initProject, nameProblem } from './init.js';
+import { parseOptions, UsageError } from './options.js';
 import { domainUrn } from './urn.js';
 import { boundaryGate } from './verify/boundary.js';
 import { completenessGate, coreProgram } from './verify/completeness.js';
@@ -51,7 +51,6 @@ Options:
   --report           diff: list the changes, and do not fail on a breaking change
   --format <format>  compile, verify, diff: text (default), or json: one JSON object on stdout, and nothing else`;
 
-class UsageError extends Error {}
 
 /** A problem as the commands report it: a stable code, where it is, what is wrong, and (from its code) the fix. */
 export interface Problem {
@@ -173,17 +172,6 @@ interface Project {
   readonly domains: readonly DomainProject[];
 }
 
-const OPTIONS = {
-  config: { type: 'string' },
-  manifest: { type: 'string' },
-  out: { type: 'string' },
-  core: { type: 'string' },
-  features: { type: 'string' },
-  tsconfig: { type: 'string' },
-  base: { type: 'string' },
-  namespace: { type: 'string' },
-  domain: { type: 'string' },
-} as const;
 
 /** The flags that name the paths of one domain. */
 const DOMAIN_FLAGS = ['manifest', 'out', 'core', 'features'] as const;
@@ -327,7 +315,7 @@ function baseContract(io: CliIo, d: DomainProject, ref: string): ContractGateInp
 }
 
 async function compileCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
-  const { values, positionals } = parseArgs({ args: [...argv], options: OPTIONS, strict: true, allowPositionals: true });
+  const { values, positionals } = parseOptions('compile', argv);
   if (positionals.length > 0) throw new UsageError(`compile takes no argument: ${positionals.join(' ')}`);
   const p = await project(io, report, values);
   if (!p) return report.end(1);
@@ -354,7 +342,7 @@ function features(path: string, show: (path: string) => string): { files: string
 }
 
 async function verifyCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
-  const { values, positionals } = parseArgs({ args: [...argv], options: OPTIONS, strict: true, allowPositionals: true });
+  const { values, positionals } = parseOptions('verify', argv);
   if (positionals.length > 0) throw new UsageError(`verify takes no argument: ${positionals.join(' ')}`);
   const p = await project(io, report, values);
   if (!p) {
@@ -438,7 +426,7 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
 }
 
 async function initCommand(io: CliIo, argv: readonly string[]): Promise<number> {
-  const { values, positionals } = parseArgs({ args: [...argv], options: OPTIONS, strict: true, allowPositionals: true });
+  const { values, positionals } = parseOptions('init', argv);
   if (positionals.length > 0) throw new UsageError(`init takes no argument: ${positionals.join(' ')}`);
   const namespace = values['namespace'] ?? 'app';
   const domain = values['domain'] ?? 'starter';
