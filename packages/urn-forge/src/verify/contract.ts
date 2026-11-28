@@ -18,7 +18,6 @@ import { IdGenerator } from '@cucumber/messages';
 import { print } from '../cel/print.js';
 import type { Code } from '../codes.js';
 import { argumentDirection, type Side } from '../diff/classify.js';
-import { allowsBreaking } from '../diff/command.js';
 import type { Application } from '../rules.js';
 import { decide } from '../self.js';
 import { partUrn } from '../urn.js';
@@ -76,14 +75,7 @@ function uses(side: Side, header: Side['model']['header']): Map<string, { place:
   return map;
 }
 
-/**
- * Whether the versions allow a weaker contract: only with a new version, and only to one that would
- * allow a breaking change in diff (a new major version, a pre-release, or another 0.x version).
- */
-export function allowsWeaker(from: string, to: string): { readonly allowed: boolean; readonly why: string } {
-  if (from === to) return { allowed: false, why: `${from} → ${to} keeps the version; a weaker contract needs a new version` };
-  return allowsBreaking(from, to); // self: the implementation of judge_weaker_contract
-}
+export { allowsWeaker } from '../diff/versions.js';
 
 export function contractGate(input: ContractGateInput): GateOutcome {
   const outcome = (_pass: boolean, summary: string, problems: readonly GateProblem[]): GateOutcome => gateOutcome(5, summary, problems);

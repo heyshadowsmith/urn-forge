@@ -33,16 +33,16 @@ Each function of the core in [`self/core.ts`](../packages/urn-forge/self/core.ts
 - `to_type_name` calls `typeName` from `src/generate/code.ts`.
 - `name_part` calls `partUrn` from `src/urn.ts`.
 - `check_namespace` calls the `NAMESPACE` test from `src/manifest.ts`.
-- `judge_version_change` calls `allowsBreaking` from `src/diff/command.ts`.
-- `judge_weaker_contract` calls `allowsWeaker` from `src/verify/contract.ts`, which gate 5 also uses.
+- `judge_version_change` calls `allowsBreaking` from `src/diff/versions.ts`.
+- `judge_weaker_contract` calls `allowsWeaker` from `src/diff/versions.ts`, which gate 5 also uses.
 - `judge_bound_change` calls `argumentDirection` from `src/diff/classify.ts`, with the rule of the standard set.
 - `fix_of` calls `fixOf` from `src/codes.ts`.
 - `describe_standard_rule` reads the rule from the standard set, as `compile` does.
 - `signatures_of` calls `signatures` from `src/cel/functions.ts`.
-- `match_step` tests the text with `STEPS` from `src/gherkin/steps.ts`, in their order.
-- `judge_gate` calls `gatePasses` from `src/verify/types.ts`, which each gate also uses.
+- `match_step` tests the text with `STEPS` from `src/gherkin/patterns.ts`, in their order.
+- `judge_gate` calls `gatePasses` from `src/verify/gate-rules.ts`, which each gate also uses.
 - `fill_message` calls `fillMessage` from `src/generate/code.ts`.
-- `find_uncovered_rules` calls `uncoveredRules` from `src/verify/types.ts`, which gate 3 uses.
+- `find_uncovered_rules` calls `uncoveredRules` from `src/verify/gate-rules.ts`, which gate 3 uses.
 
 Thus the scenarios of `self/` test the toolchain. If a change to `typeName` or `allowsBreaking` changes a result, a scenario of `self/` fails. The rules of the outputs also hold the functions to the contract. For example, `stable_and_final` makes sure that `breaking_refused` never comes back for a `0.x` version or a pre-release.
 

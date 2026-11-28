@@ -3,14 +3,13 @@
 import { signatures } from '../src/cel/functions.js';
 import { CODES, fixOf } from '../src/codes.js';
 import { argumentDirection } from '../src/diff/classify.js';
-import { allowsBreaking } from '../src/diff/command.js';
+import { allowsBreaking, allowsWeaker } from '../src/diff/versions.js';
 import { fillMessage, typeName } from '../src/generate/code.js';
-import { STEPS } from '../src/gherkin/steps.js';
+import { STEPS } from '../src/gherkin/patterns.js';
 import { NAMESPACE } from '../src/manifest.js';
 import { standard, type Application } from '../src/rules.js';
 import { partUrn } from '../src/urn.js';
-import { allowsWeaker } from '../src/verify/contract.js';
-import { gatePasses, GATES, uncoveredRules } from '../src/verify/types.js';
+import { gatePasses, GATES, uncoveredRules } from '../src/verify/gate-rules.js';
 import { answer, type DomainCore } from './generated/domain.generated.js';
 
 export const core = {
