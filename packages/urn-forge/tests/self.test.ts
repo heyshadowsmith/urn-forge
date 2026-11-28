@@ -153,7 +153,7 @@ describe('the meaning of each item in self/', () => {
     expect(Object.keys(meanings('fix_of', 'code_fix', 'is_the_code'))).toEqual(Object.keys(CODES));
     for (const code of Object.keys(CODES) as (keyof typeof CODES)[]) {
       const { value } = decide('fix_of', { code });
-      expect({ meaning: value.meaning, severity: value.severity, fix: value.fix }).toEqual(CODES[code]);
+      expect({ meaning: value.meaning, severity: value.severity, fix: value.fix }).toEqual({ meaning: CODES[code].meaning, severity: CODES[code].severity, fix: CODES[code].fix });
     }
   });
 
@@ -176,6 +176,9 @@ describe('the meaning of each item in self/', () => {
       expect(row.split('|').at(-2)!.trim(), g.gate_name).toBe(g.gate_codes.map((c) => `\`${c}\``).join(', '));
     }
     const all = Object.values(gates).flatMap((g) => g.gate_codes);
+    // The codes of the gates are the codes that only verify reports (decision 37).
+    const onlyVerify = Object.entries(CODES).filter(([, c]) => c.commands.length === 1 && c.commands[0] === 'verify').map(([code]) => code);
+    expect([...new Set(all)].sort()).toEqual(onlyVerify.sort());
     for (const code of all) expect(Object.keys(CODES)).toContain(code);
   });
 
