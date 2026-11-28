@@ -18,7 +18,7 @@ definitions:
   # judge_gate. A test keeps each list equal to its source in the package, and to the pages that name it.
 
   code:
-    description: A code of a problem that urn-forge reports. A tool or an agent acts on the code, not on the message. The meaning, the severity and the fix of each code are the argument of is_the_code, in the operation fix_of; the codes of each gate are the argument of reports_its_codes, in the operation judge_gate
+    description: A code of a problem that urn-forge reports. A tool or an agent acts on the code, not on the message. The meaning, the severity and the fix of each code are the argument of is_the_code, in the operation fix_of; the codes of each gate are the argument of reports_its_codes, in the operation judge_gate. compile, and verify before its gates, reports each code that is in no gate; diff reports usage and the codes of a manifest that does not compile
     type: string
     rules:
       - enum: [usage, config-unreadable, config-invalid, manifest-unreadable, yaml-syntax, manifest-shape, unknown-definition, type-cycle, duplicate-property, unknown-property, not-an-object, duplicate-output, invalid-identifier, deprecated-use, standard-name, unknown-rule, rule-argument, rule-syntax, rule-type, rule-guard, rule-scope, invalid-message, tsconfig-unreadable, core-not-found, type-error, core-not-satisfying, direct-call, suppressed-check, feature-syntax, unknown-name, uncovered-operation, uncovered-output, uncovered-variant, uncovered-rule, drift, base-unreadable, removed-rule, wider-rule, removed-output, removed-scenario, internal-contract]
@@ -1111,7 +1111,9 @@ rules:
   is_the_type_name:
     description: >-
       The type name is the PascalCase of the definition name: each part between underscores, with its first letter
-      in upper case, joined; with Value after a name that the generated file declares itself
+      in upper case, joined. A name that the generated file declares itself gets Value after it: Failure,
+      RuleError, DomainCore, Operations, Definitions, OperationName, DefinitionName, OperationResult and
+      CheckResult, so failure gives FailureValue
     rule: >-
       cel.bind(pascal, input.definition_name.split('_').filter(w, w != '').map(w, w.substring(0, 1).upperAscii() + w.substring(1)).join(''),
       output.type_name == (pascal in ['Failure', 'RuleError', 'DomainCore', 'Operations', 'Definitions', 'OperationName', 'DefinitionName', 'OperationResult', 'CheckResult'] ? pascal + 'Value' : pascal))
@@ -1233,7 +1235,9 @@ rules:
     failure_message: The signatures are not those of the function
 
   is_the_step_of_its_text:
-    description: A step text is the step of urn-forge whose form it has, and of no other
+    description: >-
+      A step text is the step of urn-forge whose form it has, and of no other. The forms, in the order of the step
+      kinds: I run "<operation>" with:, I check a "<definition>" with: (or an), the output is "<object>", the output is "<object>": with a table, the input is rejected by "<rule>" of "<definition>", the value is rejected by "<rule>" of "<definition>", and the value is accepted
     rule: >-
       (output.step_kind == 'run') == input.step_text.matches(r'^I run "[^"]+" with:$') &&
       (output.step_kind == 'check') == input.step_text.matches(r'^I check an? "[^"]+" with:$') &&
@@ -1245,7 +1249,9 @@ rules:
     failure_message: The kind of the step is not the form of its text
 
   matches_no_step:
-    description: A step text that has the form of no step of urn-forge is no step
+    description: >-
+      A step text that has none of the seven forms of the steps of urn-forge is no step; is_the_step_of_its_text
+      lists them
     rule: >-
       !input.step_text.matches(r'^I run "[^"]+" with:$') &&
       !input.step_text.matches(r'^I check an? "[^"]+" with:$') &&

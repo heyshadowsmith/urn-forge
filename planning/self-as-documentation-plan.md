@@ -418,3 +418,58 @@ A new description is not a change of the contract: `diff` of two manifests that 
 | --- | --- | --- |
 | 1 | The description of `code`, and the four descriptions | `diff` against `main` finds no change, and `verify --base` of `self/` passes |
 | 2 | The graph of the manifest, made again and published; the cold-reader question "Which command reports `rule-guard`, and what are the names that get `Value`?"; the plan notes | The reader answers from the file alone |
+
+## What was built: part 6
+
+| Step | Result |
+| --- | --- |
+| 1 | The description of `code` says which command reports a code that is in no gate. The descriptions of `is_the_type_name`, `is_the_step_of_its_text` and `matches_no_step` name the nine names that get `Value` and the seven forms of a step. `diff` against `main` finds no change |
+| 2 | The graph of the manifest, made again and published: 206 parts and 291 references. The cold-reader questions on the three gaps, and these notes |
+
+Changes from the plan:
+
+- **Three rules, not four.** The description of `direction_by_the_form` already names its four rules. The script that compared the texts missed it: the rule quotes the names, and the description does not.
+
+### The cold-reader test of part 6
+
+A fresh agent answered three questions from the file alone, all correctly. The names that get `Value` took one call, and the forms of a step took two. Which command reports `rule-guard` took five: the description of `code` gives the general sentence, and the reader must find that `rule-guard` is in no list of a gate. This is the cost of decision 32, one sentence and no map of each command to its codes.
+
+It also noted two things that are on purpose:
+
+- Some codes share one meaning, such as `unknown-definition`, `unknown-property` and `unknown-rule`, as the table of causes of the CLI reference groups them. Their fixes tell them apart.
+- `tsconfig-unreadable` is a code of gate 1 and of gate 2: each of them reads the tsconfig.
+
+The plan of urn-forge's own contract is complete. `self/` has 13 operations and 215 scenarios. Layer 4 is not built (decision 19), and the severity of the four codes of gate 5 is not checked (part 5).
+
+## Part 7: the commands that report each code
+
+The agent experience comes first. The cold reader of part 6 took five calls to find which command reports `rule-guard`: it read the general sentence of decision 32, then checked that the code is in no list of a gate. Part 7 puts the answer in the entry of each code, next to its meaning, severity and fix, and checks it on each run. It replaces decision 32.
+
+What part 7 found before it started:
+
+- **Three commands report codes: `compile`, `verify` and `diff`.** `init` gives a wrong command line as text, with no code.
+- **Most codes come from more than one command.** `verify` compiles the manifest before its gates, and `diff` compiles both manifests. So each code of the manifest and the rule language comes from all three, except `deprecated-use`: `diff` reports only the errors of a manifest. The config codes come from `compile` and `verify`, as `diff` reads no config. The codes of the gates come only from `verify`. `usage` and `internal-contract` come from each of the three.
+
+### Decisions to confirm
+
+| # | Question | Recommendation | Why |
+| --- | --- | --- | --- |
+| 35 | The commands of a code | **Each code has a list of the commands that report it, in `src/codes.ts` and in its entry of `is_the_code`. The commands are a new list of the vocabulary: `compile`, `verify`, `diff`** | The reader finds it in the same entry, with one search. The vocabulary already lists the codes, the gates and the steps; the commands are the last list that a reader names |
+| 36 | A check of the command | **The CLI sends the command with each problem to `fix_of`, and a rule `reported_by_its_command` checks that the command is in the list. A code from another command stops the command with `internal-contract`** | The report already knows its command: it checks its JSON as `compile_report`, `verify_report` or `diff_report`. As with the severity, each problem is then checked on each run |
+| 37 | The codes of the gates | **They stay in the map of `judge_gate`. A test checks that the codes of the gates are the codes whose list is `[verify]`** | Taking them out would make `judge_gate` take the map of all 41 codes as its argument, a second copy of it |
+| 38 | The docs | **`AGENTS.md` and the CLI reference get a column of the commands, and `self.test.ts` keeps the list of commands equal to the commands of the CLI** | The same pages as the meaning and the severity |
+| 39 | The version | **0.2.3** | The input and the output of `fix_of` change |
+
+### Build order
+
+| Step | Commit | Done when |
+| --- | --- | --- |
+| 1 | The commands of each code in `src/codes.ts`, the columns of the docs, and the tests | A test fails when a code of a gate has another list than `[verify]` |
+| 2 | The list of commands in the vocabulary of `self/`, the commands in the map of `is_the_code`, `fix_of` with the command, the CLI that sends it, and 0.2.3 | A code reported by a command that is not in its list stops a real command with `internal-contract` |
+| 3 | The cold-reader question "Which command reports `rule-guard`?" again; the graph; the plan notes | The reader answers it from the entry of the code |
+
+### Sabotages
+
+1. Make `diff` report `deprecated-use` → a real `diff` stops with `internal-contract`.
+2. Remove `compile` from the list of `rule-guard` in `src/codes.ts` → the scenario of `fix_of` and a real `compile` that reports `rule-guard`.
+3. Give `drift` the list `[compile, verify]` → the test of decision 37.
