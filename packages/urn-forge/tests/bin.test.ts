@@ -206,7 +206,7 @@ describe('the findings of the plan', () => {
 });
 
 /** The findings of the plan of ergonomics (planning/cli-ergonomics-plan.md): it.fails until their step. */
-const ergonomics = { A3: it, A9: it, A5: it, D8: it, A6: it, A4: it, A7: it.fails, A10: it.fails, D10: it.fails };
+const ergonomics = { A3: it, A9: it, A5: it, D8: it, A6: it, A4: it, A7: it, A10: it.fails, D10: it.fails };
 
 describe('the findings of the plan of ergonomics', () => {
   ergonomics.A3('prints the help of one command on stdout, with exit 0', () => {

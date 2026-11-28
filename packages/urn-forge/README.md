@@ -9,11 +9,11 @@ Coding agents write the code. You own the contract. urn-forge generates a harnes
 
 ## Start
 
-You must have Node 22 or newer. urn-forge 0.2.4 is not on npm yet. To make the tarball, run `npm run pack:tarball` in the repository.
+You must have Node 22 or newer. urn-forge 0.2.5 is not on npm yet. To make the tarball, run `npm run pack:tarball` in the repository.
 
 ```bash
 npm init -y
-npm install urn-forge-0.2.4.tgz
+npm install urn-forge-0.2.5.tgz
 npx urn-forge init
 npx urn-forge compile
 npx urn-forge verify

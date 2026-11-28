@@ -48,6 +48,13 @@ export interface Problem {
 
 export type Format = 'text' | 'json';
 
+/** The keys of the report of each command, empty: the report of a failure has them too. */
+const EMPTY_REPORT: Readonly<Record<Command, Record<string, unknown>>> = {
+  compile: { files: [] },
+  verify: { gates: [], domains: [], warnings: 0 },
+  diff: { changes: [] },
+};
+
 /**
  * The output of a command. As text, it writes each line as it comes, and each problem with its fix on
  * the next line. As JSON, it writes nothing until the end, and then one object to stdout.
@@ -100,7 +107,8 @@ export class Report {
         message: p.message,
         fix: fixFor(p.code, p.severity, this.command),
       }));
-      const value = { ok: code === 0, ...extra, problems };
+      // Each key of the report of the command, empty when it does not apply, so that its shape is one on each path.
+      const value = { ok: code === 0, ...(this.command ? EMPTY_REPORT[this.command] : {}), ...extra, problems };
       // urn-forge checks its own report against self/ before it writes it.
       const broken = this.definition && brokenBy(this.definition, value);
       if (broken) {

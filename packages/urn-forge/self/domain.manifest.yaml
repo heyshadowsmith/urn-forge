@@ -9,7 +9,7 @@
 manifest:
   namespace: urn-forge
   domain: toolchain
-  version: 0.2.4
+  version: 0.2.5
 
 definitions:
   # 1. The vocabulary
@@ -998,7 +998,7 @@ definitions:
       - files: written_files
       - problems
     rules:
-      - required: [ok, problems]
+      - required: [ok, files, problems]
       - an_error_fails
 
   written_files:
@@ -1032,7 +1032,7 @@ definitions:
       - warnings: warning_count
       - problems
     rules:
-      - required: [ok, problems]
+      - required: [ok, gates, domains, warnings, problems]
       - an_error_fails
       - a_failed_gate_fails
 
@@ -1090,7 +1090,7 @@ definitions:
       - why: reason
       - problems
     rules:
-      - required: [ok, problems]
+      - required: [ok, changes, problems]
       - an_error_fails
 
   breaking_count:
@@ -1372,7 +1372,7 @@ rules:
 
   a_failed_gate_fails:
     description: verify does not pass when a gate fails
-    rule: "!has(self.gates) || self.gates.all(g, g.pass) || !self.ok"
+    rule: "self.gates.all(g, g.pass) || !self.ok"
     failure_message: verify must not pass when a gate fails
 
 operations:
