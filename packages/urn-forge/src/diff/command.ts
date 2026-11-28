@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseOptions, UsageError } from '../options.js';
-import type { CliIo, Report } from '../cli.js';
+import { display, showDiagnostics, unreadable, type CliIo, type Report } from '../cli.js';
 import { compileManifest } from '../compile.js';
 import { decide } from '../self.js';
 import { classify, type Change } from './classify.js';
@@ -21,12 +21,12 @@ export async function diffCommand(io: CliIo, report: Report, argv: readonly stri
     let text: string;
     try {
       text = readFileSync(resolve(io.cwd, path), 'utf8');
-    } catch {
-      report.problem({ code: 'manifest-unreadable', severity: 'error', file: path, message: 'the manifest does not exist' });
+    } catch (error) {
+      report.problem({ code: 'manifest-unreadable', severity: 'error', file: display(io, resolve(io.cwd, path)), message: unreadable('manifest', error) });
       return undefined;
     }
     const compiled = compileManifest(text);
-    for (const d of compiled.diagnostics.filter((x) => x.severity === 'error')) report.problem({ code: d.code, severity: 'error', file: path, path: d.path, message: d.message });
+    showDiagnostics(report, display(io, resolve(io.cwd, path)), text, compiled.diagnostics.filter((x) => x.severity === 'error'));
     return compiled.model ? { model: compiled.model, applications: compiled.applications } : undefined;
   });
   const [old, next] = sides;

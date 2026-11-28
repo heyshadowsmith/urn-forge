@@ -3,7 +3,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
@@ -138,8 +138,18 @@ function samePath(path: string): string {
 }
 
 /** A path as the output shows it: relative to the working directory, with forward slashes. */
-function display(io: CliIo, path: string): string {
-  return relative(io.cwd, path).split('\\').join('/') || '.';
+export function display(io: CliIo, path: string): string {
+  const shown = relative(io.cwd, path);
+  return (shown.startsWith('..') || isAbsolute(shown) ? resolve(io.cwd, path) : shown).split('\\').join('/') || '.';
+}
+
+/** Why a file cannot be read, as the message of its problem: "the manifest is a folder, not a file". */
+export function unreadable(what: string, error: unknown): string {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  if (code === 'ENOENT' || code === 'ENOTDIR') return `the ${what} does not exist`;
+  if (code === 'EISDIR') return `the ${what} is a folder, not a file`;
+  if (code === 'EACCES' || code === 'EPERM') return `the ${what} cannot be read: permission denied`;
+  return `the ${what} cannot be read: ${code ?? String(error)}`;
 }
 
 /** The line of a path in a YAML text, or of the nearest part of it that exists. */
@@ -159,7 +169,7 @@ export function lineOf(text: string, path: Path): number | undefined {
   return undefined;
 }
 
-function showDiagnostics(report: Report, file: string, text: string, diagnostics: readonly Diagnostic[]): void {
+export function showDiagnostics(report: Report, file: string, text: string, diagnostics: readonly Diagnostic[]): void {
   for (const d of diagnostics) {
     const line = d.line ?? lineOf(text, d.path);
     report.problem({ code: d.code, severity: d.severity, file, ...(line ? { line } : {}), path: d.path, message: d.message });
@@ -190,8 +200,10 @@ async function project(io: CliIo, report: Report, values: Record<string, string 
   const configPath = values['config'] ? resolve(io.cwd, values['config']) : join(io.cwd, CONFIG_FILE);
   let config: UrnForgeConfig = {};
   if (values['config'] || existsSync(configPath)) {
-    if (!existsSync(configPath)) {
-      report.problem({ code: 'config-unreadable', severity: 'error', file: display(io, configPath), message: 'the config does not exist' });
+    try {
+      readFileSync(configPath);
+    } catch (error) {
+      report.problem({ code: 'config-unreadable', severity: 'error', file: display(io, configPath), message: unreadable('config', error) });
       return undefined;
     }
     const loaded = await loadConfig(configPath);
@@ -258,8 +270,8 @@ function compileDomain(io: CliIo, report: Report, p: Project, d: DomainProject):
   let text: string;
   try {
     text = readFileSync(d.manifestPath, 'utf8');
-  } catch {
-    report.problem({ code: 'manifest-unreadable', severity: 'error', file: display(io, d.manifestPath), message: 'the manifest does not exist' });
+  } catch (error) {
+    report.problem({ code: 'manifest-unreadable', severity: 'error', file: display(io, d.manifestPath), message: unreadable('manifest', error) });
     return undefined;
   }
   const compiled = compileManifest(text);
@@ -356,12 +368,12 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
   if (positionals.length > 0) throw new UsageError(`takes no argument: ${positionals.join(' ')}`);
   const p = await project(io, report, values);
   if (!p) {
-    report.out('verify failed: the config is not valid');
+    report.out(`verify failed: ${report.problems.some((x) => x.code === 'config-unreadable') ? 'the config cannot be read' : 'the config is not valid'}`);
     return report.end(1, { gates: [], domains: [] });
   }
   const results = compileProject(io, report, p);
   if (!results) {
-    report.out('verify failed: the manifest does not compile');
+    report.out(`verify failed: ${report.problems.some((x) => x.code === 'manifest-unreadable') ? 'the manifest cannot be read' : 'the manifest does not compile'}`);
     return report.end(1, { gates: [], domains: [] });
   }
   const show = (path: string): string => display(io, path);
