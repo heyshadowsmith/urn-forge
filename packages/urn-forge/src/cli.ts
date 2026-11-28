@@ -49,7 +49,9 @@ Options:
   --tsconfig <file>  verify: the tsconfig of gate 1 (default: tsconfig.json)
   --base <ref>       verify: run gate 5, which compares the contract with the one at this git ref
   --report           diff: list the changes, and do not fail on a breaking change
-  --format <format>  compile, verify, diff: text (default), or json: one JSON object on stdout, and nothing else`;
+  --format <format>  compile, verify, diff: text (default), or json: one JSON object on stdout, and nothing else
+
+Exit codes: 0 pass, 1 failure, 2 wrong command line, 3 urn-forge itself failed (report it)`;
 
 
 /** A problem as the commands report it: a stable code, where it is, what is wrong, and (from its code) the fix. */
