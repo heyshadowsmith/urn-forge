@@ -184,17 +184,19 @@ With several domains, `compile` and `verify` handle each one in one run, and sta
 | Command | What it does |
 | --- | --- |
 | `urn-forge init [--namespace <n>] [--domain <n>]` | Writes a starter project that passes `verify`, with `AGENTS.md` and a Claude Code skill for coding agents |
-| `urn-forge compile [--format json]` | Writes the generated files |
-| `urn-forge verify [--base <ref>] [--format json]` | Compiles in memory and runs the gates; writes nothing |
+| `urn-forge compile [--config <file>] [--manifest <file>] [--out <dir>] [--format json]` | Writes the generated files |
+| `urn-forge verify [--config <file>] [--manifest <file>] [--out <dir>] [--core <file>] [--features <dir>] [--tsconfig <file>] [--base <ref>] [--format json]` | Compiles in memory and runs the gates; writes nothing |
 | `urn-forge diff <old> <new> [--report] [--format json]` | Classifies the changes between two manifests as breaking or compatible |
 
-Exit codes: `0` pass (also with warnings), `1` failure, `2` wrong command line.
+Each command takes only the options of its line: an option of another command is `usage`, with exit 2, such as `compile --base main`.
+
+Exit codes: `0` pass (also with warnings), `1` failure, `2` wrong command line, `3` urn-forge itself failed (`internal-error`, `internal-contract`): report it, and do not change the project for it.
 
 | Gate | It fails when |
 | --- | --- |
 | 1. completeness | `tsc` fails over the core, or no export `satisfies DomainCore` |
-| 2. boundary | The shell calls the core without `runOperation`, or a file suppresses a type check |
-| 3. gherkin | A step names an unknown part, or an operation, an output, a variant or a rule has no scenario |
+| 2. boundary | The shell calls the core without `runOperation`, a file suppresses a type check, or a shell path does not exist |
+| 3. gherkin | A step names an unknown part, an operation, an output, a variant or a rule has no scenario, or the features path does not exist |
 | 4. drift | A generated file is not what `compile` writes now |
 | 5. contract | Only with `--base <ref>`: the ref cannot be read, or a rule, an output or a scenario of the ref is gone, or a rule accepts more, and the version does not allow it |
 
@@ -207,9 +209,9 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | Code | Meaning | Severity | Commands | Fix |
 | --- | --- | --- | --- | --- |
 | `usage` | The command line is wrong | error | compile, verify, diff | Run urn-forge --help, and call the command with the arguments and options that it shows. |
-| `config-unreadable` | The manifest file, or the file that `--config` names, does not exist | error | compile, verify | Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts. |
+| `config-unreadable` | The config file that `--config` names does not exist | error | compile, verify | Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts. |
 | `config-invalid` | The config does not load, or an option is unknown or of the wrong type | error | compile, verify | Change the config to use only the options of defineConfig, with the types that the message names. |
-| `manifest-unreadable` | The manifest file, or the file that `--config` names, does not exist | error | compile, verify, diff | Give --manifest, or manifest in the config, the path of a manifest that exists. |
+| `manifest-unreadable` | The manifest file does not exist | error | compile, verify, diff | Give --manifest, or manifest in the config, the path of a manifest that exists. |
 | `yaml-syntax` | The file is not valid YAML, or a map has one key two times | error | compile, verify, diff | Correct the YAML at the line that the problem gives. |
 | `manifest-shape` | A key that is not allowed, a key that is not there, or a value of the wrong shape | error | compile, verify, diff | Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key. |
 | `unknown-definition` | A name that the manifest does not have | error | compile, verify, diff | Add the definition to definitions:, or correct the name to one that is in definitions:. |
@@ -234,6 +236,7 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `core-not-satisfying` | Gate 1: no export of the core `satisfies DomainCore` | error | verify | Export the core as export const core = { … } satisfies DomainCore, with one function for each operation. |
 | `direct-call` | Gate 2: a shell file calls a function of the core directly, without `runOperation` | error | verify | Call the core through runOperation(core, operation, input), which checks the input and the answer. |
 | `suppressed-check` | Gate 2: a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` | error | verify | Remove the @ts- comment and correct the type error that it hides. |
+| `missing-input` | Gate 2 or gate 3: a shell path or a features path does not exist, or the features path is a file that is not a `.feature` file, so the gate would check nothing of it | error | verify | Correct the path in shell or features of the config, or in --features, to a file or a folder that exists. |
 | `feature-syntax` | Gate 3: a `.feature` file does not parse | error | verify | Correct the Gherkin of the feature file at the line that the message gives. |
 | `unknown-name` | Gate 3: a step names a part that the manifest does not have | error | verify | Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says. |
 | `uncovered-operation` | Gate 3: no scenario runs an operation | error | verify | Add a scenario with When I run "<operation>" with:. |
@@ -246,4 +249,6 @@ Each problem has one of these codes. The fix is the same as the `fix` of `--form
 | `wider-rule` | Gate 5: a rule accepts more than at the base | by-version | verify | Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
 | `removed-output` | Gate 5: an output of the base is gone | by-version | verify | Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
 | `removed-scenario` | Gate 5: a scenario of the base is gone | by-version | verify | Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `io-error` | A file or a folder cannot be read or written: it does not exist, it is not a folder, or the permissions refuse it | error | compile, verify, diff | Correct the path or the permissions that the message names, and run the command again. |
+| `internal-error` | urn-forge failed in a way that it does not expect, which is a bug of urn-forge | error | compile, verify, diff | Report it in an issue of urn-forge, with the message; run the command again with URN_FORGE_DEBUG=1 to add the stack. |
 | `internal-contract` | urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge | error | compile, verify, diff | Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it. |

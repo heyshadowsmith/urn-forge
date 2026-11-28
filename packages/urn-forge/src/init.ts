@@ -49,6 +49,20 @@ export async function initProject(options: { readonly cwd: string; readonly name
   const present: string[] = [];
   for (const file of files.keys()) if (!INSTRUCTIONS.has(file) && (await exists(at(file)))) present.push(file);
   if (present.length > 0) return { ok: false, message: `init writes no file: these exist already: ${present.join(', ')}` };
+  // package.json is read and checked before any write, so that init writes all of its files or none.
+  const packagePath = at('package.json');
+  const text = await readFile(packagePath, 'utf8').catch(() => undefined);
+  let existing: Record<string, unknown> | undefined;
+  if (text !== undefined) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch (error) {
+      return { ok: false, message: `init writes no file: package.json is not valid JSON: ${(error as Error).message}` };
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return { ok: false, message: 'init writes no file: package.json must be a JSON object' };
+    existing = parsed as Record<string, unknown>;
+  }
   const lines: string[] = [];
   for (const [file, source] of files) {
     if (INSTRUCTIONS.has(file) && (await exists(at(file)))) {
@@ -60,8 +74,6 @@ export async function initProject(options: { readonly cwd: string; readonly name
     await writeFile(at(file), text);
     lines.push(`wrote      ${file}`);
   }
-  const packagePath = at('package.json');
-  const existing = await readFile(packagePath, 'utf8').then((t) => JSON.parse(t) as Record<string, unknown>, () => undefined);
   const pkg: Record<string, unknown> = existing ?? { name: basename(options.cwd).toLowerCase().replace(/[^a-z0-9-]/g, '-') || 'app', private: true };
   pkg['type'] = 'module';
   pkg['scripts'] = { ...((pkg['scripts'] as Record<string, string> | undefined) ?? {}), ...STARTER_SCRIPTS };

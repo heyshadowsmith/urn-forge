@@ -40,13 +40,14 @@ Run `npx urn-forge verify --format json`, then `npx cucumber-js`. Correct the fi
 | Change | Codes |
 | --- | --- |
 | The manifest | `yaml-syntax`, `manifest-shape`, `unknown-definition`, `type-cycle`, `duplicate-property`, `unknown-property`, `not-an-object`, `duplicate-output`, `invalid-identifier`, `deprecated-use`, `standard-name`, `unknown-rule`, `rule-argument`, `rule-syntax`, `rule-type`, `rule-guard`, `rule-scope`, `invalid-message` |
-| The config, `urn-forge.config.ts`, or the command | `usage`, `config-unreadable`, `config-invalid`, `manifest-unreadable`, `tsconfig-unreadable` |
+| The config, `urn-forge.config.ts`, or the command | `usage`, `config-unreadable`, `config-invalid`, `manifest-unreadable`, `tsconfig-unreadable`, `missing-input` |
+| The path or the permissions that the message names | `io-error` |
 | The core | `core-not-found`, `core-not-satisfying`, `type-error` |
 | The shell: call the core through `runOperation(core, operation, input)` | `direct-call`, `suppressed-check` |
 | The scenarios | `feature-syntax`, `unknown-name`, `uncovered-operation`, `uncovered-output`, `uncovered-variant`, `uncovered-rule` |
 | Nothing by hand: run `npx urn-forge compile` | `drift` |
 | Nothing: stop and ask (step 5) | `removed-rule`, `wider-rule`, `removed-output`, `removed-scenario` |
-| Nothing: stop, and tell the person that urn-forge has a bug | `internal-contract` |
+| Nothing: stop, and tell the person that urn-forge has a bug (exit 3) | `internal-error`, `internal-contract` |
 | Fetch the base branch, then run again | `base-unreadable` |
 
 A `type-error` in `src/generated/` comes from a file that is not current: run `npx urn-forge compile` first.

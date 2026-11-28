@@ -3,22 +3,23 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
-import { parseArgs } from 'node:util';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
 import { fixOf, type Code, type Command } from './codes.js';
 import { brokenBy, decide, InternalContractError } from './self.js';
 import type { Diagnostic, Path } from './diagnostics.js';
+import { filesUnder } from './files.js';
 import { initProject, nameProblem } from './init.js';
+import { parseOptions, UsageError } from './options.js';
 import { domainUrn } from './urn.js';
 import { boundaryGate } from './verify/boundary.js';
 import { completenessGate, coreProgram } from './verify/completeness.js';
 import { contractGate, type ContractGateInput } from './verify/contract.js';
 import { driftGate } from './verify/drift.js';
 import { gherkinGate } from './verify/gherkin.js';
-import type { GateOutcome } from './verify/types.js';
+import type { GateOutcome, GateProblem } from './verify/types.js';
 import { writeGenerated } from './write.js';
 
 export const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version as string;
@@ -48,9 +49,10 @@ Options:
   --tsconfig <file>  verify: the tsconfig of gate 1 (default: tsconfig.json)
   --base <ref>       verify: run gate 5, which compares the contract with the one at this git ref
   --report           diff: list the changes, and do not fail on a breaking change
-  --format <format>  compile, verify, diff: text (default), or json: one JSON object on stdout, and nothing else`;
+  --format <format>  compile, verify, diff: text (default), or json: one JSON object on stdout, and nothing else
 
-class UsageError extends Error {}
+Exit codes: 0 pass, 1 failure, 2 wrong command line, 3 urn-forge itself failed (report it)`;
+
 
 /** A problem as the commands report it: a stable code, where it is, what is wrong, and (from its code) the fix. */
 export interface Problem {
@@ -133,6 +135,22 @@ export class Report {
   }
 }
 
+/**
+ * The key of a path, so that two names of one file or folder are equal: its real path through each
+ * symlink (for a path that does not exist yet, the real path of the nearest folder that exists, and the
+ * rest), in lower case where the file system ignores case, as on macOS and Windows.
+ */
+function samePath(path: string): string {
+  let existing = path;
+  const rest: string[] = [];
+  while (!existsSync(existing) && dirname(existing) !== existing) {
+    rest.unshift(basename(existing));
+    existing = dirname(existing);
+  }
+  const real = join(realpathSync.native(existing), ...rest);
+  return process.platform === 'darwin' || process.platform === 'win32' ? real.toLowerCase() : real;
+}
+
 /** A path as the output shows it: relative to the working directory, with forward slashes. */
 function display(io: CliIo, path: string): string {
   return relative(io.cwd, path).split('\\').join('/') || '.';
@@ -172,17 +190,6 @@ interface Project {
   readonly domains: readonly DomainProject[];
 }
 
-const OPTIONS = {
-  config: { type: 'string' },
-  manifest: { type: 'string' },
-  out: { type: 'string' },
-  core: { type: 'string' },
-  features: { type: 'string' },
-  tsconfig: { type: 'string' },
-  base: { type: 'string' },
-  namespace: { type: 'string' },
-  domain: { type: 'string' },
-} as const;
 
 /** The flags that name the paths of one domain. */
 const DOMAIN_FLAGS = ['manifest', 'out', 'core', 'features'] as const;
@@ -228,11 +235,11 @@ async function project(io: CliIo, report: Report, values: Record<string, string 
     const seen = new Set<string>();
     for (const d of resolved) {
       const value = d[key] as string;
-      if (seen.has(value)) {
+      if (seen.has(samePath(value))) {
         report.problem({ code: 'config-invalid', severity: 'error', file: display(io, configPath), message: `two domains ${what} ${display(io, value)}; give each domain its own` });
         clash = true;
       }
-      seen.add(value);
+      seen.add(samePath(value));
     }
   }
   if (clash) return undefined;
@@ -326,7 +333,7 @@ function baseContract(io: CliIo, d: DomainProject, ref: string): ContractGateInp
 }
 
 async function compileCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
-  const { values, positionals } = parseArgs({ args: [...argv], options: OPTIONS, strict: true, allowPositionals: true });
+  const { values, positionals } = parseOptions('compile', argv);
   if (positionals.length > 0) throw new UsageError(`compile takes no argument: ${positionals.join(' ')}`);
   const p = await project(io, report, values);
   if (!p) return report.end(1);
@@ -344,14 +351,16 @@ async function compileCommand(io: CliIo, report: Report, argv: readonly string[]
   return report.end(0, { files });
 }
 
-function features(dir: string): string[] {
-  if (!existsSync(dir)) return [];
-  if (!statSync(dir).isDirectory()) return [dir];
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? features(join(dir, e.name)) : e.name.endsWith('.feature') ? [join(dir, e.name)] : [])).sort();
+/** The .feature files of a path, and the problems of the path: it does not exist, or it is not a .feature file. */
+function features(path: string, show: (path: string) => string): { files: string[]; problems: GateProblem[] } {
+  const problem = (message: string): GateProblem => ({ code: 'missing-input', severity: 'error', file: show(path), message });
+  if (!existsSync(path)) return { files: [], problems: [problem('the features path does not exist, so gate 3 would read no scenario')] };
+  if (!statSync(path).isDirectory() && !path.endsWith('.feature')) return { files: [], problems: [problem('the features path is a file, and not a .feature file')] };
+  return { files: filesUnder(path, (name) => name.endsWith('.feature')).sort(), problems: [] };
 }
 
 async function verifyCommand(io: CliIo, report: Report, argv: readonly string[]): Promise<number> {
-  const { values, positionals } = parseArgs({ args: [...argv], options: OPTIONS, strict: true, allowPositionals: true });
+  const { values, positionals } = parseOptions('verify', argv);
   if (positionals.length > 0) throw new UsageError(`verify takes no argument: ${positionals.join(' ')}`);
   const p = await project(io, report, values);
   if (!p) {
@@ -378,7 +387,8 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
     const generatedPath = join(d.outDir, GENERATED_FILE);
     const coreOptions = { corePath: d.corePath, generatedPath, tsconfigPath: p.tsconfigPath, show };
     const program = coreProgram(coreOptions);
-    const featureFiles = features(d.featuresPath).map((path) => ({ path: show(path), text: readFileSync(path, 'utf8') }));
+    const found = features(d.featuresPath, show);
+    const featureFiles = found.files.map((path) => ({ path: show(path), text: readFileSync(path, 'utf8') }));
     const boundary = boundaryGate({ ...coreOptions, shell: p.shell }, program);
     const outcomes: GateOutcome[] = [
       completenessGate(coreOptions, program),
@@ -391,7 +401,7 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
           return true;
         }),
       },
-      gherkinGate({ model: result.compiled.model, applications: result.compiled.applications, features: featureFiles }),
+      gherkinGate({ model: result.compiled.model, applications: result.compiled.applications, features: featureFiles, inputProblems: found.problems }),
       await driftGate(d.outDir, result.files, show),
     ];
     if (values['base'] !== undefined) {
@@ -434,7 +444,7 @@ async function verifyCommand(io: CliIo, report: Report, argv: readonly string[])
 }
 
 async function initCommand(io: CliIo, argv: readonly string[]): Promise<number> {
-  const { values, positionals } = parseArgs({ args: [...argv], options: OPTIONS, strict: true, allowPositionals: true });
+  const { values, positionals } = parseOptions('init', argv);
   if (positionals.length > 0) throw new UsageError(`init takes no argument: ${positionals.join(' ')}`);
   const namespace = values['namespace'] ?? 'app';
   const domain = values['domain'] ?? 'starter';
@@ -468,7 +478,7 @@ function takeFormat(args: readonly string[]): { format: Format; rest: string[] }
   return { format, rest };
 }
 
-/** Runs a command. Gives the exit code: 0, 1 for a failure, 2 for a usage error. */
+/** Runs a command. Gives the exit code: 0, 1 for a failure, 2 for a usage error, 3 for a failure of urn-forge itself. */
 export async function main(argv: readonly string[], io: CliIo = { cwd: process.cwd(), stdout: (t) => console.log(t), stderr: (t) => console.error(t) }): Promise<number> {
   const [command, ...args] = argv;
   // --format belongs to compile, verify and diff: it is taken out before their own options are read.
@@ -507,6 +517,11 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
   } catch (error) {
     if (error instanceof InternalContractError) {
       report.problem({ code: 'internal-contract', severity: 'error', message: error.message });
+      return report.end(3);
+    }
+    if (isSystemError(error)) {
+      const where = error.path === undefined ? {} : { file: display(io, error.path) };
+      report.problem({ code: 'io-error', severity: 'error', ...where, message: `${error.syscall ?? 'the operation'} failed: ${error.code}` });
       return report.end(1);
     }
     if (error instanceof UsageError || (error as { code?: string }).code?.startsWith('ERR_PARSE_ARGS')) {
@@ -517,14 +532,24 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
       io.stderr(`${(error as Error).message}\n\n${USAGE}`);
       return 2;
     }
-    throw error;
+    // A failure that urn-forge does not expect: exit 3, with no stack unless URN_FORGE_DEBUG asks for it.
+    const message = error instanceof Error ? error.message : String(error);
+    report.problem({ code: 'internal-error', severity: 'error', message });
+    if (process.env['URN_FORGE_DEBUG'] && error instanceof Error && error.stack) io.stderr(error.stack);
+    return report.end(3);
   }
+}
+
+/** An error of the system, such as ENOENT or EACCES, with the call and the path that failed. */
+function isSystemError(error: unknown): error is { code: string; syscall?: string; path?: string } {
+  const code = (error as { code?: unknown } | null)?.code;
+  return error instanceof Error && typeof code === 'string' && /^E[A-Z]+$/.test(code);
 }
 
 /** The fix of a code, from urn-forge's own contract (fix_of of self/), which also checks the severity and the command of the problem. */
 function fixFor(code: Code, severity: 'error' | 'warning', command: Command | undefined): string {
-  // self: the fix of internal-contract is read directly, so that a fix_of that breaks its contract can still be reported.
-  if (code === 'internal-contract') return fixOf(code);
+  // self: the fixes of urn-forge's own failures are read directly, so that a fix_of that fails can still be reported.
+  if (code === 'internal-contract' || code === 'internal-error') return fixOf(code);
   return decide('fix_of', { code, severity, ...(command ? { command } : {}) }).value.fix;
 }
 

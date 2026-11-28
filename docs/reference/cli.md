@@ -3,7 +3,7 @@
 Run `npx urn-forge <command>` in a project where urn-forge is installed. These are the first lines of `npx urn-forge --help`:
 
 ```
-urn-forge 0.2.3
+urn-forge 0.2.4
 
 Usage:
   urn-forge init    [--namespace <name>] [--domain <name>]
@@ -19,7 +19,7 @@ Usage:
 | `verify` | Compiles in memory and runs the [gates](#the-gates). It writes nothing, and it does not run the scenarios. `cucumber-js` runs them. `--base <ref>` also runs gate 5 against a git ref |
 | `diff` | Compares two manifests, the old one first. Refer to [diff](#diff). It does not read the config |
 
-Each command exits with `0` on a pass (also with warnings), `1` on a failure, and `2` on a wrong command line.
+Each command exits with `0` on a pass (also with warnings), `1` on a failure, `2` on a wrong command line, and `3` when urn-forge itself fails (`internal-error` or `internal-contract`). Exit 3 is a bug of urn-forge, not of your project: report it in an issue. With `--format json`, each exit code comes with the one JSON object, also exit 3. When urn-forge cannot write its output at all, such as on a full disk, it says so in one line on stderr and exits with `1`.
 
 ## JSON output
 
@@ -104,8 +104,8 @@ Each problem of a gate is an indented line below the gate, with its fix on the n
 | Gate | It fails when | Codes |
 | --- | --- | --- |
 | 1. Completeness | `tsc` fails over the core with the tsconfig of the project, or no export of the core `satisfies DomainCore` | `type-error`, `core-not-satisfying`, `core-not-found`, `tsconfig-unreadable` |
-| 2. Boundary | A shell file calls a function of the core directly, or a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` | `direct-call`, `suppressed-check`, `tsconfig-unreadable` |
-| 3. Gherkin (the scenarios) | A step names a part that the manifest does not have. A `.feature` file does not parse. No scenario runs an operation, ends with an output, reaches a variant of a union, or breaks a rule of a definition | `unknown-name`, `feature-syntax`, `uncovered-operation`, `uncovered-output`, `uncovered-variant`, `uncovered-rule` |
+| 2. Boundary | A shell file calls a function of the core directly, or a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`, or a shell path does not exist | `direct-call`, `suppressed-check`, `tsconfig-unreadable`, `missing-input` |
+| 3. Gherkin (the scenarios) | A step names a part that the manifest does not have. A `.feature` file does not parse. No scenario runs an operation, ends with an output, reaches a variant of a union, or breaks a rule of a definition. The features path does not exist. | `unknown-name`, `feature-syntax`, `uncovered-operation`, `uncovered-output`, `uncovered-variant`, `uncovered-rule`, `missing-input` |
 | 4. Drift | A generated file is not the same as the file that `compile` writes now. A generated file is not there. A generated file is there, but `compile` does not write it now | `drift` |
 | 5. Contract | Compared with the manifest and the features at the git ref: a rule, an output or a scenario is not there, or a rule accepts more, and the version does not allow it. A new major version, a pre-release or another `0.x` version allows it; then each change is a warning | `removed-rule`, `wider-rule`, `removed-output`, `removed-scenario`, `base-unreadable` |
 
@@ -127,9 +127,9 @@ Each code has one fix, which the output shows on the line below the problem. `no
 | Code | Severity | Commands | Cause |
 | --- | --- | --- | --- |
 | `usage` | error | compile, verify, diff | The command line is wrong |
-| `config-unreadable` | error | compile, verify | The manifest file, or the file that `--config` names, does not exist |
+| `config-unreadable` | error | compile, verify | The config file that `--config` names does not exist |
 | `config-invalid` | error | compile, verify | The config does not load, or an option is unknown or of the wrong type |
-| `manifest-unreadable` | error | compile, verify, diff | The manifest file, or the file that `--config` names, does not exist |
+| `manifest-unreadable` | error | compile, verify, diff | The manifest file does not exist |
 | `yaml-syntax` | error | compile, verify, diff | The file is not valid YAML, or a map has one key two times |
 | `manifest-shape` | error | compile, verify, diff | A key that is not allowed, a key that is not there, or a value of the wrong shape |
 | `unknown-definition`, `unknown-property`, `unknown-rule` | error | compile, verify, diff | A name that the manifest does not have |
@@ -151,6 +151,7 @@ Each code has one fix, which the output shows on the line below the problem. `no
 | `core-not-satisfying` | error | verify | Gate 1: no export of the core `satisfies DomainCore` |
 | `direct-call` | error | verify | Gate 2: a shell file calls a function of the core directly, without `runOperation` |
 | `suppressed-check` | error | verify | Gate 2: a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` |
+| `missing-input` | error | verify | Gate 2 or gate 3: a shell path or a features path does not exist, or the features path is a file that is not a `.feature` file, so the gate would check nothing of it |
 | `feature-syntax` | error | verify | Gate 3: a `.feature` file does not parse |
 | `unknown-name` | error | verify | Gate 3: a step names a part that the manifest does not have |
 | `uncovered-operation` | error | verify | Gate 3: no scenario runs an operation |
@@ -163,6 +164,8 @@ Each code has one fix, which the output shows on the line below the problem. `no
 | `wider-rule` | by-version | verify | Gate 5: a rule accepts more than at the base |
 | `removed-output` | by-version | verify | Gate 5: an output of the base is gone |
 | `removed-scenario` | by-version | verify | Gate 5: a scenario of the base is gone |
+| `io-error` | error | compile, verify, diff | A file or a folder cannot be read or written: it does not exist, it is not a folder, or the permissions refuse it |
+| `internal-error` | error | compile, verify, diff | urn-forge failed in a way that it does not expect, which is a bug of urn-forge |
 | `internal-contract` | error | compile, verify, diff | urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge |
 
 A severity of `by-version` is a warning when the new version allows the change, and an error when it does not. `usage` comes as a problem only with `--format json`; as text, the usage shows. urn-forge gives `rule-syntax` at the line of `rule:`, with the column, and the other rule errors at the line where you apply the rule; [the rule language](./manifest#the-rule-language) lists each form. For `base-unreadable` in CI, fetch the base branch.

@@ -19,9 +19,9 @@ export type Command = (typeof COMMANDS)[number];
 export const CODES = {
   // The command line.
   usage: { meaning: 'The command line is wrong', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Run urn-forge --help, and call the command with the arguments and options that it shows.' },
-  'config-unreadable': { meaning: 'The manifest file, or the file that `--config` names, does not exist', severity: 'error', commands: ['compile', 'verify'], fix: 'Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts.' },
+  'config-unreadable': { meaning: 'The config file that `--config` names does not exist', severity: 'error', commands: ['compile', 'verify'], fix: 'Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts.' },
   'config-invalid': { meaning: 'The config does not load, or an option is unknown or of the wrong type', severity: 'error', commands: ['compile', 'verify'], fix: 'Change the config to use only the options of defineConfig, with the types that the message names.' },
-  'manifest-unreadable': { meaning: 'The manifest file, or the file that `--config` names, does not exist', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Give --manifest, or manifest in the config, the path of a manifest that exists.' },
+  'manifest-unreadable': { meaning: 'The manifest file does not exist', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Give --manifest, or manifest in the config, the path of a manifest that exists.' },
 
   // The manifest.
   'yaml-syntax': { meaning: 'The file is not valid YAML, or a map has one key two times', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Correct the YAML at the line that the problem gives.' },
@@ -54,6 +54,9 @@ export const CODES = {
   'direct-call': { meaning: 'Gate 2: a shell file calls a function of the core directly, without `runOperation`', severity: 'error', commands: ['verify'], fix: 'Call the core through runOperation(core, operation, input), which checks the input and the answer.' },
   'suppressed-check': { meaning: 'Gate 2: a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`', severity: 'error', commands: ['verify'], fix: 'Remove the @ts- comment and correct the type error that it hides.' },
 
+  // Gates 2 and 3: a path that the config or a flag names for a gate.
+  'missing-input': { meaning: 'Gate 2 or gate 3: a shell path or a features path does not exist, or the features path is a file that is not a `.feature` file, so the gate would check nothing of it', severity: 'error', commands: ['verify'], fix: 'Correct the path in shell or features of the config, or in --features, to a file or a folder that exists.' },
+
   // Gate 3: the scenarios.
   'feature-syntax': { meaning: 'Gate 3: a `.feature` file does not parse', severity: 'error', commands: ['verify'], fix: 'Correct the Gherkin of the feature file at the line that the message gives.' },
   'unknown-name': { meaning: 'Gate 3: a step names a part that the manifest does not have', severity: 'error', commands: ['verify'], fix: 'Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says.' },
@@ -72,7 +75,11 @@ export const CODES = {
   'removed-output': { meaning: 'Gate 5: an output of the base is gone', severity: 'by-version', commands: ['verify'], fix: 'Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
   'removed-scenario': { meaning: 'Gate 5: a scenario of the base is gone', severity: 'by-version', commands: ['verify'], fix: 'Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version.' },
 
-  // urn-forge itself: it checks its own decisions against its contract, self/.
+  // The files: a file or a folder that the command cannot read or write.
+  'io-error': { meaning: 'A file or a folder cannot be read or written: it does not exist, it is not a folder, or the permissions refuse it', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Correct the path or the permissions that the message names, and run the command again.' },
+
+  // urn-forge itself: it checks its own decisions against its contract, self/, and exits with 3 on a failure of its own.
+  'internal-error': { meaning: 'urn-forge failed in a way that it does not expect, which is a bug of urn-forge', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Report it in an issue of urn-forge, with the message; run the command again with URN_FORGE_DEBUG=1 to add the stack.' },
   'internal-contract': { meaning: 'urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge', severity: 'error', commands: ['compile', 'verify', 'diff'], fix: 'Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it.' },
 } as const satisfies Record<string, { readonly meaning: string; readonly severity: 'error' | 'warning' | 'by-version'; readonly commands: readonly Command[]; readonly fix: string }>;
 
