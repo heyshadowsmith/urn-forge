@@ -21,6 +21,21 @@ function sourcesUnder(path: string): string[] {
   return filesUnder(path, (name) => SOURCE.test(name) && !name.endsWith('.d.ts')).map((file) => realpathSync(file));
 }
 
+/**
+ * The program of gate 1 with the shell files too. Its host gives each file that gate 1 already parsed,
+ * the libraries and the core included, so that only the shell files are parsed again: as the watch mode
+ * of TypeScript shares files between two programs.
+ */
+function withShell(coreProgram: TS.Program, rootNames: readonly string[]): TS.Program {
+  const options = coreProgram.getCompilerOptions();
+  const base = ts.createCompilerHost(options);
+  const host: TS.CompilerHost = {
+    ...base,
+    getSourceFile: (fileName, languageVersion, onError, shouldCreate) => coreProgram.getSourceFile(fileName) ?? base.getSourceFile(fileName, languageVersion, onError, shouldCreate),
+  };
+  return ts.createProgram({ rootNames, options, host, oldProgram: coreProgram });
+}
+
 export interface BoundaryOptions {
   readonly corePath: string;
   readonly generatedPath: string;
@@ -41,7 +56,7 @@ export function boundaryGate(options: BoundaryOptions, coreProgram: TS.Program |
     .map((s) => resolve(s.fileName))
     .filter((f) => f.startsWith(coreDir) && f !== generated && !f.includes(`${sep}node_modules${sep}`));
   const shellFiles = options.shell.flatMap(sourcesUnder).filter((f) => f !== generated && !coreFiles.includes(f));
-  const program = shellFiles.length === 0 ? coreProgram : ts.createProgram({ rootNames: [...coreFiles, ...shellFiles], options: coreProgram.getCompilerOptions() });
+  const program = shellFiles.length === 0 ? coreProgram : withShell(coreProgram, [...coreFiles, ...shellFiles]);
   const checker = program.getTypeChecker();
   // A shell path that does not exist would check no file and pass: it is a problem of the gate.
   const problems: GateProblem[] = options.shell

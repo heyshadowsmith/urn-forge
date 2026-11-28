@@ -136,9 +136,15 @@ function display(io: CliIo, path: string): string {
 }
 
 /** The line of a path in a YAML text, or of the nearest part of it that exists. */
+/** The last manifest that lineOf parsed, so that the diagnostics of one manifest parse it once. */
+let parsed: { readonly text: string; readonly counter: LineCounter; readonly document: ReturnType<typeof parseDocument> } | undefined;
+
 export function lineOf(text: string, path: Path): number | undefined {
-  const counter = new LineCounter();
-  const document = parseDocument(text, { lineCounter: counter, keepSourceTokens: true });
+  if (parsed?.text !== text) {
+    const counter = new LineCounter();
+    parsed = { text, counter, document: parseDocument(text, { lineCounter: counter, keepSourceTokens: true }) };
+  }
+  const { counter, document } = parsed;
   for (let length = path.length; length >= 0; length--) {
     const node = document.getIn(path.slice(0, length), true);
     if (isNode(node) && node.range) return counter.linePos(node.range[0]).line;
