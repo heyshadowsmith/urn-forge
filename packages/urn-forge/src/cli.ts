@@ -8,7 +8,7 @@ import { parseArgs } from 'node:util';
 import { isNode, LineCounter, parseDocument } from 'yaml';
 import { compileManifest, generate, GENERATED_FILE, type Compiled } from './compile.js';
 import { CONFIG_FILE, loadConfig, type UrnForgeConfig } from './config.js';
-import { fixOf, type Code } from './codes.js';
+import { fixOf, type Code, type Command } from './codes.js';
 import { brokenBy, decide, InternalContractError } from './self.js';
 import type { Diagnostic, Path } from './diagnostics.js';
 import { initProject, nameProblem } from './init.js';
@@ -79,9 +79,13 @@ export class Report {
   constructor(
     private readonly io: CliIo,
     readonly format: Format,
-    /** The definition of self/ that the JSON report of the command keeps. */
-    private readonly definition?: 'compile_report' | 'verify_report' | 'diff_report',
+    /** The command, whose JSON report keeps the definition <command>_report of self/. */
+    private readonly command?: Command,
   ) {}
+
+  private get definition(): 'compile_report' | 'verify_report' | 'diff_report' | undefined {
+    return this.command && `${this.command}_report`;
+  }
 
   /** A line of text for stdout; nothing as JSON. */
   out(text: string): void {
@@ -99,7 +103,7 @@ export class Report {
     const write = stream === 'stdout' ? this.io.stdout : this.io.stderr;
     const where = problem.file ? `${problem.file}${problem.line ? `:${problem.line}` : ''}  ` : '';
     write(`${indent}${where}${problem.severity}  ${problem.code}  ${problem.message}`);
-    write(`${indent}  fix: ${fixFor(problem.code, problem.severity)}`);
+    write(`${indent}  fix: ${fixFor(problem.code, problem.severity, this.command)}`);
   }
 
   /** Ends the command with its exit code: as JSON, writes the one object. */
@@ -114,13 +118,13 @@ export class Report {
         ...(p.path !== undefined ? { path: p.path } : {}),
         ...(p.domain !== undefined ? { domain: p.domain } : {}),
         message: p.message,
-        fix: fixFor(p.code, p.severity),
+        fix: fixFor(p.code, p.severity, this.command),
       }));
       const value = { ok: code === 0, ...extra, problems };
       // urn-forge checks its own report against self/ before it writes it.
       const broken = this.definition && brokenBy(this.definition, value);
       if (broken) {
-        this.io.stdout(JSON.stringify({ ok: false, problems: [{ code: 'internal-contract', severity: 'error', message: broken, fix: fixFor('internal-contract', 'error') }] }));
+        this.io.stdout(JSON.stringify({ ok: false, problems: [{ code: 'internal-contract', severity: 'error', message: broken, fix: fixFor('internal-contract', 'error', this.command) }] }));
         return 1;
       }
       this.io.stdout(JSON.stringify(value));
@@ -474,7 +478,7 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
   try {
     if (command === 'compile' || command === 'verify' || command === 'diff') {
       ({ format, rest } = takeFormat(args));
-      report = new Report(io, format, `${command}_report`);
+      report = new Report(io, format, command);
     }
     switch (command) {
       case 'init':
@@ -517,11 +521,11 @@ export async function main(argv: readonly string[], io: CliIo = { cwd: process.c
   }
 }
 
-/** The fix of a code, from urn-forge's own contract (fix_of of self/), which also checks the severity of the problem. */
-function fixFor(code: Code, severity: 'error' | 'warning'): string {
+/** The fix of a code, from urn-forge's own contract (fix_of of self/), which also checks the severity and the command of the problem. */
+function fixFor(code: Code, severity: 'error' | 'warning', command: Command | undefined): string {
   // self: the fix of internal-contract is read directly, so that a fix_of that breaks its contract can still be reported.
   if (code === 'internal-contract') return fixOf(code);
-  return decide('fix_of', { code, severity }).value.fix;
+  return decide('fix_of', { code, severity, ...(command ? { command } : {}) }).value.fix;
 }
 
 export { UsageError };

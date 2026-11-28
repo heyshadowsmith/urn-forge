@@ -1,6 +1,6 @@
 {
   "name": "urn-forge",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Compile a manifest of definitions, rules and operations into a checked TypeScript harness, Gherkin coverage, a Postgres schema and a diff of breaking changes.",
   "type": "module",
   "private": true,

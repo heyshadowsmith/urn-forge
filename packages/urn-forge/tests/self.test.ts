@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import { FUNCTIONS, signatures } from '../src/cel/functions.js';
-import { CODES } from '../src/codes.js';
+import { CODES, COMMANDS } from '../src/codes.js';
 import { STEPS } from '../src/gherkin/steps.js';
 import { standard } from '../src/rules.js';
 import { GATES } from '../src/verify/types.js';
@@ -149,11 +149,14 @@ describe('the meaning of each item in self/', () => {
     return (uses.find((u) => typeof u === 'object' && u !== null && rule in u) as Record<string, Record<string, unknown>>)[rule]!;
   };
 
-  it('gives each code its meaning, severity and fix, and src/codes.ts keeps them', () => {
+  it('gives each code its meaning, severity, commands and fix, and src/codes.ts keeps them', () => {
     expect(Object.keys(meanings('fix_of', 'code_fix', 'is_the_code'))).toEqual(Object.keys(CODES));
+    // The commands of the vocabulary are the commands that report codes.
+    const manifest = parse(read('self/domain.manifest.yaml')) as { definitions: Record<string, { rules: { enum?: string[] }[] }> };
+    expect(manifest.definitions['command_name']!.rules[0]!.enum).toEqual([...COMMANDS]);
     for (const code of Object.keys(CODES) as (keyof typeof CODES)[]) {
       const { value } = decide('fix_of', { code });
-      expect({ meaning: value.meaning, severity: value.severity, fix: value.fix }).toEqual(CODES[code]);
+      expect({ meaning: value.meaning, severity: value.severity, commands: value.commands, fix: value.fix }).toEqual(CODES[code]);
     }
   });
 
@@ -176,6 +179,9 @@ describe('the meaning of each item in self/', () => {
       expect(row.split('|').at(-2)!.trim(), g.gate_name).toBe(g.gate_codes.map((c) => `\`${c}\``).join(', '));
     }
     const all = Object.values(gates).flatMap((g) => g.gate_codes);
+    // The codes of the gates are the codes that only verify reports (decision 37).
+    const onlyVerify = Object.entries(CODES).filter(([, c]) => c.commands.length === 1 && c.commands[0] === 'verify').map(([code]) => code);
+    expect([...new Set(all)].sort()).toEqual(onlyVerify.sort());
     for (const code of all) expect(Object.keys(CODES)).toContain(code);
   });
 

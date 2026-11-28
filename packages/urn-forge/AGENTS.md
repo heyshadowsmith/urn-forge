@@ -204,46 +204,46 @@ Exit codes: `0` pass (also with warnings), `1` failure, `2` wrong command line.
 
 Each problem has one of these codes. The fix is the same as the `fix` of `--format json`.
 
-| Code | Meaning | Severity | Fix |
-| --- | --- | --- | --- |
-| `usage` | The command line is wrong | error | Run urn-forge --help, and call the command with the arguments and options that it shows. |
-| `config-unreadable` | The manifest file, or the file that `--config` names, does not exist | error | Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts. |
-| `config-invalid` | The config does not load, or an option is unknown or of the wrong type | error | Change the config to use only the options of defineConfig, with the types that the message names. |
-| `manifest-unreadable` | The manifest file, or the file that `--config` names, does not exist | error | Give --manifest, or manifest in the config, the path of a manifest that exists. |
-| `yaml-syntax` | The file is not valid YAML, or a map has one key two times | error | Correct the YAML at the line that the problem gives. |
-| `manifest-shape` | A key that is not allowed, a key that is not there, or a value of the wrong shape | error | Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key. |
-| `unknown-definition` | A name that the manifest does not have | error | Add the definition to definitions:, or correct the name to one that is in definitions:. |
-| `type-cycle` | A chain of `type` names goes back to its start | error | Give one definition of the cycle a base type (string, number, integer, boolean, object, array, map or union) in place of the name of another definition. |
-| `duplicate-property` | A list names a property or an output two times | error | Remove the second copy of the name from properties:. |
-| `unknown-property` | A name that the manifest does not have | error | Add the name to properties: of the object, or remove it from the rule. |
-| `not-an-object` | The input or an output is not an object | error | Make the input or the output of the operation a definition of type: object. |
-| `duplicate-output` | A list names a property or an output two times | error | Remove the second copy of the object from output:. |
-| `invalid-identifier` | The identifier is not a required property with one value | error | Make the identifier a property of the object, list it in the required rule of the object, and give it one value: not an object or a list. |
-| `deprecated-use` | A live part uses a deprecated part | warning | Use a definition or a rule that is not deprecated, or remove deprecated: true if it is still the right one. |
-| `standard-name` | A rule of the manifest has the name of a standard rule | error | Give the rule of the manifest a name that is not the name of a standard rule. |
-| `unknown-rule` | A name that the manifest does not have | error | Add the rule to rules:, or correct the name to a rule of the manifest or a standard rule. |
-| `rule-argument` | An argument does not agree with the parameters of the rule | error | Give the rule an argument that its parameters accept, or no argument when the rule has no parameters. |
-| `rule-syntax` | The rule does not parse, or uses a form that is not in the rule language | error | Write the rule in the rule language of urn-forge: the names, operators, functions and macros of the reference. |
-| `rule-type` | A type in the rule is wrong, the rule does not give a `bool`, or `has()` reads a required property | error | Change the rule so that each part has the type that the message names, and the rule gives a bool. |
-| `rule-guard` | The rule reads an optional property without `has()` | error | Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) \|\| self.x > 0. |
-| `rule-scope` | The rule reads a name that is not available where you apply the rule, such as `output` in a rule of a definition | error | Use only the names that the message lists: self, input, output, the parameters of the rule, and the variable of a macro. |
-| `invalid-message` | A message names `{x}`, but `x` is not a parameter | error | Use in {braces} only the names of the parameters of the rule. |
-| `tsconfig-unreadable` | Gate 1 or gate 2: the tsconfig does not exist, or does not parse | error | Give --tsconfig, or tsconfig in the config, the path of a tsconfig that TypeScript can read. |
-| `core-not-found` | Gate 1: the file of the core does not exist | error | Create the core file, or give --core, or core in the config, its path. |
-| `type-error` | Gate 1: `tsc` finds a type error in the core, with the tsconfig of the project | error | Correct the type error at the line that the problem gives; do not suppress it. |
-| `core-not-satisfying` | Gate 1: no export of the core `satisfies DomainCore` | error | Export the core as export const core = { … } satisfies DomainCore, with one function for each operation. |
-| `direct-call` | Gate 2: a shell file calls a function of the core directly, without `runOperation` | error | Call the core through runOperation(core, operation, input), which checks the input and the answer. |
-| `suppressed-check` | Gate 2: a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` | error | Remove the @ts- comment and correct the type error that it hides. |
-| `feature-syntax` | Gate 3: a `.feature` file does not parse | error | Correct the Gherkin of the feature file at the line that the message gives. |
-| `unknown-name` | Gate 3: a step names a part that the manifest does not have | error | Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says. |
-| `uncovered-operation` | Gate 3: no scenario runs an operation | error | Add a scenario with When I run "<operation>" with:. |
-| `uncovered-output` | Gate 3: no scenario of an operation ends with one of its outputs | error | Add a scenario of the operation that ends with Then the output is "<output>". |
-| `uncovered-variant` | Gate 3: no scenario reaches a variant of a union | error | Add a scenario whose table has a value of the variant: for a union with a tag, a value with that value of the tag. |
-| `uncovered-rule` | Gate 3: no scenario breaks a rule of a definition | error | Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>". |
-| `drift` | Gate 4: a generated file is not what `compile` writes now, or it is missing, or `compile` no longer writes it | error | Run urn-forge compile, and do not edit a generated file by hand. |
-| `base-unreadable` | Gate 5: the folder is not in a git repository, or the ref is not a commit | error | Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists. |
-| `removed-rule` | Gate 5: a rule of the base is gone | by-version | Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
-| `wider-rule` | Gate 5: a rule accepts more than at the base | by-version | Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
-| `removed-output` | Gate 5: an output of the base is gone | by-version | Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
-| `removed-scenario` | Gate 5: a scenario of the base is gone | by-version | Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
-| `internal-contract` | urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge | error | Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it. |
+| Code | Meaning | Severity | Commands | Fix |
+| --- | --- | --- | --- | --- |
+| `usage` | The command line is wrong | error | compile, verify, diff | Run urn-forge --help, and call the command with the arguments and options that it shows. |
+| `config-unreadable` | The manifest file, or the file that `--config` names, does not exist | error | compile, verify | Give --config the path of a config file that exists, or remove --config to use urn-forge.config.ts. |
+| `config-invalid` | The config does not load, or an option is unknown or of the wrong type | error | compile, verify | Change the config to use only the options of defineConfig, with the types that the message names. |
+| `manifest-unreadable` | The manifest file, or the file that `--config` names, does not exist | error | compile, verify, diff | Give --manifest, or manifest in the config, the path of a manifest that exists. |
+| `yaml-syntax` | The file is not valid YAML, or a map has one key two times | error | compile, verify, diff | Correct the YAML at the line that the problem gives. |
+| `manifest-shape` | A key that is not allowed, a key that is not there, or a value of the wrong shape | error | compile, verify, diff | Use only the keys that the message lists, with values of the type that it names; the definition manifest in self/domain.manifest.yaml of the package states each key. |
+| `unknown-definition` | A name that the manifest does not have | error | compile, verify, diff | Add the definition to definitions:, or correct the name to one that is in definitions:. |
+| `type-cycle` | A chain of `type` names goes back to its start | error | compile, verify, diff | Give one definition of the cycle a base type (string, number, integer, boolean, object, array, map or union) in place of the name of another definition. |
+| `duplicate-property` | A list names a property or an output two times | error | compile, verify, diff | Remove the second copy of the name from properties:. |
+| `unknown-property` | A name that the manifest does not have | error | compile, verify, diff | Add the name to properties: of the object, or remove it from the rule. |
+| `not-an-object` | The input or an output is not an object | error | compile, verify, diff | Make the input or the output of the operation a definition of type: object. |
+| `duplicate-output` | A list names a property or an output two times | error | compile, verify, diff | Remove the second copy of the object from output:. |
+| `invalid-identifier` | The identifier is not a required property with one value | error | compile, verify, diff | Make the identifier a property of the object, list it in the required rule of the object, and give it one value: not an object or a list. |
+| `deprecated-use` | A live part uses a deprecated part | warning | compile, verify | Use a definition or a rule that is not deprecated, or remove deprecated: true if it is still the right one. |
+| `standard-name` | A rule of the manifest has the name of a standard rule | error | compile, verify, diff | Give the rule of the manifest a name that is not the name of a standard rule. |
+| `unknown-rule` | A name that the manifest does not have | error | compile, verify, diff | Add the rule to rules:, or correct the name to a rule of the manifest or a standard rule. |
+| `rule-argument` | An argument does not agree with the parameters of the rule | error | compile, verify, diff | Give the rule an argument that its parameters accept, or no argument when the rule has no parameters. |
+| `rule-syntax` | The rule does not parse, or uses a form that is not in the rule language | error | compile, verify, diff | Write the rule in the rule language of urn-forge: the names, operators, functions and macros of the reference. |
+| `rule-type` | A type in the rule is wrong, the rule does not give a `bool`, or `has()` reads a required property | error | compile, verify, diff | Change the rule so that each part has the type that the message names, and the rule gives a bool. |
+| `rule-guard` | The rule reads an optional property without `has()` | error | compile, verify, diff | Read an optional property only after has(): has(self.x) && self.x > 0, or !has(self.x) \|\| self.x > 0. |
+| `rule-scope` | The rule reads a name that is not available where you apply the rule, such as `output` in a rule of a definition | error | compile, verify, diff | Use only the names that the message lists: self, input, output, the parameters of the rule, and the variable of a macro. |
+| `invalid-message` | A message names `{x}`, but `x` is not a parameter | error | compile, verify, diff | Use in {braces} only the names of the parameters of the rule. |
+| `tsconfig-unreadable` | Gate 1 or gate 2: the tsconfig does not exist, or does not parse | error | verify | Give --tsconfig, or tsconfig in the config, the path of a tsconfig that TypeScript can read. |
+| `core-not-found` | Gate 1: the file of the core does not exist | error | verify | Create the core file, or give --core, or core in the config, its path. |
+| `type-error` | Gate 1: `tsc` finds a type error in the core, with the tsconfig of the project | error | verify | Correct the type error at the line that the problem gives; do not suppress it. |
+| `core-not-satisfying` | Gate 1: no export of the core `satisfies DomainCore` | error | verify | Export the core as export const core = { … } satisfies DomainCore, with one function for each operation. |
+| `direct-call` | Gate 2: a shell file calls a function of the core directly, without `runOperation` | error | verify | Call the core through runOperation(core, operation, input), which checks the input and the answer. |
+| `suppressed-check` | Gate 2: a core or shell file has `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` | error | verify | Remove the @ts- comment and correct the type error that it hides. |
+| `feature-syntax` | Gate 3: a `.feature` file does not parse | error | verify | Correct the Gherkin of the feature file at the line that the message gives. |
+| `unknown-name` | Gate 3: a step names a part that the manifest does not have | error | verify | Use in the step the name of an operation, a definition, an output or a rule of the manifest, as the message says. |
+| `uncovered-operation` | Gate 3: no scenario runs an operation | error | verify | Add a scenario with When I run "<operation>" with:. |
+| `uncovered-output` | Gate 3: no scenario of an operation ends with one of its outputs | error | verify | Add a scenario of the operation that ends with Then the output is "<output>". |
+| `uncovered-variant` | Gate 3: no scenario reaches a variant of a union | error | verify | Add a scenario whose table has a value of the variant: for a union with a tag, a value with that value of the tag. |
+| `uncovered-rule` | Gate 3: no scenario breaks a rule of a definition | error | verify | Add a scenario that breaks the rule and ends with Then the input is rejected by "<rule>" of "<definition>", or Then the value is rejected by "<rule>" of "<definition>". |
+| `drift` | Gate 4: a generated file is not what `compile` writes now, or it is missing, or `compile` no longer writes it | error | verify | Run urn-forge compile, and do not edit a generated file by hand. |
+| `base-unreadable` | Gate 5: the folder is not in a git repository, or the ref is not a commit | error | verify | Fetch the base ref (git fetch origin <branch>, with enough depth), or give --base a ref that exists. |
+| `removed-rule` | Gate 5: a rule of the base is gone | by-version | verify | Put the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `wider-rule` | Gate 5: a rule accepts more than at the base | by-version | verify | Put the argument or the text of the rule back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `removed-output` | Gate 5: an output of the base is gone | by-version | verify | Put the output back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `removed-scenario` | Gate 5: a scenario of the base is gone | by-version | verify | Put the scenario back; if the change is on purpose, stop and ask a person, because only a person decides a new manifest.version. |
+| `internal-contract` | urn-forge broke its own contract: an answer of urn-forge does not keep a rule of `self/domain.manifest.yaml`, which is a bug of urn-forge | error | compile, verify, diff | Report it in an issue of urn-forge, with the message: urn-forge broke its own contract, and your project did not cause it. |
